@@ -1,0 +1,6 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ai-agent-sdk-a2a-runtime-compat-spike",
+  "main": "worker-a2a.mjs",
+  "compatibility_date": "2026-09-01"
+}

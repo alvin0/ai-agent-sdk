@@ -1,0 +1,6 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ai-agent-sdk-runtime-baseline-spike",
+  "main": "worker-baseline.mjs",
+  "compatibility_date": "2026-09-01"
+}
