@@ -1,5 +1,6 @@
 export {
   createOperationId,
+  createObservationRunScope,
   createSpanId,
   createTraceId,
   freezeCorrelation,
@@ -7,6 +8,7 @@ export {
   isTraceId,
   traceparent,
   type CorrelationContext,
+  type ObservationRunScope,
   type SpanId,
   type TraceId,
 } from './context.ts'
@@ -25,6 +27,8 @@ export {
   createCoreSpan,
   disabledDeliverySummary,
   validObservationSpan,
+  snapshotObservationSpan,
+  validateCaptureReceipt,
   type CaptureReceipt,
   type DeliveryMode,
   type ObservationBoundary,

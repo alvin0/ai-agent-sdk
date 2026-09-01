@@ -2,38 +2,31 @@ import type { GenerateOptions } from '../contract/generate-options.ts'
 import { deepFreeze } from '../primitives/freeze.ts'
 import type { JsonObject } from '../primitives/json.ts'
 import type { StreamChunk, TokenUsage } from '../stream/chunk.ts'
-import { createOperationId, isSpanId, isTraceId, type CorrelationContext } from '../observation/context.ts'
+import { createObservationRunScope, createOperationId, isSpanId, isTraceId, type CorrelationContext, type ObservationRunScope } from '../observation/context.ts'
 import { safeErrorRecord, type ObservationEvent, type ObservationResource, type OperationStatus, type SafeErrorRecord } from '../observation/event.ts'
 import { createCoreSpan, disabledDeliverySummary, NOOP_OBSERVATION_PORT, snapshotObservationSpan, validateCaptureReceipt, type CaptureReceipt, type DeliveryMode, type ObservationBoundary, type ObservationDeliverySummary, type ObservationPort, type ObservationSpan } from '../observation/port.ts'
 import { ModelCallObservationError, OBSERVATION_ERROR_CODES, type ModelCallHandle, type ModelCallReport, type ModelInvocationContext } from '../observation/report.ts'
 import { validateUsageCounters, type UsageCoverage } from '../observation/usage.ts'
 
-interface SequenceState { next: number; readonly originMs: number }
-const sequences = new WeakMap<object, Map<string, SequenceState>>()
+const scopes = new WeakMap<object, Map<string, ObservationRunScope>>()
 
 function nowMonotonic(): number {
   return globalThis.performance?.now() ?? Date.now()
 }
 
-function stateFor(key: object, runId: string): SequenceState {
-  let runs = sequences.get(key)
+function scopeFor(key: object, runId: string, supplied?: ObservationRunScope): ObservationRunScope {
+  if (supplied !== undefined) return supplied
+  let runs = scopes.get(key)
   if (!runs) {
     runs = new Map()
-    sequences.set(key, runs)
+    scopes.set(key, runs)
   }
-  let state = runs.get(runId)
-  if (!state) {
-    state = { next: 1, originMs: nowMonotonic() }
-    runs.set(runId, state)
+  let scope = runs.get(runId)
+  if (!scope) {
+    scope = createObservationRunScope()
+    runs.set(runId, scope)
   }
-  return state
-}
-
-function nextSequence(state: SequenceState): number {
-  if (!Number.isSafeInteger(state.next) || state.next < 1) throw new RangeError('observation sequence exhausted')
-  const value = state.next
-  state.next += 1
-  return value
+  return scope
 }
 
 function safeFailureFromFinish(chunk: Extract<StreamChunk, { type: 'finish' }>): SafeErrorRecord | undefined {
@@ -146,7 +139,7 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
   const supplied = input.context?.correlation
   const runId = typeof supplied?.runId === 'string' && supplied.runId.length > 0 ? supplied.runId : createOperationId()
   const modelCallId = typeof supplied?.modelCallId === 'string' && supplied.modelCallId.length > 0 ? supplied.modelCallId : createOperationId()
-  const sequenceState = stateFor(contextKey, runId)
+  const scope = scopeFor(contextKey, runId, input.context?.scope)
   const startedAt = new Date().toISOString()
   const startedMonotonic = nowMonotonic()
   const port = input.context?.observation ?? input.defaultObservation ?? NOOP_OBSERVATION_PORT
@@ -173,22 +166,23 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
       ...supplied?.sessionId === undefined ? {} : { sessionId: supplied.sessionId },
     },
     startedAt,
-    monotonicMs: Math.max(0, startedMonotonic - sequenceState.originMs),
+    monotonicMs: scope.monotonicMs(),
   }, tracker)
   const effectiveContext: ModelInvocationContext = Object.freeze({
     observation: port,
     correlation: span.correlation,
     terminalCheckpointOwner: input.context?.terminalCheckpointOwner ?? 'model-call',
+    scope,
   })
 
   const makeEvent = (phase: 'start' | 'end', data: JsonObject): ObservationEvent<'sdk.model.call'> => deepFreeze({
     schemaVersion: 1,
     eventId: createOperationId(),
-    sequence: nextSequence(sequenceState),
+    sequence: scope.nextSequence(),
     name: 'sdk.model.call',
     phase,
     occurredAt: new Date().toISOString(),
-    monotonicMs: Math.max(0, nowMonotonic() - sequenceState.originMs),
+    monotonicMs: scope.monotonicMs(),
     priority: 'critical',
     resource: input.resource,
     correlation: span.correlation,
@@ -231,7 +225,7 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
         code: OBSERVATION_ERROR_CODES.OPERATION_TERMINAL_MISSING,
       })
     }
-    try { span.end(status, endedAt, Math.max(0, endedMonotonic - sequenceState.originMs)) } catch (spanError) { tracker.lastFailure = safeErrorRecord(spanError) }
+    try { span.end(status, endedAt, scope.monotonicMs()) } catch (spanError) { tracker.lastFailure = safeErrorRecord(spanError) }
 
     const validated = usage === undefined ? undefined : validateUsageCounters(usage, true)
     const preDispatch = !input.routePresent || input.dispatchState() === 'not-sent'

@@ -52,6 +52,8 @@ export interface DispatchToolCallOptions {
   readonly defaultTimeoutMs?: number
   /** Called immediately before an approval broker is awaited. */
   readonly onApprovalRequest?: (request: ApprovalRequest) => Promise<void> | void
+  /** Called exactly once after an approval wait settles or fails. */
+  readonly onApprovalSettled?: (status: 'success' | 'error' | 'aborted', error?: unknown) => void
 }
 export interface PreparedToolCall {
   readonly options: DispatchToolCallOptions
@@ -141,9 +143,19 @@ export async function authorizeToolCall(prepared: PreparedToolCall): Promise<Aut
     } catch (error: unknown) {
       publication.abort(error)
       await pending.catch(() => undefined)
+      prepared.options.onApprovalSettled?.('error', error)
       throw error
     }
-    const answer = await pending
+    let answer: Awaited<typeof pending>
+    try {
+      answer = await pending
+      prepared.options.onApprovalSettled?.(
+        answer === 'abort' || prepared.context.signal.aborted ? 'aborted' : 'success',
+      )
+    } catch (error) {
+      prepared.options.onApprovalSettled?.(prepared.context.signal.aborted ? 'aborted' : 'error', error)
+      throw error
+    }
     if (answer === 'abort') throw ToolError.fatal('the turn was withdrawn while awaiting approval', TOOL_ERROR_CODES.ABORTED)
     if (answer === 'deny') return { kind: 'final', result: toolFailure(
       decision.reason ?? `the call to "${prepared.context.toolName}" was not approved`,

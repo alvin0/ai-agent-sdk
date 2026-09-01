@@ -43,3 +43,11 @@ The packed `@ai-agent-sdk/core` surface is ESM-only with only `.` and `./package
 A0 moves the local collaboration implementation from `agent/a2a` to `agent/team`; the official A2A wire client/server remains under the distinct top-level `a2a` ownership. All existing runtime names (`AgentTeam`, `DefinedAgentTeam`, `ManagedAgentTeam`, and their factories) retain identity and behavior. The old source barrel remains as a deprecated identity-preserving re-export until 1.0.0.
 
 The root runtime export set is unchanged. Declaration hashes change for the root and the A2A/MCP entries that transitively expose `AgentSessionOptions`: its team option now consumes a structural session-facing port, while `TeamSessionPort`, `TeamPort`, and `TeamMemberAttachmentOptions` are additive type-only exports. No JavaScript symbol was removed or renamed.
+
+## A1 migration record — canonical run accounting
+
+A1 intentionally changes the agent invocation contract described in the frozen exceptions above. `TurnOutcome.usageReport` is now required and coverage-aware; the legacy `usage` projection is optional and appears only when every possibly billed model call has authoritative counters. `AgentSession.stream()` and `streamPending()` remain single-consumer async iterables and now return `AgentRunHandle`, adding eager `result` and independently resolving `report` promises. `AgentResponse.report` is required and is the same frozen `RunReport` object exposed by the handle.
+
+The root runtime additions are additive: `AGENT_ACCOUNTING_ERROR_CODES`, `AgentRunError`, `authoritativeTokenUsage`, `budgetTokenTotal`, and `summarizeModelCallUsage`. The core observation helpers `createObservationRunScope`, `snapshotObservationSpan`, and `validateCaptureReceipt` also become additive root exports because the extracted agent package must compose one explicit Web-standard sequence/correlation scope without importing core internals. No existing runtime symbol is removed or renamed.
+
+Declaration hashes change transitively for entries that expose `AgentSession`, adapter invocation context, or the compatibility root. The new session options add observation resource/port, usage policy, and ledger limits; failures after run creation expose a finalized support-safe report through `AgentRunError`. Machine-baseline schema version 3 adds the stable agent-accounting error-code family.

@@ -183,15 +183,15 @@ Commit: `refactor(agent): separate local teams from a2a protocol`
 Dependencies: A0, C1  
 Files: `packages/agent/src/accounting/**`, run-turn, run-agent, session, events/outcomes
 
-- [ ] Implement exact operation state machine and resource limits.
-- [ ] Replace zero-initialized missing usage with required `usageReport`; make legacy `usage` optional and authoritative-only.
-- [ ] Implement `AgentRunHandle`, terminal report resolution, and internal closure independent of public event consumption.
-- [ ] Add usage policy `warn`/`estimate`/`fail`: with cumulative `maxTotalTokens`, warn stops before another dispatch using `usage-unavailable`, estimate controls only missing portions, and fail preserves the report before raising `USAGE_REQUIRED`.
-- [ ] Instrument turn, tool, compaction, hook, user-input/approval wait, skill, memory, credential, and integration boundaries with exactly one terminal state and safe default fields.
-- [ ] Close open operations as unknown with stable error code; test duplicate/orphan terminal detection.
+- [x] Implement exact operation state machine and resource limits.
+- [x] Replace zero-initialized missing usage with required `usageReport`; make legacy `usage` optional and authoritative-only.
+- [x] Implement `AgentRunHandle`, terminal report resolution, and internal closure independent of public event consumption.
+- [x] Add usage policy `warn`/`estimate`/`fail`: with cumulative `maxTotalTokens`, warn stops before another dispatch using `usage-unavailable`, estimate controls only missing portions, and fail preserves the report before raising `USAGE_REQUIRED`.
+- [x] Instrument turn, tool, compaction, hook, user-input/approval wait, skill, memory, credential, and integration boundaries with exactly one terminal state and safe default fields.
+- [x] Close open operations as unknown with stable error code; test duplicate/orphan terminal detection.
 
 Verify: all usage/state-machine cases in the observability design.  
-Exit evidence: no successful run can render missing usage as zero; consumer-stop report resolves.  
+Exit evidence: 533 root tests and 89 core tests pass; the focused ledger/handle suite covers missing/zero/estimated/fail usage, explicit-budget dispatch prevention, report identity, audit failure, shared monotonic sequencing, tool/hook/approval terminals, resource limits, duplicate/orphan rejection, and consumer-stop aborted closure. Typecheck, package/dependency/agent/runtime graphs, supply-chain validation, and all seven negative fixtures report zero findings. No successful run can render missing usage as zero; consumer-stop report resolves.
 Commit: `feat(agent): add canonical run ledger and usage coverage`
 
 ### A2 — Extract `@ai-agent-sdk/agent`

@@ -19,6 +19,27 @@ export interface CorrelationContext {
   readonly sessionId?: string
 }
 
+/** One synchronous sequence and monotonic clock shared by every event in a run. */
+export interface ObservationRunScope {
+  nextSequence(): number
+  monotonicMs(): number
+}
+
+/** Create an isolated run event scope. The first sequence returned is one. */
+export function createObservationRunScope(): ObservationRunScope {
+  const origin = globalThis.performance?.now() ?? Date.now()
+  let next = 1
+  return Object.freeze({
+    nextSequence(): number {
+      if (!Number.isSafeInteger(next) || next < 1) throw new RangeError('observation sequence exhausted')
+      return next++
+    },
+    monotonicMs(): number {
+      return Math.max(0, (globalThis.performance?.now() ?? Date.now()) - origin)
+    },
+  })
+}
+
 function randomHex(bytes: number): string {
   while (true) {
     const values = new Uint8Array(bytes)

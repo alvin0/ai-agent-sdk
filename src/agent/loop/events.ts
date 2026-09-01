@@ -9,6 +9,7 @@ import type { ApprovalRequest } from '../tool/approval.ts'
 import type { ToolExecutionResult } from '../tool/definition.ts'
 import type { ToolCallRequest } from '../tool/pipeline.ts'
 import type { TraceEvent, TraceRef } from '../trace/trace.ts'
+import type { RunUsageReport } from '../accounting/report.ts'
 
 export type ExhaustedBudget =
   | 'steps'
@@ -22,6 +23,7 @@ export type TurnEndReason =
   | { readonly kind: 'concluded-by-tool'; readonly toolName: string }
   | { readonly kind: 'budget-exhausted'; readonly budget: ExhaustedBudget; readonly forcedFinalAnswer: boolean }
   | { readonly kind: 'max-tokens' }
+  | { readonly kind: 'usage-unavailable'; readonly modelCallId: string }
   | { readonly kind: 'aborted' }
   | { readonly kind: 'error'; readonly failure: ModelFailure }
 
@@ -29,7 +31,10 @@ export interface TurnOutcome {
   readonly reason: TurnEndReason
   readonly text: string
   readonly steps: number
-  readonly usage: TokenUsage
+  /** Exact legacy aggregate; absent whenever any possibly-billed call lacks authoritative usage. */
+  readonly usage?: TokenUsage
+  /** Canonical coverage-aware usage for every logical model call in this turn. */
+  readonly usageReport: RunUsageReport
   readonly toolCalls: number
   readonly traceId: string
 }

@@ -1,6 +1,6 @@
 import type { StreamChunk } from '../stream/chunk.ts'
 import { AgentSdkError } from '../errors/agent-sdk-error.ts'
-import type { CorrelationContext, SpanId, TraceId } from './context.ts'
+import type { CorrelationContext, ObservationRunScope, SpanId, TraceId } from './context.ts'
 import type { OperationStatus, SafeErrorRecord } from './event.ts'
 import type { ObservationDeliverySummary, ObservationPort } from './port.ts'
 import type { AttemptUsageReport, UsageCounters, UsageCoverage } from './usage.ts'
@@ -37,6 +37,8 @@ export interface ModelInvocationContext {
   readonly observation?: ObservationPort
   readonly correlation?: Partial<CorrelationContext>
   readonly terminalCheckpointOwner?: 'model-call' | 'agent-run'
+  /** Shared sequence/monotonic scope when this call belongs to a larger agent run. */
+  readonly scope?: ObservationRunScope
 }
 
 export const OBSERVATION_ERROR_CODES = Object.freeze({

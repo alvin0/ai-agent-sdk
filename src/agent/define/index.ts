@@ -14,6 +14,7 @@ export {
   type AgentRuntimeLimits,
   type AgentResumeSessionOptions,
   type AgentResponse,
+  type AgentRunHandle,
   type AgentSessionOptions,
   type AgentSessionSnapshot,
 } from './session.ts'

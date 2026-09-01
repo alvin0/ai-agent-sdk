@@ -22,7 +22,13 @@ import type { Message, UserMessage } from '@ai-agent-sdk/core'
 import { createTextMessage, createUserMessage, freezeMessage } from '@ai-agent-sdk/core'
 import type { ModelRegistry } from '@ai-agent-sdk/core'
 import { waitForSettlement } from '@ai-agent-sdk/core'
+import type { ObservationPort, ObservationResource, OperationStatus } from '@ai-agent-sdk/core'
 import type { SpanId, TraceId } from '../trace/trace.ts'
+import { RunEventBuffer } from '../accounting/event-buffer.ts'
+import { RunLedger } from '../accounting/ledger.ts'
+import { AgentRunError, AGENT_ACCOUNTING_ERROR_CODES } from '../accounting/error.ts'
+import type { RunAccountingPort } from '../accounting/contracts.ts'
+import type { RunLedgerLimits, RunReport, UsagePolicy } from '../accounting/report.ts'
 import {
   SkillCatalog,
   createSkillTools,
@@ -80,6 +86,14 @@ export interface AgentSessionOptions {
   readonly approvals?: ApprovalBroker
   readonly interceptors?: readonly ToolInterceptor[]
   readonly hooks?: TurnHooks
+  /** Pluggable delivery backend for canonical run/model/tool observations. */
+  readonly observation?: ObservationPort
+  /** Deployment metadata attached to every canonical observation event. */
+  readonly observationResource?: ObservationResource
+  /** Missing provider-usage behavior; defaults to a warning with unknown totals. */
+  readonly usagePolicy?: UsagePolicy
+  /** Hard resource limits for the in-memory canonical run ledger. */
+  readonly ledgerLimits?: RunLedgerLimits
   /** Resume explicit task memory; otherwise definition seeds are used. */
   readonly memory?: AgentMemory | AgentMemorySnapshot
   /** Override the definition's compaction policy for this conversation. */
@@ -148,7 +162,15 @@ export interface AgentInvocationOptions {
 export interface AgentResponse {
   readonly text: string
   readonly outcome: AgentRunOutcome
+  readonly report: RunReport
   readonly message?: Message
+}
+
+/** Eager single-consumer event stream with independently awaitable terminal artifacts. */
+export interface AgentRunHandle extends AsyncIterable<AgentRunEvent> {
+  readonly runId: string
+  readonly result: Promise<AgentResponse>
+  readonly report: Promise<RunReport>
 }
 
 export class AgentSession {
@@ -348,80 +370,190 @@ export class AgentSession {
     })
   }
 
-  /** Stream every low-level trace, model, tool, and high-level agent event. */
-  stream(input: AgentInput, invocation: AgentInvocationOptions = {}): AsyncIterable<AgentRunEvent> {
-    const session = this
-    return {
-      async * [Symbol.asyncIterator]() {
-        if (session.active) throw new Error(`agent session '${session.definition.id}' is already running`)
-        session.active = true
-        try {
-          await session.prepareSkills(invocation.signal)
-          const message = userMessage(input)
-          if (session.definition.memory.autoCaptureObjective) {
-            session.currentMemory.captureOriginalObjective(message)
-          }
-          session.currentHistory.append({ kind: 'user', message })
-          for await (const event of session.runDefinition(invocation)) yield event
-        } finally {
-          session.releaseRun()
-        }
-      },
-    }
+  /** Start an eager run and expose both public events and its canonical terminal report. */
+  stream(input: AgentInput, invocation: AgentInvocationOptions = {}): AgentRunHandle {
+    return this.createRunHandle(input, invocation)
   }
 
   /** Process context already appended with {@link inject} without duplicating it. */
-  streamPending(invocation: AgentInvocationOptions = {}): AsyncIterable<AgentRunEvent> {
-    const session = this
-    return {
-      async * [Symbol.asyncIterator]() {
-        if (session.active) throw new Error(`agent session '${session.definition.id}' is already running`)
-        session.active = true
-        try {
-          await session.prepareSkills(invocation.signal)
-          for await (const event of session.runDefinition(invocation)) yield event
-        } finally {
-          session.releaseRun()
-        }
-      },
-    }
+  streamPending(invocation: AgentInvocationOptions = {}): AgentRunHandle {
+    return this.createRunHandle(undefined, invocation)
   }
 
   /** Run one user turn and return the terminal response. */
   async run(input: AgentInput, invocation: AgentInvocationOptions = {}): Promise<AgentResponse> {
-    const firstTurnSeq = this.currentHistory.entries().length + 1
-    return this.consume(this.stream(input, invocation), firstTurnSeq, invocation.onEvent)
+    const handle = this.stream(input, invocation)
+    await this.consumeEvents(handle, invocation.onEvent)
+    return await handle.result
   }
 
   /** Run one turn over already-injected context and return its terminal response. */
   async runPending(invocation: AgentInvocationOptions = {}): Promise<AgentResponse> {
-    const firstTurnSeq = this.currentHistory.entries().length + 1
-    return this.consume(this.streamPending(invocation), firstTurnSeq, invocation.onEvent)
+    const handle = this.streamPending(invocation)
+    await this.consumeEvents(handle, invocation.onEvent)
+    return await handle.result
   }
 
-  private async consume(
+  private async consumeEvents(
     events: AsyncIterable<AgentRunEvent>,
-    firstTurnSeq: number,
     onEvent?: (event: AgentRunEvent) => void | Promise<void>,
-  ): Promise<AgentResponse> {
-    let outcome: AgentRunOutcome | undefined
+  ): Promise<void> {
     for await (const event of events) {
       if (onEvent !== undefined) {
         const observation = Promise.resolve().then(() => onEvent(event))
         await waitForSettlement(observation, this.runtimeLimits.observerTimeoutMs ?? 30_000)
       }
-      if (event.type === 'agent-end') outcome = event.outcome
     }
-    if (outcome === undefined) throw new Error(`agent session '${this.definition.id}' ended without agent-end`)
-    const message = [...this.currentHistory.entries()].reverse()
-      .find(entry => entry.seq >= firstTurnSeq && entry.event.kind === 'assistant')
-      ?.event
-    const assistantMessage = message?.kind === 'assistant' ? message.message : undefined
-    return {
-      text: outcome.text,
-      outcome,
-      ...assistantMessage === undefined ? {} : { message: assistantMessage },
-    }
+  }
+
+  private createRunHandle(
+    input: AgentInput | undefined,
+    invocation: AgentInvocationOptions,
+  ): AgentRunHandle {
+    if (this.active) throw new Error(`agent session '${this.definition.id}' is already running`)
+    const firstTurnSeq = this.currentHistory.entries().length + 1
+    const owned = new AbortController()
+    const signal = invocation.signal === undefined
+      ? owned.signal
+      : AbortSignal.any([invocation.signal, owned.signal])
+    const buffer = new RunEventBuffer<AgentRunEvent>()
+    const reportDeferred = deferred<RunReport>()
+    const resultDeferred = deferred<AgentResponse>()
+    const ledger = new RunLedger({
+      ...this.options.observation === undefined ? {} : { observation: this.options.observation },
+      ...this.options.observationResource === undefined ? {} : { resource: this.options.observationResource },
+      conversationId: this.currentConversationId,
+      sessionId: this.currentConversationId,
+      agentId: this.definition.id,
+      mode: this.definition.mode,
+      maxTurns: this.definition.maxTurns,
+      ...this.options.usagePolicy === undefined ? {} : { usagePolicy: this.options.usagePolicy },
+      cumulativeTokenBudget: this.options.runtimeLimits?.maxTotalTokens !== undefined,
+      ...this.options.ledgerLimits === undefined ? {} : { limits: this.options.ledgerLimits },
+    })
+    this.active = true
+    const spanOperations = new Map<string, string>()
+
+    const task = (async (): Promise<void> => {
+      let failure: unknown
+      let outcome: AgentRunOutcome | undefined
+      try {
+        await this.prepareSkills(signal, ledger)
+        if (input !== undefined) {
+          const message = userMessage(input)
+          if (this.definition.memory.autoCaptureObjective) {
+            const operation = ledger.startOperation('memory', { data: { action: 'capture-objective' } })
+            try {
+              this.currentMemory.captureOriginalObjective(message)
+              ledger.endOperation(operation, 'success')
+            } catch (error) {
+              ledger.endOperation(operation, 'error', { error })
+              throw error
+            }
+          }
+          this.currentHistory.append({ kind: 'user', message })
+        }
+        for await (const event of this.runDefinition({ ...invocation, signal }, ledger)) {
+          this.accountTraceEvent(ledger, spanOperations, event)
+          if (event.type === 'agent-end') outcome = event.outcome
+          buffer.push(event)
+        }
+        if (outcome === undefined) {
+          throw new Error(`agent session '${this.definition.id}' ended without agent-end`)
+        }
+        if (signal.aborted) throw signal.reason ?? new Error('agent run was aborted')
+        if (outcome.reason.kind === 'error' && outcome.reason.failure.code === 'USAGE_REQUIRED') {
+          const error = new Error(outcome.reason.failure.message) as Error & { code: string }
+          error.code = 'USAGE_REQUIRED'
+          throw error
+        }
+      } catch (error: unknown) {
+        failure = error
+      }
+
+      let report: RunReport
+      try {
+        const status: OperationStatus = signal.aborted || outcome?.reason.kind === 'aborted'
+          ? 'aborted'
+          : failure !== undefined || outcome?.reason.kind === 'error'
+            ? 'error'
+            : 'success'
+        report = await ledger.finalize(status, outcome?.completed ?? false, failure)
+        reportDeferred.resolve(report)
+      } catch (finalizeError: unknown) {
+        reportDeferred.reject(finalizeError)
+        resultDeferred.reject(finalizeError)
+        buffer.fail(finalizeError)
+        this.releaseRun()
+        return
+      }
+
+      if (failure === undefined && ledger.terminalAuditFailure) {
+        const error = new Error('audit observation checkpoint failed after run finalization') as Error & { code: string }
+        error.code = 'OBSERVABILITY_AUDIT_UNAVAILABLE'
+        failure = error
+      }
+      if (failure !== undefined) {
+        const error = new AgentRunError(
+          messageOf(failure),
+          errorCodeOf(failure) ?? AGENT_ACCOUNTING_ERROR_CODES.RUN_FAILED,
+          report,
+          { cause: failure },
+        )
+        resultDeferred.reject(error)
+        buffer.fail(error)
+      } else {
+        const terminal = outcome as AgentRunOutcome
+        const historyEvent = [...this.currentHistory.entries()].reverse()
+          .find(entry => entry.seq >= firstTurnSeq && entry.event.kind === 'assistant')
+          ?.event
+        const assistantMessage = historyEvent?.kind === 'assistant' ? historyEvent.message : undefined
+        const response: AgentResponse = Object.freeze({
+          text: terminal.text,
+          outcome: terminal,
+          report,
+          ...assistantMessage === undefined ? {} : { message: assistantMessage },
+        })
+        resultDeferred.resolve(response)
+        buffer.close()
+      }
+      this.releaseRun()
+    })()
+    void task.catch(error => {
+      reportDeferred.reject(error)
+      resultDeferred.reject(error)
+      buffer.fail(error)
+      this.releaseRun()
+    })
+    void resultDeferred.promise.catch(() => undefined)
+    void reportDeferred.promise.catch(() => undefined)
+
+    let iterated = false
+    return Object.freeze({
+      runId: ledger.runId,
+      result: resultDeferred.promise,
+      report: reportDeferred.promise,
+      [Symbol.asyncIterator](): AsyncIterator<AgentRunEvent> {
+        if (iterated) return (async function* () { throw new Error('an agent run handle can only be iterated once') })()
+        iterated = true
+        return (async function* () {
+          let exhausted = false
+          try {
+            while (true) {
+              const item = await buffer.take()
+              if (item.done) { exhausted = true; break }
+              yield item.value
+            }
+          } finally {
+            if (!exhausted) {
+              owned.abort(new Error('agent event consumer stopped'))
+              buffer.stop()
+              await waitForSettlement(task, 30_000)
+            }
+          }
+        })()
+      },
+    })
   }
 
   private releaseRun(): void {
@@ -431,9 +563,39 @@ export class AgentSession {
     for (const resolve of waiters) resolve()
   }
 
-  private runDefinition(invocation: AgentInvocationOptions): AsyncIterable<AgentRunEvent> {
+  private accountTraceEvent(
+    accounting: RunAccountingPort,
+    spans: Map<string, string>,
+    event: AgentRunEvent,
+  ): void {
+    if (event.type === 'span-start') {
+      if (event.kind !== 'execute_tool' && event.kind !== 'compact') return
+      const kind = event.kind === 'execute_tool' ? 'tool' : 'compaction'
+      const toolCallId = typeof event.attributes?.['gen_ai.tool.call.id'] === 'string'
+        ? event.attributes['gen_ai.tool.call.id']
+        : undefined
+      const operationId = accounting.startOperation(kind, {
+        data: { name: event.name },
+        ...toolCallId === undefined ? {} : { toolCallId },
+      })
+      spans.set(event.trace.spanId, operationId)
+      return
+    }
+    if (event.type !== 'span-end') return
+    const operationId = spans.get(event.trace.spanId)
+    if (operationId === undefined) return
+    spans.delete(event.trace.spanId)
+    accounting.endOperation(operationId, event.status, {
+      ...event.error === undefined ? {} : { error: event.error },
+    })
+  }
+
+  private runDefinition(
+    invocation: AgentInvocationOptions,
+    accounting?: RunAccountingPort,
+  ): AsyncIterable<AgentRunEvent> {
     const definition = this.definition
-    const hooks = this.combinedHooks()
+    const hooks = this.combinedHooks(accounting)
     const common = {
       registry: this.options.registry,
       config: {
@@ -496,6 +658,7 @@ export class AgentSession {
       ...this.options.interceptors === undefined ? {} : { interceptors: this.options.interceptors },
       ...hooks === undefined ? {} : { hooks },
       ...invocation.signal === undefined ? {} : { signal: invocation.signal },
+      ...accounting === undefined ? {} : { accounting },
       trace: {
         ...this.options.trace,
         conversationId: this.currentConversationId,
@@ -517,12 +680,19 @@ export class AgentSession {
     return runAgent({ ...common, mode: 'basic' })
   }
 
-  private memoryMessages(): readonly UserMessage[] {
-    const memory = this.currentMemory.render(this.definition.memory.maxInjectedChars)
-    return memory.length === 0 ? [] : [createUserMessage({
-      source: { kind: 'app', producer: 'agent-task-memory' },
-      content: [{ type: 'text', text: memory }],
-    })]
+  private memoryMessages(accounting?: RunAccountingPort): readonly UserMessage[] {
+    const operation = accounting?.startOperation('memory', { data: { action: 'render' } })
+    try {
+      const memory = this.currentMemory.render(this.definition.memory.maxInjectedChars)
+      if (operation !== undefined) accounting?.endOperation(operation, 'success')
+      return memory.length === 0 ? [] : [createUserMessage({
+        source: { kind: 'app', producer: 'agent-task-memory' },
+        content: [{ type: 'text', text: memory }],
+      })]
+    } catch (error) {
+      if (operation !== undefined) accounting?.endOperation(operation, 'error', { error })
+      throw error
+    }
   }
 
   private createCompactor(): ContextCompactor | undefined {
@@ -551,7 +721,7 @@ export class AgentSession {
     })
   }
 
-  private combinedHooks(): TurnHooks | undefined {
+  private combinedHooks(accounting?: RunAccountingPort): TurnHooks | undefined {
     const user = this.options.hooks
     if (this.compactor === undefined
       && user === undefined
@@ -568,7 +738,7 @@ export class AgentSession {
             messages: normalizeToolPairing(this.currentHistory.messages()),
             snapshot: this.currentHistory.snapshot(),
           }
-        const memory = this.memoryMessages()
+        const memory = this.memoryMessages(accounting)
         const current = memory.length === 0
           ? refreshed
           : { ...refreshed, messages: Object.freeze([...memory, ...refreshed.messages]) }
@@ -620,23 +790,28 @@ export class AgentSession {
     return Object.freeze([...activated.values()].sort((left, right) => left.id.localeCompare(right.id)))
   }
 
-  private async prepareSkills(signal?: AbortSignal): Promise<void> {
+  private async prepareSkills(signal?: AbortSignal, accounting?: RunAccountingPort): Promise<void> {
+    const operation = accounting?.startOperation('skill', { data: { action: 'discover-and-restore' } })
     const operationSignal = AbortSignal.any([
       AbortSignal.timeout(this.definition.skillOptions.operationTimeoutMs),
       ...signal === undefined ? [] : [signal],
     ])
     const catalog = this.skillCatalog
-    if (catalog === undefined) {
-      if (this.pendingSkillActivations.length > 0) {
-        throw new Error(`agent '${this.definition.id}' cannot restore activated skills without skill sources`)
-      }
-      return
-    }
-    const lookup = this.skillLookup(operationSignal)
-    await catalog.discover(lookup)
-    if (this.pendingSkillActivations.length === 0) return
-    const pending = this.pendingSkillActivations
     try {
+      if (catalog === undefined) {
+        if (this.pendingSkillActivations.length > 0) {
+          throw new Error(`agent '${this.definition.id}' cannot restore activated skills without skill sources`)
+        }
+        if (operation !== undefined) accounting?.endOperation(operation, 'success')
+        return
+      }
+      const lookup = this.skillLookup(operationSignal)
+      await catalog.discover(lookup)
+      if (this.pendingSkillActivations.length === 0) {
+        if (operation !== undefined) accounting?.endOperation(operation, 'success')
+        return
+      }
+      const pending = this.pendingSkillActivations
       for (const activation of pending) {
         const summary = catalog.summaries().find(candidate => candidate.id === activation.id)
         if (summary === undefined) {
@@ -658,8 +833,14 @@ export class AgentSession {
         }
       }
       this.pendingSkillActivations = Object.freeze([])
+      if (operation !== undefined) accounting?.endOperation(operation, 'success')
     } catch (error: unknown) {
-      catalog.clearActivations()
+      catalog?.clearActivations()
+      if (operation !== undefined) accounting?.endOperation(
+        operation,
+        operationSignal.aborted ? 'aborted' : 'error',
+        { error },
+      )
       throw error
     }
   }
@@ -789,6 +970,33 @@ function userMessage(input: AgentInput): UserMessage {
 }
 
 function isUserMessage(message: Message): message is UserMessage { return message.role === 'user' }
+
+interface Deferred<T> {
+  readonly promise: Promise<T>
+  readonly resolve: (value: T) => void
+  readonly reject: (error: unknown) => void
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve: (value: T) => void = () => undefined
+  let reject: (error: unknown) => void = () => undefined
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function errorCodeOf(error: unknown): string | undefined {
+  return typeof error === 'object' && error !== null
+    && 'code' in error && typeof error.code === 'string'
+    ? error.code
+    : undefined
+}
 
 function toolCatalog(
   defined: readonly ToolDefinition<any>[],

@@ -10,7 +10,7 @@ interface BaselineEntry {
 }
 
 interface Baseline {
-  readonly schemaVersion: 1
+  readonly schemaVersion: 3
   readonly entries: Readonly<Record<string, BaselineEntry>>
 }
 

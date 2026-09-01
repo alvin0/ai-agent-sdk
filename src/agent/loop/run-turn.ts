@@ -9,7 +9,10 @@ import type { FinishReason, StreamChunk, TokenUsage } from '@ai-agent-sdk/core'
 import type { ToolCallId } from '@ai-agent-sdk/core'
 import { detachedFrozen } from '@ai-agent-sdk/core'
 import type { ModelRegistry } from '@ai-agent-sdk/core'
+import type { ModelCallReport } from '@ai-agent-sdk/core'
 import { waitForSettlement } from '@ai-agent-sdk/core'
+import type { RunAccountingPort } from '../accounting/contracts.ts'
+import { authoritativeTokenUsage, budgetTokenTotal, summarizeModelCallUsage } from '../accounting/ledger.ts'
 import { History } from '../history/history.ts'
 import { normalizeToolPairing } from '../history/normalize.ts'
 import type { ApprovalBroker } from '../tool/approval.ts'
@@ -58,6 +61,8 @@ export interface RunTurnOptions {
     readonly agentId?: string
     readonly agentName?: string
   }
+  /** Internal canonical accounting surface supplied by AgentSession. */
+  readonly accounting?: RunAccountingPort
 }
 
 const DEFAULT_BOUNDS: TurnBounds = Object.freeze({
@@ -128,7 +133,7 @@ async function driveTurn(
   let toolBudgetWarned = false
   let consecutiveErrors = 0
   let text = ''
-  let usage = zeroUsage()
+  const modelCallReports: ModelCallReport[] = []
   let reason: TurnOutcome['reason'] | undefined
   let outcome: TurnOutcome
   const repeats = new Map<string, number>()
@@ -136,6 +141,10 @@ async function driveTurn(
   const emitMaintenance = maintenanceEmitter(emit, root)
   let rootStarted = false
   let rootEnded = false
+  const turnOperationId = options.accounting?.startOperation('turn', {
+    data: { turn, model: options.config.model },
+  })
+  let turnOperationEnded = false
 
   try {
   await emit({
@@ -159,7 +168,7 @@ async function driveTurn(
     const step = steps + 1
     const round = await modelRound(options, signal, emit, emitMaintenance, root, turn, step, false)
     steps++
-    usage = addUsage(usage, round.usage)
+    if (round.report !== undefined) modelCallReports.push(round.report)
     if (round.message !== undefined) {
       options.history.append({
         kind: 'assistant', message: round.message,
@@ -171,6 +180,13 @@ async function driveTurn(
       text = textOf(round.message.content)
     }
     if (round.finish.kind === 'aborted') { reason = { kind: 'aborted' }; break }
+    if (round.usageRequired) {
+      reason = { kind: 'error', failure: {
+        message: 'provider usage is required by the configured run policy',
+        code: 'USAGE_REQUIRED',
+      } }
+      break
+    }
     if (round.finish.kind === 'error') {
       const decision = await runOptionalHook(options.hooks?.onRequestError, [{
         turn, step, failure: round.finish.failure, snapshot: options.history.snapshot(), signal,
@@ -181,6 +197,10 @@ async function driveTurn(
       break
     }
     if (round.finish.kind === 'max-tokens') { reason = { kind: 'max-tokens' }; break }
+    if (round.calls.length === 0 && round.usageUnavailable) {
+      reason = { kind: 'usage-unavailable', modelCallId: round.report?.modelCallId ?? 'unknown' }
+      break
+    }
     if (round.calls.length === 0 || options.tools === undefined) { reason = { kind: 'completed' }; break }
 
     const remaining = Math.max(0, bounds.maxToolCalls - toolCalls)
@@ -199,8 +219,10 @@ async function driveTurn(
     )
     const cycleLimitBeforeDispatch = projectedCycle !== undefined
       && projectedCycle.repetitions >= bounds.toolCycleLimit
-    const tokenLimitBeforeDispatch = usage.totalTokens !== undefined
-      && usage.totalTokens >= bounds.maxTotalTokens
+    const currentUsage = summarizeModelCallUsage(modelCallReports)
+    const budgetTokens = budgetTokenTotal(currentUsage)
+    const tokenLimitBeforeDispatch = budgetTokens !== undefined
+      && budgetTokens >= bounds.maxTotalTokens
     const guardDeclined = repeatedLimitBeforeDispatch || cycleLimitBeforeDispatch || tokenLimitBeforeDispatch
     const scheduled = await runToolCalls({
       calls: round.calls, catalog: options.tools, history: options.history,
@@ -211,6 +233,7 @@ async function driveTurn(
       teardownTimeoutMs: bounds.toolTeardownTimeoutMs,
       ...options.interceptors === undefined ? {} : { interceptors: options.interceptors },
       ...options.approvals === undefined ? {} : { approvals: options.approvals },
+      ...options.accounting === undefined ? {} : { accounting: options.accounting },
       emit,
       ...options.hooks?.checkpoint === undefined ? {} : {
         checkpoint: (context: Parameters<NonNullable<TurnHooks['checkpoint']>>[0]) => runHook(
@@ -262,6 +285,10 @@ async function driveTurn(
     }
     if (scheduled.concluded) { reason = { kind: 'concluded-by-tool', toolName: scheduled.concludedBy ?? 'unknown' }; break }
     if (signal.aborted) { reason = { kind: 'aborted' }; break }
+    if (round.usageUnavailable) {
+      reason = { kind: 'usage-unavailable', modelCallId: round.report?.modelCallId ?? 'unknown' }
+      break
+    }
     let exhausted: ExhaustedBudget | undefined
     if (tokenLimitBeforeDispatch) exhausted = 'tokens'
     else if (cycleLimitBeforeDispatch) exhausted = 'tool-call-cycle'
@@ -276,7 +303,7 @@ async function driveTurn(
       if (forced) {
         const final = await modelRound(options, signal, emit, emitMaintenance, root, turn, steps + 1, true)
         steps++
-        usage = addUsage(usage, final.usage)
+        if (final.report !== undefined) modelCallReports.push(final.report)
         if (final.message !== undefined) {
           options.history.append({ kind: 'assistant', message: final.message, ...final.usage === undefined ? {} : { usage: final.usage } })
           await emit({ type: 'assistant-message', message: final.message, trace: final.trace })
@@ -295,6 +322,17 @@ async function driveTurn(
           reason = { kind: 'max-tokens' }
           break
         }
+        if (final.usageRequired) {
+          reason = { kind: 'error', failure: {
+            message: 'provider usage is required by the configured run policy',
+            code: 'USAGE_REQUIRED',
+          } }
+          break
+        }
+        if (final.usageUnavailable) {
+          reason = { kind: 'usage-unavailable', modelCallId: final.report?.modelCallId ?? 'unknown' }
+          break
+        }
       }
       reason = { kind: 'budget-exhausted', budget: exhausted, forcedFinalAnswer: forced }
     }
@@ -305,7 +343,12 @@ async function driveTurn(
       ? { kind: 'aborted' }
       : { kind: 'budget-exhausted', budget: 'steps', forcedFinalAnswer: false }
   }
-  const candidate: TurnOutcome = { reason, text, steps, usage, toolCalls, traceId }
+  const usageReport = summarizeModelCallUsage(modelCallReports)
+  const usage = authoritativeTokenUsage(usageReport)
+  const candidate: TurnOutcome = {
+    reason, text, steps, usageReport, toolCalls, traceId,
+    ...usage === undefined ? {} : { usage },
+  }
   const entriesBeforeHook = options.history.entries().length
   const canContinue = reason.kind === 'completed'
     && steps < bounds.maxSteps
@@ -329,10 +372,19 @@ async function driveTurn(
   await emit({
     type: 'span-end', trace: root, at: now(),
     status: outcome.reason.kind === 'error' ? 'error' : outcome.reason.kind === 'aborted' ? 'aborted' : 'success',
-    output: { reason: outcome.reason, text }, usage,
+    output: { reason: outcome.reason, text },
+    ...outcome.usage === undefined ? {} : { usage: outcome.usage },
     ...outcome.reason.kind === 'error' ? { error: { type: 'ModelError', message: outcome.reason.failure.message, code: outcome.reason.failure.code } } : {},
   })
   rootEnded = true
+  if (turnOperationId !== undefined) {
+    options.accounting?.endOperation(
+      turnOperationId,
+      outcome.reason.kind === 'error' ? 'error' : outcome.reason.kind === 'aborted' ? 'aborted' : 'success',
+      { data: { reason: outcome.reason.kind, steps, toolCalls } },
+    )
+    turnOperationEnded = true
+  }
   await emit({ type: 'turn-end', outcome, trace: root })
   } catch (error: unknown) {
     const code = errorCodeOf(error)
@@ -346,6 +398,14 @@ async function driveTurn(
         },
       }).catch(() => undefined)
     }
+    if (turnOperationId !== undefined && !turnOperationEnded) {
+      options.accounting?.endOperation(
+        turnOperationId,
+        signal.aborted ? 'aborted' : 'error',
+        { error },
+      )
+      turnOperationEnded = true
+    }
     throw error
   }
 }
@@ -355,6 +415,9 @@ interface RoundResult {
   readonly message?: Message
   readonly finish: FinishReason
   readonly usage?: TokenUsage
+  readonly report?: ModelCallReport
+  readonly usageRequired?: boolean
+  readonly usageUnavailable?: boolean
   readonly calls: readonly ToolCallRequest[]
   readonly afterToolCallIds: readonly ToolCallId[]
   readonly timing: AssistantContentTiming
@@ -432,6 +495,9 @@ async function modelRound(
   const maxResponseBytes = positiveSafeInteger(options.maxModelResponseBytes ?? 32 * 1024 * 1024, 'maxModelResponseBytes')
   const maxStreamEvents = positiveSafeInteger(options.maxModelStreamEvents ?? 100_000, 'maxModelStreamEvents')
   const teardownTimeoutMs = positiveFinite(options.teardownTimeoutMs ?? 30_000, 'teardownTimeoutMs')
+  let modelCallReport: ModelCallReport | undefined
+  let usageRequired = false
+  let usageUnavailable = false
   let requestBytes: number
   try {
     requestBytes = serializedBytes(requestBase)
@@ -452,7 +518,11 @@ async function modelRound(
       timedOut = true
       owned.abort(new Error(`model stream exceeded ${modelTimeoutMs}ms`))
     }, modelTimeoutMs)
-    const iterator = options.registry.stream({ ...requestBase, signal: roundSignal })[Symbol.asyncIterator]()
+    const handle = options.registry.stream(
+      { ...requestBase, signal: roundSignal },
+      options.accounting?.modelInvocation,
+    )
+    const iterator = handle[Symbol.asyncIterator]()
     let exhausted = false
     let events = 0
     let responseBytes = 0
@@ -540,6 +610,13 @@ async function modelRound(
         }
       }
     }
+    const report = await handle.report
+    const decision = options.accounting === undefined
+      ? undefined
+      : await options.accounting.recordModelCall(report, requestBase)
+    modelCallReport = decision?.report ?? report
+    usageRequired = decision?.usageRequired ?? false
+    usageUnavailable = decision?.usageUnavailable ?? false
   }
   let providerFinish = assembler.finish
   let rawBlocks: ContentBlock[]
@@ -588,6 +665,9 @@ async function modelRound(
   return {
     trace, ...message === undefined ? {} : { message }, finish,
     ...assembler.usage === undefined ? {} : { usage: assembler.usage },
+    ...modelCallReport === undefined ? {} : { report: modelCallReport },
+    ...usageRequired ? { usageRequired: true as const } : {},
+    ...usageUnavailable ? { usageUnavailable: true as const } : {},
     calls, afterToolCallIds, timing,
   }
 }
@@ -975,6 +1055,7 @@ async function runHook<T>(
   signal: AbortSignal,
   name: string,
 ): Promise<T> {
+  const operation = options.accounting?.startOperation('hook', { data: { name } })
   const timeoutMs = positiveSafeInteger(options.hookTimeoutMs ?? 10 * 60_000, 'hookTimeoutMs')
   const teardownTimeoutMs = positiveSafeInteger(
     options.hookTeardownTimeoutMs ?? 30_000,
@@ -983,20 +1064,30 @@ async function runHook<T>(
   const deadline = AbortSignal.timeout(timeoutMs)
   const combined = AbortSignal.any([signal, deadline])
   try {
-    return await nextValueWithAbort(pending, combined)
+    const value = await nextValueWithAbort(pending, combined)
+    if (operation !== undefined) options.accounting?.endOperation(operation, 'success')
+    return value
   } catch (error: unknown) {
-    if (!combined.aborted) throw error
+    if (!combined.aborted) {
+      if (operation !== undefined) options.accounting?.endOperation(operation, 'error', { error })
+      throw error
+    }
     const settled = await waitForSettlement(pending, teardownTimeoutMs)
     if (!settled) {
-      throw codedRuntimeError(
+      const runtimeError = codedRuntimeError(
         `turn hook '${name}' ignored cancellation for more than ${teardownTimeoutMs}ms`,
         'HOOK_TEARDOWN_TIMEOUT',
         error,
       )
+      if (operation !== undefined) options.accounting?.endOperation(operation, 'error', { error: runtimeError })
+      throw runtimeError
     }
     if (deadline.aborted && !signal.aborted) {
-      throw codedRuntimeError(`turn hook '${name}' exceeded ${timeoutMs}ms`, 'HOOK_TIMEOUT', error)
+      const runtimeError = codedRuntimeError(`turn hook '${name}' exceeded ${timeoutMs}ms`, 'HOOK_TIMEOUT', error)
+      if (operation !== undefined) options.accounting?.endOperation(operation, 'error', { error: runtimeError })
+      throw runtimeError
     }
+    if (operation !== undefined) options.accounting?.endOperation(operation, 'aborted', { error })
     throw error
   }
 }
@@ -1080,27 +1171,6 @@ function textOf(blocks: readonly ContentBlock[]): string {
   const final = text.filter(block => block.phase === 'final-answer')
   if (final.length > 0) return final.map(block => block.text).join('')
   return text.filter(block => block.phase !== 'commentary').map(block => block.text).join('')
-}
-function zeroUsage(): TokenUsage { return { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }
-function addUsage(total: TokenUsage, next: TokenUsage | undefined): TokenUsage {
-  if (next === undefined) return total
-  return {
-    inputTokens: saturatedAdd(total.inputTokens, next.inputTokens),
-    outputTokens: saturatedAdd(total.outputTokens, next.outputTokens),
-    totalTokens: saturatedAdd(
-      total.totalTokens ?? 0,
-      next.totalTokens ?? saturatedAdd(next.inputTokens, next.outputTokens),
-    ),
-    ...sumOptional(total.cacheReadTokens, next.cacheReadTokens, 'cacheReadTokens'),
-    ...sumOptional(total.cacheWriteTokens, next.cacheWriteTokens, 'cacheWriteTokens'),
-    ...sumOptional(total.reasoningTokens, next.reasoningTokens, 'reasoningTokens'),
-  }
-}
-function sumOptional(a: number | undefined, b: number | undefined, key: 'cacheReadTokens' | 'cacheWriteTokens' | 'reasoningTokens') {
-  return a === undefined && b === undefined ? {} : { [key]: saturatedAdd(a ?? 0, b ?? 0) }
-}
-function saturatedAdd(left: number, right: number): number {
-  return left > Number.MAX_SAFE_INTEGER - right ? Number.MAX_SAFE_INTEGER : left + right
 }
 function messageOf(error: unknown): string { return error instanceof Error ? error.message : String(error) }
 function errorCodeOf(error: unknown): string | undefined {

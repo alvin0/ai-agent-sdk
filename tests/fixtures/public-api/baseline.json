@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "package": {
     "name": "ai-agent-sdk",
     "version": "0.0.0"
@@ -7,10 +7,12 @@
   "entries": {
     ".": {
       "exports": [
+        "AGENT_ACCOUNTING_ERROR_CODES",
         "AGENT_CONTROL_TOOLS",
         "ANTHROPIC_MESSAGES_PROTOCOL_ID",
         "APP_IDENTITY",
         "AgentMemory",
+        "AgentRunError",
         "AgentSdkError",
         "AgentSession",
         "AgentTeam",
@@ -64,8 +66,10 @@
         "assertNever",
         "assertUsableApiKey",
         "attributionHeaders",
+        "authoritativeTokenUsage",
         "authorizeToolCall",
         "backoffDelayMs",
+        "budgetTokenTotal",
         "buildTraceTree",
         "callConfigEquals",
         "classifyUsageCoverage",
@@ -78,6 +82,7 @@
         "createHttpProvider",
         "createManagedAgentTeam",
         "createMessage",
+        "createObservationRunScope",
         "createOperationId",
         "createSkillTools",
         "createSpanId",
@@ -139,12 +144,15 @@
         "runTurn",
         "safeErrorRecord",
         "selectCompactablePrefix",
+        "snapshotObservationSpan",
+        "summarizeModelCallUsage",
         "textOnlyImageText",
         "toolErrorDisposition",
         "toolFailure",
         "traceparent",
         "userAgent",
         "validObservationSpan",
+        "validateCaptureReceipt",
         "validateSkillId",
         "validateSkillSource",
         "validateUsageCounters",
@@ -152,7 +160,7 @@
         "withIdleTimeout",
         "withRetry"
       ],
-      "typesSha256": "5f7e0442469cf36d007624f82c5b4cc7e104e43d77bc38186b5e77beba1b2ad2"
+      "typesSha256": "ad2a4b3e7064fc059eeb9535bf814a462b519c8808e100e62dc37615c1fbdcf8"
     },
     "./anthropic": {
       "exports": [
@@ -211,7 +219,7 @@
         "createA2AAgentLink",
         "linkA2AAgent"
       ],
-      "typesSha256": "a8115fc1a3ca719c0f70a17491d8b652b23d18328c6ed0f7f2a3cc5f7811d17b"
+      "typesSha256": "562b9ac48081c5f5b0c8d041ebb7e144396171bf5c12d0ddfb31207d79cd4b2b"
     },
     "./a2a-server": {
       "exports": [
@@ -229,7 +237,7 @@
         "createAgentCardFromDefinition",
         "createDefinedAgentA2AServer"
       ],
-      "typesSha256": "1fb86bd0ce885195bee4f428296fb885ac41eab19600a732927b700cb9f83c3b"
+      "typesSha256": "bec1a4e19f560fe47e380caf9f5bee6c2c2c4b22d8b8bab8632842af43ec2fc9"
     },
     "./skill-filesystem": {
       "exports": [
@@ -260,7 +268,7 @@
         "createSdkMcpHandler",
         "createSdkMcpServer"
       ],
-      "typesSha256": "c401f207496a38b2d4ce8bcd442fdca8780b95da6943705b7fa376024719ebbb"
+      "typesSha256": "9255f9f08fde22a58f65607560cfc97bbd7a2319102b1e49dd402a350a37e934"
     },
     "./mcp-node": {
       "exports": [
@@ -273,7 +281,7 @@
         "serveSdkMcpStdio",
         "toNodeHandler"
       ],
-      "typesSha256": "785172a073b4092dcf276f7e94204bfeac9a41dcc455d279bdfbee9d48315d45"
+      "typesSha256": "459fecb88e20531c2a4fac66780c216995972b843f257577adff91d784a9366f"
     }
   },
   "errorCodes": {
@@ -343,6 +351,10 @@
     "plugin": [
       "PLUGIN_CLEANUP_FAILED",
       "PLUGIN_INSTALL_FAILED"
+    ],
+    "agentAccounting": [
+      "AGENT_RUN_FAILED",
+      "LEDGER_STATE_INVALID"
     ],
     "standalone": [
       "CONTEXT_WINDOW_EXCEEDED",

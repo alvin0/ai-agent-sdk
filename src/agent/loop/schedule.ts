@@ -12,6 +12,7 @@ import {
 import type { ToolCatalog } from '../tool/registry.ts'
 import { createSpanId, type TraceRef } from '../trace/trace.ts'
 import type { AgentEvent, TurnHooks } from './events.ts'
+import type { RunAccountingPort } from '../accounting/contracts.ts'
 
 export interface RunToolCallsOptions {
   readonly calls: readonly ToolCallRequest[]
@@ -32,6 +33,7 @@ export interface RunToolCallsOptions {
   readonly approvals?: ApprovalBroker
   readonly emit?: (event: AgentEvent) => Promise<void>
   readonly checkpoint?: TurnHooks['checkpoint']
+  readonly accounting?: RunAccountingPort
 }
 export interface ToolCallsOutcome {
   readonly results: readonly ToolExecutionResult[]
@@ -166,12 +168,25 @@ async function start(
     call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
     pending: Promise.resolve(toolFailure('the call was cancelled before it started', TOOL_ERROR_CODES.ABORTED_BEFORE_DISPATCH)),
   }
+  let approvalOperation: string | undefined
   const withApprovalEvent = {
     ...boundedPrepared,
     options: {
       ...boundedPrepared.options,
       onApprovalRequest: async (request: Parameters<NonNullable<typeof prepared.options.onApprovalRequest>>[0]) => {
+        approvalOperation = options.accounting?.startOperation('user-input', {
+          toolCallId: request.callId,
+          data: { action: 'approval', toolName: request.toolName },
+        })
         await emitEvent(options, { type: 'approval-request', request, trace })
+      },
+      ...options.accounting === undefined ? {} : {
+        onApprovalSettled: (status: 'success' | 'error' | 'aborted', error?: unknown) => {
+          if (approvalOperation !== undefined) {
+            options.accounting?.endOperation(approvalOperation, status, error === undefined ? {} : { error })
+            approvalOperation = undefined
+          }
+        },
       },
     },
   }

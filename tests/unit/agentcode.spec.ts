@@ -170,6 +170,11 @@ describe('agentcode live steering', () => {
       outcome: {
         reason, text: '', steps: 1, toolCalls: 0, traceId: 'trace',
         usage: { inputTokens: 0, outputTokens: 0 },
+        usageReport: {
+          reported: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          coverage: { logicalCalls: 0, attempts: 0, complete: 0, partial: 0, estimated: 0, missing: 0, notApplicable: 0, possiblyBilledAttemptsWithoutUsage: 0 },
+          authoritative: true,
+        },
       },
       snapshot: history.snapshot(),
       canContinue: false,
@@ -193,6 +198,11 @@ describe('agentcode live steering', () => {
       outcome: {
         reason: { kind: 'completed' }, text: 'stale', steps: 1, toolCalls: 0,
         traceId: 'trace', usage: { inputTokens: 0, outputTokens: 0 },
+        usageReport: {
+          reported: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          coverage: { logicalCalls: 0, attempts: 0, complete: 0, partial: 0, estimated: 0, missing: 0, notApplicable: 0, possiblyBilledAttemptsWithoutUsage: 0 },
+          authoritative: true,
+        },
       },
       snapshot: history.snapshot(),
       canContinue: true,

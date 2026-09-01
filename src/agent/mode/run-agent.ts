@@ -177,7 +177,9 @@ async function driveAgent(
     : undefined
   const internalTools: ToolDefinition[] = []
   if (deep) internalTools.push(completionTool())
-  if (broker !== undefined && mode !== 'basic') internalTools.push(userInputTool(mode, broker, state, emit))
+  if (broker !== undefined && mode !== 'basic') {
+    internalTools.push(userInputTool(mode, broker, state, emit, options.accounting))
+  }
   const tools = internalTools.length === 0 ? options.tools : combineTools(options.tools, internalTools)
   const hooks = deep ? deepHooks(options.hooks, options.history, state, maxTurns) : options.hooks
   const turnOptions: RunTurnOptions = {
@@ -202,6 +204,7 @@ async function driveAgent(
     ...options.hookTimeoutMs === undefined ? {} : { hookTimeoutMs: options.hookTimeoutMs },
     ...options.hookTeardownTimeoutMs === undefined ? {} : { hookTeardownTimeoutMs: options.hookTeardownTimeoutMs },
     ...options.trace === undefined ? {} : { trace: options.trace },
+    ...options.accounting === undefined ? {} : { accounting: options.accounting },
   }
 
   let terminal: TurnOutcome | undefined
@@ -275,6 +278,7 @@ function userInputTool(
   broker: UserInputBroker,
   state: DeepState,
   emit: (event: AgentRunEvent) => Promise<void>,
+  accounting?: RunTurnOptions['accounting'],
 ): ToolDefinition<{ readonly questions: readonly UserInputQuestion[] }> {
   return defineTool({
     name: AGENT_CONTROL_TOOLS.requestUserInput,
@@ -284,22 +288,37 @@ function userInputTool(
     parameters: requestUserInputSchema(),
     parse: parseUserInput,
     execute: async ({ questions }, ctx) => {
+      const operation = accounting?.startOperation('user-input', {
+        toolCallId: ctx.callId,
+        data: { questionCount: questions.length },
+      })
       const request: UserInputRequest = {
         requestId: ctx.callId, callId: ctx.callId, turn: ctx.turn, step: ctx.step,
         questions, isBlocking: true,
       }
       // Start the broker first: an event consumer may resolve synchronously, and
       // the waiter must already exist when the request event becomes visible.
-      const pending = broker.request(request, ctx.signal)
-      await emit({ type: 'user-input-request', request })
-      const response = await pending
-      await emit({ type: 'user-input-response', request, response })
-      if (response === 'abort') {
-        state.userAborted = true
-        ctx.concludeTurn()
-        return { aborted: true }
+      try {
+        const pending = broker.request(request, ctx.signal)
+        await emit({ type: 'user-input-request', request })
+        const response = await pending
+        await emit({ type: 'user-input-response', request, response })
+        if (response === 'abort') {
+          state.userAborted = true
+          ctx.concludeTurn()
+          if (operation !== undefined) accounting?.endOperation(operation, 'aborted')
+          return { aborted: true }
+        }
+        if (operation !== undefined) accounting?.endOperation(operation, 'success')
+        return validateUserResponse(response, questions) as unknown as JsonObject
+      } catch (error) {
+        if (operation !== undefined) accounting?.endOperation(
+          operation,
+          ctx.signal.aborted ? 'aborted' : 'error',
+          { error },
+        )
+        throw error
       }
-      return validateUserResponse(response, questions) as unknown as JsonObject
     },
   })
 }
