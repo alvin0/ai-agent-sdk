@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "candidate": "owned-sse-parser-spike",
+  "reference": "eventsource-parser@4.1.0",
+  "standards": {
+    "html": "https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream",
+    "encoding": "https://encoding.spec.whatwg.org/#utf-8-decode"
+  },
+  "environment": {
+    "node": "v26.8.1",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "conformance": {
+    "cases": 10,
+    "status": "passed",
+    "semanticDifferences": []
+  },
+  "resources": {
+    "status": "passed",
+    "defaults": {
+      "maxPendingLine": 262144,
+      "maxEventData": 1048576,
+      "maxTotalPending": 1048576
+    }
+  },
+  "cancellation": {
+    "status": "passed"
+  },
+  "differential": {
+    "status": "passed",
+    "partitions": 100000,
+    "seed": "0x5eed2026",
+    "corpusEntries": 15,
+    "semanticDifferences": [],
+    "diagnosticDifferences": 12724,
+    "diagnosticDifferenceExamples": [
+      {
+        "partition": 5,
+        "candidate": [
+          {
+            "type": "invalid-retry",
+            "value": "12x",
+            "line": "retry: 12x"
+          },
+          {
+            "type": "unknown-field",
+            "field": "unknown",
+            "value": "value",
+            "line": "unknown: value"
+          }
+        ],
+        "reference": [
+          {
+            "type": "invalid-retry",
+            "value": "12x",
+            "line": "retry: 12x"
+          }
+        ]
+      },
+      {
+        "partition": 7,
+        "candidate": [
+          {
+            "type": "unknown-field",
+            "field": "Data",
+            "value": "ignored",
+            "line": "Data: ignored"
+          }
+        ],
+        "reference": []
+      },
+      {
+        "partition": 20,
+        "candidate": [
+          {
+            "type": "invalid-retry",
+            "value": "12x",
+            "line": "retry: 12x"
+          },
+          {
+            "type": "unknown-field",
+            "field": "unknown",
+            "value": "value",
+            "line": "unknown: value"
+          }
+        ],
+        "reference": [
+          {
+            "type": "invalid-retry",
+            "value": "12x",
+            "line": "retry: 12x"
+          }
+        ]
+      }
+    ],
+    "digest": "0x1f88ea0a"
+  },
+  "fuzz": {
+    "status": "passed",
+    "seeds": 1000000,
+    "seed": "0xf0222026",
+    "maxInputBytes": 48,
+    "maxElapsedMs": 30000,
+    "maxPeakRssBytes": 536870912,
+    "peakRssBytes": 114585600,
+    "elapsedMs": 4311.8,
+    "digest": "0x21473e05"
+  },
+  "benchmark": {
+    "status": "failed",
+    "allowedRegressionPercent": 20,
+    "throughputRegressionPercent": 83.13,
+    "scenarioThroughputRegressionPercent": {
+      "single-line-json": 75.65,
+      "mixed-fields-and-comments": 71.68,
+      "large-multiline-data": 83.13
+    },
+    "peakMemoryRegressionPercent": 2.72,
+    "candidate": {
+      "implementation": "candidate",
+      "bytes": 102301440,
+      "events": 562560,
+      "elapsedMs": 666.05,
+      "throughputMiBPerSecond": 146.48,
+      "peakRssBytes": 92061696,
+      "retainedHeapBytes": 265736,
+      "scenarios": [
+        {
+          "name": "single-line-json",
+          "bytes": 24000000,
+          "events": 400000,
+          "elapsedMs": 226.34,
+          "throughputMiBPerSecond": 101.12
+        },
+        {
+          "name": "mixed-fields-and-comments",
+          "bytes": 36320000,
+          "events": 160000,
+          "elapsedMs": 302.71,
+          "throughputMiBPerSecond": 114.42
+        },
+        {
+          "name": "large-multiline-data",
+          "bytes": 41981440,
+          "events": 2560,
+          "elapsedMs": 139.52,
+          "throughputMiBPerSecond": 286.95
+        }
+      ]
+    },
+    "reference": {
+      "implementation": "reference",
+      "bytes": 102301440,
+      "events": 562560,
+      "elapsedMs": 164.66,
+      "throughputMiBPerSecond": 592.51,
+      "peakRssBytes": 89624576,
+      "retainedHeapBytes": 42072,
+      "scenarios": [
+        {
+          "name": "single-line-json",
+          "bytes": 24000000,
+          "events": 400000,
+          "elapsedMs": 55.11,
+          "throughputMiBPerSecond": 415.35
+        },
+        {
+          "name": "mixed-fields-and-comments",
+          "bytes": 36320000,
+          "events": 160000,
+          "elapsedMs": 85.74,
+          "throughputMiBPerSecond": 403.99
+        },
+        {
+          "name": "large-multiline-data",
+          "bytes": 41981440,
+          "events": 2560,
+          "elapsedMs": 23.54,
+          "throughputMiBPerSecond": 1701.06
+        }
+      ]
+    }
+  },
+  "elapsedMs": 11863.3
+}

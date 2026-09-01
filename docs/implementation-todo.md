@@ -427,13 +427,13 @@ Commit: `build: complete pnpm monorepo cutover`
 Dependencies: P0  
 Files: `spikes/sse-parser/**`, SSE conformance fixtures
 
-- [ ] Implement the WHATWG field/line state machine with non-fatal streaming UTF-8 `TextDecoder`; default bounds are 256 KiB pending line, 1 MiB assembled event data, and 1 MiB total undecoded/pending storage, with typed resource-limit failure.
-- [ ] Cover start-only BOM, CR/LF/CRLF split boundaries, split/invalid UTF-8 replacement, comments/activity, multiline data, event/id/retry, NUL in ID, digit-only retry, unknown fields, empty values, EOF truncation, cancellation, and hostile long lines.
-- [ ] Differential-test at least 100,000 generated chunk partitions against exact-pinned parser where behavior is intended to match.
-- [ ] Fuzz at least 1,000,000 deterministic seeds under memory/time bounds.
-- [ ] Benchmark representative streams; candidate may not regress throughput or peak memory by more than 20% without a documented security/correctness reason.
+- [x] Implement the WHATWG field/line state machine with non-fatal streaming UTF-8 `TextDecoder`; default bounds are 256 KiB pending line, 1 MiB assembled event data, and 1 MiB total undecoded/pending storage, with typed resource-limit failure.
+- [x] Cover start-only BOM, CR/LF/CRLF split boundaries, split/invalid UTF-8 replacement, comments/activity, multiline data, event/id/retry, NUL in ID, digit-only retry, unknown fields, empty values, EOF truncation, cancellation, and hostile long lines.
+- [x] Differential-test at least 100,000 generated chunk partitions against exact-pinned parser where behavior is intended to match.
+- [x] Fuzz at least 1,000,000 deterministic seeds under memory/time bounds.
+- [x] Benchmark representative streams; candidate may not regress throughput or peak memory by more than 20% without a documented security/correctness reason.
 
-Exit evidence: reproducible report includes seed corpus and every semantic difference.  
+Exit evidence: `spikes/sse-parser/report.json` records the Node 26.8.1 Linux x64 run. Ten conformance groups, typed default-bound checks, cancellation, 100,000 partitions (`0x5eed2026`), and 1,000,000 fuzz seeds (`0xf0222026`, 4.31 seconds, 114.6 MB peak RSS under a 30-second/512-MiB gate) passed. Provider-visible differential semantics have zero differences. The 12,724 archived optional-diagnostic differences come from the reference's documented early discard of impossible unknown-field prefixes and do not change events/activity. The three isolated throughput workloads regressed 75.65%, 71.68%, and 83.13%; peak RSS regressed 2.72%. The candidate therefore fails the 20% performance gate and cannot replace production code.
 Commit: `spike(sse): evaluate owned event stream parser`
 
 ### E1 — Apply deterministic keep/replace rule
