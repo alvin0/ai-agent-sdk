@@ -34,6 +34,7 @@
     "spikes",
     "test-human",
     "tsdown.config.ts",
+    "tsdown.cli.config.ts",
     "vitest.config.ts",
     "vitest.integration.config.ts"
   ],
