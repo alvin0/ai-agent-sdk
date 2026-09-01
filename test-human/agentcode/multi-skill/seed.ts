@@ -13,7 +13,6 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 export const SIGNAL_DESK_WORKSPACE_OWNER =
   'ai-agent-sdk/test-human/agentcode/multi-skill'
@@ -33,8 +32,7 @@ const IGNORED_FIXTURE_DIRECTORIES = new Set([
 ])
 
 export const DEFAULT_SIGNAL_DESK_FIXTURE_ROOT = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  'fixture',
+  process.cwd(), 'test-human', 'agentcode', 'multi-skill', 'fixture',
 )
 
 export interface SignalDeskFileFact {

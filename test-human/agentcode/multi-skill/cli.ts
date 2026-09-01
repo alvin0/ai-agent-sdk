@@ -5,8 +5,9 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { stdin, stdout } from 'node:process'
 import { createInterface, type Interface } from 'node:readline/promises'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
 import type { AgentSession } from '@ai-agent-sdk/agent'
+import { HumanArtifactRecorder } from '../../artifacts.ts'
 import {
   createUserInputBroker,
   type AgentRunEvent,
@@ -47,8 +48,7 @@ import {
   type SignalDeskVerificationReport,
 } from './verify.ts'
 
-const MODULE_DIRECTORY = dirname(fileURLToPath(import.meta.url))
-const PROJECT_ROOT = resolve(MODULE_DIRECTORY, '..', '..', '..')
+const PROJECT_ROOT = resolve(process.cwd())
 const DEFAULT_WORKSPACE = join(PROJECT_ROOT, 'test-human', 'workspaces', 'agentcode-multiskill')
 const DEFAULT_REPORT_DIRECTORY = join(PROJECT_ROOT, 'test-human', 'results', 'agentcode-multiskill')
 const DEFAULT_SKILLS_ROOT = join(PROJECT_ROOT, 'test-human', 'skill-stress', '.cache', 'skills')
@@ -758,11 +758,18 @@ async function main(): Promise<void> {
     return
   }
   if (config.agent.dryRun) {
-    console.log(JSON.stringify({
+    const printable = {
       dryRun: true,
       ...printableConfig(config, join(config.reportDirectory, 'providers')),
       requiredSkills: SIGNAL_DESK_REQUIRED_SKILLS,
-    }, null, 2))
+    }
+    console.log(JSON.stringify(printable, null, 2))
+    const artifact = new HumanArtifactRecorder({
+      harness: 'agentcode-multiskill-plan', resultsRoot: config.reportDirectory,
+    })
+    artifact.record('plan', printable)
+    const summary = await artifact.finish({ status: 'dry-run', config: printable })
+    console.log(label('multiskill/artifact'), summary.artifact.directory)
     return
   }
   const summary = await runMultiSkillAcceptance(config)

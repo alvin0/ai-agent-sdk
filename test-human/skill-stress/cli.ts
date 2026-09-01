@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import { join } from 'node:path'
 import { errorMessage, label, paint } from '../console.ts'
+import { HumanArtifactRecorder } from '../artifacts.ts'
 import { parseSkillStressArgs, skillStressHelp } from './config.ts'
 import { runSkillStress, selectStressScenarios } from './runner.ts'
 import type { StressProgressEvent } from './types.ts'
@@ -30,7 +32,20 @@ async function main(): Promise<void> {
     skillsRoot: config.skillsRoot, workspaceRoot: config.workspaceRoot,
     resultsRoot: config.resultsRoot, timeoutMs: config.timeoutMs,
   }, null, 2))
-  if (config.dryRun) return
+  if (config.dryRun) {
+    const artifact = new HumanArtifactRecorder({
+      harness: 'skill-stress-plan', runId: 'plan', resultsRoot: join(config.resultsRoot, config.runId),
+    })
+    const selected = scenarios.map(scenario => scenario.id)
+    artifact.record('plan', { suite: config.suite, scenarios: selected, repeat: config.repeat, seed: config.seed })
+    const summary = await artifact.finish({
+      status: 'dry-run', config: { ...config },
+      invariants: [{ name: 'all selected skill stress scenarios resolve', passed: true }],
+      metrics: { scenarios: selected.length, plannedCases: selected.length * config.repeat },
+    })
+    console.log(label('skill-stress/artifact'), summary.artifact.directory)
+    return
+  }
 
   const controller = new AbortController()
   const interrupt = (): void => {

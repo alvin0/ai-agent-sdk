@@ -12,6 +12,7 @@ export default defineConfig({
     'skill-stress': 'test-human/skill-stress/cli.ts',
     'skill-stress-prepare': 'test-human/skill-stress/prepare.ts',
     'skill-showcase': 'test-human/skill-showcase/cli.ts',
+    'sdk-stress': 'test-human/sdk-stress/cli.ts',
     mcp: 'test-human/mcp/cli.ts',
     'mcp-github': 'test-human/github-mcp/cli.ts',
   },

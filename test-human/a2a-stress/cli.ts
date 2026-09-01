@@ -3,6 +3,8 @@ import { a2aStressHelp, parseA2AStressArgs } from './config.ts'
 import { DEFINED_STRESS_PROMPT, MANAGED_STRESS_PROMPT } from './prompts.ts'
 import { runDefinedA2AStress, runManagedA2AStress } from './runner.ts'
 import { errorMessage, label, paint } from '../console.ts'
+import { HumanArtifactRecorder } from '../artifacts.ts'
+import { a2aStressPaths } from './fixture.ts'
 
 export async function runA2AStressCli(mode: A2AStressMode): Promise<void> {
   let config
@@ -20,7 +22,19 @@ export async function runA2AStressCli(mode: A2AStressMode): Promise<void> {
   const prompt = mode === 'managed' ? MANAGED_STRESS_PROMPT : DEFINED_STRESS_PROMPT
   console.log(label('config'), JSON.stringify(config, null, 2))
   console.log(label('prompt'), `\n${prompt}\n`)
-  if (config.dryRun) return
+  if (config.dryRun) {
+    const paths = a2aStressPaths(config.runId, mode)
+    const artifact = new HumanArtifactRecorder({
+      harness: `a2a-${mode}-plan`, runId: 'plan', resultsRoot: paths.results,
+    })
+    artifact.record('plan', { mode, config, prompt })
+    const summary = await artifact.finish({
+      status: 'dry-run', config: { ...config, mode, prompt },
+      invariants: [{ name: 'A2A stress plan is valid', passed: true }],
+    })
+    console.log(label('artifact'), summary.artifact.directory)
+    return
+  }
 
   const controller = new AbortController()
   const timeout = AbortSignal.timeout(config.timeoutMs)

@@ -109,6 +109,26 @@ describe('dispatchToolCall: failures reach the model instead of ending the turn'
     expect(result.isError && result.error.message).toBe('cannot read x of undefined')
   })
 
+  it('preserves side-channel metadata when a tool fails', async () => {
+    const result = await run(registryWith(tool({
+      execute: () => { throw new Error('remote failure') },
+      meta: () => ({ kind: 'remote', integration: 'warehouse' }),
+    })))
+    expect(result).toMatchObject({
+      isError: true,
+      error: { message: 'remote failure' },
+      meta: { kind: 'remote', integration: 'warehouse' },
+    })
+  })
+
+  it('contains a metadata callback failure without hiding the tool failure', async () => {
+    const result = await run(registryWith(tool({
+      execute: () => { throw new Error('original failure') },
+      meta: () => { throw new Error('metadata failure') },
+    })))
+    expect(result).toMatchObject({ isError: true, error: { message: 'original failure' } })
+  })
+
   it('preserves the code of a respond-to-model ToolError', async () => {
     const result = await run(registryWith(tool({
       execute: () => {

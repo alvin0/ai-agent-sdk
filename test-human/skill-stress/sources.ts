@@ -1,12 +1,10 @@
 /** Pinned skills.sh sources used by the progressive-disclosure stress harness. */
 
 import { readFile } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { resolve } from 'node:path'
 
 export const DEFAULT_SKILL_SOURCE_LOCK_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  'skill-sources.lock.json',
+  process.cwd(), 'test-human', 'skill-stress', 'skill-sources.lock.json',
 )
 
 const SKILL_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/

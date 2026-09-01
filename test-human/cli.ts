@@ -3,7 +3,9 @@
 
 import { stdin, stdout } from 'node:process'
 import { createInterface } from 'node:readline/promises'
+import { resolve } from 'node:path'
 import { createUserInputBroker } from '@ai-agent-sdk/agent'
+import { HumanArtifactRecorder } from './artifacts.ts'
 import { createHumanAgent } from './agent.ts'
 import {
   humanCliHelp,
@@ -24,9 +26,31 @@ async function main(): Promise<void> {
 
   const model = modelFor(config)
   if (model === undefined) return
+  const artifact = new HumanArtifactRecorder({
+    harness: 'human', resultsRoot: `${config.resultsRoot ?? resolve('test-human/results')}/human`,
+    ...(config.runId === undefined ? {} : { runId: config.runId }),
+  })
+  const artifactConfig = {
+    provider: config.provider, model, mode: config.mode, scenario: config.scenario,
+    effort: config.effort, maxTurns: config.maxTurns, logs: config.logs,
+    forceTool: config.forceTool,
+    ...(config.prompt === undefined ? {} : { prompt: config.prompt }),
+    ...(config.image === undefined ? {} : { image: config.image }),
+  }
+  artifact.record('config', artifactConfig)
   printConfig(config, model)
-  if (config.dryRun) return
-  if (!validateScenario(config)) return
+  if (config.dryRun) {
+    const summary = await artifact.finish({ status: 'dry-run', config: artifactConfig })
+    console.log(label('artifact'), summary.artifact.directory)
+    return
+  }
+  if (!validateScenario(config)) {
+    await artifact.finish({
+      status: 'failed', config: artifactConfig,
+      invariants: [{ name: 'scenario configuration is valid', passed: false }],
+    })
+    return
+  }
 
   const registry = createHumanModelRegistry(config)
   const tools = createHumanToolRegistry(process.cwd())
@@ -37,10 +61,14 @@ async function main(): Promise<void> {
   let attachedImage = false
   const oneShot = config.prompt !== undefined
   let queuedPrompt = config.prompt
+  let turns = 0
+  let failedTurns = 0
+  let aborted = false
 
   terminal.on('SIGINT', () => {
     if (active === undefined) { terminal.close(); return }
     active.abort(new Error('human interrupted the active turn'))
+    aborted = true
     broker.abortAll()
     console.log('\n' + label('abort'), 'turn cancellation requested')
   })
@@ -113,8 +141,14 @@ async function main(): Promise<void> {
       active = new AbortController()
       try {
         const stream = session.stream(message, { signal: active.signal })
+        artifact.record('turn-start', { turn: turns + 1, prompt: command, scenario: config.scenario })
         await renderHumanRun(stream, config, broker, terminal)
+        const [result, report] = await Promise.all([stream.result, stream.report])
+        turns++
+        artifact.record('turn-end', { turn: turns, outcome: result.outcome, report })
       } catch (error: unknown) {
+        failedTurns++
+        artifact.record('turn-error', { turn: turns + 1, error })
         console.error('\n' + label('error'), paint(31, errorMessage(error)))
       } finally {
         active = undefined
@@ -124,6 +158,13 @@ async function main(): Promise<void> {
   } finally {
     broker.abortAll()
     terminal.close()
+    const status = aborted ? 'aborted' : failedTurns > 0 ? 'failed' : 'passed'
+    const summary = await artifact.finish({
+      status, config: artifactConfig,
+      invariants: [{ name: 'all submitted turns completed without an unhandled error', passed: failedTurns === 0 }],
+      metrics: { turns, failedTurns, historyEvents: session.history.entries().length, memoryItems: session.memory.items().length },
+    })
+    console.log(label('artifact'), summary.artifact.directory)
   }
 }
 

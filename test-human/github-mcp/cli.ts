@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { UnauthorizedError } from '@modelcontextprotocol/client'
+import { resolve } from 'node:path'
+import { HumanArtifactRecorder } from '../artifacts.ts'
 import { createGitHubMcpConnection } from './connection.ts'
 import { gitHubMcpHelp, parseGitHubMcpArgs } from './config.ts'
 import { runGitHubMcpCommand } from './commands.ts'
@@ -14,6 +16,26 @@ async function main(): Promise<void> {
     console.log(gitHubMcpHelp())
     return
   }
+  const artifact = new HumanArtifactRecorder({
+    harness: 'github-mcp', resultsRoot: config.resultsRoot ?? resolve('test-human/results/github-mcp'),
+    ...(config.runId === undefined ? {} : { runId: config.runId }),
+  })
+  const artifactConfig = {
+    command: config.command, auth: config.auth, url: config.url,
+    ...(config.owner === undefined ? {} : { owner: config.owner }),
+    ...(config.repo === undefined ? {} : { repo: config.repo }),
+    ...(config.path === undefined ? {} : { path: config.path }),
+    ...(config.ref === undefined ? {} : { ref: config.ref }),
+    ...(config.branch === undefined ? {} : { branch: config.branch }),
+    ...(config.content === undefined ? {} : { content: config.content }),
+    ...(config.contentFile === undefined ? {} : { contentFile: config.contentFile }),
+  }
+  artifact.record('config', artifactConfig)
+  if (config.dryRun) {
+    const summary = await artifact.finish({ status: 'dry-run', config: artifactConfig })
+    console.log(`[github-mcp/artifact] ${summary.artifact.directory}`)
+    return
+  }
 
   const oauth = config.auth.kind === 'oauth'
     ? new GitHubOAuthRuntime({
@@ -21,11 +43,10 @@ async function main(): Promise<void> {
       onStatus: message => { console.log(`[oauth] ${message}`) },
     })
     : undefined
-  await oauth?.start()
-
   const connection = createGitHubMcpConnection(config, {
     ...(oauth === undefined ? {} : { oauthProvider: oauth.provider }),
     onStateChange: state => {
+      artifact.record('mcp-lifecycle', state)
       const suffix = state.error === undefined ? '' : `: ${state.error.message}`
       const auth = state.authorization === undefined
         ? ''
@@ -38,7 +59,11 @@ async function main(): Promise<void> {
       console.log(`[mcp/lifecycle] ${state.status}${auth}${protocol}${suffix}`)
     },
   })
+  let stepCount = 0
+  let discoveredTools = 0
+  let failure: unknown
   try {
+    await oauth?.start()
     try {
       await connection.connect()
     } catch (error: unknown) {
@@ -51,12 +76,30 @@ async function main(): Promise<void> {
       console.log('[oauth] Authorization completed; MCP connection is ready.')
     }
     console.log(`[mcp/tools] ${connection.tools.names().join(', ')}`)
-    if (config.command === 'tools') return
-    const steps = await runGitHubMcpCommand(config, createGitHubMcpToolCaller(connection.tools))
-    for (const step of steps) console.log(renderGitHubMcpStep(step, config.maxOutputChars))
+    discoveredTools = connection.tools.names().length
+    artifact.record('mcp-tools', { names: connection.tools.names() })
+    if (config.command !== 'tools') {
+      const steps = await runGitHubMcpCommand(config, createGitHubMcpToolCaller(connection.tools))
+      stepCount = steps.length
+      for (const step of steps) {
+        artifact.record('command-step', step)
+        console.log(renderGitHubMcpStep(step, config.maxOutputChars))
+      }
+    }
+  } catch (error: unknown) {
+    failure = error
+    throw error
   } finally {
-    await connection.close()
-    await oauth?.close()
+    await Promise.allSettled([connection.close(), oauth?.close()])
+    const summary = await artifact.finish({
+      status: failure === undefined ? 'passed' : 'failed', config: artifactConfig,
+      invariants: [{ name: 'GitHub MCP command completed', passed: failure === undefined }],
+      metrics: { command: config.command, stepCount, discoveredTools },
+      ...(failure === undefined ? {} : { error: failure }),
+    })
+    const line = `[github-mcp/artifact] ${summary.artifact.directory}`
+    if (failure === undefined) console.log(line)
+    else console.error(line)
   }
 }
 

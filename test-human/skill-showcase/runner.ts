@@ -1,6 +1,5 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join, relative, resolve, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join, relative, resolve, sep } from 'node:path'
 import { defineAgent } from '@ai-agent-sdk/agent'
 import type { AgentRunEvent, AgentRunOutcome } from '@ai-agent-sdk/agent'
 import { fileSystemSkills } from '@ai-agent-sdk/skill-filesystem'
@@ -11,10 +10,10 @@ import { createAgentCodeToolRegistry } from '../agentcode/tools.ts'
 import { prepareSkillStressFixtures } from '../skill-stress/prepare.ts'
 import { StressObserver } from '../skill-stress/observer.ts'
 
-const HERE = dirname(fileURLToPath(import.meta.url))
-const PROJECT_ROOT = resolve(HERE, '..', '..')
-const DEFAULT_WORKSPACE_ROOT = resolve(HERE, '..', 'workspaces', 'skill-showcase')
-const DEFAULT_RESULTS_ROOT = resolve(HERE, '..', 'results', 'skill-showcase')
+const PROJECT_ROOT = resolve(process.cwd())
+const HERE = join(PROJECT_ROOT, 'test-human', 'skill-showcase')
+const DEFAULT_WORKSPACE_ROOT = join(PROJECT_ROOT, 'test-human', 'workspaces', 'skill-showcase')
+const DEFAULT_RESULTS_ROOT = join(PROJECT_ROOT, 'test-human', 'results', 'skill-showcase')
 const SKILL_CACHE_ROOT = join(HERE, '.cache')
 export const SHOWCASE_SKILL_LOCK = join(HERE, 'skill-sources.lock.json')
 export const EXTERNAL_SKILL_ID = 'frontend-design'

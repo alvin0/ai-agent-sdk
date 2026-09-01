@@ -3,13 +3,13 @@
 
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
 import {
   formatSignalDeskVerificationSummary,
   verifySignalDeskWorkspace,
 } from './verify.ts'
 
-const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+const PROJECT_ROOT = resolve(process.cwd())
 const DEFAULT_WORKSPACE = join(
   PROJECT_ROOT,
   'test-human',

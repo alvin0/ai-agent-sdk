@@ -32,57 +32,60 @@ The implementation is intentionally split by control boundary:
 
 ```powershell
 # Interactive chat; defaults to Codex gpt-5.6-luna, effort medium
-npm run human
+pnpm human
 
 # One real basic-mode turn
-npm run human:basic -- --prompt "Use calculate to multiply 19 by 23"
+pnpm human:basic -- --prompt "Use calculate to multiply 19 by 23"
 
 # Deep completion gate
-npm run human:deep -- --prompt "Inspect package.json and summarize its scripts"
+pnpm human:deep -- --prompt "Inspect package.json and summarize its scripts"
 
 # Let the model pause and ask you a question in the terminal
-npm run human:hil -- --prompt "Help me choose an API design; ask before selecting a trade-off"
+pnpm human:hil -- --prompt "Help me choose an API design; ask before selecting a trade-off"
 
 # Provider-native web search, forced for a deterministic acceptance test
-npm run human:web -- --prompt "Find the official GPT-5.6 developer page"
+pnpm human:web -- --prompt "Find the official GPT-5.6 developer page"
 
 # Image input from a local path, URL, or Responses file id
-npm run human:vision -- --image .\sample.png --prompt "Describe this image"
-npm run human:vision -- --image https://example.com/image.png
-npm run human:vision -- --provider openai --model gpt-5.6 --image file-id:file_abc
+pnpm human:vision -- --image .\sample.png --prompt "Describe this image"
+pnpm human:vision -- --image https://example.com/image.png
+pnpm human:vision -- --provider openai --model gpt-5.6 --image file-id:file_abc
 
 # Native image output; final files are saved under test-human/output/
-npm run human:image-gen -- --provider openai --model gpt-5.6 --prompt "Draw a small isometric robot"
+pnpm human:image-gen -- --provider openai --model gpt-5.6 --prompt "Draw a small isometric robot"
 
 # Comprehensive tool + memory + compaction run in a disposable workspace
-npm run human:agentcode
+pnpm human:agentcode
 
 # Dynamic coordinator creates three workers that build website features in parallel
-npm run human:a2a-managed
+pnpm human:a2a-managed
 
 # Stable predefined product engineers build, test, hand off, and integrate the same MVP
-npm run human:a2a-defined
+pnpm human:a2a-defined
 
 # Hermetic progressive-skill stress suite; no provider or download required
-npm run human:skill-stress -- run --suite offline --parallel 4 --repeat 3
+pnpm human:skill-stress -- run --suite offline --parallel 4 --repeat 3
 
 # Focused folder-round and definition-scoped web/workflow skill acceptance
-npm run human:skill-stress -- run --suite offline --scenario harness-folder-rounds --scenario defined-agent-web-skills --parallel 2
+pnpm human:skill-stress -- run --suite offline --scenario harness-folder-rounds --scenario defined-agent-web-skills --parallel 2
+
+# Hermetic customer journeys: use --profile stress or soak for higher pressure
+pnpm human:sdk-stress -- --profile complex --seed 20260901
 
 # Live proof: external skills.sh SKILL → tool loop → website → verification
-npm run human:skill-showcase
+pnpm human:skill-showcase
 
 # Acquire pinned, hash-verified skills.sh fixtures into the project-local cache
-npm run human:skill-stress:prepare
+pnpm human:skill-stress:prepare
 
 # Exercise the prepared skills with the real Codex provider
-npm run human:skill-stress -- run --suite live --parallel 2
+pnpm human:skill-stress -- run --suite live --parallel 2
 
 # Real remote MCP over browser OAuth: inspect identity or read a repository file
 $env:GITHUB_MCP_OAUTH_CLIENT_ID = '<client id>'
 $env:GITHUB_MCP_OAUTH_CLIENT_SECRET = '<client secret>'
-npm run human:mcp:github -- whoami
-npm run human:mcp:github -- read --repo github/github-mcp-server --path README.md
+pnpm human:mcp:github -- whoami
+pnpm human:mcp:github -- read --repo github/github-mcp-server --path README.md
 ```
 
 `human:agentcode` defaults to a React Todo/Zustand/localStorage task. Its direct
@@ -105,7 +108,7 @@ boundary, and keeps the website plus causal JSON proof.
 
 For OpenAI or Anthropic, pass `--model` or set `AI_AGENT_MODEL`; API keys use the
 existing `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` environment variables. Codex uses
-the existing project credential store. Run `npm run provider:codex:login-device`
+the existing project credential store. Run `pnpm provider:codex:login-device`
 if it is not signed in.
 
 Provider requests are logged by default to
@@ -135,6 +138,6 @@ the provider. The harness never fabricates or requests hidden chain-of-thought.
 Validate flags without making a provider request:
 
 ```powershell
-npm run human -- --dry-run --scenario web
-npm run human -- --help
+pnpm human -- --dry-run --scenario web
+pnpm human -- --help
 ```

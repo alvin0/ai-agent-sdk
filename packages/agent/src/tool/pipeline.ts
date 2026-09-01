@@ -223,7 +223,7 @@ export async function dispatchAuthorizedToolCall(call: AuthorizedToolCall): Prom
       ...concludes ? { concludesTurn: true as const } : {},
     } satisfies ToolSuccess
   }
-  return await chain<ToolExecutionResult>(
+  const executed = await chain<ToolExecutionResult>(
     call.options.interceptors ?? [],
     interceptor => interceptor.around?.bind(interceptor, context),
     () => withTimeout(
@@ -233,6 +233,17 @@ export async function dispatchAuthorizedToolCall(call: AuthorizedToolCall): Prom
       call.options.teardownTimeoutMs ?? 30_000,
     ),
   )()
+  if (!executed.isError || executed.meta !== undefined || tool.meta === undefined) return executed
+  // Provenance and UI metadata are just as important for a failed call as for a
+  // successful one. In particular, remote bridges use this to identify which
+  // integration produced the error. Metadata is a side channel, so a buggy
+  // metadata callback must never replace the original tool failure.
+  try {
+    const meta = tool.meta(undefined, context.args as never)
+    return meta === undefined ? executed : { ...executed, meta }
+  } catch {
+    return executed
+  }
 }
 
 /** Ordered post-policy stage. */

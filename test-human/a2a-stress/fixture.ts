@@ -21,7 +21,9 @@ const HOST_OWNED_PATHS = Object.freeze([
 ])
 
 export function a2aStressPaths(runId: string, mode: A2AStressMode): A2AStressPaths {
-  const project = resolve(import.meta.dirname, '..', '..')
+  // Human CLIs are bundled into dist-cli, so module-relative paths would move
+  // when built. Their documented execution contract is the workspace root.
+  const project = resolve(process.cwd())
   const suffix = `${runId}-${mode}`
   return Object.freeze({
     workspace: join(project, 'test-human', 'workspaces', 'a2a-stress', suffix),

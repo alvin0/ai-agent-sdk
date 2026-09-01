@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "commands": [
+    { "script": "human", "journey": "provider chat and interactive lifecycle", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/README.md" },
+    { "script": "human:basic", "journey": "basic provider chat", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/README.md" },
+    { "script": "human:deep", "journey": "agent tool loop", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/README.md" },
+    { "script": "human:hil", "journey": "human in the loop", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/README.md" },
+    { "script": "human:web", "journey": "provider-native web search", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/README.md" },
+    { "script": "human:vision", "journey": "multimodal input", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/README.md" },
+    { "script": "human:image-gen", "journey": "provider-native image generation", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/README.md" },
+    { "script": "human:agentcode", "journey": "long-running filesystem coding agent", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/agentcode/README.md" },
+    { "script": "human:agentcode:multi-skill", "journey": "multi-skill coding workflow", "runtime": "node", "network": "live-provider", "artifact": "stress-evidence-directory", "readme": "test-human/agentcode/multi-skill/README.md" },
+    { "script": "human:agentcode:multi-skill:verify", "journey": "multi-skill artifact reverification", "runtime": "node", "network": "offline", "artifact": "verification-report", "readme": "test-human/agentcode/multi-skill/README.md" },
+    { "script": "human:a2a-managed", "journey": "managed A2A team", "runtime": "node", "network": "live-provider", "artifact": "stress-evidence-directory", "readme": "test-human/a2a-stress/README.md" },
+    { "script": "human:a2a-defined", "journey": "defined A2A team", "runtime": "node", "network": "live-provider", "artifact": "stress-evidence-directory", "readme": "test-human/a2a-stress/README.md" },
+    { "script": "human:skill-stress", "journey": "skill discovery and progressive disclosure", "runtime": "node", "network": "offline-or-live", "artifact": "case-json-and-jsonl", "readme": "test-human/skill-stress/README.md" },
+    { "script": "human:skill-stress:prepare", "journey": "pinned external skill acquisition", "runtime": "node", "network": "registry", "artifact": "hash-verified-source-lock", "readme": "test-human/skill-stress/README.md" },
+    { "script": "human:skill-showcase", "journey": "external skill website build", "runtime": "node", "network": "live-provider", "artifact": "stress-evidence-directory", "readme": "test-human/skill-showcase/README.md" },
+    { "script": "human:sdk-stress", "journey": "hermetic SDK customer journeys", "runtime": "universal-and-node", "network": "offline", "artifact": "support-safe-jsonl-per-case", "readme": "test-human/sdk-stress/README.md" },
+    { "script": "human:mcp", "journey": "MCP bridge round trips", "runtime": "node", "network": "offline", "artifact": "support-safe-jsonl", "readme": "test-human/mcp/README.md" },
+    { "script": "human:mcp:github", "journey": "remote authenticated GitHub MCP", "runtime": "node", "network": "remote-service", "artifact": "support-safe-jsonl", "readme": "test-human/github-mcp/README.md" }
+  ]
+}

@@ -109,6 +109,9 @@ describe('MCP integration', () => {
       })
       expect(result).toMatchObject({ isError: true, error: { code: 'TOOL_FAILED' } })
       expect(result.content[0]).toMatchObject({ type: 'text', text: expect.stringContaining('8-byte limit') })
+      expect(result.meta).toEqual({
+        kind: 'mcp', serverName: 'bounded-result', remoteToolName: 'add',
+      })
     } finally {
       await connection.close()
       await server.close()

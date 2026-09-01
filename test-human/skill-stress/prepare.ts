@@ -15,7 +15,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
 import {
   readSkillStressSourceLock,
   skillsCliAddArguments,
@@ -23,7 +23,7 @@ import {
   type SkillStressSourceLock,
 } from './sources.ts'
 
-const DEFAULT_PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
+const DEFAULT_PROJECT_ROOT = resolve(process.cwd())
 const MAX_CAPTURED_OUTPUT_CHARS = 1_000_000
 const MAX_CORPUS_FILES = 4_096
 const MAX_CORPUS_FILE_BYTES = 16 * 1024 * 1024

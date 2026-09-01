@@ -1,7 +1,6 @@
 /** Provider registration for real human-test runs. */
 
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { resolve } from 'node:path'
 import { ModelRegistry } from '@ai-agent-sdk/core'
 import { anthropicAdapter } from '@ai-agent-sdk/provider-anthropic'
 import { codexNodeAdapter as codexAdapter } from '@ai-agent-sdk/auth-node/codex'
@@ -13,7 +12,7 @@ import {
 } from 'ai-agent-sdk/request-logger'
 import type { HumanCliConfig } from './config.ts'
 
-const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const PROJECT_ROOT = resolve(process.cwd())
 const HUMAN_REQUEST_LOG_ROOT = resolve(PROJECT_ROOT, '.providers')
 
 export interface HumanModelRegistryOptions {

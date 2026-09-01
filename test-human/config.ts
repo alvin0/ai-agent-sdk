@@ -1,5 +1,7 @@
 /** Pure command-line parsing for the human test harness. */
 
+import { resolve } from 'node:path'
+
 export type HumanProvider = 'codex' | 'openai' | 'anthropic'
 export type HumanMode = 'basic' | 'deep' | 'deep-human-in-loop'
 export type HumanScenario = 'chat' | 'web' | 'vision' | 'image-gen'
@@ -13,6 +15,8 @@ export interface HumanCliConfig {
   readonly maxTurns: number
   readonly prompt?: string
   readonly image?: string
+  readonly runId?: string
+  readonly resultsRoot?: string
   readonly showReasoning: boolean
   readonly forceTool: boolean
   readonly logs: boolean
@@ -22,6 +26,7 @@ export interface HumanCliConfig {
 
 const VALUE_FLAGS = new Set([
   '--provider', '--model', '--mode', '--scenario', '--effort', '--max-turns', '--prompt', '--image',
+  '--run-id', '--results-root',
 ])
 
 export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
@@ -71,6 +76,10 @@ export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
   const prompt = values.get('--prompt') ?? (trailing.length === 0 ? undefined : trailing.join(' '))
   const model = values.get('--model')
   const image = values.get('--image')
+  const runId = values.get('--run-id')
+  if (runId !== undefined && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(runId)) {
+    throw new Error('--run-id must be one safe path segment of at most 128 characters')
+  }
   const defaultForce = scenario === 'web' || scenario === 'image-gen'
 
   return {
@@ -82,6 +91,8 @@ export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
     maxTurns,
     ...prompt === undefined ? {} : { prompt },
     ...image === undefined ? {} : { image },
+    ...runId === undefined ? {} : { runId },
+    resultsRoot: resolve(values.get('--results-root') ?? 'test-human/results'),
     showReasoning: switches.has('--show-reasoning'),
     forceTool: switches.has('--force-tool') || (!switches.has('--no-force-tool') && defaultForce),
     logs: switches.has('--logs') && !switches.has('--no-logs'),
@@ -106,7 +117,7 @@ export function humanCliHelp(): string {
   return `Human test harness for ai-agent-sdk
 
 Usage:
-  npm run human -- [options] [prompt]
+  pnpm human -- [options] [prompt]
 
 Options:
   --provider <codex|openai|anthropic>       Default: codex
@@ -117,6 +128,8 @@ Options:
   --max-turns <number>                      Default: 8
   --prompt <text>                           Run once; omit for interactive REPL
   --image <path|url|file-id:ID>             Required by vision scenario
+  --run-id <safe-id>                        Stable artifact directory suffix
+  --results-root <path>                     Artifact root; default: test-human/results
   --show-reasoning                          Print provider-emitted reasoning summaries
   --logs                                    Enable high-risk exact provider-wire logs
   --force-tool / --no-force-tool            Override scenario tool choice
