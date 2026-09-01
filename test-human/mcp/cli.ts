@@ -5,8 +5,8 @@ import { defineTool } from '@ai-agent-sdk/agent'
 import { dispatchToolCall } from '@ai-agent-sdk/agent'
 import { ToolRegistry } from '@ai-agent-sdk/agent'
 import { ToolCallId } from '@ai-agent-sdk/core'
-import { McpClientConnection, type McpClientState } from '../../src/mcp/client.ts'
-import { createSdkMcpServer } from '../../src/mcp/server.ts'
+import { McpClientConnection, type McpClientState } from '@ai-agent-sdk/mcp/client'
+import { createSdkMcpServer } from '@ai-agent-sdk/mcp/server'
 
 const inventory = new Map([
   ['mechanical-keyboard', { stock: 14, unitPrice: 89 }],

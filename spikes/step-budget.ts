@@ -22,7 +22,7 @@ import { ModelRegistry } from '@ai-agent-sdk/core'
 import { BlockAssembler } from '@ai-agent-sdk/core'
 import { ToolCallId } from '@ai-agent-sdk/core'
 import { codexNodeAdapter as codexAdapter } from '@ai-agent-sdk/auth-node/codex'
-import { createDailyJsonlRequestLogger } from '../src/providers/request-logger.ts'
+import { createDailyJsonlRequestLogger } from 'ai-agent-sdk/request-logger'
 import { dispatchToolCall } from '@ai-agent-sdk/agent'
 import { ToolRegistry } from '@ai-agent-sdk/agent'
 import { ToolError } from '@ai-agent-sdk/agent'
@@ -178,7 +178,7 @@ const TASKS: readonly { name: string; prompt: string }[] = [
   },
   {
     name: 'survey',
-    prompt: 'How many provider folders exist under src/providers, and which wire protocol does each one speak?',
+    prompt: 'How many provider packages exist under packages/provider-*, and which wire protocol does each one speak?',
   },
   {
     name: 'cross-reference',

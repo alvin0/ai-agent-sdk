@@ -2,7 +2,7 @@
 
 This fixture tests package closures in an actual local Cloudflare Worker. It is not production code.
 
-Prerequisite: build the current package so `dist/mcp-client.js` and `dist/mcp-server.js` exist.
+Prerequisite: build `@ai-agent-sdk/mcp`; the Worker imports its public client and server subpaths.
 
 ```sh
 npm run build

@@ -15,17 +15,19 @@ npm install
 npm run build
 ```
 
-Requires Node 22.6+. Scripts and tests run TypeScript directly (`node file.ts`),
-so no build step is needed for development.
+Workspace tooling and Node capability packages require Node 22.12 or newer.
 
 ## Quick start
 
 ```ts
 import { BlockAssembler, ModelRegistry, createTextMessage } from 'ai-agent-sdk'
 import { openAiAdapter } from 'ai-agent-sdk/openai'
+import { envCredential } from '@ai-agent-sdk/auth-node/env'
 
 const registry = new ModelRegistry()
-registry.registerAdapter(['openai'], openAiAdapter())   // reads OPENAI_API_KEY
+registry.registerAdapter(['openai'], openAiAdapter({
+  apiKey: envCredential('OPENAI_API_KEY'),
+}))
 
 const assembler = new BlockAssembler()
 for await (const chunk of registry.stream({
@@ -50,11 +52,11 @@ retired model.
 
 | Entry point | Endpoint | Credential |
 | --- | --- | --- |
-| `ai-agent-sdk/anthropic` | Messages API | `ANTHROPIC_API_KEY` |
-| `ai-agent-sdk/openai` | Responses API | `OPENAI_API_KEY` |
+| `ai-agent-sdk/anthropic` | Messages API | injected `apiKey` |
+| `ai-agent-sdk/openai` | Responses API | injected `apiKey` |
 | `ai-agent-sdk/codex` | ChatGPT-backed Codex | device-code login |
 
-`openai` and `codex` share one Responses implementation (`src/providers/responses/`)
+`openai` and `codex` share one Responses implementation (`packages/protocol-responses/`)
 and differ only by a small dialect record — base URL, auth, and which optional
 fields the endpoint accepts.
 
@@ -145,7 +147,9 @@ chunk reaches the consumer** — replaying delivered tokens would duplicate outp
 ```ts
 import { withRetry } from 'ai-agent-sdk'
 
-registry.registerAdapter(['openai'], withRetry(openAiAdapter(), {
+registry.registerAdapter(['openai'], withRetry(openAiAdapter({
+  apiKey: envCredential('OPENAI_API_KEY'),
+}), {
   policy: { mode: 'normal', maxRetries: 3 },
   onRetry: attempt => console.warn(`retry ${attempt.attempt}: ${attempt.failure.code}`),
 }))
@@ -160,24 +164,15 @@ direct callers must supply their own cancellation boundary.
 
 ## Architecture
 
-```
-src/
-├── core/                 provider-neutral; knows nothing about any vendor
-│   ├── primitives/       branded ids, deep freeze, exhaustiveness
-│   ├── errors/           the `code`-routed taxonomy + its serializable twin
-│   ├── message/          content blocks, immutable messages, projection
-│   ├── stream/           chunk protocol, assembler, SSE, idle bound
-│   ├── contract/         what an adapter implements and what it receives
-│   ├── runtime/          the registry that routes calls, and retry
-│   └── http/             credential and attribution concerns
-└── providers/
-    ├── base/             the shared HTTP/SSE pipeline every provider runs through
-    ├── http-provider.ts  turns a config object into an adapter
-    ├── protocols/        reusable wire protocols, decoupled from any endpoint
-    ├── responses/        OpenAI Responses serialize + translate
-    ├── anthropic/        Messages serialize + translate, and its config
-    ├── openai/           Responses on api.openai.com  (config only)
-    └── codex/            Responses on the ChatGPT backend + OAuth (config only)
+```text
+packages/core                         provider-neutral contracts and registry
+packages/agent                        Universal loop, tools, memory, and ledger
+packages/provider-http                shared Fetch/SSE transport
+packages/protocol-*                   reusable wire protocols
+packages/provider-*                   explicit provider plugins
+packages/observability*               bus and runtime-specific exporters
+packages/auth-node, mcp-node, node    explicit Node elevation
+packages/sdk                          unscoped compatibility facade
 ```
 
 Two structural rules carry most of the weight:
@@ -189,9 +184,9 @@ Two structural rules carry most of the weight:
   accidentally ship its own fetch loop that forgets attribution headers,
   mishandles abort, or invents error codes.
 
-See [`src/providers/README.md`](src/providers/README.md) for how the adapter layer
-works in detail: the pipeline, who owns error classification, throw-vs-finish-chunk
-layering, where the two wire protocols genuinely differ, and how to add a provider.
+See [the package architecture](docs/monorepo-package-architecture.md) and
+[`@ai-agent-sdk/provider-http`](packages/provider-http/README.md) for the adapter
+pipeline, ownership rules, and provider extension boundary.
 
 ## Tool loop
 
@@ -425,13 +420,14 @@ For any endpoint speaking a protocol this package already implements, adding it 
 configuration — no new file, no new folder, no edit to this package:
 
 ```ts
-import { createHttpProvider, apiKeyFromEnv, openAiResponsesProtocol } from 'ai-agent-sdk'
+import { createHttpProvider, openAiResponsesProtocol } from 'ai-agent-sdk'
+import { envCredential } from '@ai-agent-sdk/auth-node/env'
 
 registry.registerAdapter(['openrouter'], createHttpProvider({
   displayName: 'OpenRouter',
   protocol: openAiResponsesProtocol,
   baseUrl: 'https://openrouter.ai/api/v1',
-  auth: { kind: 'bearer', token: apiKeyFromEnv('OPENROUTER_API_KEY') },
+  auth: { kind: 'bearer', token: envCredential('OPENROUTER_API_KEY') },
 }))
 ```
 
@@ -440,7 +436,7 @@ subclass — the built-in `codex` provider is itself only config.
 
 Subclass `HttpModelAdapter` only when connection facts cannot be expressed as data
 (request signing over the body, such as AWS SigV4). Decision table and a new-protocol
-walkthrough in [`src/providers/README.md`](src/providers/README.md#adding-a-provider).
+walkthrough in [`@ai-agent-sdk/provider-http`](packages/provider-http/README.md).
 
 ## Scripts
 
@@ -449,7 +445,7 @@ walkthrough in [`src/providers/README.md`](src/providers/README.md#adding-a-prov
 | `npm test` | unit suite (fast, no network) |
 | `npm run test:integration` | live provider calls; needs credentials |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm run build` | bundle + declarations to `dist/` |
+| `npm run build` | build package-owned bundles and declarations |
 
 Integration tests are a separate run because they cost tokens and are slow enough
 that mixing them in would discourage running the fast suite.

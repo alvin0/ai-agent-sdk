@@ -413,11 +413,11 @@ Commit: `refactor: switch compatibility facade to workspace packages`
 Dependencies: K0  
 Files: old root `src/**`, old build config, `package-lock.json`
 
-- [ ] Delete only files proven replaced by package ownership.
-- [ ] Remove obsolete root entry config and npm lock.
-- [ ] Fresh clone/frozen pnpm install/build/test.
+- [x] Delete only files proven replaced by package ownership.
+- [x] Remove obsolete root entry config and npm lock.
+- [x] Fresh clone/frozen pnpm install/build/test.
 
-Exit evidence: no duplicate runtime implementation or stale import remains.  
+Exit evidence: package ownership and the K0 packed fixtures prove every deleted root implementation is replaced. The workspace has no root `src`, root `dist`, root `tsdown.config.ts`, or npm lock; root orchestration now targets only pnpm workspace packages. The migrated human tests, runtime spike, and unit imports pass the full 54-file/628-test suite plus root typecheck, lint, boundary fixtures, supply-chain checks, and packed SDK fixtures. An archive of commit `a063dcc` was extracted into a new temporary checkout with no ignored files, installed with the frozen pnpm lock (including allowed install scripts), rebuilt, passed all 54 files/628 tests, and passed root typecheck.
 Commit: `build: complete pnpm monorepo cutover`
 
 ## Phase E — `eventsource-parser` ownership decision before 1.0

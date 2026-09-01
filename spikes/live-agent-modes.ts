@@ -7,7 +7,7 @@ import { ToolRegistry } from '@ai-agent-sdk/agent'
 import { createTextMessage } from '@ai-agent-sdk/core'
 import { ModelRegistry } from '@ai-agent-sdk/core'
 import { codexNodeAdapter as codexAdapter } from '@ai-agent-sdk/auth-node/codex'
-import { createDailyJsonlRequestLogger } from '../src/providers/request-logger.ts'
+import { createDailyJsonlRequestLogger } from 'ai-agent-sdk/request-logger'
 
 type LiveModeOptions =
   | { readonly mode: 'basic' | 'deep'; readonly maxTurns: number }

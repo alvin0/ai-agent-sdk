@@ -1,5 +1,5 @@
-import { createMcpHttpClient } from '../../dist/mcp-client.js'
-import { createSdkMcpHandler } from '../../dist/mcp-server.js'
+import { createMcpHttpClient } from '@ai-agent-sdk/mcp/client'
+import { createSdkMcpHandler } from '@ai-agent-sdk/mcp/server'
 
 export default {
   async fetch(request) {

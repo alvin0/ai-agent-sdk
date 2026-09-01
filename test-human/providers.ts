@@ -3,13 +3,14 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ModelRegistry } from '@ai-agent-sdk/core'
-import { anthropicAdapter } from '../src/providers/anthropic/adapter.ts'
+import { anthropicAdapter } from '@ai-agent-sdk/provider-anthropic'
 import { codexNodeAdapter as codexAdapter } from '@ai-agent-sdk/auth-node/codex'
-import { openAiAdapter } from '../src/providers/openai/adapter.ts'
+import { envCredential } from '@ai-agent-sdk/auth-node/env'
+import { openAiAdapter } from '@ai-agent-sdk/provider-openai'
 import {
   combineProviderRequestLoggers,
   createDailyJsonlRequestLogger,
-} from '../src/providers/request-logger.ts'
+} from 'ai-agent-sdk/request-logger'
 import type { HumanCliConfig } from './config.ts'
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -48,9 +49,15 @@ export function createHumanModelRegistry(
   if (config.provider === 'codex') {
     registry.registerAdapter(['codex'], codexAdapter(logging))
   } else if (config.provider === 'openai') {
-    registry.registerAdapter(['openai'], openAiAdapter(logging))
+    registry.registerAdapter(['openai'], openAiAdapter({
+      ...logging,
+      apiKey: envCredential('OPENAI_API_KEY'),
+    }))
   } else {
-    registry.registerAdapter(['anthropic'], anthropicAdapter(logging))
+    registry.registerAdapter(['anthropic'], anthropicAdapter({
+      ...logging,
+      apiKey: envCredential('ANTHROPIC_API_KEY'),
+    }))
   }
   return registry
 }

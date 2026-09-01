@@ -20,9 +20,7 @@ import {
 import { ToolCallId } from '@ai-agent-sdk/core'
 import { BlockAssembler } from '@ai-agent-sdk/core'
 import type { StreamChunk, TokenUsage } from '@ai-agent-sdk/core'
-import type { SseEvent } from '../src/core/stream/sse.ts'
-import type { ProviderRequest } from '../src/providers/base/http-adapter.ts'
-import type { WireProtocol } from '../src/providers/protocols/protocol.ts'
+import type { ProviderRequest, SseEvent, WireProtocol } from '@ai-agent-sdk/provider-http'
 
 interface ChatDialect {
   readonly reasoningEffort: boolean
