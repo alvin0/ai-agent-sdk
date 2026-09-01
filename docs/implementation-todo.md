@@ -241,14 +241,14 @@ Commit: `refactor(protocols): extract provider wire packages`
 Dependencies: P1  
 Files: provider-anthropic/openai/codex packages
 
-- [ ] Export low-level adapters and preferred plugin factories.
-- [ ] Split Codex auth contract from filesystem/path/env implementation.
-- [ ] Require injected Codex auth store in Universal package.
-- [ ] Instrument catalog and credential operations with safe events.
-- [ ] Keep OAuth tokens and account details outside event/log fields.
+- [x] Export low-level adapters and preferred plugin factories.
+- [x] Split Codex auth contract from filesystem/path/env implementation.
+- [x] Require injected Codex auth store in Universal package.
+- [x] Instrument catalog and credential operations with safe events.
+- [x] Keep OAuth tokens and account details outside event/log fields.
 
 Verify: mock provider suites; plugin transaction tests; packed Worker/browser tests.  
-Exit evidence: provider packages are Universal and contain no Node global/builtin references.  
+Exit evidence: Anthropic/OpenAI/Codex expose both low-level adapters and transactional plugin factories; the Universal adapters require injected credentials and Codex requires an injected `CodexAuthStore`. Package suites pass with 2/2/7 tests, including a real expired-token refresh path whose serialized credential events contain no old/new token, account id, or store location. All three tarballs install and execute an attempt-accounted mock stream in standards-only Node, Chromium, and Cloudflare Worker with `Buffer`/`process` removed. Publint and ATTW ESM checks pass for all packages; the root compatibility suite passes 569 tests after the documented additive facade update. Package/runtime/source/supply-chain gates report zero findings, and `provider-http`'s updated six-event packed matrix also passes.
 Commit: `refactor(providers): extract universal provider plugins`
 
 ## Phase O — Concrete observability

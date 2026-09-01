@@ -377,6 +377,7 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
   }
   const effectiveContext: ModelInvocationContext = Object.freeze({
     observation: port,
+    resource: input.resource,
     correlation: span.correlation,
     terminalCheckpointOwner: input.context?.terminalCheckpointOwner ?? 'model-call',
     scope,

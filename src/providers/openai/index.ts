@@ -4,8 +4,10 @@ export {
   OPENAI_API_KEY_ENV,
   OPENAI_BASE_URL,
   openAiAdapter,
+  openAiPlugin,
   type OpenAiAdapterOptions,
   type OpenAiCredential,
+  type OpenAiPluginOptions,
 } from './adapter.ts'
 export {
   openAiResponsesProtocol,

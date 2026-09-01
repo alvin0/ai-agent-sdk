@@ -6,8 +6,10 @@ export {
   ANTHROPIC_VERSION,
   DEFAULT_THINKING_BUDGETS,
   anthropicAdapter,
+  anthropicPlugin,
   type AnthropicAdapterOptions,
   type AnthropicCredential,
+  type AnthropicPluginOptions,
 } from './adapter.ts'
 export {
   anthropicMessagesProtocol,

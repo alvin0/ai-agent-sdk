@@ -120,7 +120,7 @@ function assertFixture(value: unknown, runtime: string): void {
   const result = value as Record<string, unknown>
   if (result.text !== 'packed provider completed' || result.totalTokens !== 12
     || result.attempts !== 1 || result.dispatchState !== 'sent'
-    || result.requestId !== 'packed-request' || result.eventCount !== 4
+    || result.requestId !== 'packed-request' || result.eventCount !== 6
     || result.buffer !== 'undefined' || result.process !== 'undefined') {
     throw new Error(`${runtime} fixture returned invalid evidence: ${JSON.stringify(result)}`)
   }

@@ -160,7 +160,7 @@
         "withIdleTimeout",
         "withRetry"
       ],
-      "typesSha256": "2ae55b6ac2c0e72afa14652eb8849c79dde1fb4eb92d2958a8c2cfecb81645ee"
+      "typesSha256": "d71cbf064b4ceedf4639f2ba8dac5b6a11e57bb640f442fa6fcc4c8e7bf52747"
     },
     "./anthropic": {
       "exports": [
@@ -169,18 +169,20 @@
         "ANTHROPIC_VERSION",
         "DEFAULT_THINKING_BUDGETS",
         "anthropicAdapter",
-        "anthropicMessagesProtocol"
+        "anthropicMessagesProtocol",
+        "anthropicPlugin"
       ],
-      "typesSha256": "f1d00296ccc09980188540d40c9630456b1da7132f67d8b95d4d92abd106df8a"
+      "typesSha256": "3e0c2fbd8901bdb431fa98b42acf88fa173735b25836387b490359292a22f271"
     },
     "./openai": {
       "exports": [
         "OPENAI_API_KEY_ENV",
         "OPENAI_BASE_URL",
         "openAiAdapter",
+        "openAiPlugin",
         "openAiResponsesProtocol"
       ],
-      "typesSha256": "a0720d04c6217c70fb32b192127345cbe709b50b7ec063b4e614eaac2f3ed309"
+      "typesSha256": "85fc2e1ebd0142378308b982052b79b4988dd521398b1e23e4b1e9d8e270de29"
     },
     "./codex": {
       "exports": [
@@ -195,6 +197,7 @@
         "DEFAULT_CODEX_ISSUER",
         "LAST_REFRESH_MAX_AGE_MS",
         "codexAdapter",
+        "codexPlugin",
         "fileCodexAuthStore",
         "isFedrampAccount",
         "memoryCodexAuthStore",
@@ -207,7 +210,7 @@
         "runDeviceCodeLogin",
         "shouldRefresh"
       ],
-      "typesSha256": "e3d32025e06de886267b23c04c34307ac6e5c92bf93ceb7942a78fa8d0a72866"
+      "typesSha256": "bcfedfb704837e8d555cb726394e4c6b6c98f9e7fab2834e1001500e37561d4a"
     },
     "./a2a-client": {
       "exports": [

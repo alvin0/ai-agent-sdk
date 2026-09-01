@@ -26,7 +26,7 @@
  * @module ai-agent-sdk/providers/http-provider
  */
 
-import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
+import type { ModelInvocationContext, ResolvedModelInfo } from '@ai-agent-sdk/core'
 import { resolveRetryPolicy, type RetryPolicyConfig } from '@ai-agent-sdk/core'
 import type { ResolvedRetryPolicy } from '@ai-agent-sdk/core'
 import { assertUsableApiKey } from '@ai-agent-sdk/core'
@@ -49,9 +49,16 @@ import {
   type ProviderRequestLogRecord,
 } from '../base/http-adapter.ts'
 import { resolveDialect, type WireProtocol } from '../protocol/protocol.ts'
+import {
+  observeCredentialOperation,
+  observeModelCatalogOperation,
+} from '../observation/operations.ts'
 
 /** A credential, either literal or resolved per operation. */
-export type CredentialSource = string | ((signal?: AbortSignal) => string | Promise<string>)
+export type CredentialSource = string | ((
+  signal?: AbortSignal,
+  context?: ModelInvocationContext,
+) => string | Promise<string>)
 
 /**
  * How requests are authenticated.
@@ -70,7 +77,10 @@ export type AuthScheme =
   /** Arbitrary headers resolved per operation. */
   | {
     kind: 'dynamic'
-    resolve: (signal?: AbortSignal) => Record<string, string> | Promise<Record<string, string>>
+    resolve: (
+      signal?: AbortSignal,
+      context?: ModelInvocationContext,
+    ) => Record<string, string> | Promise<Record<string, string>>
   }
 
 /** What a model-discovery hook receives. */
@@ -179,8 +189,9 @@ async function credential(
   displayName: string,
   label: string,
   signal?: AbortSignal,
+  context?: ModelInvocationContext,
 ): Promise<string> {
-  const value = typeof source === 'function' ? await source(signal) : source
+  const value = typeof source === 'function' ? await source(signal, context) : source
   return assertUsableApiKey(value, displayName, label)
 }
 
@@ -242,39 +253,40 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
   }
 
   /** Resolve the authentication headers for one operation. */
-  private async authHeaders(signal?: AbortSignal): Promise<Record<string, string>> {
+  private async authHeaders(
+    provider: string,
+    signal?: AbortSignal,
+    context?: ModelInvocationContext,
+  ): Promise<Record<string, string>> {
     const auth = this.options.auth
     switch (auth.kind) {
       case 'none':
         return {}
       case 'bearer': {
-        const token = await credential(
-          auth.token,
-          this.displayName,
-          auth.label ?? 'the `auth.token` option',
-          signal,
-        )
+        const token = await observeCredentialOperation(context, provider, 'resolve', () => credential(
+          auth.token, this.displayName, auth.label ?? 'the `auth.token` option', signal, context,
+        ))
         return { authorization: `Bearer ${token}` }
       }
       case 'header': {
-        const value = await credential(
-          auth.value,
-          this.displayName,
-          auth.label ?? `the \`${auth.name}\` credential`,
-          signal,
-        )
+        const value = await observeCredentialOperation(context, provider, 'resolve', () => credential(
+          auth.value, this.displayName, auth.label ?? `the \`${auth.name}\` credential`, signal, context,
+        ))
         return { [auth.name]: value }
       }
       case 'dynamic':
-        return await auth.resolve(signal)
+        return await observeCredentialOperation(
+          context, provider, 'resolve', async () => await auth.resolve(signal, context),
+        )
       default:
         return {}
     }
   }
 
   protected override async connect(
-    _provider: string,
+    provider: string,
     signal?: AbortSignal,
+    context?: ModelInvocationContext,
   ): Promise<HttpConnection> {
     const timeoutMs = positiveFinite(
       this.options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
@@ -292,7 +304,7 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
       ...attributionHeaders(),
       ...this.options.protocol.protocolHeaders?.(this.dialect) ?? {},
       ...extra,
-      ...await raceAbort(this.authHeaders(operationSignal), operationSignal),
+      ...await raceAbort(this.authHeaders(provider, operationSignal, context), operationSignal),
     }
 
     return {
@@ -311,7 +323,9 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
         ? {}
         : { requestLoggerTimeoutMs: this.options.requestLoggerTimeoutMs },
       retryPolicy: this.retry,
-      models: this.options.models ?? await this.resolveCatalog(baseUrl, headers, operationSignal),
+      models: this.options.models ?? await this.resolveCatalog(
+        provider, baseUrl, headers, operationSignal, context,
+      ),
       defaultMaxTokens: this.options.defaultMaxTokens ?? 8_192,
       defaultContextWindow: this.options.defaultContextWindow ?? 128_000,
     }
@@ -319,9 +333,11 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
 
   /** Run the discovery hook, memoized, tolerating failure. */
   private async resolveCatalog(
+    provider: string,
     baseUrl: string,
     headers: Record<string, string>,
     signal?: AbortSignal,
+    context?: ModelInvocationContext,
   ): Promise<readonly ProviderCatalogModel[]> {
     const discover = this.options.discoverModels
     if (discover === undefined) return []
@@ -331,12 +347,19 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
 
     let models: readonly ProviderCatalogModel[] = []
     try {
-      const pending = discover({
-        baseUrl,
-        headers,
-        ...signal === undefined ? {} : { signal },
-      })
-      const discovered = signal === undefined ? await pending : await raceAbort(pending, signal)
+      const discovered = await observeModelCatalogOperation(
+        context,
+        provider,
+        new URL(baseUrl).origin,
+        async () => {
+          const pending = discover({
+            baseUrl,
+            headers,
+            ...signal === undefined ? {} : { signal },
+          })
+          return signal === undefined ? await pending : await raceAbort(pending, signal)
+        },
+      )
       models = boundedCatalog(
         discovered,
         this.options.maxCatalogModels ?? DEFAULT_MAX_CATALOG_MODELS,

@@ -88,3 +88,27 @@ is emitted as public `TokenUsage`, preserving its exact-report contract. This is
 an intentional declaration-only addition; no runtime symbol is removed or
 renamed. Packed standards-only Node, Chromium, and Cloudflare Worker fixtures
 prove both emitted protocol closures need neither Node globals nor builtins.
+
+## P2 migration record — extracted Universal providers
+
+P2 moves canonical Anthropic, OpenAI, and Codex adapter ownership to
+`@ai-agent-sdk/provider-anthropic`, `@ai-agent-sdk/provider-openai`, and
+`@ai-agent-sdk/provider-codex`. Each package adds a preferred transactional
+plugin factory beside its low-level adapter. The compatibility `./anthropic`,
+`./openai`, and `./codex` entries therefore gain one additive runtime export:
+`anthropicPlugin`, `openAiPlugin`, and `codexPlugin`; no existing symbol is
+removed or renamed.
+
+The Universal Anthropic/OpenAI adapters require an injected API key source, and
+the Universal Codex adapter requires an injected `CodexAuthStore`. Environment,
+path, and filesystem defaults remain only in the root Node compatibility
+wrappers until `@ai-agent-sdk/auth-node` assumes ownership in N0. Declaration
+hashes change for the root and provider compatibility entries because they now
+reference the canonical provider packages and `ModelInvocationContext` carries
+the safe observation resource needed by nested credential/catalog spans.
+
+Credential resolve/refresh and model-catalog discovery emit structured operation
+events with provider/operation/safe origin only. Token values, account details,
+credential labels and store locations are excluded even on failures. All three
+provider tarballs execute in standards-only Node, Chromium, and Cloudflare Worker
+without Node globals or builtins.

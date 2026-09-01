@@ -12,7 +12,7 @@ try {
     attempts: 1,
     dispatchState: 'sent',
     requestId: 'packed-request',
-    eventCount: 4,
+    eventCount: 6,
     buffer: 'undefined',
     process: 'undefined',
   })

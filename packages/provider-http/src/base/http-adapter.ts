@@ -188,7 +188,11 @@ export abstract class HttpModelAdapter extends ModelAdapter {
    * @param provider - the route being served.
    * @param signal - cancellation for any I/O this resolution performs.
    */
-  protected abstract connect(provider: string, signal?: AbortSignal): Promise<HttpConnection>
+  protected abstract connect(
+    provider: string,
+    signal?: AbortSignal,
+    context?: ModelInvocationContext,
+  ): Promise<HttpConnection>
 
   /** Path appended to {@link HttpConnection.baseUrl}, e.g. `/v1/messages`. */
   protected abstract endpointPath(request: ProviderRequest): string
@@ -262,7 +266,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     context?.declareProviderAttemptAccounting?.()
     // Snapshot once, then bind both the capability answer and the eventual
     // dispatch to it, so the two cannot come from different generations.
-    const connection = await this.connect(provider, signal)
+    const connection = await this.connect(provider, signal, context)
     const info = this.modelInfoFor(connection, provider, model)
     return {
       model: info,
@@ -283,7 +287,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
   /** Resolve a connection first, for the un-prepared entry point. */
   private async * runResolving(options: GenerateOptions, context?: ModelInvocationContext): AsyncGenerator<StreamChunk> {
     context?.declareProviderAttemptAccounting?.()
-    const connection = await this.connect(options.provider, options.signal)
+    const connection = await this.connect(options.provider, options.signal, context)
     const info = this.modelInfoFor(connection, options.provider, options.model)
     yield* this.run(options, connection, info, context)
   }

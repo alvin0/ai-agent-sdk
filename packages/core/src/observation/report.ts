@@ -70,6 +70,8 @@ export interface ProviderAttemptHandle {
 
 export interface ModelInvocationContext {
   readonly observation?: ObservationPort
+  /** Safe SDK/service/runtime identity copied onto nested provider operations. */
+  readonly resource?: ObservationResource
   readonly correlation?: Partial<CorrelationContext>
   readonly terminalCheckpointOwner?: 'model-call' | 'agent-run'
   /** Shared sequence/monotonic scope when this call belongs to a larger agent run. */

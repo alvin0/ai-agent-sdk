@@ -643,6 +643,59 @@ describe('createHttpProvider: physical attempt accounting', () => {
     expect(JSON.stringify(observed.events)).not.toContain('/v1/responses')
   })
 
+  it('observes credential resolution without retaining credential values or labels', async () => {
+    stubFetch([() => sseResponse(RESPONSES_OK)])
+    const observed = recordingPort()
+    const handle = observedRegistry(observedProvider({
+      auth: {
+        kind: 'bearer',
+        token: () => 'top-secret-token',
+        label: '/private/credential/location',
+      },
+    }), observed.port).stream(observedRequest())
+    await drain(handle)
+
+    const credentialEvents = observed.events.filter(event => event.name === 'sdk.credential.operation')
+    expect(credentialEvents.map(event => [event.phase, event.data])).toEqual([
+      ['start', { provider: 'observed-http', operation: 'resolve' }],
+      ['end', { provider: 'observed-http', operation: 'resolve', status: 'success' }],
+    ])
+    const serialized = JSON.stringify(credentialEvents)
+    expect(serialized).not.toContain('top-secret-token')
+    expect(serialized).not.toContain('/private/credential/location')
+  })
+
+  it('observes catalog failures with safe origin and no raw error or authorization header', async () => {
+    stubFetch([() => sseResponse(RESPONSES_OK)])
+    const observed = recordingPort()
+    const handle = observedRegistry(observedProvider({
+      auth: { kind: 'bearer', token: 'top-secret-token' },
+      discoverModels: async () => {
+        const error = new Error('catalog leaked top-secret-token') as Error & { code: string }
+        error.name = 'top-secret-token'
+        error.code = 'top-secret-token'
+        throw error
+      },
+    }), observed.port).stream(observedRequest())
+    await drain(handle)
+
+    const catalogEvents = observed.events.filter(event => event.name === 'sdk.integration.request')
+    expect(catalogEvents).toHaveLength(2)
+    expect(catalogEvents[0]?.data).toEqual({
+      integration: 'model-catalog',
+      provider: 'observed-http',
+      operation: 'discover',
+      origin: 'https://observed.invalid',
+    })
+    expect(catalogEvents[1]?.data).toMatchObject({
+      status: 'error',
+      error: { type: 'Error', message: 'model catalog operation failed' },
+    })
+    const serialized = JSON.stringify(catalogEvents)
+    expect(serialized).not.toContain('top-secret-token')
+    expect(serialized).not.toContain('/v1')
+  })
+
   it('keeps partial usage in attempt accounting without emitting an inexact TokenUsage', async () => {
     stubFetch([() => sseResponse([
       'data: {"type":"response.completed","response":{"usage":{"input_tokens":10}}}',

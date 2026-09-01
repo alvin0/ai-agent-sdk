@@ -10,7 +10,9 @@ export {
   CODEX_CLIENT_VERSION,
   CODEX_ORIGINATOR,
   codexAdapter,
+  codexPlugin,
   type CodexAdapterOptions,
+  type CodexPluginOptions,
 } from './adapter.ts'
 export {
   ACCESS_TOKEN_REFRESH_WINDOW_MS,
