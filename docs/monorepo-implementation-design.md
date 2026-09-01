@@ -1,6 +1,6 @@
 # Monorepo Implementation Design
 
-Status: implemented and R0-verified; release scope preflight pending
+Status: implemented and R0-verified; npm publication intentionally deferred
 
 Baseline evidence: [implementation-spike-evidence.md](./implementation-spike-evidence.md)  
 Architecture rationale: [monorepo-package-architecture.md](./monorepo-package-architecture.md)  

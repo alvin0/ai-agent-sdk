@@ -20,7 +20,12 @@ pnpm build:cli
 
 Workspace tooling and Node capability packages require Node 22.12 or newer.
 
-For application installs, choose the smallest runtime closure you need:
+Registry publication is intentionally deferred while npm ownership is being set
+up. The commands below document the intended application install profiles for a
+future registry release; current validation installs the generated tarballs or
+uses the workspace directly.
+
+Choose the smallest runtime closure you need:
 
 ```bash
 # Edge/Worker harness with a remote provider and acknowledged HTTPS telemetry

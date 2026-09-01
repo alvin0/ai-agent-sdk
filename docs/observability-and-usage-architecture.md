@@ -1,6 +1,6 @@
 # Observability, Usage Accounting, and Logging Architecture
 
-Status: **Implemented and verified; release preflight pending**
+Status: **Implemented and verified; npm publication intentionally deferred**
 
 Last reviewed: **2026-09-01**
 

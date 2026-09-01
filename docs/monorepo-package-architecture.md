@@ -1,6 +1,6 @@
 # Monorepo Package and Runtime Architecture Plan
 
-Status: **Implemented; npm scope preflight and prerelease pending**
+Status: **Implemented and verified; npm publication intentionally deferred**
 
 Last reviewed: **2026-09-01**
 
@@ -29,7 +29,11 @@ The split must be driven by **runtime and capability boundaries**, not by the cu
 - Model calls, usage coverage, errors, and exporter health flow through one universal observability contract; durable file/Node exporters remain Node capabilities.
 - The root `ai-agent-sdk` export and regular dependency closure remain Universal; legacy leaf shims are optional peers, and Node capabilities require explicit package installation/import.
 
-The local and intended public package names use `@ai-agent-sdk/*`. All scoped packages remain private until an authenticated release preflight proves npm scope ownership; a 404 from `npm view` is not ownership evidence.
+The local and intended public package names use `@ai-agent-sdk/*`. The project
+owner has deferred registry publication while npm ownership is being set up, so
+all scoped packages remain private. If publication is opened later, an
+authenticated release preflight must prove scope ownership; a 404 from `npm view`
+is not ownership evidence.
 
 The detailed accounting and delivery design lives in [`observability-and-usage-architecture.md`](./observability-and-usage-architecture.md).
 

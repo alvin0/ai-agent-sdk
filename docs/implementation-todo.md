@@ -8,7 +8,7 @@ Evidence baseline: [implementation spikes](./implementation-spike-evidence.md)
 
 Execute tasks in ID/dependency order. Do not combine commit gates: each gate must pass before the next task starts. Every completed task records its commit ID and a short command-output summary in the evidence table at the end.
 
-Defaults in the design are decisions, not suggestions. If an external precondition fails (for example npm scope ownership), stop only that release task; do not rename packages or weaken a runtime/security gate. No production package is published before R3.
+Defaults in the design are decisions, not suggestions. If an external precondition fails (for example npm scope ownership), stop only that release task; do not rename packages or weaken a runtime/security gate. Registry publication is outside the current implementation scope by explicit project-owner decision; all package manifests remain private until a separate authorized release task is opened.
 
 ## Phase S — Resolved spikes and baseline
 
@@ -506,17 +506,16 @@ Dependencies: R1
 Exit evidence: `pnpm check:docs` scans 36 release-facing Markdown files, all 20 package READMEs, runtime labels against manifests, installation examples, package names, local links, direct dependency ownership, root commands, and stale release markers; it reports zero findings. The check identified and corrected six links that still targeted the removed root source tree and one hypothetical package name before passing. Frozen install, all 20 package builds/typechecks, CLI build, root typecheck, lint, 13 contract tests, graph/runtime-boundary checks, and the supply-chain gate pass on the release candidate. R0 already installed every package tarball in its declared runtime rather than relying on an unpublished registry; R1 verified the sole documented live-provider class without issuing another paid request during R2.
 Commit: `docs: finalize package runtime and observability guidance`
 
-### R3 — Scope preflight and prerelease
+### R3 — Publication deferral
 
 Dependencies: R2
 
-- [ ] Verify authenticated npm identity and `@ai-agent-sdk` scope publish rights without exposing tokens.
-- [ ] Remove `private: true` only from publishable packages in one reviewed commit.
-- [ ] Changesets prerelease, provenance publish, then fresh registry install smoke.
-- [x] If scope ownership fails, leave packages private and stop R3. Do not rename or publish under an unreviewed scope.
+- [x] Record the project-owner decision to defer npm publication while registry setup is incomplete.
+- [x] Keep all 20 intended package manifests `private: true` and perform no registry mutation.
+- [x] Preserve authenticated scope preflight, reviewed visibility change, Changesets prerelease, provenance publish, and fresh registry smoke as the mandatory sequence for a future release task.
 
-Exit evidence: `npm whoami` returned `ENEEDAUTH`, so this environment has no authenticated npm identity and cannot establish publish authority for `@ai-agent-sdk`. A scope-list response alone was not treated as authority without an authenticated identity. All 20 intended package manifests remain `private: true`; no Changesets prerelease, publish, package visibility mutation, registry smoke, rename, or token-printing command ran. R3 is stopped at its documented external gate and can resume after an authorized npm login.
-Commit: `docs: record blocked npm scope preflight`
+Exit evidence: the project owner explicitly removed npm publication from the current scope because registry setup is not ready. The prior fail-closed preflight returned `ENEEDAUTH`; all 20 intended package manifests were then reverified as `private: true`. No Changesets prerelease, publish, package visibility mutation, registry smoke, rename, or token-printing command ran. This closes the implementation backlog without making an unverified registry claim; publication requires a separate authorized task after npm setup exists.
+Commit: `docs: defer npm publication by owner decision`
 
 ## Requirements self-audit checklist
 
@@ -535,7 +534,7 @@ Commit: `docs: record blocked npm scope preflight`
 - [x] `eventsource-parser` is isolated, pinned, and either replaced by a fully qualified parser or retained with evidence.
 - [x] MCP is proven Universal and A2A is not falsely advertised as Universal.
 - [x] Real Codex `gpt-5.6-luna` acceptance passes on the release candidate.
-- [x] Packed package tests, not source aliases, prove the published artifacts.
+- [x] Packed package tests, not source aliases, prove the release artifacts.
 - [x] No runtime/package cycle, undeclared import, Node leak, open decision, or unreviewed install script remains.
 
 Audit evidence: Worker and Chromium tarball fixtures prove the Universal harness and browser durability path; current and oldest-supported Node fixtures prove the facade and granular Node leaves. Package graph/runtime gates prove one Universal core/agent loop, explicit runtime elevation, transactional provider installation, and no forbidden imports or cycles. Agent/provider/integration suites prove terminal operations, retry-aware accounting, missing/partial usage coverage, privacy-before-fan-out, correlation, exporter health, delivery semantics, and hard-opt-in wire bodies. The E0/E1 conformance, 100,000-case differential, 1,000,000-seed fuzz, benchmark, ADR, exact-owner, and supply-chain evidence justify retaining `eventsource-parser@4.1.0`. MCP passes without Node globals; A2A is Node-labelled and its Worker binary case remains an intentional negative fixture. R0 validates packed artifacts and R1 validates Luna accounting on the same release candidate.
@@ -557,4 +556,4 @@ Fill this during implementation; do not mark the implementation complete with bl
 | E SSE ownership | `d4beee3`, `c1bcbf2` | Qualified owned-parser spike failed performance gate; exact dependency retained by ADR and isolated owner. |
 | R deterministic matrix | `6e8d45a` | Frozen clean archive passed packed Worker/Chromium/Node, recovery, boundary, supply, and audit matrix. |
 | R live Luna acceptance | `cc2ca9b` | Exactly one paid Luna request passed complete usage, correlation, terminal, privacy, and health assertions. |
-| R docs/scope/prerelease | `a474eaa`; R3 preflight record | Documentation/self-audit is zero-finding; R3 stopped safely because npm returned `ENEEDAUTH`, with all packages still private. |
+| R docs/publication scope | `a474eaa`, `4a5ccde`; owner deferral record | Documentation/self-audit is zero-finding; publication is explicitly deferred and every package remains private. |

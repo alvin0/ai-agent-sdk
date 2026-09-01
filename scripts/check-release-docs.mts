@@ -17,6 +17,9 @@ const packageNames = new Set(manifests.map(entry => entry.manifest.name))
 if (manifests.length !== 20) errors.push(`expected 20 publishable package manifests, found ${manifests.length}`)
 
 for (const { root, manifest } of manifests) {
+  if (manifest.private !== true) {
+    errors.push(`${manifest.name} must remain private while registry publication is deferred`)
+  }
   const readmePath = join(root, 'README.md')
   if (!existsSync(readmePath)) {
     errors.push(`${relative(workspaceRoot, root)} has no README.md`)
@@ -132,6 +135,7 @@ function walkMarkdown(root: string): string[] {
 
 interface PackageManifest {
   name: string
+  private?: boolean
   scripts?: Record<string, string>
   dependencies?: Record<string, string>
   optionalDependencies?: Record<string, string>
