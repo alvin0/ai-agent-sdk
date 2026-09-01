@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 const packageRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const workspaceRoot = resolve(packageRoot, '../..')
 const artifacts = join(packageRoot, 'artifacts')
+const fixtureNode = process.env.AI_AGENT_SDK_TEST_NODE_BINARY ?? process.execPath
 const packages = [
   'core', 'agent', 'provider-http', 'protocol-anthropic-messages', 'protocol-responses',
   'provider-anthropic', 'provider-openai', 'provider-codex', 'observability',
@@ -22,7 +23,7 @@ try {
   run('npm', [
     'install', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund', ...tarballs,
   ], temporaryRoot)
-  run(process.execPath, ['smoke.mjs'], temporaryRoot)
+  run(fixtureNode, ['smoke.mjs'], temporaryRoot)
   process.stdout.write(
     `packed Node facade harness passed: ${relative(workspaceRoot, tarballs.at(-1) ?? '')}\n`,
   )

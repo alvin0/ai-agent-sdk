@@ -453,17 +453,24 @@ Commit: `security(sse): finalize parser ownership decision`
 
 Dependencies: K1, E1
 
-- [ ] Frozen install, lint, typecheck, unit, contract, graph, runtime boundary, build.
-- [ ] Pack every public package; run publint and ATTW on tarballs.
-- [ ] Install tarballs in Worker, Chromium, oldest supported Node, and current Node fixtures.
-- [ ] Run journal/IndexedDB crash recovery and audit fail-closed tests.
-- [ ] Run `pnpm audit --prod`; triage every finding.
+- [x] Frozen install, lint, typecheck, unit, contract, graph, runtime boundary, build.
+- [x] Pack every public package; run publint and ATTW on tarballs.
+- [x] Install tarballs in Worker, Chromium, oldest supported Node, and current Node fixtures.
+- [x] Run journal/IndexedDB crash recovery and audit fail-closed tests.
+- [x] Run `pnpm audit --prod`; triage every finding.
 
 Verify:
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm turbo run lint typecheck test:unit test:contract build
+pnpm workspace:build
+pnpm workspace:typecheck
+pnpm build:cli
+pnpm lint
+pnpm exec tsc --noEmit
+pnpm test:unit
+pnpm test:contract
+pnpm test:packages
 pnpm check:graph
 pnpm check:runtime-boundaries
 pnpm test:pack
@@ -473,7 +480,7 @@ pnpm test:node
 pnpm audit --prod
 ```
 
-Exit evidence: every required task is green from a clean checkout.  
+Exit evidence: archive checkout `97987c2` installed from the frozen lock and passed workspace build/typecheck for all 20 publishable packages, CLI build, root typecheck, graph/runtime lint, 615 unit tests, 13 contract tests, every package-owned suite, seven negative boundary fixtures, the full supply-chain gate, and recovery/audit tests. All 20 tarballs pass publint and ATTW ESM profiles, then install and execute through their package-owned Worker, Chromium, Node, protocol, provider, and compatibility fixtures. Current Node is v26.8.1. The official Node v22.12.0 Linux x64 archive passed SHA-256 `22982235e1b71fa8850f82edd09cdae7e3f32df1764a9ec298c72d25ef2c164f`, and the packed full Node facade harness passed under that oldest supported runtime, including filesystem skills, journal recovery, MCP stdio, A2A/provider imports, and token accounting. The production audit reports 19 dependencies and zero findings at every severity. R0 itself found and fixed a missing package-local `ObservationResource` type import plus nondeterministic duplicate root/package builds and parallel Worker port contention; the final task graph excludes root duplication and serializes runtime fixtures.
 Commit: `test: complete monorepo runtime and package matrix`
 
 ### R1 — Live provider acceptance

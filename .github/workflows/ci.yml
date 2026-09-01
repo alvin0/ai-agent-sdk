@@ -33,7 +33,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Graph, runtime, type, and build gates
-        run: pnpm turbo run lint typecheck build
+        run: pnpm workspace:build && pnpm workspace:typecheck && pnpm build:cli && pnpm lint && pnpm exec tsc --noEmit
 
       - name: Prove invalid boundaries are rejected
         run: pnpm check:boundary-fixtures
@@ -43,3 +43,9 @@ jobs:
 
       - name: Baseline contract and unit tests
         run: pnpm test
+
+      - name: Package-owned unit and contract suites
+        run: pnpm test:packages
+
+      - name: Packed package and runtime matrix
+        run: pnpm test:pack

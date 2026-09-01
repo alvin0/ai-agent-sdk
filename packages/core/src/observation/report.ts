@@ -1,7 +1,7 @@
 import type { StreamChunk } from '../stream/chunk.ts'
 import { AgentSdkError } from '../errors/agent-sdk-error.ts'
 import type { CorrelationContext, ObservationRunScope, SpanId, TraceId } from './context.ts'
-import type { OperationStatus, SafeErrorRecord } from './event.ts'
+import type { ObservationResource, OperationStatus, SafeErrorRecord } from './event.ts'
 import type { ObservationDeliverySummary, ObservationPort } from './port.ts'
 import type { AttemptUsageReport, DispatchState, UsageCounters, UsageCoverage } from './usage.ts'
 
