@@ -487,12 +487,12 @@ Commit: `test: complete monorepo runtime and package matrix`
 
 Dependencies: R0
 
-- [ ] Check project-local Codex status without printing account/token details.
-- [ ] Run filtered `gpt-5.6-luna` success case.
-- [ ] Verify usage coverage complete, positive counters, terminal closure, correlation, and exporter health.
-- [ ] Run no additional costly live cases unless the selected test fails and diagnosis requires one retry.
+- [x] Check project-local Codex status without printing account/token details.
+- [x] Run filtered `gpt-5.6-luna` success case.
+- [x] Verify usage coverage complete, positive counters, terminal closure, correlation, and exporter health.
+- [x] Run no additional costly live cases unless the selected test fails and diagnosis requires one retry.
 
-Exit evidence: safe live acceptance summary attached to release artifacts.  
+Exit evidence: a metadata-only project-local store check printed only `project-local-codex-auth=present`; it intentionally avoided the existing verbose CLI status that includes account claims. Exactly one filtered Luna case ran on commit `6e8d45a`: one test passed in 2.94 seconds and three unrelated live cases were skipped, with no retry or second paid request. The ignored `0600` safe report contains one sent attempt, success/stop terminal state, complete authoritative coverage, positive input/output/total counters, a non-empty correlated provider request ID, complete delivery, and healthy observation state with zero critical rejection, processor failure, or exporter failure. A denylist scan proves the prompt, system instruction, expected answer, and credential field names are absent.
 Commit: `test: verify release candidate against codex luna`
 
 ### R2 — Documentation and self-audit
