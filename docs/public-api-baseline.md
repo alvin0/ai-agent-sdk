@@ -129,3 +129,13 @@ requires an exporter that explicitly declares a non-memory durability boundary;
 the memory exporter supports only `none`. The packed package has only
 `@ai-agent-sdk/core` as a runtime dependency and passes standards-only Node,
 Chromium, and Cloudflare Worker fixtures without Node globals or builtins.
+
+## O1 migration record — acknowledged Universal Fetch exporter
+
+O1 adds the leaf package `@ai-agent-sdk/observability-fetch@0.1.0`; it does not
+change any frozen compatibility-root runtime export or declaration. The package
+depends inward on the public core and observability contracts and exports only
+`FetchObservationExporter`, `flushObservabilityWithWaitUntil`, and their option
+types. Remote durability is claimed only after HTTP 204 or an exact matching
+JSON batch acknowledgment. Host lifecycle extension remains explicit, so no
+Edge platform global is added to the Universal dependency closure.

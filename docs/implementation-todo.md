@@ -273,11 +273,11 @@ Commit: `feat(observability): add universal bus logging and health`
 Dependencies: O0  
 Files: `packages/observability-fetch/**`
 
-- [ ] Implement exact batch/ack/idempotency protocol and retry classification.
-- [ ] Add HTTPS/origin/redirect validation and injected fetch.
-- [ ] Add `waitUntil` helper without assuming a global platform object.
+- [x] Implement exact batch/ack/idempotency protocol and retry classification.
+- [x] Add HTTPS/origin/redirect validation and injected fetch.
+- [x] Add `waitUntil` helper without assuming a global platform object.
 
-Exit evidence: fake-server tests prove identical retry batch IDs and no provider re-dispatch.  
+Exit evidence: 11 deterministic tests cover exact POST/ACK behavior, immutable retry bodies and idempotency keys, full-jitter/`Retry-After`, retryable versus permanent failures, request timeout, host cancellation, endpoint/header/redirect/origin validation, request/ACK resource limits, and explicit `waitUntil`. The reliable-registry test forces a 503 followed by 204 and proves one provider dispatch while the same observation batch is retried. The packed tarball reaches a `remote-acknowledged` checkpoint in standards-only Node, Chromium, and Cloudflare Worker with `Buffer`/`process` removed. Publint and ATTW ESM checks pass; the 598-test compatibility suite, full typecheck, package/source/runtime graph, supply-chain, and seven negative-boundary gates report zero findings.
 Commit: `feat(observability-fetch): add acknowledged edge exporter`
 
 ### O2 — Implement Browser IndexedDB durability

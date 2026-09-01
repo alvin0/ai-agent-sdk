@@ -73,10 +73,10 @@
     "dist"
   ],
   "scripts": {
-    "build": "pnpm --filter @ai-agent-sdk/core build && pnpm --filter @ai-agent-sdk/agent build && pnpm --filter @ai-agent-sdk/provider-http build && pnpm --filter @ai-agent-sdk/protocol-anthropic-messages build && pnpm --filter @ai-agent-sdk/protocol-responses build && pnpm --filter @ai-agent-sdk/provider-anthropic build && pnpm --filter @ai-agent-sdk/provider-openai build && pnpm --filter @ai-agent-sdk/provider-codex build && pnpm --filter @ai-agent-sdk/observability build && tsdown",
+    "build": "pnpm --filter @ai-agent-sdk/core build && pnpm --filter @ai-agent-sdk/agent build && pnpm --filter @ai-agent-sdk/provider-http build && pnpm --filter @ai-agent-sdk/protocol-anthropic-messages build && pnpm --filter @ai-agent-sdk/protocol-responses build && pnpm --filter @ai-agent-sdk/provider-anthropic build && pnpm --filter @ai-agent-sdk/provider-openai build && pnpm --filter @ai-agent-sdk/provider-codex build && pnpm --filter @ai-agent-sdk/observability build && pnpm --filter @ai-agent-sdk/observability-fetch build && tsdown",
     "build:cli": "tsdown --config tsdown.cli.config.ts",
     "clean": "node -e \"for(const p of ['dist','dist-cli'])require('node:fs').rmSync(p,{recursive:true,force:true})\"",
-    "typecheck": "pnpm --filter @ai-agent-sdk/core build && pnpm --filter @ai-agent-sdk/agent build && pnpm --filter @ai-agent-sdk/provider-http build && pnpm --filter @ai-agent-sdk/protocol-anthropic-messages build && pnpm --filter @ai-agent-sdk/protocol-responses build && pnpm --filter @ai-agent-sdk/provider-anthropic build && pnpm --filter @ai-agent-sdk/provider-openai build && pnpm --filter @ai-agent-sdk/provider-codex build && pnpm --filter @ai-agent-sdk/observability build && tsc --noEmit",
+    "typecheck": "pnpm --filter @ai-agent-sdk/core build && pnpm --filter @ai-agent-sdk/agent build && pnpm --filter @ai-agent-sdk/provider-http build && pnpm --filter @ai-agent-sdk/protocol-anthropic-messages build && pnpm --filter @ai-agent-sdk/protocol-responses build && pnpm --filter @ai-agent-sdk/provider-anthropic build && pnpm --filter @ai-agent-sdk/provider-openai build && pnpm --filter @ai-agent-sdk/provider-codex build && pnpm --filter @ai-agent-sdk/observability build && pnpm --filter @ai-agent-sdk/observability-fetch build && tsc --noEmit",
     "pretest": "npm run build && npm run build:cli",
     "snapshot:public-api": "node scripts/snapshot-public-api.mts",
     "lint": "node scripts/check-package-graph.mts && node scripts/check-dependency-cruiser.mts && node scripts/check-agent-boundaries.mts && node scripts/check-runtime-boundaries.mts",
@@ -136,6 +136,7 @@
     "@modelcontextprotocol/server": { "optional": true }
   },
   "devDependencies": {
+    "@ai-agent-sdk/observability-fetch": "workspace:^",
     "@ai-agent-sdk/observability": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",
     "@changesets/cli": "catalog:",
