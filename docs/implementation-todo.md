@@ -117,9 +117,9 @@ Commit: `build: enforce package and runtime boundaries`
 Dependencies: W1  
 Files: current `src/core/runtime/settlement.ts`, all importers
 
-- [ ] Move bounded settlement to inward `core/async` ownership.
-- [ ] Update registry, stream, retry, MCP, agent, and provider imports.
-- [ ] Prove the core directory graph is acyclic.
+- [x] Move bounded settlement to inward `core/async` ownership.
+- [x] Update registry, stream, retry, MCP, agent, and provider imports.
+- [x] Prove the core directory graph is acyclic.
 
 Verify: core unit tests, typecheck, graph check.  
 Exit evidence: no `core/runtime` ↔ `core/stream` edge.  

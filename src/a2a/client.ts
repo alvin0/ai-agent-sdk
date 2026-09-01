@@ -26,7 +26,7 @@ import type {
 } from '../agent/a2a/types.ts'
 import type { ContentBlock } from '../core/message/content.ts'
 import { detachedFrozen } from '../core/primitives/snapshot.ts'
-import { waitForSettlement } from '../core/runtime/settlement.ts'
+import { waitForSettlement } from '../core/async/settlement.ts'
 
 export interface A2AAgentLinkOptions {
   /** Stable id exposed in AgentTeam roster; defaults to card name or base URL. */

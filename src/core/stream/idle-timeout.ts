@@ -75,4 +75,4 @@ export async function* withIdleTimeout<T>(
     }
   }
 }
-import { waitForSettlement } from '../runtime/settlement.ts'
+import { waitForSettlement } from '../async/settlement.ts'

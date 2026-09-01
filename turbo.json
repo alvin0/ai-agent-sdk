@@ -14,6 +14,7 @@
       "outputs": ["coverage/**"]
     },
     "//#lint": {
+      "dependsOn": ["//#build"],
       "outputs": []
     },
     "//#check:graph": {
@@ -38,6 +39,10 @@
     "test": {
       "dependsOn": ["build"],
       "outputs": ["coverage/**"]
+    },
+    "lint": {
+      "dependsOn": ["build"],
+      "outputs": []
     },
     "test:unit": {
       "dependsOn": ["build"],

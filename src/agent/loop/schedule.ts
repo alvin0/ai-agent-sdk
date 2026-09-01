@@ -1,6 +1,6 @@
 import { createToolResultMessage, createUserMessage } from '../../core/message/message.ts'
 import { detachedFrozen } from '../../core/primitives/snapshot.ts'
-import { waitForSettlement } from '../../core/runtime/settlement.ts'
+import { waitForSettlement } from '../../core/async/settlement.ts'
 import type { History } from '../history/history.ts'
 import type { ApprovalBroker } from '../tool/approval.ts'
 import type { ToolCallPosition, ToolExecutionResult } from '../tool/definition.ts'

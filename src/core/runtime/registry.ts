@@ -32,7 +32,7 @@ import { freezeMessage, type Message } from '../message/message.ts'
 import { contentHasImage, projectImagesForTextModel } from '../message/projection.ts'
 import { deepFreeze } from '../primitives/freeze.ts'
 import type { StreamChunk } from '../stream/chunk.ts'
-import { waitForSettlement } from './settlement.ts'
+import { waitForSettlement } from '../async/settlement.ts'
 
 /**
  * Wraps every streaming model call. Call `next()` to reach the adapter, or yield

@@ -18,7 +18,7 @@ import type { AgentSession } from '../agent/define/session.ts'
 import type { ApprovalBroker } from '../agent/tool/approval.ts'
 import { dispatchToolCall, type ToolInterceptor } from '../agent/tool/pipeline.ts'
 import type { ToolCatalog } from '../agent/tool/registry.ts'
-import { waitForSettlement } from '../core/runtime/settlement.ts'
+import { waitForSettlement } from '../core/async/settlement.ts'
 
 export interface McpAgentSessionContext {
   readonly conversationId?: string

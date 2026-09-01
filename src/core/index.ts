@@ -5,6 +5,7 @@
  * Read the folders in dependency order to understand the design:
  *
  * - `primitives/` — branded ids, deep freeze, exhaustiveness. No dependencies.
+ * - `async/`      — inward bounded-settlement primitives shared by outer layers.
  * - `errors/`     — the `code`-routed taxonomy and its serializable twin.
  * - `message/`    — content blocks, immutable messages, content projection.
  * - `stream/`     — the chunk protocol, its assembler, SSE and idle bounds.

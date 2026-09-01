@@ -6,7 +6,7 @@ import type { ContentBlock, ToolCallBlock, ToolResultBlock } from '../../core/me
 import { createMessage, createUserMessage, type Message } from '../../core/message/message.ts'
 import { ReasoningEffortId } from '../../core/primitives/brand.ts'
 import type { ModelRegistry } from '../../core/runtime/registry.ts'
-import { waitForSettlement } from '../../core/runtime/settlement.ts'
+import { waitForSettlement } from '../../core/async/settlement.ts'
 import { BlockAssembler } from '../../core/stream/assembler.ts'
 import type { TokenUsage } from '../../core/stream/chunk.ts'
 import type { History } from '../history/history.ts'

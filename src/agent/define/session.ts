@@ -21,7 +21,7 @@ import type { UserInputBroker } from '../mode/user-input.ts'
 import type { Message, UserMessage } from '../../core/message/message.ts'
 import { createTextMessage, createUserMessage, freezeMessage } from '../../core/message/message.ts'
 import type { ModelRegistry } from '../../core/runtime/registry.ts'
-import { waitForSettlement } from '../../core/runtime/settlement.ts'
+import { waitForSettlement } from '../../core/async/settlement.ts'
 import type { SpanId, TraceId } from '../trace/trace.ts'
 import {
   SkillCatalog,

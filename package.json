@@ -81,6 +81,7 @@
     "snapshot:public-api": "node scripts/snapshot-public-api.mts",
     "lint": "node scripts/check-package-graph.mts && node scripts/check-dependency-cruiser.mts && node scripts/check-runtime-boundaries.mts",
     "check:graph": "node scripts/check-package-graph.mts && node scripts/check-dependency-cruiser.mts",
+    "check:core-graph": "node scripts/check-source-cycles.mts src/core",
     "check:runtime-boundaries": "node scripts/check-runtime-boundaries.mts",
     "check:supply-chain": "node scripts/check-supply-chain.mts",
     "check:boundary-fixtures": "node scripts/check-negative-fixtures.mts",

@@ -23,7 +23,7 @@ import {
 import type { ContentBlock, ImageMediaType } from '../core/message/content.ts'
 import { createUserMessage } from '../core/message/message.ts'
 import type { ModelRegistry } from '../core/runtime/registry.ts'
-import { waitForSettlement } from '../core/runtime/settlement.ts'
+import { waitForSettlement } from '../core/async/settlement.ts'
 import type { DefinedAgent } from '../agent/define/definition.ts'
 import {
   AgentSession,

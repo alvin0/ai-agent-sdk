@@ -11,7 +11,7 @@ import type { AgentEvent, TurnBounds, TurnHooks, TurnOutcome } from '../loop/typ
 import { defineTool, type ToolDefinition, type ToolExecutionMode } from '../tool/definition.ts'
 import type { ToolInterceptor } from '../tool/pipeline.ts'
 import type { ToolCatalog } from '../tool/registry.ts'
-import { waitForSettlement } from '../../core/runtime/settlement.ts'
+import { waitForSettlement } from '../../core/async/settlement.ts'
 import type {
   UserInputBroker, UserInputQuestion, UserInputRequest, UserInputResponse,
 } from './user-input.ts'

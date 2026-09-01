@@ -9,7 +9,7 @@ import type { FinishReason, StreamChunk, TokenUsage } from '../../core/stream/ch
 import type { ToolCallId } from '../../core/primitives/brand.ts'
 import { detachedFrozen } from '../../core/primitives/snapshot.ts'
 import type { ModelRegistry } from '../../core/runtime/registry.ts'
-import { waitForSettlement } from '../../core/runtime/settlement.ts'
+import { waitForSettlement } from '../../core/async/settlement.ts'
 import { History } from '../history/history.ts'
 import { normalizeToolPairing } from '../history/normalize.ts'
 import type { ApprovalBroker } from '../tool/approval.ts'

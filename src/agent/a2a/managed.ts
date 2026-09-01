@@ -16,7 +16,7 @@ import { defineTool, type ToolDefinition } from '../tool/definition.ts'
 import { ToolRegistry, type ToolCatalog } from '../tool/registry.ts'
 import { AgentTeam } from './team.ts'
 import type { AgentTeamOptions } from './types.ts'
-import { waitForSettlement } from '../../core/runtime/settlement.ts'
+import { waitForSettlement } from '../../core/async/settlement.ts'
 
 type DetachedSessionOptions = Omit<AgentSessionOptions, 'registry' | 'team' | 'tools'>
 

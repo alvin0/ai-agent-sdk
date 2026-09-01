@@ -2,7 +2,7 @@
 import type { ContentBlock } from '../../core/message/content.ts'
 import type { ToolCallId } from '../../core/primitives/brand.ts'
 import { isJsonValue, type JsonObject, type JsonValue } from '../../core/primitives/json.ts'
-import { waitForSettlement } from '../../core/runtime/settlement.ts'
+import { waitForSettlement } from '../../core/async/settlement.ts'
 import type { ApprovalBroker, ApprovalRequest } from './approval.ts'
 import {
   executionModeOf, renderJsonValue, type ToolCallPosition, type ToolDefinition,

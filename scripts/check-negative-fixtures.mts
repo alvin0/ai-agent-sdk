@@ -22,6 +22,13 @@ for (const testCase of cases) {
   else console.log(`${testCase.fixture}: rejected as expected (${testCase.expected})`)
 }
 
+const sourceCycleRoot = join(workspaceRoot, 'tests', 'negative-fixtures', 'source-ownership-cycle', 'src')
+const sourceCycle = spawnSync(process.execPath, [join(workspaceRoot, 'scripts', 'check-source-cycles.mts'), sourceCycleRoot], { encoding: 'utf8' })
+const sourceCycleOutput = `${sourceCycle.stdout ?? ''}${sourceCycle.stderr ?? ''}`
+if (sourceCycle.status === 0) failures.push('source-ownership-cycle: checker unexpectedly passed')
+else if (!sourceCycleOutput.includes('runtime -> stream -> runtime')) failures.push('source-ownership-cycle: missing expected type-only ownership cycle')
+else console.log('source-ownership-cycle: rejected as expected (runtime -> stream -> runtime)')
+
 if (failures.length > 0) {
   for (const failure of failures) console.error(`- ${failure}`)
   process.exitCode = 1
@@ -32,6 +39,6 @@ if (failures.length > 0) {
     process.stderr.write(`${safe.stdout ?? ''}${safe.stderr ?? ''}`)
     process.exitCode = 1
   } else {
-    console.log(`Boundary fixtures passed: ${cases.length} invalid workspaces rejected and the safe lexical fixture accepted.`)
+    console.log(`Boundary fixtures passed: ${cases.length + 1} invalid workspaces rejected and the safe lexical fixture accepted.`)
   }
 }

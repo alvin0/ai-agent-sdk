@@ -17,7 +17,7 @@
  */
 
 import { AgentSdkError } from '../../core/errors/agent-sdk-error.ts'
-import { waitForSettlement } from '../../core/runtime/settlement.ts'
+import { waitForSettlement } from '../../core/async/settlement.ts'
 import {
   readJwtClaims,
   resolveAccountId,

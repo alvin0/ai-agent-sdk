@@ -28,7 +28,7 @@ import {
 import { normalizeModelFailure, type ModelFailure } from '../errors/failure.ts'
 import { MODEL_ERROR_CODES, ModelError } from '../errors/model-error.ts'
 import type { StreamChunk } from '../stream/chunk.ts'
-import { waitForSettlement } from './settlement.ts'
+import { waitForSettlement } from '../async/settlement.ts'
 
 /** One retry that is about to be waited out. */
 export interface RetryAttempt {

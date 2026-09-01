@@ -23,7 +23,7 @@
 
 import type { RetryPolicyConfig } from '../../core/contract/retry-policy.ts'
 import { ReasoningEffortId } from '../../core/primitives/brand.ts'
-import { waitForSettlement } from '../../core/runtime/settlement.ts'
+import { waitForSettlement } from '../../core/async/settlement.ts'
 import type {
   HttpModelAdapter,
   ProviderCatalogModel,

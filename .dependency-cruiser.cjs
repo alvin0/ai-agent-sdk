@@ -29,6 +29,6 @@ module.exports = {
       exportsFields: ['exports'],
       conditionNames: ['types', 'import', 'default'],
     },
-    exclude: { path: '(^|/)(dist|dist-cli|node_modules|tests?)(/|$)' },
+    exclude: { path: '(^|/)(node_modules|tests?)(/|$)' },
   },
 }

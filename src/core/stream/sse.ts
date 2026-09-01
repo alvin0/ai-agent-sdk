@@ -19,7 +19,7 @@
  */
 
 import { createParser } from 'eventsource-parser'
-import { waitForSettlement } from '../runtime/settlement.ts'
+import { waitForSettlement } from '../async/settlement.ts'
 
 /**
  * Ceiling on characters the parser may buffer across reads.

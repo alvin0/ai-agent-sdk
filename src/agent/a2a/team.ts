@@ -7,7 +7,7 @@ import type { ContentBlock } from '../../core/message/content.ts'
 import { createUserMessage } from '../../core/message/message.ts'
 import type { JsonValue } from '../../core/primitives/json.ts'
 import { deepFreeze as freezeDeep } from '../../core/primitives/freeze.ts'
-import { waitForSettlement } from '../../core/runtime/settlement.ts'
+import { waitForSettlement } from '../../core/async/settlement.ts'
 import type {
   AgentMessageRecord,
   AgentTeamEvent,

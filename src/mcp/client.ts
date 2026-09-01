@@ -19,7 +19,7 @@ import type { ContentBlock, ImageMediaType } from '../core/message/content.ts'
 import { isJsonValue, type JsonObject, type JsonValue } from '../core/primitives/json.ts'
 import { ToolRegistry, type ToolCatalog, type ToolFilter } from '../agent/tool/registry.ts'
 import type { ToolDefinition } from '../agent/tool/definition.ts'
-import { waitForSettlement } from '../core/runtime/settlement.ts'
+import { waitForSettlement } from '../core/async/settlement.ts'
 
 const DEFAULT_RECONNECT = Object.freeze({
   enabled: true,

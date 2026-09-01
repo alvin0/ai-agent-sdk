@@ -13,6 +13,7 @@ import {
   resolveRelativeImport,
   type WorkspacePackage,
 } from './package-policy.mts'
+import { analyzeSourceOwnershipGraph } from './source-graph.mts'
 
 const args = process.argv.slice(2)
 const rootIndex = args.indexOf('--root')
@@ -50,6 +51,10 @@ for (const pkg of packages) {
   }
 
   for (const sourceRoot of pkg.sourceRoot ? [pkg.sourceRoot] : []) {
+    if (pkg.root !== workspaceRoot) {
+      const sourceGraph = analyzeSourceOwnershipGraph(sourceRoot)
+      for (const cycle of sourceGraph.cycles) errors.push(`${pkg.manifest.name}: source ownership cycle (includes type-only edges): ${cycle}`)
+    }
     for (const file of listCodeFiles(sourceRoot)) {
       for (const imported of importsInFile(file)) {
         const location = `${relative(workspaceRoot, file)}:${imported.line}`
