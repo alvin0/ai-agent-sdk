@@ -199,11 +199,11 @@ Commit: `feat(agent): add canonical run ledger and usage coverage`
 Dependencies: A1  
 Files: `packages/agent/**`
 
-- [ ] Move all agent source except filesystem skill.
-- [ ] Depend only on core.
-- [ ] Pack and run mock provider/tool/compaction/team flows in Worker and browser fixtures.
+- [x] Move all agent source except filesystem skill.
+- [x] Depend only on core.
+- [x] Pack and run mock provider/tool/compaction/team flows in Worker and browser fixtures.
 
-Exit evidence: graph and packed Universal gates pass.  
+Exit evidence: `@ai-agent-sdk/agent` passes 229 focused tests; the 534-test compatibility suite also proves root/core/agent runtime identity. Typecheck, publint, ATTW ESM profile, package/source/runtime graph gates, and tarball installs in standards-only Node, Chromium, and Cloudflare Worker pass. The packed flow exercises one mock provider, a host tool, shared team attachment, canonical run usage, and manual history compaction; its manifest has exactly one runtime dependency on `@ai-agent-sdk/core`.
 Commit: `refactor(agent): extract universal agent package`
 
 ## Phase P — HTTP, protocols, and providers

@@ -4,8 +4,8 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { createReadStream } from 'node:fs'
 import { access, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
-import { defineTool } from '../../src/agent/tool/definition.ts'
-import { ToolRegistry } from '../../src/agent/tool/registry.ts'
+import { defineTool } from '@ai-agent-sdk/agent'
+import { ToolRegistry } from '@ai-agent-sdk/agent'
 import {
   ensureAgentCodeWorkspace,
   resolveExistingAgentCodePath,

@@ -2,14 +2,14 @@
 
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import type { CheckpointContext, TurnHooks } from '../../src/agent/loop/events.ts'
+import type { CheckpointContext, TurnHooks } from '@ai-agent-sdk/agent'
 import type { FileSystemSkillIoEvent } from '../../src/agent/skill/filesystem.ts'
 import {
   AGENT_CONTROL_TOOLS,
   type AgentRunEvent,
-} from '../../src/agent/mode/run-agent.ts'
-import { MAX_SKILL_ID_CHARS, SKILL_ID_PATTERN } from '../../src/agent/skill/definition.ts'
-import type { ToolExecutionResult } from '../../src/agent/tool/definition.ts'
+} from '@ai-agent-sdk/agent'
+import { MAX_SKILL_ID_CHARS, SKILL_ID_PATTERN } from '@ai-agent-sdk/agent'
+import type { ToolExecutionResult } from '@ai-agent-sdk/agent'
 import type { ContentBlock } from '@ai-agent-sdk/core'
 import type { Message } from '@ai-agent-sdk/core'
 

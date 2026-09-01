@@ -4,7 +4,8 @@ import type { AssistantTextPhase, ImageMediaType, NativeToolCallBlock } from '@a
 import type { Message } from '@ai-agent-sdk/core'
 import type { MessageId, ToolCallId } from '@ai-agent-sdk/core'
 import type { TokenUsage } from '@ai-agent-sdk/core'
-import type { HistorySnapshot } from '../history/history.ts'
+import type { CompactionBackoffReason, HistorySnapshot } from '../history/history.ts'
+export type { CompactionBackoffReason } from '../history/history.ts'
 import type { ApprovalRequest } from '../tool/approval.ts'
 import type { ToolExecutionResult } from '../tool/definition.ts'
 import type { ToolCallRequest } from '../tool/pipeline.ts'
@@ -43,7 +44,6 @@ interface Traced { readonly trace: TraceRef }
 export type AssistantContentTiming = 'standalone' | 'before-tools' | 'after-tools' | 'between-tools'
 export type StreamedAssistantTextPhase = AssistantTextPhase | 'unknown'
 export type CompactionTrigger = 'pressure' | 'context-overflow' | 'manual'
-export type CompactionBackoffReason = 'low-savings' | 'unreachable-threshold'
 export type AgentMaintenanceEvent =
   | {
     readonly type: 'compaction-start'

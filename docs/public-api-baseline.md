@@ -51,3 +51,11 @@ A1 intentionally changes the agent invocation contract described in the frozen e
 The root runtime additions are additive: `AGENT_ACCOUNTING_ERROR_CODES`, `AgentRunError`, `authoritativeTokenUsage`, `budgetTokenTotal`, and `summarizeModelCallUsage`. The core observation helpers `createObservationRunScope`, `snapshotObservationSpan`, and `validateCaptureReceipt` also become additive root exports because the extracted agent package must compose one explicit Web-standard sequence/correlation scope without importing core internals. No existing runtime symbol is removed or renamed.
 
 Declaration hashes change transitively for entries that expose `AgentSession`, adapter invocation context, or the compatibility root. The new session options add observation resource/port, usage policy, and ledger limits; failures after run creation expose a finalized support-safe report through `AgentRunError`. Machine-baseline schema version 3 adds the stable agent-accounting error-code family.
+
+## A2 migration record — extracted Universal agent
+
+A2 moves canonical agent ownership to `@ai-agent-sdk/agent@0.1.0`. The root compatibility entry now re-exports the package instead of bundling a second implementation; A2A and MCP compatibility code imports the same package identity. Runtime export comparison found no added, removed, or renamed root symbol.
+
+Declaration hashes change for the root and the A2A, MCP, and filesystem entries because their public declarations now reference `@ai-agent-sdk/agent` rather than root-private declaration chunks. `CompactionBackoffReason` moves to the inward history contract to remove the last history↔loop type-only source cycle, while the loop barrel preserves its existing type export. The Node-only filesystem implementation stays outside the Universal package and consumes the narrow exported `@ai-agent-sdk/agent/skill-validation` support subpath.
+
+The packed agent manifest has one runtime dependency, `@ai-agent-sdk/core`, and no Node builtin/global usage in its source or emitted closure. Its tarball passed independent standards-only, Chromium, and Cloudflare Worker installs with mock provider, tool, team, run-accounting, and manual-compaction flows before this baseline was accepted.

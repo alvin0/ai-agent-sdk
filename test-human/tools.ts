@@ -2,8 +2,8 @@
 
 import { readFile, readdir } from 'node:fs/promises'
 import { isAbsolute, relative, resolve } from 'node:path'
-import { defineTool } from '../src/agent/tool/definition.ts'
-import { ToolRegistry } from '../src/agent/tool/registry.ts'
+import { defineTool } from '@ai-agent-sdk/agent'
+import { ToolRegistry } from '@ai-agent-sdk/agent'
 
 export function createHumanToolRegistry(workspaceRoot: string): ToolRegistry {
   const root = resolve(workspaceRoot)

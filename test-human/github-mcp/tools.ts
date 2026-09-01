@@ -1,6 +1,6 @@
-import type { ToolExecutionResult } from '../../src/agent/tool/definition.ts'
-import { dispatchToolCall } from '../../src/agent/tool/pipeline.ts'
-import type { ToolCatalog } from '../../src/agent/tool/registry.ts'
+import type { ToolExecutionResult } from '@ai-agent-sdk/agent'
+import { dispatchToolCall } from '@ai-agent-sdk/agent'
+import type { ToolCatalog } from '@ai-agent-sdk/agent'
 import { ToolCallId } from '@ai-agent-sdk/core'
 import type { JsonObject } from '@ai-agent-sdk/core'
 

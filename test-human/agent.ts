@@ -1,6 +1,6 @@
 /** Declarative agent used by the human acceptance harness. */
 
-import { defineAgent, type DefinedAgent } from '../src/agent/define/index.ts'
+import { defineAgent, type DefinedAgent } from '@ai-agent-sdk/agent'
 import type { HumanCliConfig } from './config.ts'
 import { scenarioControls } from './scenarios.ts'
 

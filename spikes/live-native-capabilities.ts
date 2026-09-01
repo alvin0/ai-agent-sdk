@@ -1,7 +1,7 @@
 /** Live smoke for provider-native web search through the real Codex Responses route. */
-import { History } from '../src/agent/history/history.ts'
-import { runTurn } from '../src/agent/loop/run-turn.ts'
-import type { AgentEvent } from '../src/agent/loop/types.ts'
+import { History } from '@ai-agent-sdk/agent'
+import { runTurn } from '@ai-agent-sdk/agent'
+import type { AgentEvent } from '@ai-agent-sdk/agent'
 import { createTextMessage } from '@ai-agent-sdk/core'
 import { ReasoningEffortId } from '@ai-agent-sdk/core'
 import { ModelRegistry } from '@ai-agent-sdk/core'

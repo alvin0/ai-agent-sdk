@@ -1,0 +1,5 @@
+{
+  "name": "agent-browser-consumer",
+  "private": true,
+  "type": "module"
+}

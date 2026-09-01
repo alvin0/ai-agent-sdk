@@ -24,11 +24,11 @@ import type { ContentBlock, ImageMediaType } from '@ai-agent-sdk/core'
 import { createUserMessage } from '@ai-agent-sdk/core'
 import type { ModelRegistry } from '@ai-agent-sdk/core'
 import { waitForSettlement } from '@ai-agent-sdk/core'
-import type { DefinedAgent } from '../agent/define/definition.ts'
 import {
   AgentSession,
+  type DefinedAgent,
   type AgentSessionOptions,
-} from '../agent/define/session.ts'
+} from '@ai-agent-sdk/agent'
 
 export interface DefinedAgentA2AExecutorOptions {
   readonly agent: DefinedAgent

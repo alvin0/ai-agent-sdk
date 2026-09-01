@@ -8,13 +8,13 @@ import {
   SkillCatalog,
   createSkillTools,
   resolveSkillOptions,
-} from '../../src/agent/skill/index.ts'
+} from '@ai-agent-sdk/agent'
 import {
   discoverFileSystemSkills,
   fileSystemSkills,
 } from '../../src/agent/skill/filesystem.ts'
-import { dispatchToolCall } from '../../src/agent/tool/pipeline.ts'
-import { ToolRegistry } from '../../src/agent/tool/registry.ts'
+import { dispatchToolCall } from '@ai-agent-sdk/agent'
+import { ToolRegistry } from '@ai-agent-sdk/agent'
 import { ToolCallId } from '@ai-agent-sdk/core'
 
 const observedReads = vi.hoisted(() => vi.fn<(path: string, bytes: number) => void>())

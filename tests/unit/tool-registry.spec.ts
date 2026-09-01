@@ -5,9 +5,9 @@ import {
   executionModeOf,
   renderJsonValue,
   type ToolDefinition,
-} from '../../src/agent/tool/definition.ts'
-import { ToolError, toolErrorDisposition } from '../../src/agent/tool/errors.ts'
-import { ToolRegistry } from '../../src/agent/tool/registry.ts'
+} from '@ai-agent-sdk/agent'
+import { ToolError, toolErrorDisposition } from '@ai-agent-sdk/agent'
+import { ToolRegistry } from '@ai-agent-sdk/agent'
 
 const echo = defineTool({
   name: 'echo',

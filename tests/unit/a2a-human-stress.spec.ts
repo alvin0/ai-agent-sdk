@@ -20,7 +20,7 @@ import {
   createA2AStressTools,
   resolveA2AStressCommand,
 } from '../../test-human/a2a-stress/security.ts'
-import type { ToolRunContext } from '../../src/agent/tool/definition.ts'
+import type { ToolRunContext } from '@ai-agent-sdk/agent'
 import type { ToolCallId } from '@ai-agent-sdk/core'
 
 const roots: string[] = []

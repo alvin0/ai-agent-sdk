@@ -3,7 +3,7 @@
 
 import { stdin, stdout } from 'node:process'
 import { createInterface } from 'node:readline/promises'
-import { createUserInputBroker } from '../src/agent/mode/user-input.ts'
+import { createUserInputBroker } from '@ai-agent-sdk/agent'
 import { createHumanAgent } from './agent.ts'
 import {
   humanCliHelp,

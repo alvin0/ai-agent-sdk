@@ -1,10 +1,2 @@
-export * from './team/index.ts'
-export * from './accounting/index.ts'
-export * from './define/index.ts'
-export * from './history/index.ts'
-export * from './loop/index.ts'
-export * from './memory/index.ts'
-export * from './mode/index.ts'
-export * from './skill/index.ts'
-export * from './tool/index.ts'
-export * from './trace/index.ts'
+/** Compatibility facade. Canonical ownership lives in @ai-agent-sdk/agent. */
+export * from '@ai-agent-sdk/agent'

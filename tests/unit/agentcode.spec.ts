@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { runTurn } from '../../src/agent/loop/run-turn.ts'
-import type { ToolRunContext } from '../../src/agent/tool/definition.ts'
+import { runTurn } from '@ai-agent-sdk/agent'
+import type { ToolRunContext } from '@ai-agent-sdk/agent'
 import { ModelAdapter } from '@ai-agent-sdk/core'
 import { createTextMessage } from '@ai-agent-sdk/core'
 import type { ToolCallId } from '@ai-agent-sdk/core'
@@ -25,8 +25,8 @@ import { resolveAgentCodePath } from '../../test-human/agentcode/workspace.ts'
 import { AgentCodeSteeringQueue } from '../../test-human/agentcode/steering.ts'
 import { TerminalLineQueue } from '../../test-human/agentcode/line-queue.ts'
 import { summarizeToolArguments, summarizeToolResult } from '../../test-human/terminal.ts'
-import { History } from '../../src/agent/history/history.ts'
-import { SkillCatalog } from '../../src/agent/skill/index.ts'
+import { History } from '@ai-agent-sdk/agent'
+import { SkillCatalog } from '@ai-agent-sdk/agent'
 
 const temporaryDirectories: string[] = []
 

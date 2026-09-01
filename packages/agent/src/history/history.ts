@@ -14,6 +14,9 @@ export type SurfaceOp = 'append' | {
   readonly targets?: readonly number[]
 }
 
+/** Shared persisted/runtime compaction backoff vocabulary. */
+export type CompactionBackoffReason = 'low-savings' | 'unreachable-threshold'
+
 export type HistoryEvent =
   | { readonly kind: 'user'; readonly message: Message }
   | {
@@ -65,7 +68,7 @@ export type HistoryEvent =
     readonly at: string
     readonly thresholdTokens?: number
     readonly estimatedNonCompactableTokens?: number
-    readonly backoffReason?: import('../loop/events.ts').CompactionBackoffReason
+    readonly backoffReason?: CompactionBackoffReason
     readonly cooldownSteps?: number
     readonly error?: string
   }

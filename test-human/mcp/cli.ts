@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import { InMemoryTransport } from '@modelcontextprotocol/client'
-import { defineTool } from '../../src/agent/tool/definition.ts'
-import { dispatchToolCall } from '../../src/agent/tool/pipeline.ts'
-import { ToolRegistry } from '../../src/agent/tool/registry.ts'
+import { defineTool } from '@ai-agent-sdk/agent'
+import { dispatchToolCall } from '@ai-agent-sdk/agent'
+import { ToolRegistry } from '@ai-agent-sdk/agent'
 import { ToolCallId } from '@ai-agent-sdk/core'
 import { McpClientConnection, type McpClientState } from '../../src/mcp/client.ts'
 import { createSdkMcpServer } from '../../src/mcp/server.ts'

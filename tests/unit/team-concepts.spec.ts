@@ -3,8 +3,8 @@ import {
   AgentTeam,
   createDefinedAgentTeam,
   createManagedAgentTeam,
-} from '../../src/agent/team/index.ts'
-import { defineAgent } from '../../src/agent/define/index.ts'
+} from '@ai-agent-sdk/agent'
+import { defineAgent } from '@ai-agent-sdk/agent'
 import { ModelAdapter } from '@ai-agent-sdk/core'
 import type { GenerateOptions } from '@ai-agent-sdk/core'
 import type { ResolvedModelInfo } from '@ai-agent-sdk/core'

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineAgent } from '../../src/agent/define/definition.ts'
-import { History } from '../../src/agent/history/history.ts'
-import { runToolCalls } from '../../src/agent/loop/schedule.ts'
+import { defineAgent } from '@ai-agent-sdk/agent'
+import { History } from '@ai-agent-sdk/agent'
+import { runToolCalls } from '@ai-agent-sdk/agent'
 import {
   MAX_SKILL_RESOURCE_CHARS,
   SkillCatalog,
@@ -12,14 +12,13 @@ import {
   resolveSkillOptions,
   type SkillCandidate,
   type SkillProviderListOptions,
-} from '../../src/agent/skill/index.ts'
-import { defineTool, executionModeOf } from '../../src/agent/tool/definition.ts'
-import { dispatchToolCall } from '../../src/agent/tool/pipeline.ts'
-import { ToolRegistry } from '../../src/agent/tool/registry.ts'
-import { createSpanId, createTraceId } from '../../src/agent/trace/trace.ts'
+} from '@ai-agent-sdk/agent'
+import { defineTool, executionModeOf } from '@ai-agent-sdk/agent'
+import { dispatchToolCall } from '@ai-agent-sdk/agent'
+import { ToolRegistry } from '@ai-agent-sdk/agent'
 import { ModelAdapter } from '@ai-agent-sdk/core'
 import type { GenerateOptions } from '@ai-agent-sdk/core'
-import { ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
+import { ReasoningEffortId, ToolCallId, createSpanId, createTraceId } from '@ai-agent-sdk/core'
 import { ModelRegistry } from '@ai-agent-sdk/core'
 import type { StreamChunk } from '@ai-agent-sdk/core'
 

@@ -17,8 +17,12 @@ import {
 } from '@modelcontextprotocol/client'
 import type { ContentBlock, ImageMediaType } from '@ai-agent-sdk/core'
 import { isJsonValue, type JsonObject, type JsonValue } from '@ai-agent-sdk/core'
-import { ToolRegistry, type ToolCatalog, type ToolFilter } from '../agent/tool/registry.ts'
-import type { ToolDefinition } from '../agent/tool/definition.ts'
+import {
+  ToolRegistry,
+  type ToolCatalog,
+  type ToolDefinition,
+  type ToolFilter,
+} from '@ai-agent-sdk/agent'
 import { waitForSettlement } from '@ai-agent-sdk/core'
 
 const DEFAULT_RECONNECT = Object.freeze({

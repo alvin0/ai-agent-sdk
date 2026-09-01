@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { resolve } from 'node:path'
 import { stdout } from 'node:process'
-import type { AgentRunEvent } from '../../src/agent/mode/run-agent.ts'
+import type { AgentRunEvent } from '@ai-agent-sdk/agent'
 import type { HumanProvider } from '../config.ts'
 import { errorMessage, label, paint } from '../console.ts'
 import { summarizeToolArguments, summarizeToolResult } from '../terminal.ts'

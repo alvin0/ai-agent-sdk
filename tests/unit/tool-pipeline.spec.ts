@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ToolCallId } from '@ai-agent-sdk/core'
-import { createApprovalBroker, fixedApprovalBroker } from '../../src/agent/tool/approval.ts'
-import { defineTool, type ToolDefinition } from '../../src/agent/tool/definition.ts'
-import { ToolError } from '../../src/agent/tool/errors.ts'
-import type { ToolRunContext } from '../../src/agent/tool/definition.ts'
+import { createApprovalBroker, fixedApprovalBroker } from '@ai-agent-sdk/agent'
+import { defineTool, type ToolDefinition } from '@ai-agent-sdk/agent'
+import { ToolError } from '@ai-agent-sdk/agent'
+import type { ToolRunContext } from '@ai-agent-sdk/agent'
 import {
   dispatchToolCall,
   type PreToolDecision,
   type ToolCallContext,
   type ToolInterceptor,
-} from '../../src/agent/tool/pipeline.ts'
-import { ToolRegistry } from '../../src/agent/tool/registry.ts'
+} from '@ai-agent-sdk/agent'
+import { ToolRegistry } from '@ai-agent-sdk/agent'
 
 const POSITION = { turn: 1, step: 1 } as const
 

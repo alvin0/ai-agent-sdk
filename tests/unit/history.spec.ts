@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { History } from '../../src/agent/history/history.ts'
-import { normalizeToolPairing } from '../../src/agent/history/normalize.ts'
+import { History } from '@ai-agent-sdk/agent'
+import { normalizeToolPairing } from '@ai-agent-sdk/agent'
 import { createMessage, createTextMessage, createToolResultMessage } from '@ai-agent-sdk/core'
 import { ToolCallId } from '@ai-agent-sdk/core'
 

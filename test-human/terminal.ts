@@ -2,13 +2,13 @@
 
 import { stdout } from 'node:process'
 import type { Interface } from 'node:readline/promises'
-import type { AgentRunEvent } from '../src/agent/mode/run-agent.ts'
-import type { ToolExecutionResult } from '../src/agent/tool/definition.ts'
+import type { AgentRunEvent } from '@ai-agent-sdk/agent'
+import type { ToolExecutionResult } from '@ai-agent-sdk/agent'
 import type {
   InteractiveUserInputBroker,
   UserInputQuestion,
   UserInputResponse,
-} from '../src/agent/mode/user-input.ts'
+} from '@ai-agent-sdk/agent'
 import type { HumanCliConfig } from './config.ts'
 import { label, paint } from './console.ts'
 import { saveGeneratedImages } from './media.ts'

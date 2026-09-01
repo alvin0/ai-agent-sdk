@@ -1,4 +1,4 @@
-import { History } from '../../../src/agent/history/history.ts'
+import { History } from '@ai-agent-sdk/agent'
 import { createMessage, createTextMessage } from '@ai-agent-sdk/core'
 import { createAgentCodeToolRegistry } from '../../agentcode/tools.ts'
 import { createOfflineRegistry, createStressAgent } from '../agent.ts'

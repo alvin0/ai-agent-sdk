@@ -13,11 +13,14 @@ import {
 import type { ContentBlock } from '@ai-agent-sdk/core'
 import { ToolCallId } from '@ai-agent-sdk/core'
 import { isJsonValue, type JsonValue } from '@ai-agent-sdk/core'
-import type { DefinedAgent } from '../agent/define/definition.ts'
-import type { AgentSession } from '../agent/define/session.ts'
-import type { ApprovalBroker } from '../agent/tool/approval.ts'
-import { dispatchToolCall, type ToolInterceptor } from '../agent/tool/pipeline.ts'
-import type { ToolCatalog } from '../agent/tool/registry.ts'
+import {
+  dispatchToolCall,
+  type AgentSession,
+  type ApprovalBroker,
+  type DefinedAgent,
+  type ToolCatalog,
+  type ToolInterceptor,
+} from '@ai-agent-sdk/agent'
 import { waitForSettlement } from '@ai-agent-sdk/core'
 
 export interface McpAgentSessionContext {

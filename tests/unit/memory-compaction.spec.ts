@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { defineAgent } from '../../src/agent/define/index.ts'
-import { History } from '../../src/agent/history/history.ts'
+import { defineAgent } from '@ai-agent-sdk/agent'
+import { History } from '@ai-agent-sdk/agent'
 import {
   AgentMemory,
   ContextCompactor,
   estimateMessageTokens,
   resolveCompactionConfig,
   selectCompactablePrefix,
-} from '../../src/agent/memory/index.ts'
+} from '@ai-agent-sdk/agent'
 import { ModelAdapter } from '@ai-agent-sdk/core'
 import type { GenerateOptions } from '@ai-agent-sdk/core'
 import type { ResolvedModelInfo } from '@ai-agent-sdk/core'

@@ -6,13 +6,13 @@ import { dirname, join, resolve } from 'node:path'
 import { stdin, stdout } from 'node:process'
 import { createInterface, type Interface } from 'node:readline/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import type { AgentSession } from '../../../src/agent/define/index.ts'
+import type { AgentSession } from '@ai-agent-sdk/agent'
 import {
   createUserInputBroker,
   type AgentRunEvent,
   type AgentRunOutcome,
   type InteractiveUserInputBroker,
-} from '../../../src/agent/mode/index.ts'
+} from '@ai-agent-sdk/agent'
 import { errorMessage, label } from '../../console.ts'
 import { createHumanModelRegistry } from '../../providers.ts'
 import { prepareSkillStressFixtures, type PreparedSkillStressFixtures } from '../../skill-stress/prepare.ts'

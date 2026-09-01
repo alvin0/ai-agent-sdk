@@ -11,10 +11,10 @@ import {
   type ResolvedModelInfo,
   type StreamChunk,
 } from '@ai-agent-sdk/core'
-import { AgentRunError } from '../../src/agent/accounting/error.ts'
-import { defineAgent } from '../../src/agent/define/index.ts'
-import { defineTool } from '../../src/agent/tool/definition.ts'
-import { fixedApprovalBroker } from '../../src/agent/tool/approval.ts'
+import { AgentRunError } from '@ai-agent-sdk/agent'
+import { defineAgent } from '@ai-agent-sdk/agent'
+import { defineTool } from '@ai-agent-sdk/agent'
+import { fixedApprovalBroker } from '@ai-agent-sdk/agent'
 
 class ScriptedAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []

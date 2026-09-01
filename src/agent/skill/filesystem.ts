@@ -9,8 +9,6 @@ import {
   MAX_SKILL_INSTRUCTIONS_CHARS,
   defineSkill,
   defineSkillProvider,
-  validateCandidate,
-  validateSkillResourcePath,
   type SkillCandidate,
   type SkillDefinition,
   type SkillDefinitionInput,
@@ -19,7 +17,11 @@ import {
   type SkillProvider,
   type SkillProviderListOptions,
   type SkillResourceSummary,
-} from './definition.ts'
+} from '@ai-agent-sdk/agent'
+import {
+  validateCandidate,
+  validateSkillResourcePath,
+} from '@ai-agent-sdk/agent/skill-validation'
 
 const TEXT_RESOURCE_EXTENSIONS = new Set([
   '.md', '.txt', '.json', '.csv', '.yaml', '.yml', '.ts', '.tsx', '.js', '.mjs', '.cjs',

@@ -1,0 +1,5 @@
+{
+  "name": "agent-worker-consumer",
+  "private": true,
+  "type": "module"
+}

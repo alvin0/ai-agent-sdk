@@ -1,7 +1,7 @@
 /** Safe-step steering queue for a long-running agentcode session. */
 
-import type { History } from '../../src/agent/history/history.ts'
-import type { TurnHooks } from '../../src/agent/loop/types.ts'
+import type { History } from '@ai-agent-sdk/agent'
+import type { TurnHooks } from '@ai-agent-sdk/agent'
 import { createUserMessage } from '@ai-agent-sdk/core'
 
 export interface SteeringItem {

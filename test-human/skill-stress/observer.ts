@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { AgentRunEvent } from '../../src/agent/mode/run-agent.ts'
-import { buildTraceTree, type TraceEvent } from '../../src/agent/trace/trace.ts'
+import type { AgentRunEvent } from '@ai-agent-sdk/agent'
+import { buildTraceTree, type TraceEvent } from '@ai-agent-sdk/agent'
 import type { GenerateOptions } from '@ai-agent-sdk/core'
 import type { StressInvariant } from './types.ts'
 

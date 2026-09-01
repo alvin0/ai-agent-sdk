@@ -10,8 +10,8 @@ import {
 import type { Client, ClientFactory } from '@a2a-js/sdk/client'
 import { ServerCallContext } from '@a2a-js/sdk/server'
 import { describe, expect, it, vi } from 'vitest'
-import { AgentTeam } from '../../src/agent/team/index.ts'
-import { defineAgent } from '../../src/agent/define/index.ts'
+import { AgentTeam } from '@ai-agent-sdk/agent'
+import { defineAgent } from '@ai-agent-sdk/agent'
 import { createA2AAgentLink, linkA2AAgent } from '../../src/a2a/client.ts'
 import {
   createAgentCardFromDefinition,

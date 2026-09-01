@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>agent browser tarball fixture</title>
+<script type="importmap">
+{
+  "imports": {
+    "@ai-agent-sdk/agent": "/node_modules/@ai-agent-sdk/agent/dist/index.js",
+    "@ai-agent-sdk/core": "/node_modules/@ai-agent-sdk/core/dist/index.js"
+  }
+}
+</script>
+<script type="module">
+  import { runPackedAgentFixture } from './fixture.mjs'
+  globalThis.__agentFixture = await runPackedAgentFixture()
+</script>
