@@ -13,6 +13,19 @@
       "dependsOn": ["//#build"],
       "outputs": ["coverage/**"]
     },
+    "//#lint": {
+      "outputs": []
+    },
+    "//#check:graph": {
+      "outputs": []
+    },
+    "//#check:runtime-boundaries": {
+      "dependsOn": ["//#build"],
+      "outputs": []
+    },
+    "//#check:supply-chain": {
+      "outputs": []
+    },
     "clean": { "cache": false },
     "build": {
       "dependsOn": ["^build"],

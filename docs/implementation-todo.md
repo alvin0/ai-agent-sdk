@@ -94,11 +94,11 @@ Commit: `build: establish secured pnpm workspace`
 Dependencies: W0  
 Files: `scripts/check-package-graph.mts`, `scripts/check-runtime-boundaries.mts`, dependency-cruiser config, lint config, CI
 
-- [ ] Enforce package edge allowlist and fail type-only cycles too.
-- [ ] Reject Node builtins, `Buffer`, `process`, `__dirname`, and `__filename` in Universal source and emitted closure.
-- [ ] Reject undeclared package imports and imports through another package's internal path.
-- [ ] Make runtime/graph checks Turbo tasks and required CI checks.
-- [ ] Add lockfile-only supply-chain check for integrity, registry-only sources, exact direct runtime versions, install scripts, reviewed runtime licenses, and high/critical production advisories; document any exception with package/version/owner/expiry.
+- [x] Enforce package edge allowlist and fail type-only cycles too.
+- [x] Reject Node builtins, `Buffer`, `process`, `__dirname`, and `__filename` in Universal source and emitted closure.
+- [x] Reject undeclared package imports and imports through another package's internal path.
+- [x] Make runtime/graph checks Turbo tasks and required CI checks.
+- [x] Add lockfile-only supply-chain check for integrity, registry-only sources, exact direct runtime versions, install scripts, reviewed runtime licenses, and high/critical production advisories; document any exception with package/version/owner/expiry.
 
 Verify:
 

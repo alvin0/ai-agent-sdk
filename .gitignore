@@ -88,6 +88,8 @@ out
 dist
 dist-cli
 .output
+!tests/negative-fixtures/runtime-emitted-leak/packages/core/dist/
+!tests/negative-fixtures/runtime-emitted-leak/packages/core/dist/index.js
 
 # Gatsby files
 .cache/

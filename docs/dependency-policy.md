@@ -19,4 +19,23 @@ On 2026-09-01, pnpm correctly rejected `@opentelemetry/api-logs@0.222.0`: it had
 
 ## Runtime dependency review
 
-The lockfile-only checker introduced in W1 owns registry source, integrity, exact direct runtime version, lifecycle-script, license, and production-advisory enforcement. Any future exception must include package, exact version, rationale, owner, and expiry in this file.
+`pnpm check:supply-chain` now enforces:
+
+- SHA-512 integrity on every registry lock record and rejects exotic/non-registry resolutions;
+- exact direct runtime pins, either literal or through the strict catalog;
+- lifecycle scripts against the reviewed `allowBuilds` entries above;
+- production SPDX expressions against the design allowlist; and
+- zero high/critical findings from `pnpm audit --prod`.
+
+The checker reads the committed lockfile and installed manifests after the frozen install. It does not download or execute a package for inspection. Any future exception must include package, exact version, rationale, owner, and expiry in this file.
+
+## CI action provenance
+
+The initial required workflow pins official GitHub actions to immutable, signed release commits:
+
+| Action | Release | Commit |
+|---|---:|---|
+| `actions/checkout` | `v7.0.0` | `9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0` |
+| `actions/setup-node` | `v6.0.0` | `2028fbc5c25fe9cf00d9f06a71cc4710d4507903` |
+
+The workflow installs `pnpm@11.25.0` exactly with lifecycle scripts disabled before running the frozen workspace install.

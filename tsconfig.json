@@ -39,6 +39,7 @@
     "vitest.integration.config.ts"
   ],
   "exclude": [
+    "tests/negative-fixtures",
     "test-human/workspaces",
     "test-human/agentcode/multi-skill/fixture"
   ]
