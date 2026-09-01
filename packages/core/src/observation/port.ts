@@ -130,6 +130,12 @@ interface ObservationSpanSnapshot extends ObservationSpan {
   readonly end: ObservationSpan['end']
 }
 
+function traceparentMatchesCorrelation(value: unknown, correlation: CorrelationContext): value is string {
+  if (typeof value !== 'string') return false
+  const match = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/.exec(value)
+  return match?.[1] === correlation.traceId && match[2] === correlation.spanId
+}
+
 const OPTIONAL_CORRELATION_KEYS = [
   'conversationId',
   'turnId',
@@ -163,7 +169,7 @@ export function snapshotObservationSpan(value: unknown): ObservationSpanSnapshot
     const correlation = freezeCorrelation({ traceId, spanId, parentSpanId, runId, ...optional })
     const backendTraceparent = Reflect.get(value, 'traceparent')
     const end = Reflect.get(value, 'end')
-    if (backendTraceparent !== traceparent(correlation) || typeof end !== 'function') return undefined
+    if (!traceparentMatchesCorrelation(backendTraceparent, correlation) || typeof end !== 'function') return undefined
     return Object.freeze({
       correlation,
       traceparent: backendTraceparent,

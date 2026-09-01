@@ -1,0 +1,26 @@
+{
+  "repository": "open-telemetry/semantic-conventions-genai",
+  "commit": "5ca9052bc796ef1e497200b1d558fd87a201f335",
+  "logicalModelSpan": {
+    "nameFormat": "chat {gen_ai.request.model}",
+    "kind": "CLIENT",
+    "operation": "chat",
+    "reportedUsageAttributes": [
+      "gen_ai.usage.input_tokens",
+      "gen_ai.usage.output_tokens"
+    ]
+  },
+  "providerAttemptSpan": {
+    "parent": "logical-model-span",
+    "kind": "CLIENT",
+    "logicalGenAiCall": false
+  },
+  "metrics": [
+    { "name": "gen_ai.client.operation.duration", "unit": "s", "instrument": "histogram" },
+    { "name": "gen_ai.client.token.usage", "unit": "{token}", "instrument": "histogram" },
+    { "name": "gen_ai.invoke_agent.duration", "unit": "s", "instrument": "histogram" },
+    { "name": "gen_ai.execute_tool.duration", "unit": "s", "instrument": "histogram" }
+  ],
+  "tokenTypes": ["input", "output"],
+  "contentAttributesOptIn": ["gen_ai.input.messages", "gen_ai.output.messages"]
+}

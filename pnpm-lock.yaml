@@ -105,6 +105,9 @@ importers:
       '@ai-agent-sdk/observability-fetch':
         specifier: workspace:^
         version: link:packages/observability-fetch
+      '@ai-agent-sdk/observability-otel':
+        specifier: workspace:^
+        version: link:packages/observability-otel
       '@arethetypeswrong/cli':
         specifier: 'catalog:'
         version: 0.18.5
@@ -320,6 +323,43 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-playwright@4.1.11)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.1)(yaml@2.9.0))
+
+  packages/observability-otel:
+    dependencies:
+      '@ai-agent-sdk/core':
+        specifier: workspace:^
+        version: link:../core
+      '@ai-agent-sdk/observability':
+        specifier: workspace:^
+        version: link:../observability
+    devDependencies:
+      '@arethetypeswrong/cli':
+        specifier: 'catalog:'
+        version: 0.18.5
+      '@opentelemetry/api':
+        specifier: 'catalog:'
+        version: 1.9.1
+      '@opentelemetry/api-logs':
+        specifier: 'catalog:'
+        version: 0.221.0
+      playwright:
+        specifier: 'catalog:'
+        version: 1.62.1
+      publint:
+        specifier: 'catalog:'
+        version: 0.3.24
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.24)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-playwright@4.1.11)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.1)(yaml@2.9.0))
+      wrangler:
+        specifier: 'catalog:'
+        version: 4.127.1
 
   packages/protocol-anthropic-messages:
     dependencies:

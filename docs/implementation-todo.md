@@ -308,12 +308,12 @@ Commit: `feat(observability-node): add durable journal and diagnostics`
 Dependencies: O0  
 Files: `packages/observability-otel/**`
 
-- [ ] Map internal events to caller-supplied tracer/meter/logger APIs.
-- [ ] Open actual tracer spans synchronously, return their IDs to SDK correlation, preserve explicit logical call/retry parent topology without AsyncLocalStorage, and flag no-op/invalid tracer contexts.
-- [ ] Enforce content opt-in and usage-source distinction.
-- [ ] Pin semantic mapping fixtures to the selected upstream commit.
+- [x] Map internal events to caller-supplied tracer/meter/logger APIs.
+- [x] Open actual tracer spans synchronously, return their IDs to SDK correlation, preserve explicit logical call/retry parent topology without AsyncLocalStorage, and flag no-op/invalid tracer contexts.
+- [x] Enforce content opt-in and usage-source distinction.
+- [x] Pin semantic mapping fixtures to the selected upstream commit.
 
-Exit evidence: golden spans/metrics/logs pass; bridge installs no global provider and performs no network I/O.  
+Exit evidence: seven golden/failure tests prove synchronous caller-owned spans, unsampled W3C identity preservation, explicit run→logical-model→retry-attempt topology, terminal status/end, content-default privacy, cache-inclusive reported token accounting, estimated-source separation, correlated logs, stable invalid/no-op fallback, contained API diagnostics, pinned GenAI instruments, and unchanged global providers. The package imports only the OpenTelemetry APIs plus core/observability, owns no SDK/exporter/network path, and its tarball passes standards-only Node, real Chromium, and Cloudflare Worker execution. Publint, ATTW, the 618-test compatibility suite, full typecheck, package/source/runtime graph, supply-chain, core-cycle, and seven negative-boundary gates pass with zero findings.
 Commit: `feat(observability-otel): add semantic convention bridge`
 
 ## Phase I — Integration protocols

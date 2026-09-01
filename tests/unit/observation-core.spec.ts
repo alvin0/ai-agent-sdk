@@ -8,6 +8,7 @@ import {
   isSpanId,
   isTraceId,
   safeErrorRecord,
+  snapshotObservationSpan,
   type CaptureReceipt,
   type ModelCallReport,
   type ModelInvocationContext,
@@ -76,6 +77,17 @@ describe('core observation identities and model-call handles', () => {
     expect(isSpanId(spanId)).toBe(true)
     expect(traceId).toMatch(/^[0-9a-f]{32}$/)
     expect(spanId).toMatch(/^[0-9a-f]{16}$/)
+  })
+
+  it('accepts valid unsampled backend traceparent values without changing their flags', () => {
+    const core = createCoreSpan({
+      name: 'sdk.agent.run',
+      runId: 'run',
+      startedAt: new Date().toISOString(),
+      monotonicMs: 0,
+    })
+    const unsampled = { ...core, traceparent: core.traceparent.replace(/-01$/, '-00') }
+    expect(snapshotObservationSpan(unsampled)?.traceparent).toBe(unsampled.traceparent)
   })
 
   it('captures monotonic sequenced start/end events and a complete usage report', async () => {

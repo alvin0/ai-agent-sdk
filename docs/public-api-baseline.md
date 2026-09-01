@@ -171,3 +171,27 @@ files. The former `calendar` option remains as a deprecated type-only no-op, so
 no named runtime export is removed or renamed. Structured observation remains
 the default support path, and the human harness keeps exact-wire logging off
 unless `--logs` is supplied explicitly.
+
+## O4 migration record — caller-owned OpenTelemetry bridge
+
+O4 adds the Universal leaf `@ai-agent-sdk/observability-otel@0.1.0` without
+changing a frozen compatibility-root runtime export. It accepts caller-owned
+`Tracer`, `Meter`, and optional structural logger objects; installs no global
+provider, SDK, exporter, or network path. The optional logs peer therefore does
+not become mandatory for trace-and-metric consumers.
+
+Actual tracer spans are opened synchronously and their valid IDs become SDK
+correlation IDs. A bridge-owned explicit context map preserves the
+run→logical-model→provider-attempt hierarchy, including retry siblings, without
+ambient context or AsyncLocalStorage. Core backend-span validation now accepts
+the full two-hex-digit W3C trace-flags field, so an unsampled `-00` traceparent
+is retained rather than rejected and replaced with a second identity.
+
+The mapping fixture is pinned to semantic-conventions commit
+`5ca9052bc796ef1e497200b1d558fd87a201f335`. Provider-reported input includes
+uncached, cache-read, and cache-write counters; estimated usage remains on the
+SDK metric with an explicit source and never impersonates semantic provider
+usage. Prompt/completion span attributes require `content: 'full'` on both the
+privacy bus and bridge. Invalid/no-op contexts degrade safely with
+`OTEL_PROVIDER_UNCONFIGURED`; synchronous API failures are observable without
+copying arbitrary exporter messages or content into health diagnostics.

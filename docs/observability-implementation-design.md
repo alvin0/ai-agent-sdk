@@ -728,7 +728,7 @@ Allowed metric attributes are provider, operation, status, error code, tool exec
 
 ## 18. OpenTelemetry bridge
 
-`observability-otel` contributes an `openSpan` backend and event processor to `createObservability()`, using caller-supplied `Tracer`, `Meter`, and optional logger API objects. The package peers on `@opentelemetry/api@^1.9.1` and optional `@opentelemetry/api-logs@^0.222.0`; it does not install a global provider or choose an OTLP exporter.
+`observability-otel` contributes an `openSpan` backend and event processor to `createObservability()`, using caller-supplied `Tracer`, `Meter`, and optional logger API objects. The package peers on `@opentelemetry/api@^1.9.1` and optional `@opentelemetry/api-logs@^0.221.0`; it does not install a global provider or choose an OTLP exporter.
 
 Mapping is pinned in tests to the OpenTelemetry semantic-conventions repository commit `5ca9052bc796ef1e497200b1d558fd87a201f335`. The GenAI convention is still marked Development, so internal event names and ledger fields remain the stable SDK contract. Mapping changes do not rewrite stored internal events.
 
