@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Observability Browser tarball fixture</title>
+<script type="importmap">
+{
+  "imports": {
+    "@ai-agent-sdk/core": "/node_modules/@ai-agent-sdk/core/dist/index.js",
+    "@ai-agent-sdk/observability": "/node_modules/@ai-agent-sdk/observability/dist/index.js",
+    "@ai-agent-sdk/observability-browser": "/node_modules/@ai-agent-sdk/observability-browser/dist/index.js"
+  }
+}
+</script>
+<script type="module">
+  import { runCrashPhase, runVerifyPhase } from './fixture.mjs'
+  const query = new URL(location.href).searchParams
+  const phase = query.get('phase')
+  const databaseName = query.get('database')
+  try {
+    globalThis.__browserObservationFixture = phase === 'crash'
+      ? await runCrashPhase(databaseName)
+      : await runVerifyPhase(databaseName)
+  } catch (error) {
+    globalThis.__browserObservationFixture = {
+      error: error instanceof Error ? `${error.name}: ${error.message}\n${error.stack ?? ''}` : String(error),
+    }
+  }
+</script>

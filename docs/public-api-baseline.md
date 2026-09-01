@@ -139,3 +139,18 @@ depends inward on the public core and observability contracts and exports only
 types. Remote durability is claimed only after HTTP 204 or an exact matching
 JSON batch acknowledgment. Host lifecycle extension remains explicit, so no
 Edge platform global is added to the Universal dependency closure.
+
+## O2 migration record — Browser IndexedDB durability
+
+O2 adds `@ai-agent-sdk/observability-browser@0.1.0` without adding IndexedDB or
+page lifecycle code to the compatibility root, core, agent, or Edge packages.
+The concrete observability export contract gains one additive optional
+`stage(event)` hook. The Universal bus invokes it after privacy/capacity
+acceptance so Browser and later Node durability backends can begin local staging
+during capture; existing exporters that omit it retain their identity and
+behavior.
+
+The Browser leaf exposes `IndexedDbObservationExporter`, explicit recovery and
+acknowledgment methods, stable browser quota/unavailable errors, and an opt-in
+lifecycle installer. It claims only `local-durable`, after transaction commit.
+No frozen root runtime symbol is added, removed, or renamed.

@@ -305,7 +305,9 @@ class ObservationBus implements Observability {
       this.recordFailure('processor:capture', error, 'observation processor failed', true)
       return receipt(eventId, 'rejected', 'none', 'processor-failed')
     }
-    return this.enqueue(processed, false)
+    const captured = this.enqueue(processed, false)
+    if (captured.status !== 'accepted') return captured
+    return this.stageExporters(processed, captured)
   }
 
   async checkpoint(event: ObservationEvent, signal?: AbortSignal): Promise<CaptureReceipt> {
@@ -434,6 +436,32 @@ class ObservationBus implements Observability {
     this.counters.accepted++
     this.notifyHealth()
     return receipt(event.eventId, 'accepted')
+  }
+
+  private stageExporters(event: ObservationEvent, captured: CaptureReceipt): CaptureReceipt {
+    const entry = this.queue.find(candidate => candidate.event.eventId === event.eventId)
+    if (entry === undefined) return receipt(event.eventId, 'rejected', 'none', 'exporter-unavailable')
+    let removedPending = false
+    for (const registration of this.registrations) {
+      const stage = registration.exporter.stage
+      if (stage === undefined) continue
+      try {
+        const pending = stage.call(registration.exporter, event)
+        if (pending !== undefined) void Promise.resolve(pending).catch(() => undefined)
+      } catch (error) {
+        this.recordExporterFailure(registration, error, false)
+        entry.pending.delete(registration.exporter.id)
+        removedPending = true
+        if (registration.requirement === 'required') {
+          this.removeEntry(entry, false)
+          if (event.priority === 'critical') this.counters.criticalRejected++
+          this.notifyHealth()
+          return receipt(event.eventId, 'rejected', 'none', 'exporter-unavailable')
+        }
+      }
+    }
+    if (removedPending && entry.pending.size === 0) this.removeEntry(entry, false)
+    return captured
   }
 
   private makeCapacity(incomingBytes: number, protectedPath: boolean): boolean {

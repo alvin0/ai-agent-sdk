@@ -122,6 +122,31 @@ describe('Universal observation bus', () => {
     expect(observation.health().queuedEvents).toBe(0)
   })
 
+  it('starts exporter staging during capture and waits for it at checkpoint export', async () => {
+    let release!: () => void
+    const committed = new Promise<void>(resolve => { release = resolve })
+    const stage = vi.fn(() => committed)
+    const exporter: ObservationExporter = {
+      id: 'staged-local',
+      supportedBoundaries: ['local-durable'],
+      stage,
+      async export(batch) {
+        await committed
+        return { batchId: batch.batchId, accepted: true, retryable: false }
+      },
+    }
+    const observation = createObservability({
+      mode: 'reliable',
+      exporters: [{ exporter, requirement: 'required', boundary: 'local-durable' }],
+    })
+    observation.capture(event(1))
+    expect(stage).toHaveBeenCalledTimes(1)
+    const pending = observation.checkpoint(event(2))
+    expect(stage).toHaveBeenCalledTimes(2)
+    release()
+    await expect(pending).resolves.toMatchObject({ durable: true, boundary: 'local-durable' })
+  })
+
   it('does not let a best-effort exporter block a required checkpoint', async () => {
     const durable = new TestObservationExporter({ id: 'durable', supportedBoundaries: ['local-durable'] })
     const broken = new TestObservationExporter({ id: 'broken', failExports: 1, retryable: false })

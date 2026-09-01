@@ -285,10 +285,10 @@ Commit: `feat(observability-fetch): add acknowledged edge exporter`
 Dependencies: O0  
 Files: `packages/observability-browser/**`
 
-- [ ] Implement schema, transactions, recovery, limits, priority behavior, and opt-in lifecycle.
-- [ ] Test quota, blocked upgrade, crash/reopen, duplicate IDs, and audit checkpoint.
+- [x] Implement schema, transactions, recovery, limits, priority behavior, and opt-in lifecycle.
+- [x] Test quota, blocked upgrade, crash/reopen, duplicate IDs, and audit checkpoint.
 
-Exit evidence: packed Chromium tests pass with browser restart simulation.  
+Exit evidence: the Browser tarball installs with only core/observability and passes a real Chromium two-page recovery test: page one commits an event and closes without exporter shutdown, then page two reopens the same origin/database and recovers it. The same packed test proves schema-v1 `events`/`batches`/`meta`, unique event identity rejection, required `local-durable` reliable and audit checkpoints, explicit batch acknowledgment, 2-event quota eviction ordering (verbose then normal, never critical), visible quota failure when only critical records remain, blocked-open failure, and opt-in visibility/pagehide lifecycle with disposal. A Universal bus contract test proves `stage()` starts during synchronous capture while checkpoint waits for committed export. Publint, ATTW, the 599-test compatibility suite, full typecheck, package/source/runtime graph, supply-chain, and negative-boundary gates pass with zero findings.
 Commit: `feat(observability-browser): add indexeddb delivery queue`
 
 ### O3 — Implement Node journal and diagnostic wire log

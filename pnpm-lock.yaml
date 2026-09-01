@@ -96,6 +96,9 @@ importers:
       '@ai-agent-sdk/observability':
         specifier: workspace:^
         version: link:packages/observability
+      '@ai-agent-sdk/observability-browser':
+        specifier: workspace:^
+        version: link:packages/observability-browser
       '@ai-agent-sdk/observability-fetch':
         specifier: workspace:^
         version: link:packages/observability-fetch
@@ -230,6 +233,31 @@ importers:
       wrangler:
         specifier: 'catalog:'
         version: 4.127.1
+
+  packages/observability-browser:
+    dependencies:
+      '@ai-agent-sdk/core':
+        specifier: workspace:^
+        version: link:../core
+      '@ai-agent-sdk/observability':
+        specifier: workspace:^
+        version: link:../observability
+    devDependencies:
+      '@arethetypeswrong/cli':
+        specifier: 'catalog:'
+        version: 0.18.5
+      playwright:
+        specifier: 'catalog:'
+        version: 1.62.1
+      publint:
+        specifier: 'catalog:'
+        version: 0.3.24
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.24)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
 
   packages/observability-fetch:
     dependencies:

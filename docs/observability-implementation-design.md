@@ -588,6 +588,8 @@ export interface ExportAck {
 
 export interface ObservationExporter {
   readonly id: string
+  readonly supportedBoundaries?: readonly ObservationBoundary[]
+  stage?(event: ObservationEvent): void | Promise<void>
   export(batch: ObservationBatch, signal: AbortSignal): Promise<ExportAck>
   shutdown?(signal: AbortSignal): Promise<void>
 }
@@ -606,6 +608,17 @@ export interface FlushResult {
   readonly timedOut: boolean
 }
 ```
+
+`stage` is an optional local-durability hook. The bus calls it synchronously,
+after both privacy passes and in-memory capacity acceptance, and before
+`capture()` returns. The hook must start its local write before returning when
+its backend is ready; a returned promise is contained but is not awaited and is
+not a durability claim. `export()` waits for the corresponding staged writes
+and returns the measured boundary acknowledgment. This additive hook is needed
+by both IndexedDB and the Node journal: an exporter-only API invoked first at
+flush cannot protect events from a crash between capture and checkpoint. Hosts
+should await a durable exporter's explicit `ready()` before installing it when
+they need the strongest capture-time staging guarantee.
 
 `flush()` drains events present at its start and returns a result; it does not throw for ordinary exporter failure. Invalid options and already-closed misuse throw. `shutdown()` is idempotent, stops new capture, flushes, shuts exporters in reverse registration order, and returns the final result.
 
@@ -639,6 +652,19 @@ Headers are configured by the host and are never copied into events. Endpoint va
 Reliable mode starts the IndexedDB transaction on critical capture but the synchronous receipt remains `durable: false`; the terminal checkpoint waits for transaction commit before reporting local durability. Audit mode is supported only when the pre-dispatch `checkpoint` completes the IndexedDB transaction. Quota or blocked-upgrade failure makes the bus degraded/rejected; it never falls back to claiming memory is durable.
 
 Defaults are 50,000 events or 64 MiB per origin. Eviction uses the same priority rules and never evicts an unacknowledged critical event. If only critical data remains at the limit, new reliable/audit capture fails visibly.
+
+The browser exporter reports only `local-durable`. `stage()` stores the exact
+privacy-processed event; `export()` waits for those transactions, assigns the
+events to a local batch manifest, and acknowledges only after commit. Stored
+events survive a page close and remain unacknowledged until the host calls
+`acknowledgeBatch()` after its selected remote destination confirms delivery.
+`recoverEvents()` returns the retained events in staging order so the host can
+rebuild its own remote batches without coupling this Browser package to a
+network exporter. Evicted normal/verbose events are treated as intentionally
+dropped during a later local batch commit; a missing critical record always
+fails the checkpoint. The opt-in lifecycle adapter flushes on hidden visibility
+and `pagehide`, contains its callback failures, and makes no unload durability
+claim.
 
 ## 15. Node durable journal
 

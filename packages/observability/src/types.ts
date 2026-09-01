@@ -30,6 +30,12 @@ export interface ObservationExporter {
   readonly id: string
   /** Boundaries this exporter can honestly reach. Omission means memory-only. */
   readonly supportedBoundaries?: readonly ObservationBoundary[]
+  /**
+   * Start local staging synchronously after privacy processing and queue
+   * acceptance. Any returned promise is completed by `export`; it is not a
+   * durability claim and capture never awaits it.
+   */
+  stage?(event: ObservationEvent): void | Promise<void>
   export(batch: ObservationBatch, signal: AbortSignal): Promise<ExportAck>
   shutdown?(signal: AbortSignal): Promise<void>
 }

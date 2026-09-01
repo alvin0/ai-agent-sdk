@@ -1,0 +1,39 @@
+{
+  "name": "@ai-agent-sdk/observability-browser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "IndexedDB durable observation queue and opt-in browser lifecycle integration",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "README.md", "LICENSE"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": { "access": "public", "provenance": true },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('artifacts',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && node scripts/test-packed.mts",
+    "pack": "pnpm pack --pack-destination artifacts",
+    "test:pack": "node scripts/test-packed.mts",
+    "check:publint": "publint",
+    "check:types": "attw --profile esm-only --pack ."
+  },
+  "dependencies": {
+    "@ai-agent-sdk/core": "workspace:^",
+    "@ai-agent-sdk/observability": "workspace:^"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:"
+  },
+  "aiAgentSdk": { "runtime": "browser" }
+}
