@@ -26,8 +26,8 @@ import {
   DEFAULT_THINKING_BUDGETS,
   anthropicMessagesProtocol,
   type AnthropicDialect,
-} from '../protocols/anthropic-messages.ts'
-import type { ThinkingBudgets } from './serialize.ts'
+  type ThinkingBudgets,
+} from '@ai-agent-sdk/protocol-anthropic-messages'
 
 /** The Anthropic API base. */
 export const ANTHROPIC_BASE_URL = 'https://api.anthropic.com'

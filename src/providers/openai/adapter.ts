@@ -20,8 +20,10 @@ import {
   createHttpProvider,
   type CredentialSource,
 } from '../http-provider.ts'
-import { openAiResponsesProtocol } from '../protocols/openai-responses.ts'
-import type { ResponsesDialect } from '../responses/wire.ts'
+import {
+  openAiResponsesProtocol,
+  type ResponsesDialect,
+} from '@ai-agent-sdk/protocol-responses'
 
 /** The OpenAI API base. */
 export const OPENAI_BASE_URL = 'https://api.openai.com/v1'

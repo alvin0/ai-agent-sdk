@@ -13,12 +13,12 @@ export {
   anthropicMessagesProtocol,
   type AnthropicDialect,
   type ThinkingBudgets,
-} from './anthropic-messages.ts'
+} from '@ai-agent-sdk/protocol-anthropic-messages'
 export {
   OPENAI_RESPONSES_PROTOCOL_ID,
   openAiResponsesProtocol,
   type ResponsesDialect,
-} from './openai-responses.ts'
+} from '@ai-agent-sdk/protocol-responses'
 export {
   resolveDialect,
   type AnyWireProtocol,

@@ -6,12 +6,12 @@
 export {
   serializeResponsesRequest,
   type ResponsesReasoningState,
-} from './serialize.ts'
-export { translateResponsesStream } from './translate.ts'
+  translateResponsesStream,
+} from '@ai-agent-sdk/protocol-responses'
 export type {
   ResponsesDialect,
   WireInputItem,
   WireRequest,
   WireStreamEvent,
   WireTool,
-} from './wire.ts'
+} from '@ai-agent-sdk/protocol-responses'

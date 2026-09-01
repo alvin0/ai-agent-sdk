@@ -10,4 +10,4 @@ export {
 export {
   openAiResponsesProtocol,
   type ResponsesDialect,
-} from '../protocols/openai-responses.ts'
+} from '@ai-agent-sdk/protocol-responses'

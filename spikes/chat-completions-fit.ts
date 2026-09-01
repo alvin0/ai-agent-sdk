@@ -249,13 +249,17 @@ async function* translate(events: AsyncIterable<SseEvent>): AsyncGenerator<Strea
   throw new Error('Chat Completions stream ended without [DONE]')
 }
 
-const protocol: WireProtocol<ChatDialect> = {
+const protocol = {
   id: 'openai-chat-completions-spike',
   defaultDialect: { reasoningEffort: true },
-  endpointPath: () => '/chat/completions',
+  endpointPath: (_request: ProviderRequest, _dialect: ChatDialect) => '/chat/completions',
   serialize,
-  translate: (events) => translate(events),
-}
+  translate: (
+    events: AsyncIterable<SseEvent>,
+    _request: ProviderRequest,
+    _displayName: string,
+  ) => translate(events),
+} satisfies WireProtocol<ChatDialect>
 
 const first = ToolCallId('call_a')
 const second = ToolCallId('call_b')

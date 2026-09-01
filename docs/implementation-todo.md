@@ -228,12 +228,12 @@ Commit: `feat(provider-http): extract fetch pipeline and attempt accounting`
 Dependencies: P0  
 Files: protocol package directories
 
-- [ ] Move Anthropic wire/serializer/translator/dialect into one package.
-- [ ] Move Responses/Codex wire/serializer/translator/dialect into one package.
-- [ ] Delete provider↔protocol cycles and internal cross-imports.
-- [ ] Preserve fixtures for malformed/partial usage and protocol-specific omitted-cache semantics.
+- [x] Move Anthropic wire/serializer/translator/dialect into one package.
+- [x] Move Responses/Codex wire/serializer/translator/dialect into one package.
+- [x] Delete provider↔protocol cycles and internal cross-imports.
+- [x] Preserve fixtures for malformed/partial usage and protocol-specific omitted-cache semantics.
 
-Exit evidence: both packed Universal packages depend only on core and pass translator/serializer suites.  
+Exit evidence: both packed Universal packages have only `@ai-agent-sdk/core@^0.1.0` as a runtime dependency and execute serializer/translator fixtures in standards-only Node, Chromium, and Cloudflare Worker. Anthropic has 21 focused serializer/translator tests; Responses has 21. The fixtures cover split/partial reports, malformed counters, Responses cache-subset subtraction, and each protocol's authoritative omitted-cache-zero rule. The HTTP boundary has 54 focused tests and proves partial/malformed protocol usage is retained in provider-attempt accounting while never escaping as an exact public `TokenUsage`. The 559-test root compatibility suite passes. Publint and ATTW ESM checks pass; the six-package graph has nine allowed workspace edges and zero findings. Root compatibility preserves runtime protocol-object identity with the two canonical packages.
 Commit: `refactor(protocols): extract provider wire packages`
 
 ### P2 — Extract provider plugins

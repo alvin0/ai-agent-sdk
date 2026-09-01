@@ -36,10 +36,21 @@ import { contentHasImage } from '@ai-agent-sdk/core'
 import { waitForSettlement } from '@ai-agent-sdk/core'
 import type { StreamChunk } from '@ai-agent-sdk/core'
 import type { ModelInvocationContext } from '@ai-agent-sdk/core'
-import type { ProviderAttemptHandle, SafeErrorRecord, TokenUsage } from '@ai-agent-sdk/core'
+import type {
+  ProviderAttemptHandle,
+  SafeErrorRecord,
+  TokenUsage,
+  UsageCounters,
+} from '@ai-agent-sdk/core'
+import { validateUsageCounters } from '@ai-agent-sdk/core'
 import { withIdleTimeout } from '@ai-agent-sdk/core'
 import { parseSse, type SseEvent } from '../stream/sse.ts'
 import { httpErrorCode, parseErrorBody, requestIdFrom, retryAfterMs } from './http-errors.ts'
+
+/** Protocol output before untrusted usage has crossed the transport validator. */
+export type ProviderProtocolChunk =
+  | Exclude<StreamChunk, { readonly type: 'usage' }>
+  | { readonly type: 'usage'; readonly usage: UsageCounters }
 
 /** Default idle bound: five minutes without a single byte is a hung stream. */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
@@ -195,7 +206,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
   protected abstract translate(
     events: AsyncIterable<SseEvent>,
     request: ProviderRequest,
-  ): AsyncGenerator<StreamChunk>
+  ): AsyncGenerator<ProviderProtocolChunk>
 
   /**
    * Extra headers merged in by the base pipeline. Override to change `accept`.
@@ -404,7 +415,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       let httpStatus: number | undefined
       let providerRequestId: string | undefined
       let attemptStatus: 'success' | 'error' | 'aborted' | 'unknown' = 'unknown'
-      let attemptUsage: TokenUsage | undefined
+      let attemptUsage: UsageCounters | undefined
       let attemptError: SafeErrorRecord | undefined
       try {
         attempt = await context?.startProviderAttempt?.({
@@ -456,7 +467,15 @@ export abstract class HttpModelAdapter extends ModelAdapter {
           ),
         )
         for await (const chunk of withAbortSignal(this.translate(bounded, request), signal)) {
-          if (chunk.type === 'usage') attemptUsage = chunk.usage
+          if (chunk.type === 'usage') {
+            attemptUsage = chunk.usage
+            const validated = validateUsageCounters(chunk.usage, true)
+            // Partial and malformed reports remain provider-attempt evidence but
+            // never escape as the SDK's exact TokenUsage contract.
+            if (!validated.complete) continue
+            yield { type: 'usage', usage: validated.reported as TokenUsage }
+            continue
+          }
           if (chunk.type === 'finish') {
             attemptStatus = chunk.reason.kind === 'aborted' ? 'aborted'
               : chunk.reason.kind === 'error' ? 'error' : 'success'

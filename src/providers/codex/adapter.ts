@@ -30,8 +30,10 @@ import type {
   ProviderRequestLogger,
 } from '../base/index.ts'
 import { createHttpProvider, type ModelDiscoveryContext } from '../http-provider.ts'
-import { openAiResponsesProtocol } from '../protocols/openai-responses.ts'
-import type { ResponsesDialect } from '../responses/wire.ts'
+import {
+  openAiResponsesProtocol,
+  type ResponsesDialect,
+} from '@ai-agent-sdk/protocol-responses'
 import {
   fileCodexAuthStore,
   isFedrampAccount,

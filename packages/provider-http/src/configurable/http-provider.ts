@@ -32,7 +32,6 @@ import type { ResolvedRetryPolicy } from '@ai-agent-sdk/core'
 import { assertUsableApiKey } from '@ai-agent-sdk/core'
 import { attributionHeaders } from '@ai-agent-sdk/core'
 import { detachedFrozen } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
 import type { SseEvent } from '../stream/sse.ts'
 import {
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
@@ -44,6 +43,7 @@ import {
   HttpModelAdapter,
   type HttpConnection,
   type ProviderCatalogModel,
+  type ProviderProtocolChunk,
   type ProviderRequest,
   type ProviderRequestLogger,
   type ProviderRequestLogRecord,
@@ -373,7 +373,7 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
   protected override translate(
     events: AsyncIterable<SseEvent>,
     request: ProviderRequest,
-  ): AsyncGenerator<StreamChunk> {
+  ): AsyncGenerator<ProviderProtocolChunk> {
     return this.options.protocol.translate(events, request, this.displayName)
   }
 }

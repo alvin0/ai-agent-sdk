@@ -5,8 +5,10 @@ import {
   createTextMessage,
   createToolResultMessage,
 } from '@ai-agent-sdk/core'
-import { DEFAULT_THINKING_BUDGETS } from '../../src/providers/anthropic/adapter.ts'
-import { serializeAnthropicRequest } from '../../src/providers/anthropic/serialize.ts'
+import {
+  DEFAULT_THINKING_BUDGETS,
+  serializeAnthropicRequest,
+} from '@ai-agent-sdk/protocol-anthropic-messages'
 import { ReasoningEffortId } from '@ai-agent-sdk/core'
 import { providerRequest } from './fixtures.ts'
 

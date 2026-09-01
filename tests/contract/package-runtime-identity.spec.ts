@@ -5,11 +5,19 @@ import { describe, expect, it } from 'vitest'
 const root = resolve(import.meta.dirname, '../..')
 
 describe('workspace compatibility runtime identity', () => {
-  it('re-exports the single core, agent, and provider-http package instances', async () => {
+  it('re-exports single core, agent, transport, and protocol package instances', async () => {
     const compatibility = await import(pathToFileURL(resolve(root, 'dist/index.js')).href)
+    const anthropicCompatibility = await import(pathToFileURL(resolve(root, 'dist/anthropic.js')).href)
+    const openAiCompatibility = await import(pathToFileURL(resolve(root, 'dist/openai.js')).href)
     const core = await import(pathToFileURL(resolve(root, 'packages/core/dist/index.js')).href)
     const agent = await import(pathToFileURL(resolve(root, 'packages/agent/dist/index.js')).href)
     const providerHttp = await import(pathToFileURL(resolve(root, 'packages/provider-http/dist/index.js')).href)
+    const anthropicProtocol = await import(pathToFileURL(resolve(
+      root, 'packages/protocol-anthropic-messages/dist/index.js',
+    )).href)
+    const responsesProtocol = await import(pathToFileURL(resolve(
+      root, 'packages/protocol-responses/dist/index.js',
+    )).href)
 
     expect(compatibility.ModelRegistry).toBe(core.ModelRegistry)
     expect(compatibility.AgentSession).toBe(agent.AgentSession)
@@ -20,5 +28,10 @@ describe('workspace compatibility runtime identity', () => {
     expect(compatibility.createHttpProvider).toBe(providerHttp.createHttpProvider)
     expect(compatibility.parseSse).toBe(providerHttp.parseSse)
     expect(compatibility.resolveDialect).toBe(providerHttp.resolveDialect)
+    expect(compatibility.anthropicMessagesProtocol).toBe(anthropicProtocol.anthropicMessagesProtocol)
+    expect(anthropicCompatibility.anthropicMessagesProtocol)
+      .toBe(anthropicProtocol.anthropicMessagesProtocol)
+    expect(compatibility.openAiResponsesProtocol).toBe(responsesProtocol.openAiResponsesProtocol)
+    expect(openAiCompatibility.openAiResponsesProtocol).toBe(responsesProtocol.openAiResponsesProtocol)
   })
 })

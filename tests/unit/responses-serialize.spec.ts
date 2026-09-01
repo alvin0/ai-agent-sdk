@@ -6,8 +6,10 @@ import {
   createTextMessage,
   createToolResultMessage,
 } from '@ai-agent-sdk/core'
-import { serializeResponsesRequest } from '../../src/providers/responses/serialize.ts'
-import type { ResponsesDialect } from '../../src/providers/responses/wire.ts'
+import {
+  serializeResponsesRequest,
+  type ResponsesDialect,
+} from '@ai-agent-sdk/protocol-responses'
 import { providerRequest } from './fixtures.ts'
 
 const dialect: ResponsesDialect = {

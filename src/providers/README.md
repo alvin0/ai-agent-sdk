@@ -332,6 +332,12 @@ subset, so the translator **subtracts**. Anthropic already reports them disjoint
 so it **does not**. Reversing this silently double-counts or under-reports on every
 cached call.
 
+Both protocol packages treat an omitted cache bucket as authoritative zero, but
+never invent a missing input or output count. Partial and malformed usage remains
+on the provider-attempt report (`partial` / `USAGE_INVALID`) and is withheld from
+the public stream, where `TokenUsage` continues to mean an exact normalized
+report. This prevents a missing counter from silently becoming a trustworthy zero.
+
 **Termination.** Neither API sends a `[DONE]` sentinel, so `parseSse` stays
 protocol-agnostic and each `translate` owns termination: `response.completed` for
 Responses, `message_stop` for Anthropic. A body ending before either is truncation →

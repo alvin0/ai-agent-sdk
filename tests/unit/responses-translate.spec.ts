@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { SseEvent } from '../../src/core/stream/sse.ts'
-import { translateResponsesStream } from '../../src/providers/responses/translate.ts'
-import { createTextMessage } from '@ai-agent-sdk/core'
+import {
+  translateResponsesStream,
+  type ProtocolSseEvent,
+} from '@ai-agent-sdk/protocol-responses'
+import { createTextMessage, validateUsageCounters } from '@ai-agent-sdk/core'
 import { providerRequest } from './fixtures.ts'
 
-async function* events(values: readonly object[]): AsyncIterable<SseEvent> {
+async function* events(values: readonly object[]): AsyncIterable<ProtocolSseEvent> {
   for (const value of values) yield { event: undefined, data: JSON.stringify(value) }
 }
 
@@ -102,6 +104,66 @@ describe('Responses assistant message phase', () => {
           id: 'ig_1', type: 'image_generation_call', status: 'completed', result: 'FINAL',
         },
       },
+    })
+  })
+})
+
+describe('Responses usage normalization', () => {
+  async function translatedUsage(usage: object) {
+    const chunks = []
+    for await (const chunk of translateResponsesStream(events([
+      { type: 'response.completed', response: { usage } },
+    ]), 'test')) chunks.push(chunk)
+    return chunks.find(chunk => chunk.type === 'usage')?.usage
+  }
+
+  it('treats omitted cache details as authoritative zero', async () => {
+    const usage = await translatedUsage({ input_tokens: 10, output_tokens: 2, total_tokens: 12 })
+    expect(usage).toEqual({ inputTokens: 10, outputTokens: 2, totalTokens: 12 })
+    expect(validateUsageCounters(usage, true)).toMatchObject({
+      complete: true,
+      invalidFields: [],
+      reported: { inputTokens: 10, outputTokens: 2, totalTokens: 12 },
+    })
+  })
+
+  it('subtracts the cached subset while keeping all input buckets disjoint', async () => {
+    const usage = await translatedUsage({
+      input_tokens: 10,
+      input_tokens_details: { cached_tokens: 4 },
+      output_tokens: 2,
+      total_tokens: 12,
+    })
+    expect(usage).toEqual({
+      inputTokens: 6,
+      outputTokens: 2,
+      totalTokens: 12,
+      cacheReadTokens: 4,
+    })
+    expect(validateUsageCounters(usage, true).complete).toBe(true)
+  })
+
+  it('keeps a partial provider report partial instead of inventing zero output', async () => {
+    const usage = await translatedUsage({ input_tokens: 10 })
+    expect(usage).toEqual({ inputTokens: 10 })
+    expect(validateUsageCounters(usage, true).complete).toBe(false)
+  })
+
+  it('retains malformed counters for the accounting boundary to reject', async () => {
+    const usage = await translatedUsage({
+      input_tokens: 10,
+      input_tokens_details: { cached_tokens: 'not-a-counter' },
+      output_tokens: 2,
+    })
+    expect(usage).toEqual({
+      inputTokens: 10,
+      outputTokens: 2,
+      cacheReadTokens: 'not-a-counter',
+    })
+    expect(validateUsageCounters(usage, true)).toMatchObject({
+      complete: false,
+      invalidFields: ['cacheReadTokens'],
+      reported: { inputTokens: 10, outputTokens: 2 },
     })
   })
 })

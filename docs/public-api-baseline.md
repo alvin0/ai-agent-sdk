@@ -67,3 +67,24 @@ P0 moves fetch dispatch, HTTP errors, configurable provider construction, the wi
 The Universal package accepts literal or injected credential resolvers and contains no environment/file lookup. The deprecated root `apiKeyFromEnv` bridge remains Node-owned until `@ai-agent-sdk/auth-node` replaces it. Exact wire request logging remains one explicitly deprecated, high-risk compatibility hook; structured provider-attempt observation is the default support path and records only safe origin metadata, dispatch state, status, request ID, coverage, and sanitized errors.
 
 The packed manifest owns exact `eventsource-parser@4.1.0` and no other package declares it directly. A conformance test found that parser overflow is delivered through `onError`; the SDK wrapper now turns only `max-buffer-size-exceeded` into an immediate attempt failure while preserving SSE's forward-compatible unknown-field behavior. Packed standards-only Node, Chromium, and Cloudflare Worker fixtures prove the emitted closure needs neither Node globals nor builtins.
+
+## P1 migration record — extracted Universal wire protocols
+
+P1 moves the Anthropic Messages and shared Responses/Codex wire schemas,
+serializers, translators, and dialects to
+`@ai-agent-sdk/protocol-anthropic-messages@0.1.0` and
+`@ai-agent-sdk/protocol-responses@0.1.0`. The root, `./anthropic`, and `./openai`
+declaration hashes change because their public protocol types now reference the
+canonical workspace packages. Their runtime export sets are unchanged, and
+identity tests prove every compatibility entry re-exports the same frozen
+protocol objects as the package entry points.
+
+Each protocol has only `@ai-agent-sdk/core` as a runtime dependency. A structural
+request/SSE contract keeps transport concerns out of the packages; provider
+adapters import only their public exports. Protocol translators may surface an
+internal partial or malformed `UsageCounters` report to `provider-http`, which
+validates and retains it on the physical attempt. Only a complete, valid report
+is emitted as public `TokenUsage`, preserving its exact-report contract. This is
+an intentional declaration-only addition; no runtime symbol is removed or
+renamed. Packed standards-only Node, Chromium, and Cloudflare Worker fixtures
+prove both emitted protocol closures need neither Node globals nor builtins.

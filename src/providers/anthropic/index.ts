@@ -9,5 +9,9 @@ export {
   type AnthropicAdapterOptions,
   type AnthropicCredential,
 } from './adapter.ts'
-export { anthropicMessagesProtocol, type AnthropicDialect } from '../protocols/anthropic-messages.ts'
-export type { AnthropicReasoningState, ThinkingBudgets } from './serialize.ts'
+export {
+  anthropicMessagesProtocol,
+  type AnthropicDialect,
+  type AnthropicReasoningState,
+  type ThinkingBudgets,
+} from '@ai-agent-sdk/protocol-anthropic-messages'

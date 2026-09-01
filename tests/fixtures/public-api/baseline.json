@@ -160,7 +160,7 @@
         "withIdleTimeout",
         "withRetry"
       ],
-      "typesSha256": "4f5f2d5819ad4543d0f348dbd595c12b9f5b3c28c0d39db09d5c1453b2a165f0"
+      "typesSha256": "2ae55b6ac2c0e72afa14652eb8849c79dde1fb4eb92d2958a8c2cfecb81645ee"
     },
     "./anthropic": {
       "exports": [
@@ -171,7 +171,7 @@
         "anthropicAdapter",
         "anthropicMessagesProtocol"
       ],
-      "typesSha256": "da0164e828b257b72e090e1a695cff223f4abd00291dfc7a4323e02c3d441d34"
+      "typesSha256": "f1d00296ccc09980188540d40c9630456b1da7132f67d8b95d4d92abd106df8a"
     },
     "./openai": {
       "exports": [
@@ -180,7 +180,7 @@
         "openAiAdapter",
         "openAiResponsesProtocol"
       ],
-      "typesSha256": "78fa7c9cca8e3f7292b08b30085742fdeafa0e7ad182100604792b04074147b7"
+      "typesSha256": "a0720d04c6217c70fb32b192127345cbe709b50b7ec063b4e614eaac2f3ed309"
     },
     "./codex": {
       "exports": [

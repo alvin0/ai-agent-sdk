@@ -13,9 +13,11 @@
  * @module ai-agent-sdk/providers/protocols/protocol
  */
 
-import type { StreamChunk } from '@ai-agent-sdk/core'
 import type { SseEvent } from '../stream/sse.ts'
-import type { ProviderRequest } from '../base/http-adapter.ts'
+import type { ProviderProtocolChunk, ProviderRequest } from '../base/http-adapter.ts'
+
+/** A protocol may report partial/untrusted usage before transport validation. */
+export type WireProtocolChunk = ProviderProtocolChunk
 
 /**
  * One wire protocol.
@@ -62,7 +64,7 @@ export interface WireProtocol<Dialect> {
     events: AsyncIterable<SseEvent>,
     request: ProviderRequest,
     displayName: string,
-  ): AsyncGenerator<StreamChunk>
+  ): AsyncGenerator<WireProtocolChunk>
 }
 
 /** Any protocol, when the dialect type does not matter to the holder. */

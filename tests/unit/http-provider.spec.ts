@@ -10,7 +10,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createTextMessage } from '@ai-agent-sdk/core'
 import { ModelAdapter, ModelRegistry } from '@ai-agent-sdk/core'
-import { createCoreSpan, withRetry } from '@ai-agent-sdk/core'
+import { OBSERVATION_ERROR_CODES, createCoreSpan, withRetry } from '@ai-agent-sdk/core'
 import type { StreamChunk } from '@ai-agent-sdk/core'
 import type { CaptureReceipt, ObservationEvent, ObservationPort } from '@ai-agent-sdk/core'
 import {
@@ -23,8 +23,10 @@ import {
   type WireProtocol,
 } from '@ai-agent-sdk/provider-http'
 import { apiKeyFromEnv } from '../../src/providers/env-credential.ts'
-import { openAiResponsesProtocol } from '../../src/providers/protocols/openai-responses.ts'
-import type { ResponsesDialect } from '../../src/providers/responses/wire.ts'
+import {
+  openAiResponsesProtocol,
+  type ResponsesDialect,
+} from '@ai-agent-sdk/protocol-responses'
 
 /** Build a `Response` whose body streams the given SSE frames. */
 function sseResponse(frames: readonly string[], init: ResponseInit = {}): Response {
@@ -639,6 +641,44 @@ describe('createHttpProvider: physical attempt accounting', () => {
       dispatchState: 'not-sent',
     })
     expect(JSON.stringify(observed.events)).not.toContain('/v1/responses')
+  })
+
+  it('keeps partial usage in attempt accounting without emitting an inexact TokenUsage', async () => {
+    stubFetch([() => sseResponse([
+      'data: {"type":"response.completed","response":{"usage":{"input_tokens":10}}}',
+    ])])
+    const handle = observedRegistry().stream(observedRequest())
+    const chunks = await drain(handle)
+    const report = await handle.report
+
+    expect(chunks.some(chunk => chunk.type === 'usage')).toBe(false)
+    expect(report).toMatchObject({
+      coverage: 'partial',
+      reported: { inputTokens: 10 },
+      authoritative: false,
+    })
+    expect(report.attempts[0]).toMatchObject({
+      coverage: 'partial',
+      reported: { inputTokens: 10 },
+    })
+  })
+
+  it('records malformed usage safely and withholds it from SDK consumers', async () => {
+    stubFetch([() => sseResponse([
+      'data: {"type":"response.completed","response":{"usage":{"input_tokens":10,"output_tokens":2,"input_tokens_details":{"cached_tokens":"bad"}}}}',
+    ])])
+    const handle = observedRegistry().stream(observedRequest())
+    const chunks = await drain(handle)
+    const report = await handle.report
+
+    expect(chunks.some(chunk => chunk.type === 'usage')).toBe(false)
+    expect(report).toMatchObject({ coverage: 'partial', authoritative: false })
+    expect(report.attempts[0]).toMatchObject({
+      coverage: 'partial',
+      reported: { inputTokens: 10, outputTokens: 2 },
+      error: { code: OBSERVATION_ERROR_CODES.USAGE_INVALID },
+    })
+    expect(JSON.stringify(report)).not.toContain('bad')
   })
 
   it('captures error response IDs and never copies a raw provider body into attempt reports', async () => {
