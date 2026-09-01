@@ -22,7 +22,7 @@ The following decisions are closed for the initial migration:
 4. The package manager is `pnpm@11.25.0`, pinned in `packageManager`. Turbo `2.10.12` owns the task graph. Changesets `3.0.1` owns versioning and publishing.
 5. All public packages start in one Changesets fixed group at `0.1.0`. Internal dependencies use `workspace:^`.
 6. Packages are ESM-only, `sideEffects: false`, target `ES2023`, emit declarations and source maps, and expose only declared `exports`.
-7. `eventsource-parser@4.1.0` remains exact-pinned only in `@ai-agent-sdk/provider-http` during migration. Replacement is a separate conformance task and is not allowed to delay package extraction.
+7. `eventsource-parser@4.1.0` remains exact-pinned only as a direct dependency of `@ai-agent-sdk/provider-http`. ADR 0001 retains it after the owned candidate failed the mandatory throughput gate; replacement requires a new fully qualified decision.
 8. MCP HTTP is Universal. MCP stdio and Node HTTP adapters are Node. The strict Worker round-trip in the evidence file proved this split.
 9. A2A is Node-elevated in the initial release because `@a2a-js/sdk@1.1.0` requires `Buffer` for a public raw-binary path. It may be promoted only after the strict Worker fixture passes text, data, URL, and binary paths with Node globals removed.
 10. The Universal Codex provider requires an injected `CodexAuthStore`. The project-local filesystem store and env/path resolution move to Node packages. The Universal package never imports `node:*` and never reads `process.env`.

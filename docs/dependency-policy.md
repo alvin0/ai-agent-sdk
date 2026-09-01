@@ -29,6 +29,16 @@ On 2026-09-01, pnpm correctly rejected `@opentelemetry/api-logs@0.222.0`: it had
 
 The checker reads the committed lockfile and installed manifests after the frozen install. It does not download or execute a package for inspection. Any future exception must include package, exact version, rationale, owner, and expiry in this file.
 
+### SSE parser retention
+
+[ADR 0001](./adr/0001-eventsource-parser-ownership.md) retains exact
+`eventsource-parser@4.1.0` in `@ai-agent-sdk/provider-http` after the owned candidate
+failed its predeclared performance gate. It has no lifecycle script. Its registry
+integrity, direct-owner isolation, license, frozen resolution, packed runtime
+behavior, and advisories remain release gates. A high or critical advisory suspends
+release rather than authorizing an automatic upgrade or an unqualified fallback.
+The 2026-09-01 production audit found zero advisories at every severity.
+
 ## CI action provenance
 
 The initial required workflow pins official GitHub actions to immutable, signed release commits:

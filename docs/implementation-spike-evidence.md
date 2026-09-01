@@ -128,6 +128,15 @@ This is a closed migration decision: removal is not a prerequisite for the monor
 
 P0 executable follow-up: `eventsource-parser@4.1.0` reports its configured buffer overflow through the optional `onError` callback instead of throwing automatically from `feed()`. Without an SDK callback, a malicious oversized unterminated event can therefore end as an empty stream. The provider-owned wrapper now throws only `max-buffer-size-exceeded`, continues to ignore forward-compatible unknown fields, and has conformance coverage for BOM, CRLF, split UTF-8, multiline data, comments, unterminated EOF, and overflow. The packed package passed standards-only Node, Chromium, and Cloudflare Worker execution with the dependency exact-pinned in its manifest.
 
+E0/E1 follow-up: the owned byte parser passed ten conformance groups, typed bounds,
+cancellation, 100,000 deterministic chunk partitions, and 1,000,000 deterministic
+fuzz seeds with zero provider-visible semantic differences. It failed the mandatory
+throughput ceiling by 71.68%–83.13% across all three workloads, so the deterministic
+rule retains exact `4.1.0`. The full evidence is in
+[`spikes/sse-parser/report.json`](../spikes/sse-parser/report.json), and
+[ADR 0001](./adr/0001-eventsource-parser-ownership.md) closes the pre-1.0 decision.
+The production audit on 2026-09-01 reported zero advisories at every severity.
+
 ## 6. Evidence limitations
 
 - Local Wrangler is a real Worker isolate/bundler path, but it is not every Edge vendor. Packed-package gates still run on Cloudflare Workers plus an independent standards-only fixture before an initial release.

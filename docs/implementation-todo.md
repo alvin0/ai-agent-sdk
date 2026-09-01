@@ -440,11 +440,11 @@ Commit: `spike(sse): evaluate owned event stream parser`
 
 Dependencies: E0
 
-- [ ] Replace the dependency only if every conformance, differential, fuzz, resource, cancellation, and provider integration gate passes and code review finds no weaker bound.
-- [ ] Otherwise keep exact-pinned `4.1.0`, archive the failing evidence, and retain all supply-chain controls. Do not merge an almost-compatible parser.
-- [ ] If a high/critical advisory affects the pinned version before the candidate qualifies, suspend release; do not auto-upgrade or bypass the gate.
+- [x] Replace the dependency only if every conformance, differential, fuzz, resource, cancellation, and provider integration gate passes and code review finds no weaker bound.
+- [x] Otherwise keep exact-pinned `4.1.0`, archive the failing evidence, and retain all supply-chain controls. Do not merge an almost-compatible parser.
+- [x] If a high/critical advisory affects the pinned version before the candidate qualifies, suspend release; do not auto-upgrade or bypass the gate.
 
-Exit evidence: dependency graph and ADR record one outcome with test evidence.  
+Exit evidence: ADR 0001 applies the predeclared rule and retains exact `4.1.0` as the only direct SDK-owned parser dependency, isolated in `provider-http`; the owned candidate stays outside production. The archived E0 report shows every correctness/resource/cancellation gate green but all three throughput workloads 71.68%–83.13% slower than the exact pin. Package/supply-chain/runtime checks remain green. `pnpm audit --prod --json` on 2026-09-01 reports 19 production dependencies and zero advisories at every severity, so release suspension is not currently triggered. The ADR separately discloses upstream MCP's transitive `eventsource-parser@3.1.1` instead of conflating it with direct ownership.
 Commit: `security(sse): finalize parser ownership decision`
 
 ## Phase R — Full verification and release
