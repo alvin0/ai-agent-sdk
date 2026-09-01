@@ -376,10 +376,10 @@ Commit: `feat(node): add batteries-included node facade`
 Dependencies: P2, O0, N0  
 Files: integration tests only
 
-- [ ] Use project-local Node auth-store wrapper with provider-codex.
-- [ ] Run exactly one filtered successful `gpt-5.6-luna` stream.
-- [ ] Assert run/model/attempt correlation, provider request ID when supplied, complete positive usage, and healthy observation delivery.
-- [ ] Keep exact-wire content logging disabled.
+- [x] Use project-local Node auth-store wrapper with provider-codex.
+- [x] Run exactly one filtered successful `gpt-5.6-luna` stream.
+- [x] Assert run/model/attempt correlation, provider request ID when supplied, complete positive usage, and healthy observation delivery.
+- [x] Keep exact-wire content logging disabled.
 
 Verify:
 
@@ -388,7 +388,7 @@ pnpm vitest run --config vitest.integration.config.ts \
   -t "streams text and assembles a message" --reporter=verbose
 ```
 
-Exit evidence: selected live case passes; safe report snapshot is stored as CI artifact, not committed credentials/content.  
+Exit evidence: the single filtered Luna case passed in 3.149 seconds with three unrelated live cases skipped. The safe `0600` report contains one correlated, sent, complete-usage provider attempt; the supplied provider request ID agrees across the attempt report and terminal observation; input/output/total counters are positive; delivery is complete; observation health is healthy with no rejected critical event, processor failure, or exporter failure. Capture policy is `none`, no exact-wire observer is installed, and assertions prove neither prompt, system instruction, nor response text entered the observation stream. The ignored artifact is written to `AI_AGENT_SDK_LIVE_REPORT_DIR` or `.temp/live-acceptance`, never committed.
 Commit: `test(provider-codex): verify live luna accounting`
 
 ## Phase K — Compatibility and package cutover
