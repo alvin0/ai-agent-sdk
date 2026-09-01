@@ -1,0 +1,15 @@
+export {
+  buildTraceTree,
+  createSpanId,
+  createTraceId,
+  traceparent,
+  type AgentProcessSpan,
+  type AgentSpanKind,
+  type AgentSpanStatus,
+  type SpanId,
+  type TraceEvent,
+  type TraceId,
+  type TraceRef,
+  type TraceSpanEnd,
+  type TraceSpanStart,
+} from './trace.ts'

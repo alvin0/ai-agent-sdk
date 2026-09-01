@@ -1,0 +1,223 @@
+import { useEffect, useState, type FormEvent } from 'react'
+
+import { activeEvents } from './domain/history'
+import {
+  materializeSignals,
+  type Signal,
+  type SignalSeverity,
+  type SignalStatus,
+} from './domain/signal'
+import { useSignalDesk } from './store/use-signal-desk'
+
+const severityOrder: SignalSeverity[] = ['critical', 'high', 'medium', 'low']
+const statusOptions: SignalStatus[] = ['new', 'investigating', 'resolved']
+
+function formatTime(value: string): string {
+  return new Intl.DateTimeFormat('en', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
+export default function App() {
+  const desk = useSignalDesk()
+  const [query, setQuery] = useState('')
+  const [severity, setSeverity] = useState<SignalSeverity | 'all'>('all')
+  const [newTitle, setNewTitle] = useState('')
+  const [newSeverity, setNewSeverity] = useState<SignalSeverity>('medium')
+  const [visibleSignals, setVisibleSignals] = useState<Signal[]>([])
+
+  const allSignals = materializeSignals(activeEvents(desk.timeline))
+  const lastEvent = desk.timeline.events[desk.timeline.cursor - 1]
+
+  useEffect(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    setVisibleSignals(
+      allSignals.filter(
+        (signal) =>
+          (severity === 'all' || signal.severity === severity) &&
+          (!normalizedQuery || signal.title.toLowerCase().includes(normalizedQuery)),
+      ),
+    )
+  }, [desk, query, severity])
+
+  function submitSignal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!newTitle.trim()) return
+    desk.addSignal(newTitle, newSeverity)
+    setNewTitle('')
+  }
+
+  return (
+    <main className="shell">
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">Realtime operations</p>
+          <h1>Signal Desk</h1>
+          <p className="subtitle">Triage production signals without losing the thread.</p>
+        </div>
+        <div className="history-controls" aria-label="Event history controls">
+          <button
+            type="button"
+            onClick={() => desk.undo()}
+            disabled={desk.timeline.cursor === 0}
+          >
+            Undo
+          </button>
+          <button
+            type="button"
+            onClick={() => desk.redo()}
+            disabled={desk.timeline.cursor === desk.timeline.events.length}
+          >
+            Redo
+          </button>
+          <button type="button" className="ghost" onClick={() => desk.resetDemo()}>
+            Reset demo
+          </button>
+        </div>
+      </header>
+
+      <section className="metrics" aria-label="Signal summary">
+        <article>
+          <span>Open</span>
+          <strong>{allSignals.filter((signal) => signal.status !== 'resolved').length}</strong>
+        </article>
+        <article>
+          <span>Critical</span>
+          <strong>{allSignals.filter((signal) => signal.severity === 'critical').length}</strong>
+        </article>
+        <article>
+          <span>Owned</span>
+          <strong>{allSignals.filter((signal) => signal.owner).length}</strong>
+        </article>
+        <article className="event-position">
+          <span>Event cursor</span>
+          <strong>
+            {desk.timeline.cursor}/{desk.timeline.events.length}
+          </strong>
+          <small data-testid="last-event-id">{lastEvent?.id ?? 'No active event'}</small>
+        </article>
+      </section>
+
+      <section className="workspace">
+        <aside className="panel controls">
+          <div>
+            <p className="eyebrow">Create</p>
+            <h2>New signal</h2>
+          </div>
+          <form onSubmit={submitSignal}>
+            <label htmlFor="signal-title">What happened?</label>
+            <input
+              id="signal-title"
+              value={newTitle}
+              onChange={(event) => setNewTitle(event.target.value)}
+              placeholder="e.g. EU checkout error rate"
+            />
+            <label htmlFor="new-severity">Severity</label>
+            <select
+              id="new-severity"
+              value={newSeverity}
+              onChange={(event) => setNewSeverity(event.target.value as SignalSeverity)}
+            >
+              {severityOrder.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+            <button type="submit" className="primary">
+              Add to desk
+            </button>
+          </form>
+        </aside>
+
+        <section className="panel desk">
+          <div className="desk-heading">
+            <div>
+              <p className="eyebrow">Active queue</p>
+              <h2>{visibleSignals.length} signals</h2>
+            </div>
+            <div className="filters">
+              <label>
+                <span className="sr-only">Filter signals</span>
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Filter signals"
+                />
+              </label>
+              <label>
+                <span className="sr-only">Filter by severity</span>
+                <select
+                  aria-label="Filter by severity"
+                  value={severity}
+                  onChange={(event) =>
+                    setSeverity(event.target.value as SignalSeverity | 'all')
+                  }
+                >
+                  <option value="all">All severities</option>
+                  {severityOrder.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div className="signal-list" data-testid="signal-list">
+            {visibleSignals.map((signal, index) => (
+              <article
+                key={index}
+                className={`signal-card ${
+                  desk.selectedSignalId === signal.id ? 'selected' : ''
+                }`}
+                data-signal-id={signal.id}
+                onClick={() => desk.selectSignal(signal.id)}
+              >
+                <div className="signal-card-heading">
+                  <span className={`severity ${signal.severity}`}>{signal.severity}</span>
+                  <span className="time">Updated {formatTime(signal.updatedAt)}</span>
+                </div>
+                <h3>{signal.title}</h3>
+                <div className="signal-actions">
+                  <label>
+                    <span>Status</span>
+                    <select
+                      aria-label={`Status for ${signal.title}`}
+                      value={signal.status}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={(event) =>
+                        desk.changeStatus(signal.id, event.target.value as SignalStatus)
+                      }
+                    >
+                      {statusOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="owner"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      desk.toggleOwner(signal.id)
+                    }}
+                  >
+                    {signal.owner ? `Owned by ${signal.owner}` : 'Assign to me'}
+                  </button>
+                </div>
+              </article>
+            ))}
+            {visibleSignals.length === 0 ? (
+              <p className="empty">No signals match this view.</p>
+            ) : null}
+          </div>
+        </section>
+      </section>
+    </main>
+  )
+}

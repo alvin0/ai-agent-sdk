@@ -1,0 +1,57 @@
+/** Live smoke for provider-native web search through the real Codex Responses route. */
+import { History } from '../src/agent/history/history.ts'
+import { runTurn } from '../src/agent/loop/run-turn.ts'
+import type { AgentEvent } from '../src/agent/loop/types.ts'
+import { createTextMessage } from '../src/core/message/message.ts'
+import { ReasoningEffortId } from '../src/core/primitives/brand.ts'
+import { ModelRegistry } from '../src/core/runtime/registry.ts'
+import { codexAdapter } from '../src/providers/codex/adapter.ts'
+import { createDailyJsonlRequestLogger } from '../src/providers/request-logger.ts'
+
+const registry = new ModelRegistry()
+registry.registerAdapter(['codex'], codexAdapter({
+  requestLogger: createDailyJsonlRequestLogger(),
+}))
+
+const history = new History()
+history.append({
+  kind: 'user',
+  message: createTextMessage(
+    'Search the web for the official OpenAI developer page for GPT-5.6 and reply with its page title and URL.',
+  ),
+})
+
+const events: AgentEvent[] = []
+for await (const event of runTurn({
+  registry,
+  config: {
+    provider: 'codex', model: 'gpt-5.6-luna',
+    reasoningEffort: ReasoningEffortId('medium'),
+  },
+  history,
+  nativeTools: [{ type: 'native', name: 'web-search', allowedDomains: ['openai.com'] }],
+  toolChoice: { type: 'native', name: 'web-search' },
+  commentary: 'concise',
+  trace: { agentId: 'live-native-search', agentName: 'Live native search' },
+  signal: AbortSignal.timeout(120_000),
+})) {
+  events.push(event)
+  if (event.type === 'assistant-native-tool') {
+    console.log(`[native] ${event.call.id} ${event.call.name} ${event.call.status ?? ''}`)
+  }
+  if (event.type === 'assistant-text') {
+    console.log(`[${event.phase}] ${event.text}`)
+    for (const annotation of history.messages().at(-1)?.content
+      .flatMap(block => block.type === 'text' ? block.annotations ?? [] : []) ?? []) {
+      if (annotation.type === 'url-citation') console.log(`[citation] ${annotation.title ?? ''} ${annotation.url}`)
+    }
+  }
+}
+
+const native = events.find(event => event.type === 'assistant-native-tool')
+const terminal = events.findLast((event): event is Extract<AgentEvent, { type: 'turn-end' }> =>
+  event.type === 'turn-end')
+if (native === undefined) throw new Error('provider returned no native web-search node')
+if (terminal?.outcome.reason.kind !== 'completed') {
+  throw new Error(`native search did not complete: ${JSON.stringify(terminal?.outcome.reason)}`)
+}

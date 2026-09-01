@@ -1,0 +1,45 @@
+/** The conversation model: content blocks, messages, and content projection. */
+
+export type {
+  ContentBlock,
+  ContentBlockMap,
+  ContentBlockType,
+  AssistantTextPhase,
+  ImageBlock,
+  ImageDetail,
+  ImageMediaType,
+  ImageSource,
+  NativeToolCallBlock,
+  ReasoningBlock,
+  TextBlock,
+  TextAnnotation,
+  TextAnnotationMap,
+  ToolCallBlock,
+  ToolResultBlock,
+  UrlCitationAnnotation,
+} from './content.ts'
+export {
+  createAssistantMessage,
+  createMessage,
+  createTextMessage,
+  createToolResultMessage,
+  createUserMessage,
+  freezeMessage,
+  type AssistantMessage,
+  type AssistantProvenance,
+  type A2AMessageSource,
+  type AgentMessageSource,
+  type Message,
+  type MessageSource,
+  type MessageSourceMap,
+  type ModelMessageSource,
+  type ToolMessageSource,
+  type ToolResultMessage,
+  type ToolResultMessageInput,
+  type UserMessage,
+} from './message.ts'
+export {
+  contentHasImage,
+  projectImagesForTextModel,
+  textOnlyImageText,
+} from './projection.ts'

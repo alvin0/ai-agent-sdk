@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["es2023"],
+    "module": "preserve",
+    "moduleDetection": "force",
+    "types": ["node"],
+
+    // tsdown owns emit; tsc is the typechecker only.
+    "noEmit": true,
+    "declaration": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+
+    // The ported architecture depends on these: `exactOptionalPropertyTypes`
+    // is what makes the `...x === undefined ? {} : { x }` spreads meaningful
+    // instead of decorative, and `noUncheckedIndexedAccess` is what forces the
+    // assembler's index bookkeeping to be proven rather than assumed.
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "include": [
+    "src",
+    "tests",
+    "scripts",
+    "spikes",
+    "test-human",
+    "tsdown.config.ts",
+    "vitest.config.ts",
+    "vitest.integration.config.ts"
+  ],
+  "exclude": [
+    "test-human/workspaces",
+    "test-human/agentcode/multi-skill/fixture"
+  ]
+}

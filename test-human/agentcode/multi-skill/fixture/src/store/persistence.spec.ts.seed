@@ -1,0 +1,107 @@
+import { describe, expect, it } from 'vitest'
+
+import type { SignalCreatedEvent } from '../domain/signal'
+import {
+  loadSignalDesk,
+  persistSignalDesk,
+  SIGNAL_DESK_STORAGE_KEY,
+  type StoragePort,
+} from './persistence'
+
+class MemoryStorage implements StoragePort {
+  protected readonly values = new Map<string, string>()
+
+  getItem(key: string): string | null {
+    return this.values.get(key) ?? null
+  }
+
+  setItem(key: string, value: string): void {
+    this.values.set(key, value)
+  }
+
+  removeItem(key: string): void {
+    this.values.delete(key)
+  }
+}
+
+class DisabledReadStorage extends MemoryStorage {
+  override getItem(_key: string): string | null {
+    throw new Error('SecurityError: storage access is disabled')
+  }
+}
+
+class QuotaStorage extends MemoryStorage {
+  override setItem(_key: string, _value: string): void {
+    throw new Error('QuotaExceededError: local storage is full')
+  }
+}
+
+function event(id: string): SignalCreatedEvent {
+  return {
+    id,
+    type: 'signal.created',
+    signalId: `signal-${id}`,
+    occurredAt: '2026-08-31T02:00:00.000Z',
+    payload: { title: id, severity: 'low' },
+  }
+}
+
+describe('signal desk persistence', () => {
+  it('uses the versioned event-log key', () => {
+    expect(SIGNAL_DESK_STORAGE_KEY).toBe('signal-desk:events:v2')
+  })
+
+  it('returns null when no durable event log exists', () => {
+    expect(loadSignalDesk(new MemoryStorage())).toBeNull()
+  })
+
+  it('loads a valid v2 event-log envelope', () => {
+    const storage = new MemoryStorage()
+    const envelope = {
+      version: 2,
+      events: [event('event-a')],
+    }
+    storage.setItem(SIGNAL_DESK_STORAGE_KEY, JSON.stringify(envelope))
+
+    expect(loadSignalDesk(storage)).toEqual(envelope)
+  })
+
+  it('recovers from malformed local storage and removes the bad record', () => {
+    const storage = new MemoryStorage()
+    storage.setItem(SIGNAL_DESK_STORAGE_KEY, '{definitely-not-json')
+
+    expect(loadSignalDesk(storage)).toBeNull()
+    expect(storage.getItem(SIGNAL_DESK_STORAGE_KEY)).toBeNull()
+  })
+
+  it('treats disabled storage reads as an empty durable log', () => {
+    expect(loadSignalDesk(new DisabledReadStorage())).toBeNull()
+  })
+
+  it('persists only the active event log, never redo or UI projection state', () => {
+    const storage = new MemoryStorage()
+    const timeline = {
+      events: [event('event-a'), event('event-b'), event('event-undone')],
+      cursor: 2,
+    }
+
+    persistSignalDesk(storage, {
+      timeline,
+      selectedSignalId: 'signal-event-b',
+    })
+
+    expect(JSON.parse(storage.getItem(SIGNAL_DESK_STORAGE_KEY) ?? 'null')).toEqual({
+      version: 2,
+      events: [event('event-a'), event('event-b')],
+    })
+  })
+
+  it('does not throw when a quota failure prevents a write', () => {
+    const timeline = { events: [event('event-a')], cursor: 1 }
+
+    expect(() => persistSignalDesk(new QuotaStorage(), {
+      timeline,
+      selectedSignalId: null,
+    })).not.toThrow()
+  })
+})

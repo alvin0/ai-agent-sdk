@@ -1,0 +1,40 @@
+import type { SignalTimeline } from '../domain/history'
+
+export const SIGNAL_DESK_STORAGE_KEY = 'signal-desk:v1'
+
+export interface StoragePort {
+  getItem(key: string): string | null
+  setItem(key: string, value: string): void
+  removeItem(key: string): void
+}
+
+export interface SignalDeskSnapshot {
+  timeline: SignalTimeline
+  selectedSignalId: string | null
+}
+
+export interface PersistedSignalDesk extends SignalDeskSnapshot {
+  version: 1
+  lastEventId: string | null
+}
+
+export function loadSignalDesk(storage: StoragePort): PersistedSignalDesk | null {
+  const raw = storage.getItem(SIGNAL_DESK_STORAGE_KEY)
+  if (!raw) return null
+
+  return JSON.parse(raw) as PersistedSignalDesk
+}
+
+export function persistSignalDesk(
+  storage: StoragePort,
+  snapshot: SignalDeskSnapshot,
+): PersistedSignalDesk {
+  const persisted: PersistedSignalDesk = {
+    version: 1,
+    ...snapshot,
+    lastEventId: snapshot.timeline.events.at(-1)?.id ?? null,
+  }
+
+  storage.setItem(SIGNAL_DESK_STORAGE_KEY, JSON.stringify(persisted))
+  return persisted
+}

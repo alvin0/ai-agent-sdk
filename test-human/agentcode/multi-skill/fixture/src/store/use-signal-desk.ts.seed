@@ -1,0 +1,157 @@
+import { create } from 'zustand'
+
+import {
+  activeEvents,
+  appendEvent,
+  redoTimeline,
+  undoTimeline,
+  type SignalTimeline,
+} from '../domain/history'
+import {
+  demoEvents,
+  materializeSignals,
+  type SignalEvent,
+  type SignalSeverity,
+  type SignalStatus,
+} from '../domain/signal'
+import {
+  loadSignalDesk,
+  persistSignalDesk,
+  SIGNAL_DESK_STORAGE_KEY,
+  type SignalDeskSnapshot,
+  type StoragePort,
+} from './persistence'
+
+interface SignalDeskStore extends SignalDeskSnapshot {
+  addSignal(title: string, severity: SignalSeverity): void
+  changeStatus(signalId: string, status: SignalStatus): void
+  toggleOwner(signalId: string): void
+  selectSignal(signalId: string | null): void
+  undo(): void
+  redo(): void
+  resetDemo(): void
+}
+
+const defaultTimeline = (): SignalTimeline => ({
+  events: [...demoEvents],
+  cursor: demoEvents.length,
+})
+
+function browserStorage(): StoragePort | null {
+  return typeof window === 'undefined' ? null : window.localStorage
+}
+
+function initialSnapshot(): SignalDeskSnapshot {
+  const storage = browserStorage()
+  const persisted = storage ? loadSignalDesk(storage) : null
+
+  return persisted ?? {
+    timeline: defaultTimeline(),
+    selectedSignalId: 'signal-database',
+  }
+}
+
+function commit(snapshot: SignalDeskSnapshot): SignalDeskSnapshot {
+  const storage = browserStorage()
+  if (storage) persistSignalDesk(storage, snapshot)
+  return snapshot
+}
+
+function newId(prefix: string): string {
+  return `${prefix}-${crypto.randomUUID()}`
+}
+
+function now(): string {
+  return new Date().toISOString()
+}
+
+export const useSignalDesk = create<SignalDeskStore>((set, get) => ({
+  ...initialSnapshot(),
+
+  addSignal(title, severity) {
+    const signalId = newId('signal')
+    const event: SignalEvent = {
+      id: newId('event'),
+      type: 'signal.created',
+      signalId,
+      occurredAt: now(),
+      payload: { title: title.trim(), severity },
+    }
+
+    set((current) =>
+      commit({
+        timeline: appendEvent(current.timeline, event),
+        selectedSignalId: signalId,
+      }),
+    )
+  },
+
+  changeStatus(signalId, status) {
+    const event: SignalEvent = {
+      id: newId('event'),
+      type: 'signal.status-changed',
+      signalId,
+      occurredAt: now(),
+      payload: { status },
+    }
+
+    set((current) =>
+      commit({
+        timeline: appendEvent(current.timeline, event),
+        selectedSignalId: signalId,
+      }),
+    )
+  },
+
+  toggleOwner(signalId) {
+    const currentSignal = materializeSignals(activeEvents(get().timeline)).find(
+      (signal) => signal.id === signalId,
+    )
+    if (!currentSignal) return
+
+    const event: SignalEvent = {
+      id: newId('event'),
+      type: 'signal.owner-changed',
+      signalId,
+      occurredAt: now(),
+      payload: { owner: currentSignal.owner ? null : 'You' },
+    }
+
+    set((current) =>
+      commit({
+        timeline: appendEvent(current.timeline, event),
+        selectedSignalId: signalId,
+      }),
+    )
+  },
+
+  selectSignal(selectedSignalId) {
+    set((current) => commit({ timeline: current.timeline, selectedSignalId }))
+  },
+
+  undo() {
+    set((current) =>
+      commit({
+        timeline: undoTimeline(current.timeline),
+        selectedSignalId: current.selectedSignalId,
+      }),
+    )
+  },
+
+  redo() {
+    set((current) =>
+      commit({
+        timeline: redoTimeline(current.timeline),
+        selectedSignalId: current.selectedSignalId,
+      }),
+    )
+  },
+
+  resetDemo() {
+    browserStorage()?.removeItem(SIGNAL_DESK_STORAGE_KEY)
+    set({
+      timeline: defaultTimeline(),
+      selectedSignalId: 'signal-database',
+    })
+  },
+}))

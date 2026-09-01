@@ -1,0 +1,131 @@
+export type SignalSeverity = 'critical' | 'high' | 'medium' | 'low'
+export type SignalStatus = 'new' | 'investigating' | 'resolved'
+
+export interface Signal {
+  id: string
+  title: string
+  severity: SignalSeverity
+  status: SignalStatus
+  owner: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+interface EventBase {
+  id: string
+  signalId: string
+  occurredAt: string
+}
+
+export interface SignalCreatedEvent extends EventBase {
+  type: 'signal.created'
+  payload: {
+    title: string
+    severity: SignalSeverity
+  }
+}
+
+export interface SignalStatusChangedEvent extends EventBase {
+  type: 'signal.status-changed'
+  payload: {
+    status: SignalStatus
+  }
+}
+
+export interface SignalOwnerChangedEvent extends EventBase {
+  type: 'signal.owner-changed'
+  payload: {
+    owner: string | null
+  }
+}
+
+export type SignalEvent =
+  | SignalCreatedEvent
+  | SignalStatusChangedEvent
+  | SignalOwnerChangedEvent
+
+export const demoEvents: SignalEvent[] = [
+  {
+    id: 'event-seed-1',
+    type: 'signal.created',
+    signalId: 'signal-database',
+    occurredAt: '2026-08-31T02:00:00.000Z',
+    payload: {
+      title: 'Database latency spike',
+      severity: 'critical',
+    },
+  },
+  {
+    id: 'event-seed-2',
+    type: 'signal.owner-changed',
+    signalId: 'signal-database',
+    occurredAt: '2026-08-31T02:02:00.000Z',
+    payload: { owner: 'Mina' },
+  },
+  {
+    id: 'event-seed-3',
+    type: 'signal.status-changed',
+    signalId: 'signal-database',
+    occurredAt: '2026-08-31T02:04:00.000Z',
+    payload: { status: 'investigating' },
+  },
+  {
+    id: 'event-seed-4',
+    type: 'signal.created',
+    signalId: 'signal-webhook',
+    occurredAt: '2026-08-31T02:05:00.000Z',
+    payload: {
+      title: 'Payment webhook delays',
+      severity: 'high',
+    },
+  },
+  {
+    id: 'event-seed-5',
+    type: 'signal.created',
+    signalId: 'signal-cache',
+    occurredAt: '2026-08-31T02:08:00.000Z',
+    payload: {
+      title: 'Cache hit rate below target',
+      severity: 'medium',
+    },
+  },
+]
+
+export function materializeSignals(events: readonly SignalEvent[]): Signal[] {
+  const signals = new Map<string, Signal>()
+
+  for (const event of events) {
+    if (event.type === 'signal.created') {
+      signals.set(event.signalId, {
+        id: event.signalId,
+        title: event.payload.title,
+        severity: event.payload.severity,
+        status: 'new',
+        owner: null,
+        createdAt: event.occurredAt,
+        updatedAt: event.occurredAt,
+      })
+      continue
+    }
+
+    const current = signals.get(event.signalId)
+    if (!current) continue
+
+    if (event.type === 'signal.status-changed') {
+      signals.set(event.signalId, {
+        ...current,
+        status: event.payload.status,
+        updatedAt: event.occurredAt,
+      })
+      continue
+    }
+
+    signals.set(event.signalId, {
+      ...current,
+      owner: event.payload.owner,
+      updatedAt: event.occurredAt,
+    })
+  }
+
+  return [...signals.values()]
+}

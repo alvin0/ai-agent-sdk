@@ -1,0 +1,9 @@
+node_modules/
+dist/
+playwright-report/
+test-results/
+
+# Source templates intentionally end in `.seed` so the SDK repository's broad
+# TypeScript include does not compile them before the stress harness stages them.
+!*.seed
+!**/*.seed

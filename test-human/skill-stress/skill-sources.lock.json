@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "cli": {
+    "package": "skills",
+    "version": "1.5.23"
+  },
+  "sources": [
+    {
+      "id": "vercel-react-best-practices",
+      "skill": "vercel-react-best-practices",
+      "source": "https://github.com/vercel-labs/agent-skills.git#agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278",
+      "revision": "063bee94c3f4df8453406c830b0a7df0f2860278",
+      "registry": "https://skills.sh/vercel-labs/agent-skills/vercel-react-best-practices",
+      "computedHash": "a52c7635cc106338851404af0bc4aac2f9618cb0f285d0f8bd1dca0112deb059",
+      "fileCount": 75
+    },
+    {
+      "id": "playwright-skill",
+      "skill": "playwright-skill",
+      "source": "https://github.com/testdino-hq/playwright-skill/archive/d3be9ca4d7303e2aee3eba4842963abf573117b0.zip",
+      "revision": "d3be9ca4d7303e2aee3eba4842963abf573117b0",
+      "registry": "https://skills.sh/testdino-hq/playwright-skill/playwright-skill",
+      "computedHash": "0f9aa0797158c6a50cbde78d27de3f669f182750e1b41a5d05c4744a47afa20f",
+      "fileCount": 78
+    },
+    {
+      "id": "systematic-debugging",
+      "skill": "systematic-debugging",
+      "source": "https://github.com/obra/superpowers.git#v6.3.0",
+      "revision": "b36e0829c6d0140e93cfef2ca599b1b07d4a7797",
+      "registry": "https://skills.sh/obra/superpowers/systematic-debugging",
+      "computedHash": "5ab44290779cd788c3c38cb9a132c26cf36e3f5c897574f645f73ed37ef999da",
+      "fileCount": 11
+    }
+  ]
+}

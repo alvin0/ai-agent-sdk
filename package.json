@@ -1,0 +1,124 @@
+{
+  "name": "ai-agent-sdk",
+  "version": "0.0.0",
+  "description": "Provider-neutral TypeScript SDK for building AI agents on the Anthropic Claude and OpenAI APIs",
+  "keywords": [
+    "ai",
+    "agent",
+    "llm",
+    "anthropic",
+    "claude",
+    "openai",
+    "sdk",
+    "typescript"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.6"
+  },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./anthropic": {
+      "types": "./dist/anthropic.d.ts",
+      "default": "./dist/anthropic.js"
+    },
+    "./openai": {
+      "types": "./dist/openai.d.ts",
+      "default": "./dist/openai.js"
+    },
+    "./codex": {
+      "types": "./dist/codex.d.ts",
+      "default": "./dist/codex.js"
+    },
+    "./a2a-client": {
+      "types": "./dist/a2a-client.d.ts",
+      "default": "./dist/a2a-client.js"
+    },
+    "./a2a-server": {
+      "types": "./dist/a2a-server.d.ts",
+      "default": "./dist/a2a-server.js"
+    },
+    "./skill-filesystem": {
+      "types": "./dist/skill-filesystem.d.ts",
+      "default": "./dist/skill-filesystem.js"
+    },
+    "./request-logger": {
+      "types": "./dist/request-logger.d.ts",
+      "default": "./dist/request-logger.js"
+    },
+    "./mcp-client": {
+      "types": "./dist/mcp-client.d.ts",
+      "default": "./dist/mcp-client.js"
+    },
+    "./mcp-server": {
+      "types": "./dist/mcp-server.d.ts",
+      "default": "./dist/mcp-server.js"
+    },
+    "./mcp-node": {
+      "types": "./dist/mcp-node.d.ts",
+      "default": "./dist/mcp-node.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "provider:codex:login-device": "node scripts/provider-codex-login-device.ts",
+    "provider:codex:status": "node scripts/provider-codex-login-device.ts --status",
+    "human": "node test-human/cli.ts",
+    "human:basic": "node test-human/cli.ts --mode basic",
+    "human:deep": "node test-human/cli.ts --mode deep",
+    "human:hil": "node test-human/cli.ts --mode deep-human-in-loop",
+    "human:web": "node test-human/cli.ts --scenario web --force-tool",
+    "human:vision": "node test-human/cli.ts --scenario vision",
+    "human:image-gen": "node test-human/cli.ts --scenario image-gen --force-tool",
+    "human:agentcode": "node test-human/agentcode/cli.ts",
+    "human:agentcode:multi-skill": "node test-human/agentcode/multi-skill/cli.ts",
+    "human:agentcode:multi-skill:verify": "node test-human/agentcode/multi-skill/reverify.ts",
+    "human:a2a-managed": "node test-human/a2a-stress/managed.ts",
+    "human:a2a-defined": "node test-human/a2a-stress/defined.ts",
+    "human:skill-stress": "node test-human/skill-stress/cli.ts",
+    "human:skill-stress:prepare": "node test-human/skill-stress/prepare.ts",
+    "human:skill-showcase": "node test-human/skill-showcase/cli.ts",
+    "human:mcp": "node test-human/mcp/cli.ts",
+    "human:mcp:github": "node test-human/github-mcp/cli.ts",
+    "prepublishOnly": "npm test && npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "^1.1.0",
+    "eventsource-parser": "4.1.0"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@modelcontextprotocol/client": { "optional": true },
+    "@modelcontextprotocol/node": { "optional": true },
+    "@modelcontextprotocol/server": { "optional": true }
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@types/node": "26.4.0",
+    "tsdown": "0.22.14",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}

@@ -1,0 +1,42 @@
+import { describe, expect, it } from 'vitest'
+
+import { activeEvents, appendEvent, redoTimeline, undoTimeline } from './history'
+import type { SignalCreatedEvent } from './signal'
+
+function created(id: string): SignalCreatedEvent {
+  return {
+    id: `event-${id}`,
+    type: 'signal.created',
+    signalId: `signal-${id}`,
+    occurredAt: `2026-08-31T02:0${id.length}:00.000Z`,
+    payload: {
+      title: `Signal ${id}`,
+      severity: 'medium',
+    },
+  }
+}
+
+describe('signal timeline', () => {
+  it('moves the cursor backward and forward without mutating the log', () => {
+    const events = [created('a'), created('b')]
+    const timeline = { events, cursor: events.length }
+
+    const undone = undoTimeline(timeline)
+    expect(activeEvents(undone).map((event) => event.id)).toEqual(['event-a'])
+    expect(redoTimeline(undone)).toEqual(timeline)
+  })
+
+  it('drops the redo branch when an event is appended after undo', () => {
+    const events = [created('a'), created('b'), created('c')]
+    const undone = undoTimeline({ events, cursor: events.length })
+
+    const branched = appendEvent(undone, created('d'))
+
+    expect(branched.events.map((event) => event.id)).toEqual([
+      'event-a',
+      'event-b',
+      'event-d',
+    ])
+    expect(branched.cursor).toBe(3)
+  })
+})

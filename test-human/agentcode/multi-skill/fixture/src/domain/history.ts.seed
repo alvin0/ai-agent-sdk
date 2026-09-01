@@ -1,0 +1,35 @@
+import type { SignalEvent } from './signal'
+
+export interface SignalTimeline {
+  events: SignalEvent[]
+  /** Number of events currently applied. Events after the cursor form redo history. */
+  cursor: number
+}
+
+export function appendEvent(
+  timeline: SignalTimeline,
+  event: SignalEvent,
+): SignalTimeline {
+  return {
+    events: [...timeline.events, event],
+    cursor: timeline.events.length + 1,
+  }
+}
+
+export function undoTimeline(timeline: SignalTimeline): SignalTimeline {
+  return {
+    ...timeline,
+    cursor: Math.max(0, timeline.cursor - 1),
+  }
+}
+
+export function redoTimeline(timeline: SignalTimeline): SignalTimeline {
+  return {
+    ...timeline,
+    cursor: Math.min(timeline.events.length, timeline.cursor + 1),
+  }
+}
+
+export function activeEvents(timeline: SignalTimeline): SignalEvent[] {
+  return timeline.events.slice(0, timeline.cursor)
+}
