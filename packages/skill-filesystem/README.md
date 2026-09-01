@@ -1,5 +1,11 @@
 # @ai-agent-sdk/skill-filesystem
 
+Runtime: **Node 22.12+**.
+
+```sh
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/agent @ai-agent-sdk/skill-filesystem
+```
+
 Lazy Node filesystem discovery and activation for `SKILL.md` bundles.
 
 ```ts

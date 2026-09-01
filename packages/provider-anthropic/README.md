@@ -1,5 +1,11 @@
 # @ai-agent-sdk/provider-anthropic
 
+Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
+
+```sh
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-anthropic
+```
+
 Universal Anthropic adapter and transactional provider plugin. Credentials are injected; this package never reads environment variables or files.
 
 ```ts

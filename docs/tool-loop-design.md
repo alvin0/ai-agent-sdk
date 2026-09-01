@@ -292,8 +292,8 @@ loop being built only has to be loop #1.
 
 **Neither has a step cap.** Codex states the reasoning outright: *"as long as
 compaction works well in getting us way below the token limit, we shouldn't worry
-about being in an infinite loop."* deepseek-harness leaves
-`TODO(stop-loop-guard): cap consecutive forced continuations`.
+about being in an infinite loop."* deepseek-harness leaves its consecutive forced
+continuation guard as an unresolved upstream issue.
 
 Both rely heavily on an interactive operator being able to interrupt. **An SDK has
 no such guarantee.** A loop embedded in a cron job, webhook handler, or CI step
@@ -864,7 +864,7 @@ an unbounded event buffer when a caller reads slowly.
 
 `onTurnEnd` intentionally cannot veto by return value: it appends context and the
 loop re-checks, so listener order cannot change the outcome. Bounded by `maxSteps`
-regardless, which is the guard deepseek-harness left as a TODO.
+regardless, which is the guard deepseek-harness left unresolved.
 
 ---
 

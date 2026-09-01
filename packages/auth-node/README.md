@@ -1,5 +1,11 @@
 # @ai-agent-sdk/auth-node
 
+Runtime: **Node 22.12+**.
+
+```sh
+pnpm add @ai-agent-sdk/auth-node
+```
+
 Node-owned environment credentials and project-local Codex OAuth storage.
 
 ```ts

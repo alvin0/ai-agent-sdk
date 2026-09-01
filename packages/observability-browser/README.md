@@ -1,5 +1,11 @@
 # @ai-agent-sdk/observability-browser
 
+Runtime: **Browser** (IndexedDB and optional page lifecycle APIs).
+
+```sh
+pnpm add @ai-agent-sdk/observability @ai-agent-sdk/observability-browser
+```
+
 Browser-only local durability for the structured observation bus. The exporter
 stages privacy-processed events in IndexedDB during synchronous capture and
 confirms `local-durable` only after the transaction commits at flush/checkpoint.

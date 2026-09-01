@@ -1,5 +1,11 @@
 # @ai-agent-sdk/provider-openai
 
+Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
+
+```sh
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai
+```
+
 Universal OpenAI adapter and transactional provider plugin. Credentials are injected; this package never reads environment variables or files.
 
 ```ts

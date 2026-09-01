@@ -1,5 +1,11 @@
 # @ai-agent-sdk/observability-fetch
 
+Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
+
+```sh
+pnpm add @ai-agent-sdk/observability @ai-agent-sdk/observability-fetch
+```
+
 Universal acknowledged HTTPS exporter for `@ai-agent-sdk/observability`. It sends
 bounded JSON batches with an idempotency key and retries only the observation
 batch—not the model/provider operation that produced it.

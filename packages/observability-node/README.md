@@ -1,5 +1,11 @@
 # @ai-agent-sdk/observability-node
 
+Runtime: **Node 22.12+**.
+
+```sh
+pnpm add @ai-agent-sdk/observability @ai-agent-sdk/observability-node
+```
+
 Node-only durable observation journal and explicit lifecycle/diagnostic helpers.
 The journal root is always caller-supplied. Records use checksum-framed JSONL,
 private directory/file modes, unique segments, atomic acknowledgment cursors,

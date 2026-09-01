@@ -1,6 +1,7 @@
 # Observability and Usage Implementation Design
 
-Status: implementation-ready  
+Status: implemented and R0-verified
+
 Architecture rationale: [observability-and-usage-architecture.md](./observability-and-usage-architecture.md)  
 Package design: [monorepo-implementation-design.md](./monorepo-implementation-design.md)  
 Executable evidence: [implementation-spike-evidence.md](./implementation-spike-evidence.md)

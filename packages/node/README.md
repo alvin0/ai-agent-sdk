@@ -1,5 +1,11 @@
 # @ai-agent-sdk/node
 
+Runtime: **Node 22.12+**.
+
+```sh
+pnpm add @ai-agent-sdk/node
+```
+
 One batteries-included Node facade over the canonical ai-agent-sdk packages.
 It is re-export-only: all classes and contracts retain their leaf-package
 identity. Importing it intentionally elevates the application runtime to Node.

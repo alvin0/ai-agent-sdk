@@ -1,20 +1,23 @@
 # Monorepo Package and Runtime Architecture Plan
 
-Status: **Accepted architecture baseline; production split not yet implemented**
+Status: **Implemented; npm scope preflight and prerelease pending**
 
 Last reviewed: **2026-09-01**
 
 Scope: package boundaries, runtime boundaries, provider extensibility, workspace management, dependency policy, and migration gates.
 
 Implementation contract: [`monorepo-implementation-design.md`](./monorepo-implementation-design.md)  
-Ordered backlog: [`implementation-todo.md`](./implementation-todo.md)  
+
+Implementation ledger: [`implementation-todo.md`](./implementation-todo.md)
+
 Executable evidence: [`implementation-spike-evidence.md`](./implementation-spike-evidence.md)
 
-Non-goal: this document does not itself implement the package split.
+This document records the implemented package/runtime decisions and their original
+rationale. Executable release evidence lives in the implementation ledger.
 
 ## 1. Decision summary
 
-The project should evolve from one package with many subpath exports into a monorepo containing multiple publishable packages.
+The project has evolved from one package with many subpath exports into a monorepo containing multiple publishable packages.
 
 The split must be driven by **runtime and capability boundaries**, not by the current source-folder layout:
 
@@ -32,7 +35,7 @@ The detailed accounting and delivery design lives in [`observability-and-usage-a
 
 ## 2. Why this change is needed
 
-The current project is structurally close to a multi-package repository: it already exposes separate entry points for providers, A2A, MCP, filesystem skills, and request logging. However, all entry points are built under one package manifest, one dependency set, one Node engine declaration, and one release unit.
+Before the migration, the project already exposed separate entry points for providers, A2A, MCP, filesystem skills, and request logging, but all entries shared one manifest, dependency set, Node engine declaration, and release unit.
 
 That causes four problems:
 
@@ -41,7 +44,7 @@ That causes four problems:
 3. Every provider and protocol currently shares one dependency and release surface.
 4. Users cannot express their intended capability set at install time.
 
-The target architecture should let consumers choose among these forms:
+The implemented architecture lets consumers choose among these forms:
 
 ```ts
 // Edge, browser, Deno, Bun, or standards-only Node usage.
@@ -59,11 +62,11 @@ import {
 import { createHttpProvider } from '@ai-agent-sdk/provider-http'
 ```
 
-## 3. Current-state audit
+## 3. Baseline and implemented-state audit
 
-### 3.1 Package and dependency surface
+### 3.1 Pre-migration package and dependency surface (historical)
 
-The current [`package.json`](../package.json) contains:
+The removed single-package baseline contained:
 
 | Kind | Count | Current items |
 | --- | ---: | --- |
@@ -73,11 +76,21 @@ The current [`package.json`](../package.json) contains:
 | Optional peer dependencies | 3 | MCP client, server, and Node packages |
 | Dev-only tools | 4 | Node types, tsdown, TypeScript, Vitest |
 
-The committed npm lockfile currently contains 156 non-root installed package records: 3 in the production closure (`@a2a-js/sdk`, `eventsource-parser`, and transitive `jose`) and 153 marked dev-only. Seventy-one records are marked optional, mostly platform-specific tooling; “optional” overlaps the production/dev classification and must not be added to those counts.
+The removed npm lockfile contained 156 non-root records: 3 in the production
+closure (`@a2a-js/sdk`, `eventsource-parser`, and transitive `jose`) and 153 marked
+dev-only. Seventy-one records were optional platform/tooling variants and overlapped
+that classification. These numbers are retained only as migration-baseline evidence.
+
+The implemented pnpm workspace has 20 intended public packages: 19 scoped
+capability packages plus the unscoped compatibility facade. There are seven unique
+non-workspace direct runtime/peer names, each capability-owned: `@a2a-js/sdk`, the
+three MCP packages, the two OpenTelemetry APIs, and `eventsource-parser`. The R0
+frozen release matrix verified 390 registry integrity records; its production audit
+walked 19 dependencies and reported zero advisories at every severity.
 
 The published runtime surface is small, but the development and release toolchain is materially larger. Package-level isolation and lockfile policy are therefore both necessary. A dependency should only be visible to the capability that needs it.
 
-### 3.2 Existing runtime boundaries
+### 3.2 Implemented runtime boundaries
 
 | Current area | Runtime classification | Reason |
 | --- | --- | --- |
@@ -107,7 +120,7 @@ The current static import graph contains cycles inside cohesive domains:
 - A2A agent definitions and agent definition code depend on each other;
 - Anthropic provider code and its protocol implementation depend on each other.
 
-Therefore, “one current folder equals one npm package” would create package cycles. The initial split should keep cohesive cycles inside one package, then reduce internal cycles separately if there is a product reason to expose smaller packages.
+Therefore, “one baseline folder equals one npm package” would have created package cycles. The implemented split keeps cohesive cycles inside one package; internal cycles are reduced separately only where a product boundary requires it.
 
 ## 4. Runtime model
 
@@ -289,7 +302,7 @@ Forbidden directions include:
 | `@ai-agent-sdk/mcp-node` | Node | MCP stdio and Node HTTP adapters | `mcp`, MCP Node package |
 | `@ai-agent-sdk/a2a` | Node | Official A2A client/server integration | `core`, `agent`, `@a2a-js/sdk` |
 | `@ai-agent-sdk/node` | Node | One batteries-included re-export facade over Node-appropriate Universal and Node capabilities; excludes browser lifecycle code | Workspace packages only |
-| `ai-agent-sdk` | Mixed compatibility; root export Universal | Existing root and ten legacy subpath imports during migration | Regular dependencies are Universal; leaf shim targets are optional peers |
+| `ai-agent-sdk` | Mixed compatibility; root export Universal | Root, ten legacy subpaths through the 1.x compatibility line, and additive `/node` | Regular dependencies are Universal; leaf shim targets are optional peers |
 
 Granular Node packages keep dependency ownership and security exposure visible. `@ai-agent-sdk/node` is a re-export-only convenience facade, not a second implementation. The root `ai-agent-sdk` package preserves all current subpath names, but leaf targets are optional peers that legacy users install explicitly; only its regular dependency closure and `.` export carry a Universal runtime promise, while legacy Node subpaths are labelled explicitly.
 
@@ -381,7 +394,7 @@ Examples:
 | Local knowledge directory | filesystem, path, process cwd | Node |
 | Shell or code execution | child process, stdio, OS signals | Node |
 
-For the first package split, the `Skill` contract and catalog stay in `@ai-agent-sdk/agent` because they participate in the current agent-domain cycles. If the external skill ecosystem later needs an even smaller dependency surface, they can move to `@ai-agent-sdk/skill` after the import graph is made acyclic.
+For the first package split, the `Skill` contract and catalog stay in `@ai-agent-sdk/agent` because they participate in the current agent-domain cycles. If the external skill ecosystem later needs an even smaller dependency surface, they can move to a dedicated skill-contract package after the import graph is made acyclic and that package is reviewed as a real workspace boundary.
 
 A third-party skill should normally declare `@ai-agent-sdk/agent` as a compatible peer. A Node skill additionally declares its Node engine and owns its Node runtime dependencies. Neither kind of skill registers itself globally; the application imports and passes it to the agent explicitly.
 

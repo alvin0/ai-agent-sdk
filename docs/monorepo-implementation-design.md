@@ -1,13 +1,14 @@
 # Monorepo Implementation Design
 
-Status: implementation-ready  
+Status: implemented and R0-verified; release scope preflight pending
+
 Baseline evidence: [implementation-spike-evidence.md](./implementation-spike-evidence.md)  
 Architecture rationale: [monorepo-package-architecture.md](./monorepo-package-architecture.md)  
 Companion observability design: [observability-implementation-design.md](./observability-implementation-design.md)
 
 ## 1. Scope and fixed decisions
 
-This design converts the current single npm package into a pnpm workspace without changing the agent loop into separate Edge and Node implementations. The implementation follows one runtime-elevation rule:
+This design converted the former single npm package into a pnpm workspace without changing the agent loop into separate Edge and Node implementations. The implementation follows one runtime-elevation rule:
 
 ```text
 Universal application + Universal capability -> Universal application
@@ -487,5 +488,5 @@ The monorepo migration is complete only when:
 - provider plugins install/dispose transactionally;
 - the exact `eventsource-parser` dependency exists only in provider-http;
 - all packed, type, graph, supply-chain, unit, Edge, browser, Node, and selected live integration gates pass;
-- implementation TODO evidence fields are filled with commit IDs and command outputs;
-- no `TODO`, `TBD`, placeholder runtime classification, or unanswered architecture decision remains in release-facing docs.
+- implementation-ledger evidence fields are filled with commit IDs and command outputs;
+- no unresolved implementation marker, placeholder runtime classification, or unanswered architecture decision remains in release-facing docs.

@@ -1,5 +1,11 @@
 # @ai-agent-sdk/mcp
 
+Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
+
+```sh
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/agent @ai-agent-sdk/mcp
+```
+
 Universal MCP bridge for Fetch-shaped HTTP runtimes. It connects remote MCP
 servers to the SDK `ToolCatalog` and exposes SDK tools or agents through a
 `Request`/`Response` handler.

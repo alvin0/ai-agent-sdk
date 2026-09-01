@@ -1,22 +1,24 @@
 # Observability, Usage Accounting, and Logging Architecture
 
-Status: **Accepted architecture baseline; production observability not yet implemented**
+Status: **Implemented and verified; release preflight pending**
 
 Last reviewed: **2026-09-01**
 
 Scope: model-call accounting, token-usage coverage, traces, structured logs, metrics, errors, exporter health, privacy, and Web Standards/Node runtime boundaries.
 
 Implementation contract: [`observability-implementation-design.md`](./observability-implementation-design.md)  
-Ordered backlog: [`implementation-todo.md`](./implementation-todo.md)  
+
+Implementation ledger: [`implementation-todo.md`](./implementation-todo.md)
+
 Executable evidence: [`implementation-spike-evidence.md`](./implementation-spike-evidence.md)
 
 Non-goal: this document does not promise that a third-party provider will always report exact billing data.
 
 ## 1. Decision summary
 
-The SDK needs an observability system, not only a logger.
+The SDK has an observability system, not only a logger.
 
-It should have four connected but distinct signals:
+It has four connected but distinct signals:
 
 1. A **canonical run ledger** records every logical model call, physical provider attempt, tool execution, terminal outcome, and usage-coverage state.
 2. **Traces** describe parent/child relationships and duration across agent, model, retry, tool, and compaction operations.
@@ -66,12 +68,12 @@ Therefore, the SDK guarantees an in-run ledger and observable delivery health. S
 
 The project already has useful foundations:
 
-- [`trace.ts`](../src/agent/trace/trace.ts) creates W3C-sized trace/span IDs and models `invoke_agent`, `chat`, `execute_tool`, and `compact` spans.
-- [`events.ts`](../src/agent/loop/events.ts) exposes agent, model usage, tool, maintenance, and span lifecycle events.
-- [`run-turn.ts`](../src/agent/loop/run-turn.ts) aggregates reported usage and closes agent/model/tool spans on many error paths.
-- [`http-adapter.ts`](../src/providers/base/http-adapter.ts) centralizes HTTP provider dispatch and captures exact redacted outbound request metadata.
-- [`request-logger.ts`](../src/providers/request-logger.ts) serializes Node JSONL writes within one process.
-- [`chunk.ts`](../src/core/stream/chunk.ts) defines a disjoint internal token convention so cached tokens are not double-counted.
+- [`trace.ts`](../packages/agent/src/trace/trace.ts) creates W3C-sized trace/span IDs and models `invoke_agent`, `chat`, `execute_tool`, and `compact` spans.
+- [`events.ts`](../packages/agent/src/loop/events.ts) exposes agent, model usage, tool, maintenance, and span lifecycle events.
+- [`run-turn.ts`](../packages/agent/src/loop/run-turn.ts) aggregates reported usage and closes agent/model/tool spans on many error paths.
+- [`http-adapter.ts`](../packages/provider-http/src/base/http-adapter.ts) centralizes HTTP provider dispatch and captures exact redacted outbound request metadata.
+- [`wire-logger.ts`](../packages/observability-node/src/wire-logger.ts) serializes Node JSONL writes within one process.
+- [`chunk.ts`](../packages/core/src/stream/chunk.ts) defines a disjoint internal token convention so cached tokens are not double-counted.
 
 These pieces should be evolved rather than replaced blindly.
 

@@ -1,5 +1,8 @@
 # ai-agent-sdk
 
+Runtime: **Mixed facade**. The root entry is Universal; optional legacy subpaths
+have the runtime shown in the table below.
+
 Compatibility facade for applications migrating to the modular packages. The root entry is Universal and contains no environment, filesystem, stdio, IndexedDB, or Node lifecycle capability. New applications should prefer the scoped packages; full Node applications can use `@ai-agent-sdk/node`.
 
 ```sh

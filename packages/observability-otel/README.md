@@ -1,5 +1,11 @@
 # @ai-agent-sdk/observability-otel
 
+Runtime: **Universal** (the caller chooses runtime-compatible OpenTelemetry APIs).
+
+```sh
+pnpm add @ai-agent-sdk/observability @ai-agent-sdk/observability-otel @opentelemetry/api @opentelemetry/api-logs
+```
+
 Universal mapping bridge for caller-supplied OpenTelemetry API objects. It
 creates real spans synchronously, keeps explicit parent contexts without
 ambient context or `AsyncLocalStorage`, and maps privacy-processed SDK events

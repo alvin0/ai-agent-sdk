@@ -10,19 +10,46 @@ message.
 
 ## Setup
 
+For repository development:
+
 ```bash
-npm install
-npm run build
+pnpm install --frozen-lockfile
+pnpm workspace:build
+pnpm build:cli
 ```
 
 Workspace tooling and Node capability packages require Node 22.12 or newer.
 
+For application installs, choose the smallest runtime closure you need:
+
+```bash
+# Edge/Worker harness with a remote provider and acknowledged HTTPS telemetry
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/agent @ai-agent-sdk/provider-openai \
+  @ai-agent-sdk/observability @ai-agent-sdk/observability-fetch
+
+# Browser harness with IndexedDB crash recovery
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/agent @ai-agent-sdk/provider-openai \
+  @ai-agent-sdk/observability @ai-agent-sdk/observability-browser
+
+# Full Node harness: providers, filesystem skills, env/auth, stdio, journal, MCP, and A2A
+pnpm add @ai-agent-sdk/node
+```
+
+All three profiles share the same Universal core and agent loop. Importing a Node
+capability elevates only that application's reachable graph; it does not swap in a
+different harness implementation. The unscoped `ai-agent-sdk` package remains a
+Universal compatibility facade for existing applications.
+
 ## Quick start
 
 ```ts
-import { BlockAssembler, ModelRegistry, createTextMessage } from 'ai-agent-sdk'
-import { openAiAdapter } from 'ai-agent-sdk/openai'
-import { envCredential } from '@ai-agent-sdk/auth-node/env'
+import {
+  BlockAssembler,
+  ModelRegistry,
+  createTextMessage,
+  envCredential,
+  openAiAdapter,
+} from '@ai-agent-sdk/node'
 
 const registry = new ModelRegistry()
 registry.registerAdapter(['openai'], openAiAdapter({
@@ -52,9 +79,10 @@ retired model.
 
 | Entry point | Endpoint | Credential |
 | --- | --- | --- |
-| `ai-agent-sdk/anthropic` | Messages API | injected `apiKey` |
-| `ai-agent-sdk/openai` | Responses API | injected `apiKey` |
-| `ai-agent-sdk/codex` | ChatGPT-backed Codex | device-code login |
+| `@ai-agent-sdk/provider-anthropic` | Messages API | injected `apiKey` |
+| `@ai-agent-sdk/provider-openai` | Responses API | injected `apiKey` |
+| `@ai-agent-sdk/provider-codex` | ChatGPT-backed Codex | injected `CodexAuthStore` |
+| `@ai-agent-sdk/auth-node/codex` | ChatGPT-backed Codex on Node | project-local device-code login |
 
 `openai` and `codex` share one Responses implementation (`packages/protocol-responses/`)
 and differ only by a small dialect record — base URL, auth, and which optional
@@ -63,8 +91,8 @@ fields the endpoint accepts.
 ### Codex: project-local login
 
 ```bash
-npm run provider:codex:login-device    # sign in
-npm run provider:codex:status          # check state
+pnpm exec ai-agent-sdk-codex-login             # sign in
+pnpm exec ai-agent-sdk-codex-login --status    # local account/status details
 ```
 
 Tokens land in `.providers/.codex/auth.json` (git-ignored), **not** in the Codex
@@ -74,7 +102,7 @@ file will eventually race — the second to refresh replays a spent token and th
 user is silently logged out of their real Codex CLI.
 
 ```ts
-import { codexAdapter } from 'ai-agent-sdk/codex'
+import { codexAdapter } from '@ai-agent-sdk/auth-node/codex'
 
 registry.registerAdapter(['codex'], codexAdapter())
 const models = await registry.listModels('codex')   // discovered from the account
@@ -442,10 +470,13 @@ walkthrough in [`@ai-agent-sdk/provider-http`](packages/provider-http/README.md)
 
 | Script | Purpose |
 | --- | --- |
-| `npm test` | unit suite (fast, no network) |
-| `npm run test:integration` | live provider calls; needs credentials |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run build` | build package-owned bundles and declarations |
+| `pnpm test:unit` | root unit suite (fast, no network) |
+| `pnpm test:contract` | frozen compatibility and runtime-identity contracts |
+| `pnpm test:packages` | every package-owned suite |
+| `pnpm test:pack` | publint, ATTW, and all tarball/runtime fixtures |
+| `pnpm test:integration` | live provider calls; needs credentials and may cost tokens |
+| `pnpm workspace:typecheck` | typecheck all publishable packages in graph order |
+| `pnpm workspace:build` | build all package-owned bundles and declarations |
 
 Integration tests are a separate run because they cost tokens and are slow enough
 that mixing them in would discourage running the fast suite.

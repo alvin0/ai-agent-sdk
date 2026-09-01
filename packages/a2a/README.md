@@ -1,5 +1,11 @@
 # @ai-agent-sdk/a2a
 
+Runtime: **Node 22.12+**.
+
+```sh
+pnpm add @ai-agent-sdk/a2a
+```
+
 Node-elevated bridge between ai-agent-sdk agents/teams and the official A2A
 client/server APIs.
 

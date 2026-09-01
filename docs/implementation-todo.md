@@ -499,11 +499,11 @@ Commit: `test: verify release candidate against codex luna`
 
 Dependencies: R1
 
-- [ ] Update package READMEs with runtime labels and explicit installation examples for Edge/browser/full Node.
-- [ ] Run the requirements checklist below and search release-facing docs for `TBD`, placeholder, runtime-unverified, contradictory package names, or stale dependency counts.
-- [ ] Verify every documented command against the release candidate.
+- [x] Update package READMEs with runtime labels and explicit installation examples for Edge/browser/full Node.
+- [x] Run the requirements checklist below and search release-facing docs for unresolved markers, placeholder runtime claims, contradictory package names, or stale dependency counts.
+- [x] Verify every documented command against the release candidate.
 
-Exit evidence: zero unresolved documentation finding.  
+Exit evidence: `pnpm check:docs` scans 36 release-facing Markdown files, all 20 package READMEs, runtime labels against manifests, installation examples, package names, local links, direct dependency ownership, root commands, and stale release markers; it reports zero findings. The check identified and corrected six links that still targeted the removed root source tree and one hypothetical package name before passing. Frozen install, all 20 package builds/typechecks, CLI build, root typecheck, lint, 13 contract tests, graph/runtime-boundary checks, and the supply-chain gate pass on the release candidate. R0 already installed every package tarball in its declared runtime rather than relying on an unpublished registry; R1 verified the sole documented live-provider class without issuing another paid request during R2.
 Commit: `docs: finalize package runtime and observability guidance`
 
 ### R3 — Scope preflight and prerelease
@@ -520,23 +520,25 @@ Commit: `release: publish monorepo prerelease`
 
 ## Requirements self-audit checklist
 
-- [ ] Edge/browser users can install only Universal packages and run a harness without Node APIs.
-- [ ] Full Node users have one facade and granular capabilities.
-- [ ] Provider extensions install explicitly through a transactional core plugin contract.
-- [ ] Adding filesystem/env/stdio/journal/A2A capability elevates runtime visibly.
-- [ ] Core and agent remain Universal and do not fork their execution loop.
-- [ ] Every model/provider/tool/compaction/integration operation has terminal tracking.
-- [ ] Missing usage is never numeric zero and possibly billed retries are counted.
-- [ ] Logs, traces, metrics, and ledger are correlated but have distinct semantics.
-- [ ] Privacy defaults exclude content and secrets before exporter fan-out.
-- [ ] Observer/exporter failures are visible through health and delivery reports.
-- [ ] Operational/reliable/audit claims match actual queue/durability behavior.
-- [ ] Exact request-body logging is disabled by default and hard opt-in.
-- [ ] `eventsource-parser` is isolated, pinned, and either replaced by a fully qualified parser or retained with evidence.
-- [ ] MCP is proven Universal and A2A is not falsely advertised as Universal.
-- [ ] Real Codex `gpt-5.6-luna` acceptance passes on the release candidate.
-- [ ] Packed package tests, not source aliases, prove the published artifacts.
-- [ ] No runtime/package cycle, undeclared import, Node leak, open decision, or unreviewed install script remains.
+- [x] Edge/browser users can install only Universal packages and run a harness without Node APIs.
+- [x] Full Node users have one facade and granular capabilities.
+- [x] Provider extensions install explicitly through a transactional core plugin contract.
+- [x] Adding filesystem/env/stdio/journal/A2A capability elevates runtime visibly.
+- [x] Core and agent remain Universal and do not fork their execution loop.
+- [x] Every model/provider/tool/compaction/integration operation has terminal tracking.
+- [x] Missing usage is never numeric zero and possibly billed retries are counted.
+- [x] Logs, traces, metrics, and ledger are correlated but have distinct semantics.
+- [x] Privacy defaults exclude content and secrets before exporter fan-out.
+- [x] Observer/exporter failures are visible through health and delivery reports.
+- [x] Operational/reliable/audit claims match actual queue/durability behavior.
+- [x] Exact request-body logging is disabled by default and hard opt-in.
+- [x] `eventsource-parser` is isolated, pinned, and either replaced by a fully qualified parser or retained with evidence.
+- [x] MCP is proven Universal and A2A is not falsely advertised as Universal.
+- [x] Real Codex `gpt-5.6-luna` acceptance passes on the release candidate.
+- [x] Packed package tests, not source aliases, prove the published artifacts.
+- [x] No runtime/package cycle, undeclared import, Node leak, open decision, or unreviewed install script remains.
+
+Audit evidence: Worker and Chromium tarball fixtures prove the Universal harness and browser durability path; current and oldest-supported Node fixtures prove the facade and granular Node leaves. Package graph/runtime gates prove one Universal core/agent loop, explicit runtime elevation, transactional provider installation, and no forbidden imports or cycles. Agent/provider/integration suites prove terminal operations, retry-aware accounting, missing/partial usage coverage, privacy-before-fan-out, correlation, exporter health, delivery semantics, and hard-opt-in wire bodies. The E0/E1 conformance, 100,000-case differential, 1,000,000-seed fuzz, benchmark, ADR, exact-owner, and supply-chain evidence justify retaining `eventsource-parser@4.1.0`. MCP passes without Node globals; A2A is Node-labelled and its Worker binary case remains an intentional negative fixture. R0 validates packed artifacts and R1 validates Luna accounting on the same release candidate.
 
 ## Completion evidence table
 
@@ -544,15 +546,15 @@ Fill this during implementation; do not mark the implementation complete with bl
 
 | Gate | Commit | Evidence summary |
 |---|---|---|
-| F baseline and CLI |  |  |
-| W workspace/security |  |  |
-| C core |  |  |
-| A agent/ledger |  |  |
-| P/V providers and live spike |  |  |
-| O observability/exporters |  |  |
-| N/I Node/MCP/A2A |  |  |
-| K compatibility cutover |  |  |
-| E SSE ownership |  |  |
-| R deterministic matrix |  |  |
-| R live Luna acceptance |  |  |
-| R docs/scope/prerelease |  |  |
+| F baseline and CLI | `ac5d9ed`, `e7a065e` | Frozen public contracts; portable path behavior; executable built CLI and no-network dry run. |
+| W workspace/security | `17c4df4`, `2e45c6f` | Secured pnpm/Turbo workspace, reviewed lock, package graph, runtime, and supply-chain gates. |
+| C core | `51a8372`, `c2c9985`, `b145342` | Inward async ownership, observation/usage/plugin contracts, and packed Universal core. |
+| A agent/ledger | `d5f07ef`, `115efbe`, `2f013ec` | Team cycle removed; canonical terminal ledger and Universal packed agent extracted. |
+| P/V providers and live spike | `6df68a4`, `7753e7b`, `1cef2ca`, `1661705` | Attempt-aware HTTP transport, protocol leaves, provider plugins, and initial post-extraction Luna proof. |
+| O observability/exporters | `d9c57e0`–`9547942` | Universal bus plus acknowledged Fetch, IndexedDB, Node journal/diagnostics, and OTel bridge. |
+| N/I Node/MCP/A2A | `4829f90`, `6469373`, `5c1380e`, `d9382ec` | Universal MCP, Node-labelled A2A, granular Node capabilities, and full Node facade. |
+| K compatibility cutover | `f741470`, `716c9e0` | Workspace-backed compatibility exports followed by old-source/npm-lock removal and clean build. |
+| E SSE ownership | `d4beee3`, `c1bcbf2` | Qualified owned-parser spike failed performance gate; exact dependency retained by ADR and isolated owner. |
+| R deterministic matrix | `6e8d45a` | Frozen clean archive passed packed Worker/Chromium/Node, recovery, boundary, supply, and audit matrix. |
+| R live Luna acceptance | `cc2ca9b` | Exactly one paid Luna request passed complete usage, correlation, terminal, privacy, and health assertions. |
+| R docs/scope/prerelease | R2 commit; R3 pending | Documentation/self-audit is zero-finding; npm identity/scope preflight is the remaining external gate. |

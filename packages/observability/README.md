@@ -1,5 +1,11 @@
 # @ai-agent-sdk/observability
 
+Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
+
+```sh
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/observability
+```
+
 Universal, bounded observability for `ai-agent-sdk`: structured lifecycle events,
 privacy processing, priority queues, scoped logging, delivery health, flush and
 shutdown, plus in-memory/test exporters. It uses Web standards only.

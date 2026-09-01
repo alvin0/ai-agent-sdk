@@ -10,10 +10,15 @@ This file records the executable evidence used to close implementation-design de
 
 - Node available for verification: `v26.8.1`.
 - npm: `12.0.2`.
-- pnpm available locally: `11.19.0`; registry version selected for the migration: `11.25.0`.
-- Current production closure: `@a2a-js/sdk@1.1.0`, `eventsource-parser@4.1.0`, and transitive `jose@6.2.10`.
-- MCP is optional today. Installing all three MCP peers adds `@modelcontextprotocol/{client,server,node}@2.0.0` plus their transitive closure.
-- Current lockfile has 156 non-root package records: 3 production records and 153 development-only records. Optional platform variants overlap the development count; they are not 153 packages installed on every machine.
+- pnpm selected and pinned for the migration: `11.25.0`.
+- Pre-migration root production closure: `@a2a-js/sdk@1.1.0`, `eventsource-parser@4.1.0`, and transitive `jose@6.2.10`.
+- MCP was optional in the baseline. The implemented MCP leaf packages own `@modelcontextprotocol/{client,server,node}@2.0.0` and their transitive closure.
+- The removed npm baseline lock had 156 non-root records: 3 production and 153 development-only. Optional platform variants overlapped the development count; this is historical comparison evidence, not the current pnpm graph.
+
+The implemented R0 pnpm graph has 20 intended public packages, seven unique
+non-workspace direct runtime/peer names, 390 registry integrity records, and 19
+dependencies in the production audit. The audit reports zero advisories at every
+severity.
 
 Registry checks on the evidence date selected these exact workspace additions and fixture pins. Existing exact compiler/test pins remain `@types/node@26.4.0`, `tsdown@0.22.14`, `typescript@7.0.2`, and `vitest@4.1.11`.
 
@@ -117,12 +122,12 @@ The installed and registry-current version is `4.1.0`, exact integrity:
 sha512-+DHvQ1wLO//MK+1OZgcuXCbZFKgu3YjKPJt7n98rxX8vezL0ni+7s3ZQiM8bJkUEOk7MsuCycrPLj0FzUNf7Og==
 ```
 
-Its runtime implementation is Web-standard and isolated behind the SDK SSE parser. Replacing it is technically feasible, but doing so safely requires a WHATWG SSE conformance corpus, split UTF-8/chunk tests, CR/LF boundary tests, retry/id/comment semantics, resource bounds, fuzzing, and differential tests. The implementation default is therefore:
+Its runtime implementation is Web-standard and isolated behind the SDK SSE parser. Replacing it is technically feasible, but doing so safely requires a WHATWG SSE conformance corpus, split UTF-8/chunk tests, CR/LF boundary tests, retry/id/comment semantics, resource bounds, fuzzing, and differential tests. The final 0.x decision is:
 
-- keep exact `eventsource-parser@4.1.0` during the package migration;
+- keep exact `eventsource-parser@4.1.0` in the provider HTTP package;
 - install with frozen lockfile, release-age/trust checks, registry-only transitive sources, and denied dependency scripts;
 - keep the dependency owned only by `@ai-agent-sdk/provider-http`;
-- decide vendor/replace only after the replacement gate in the TODO passes.
+- require a new fully qualified ADR before any future vendor/replace attempt.
 
 This is a closed migration decision: removal is not a prerequisite for the monorepo, and accidental spread into core or agent is forbidden.
 

@@ -1,5 +1,11 @@
 # @ai-agent-sdk/provider-codex
 
+Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node with an injected auth store).
+
+```sh
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-codex
+```
+
 Universal Codex adapter, OAuth flows, memory/custom auth stores, and transactional provider plugin. A `CodexAuthStore` must be injected; filesystem and environment defaults belong to the Node auth package.
 
 ```ts
