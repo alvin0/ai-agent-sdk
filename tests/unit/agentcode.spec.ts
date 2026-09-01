@@ -268,7 +268,7 @@ describe('agentcode workspace tools', () => {
     expect(await readFile(join(root, 'src/store.ts'), 'utf8')).toContain('count = 2')
 
     const listed = resultObject(await callTool(tools, 'list_files', { path: '.' }))
-    expect(listed.entries).toContain('src\\store.ts')
+    expect(listed.entries).toContain('src/store.ts')
     const grep = resultObject(await callTool(tools, 'grep_files', { pattern: 'count = 2' }))
     expect(grep.matches).toEqual(expect.arrayContaining([expect.stringContaining('store.ts')]))
   })

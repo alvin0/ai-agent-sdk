@@ -107,7 +107,7 @@ export function createAgentCodeToolRegistry(
         directory, root, entries, maxEntries, maxDirectories, context.signal,
       )
       return {
-        path: relative(root, directory) || '.', entries,
+        path: portableRelative(root, directory) || '.', entries,
         truncated: traversal.truncated,
         visitedDirectories: traversal.visitedDirectories,
         ...(traversal.truncatedReason === undefined
@@ -146,7 +146,7 @@ export function createAgentCodeToolRegistry(
         target, startLine, startColumn, endLine, MAX_READ_CHARS, context.signal,
       )
       return {
-        path: relative(root, target), startLine, startColumn,
+        path: portableRelative(root, target), startLine, startColumn,
         endLine: selection.endLine, totalLines: selection.totalLines,
         text: selection.text, truncated: selection.truncated,
         ...(selection.nextStartLine === undefined ? {} : {
@@ -266,7 +266,7 @@ export function createAgentCodeToolRegistry(
       if (result.exitCode !== 0 && result.exitCode !== 1) {
         throw new Error(`ripgrep failed (${result.exitCode}): ${result.stderr || result.stdout}`)
       }
-      const all = result.stdout.split(/\r?\n/).filter(Boolean)
+      const all = result.stdout.split(/\r?\n/).filter(Boolean).map(portableGrepMatch)
       const matches = takeBoundedLines(all, maxResults, MAX_GREP_CHARS)
       return {
         pattern,
@@ -323,7 +323,7 @@ export function createAgentCodeToolRegistry(
         },
         invocation.env,
       )
-      return { command, args, cwd: relative(root, directory) || '.', ...result }
+      return { command, args, cwd: portableRelative(root, directory) || '.', ...result }
     },
     // Includes the pre-spawn baseline snapshot and bounded post-exit cleanup.
     timeoutMs: 160_000,
@@ -344,6 +344,12 @@ function assertWriteAllowed(
 
 function portableRelative(root: string, target: string): string {
   return relative(root, target).replaceAll('\\', '/')
+}
+
+function portableGrepMatch(line: string): string {
+  const match = /^(.*?):(\d+):(\d+):([\s\S]*)$/.exec(line)
+  if (match === null) return line
+  return `${match[1]?.replaceAll('\\', '/')}:${match[2]}:${match[3]}:${match[4]}`
 }
 
 function validateResolvedCommand(value: AgentCodeResolvedCommand): AgentCodeResolvedCommand {
@@ -428,7 +434,10 @@ async function walk(
   directoryLimit: number,
   signal: AbortSignal,
 ): Promise<TraversalResult> {
-  const pending: PendingDirectory[] = [{ physicalPath: directory, displayPath: relative(root, directory) }]
+  const pending: PendingDirectory[] = [{
+    physicalPath: directory,
+    displayPath: portableRelative(root, directory),
+  }]
   const visited = new Set<string>()
   while (pending.length > 0) {
     throwIfAborted(signal)
@@ -449,7 +458,9 @@ async function walk(
     for (const entry of entries) {
       throwIfAborted(signal)
       if (entry.isDirectory() && IGNORED_DIRECTORIES.has(entry.name)) continue
-      const displayPath = join(current.displayPath, entry.name)
+      const displayPath = current.displayPath.length === 0
+        ? entry.name
+        : `${current.displayPath}/${entry.name}`
       const target = resolve(canonical, entry.name)
       if (entry.isDirectory()) {
         childDirectories.push({ physicalPath: target, displayPath })

@@ -1,0 +1,319 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "ai-agent-sdk",
+    "version": "0.0.0"
+  },
+  "entries": {
+    ".": {
+      "exports": [
+        "AGENT_CONTROL_TOOLS",
+        "ANTHROPIC_MESSAGES_PROTOCOL_ID",
+        "APP_IDENTITY",
+        "AgentMemory",
+        "AgentSdkError",
+        "AgentSession",
+        "AgentTeam",
+        "BlockAssembler",
+        "COMPACTION_INSTRUCTION",
+        "CONTEXT_WINDOW_EXCEEDED_CODE",
+        "ContextCompactor",
+        "DEFAULT_AGENT_CALL_CONFIG",
+        "DEFAULT_STREAM_IDLE_TIMEOUT_MS",
+        "DefinedAgentTeam",
+        "EMPTY_RESPONSE_CODE",
+        "History",
+        "HttpModelAdapter",
+        "INVALID_CREDENTIAL_CODE",
+        "MAX_SKILL_DESCRIPTION_CHARS",
+        "MAX_SKILL_ID_CHARS",
+        "MAX_SKILL_INSTRUCTIONS_CHARS",
+        "MAX_SKILL_NAME_CHARS",
+        "MAX_SKILL_RESOURCE_CHARS",
+        "MAX_SKILL_RESOURCE_PATH_CHARS",
+        "MAX_TIMER_DELAY_MS",
+        "MISSING_CREDENTIAL_CODE",
+        "MODEL_ERROR_CODES",
+        "ManagedAgentTeam",
+        "MessageId",
+        "ModelAdapter",
+        "ModelError",
+        "ModelRegistry",
+        "OPENAI_RESPONSES_PROTOCOL_ID",
+        "ProviderRequestId",
+        "QUOTA_EXCEEDED_CODE",
+        "REGISTRY_ERROR_CODES",
+        "ReasoningEffortId",
+        "SDK_VERSION",
+        "SKILL_ID_PATTERN",
+        "SKILL_TOOL_NAMES",
+        "SkillCatalog",
+        "TOOL_ERROR_CODES",
+        "TOOL_REGISTRY_ERROR_CODES",
+        "ToolCallId",
+        "ToolError",
+        "ToolRegistry",
+        "anthropicMessagesProtocol",
+        "apiKeyFromEnv",
+        "assertNever",
+        "assertUsableApiKey",
+        "attributionHeaders",
+        "authorizeToolCall",
+        "backoffDelayMs",
+        "buildTraceTree",
+        "callConfigEquals",
+        "cloneAgent",
+        "contentHasImage",
+        "createApprovalBroker",
+        "createAssistantMessage",
+        "createDefinedAgentTeam",
+        "createHttpProvider",
+        "createManagedAgentTeam",
+        "createMessage",
+        "createSkillTools",
+        "createSpanId",
+        "createTextMessage",
+        "createToolResultMessage",
+        "createTraceId",
+        "createUserInputBroker",
+        "createUserMessage",
+        "deepFreeze",
+        "defineAgent",
+        "defineSkill",
+        "defineSkillProvider",
+        "defineTool",
+        "dispatchAuthorizedToolCall",
+        "dispatchToolCall",
+        "errorChain",
+        "estimateContextTokens",
+        "estimateMessageTokens",
+        "executionModeOf",
+        "finalizeToolCall",
+        "fixedApprovalBroker",
+        "fixedUserInputBroker",
+        "freezeMessage",
+        "httpErrorCode",
+        "isAgentSdkError",
+        "isContextWindowExceededError",
+        "isJsonValue",
+        "isNativeToolSchema",
+        "isQuotaExceededError",
+        "isRetryable",
+        "normalizeApiKey",
+        "normalizeModelFailure",
+        "normalizeToolPairing",
+        "openAiResponsesProtocol",
+        "parseErrorBody",
+        "parseSse",
+        "prepareToolCall",
+        "projectHistorySurface",
+        "projectImagesForTextModel",
+        "projectMessages",
+        "renderJsonValue",
+        "renderSkillCatalog",
+        "requestIdFrom",
+        "resolveCompactionConfig",
+        "resolveDialect",
+        "resolveMemoryConfig",
+        "resolveRetryPolicy",
+        "resolveSkillOptions",
+        "retryAfterMs",
+        "runAgent",
+        "runToolCalls",
+        "runTurn",
+        "selectCompactablePrefix",
+        "textOnlyImageText",
+        "toolErrorDisposition",
+        "toolFailure",
+        "traceparent",
+        "userAgent",
+        "validateSkillId",
+        "validateSkillSource",
+        "withIdleTimeout",
+        "withRetry"
+      ],
+      "typesSha256": "1cdd967c273eaebed5a45f9ba4be439b9524a74b7d510e077dd6af8e2faee2e2"
+    },
+    "./anthropic": {
+      "exports": [
+        "ANTHROPIC_API_KEY_ENV",
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_VERSION",
+        "DEFAULT_THINKING_BUDGETS",
+        "anthropicAdapter",
+        "anthropicMessagesProtocol"
+      ],
+      "typesSha256": "c937f21ac2065255e4d792b2a9c4174a9c338d519fbfd5cb2c8d52c5f7de7238"
+    },
+    "./openai": {
+      "exports": [
+        "OPENAI_API_KEY_ENV",
+        "OPENAI_BASE_URL",
+        "openAiAdapter",
+        "openAiResponsesProtocol"
+      ],
+      "typesSha256": "43f0962ef3050b0cdd2b6bfeb68198ae640fc0c42aaa869c75c8e5df5f81c294"
+    },
+    "./codex": {
+      "exports": [
+        "ACCESS_TOKEN_REFRESH_WINDOW_MS",
+        "CODEX_AUTH_PATH_ENV",
+        "CODEX_BASE_URL",
+        "CODEX_CLIENT_ID",
+        "CODEX_CLIENT_VERSION",
+        "CODEX_ORIGINATOR",
+        "CodexRefreshError",
+        "DEFAULT_CODEX_AUTH_PATH",
+        "DEFAULT_CODEX_ISSUER",
+        "LAST_REFRESH_MAX_AGE_MS",
+        "codexAdapter",
+        "fileCodexAuthStore",
+        "isFedrampAccount",
+        "memoryCodexAuthStore",
+        "readJwtClaims",
+        "refreshCodexTokens",
+        "requestDeviceCode",
+        "requireTokens",
+        "resolveAccountId",
+        "resolveCodexAuthPath",
+        "runDeviceCodeLogin",
+        "shouldRefresh"
+      ],
+      "typesSha256": "f24a92d5a75194f11eebb1ef6d06567ba8683ab52eda16fc1e164864432a3181"
+    },
+    "./a2a-client": {
+      "exports": [
+        "A2AAgentLink",
+        "ClientFactory",
+        "DefaultAgentCardResolver",
+        "JsonRpcTransportFactory",
+        "RestTransportFactory",
+        "createA2AAgentLink",
+        "linkA2AAgent"
+      ],
+      "typesSha256": "4f67ba346580250acaa55dc37878be7021f4ad1b27a12cc586c6bfb3d7dc4d6e"
+    },
+    "./a2a-server": {
+      "exports": [
+        "A2A_PROTOCOL_VERSION",
+        "AgentEvent",
+        "DefaultExecutionEventBus",
+        "DefaultExecutionEventBusManager",
+        "DefaultRequestHandler",
+        "DefinedAgentA2AExecutor",
+        "InMemoryTaskStore",
+        "JsonRpcTransportHandler",
+        "Role",
+        "ServerCallContext",
+        "TaskState",
+        "createAgentCardFromDefinition",
+        "createDefinedAgentA2AServer"
+      ],
+      "typesSha256": "43559ef346954f2d576a7589be4e2ac6418a8c792736537a6d908487084f2947"
+    },
+    "./skill-filesystem": {
+      "exports": [
+        "discoverFileSystemSkills",
+        "fileSystemSkills"
+      ],
+      "typesSha256": "c474ab284c8649bd5040185bc5594f6a849825157b34f8229b592b3ec1832a37"
+    },
+    "./request-logger": {
+      "exports": [
+        "combineProviderRequestLoggers",
+        "createDailyJsonlRequestLogger"
+      ],
+      "typesSha256": "bc55d493d1907d83c8961c34451953904a9b6b438bb71b197f2303791cf80ebb"
+    },
+    "./mcp-client": {
+      "exports": [
+        "McpClientConnection",
+        "McpRemoteToolError",
+        "connectMcpHttp",
+        "createMcpHttpClient",
+        "resolveMcpReconnectOptions"
+      ],
+      "typesSha256": "8c7cf395a3ca8464f0394961eed96a3abd4969345b684d50008af185060e786e"
+    },
+    "./mcp-server": {
+      "exports": [
+        "createSdkMcpHandler",
+        "createSdkMcpServer"
+      ],
+      "typesSha256": "16b72a644bfaecac2d6d03aa8a4f50678e37069000fa66a87ab7be4254ee0db1"
+    },
+    "./mcp-node": {
+      "exports": [
+        "connectMcpStdio",
+        "createMcpStdioClient",
+        "hostHeaderValidation",
+        "localhostHostValidation",
+        "localhostOriginValidation",
+        "originValidation",
+        "serveSdkMcpStdio",
+        "toNodeHandler"
+      ],
+      "typesSha256": "4bcd9934bb9c0ee86a5fa2b1da040b81aa09d16b4e2cdd763a59c9c15d585c9e"
+    }
+  },
+  "errorCodes": {
+    "model": [
+      "ABORTED",
+      "AUTH",
+      "INVALID_REQUEST",
+      "MALFORMED_RESPONSE",
+      "MODEL_TEARDOWN_TIMEOUT",
+      "RATE_LIMIT",
+      "SERVER",
+      "STREAM_CLOSED",
+      "TIMEOUT",
+      "TRANSPORT",
+      "UNKNOWN",
+      "UNSUPPORTED_CONTENT",
+      "UNSUPPORTED_OPTION"
+    ],
+    "registry": [
+      "DUPLICATE_ADAPTER",
+      "INVALID_ADAPTER",
+      "INVALID_CATALOG",
+      "INVALID_MODEL_INFO",
+      "INVALID_PREPARED_CALL",
+      "NO_ADAPTER",
+      "OUTPUT_TOKEN_LIMIT_EXCEEDED",
+      "REGISTRATION_DISPOSED",
+      "UNSUPPORTED_NATIVE_TOOL",
+      "UNSUPPORTED_REASONING_EFFORT"
+    ],
+    "tool": [
+      "CHECKPOINT_FAILED",
+      "INVALID_ARGUMENTS",
+      "INVALID_TOOL_RESULT",
+      "MALFORMED_ARGUMENTS",
+      "TOOL_ABORTED",
+      "TOOL_ABORTED_BEFORE_DISPATCH",
+      "TOOL_BUDGET_EXHAUSTED",
+      "TOOL_DENIED",
+      "TOOL_FAILED",
+      "TOOL_TEARDOWN_TIMEOUT",
+      "TOOL_TIMEOUT",
+      "UNKNOWN_TOOL"
+    ],
+    "toolRegistry": [
+      "DUPLICATE_TOOL",
+      "INVALID_TOOL",
+      "UNKNOWN_TOOL_FILTER"
+    ],
+    "standalone": [
+      "CONTEXT_WINDOW_EXCEEDED",
+      "EMPTY_RESPONSE",
+      "INVALID_CREDENTIAL",
+      "MISSING_CREDENTIAL",
+      "QUOTA"
+    ]
+  },
+  "jsonFormats": {
+    "historySnapshot": 1,
+    "memorySnapshot": 1,
+    "agentSessionSnapshot": 1
+  }
+}
