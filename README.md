@@ -86,6 +86,37 @@ for production.
 
 ### Exact provider request logs
 
+For normal production diagnosis, prefer the structured Universal observation bus.
+It records model calls, physical provider attempts, usage coverage, retries,
+credential/catalog operations, safe errors, and correlated application logs while
+defaulting to `content: 'none'`:
+
+```ts
+import { ModelRegistry } from 'ai-agent-sdk'
+import {
+  MemoryObservationExporter,
+  createObservability,
+} from '@ai-agent-sdk/observability'
+
+const exporter = new MemoryObservationExporter() // test/local inspection only
+const observation = createObservability({
+  exporters: [{ exporter, requirement: 'best-effort', boundary: 'none' }],
+})
+const observedRegistry = new ModelRegistry({ observation })
+
+observation.logger({ fields: { component: 'checkout-agent' } })
+  .info('agent initialized')
+await observation.flush()
+```
+
+Missing token usage remains `missing`/`partial`, never a fabricated zero. OAuth
+tokens, API keys, cookies, account details, headers outside a positive allowlist,
+and prompt/completion content are excluded by default. Memory delivery never
+claims durability; reliable/audit modes require a durable exporter package.
+
+The exact wire logger below is a separate high-risk diagnostic bridge because its
+body contains prompts and tool results.
+
 Enable the Node-only logger when debugging the wire payload sent to a provider:
 
 ```ts

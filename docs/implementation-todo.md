@@ -258,14 +258,14 @@ Commit: `refactor(providers): extract universal provider plugins`
 Dependencies: C2, A2  
 Files: `packages/observability/**`
 
-- [ ] Implement exact queue defaults, sync processor order, protected health path, priority eviction, flush/shutdown.
-- [ ] Implement required/best-effort exporter registration and validate that reliable/audit have at least one honest non-memory durability boundary; checkpoint waits for every required exporter only.
-- [ ] Implement privacy policy, secret/header redaction, depth/size/cardinality limits.
-- [ ] Implement scoped logger and safe errors; remove direct runtime `console.*` calls.
-- [ ] Implement trace/log/metric projections and in-memory/test exporters.
-- [ ] Prove checkpoint drains prior critical events through its sequence boundary; reliable failure preserves the result with incomplete delivery, while audit failure follows the documented pre/post-dispatch behavior without provider replay.
+- [x] Implement exact queue defaults, sync processor order, protected health path, priority eviction, flush/shutdown.
+- [x] Implement required/best-effort exporter registration and validate that reliable/audit have at least one honest non-memory durability boundary; checkpoint waits for every required exporter only.
+- [x] Implement privacy policy, secret/header redaction, depth/size/cardinality limits.
+- [x] Implement scoped logger and safe errors; remove direct runtime `console.*` calls.
+- [x] Implement trace/log/metric projections and in-memory/test exporters.
+- [x] Prove checkpoint drains prior critical events through its sequence boundary; reliable failure preserves the result with incomplete delivery, while audit failure follows the documented pre/post-dispatch behavior without provider replay.
 
-Exit evidence: deterministic queue/privacy/health/lifecycle tests pass in Worker and browser.  
+Exit evidence: 18 deterministic tests cover default batching, processor order/envelope immutability, protected failures, hostile schemas, content policies, inline/key/header secret redaction, depth/size/batch limits, priority eviction, required versus best-effort durability, sequence-bound checkpoints, reliable/audit report semantics, scoped log levels, bounded-cardinality projections, timeout health, and reverse idempotent shutdown. The 587-test compatibility suite passes. The packed tarball executes logging, privacy, trace and metric projections in standards-only Node, Chromium, and Cloudflare Worker with `Buffer`/`process` removed. Publint, ATTW ESM resolution, package/source/runtime graph, supply-chain, and seven negative-boundary gates report zero findings; production runtime source contains no direct `console.*` calls.
 Commit: `feat(observability): add universal bus logging and health`
 
 ### O1 — Implement Fetch/Edge exporter

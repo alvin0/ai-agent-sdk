@@ -112,3 +112,20 @@ events with provider/operation/safe origin only. Token values, account details,
 credential labels and store locations are excluded even on failures. All three
 provider tarballs execute in standards-only Node, Chromium, and Cloudflare Worker
 without Node globals or builtins.
+
+## O0 migration record — Universal observability bus
+
+O0 adds the leaf package `@ai-agent-sdk/observability@0.1.0`; it does not change
+the compatibility root runtime or any of its frozen subpath exports. The package
+implements the core `ObservationPort` contract with bounded priority queues,
+ordered synchronous transforms, honest required/best-effort durability,
+checkpoint/flush/shutdown lifecycle, health snapshots, scoped structured logs,
+privacy processing, backend-neutral projections, and memory/fault-injection
+exporters.
+
+Privacy processing runs both before and after user transforms, so a transform
+cannot reintroduce content or credential fields. Reliable/audit construction
+requires an exporter that explicitly declares a non-memory durability boundary;
+the memory exporter supports only `none`. The packed package has only
+`@ai-agent-sdk/core` as a runtime dependency and passes standards-only Node,
+Chromium, and Cloudflare Worker fixtures without Node globals or builtins.
