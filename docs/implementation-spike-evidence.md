@@ -131,3 +131,9 @@ This is a closed migration decision: removal is not a prerequisite for the monor
 - Local Wrangler is a real Worker isolate/bundler path, but it is not every Edge vendor. Packed-package gates still run on Cloudflare Workers plus an independent standards-only fixture before an initial release.
 - The live Codex test proves one successful model call and usage report, not retry, abort, missing-usage, or exporter durability. Those cases are deterministic contract tests in the implementation plan.
 - No production architecture change was implemented during these spikes.
+
+## 7. A0 local-team boundary spike
+
+The frozen runtime baseline contains the public `AgentTeam`, `DefinedAgentTeam`, and `ManagedAgentTeam` names, but no replacement symbol names are specified by the architecture. A0 therefore changes source ownership, not runtime identity: `agent/team` is canonical and the old `agent/a2a` source barrel is a deprecated identity-preserving alias. This avoids inventing an undocumented API rename while still separating local orchestration from the official top-level A2A wire implementation.
+
+Before the change, the ownership checker reported `a2a -> define -> a2a`. After introducing `TeamSessionPort` and making `AgentSessionOptions` depend on a structural session-facing control-plane surface, the agent graph has no `define` ↔ `team` cycle; only the pre-existing `loop` ↔ `history` cycle remains for its later owning phase. A dedicated gate rejects concrete define/session-to-team implementation imports, and a negative fixture proves that the old cycle is detected. A compile-time assignment in the team suite proves `AgentSession` satisfies `TeamSessionPort` structurally.

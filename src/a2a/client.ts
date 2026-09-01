@@ -18,12 +18,12 @@ import {
   type Client,
   type RequestOptions,
 } from '@a2a-js/sdk/client'
-import type { AgentTeam } from '../agent/a2a/team.ts'
+import type { AgentTeam } from '../agent/team/team.ts'
 import type {
   LinkedAgentResult,
   LinkedAgentSendInput,
   LinkedAgentTransport,
-} from '../agent/a2a/types.ts'
+} from '../agent/team/types.ts'
 import type { ContentBlock } from '@ai-agent-sdk/core'
 import { detachedFrozen } from '@ai-agent-sdk/core'
 import { waitForSettlement } from '@ai-agent-sdk/core'

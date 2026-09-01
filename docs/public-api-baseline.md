@@ -37,3 +37,9 @@ The C2 snapshot update changes source ownership from the root bundle to the work
 Two inward primitives become additive root exports because workspace consumers must use a public core contract rather than bypass package exports: `detachedFrozen` and `waitForSettlement`. Declaration hashes change wherever emitted types now import shared contracts from `@ai-agent-sdk/core`; this is the intended package boundary, not a semantic removal. `./skill-filesystem` keeps its declaration hash because its public declaration does not reference a moved core type.
 
 The packed `@ai-agent-sdk/core` surface is ESM-only with only `.` and `./package.json` exports. It has zero runtime dependencies and was installed from its tarball in independent standards-only, Cloudflare Worker, Chromium, and Node consumers before this baseline was accepted.
+
+## A0 migration record — local team ownership
+
+A0 moves the local collaboration implementation from `agent/a2a` to `agent/team`; the official A2A wire client/server remains under the distinct top-level `a2a` ownership. All existing runtime names (`AgentTeam`, `DefinedAgentTeam`, `ManagedAgentTeam`, and their factories) retain identity and behavior. The old source barrel remains as a deprecated identity-preserving re-export until 1.0.0.
+
+The root runtime export set is unchanged. Declaration hashes change for the root and the A2A/MCP entries that transitively expose `AgentSessionOptions`: its team option now consumes a structural session-facing port, while `TeamSessionPort`, `TeamPort`, and `TeamMemberAttachmentOptions` are additive type-only exports. No JavaScript symbol was removed or renamed.

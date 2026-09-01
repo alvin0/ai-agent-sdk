@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { AgentTeam } from '../../src/agent/a2a/team.ts'
+import type { AgentTeam } from '../../src/agent/team/team.ts'
 import type { A2AStressMode } from './config.ts'
 import { verifyA2AStressFixtureIntegrity, type A2AStressPaths } from './fixture.ts'
 import { A2AStressObserver } from './observer.ts'

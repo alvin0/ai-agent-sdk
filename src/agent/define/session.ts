@@ -32,7 +32,6 @@ import {
   type SkillSource,
 } from '../skill/index.ts'
 import type { AgentDefinition } from './definition.ts'
-import type { AgentTeamMemberOptions } from '../a2a/types.ts'
 
 export type AgentInput = string | UserMessage
 
@@ -91,6 +90,25 @@ export interface AgentSessionOptions {
   }
   /** Join one shared local/remote agent team and optionally expose its model tools. */
   readonly team?: AgentTeamMemberOptions
+}
+
+interface AgentSessionTeamPort {
+  attach(session: AgentSession, options?: AgentSessionTeamAttachmentOptions): void
+  toolsFor(sender: string): readonly ToolDefinition<any>[]
+  instructionsFor(name: string): string
+}
+
+interface AgentSessionTeamAttachmentOptions {
+  readonly name?: string
+  readonly description?: string
+  readonly instructions?: string
+  readonly role?: 'lead' | 'peer'
+  readonly tools?: boolean
+}
+
+/** Attach a session to one shared local/remote agent control plane. */
+export interface AgentTeamMemberOptions extends AgentSessionTeamAttachmentOptions {
+  readonly team: AgentSessionTeamPort
 }
 
 /** One JSON-safe envelope containing everything needed to resume a conversation. */

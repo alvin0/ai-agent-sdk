@@ -1,31 +1,5 @@
-export { AgentTeam } from './team.ts'
-export {
-  DefinedAgentTeam,
-  createDefinedAgentTeam,
-  type DefinedAgentTeamMemberInput,
-  type DefinedAgentTeamOptions,
-} from './composed.ts'
-export {
-  ManagedAgentTeam,
-  createManagedAgentTeam,
-  type ManagedAgentSpawnRequest,
-  type ManagedAgentTeamOptions,
-  type ManagedAgentWorker,
-  type ManagedAgentWorkerResult,
-  type ResolvedManagedAgentSpawnRequest,
-} from './managed.ts'
-export type {
-  AgentMessageDelivery,
-  AgentMessageRecord,
-  AgentMessageSource,
-  AgentTeamEvent,
-  AgentTeamMember,
-  AgentTeamMemberOptions,
-  AgentTeamOptions,
-  LinkedAgentResult,
-  LinkedAgentSendInput,
-  LinkedAgentTransport,
-  LinkAgentOptions,
-  SendAgentMessageRequest,
-  SendAgentMessageResult,
-} from './types.ts'
+/**
+ * @deprecated Local team orchestration moved to `../team/index.ts` because A2A
+ * names the wire protocol. This compatibility barrel will be removed at 1.0.0.
+ */
+export * from '../team/index.ts'

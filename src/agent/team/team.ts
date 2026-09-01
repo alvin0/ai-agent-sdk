@@ -1,6 +1,5 @@
 /** Shared control plane for local sessions and interoperable remote A2A peers. */
 
-import type { AgentSession } from '../define/session.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
 import type { ContentBlock } from '@ai-agent-sdk/core'
@@ -8,11 +7,11 @@ import { createUserMessage } from '@ai-agent-sdk/core'
 import type { JsonValue } from '@ai-agent-sdk/core'
 import { deepFreeze as freezeDeep } from '@ai-agent-sdk/core'
 import { waitForSettlement } from '@ai-agent-sdk/core'
+import type { TeamMemberAttachmentOptions, TeamPort, TeamSessionPort } from './contracts.ts'
 import type {
   AgentMessageRecord,
   AgentTeamEvent,
   AgentTeamMember,
-  AgentTeamMemberOptions,
   AgentTeamOptions,
   LinkAgentOptions,
   LinkedAgentResult,
@@ -26,7 +25,7 @@ interface LocalMemberRuntime {
   readonly description?: string
   readonly instructions?: string
   readonly role: 'lead' | 'peer'
-  readonly session: AgentSession
+  readonly session: TeamSessionPort
   wakeRequestedSeq: number
   wakeConsumedSeq: number
   wakeTask: Promise<void> | undefined
@@ -55,7 +54,7 @@ const MAX_MEMBER_NAME_LENGTH = 128
  * Connect long-lived local AgentSessions and remote protocol peers behind one
  * roster and one model-facing messaging surface.
  */
-export class AgentTeam {
+export class AgentTeam implements TeamPort {
   readonly id: string
   private readonly maxMembers: number
   private readonly maxMessageBytes: number
@@ -97,7 +96,7 @@ export class AgentTeam {
   }
 
   /** Called by AgentSession after its tool catalog is assembled. */
-  attach(session: AgentSession, options: Omit<AgentTeamMemberOptions, 'team'> = {}): void {
+  attach(session: TeamSessionPort, options: TeamMemberAttachmentOptions = {}): void {
     this.assertActive()
     const name = memberName(options.name ?? session.definition.id)
     this.assertAddressAvailable(name)

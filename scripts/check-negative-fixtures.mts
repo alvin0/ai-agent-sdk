@@ -9,6 +9,7 @@ const cases = [
   { script: 'check-package-graph.mts', fixture: 'graph-internal-import', expected: 'import bypasses' },
   { script: 'check-runtime-boundaries.mts', fixture: 'runtime-node-leak', expected: 'Node builtin import' },
   { script: 'check-runtime-boundaries.mts', fixture: 'runtime-emitted-leak', expected: 'dist/index.js:1: Node builtin import' },
+  { script: 'check-agent-boundaries.mts', fixture: 'agent-team-cycle', expected: 'define/session imports team implementation' },
 ] as const
 
 const failures: string[] = []

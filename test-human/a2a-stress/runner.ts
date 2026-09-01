@@ -4,7 +4,7 @@ import {
   AgentTeam,
   createDefinedAgentTeam,
   createManagedAgentTeam,
-} from '../../src/agent/a2a/index.ts'
+} from '../../src/agent/team/index.ts'
 import { defineAgent } from '../../src/agent/define/index.ts'
 import type { AgentCompactionOptions } from '../../src/agent/memory/compaction-config.ts'
 import { createHumanModelRegistry } from '../providers.ts'

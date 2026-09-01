@@ -2,26 +2,12 @@
 
 import type { ContentBlock } from '@ai-agent-sdk/core'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
-import type { AgentTeam } from './team.ts'
 
 export type { AgentMessageSource } from '@ai-agent-sdk/core'
+export type { AgentTeamMemberOptions } from '../define/session.ts'
 
 /** A quiet delivery adds context; a wakeup delivery also schedules a turn. */
 export type AgentMessageDelivery = 'quiet' | 'wakeup'
-
-/** Attach a session to one shared A2A control plane. */
-export interface AgentTeamMemberOptions {
-  readonly team: AgentTeam
-  /** Stable model-facing address; defaults to the agent definition id. */
-  readonly name?: string
-  readonly description?: string
-  /** Extra model-facing collaboration policy for this member. */
-  readonly instructions?: string
-  /** The first attached member defaults to lead; later members default to peer. */
-  readonly role?: 'lead' | 'peer'
-  /** Expose list_agents, send_message, followup_task, and wait_agents to this model. */
-  readonly tools?: boolean
-}
 
 /** Detached runtime view of one addressable member. */
 export interface AgentTeamMember {

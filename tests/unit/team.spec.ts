@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { AgentTeam } from '../../src/agent/a2a/index.ts'
+import { AgentTeam } from '../../src/agent/team/index.ts'
+import { AgentTeam as DeprecatedA2AAgentTeam } from '../../src/agent/a2a/index.ts'
+import type { TeamSessionPort } from '../../src/agent/team/index.ts'
 import { defineAgent } from '../../src/agent/define/index.ts'
 import { ModelAdapter } from '@ai-agent-sdk/core'
 import type { GenerateOptions } from '@ai-agent-sdk/core'
@@ -97,12 +99,18 @@ function agent(id: string) {
   return defineAgent({ id, provider: 'test', model: 'scripted', instructions: `You are ${id}.` })
 }
 
-describe('in-process A2A teams', () => {
+describe('local agent teams', () => {
+  it('retains the deprecated A2A source barrel as an identity-preserving alias', () => {
+    expect(DeprecatedA2AAgentTeam).toBe(AgentTeam)
+  })
+
   it('records quiet messages with sender provenance without waking the target', async () => {
     const state = setup()
     const team = new AgentTeam({ id: 'ops-team' })
     agent('lead').createSession({ registry: state.registry, team: { team, role: 'lead' } })
     const worker = agent('worker').createSession({ registry: state.registry, team: { team } })
+    const structuralPort: TeamSessionPort = worker
+    expect(structuralPort.conversationId).toBe(worker.conversationId)
 
     const receipt = await team.sendMessage({
       from: 'lead', target: 'worker', message: 'Inspect the cache metrics.', delivery: 'quiet',

@@ -169,13 +169,13 @@ Commit: `refactor(core): extract universal core package`
 Dependencies: C2  
 Files: current `src/agent/a2a/**`, define/session imports
 
-- [ ] Rename local orchestration to `agent/team`.
-- [ ] Introduce structural `TeamSessionPort` and inward team contracts.
-- [ ] Keep deprecated export aliases for current names.
-- [ ] Prove define/session no longer depends on concrete team implementation.
+- [x] Rename local orchestration to `agent/team`.
+- [x] Introduce structural `TeamSessionPort` and inward team contracts.
+- [x] Keep deprecated export aliases for current names.
+- [x] Prove define/session no longer depends on concrete team implementation.
 
 Verify: agent/team unit tests and graph negative fixtures.  
-Exit evidence: agent internal graph has no define↔team cycle.  
+Exit evidence: 516 tests passed; the canonical and deprecated barrels share runtime identity; `AgentSession` satisfies `TeamSessionPort` structurally; the agent boundary gate reports no define↔team cycle and the seventh negative fixture reconstructs and rejects the old cycle.
 Commit: `refactor(agent): separate local teams from a2a protocol`
 
 ### A1 — Implement run ledger and run handles
