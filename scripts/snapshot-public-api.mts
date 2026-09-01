@@ -30,6 +30,8 @@ const rootRuntime = await import(pathToFileURL(resolve(root, 'dist/index.js')).h
   readonly REGISTRY_ERROR_CODES: Readonly<Record<string, string>>
   readonly TOOL_ERROR_CODES: Readonly<Record<string, string>>
   readonly TOOL_REGISTRY_ERROR_CODES: Readonly<Record<string, string>>
+  readonly OBSERVATION_ERROR_CODES: Readonly<Record<string, string>>
+  readonly PLUGIN_ERROR_CODES: Readonly<Record<string, string>>
   readonly CONTEXT_WINDOW_EXCEEDED_CODE: string
   readonly QUOTA_EXCEEDED_CODE: string
   readonly EMPTY_RESPONSE_CODE: string
@@ -38,7 +40,7 @@ const rootRuntime = await import(pathToFileURL(resolve(root, 'dist/index.js')).h
 }
 
 const output = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   package: { name: packageJson.name, version: packageJson.version },
   entries,
   errorCodes: {
@@ -46,6 +48,8 @@ const output = {
     registry: Object.values(rootRuntime.REGISTRY_ERROR_CODES).sort(),
     tool: Object.values(rootRuntime.TOOL_ERROR_CODES).sort(),
     toolRegistry: Object.values(rootRuntime.TOOL_REGISTRY_ERROR_CODES).sort(),
+    observation: Object.values(rootRuntime.OBSERVATION_ERROR_CODES).sort(),
+    plugin: Object.values(rootRuntime.PLUGIN_ERROR_CODES).sort(),
     standalone: [
       rootRuntime.CONTEXT_WINDOW_EXCEEDED_CODE,
       rootRuntime.QUOTA_EXCEEDED_CODE,

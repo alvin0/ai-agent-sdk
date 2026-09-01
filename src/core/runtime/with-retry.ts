@@ -28,6 +28,7 @@ import {
 import { normalizeModelFailure, type ModelFailure } from '../errors/failure.ts'
 import { MODEL_ERROR_CODES, ModelError } from '../errors/model-error.ts'
 import type { StreamChunk } from '../stream/chunk.ts'
+import type { ModelInvocationContext } from '../observation/report.ts'
 import { waitForSettlement } from '../async/settlement.ts'
 
 /** One retry that is about to be waited out. */
@@ -131,22 +132,23 @@ class RetryingAdapter extends ModelAdapter {
     provider: string,
     model: string,
     signal?: AbortSignal,
+    context?: ModelInvocationContext,
   ): Promise<PreparedAdapterCall> {
-    const prepared = await this.inner.prepareCall(provider, model, signal)
+    const prepared = await this.inner.prepareCall(provider, model, signal, context)
     const policy = this.policyFor(provider)
     return {
       model: prepared.model,
       // Retries reuse the SAME prepared generation. Re-preparing mid-retry could
       // pair a fresh endpoint with capabilities resolved against the old one,
       // which is exactly what the prepare/dispatch binding exists to prevent.
-      stream: options => this.retryStream(options, request => prepared.stream(request), policy),
+      stream: (options, invocation = context) => this.retryStream(options, request => prepared.stream(request, invocation), policy),
     }
   }
 
-  stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+  stream(options: GenerateOptions, context?: ModelInvocationContext): AsyncIterable<StreamChunk> {
     return this.retryStream(
       options,
-      request => this.inner.stream(request),
+      request => this.inner.stream(request, context),
       this.policyFor(options.provider),
     )
   }

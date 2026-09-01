@@ -33,6 +33,21 @@ import { contentHasImage, projectImagesForTextModel } from '../message/projectio
 import { deepFreeze } from '../primitives/freeze.ts'
 import type { StreamChunk } from '../stream/chunk.ts'
 import { waitForSettlement } from '../async/settlement.ts'
+import type { ObservationResource } from '../observation/event.ts'
+import type { ObservationPort } from '../observation/port.ts'
+import type { ModelCallHandle, ModelInvocationContext } from '../observation/report.ts'
+import { createModelCallHandle } from './model-call-handle.ts'
+import {
+  PLUGIN_ERROR_CODES,
+  PluginError,
+  type AdapterRegistrationHandle,
+  type ModelProviderPlugin,
+  type ModelProviderRegistrar,
+  type PluginRegistrationHandle,
+  type StreamMiddleware,
+} from '../plugin/provider-plugin.ts'
+
+export type { AdapterRegistrationHandle, StreamMiddleware } from '../plugin/provider-plugin.ts'
 
 /**
  * Wraps every streaming model call. Call `next()` to reach the adapter, or yield
@@ -41,32 +56,6 @@ import { waitForSettlement } from '../async/settlement.ts'
  * This is the extension point for retry, caching, request logging, replay, and
  * test doubles. Middleware registered EARLIER sits further out.
  */
-export type StreamMiddleware = (
-  options: GenerateOptions,
-  next: () => AsyncIterable<StreamChunk>,
-) => AsyncIterable<StreamChunk>
-
-/**
- * What {@link ModelRegistry.registerAdapter} returns: a disposer that also
- * supports an atomic route replacement for the same adapter instance.
- */
-export interface AdapterRegistrationHandle {
-  /** Release every route this registration currently holds. */
-  (): void
-  /**
-   * Replace this registration's routes, keeping the same adapter instance.
-   *
-   * The candidate set is validated IN FULL first, so a conflict leaves the current
-   * routes untouched, and the swap itself is one synchronous section, so no
-   * concurrent call can observe a gap where the route is missing.
-   *
-   * An empty array is legal here (a configuration section that emptied holds zero
-   * routes while staying registered), unlike an empty initial registration.
-   * @param providers - the complete next route set.
-   */
-  replace(providers: readonly string[]): void
-}
-
 /** One call whose configuration and adapter registration were resolved together. */
 export interface PreparedCall {
   /** Detached, deep-frozen config with any adapter-owned default materialized. */
@@ -86,7 +75,7 @@ export interface PreparedCall {
    * @param options - the assembled request, carrying the prepared config.
    * @returns the chunk stream, including middleware.
    */
-  stream(options: GenerateOptions): AsyncIterable<StreamChunk>
+  stream(options: GenerateOptions, context?: ModelInvocationContext): ModelCallHandle
 }
 
 export interface ModelRegistryOptions {
@@ -94,6 +83,10 @@ export interface ModelRegistryOptions {
   readonly maxCatalogModels?: number
   /** Maximum serialized bytes accepted from a catalog or model-info record. Defaults to 4 MiB. */
   readonly maxCatalogBytes?: number
+  /** Default observation port; a per-call invocation context may override it. */
+  readonly observation?: ObservationPort
+  /** Safe SDK/service/runtime identity copied onto observation events. */
+  readonly observationResource?: ObservationResource
 }
 
 interface AdapterRegistration {
@@ -102,11 +95,40 @@ interface AdapterRegistration {
   readonly retryPolicy: ResolvedRetryPolicy
 }
 
+interface InstalledPlugin {
+  readonly routes: ReadonlySet<string>
+  readonly registrations: readonly AdapterRegistration[]
+  readonly middleware: readonly StreamMiddleware[]
+  readonly cleanup?: () => void
+}
+
 interface PreparedDispatch {
   readonly registration: AdapterRegistration
   readonly config: CallConfig
   readonly modelInfo: ResolvedModelInfo
-  readonly dispatch: (options: GenerateOptions) => AsyncIterable<StreamChunk>
+  readonly dispatch: (options: GenerateOptions, context: ModelInvocationContext) => AsyncIterable<StreamChunk>
+}
+
+function containThenable(value: unknown): boolean {
+  if ((typeof value !== 'object' || value === null) && typeof value !== 'function') return false
+  let then: unknown
+  try {
+    then = Reflect.get(value, 'then')
+  } catch {
+    return true
+  }
+  if (typeof then !== 'function') return false
+  try { void Promise.resolve(value).catch(() => {}) } catch { /* hostile thenable contained */ }
+  return true
+}
+
+function synchronousCleanupFailure(cleanup: () => void): unknown | undefined {
+  try {
+    const result: unknown = cleanup()
+    return containThenable(result) ? new TypeError('plugin cleanup must be synchronous') : undefined
+  } catch (error) {
+    return error
+  }
 }
 
 /** Convert one adapter throw into the stream protocol's terminal outcome. */
@@ -130,12 +152,156 @@ export class ModelRegistry {
   private adapters = new Map<string, AdapterRegistration>()
   private middleware: StreamMiddleware[] = []
   private listeners = new Set<() => void>()
+  private plugins = new Map<string, InstalledPlugin>()
   private readonly maxCatalogModels: number
   private readonly maxCatalogBytes: number
+  private readonly observation: ObservationPort | undefined
+  private readonly observationResource: ObservationResource
 
   constructor(options: ModelRegistryOptions = {}) {
     this.maxCatalogModels = positiveSafeInteger(options.maxCatalogModels ?? 2_048, 'maxCatalogModels')
     this.maxCatalogBytes = positiveSafeInteger(options.maxCatalogBytes ?? 4 * 1024 * 1024, 'maxCatalogBytes')
+    this.observation = options.observation
+    this.observationResource = deepFreeze(options.observationResource ?? {
+      sdkName: 'ai-agent-sdk',
+      sdkVersion: '0.0.0',
+      runtime: 'unknown',
+    })
+  }
+
+  /** Install one provider plugin as a single synchronous topology transaction. */
+  install(plugin: ModelProviderPlugin): PluginRegistrationHandle {
+    const pluginId = typeof plugin?.id === 'string' ? plugin.id : ''
+    const fail = (message: string, cause?: unknown, cleanupFailures: readonly unknown[] = []): never => {
+      const causes = [...cause === undefined ? [] : [cause], ...cleanupFailures]
+      const wrappedCause = causes.length <= 1 ? causes[0] : new AggregateError(causes, `plugin ${pluginId} install cleanup failed`)
+      throw new PluginError(message, PLUGIN_ERROR_CODES.INSTALL_FAILED, pluginId, wrappedCause === undefined ? undefined : { cause: wrappedCause })
+    }
+    if (pluginId.trim().length === 0 || pluginId !== pluginId.trim()) fail('plugin id must be a non-empty trimmed string')
+    if (this.plugins.has(pluginId)) fail(`plugin "${pluginId}" is already installed`)
+    if (typeof plugin.displayName !== 'string' || plugin.displayName.trim().length === 0) fail(`plugin "${pluginId}" displayName must be non-empty`)
+    if (typeof plugin.setup !== 'function') fail(`plugin "${pluginId}" setup must be a function`)
+
+    interface StagedAdapter {
+      active: boolean
+      routes: string[]
+      readonly adapter: ModelAdapter
+    }
+    interface StagedMiddleware { active: boolean; readonly middleware: StreamMiddleware }
+    const stagedAdapters: StagedAdapter[] = []
+    const stagedMiddleware: StagedMiddleware[] = []
+    let staging = true
+
+    const registrar: ModelProviderRegistrar = {
+      registerAdapter: (routes, adapter) => {
+        if (!staging) fail(`plugin "${pluginId}" staging registrar is closed`)
+        if (routes.length === 0) throw new ModelError('an adapter must register at least one provider route', REGISTRY_ERROR_CODES.INVALID_ADAPTER)
+        const item: StagedAdapter = { active: true, routes: [...routes], adapter }
+        // Validate metadata and conflicts without mutating live routes.
+        const occupied = new Set(stagedAdapters.filter(value => value.active).flatMap(value => value.routes))
+        for (const route of routes) if (occupied.has(route)) {
+          throw new ModelError(`an adapter for provider route "${route}" is already staged`, REGISTRY_ERROR_CODES.DUPLICATE_ADAPTER)
+        }
+        this.prepareRoutes(routes, adapter, new Set())
+        stagedAdapters.push(item)
+        const handle = (() => {
+          if (staging) item.active = false
+        }) as AdapterRegistrationHandle
+        handle.replace = (next) => {
+          if (!staging || !item.active) throw new ModelError('a disposed staged registration cannot replace routes', REGISTRY_ERROR_CODES.REGISTRATION_DISPOSED)
+          const occupiedByOthers = new Set(stagedAdapters.filter(value => value.active && value !== item).flatMap(value => value.routes))
+          for (const route of next) if (occupiedByOthers.has(route)) {
+            throw new ModelError(`an adapter for provider route "${route}" is already staged`, REGISTRY_ERROR_CODES.DUPLICATE_ADAPTER)
+          }
+          this.prepareRoutes(next, adapter, new Set())
+          item.routes = [...next]
+        }
+        return handle
+      },
+      use: (middleware) => {
+        if (!staging) fail(`plugin "${pluginId}" staging registrar is closed`)
+        if (typeof middleware !== 'function') throw new TypeError('plugin middleware must be a function')
+        const item: StagedMiddleware = { active: true, middleware }
+        stagedMiddleware.push(item)
+        return () => { if (staging) item.active = false }
+      },
+    }
+
+    let cleanup: (() => void) | undefined
+    try {
+      const result = plugin.setup(registrar)
+      if (containThenable(result)) fail(`plugin "${pluginId}" setup must be synchronous`)
+      if (result !== undefined && typeof result !== 'function') fail(`plugin "${pluginId}" setup must be synchronous and return void or cleanup`)
+      cleanup = typeof result === 'function' ? result : undefined
+    } catch (error) {
+      if (error instanceof PluginError && error.code === PLUGIN_ERROR_CODES.INSTALL_FAILED) throw error
+      fail(`plugin "${pluginId}" setup failed`, error)
+    } finally {
+      staging = false
+    }
+
+    const registrations: AdapterRegistration[] = []
+    const routeNames = new Set<string>()
+    try {
+      for (const item of stagedAdapters) {
+        if (!item.active) continue
+        for (const route of item.routes) {
+          if (routeNames.has(route)) throw new ModelError(`an adapter for provider route "${route}" is already staged`, REGISTRY_ERROR_CODES.DUPLICATE_ADAPTER)
+          routeNames.add(route)
+        }
+        registrations.push(...this.prepareRoutes(item.routes, item.adapter, new Set()))
+      }
+    } catch (error) {
+      const cleanupFailures: unknown[] = []
+      if (cleanup) {
+        const cleanupFailure = synchronousCleanupFailure(cleanup)
+        if (cleanupFailure !== undefined) cleanupFailures.push(cleanupFailure)
+      }
+      fail(`plugin "${pluginId}" commit validation failed`, error, cleanupFailures)
+    }
+
+    const committedMiddleware = stagedMiddleware.filter(item => item.active).map(item => item.middleware)
+    for (const registration of registrations) this.adapters.set(registration.provider.id, registration)
+    this.middleware.push(...committedMiddleware)
+    const installed: InstalledPlugin = {
+      routes: routeNames,
+      registrations,
+      middleware: committedMiddleware,
+      ...(cleanup === undefined ? {} : { cleanup }),
+    }
+    this.plugins.set(pluginId, installed)
+    this.emitAdaptersUpdated()
+
+    let disposed = false
+    const dispose = (() => {
+      if (disposed) return
+      disposed = true
+      this.plugins.delete(pluginId)
+      for (const registration of installed.registrations) {
+        if (this.adapters.get(registration.provider.id) === registration) this.adapters.delete(registration.provider.id)
+      }
+      for (let index = installed.middleware.length - 1; index >= 0; index--) {
+        const middleware = installed.middleware[index]
+        const liveIndex = middleware === undefined ? -1 : this.middleware.lastIndexOf(middleware)
+        if (liveIndex >= 0) this.middleware.splice(liveIndex, 1)
+      }
+      this.emitAdaptersUpdated()
+      const failures: unknown[] = []
+      if (installed.cleanup) {
+        const cleanupFailure = synchronousCleanupFailure(installed.cleanup)
+        if (cleanupFailure !== undefined) failures.push(cleanupFailure)
+      }
+      if (failures.length > 0) {
+        throw new PluginError(
+          `plugin "${pluginId}" cleanup failed`,
+          PLUGIN_ERROR_CODES.CLEANUP_FAILED,
+          pluginId,
+          { cause: new AggregateError(failures, `plugin "${pluginId}" cleanup failed`) },
+        )
+      }
+    }) as PluginRegistrationHandle
+    Object.defineProperty(dispose, 'pluginId', { value: pluginId, enumerable: true })
+    return dispose
   }
 
   /**
@@ -371,9 +537,13 @@ export class ModelRegistry {
    * @param signal - cancellation for adapter-side capability lookup.
    * @returns the prepared config and its registration-bound stream entry point.
    */
-  async prepareCall(config: CallConfig, signal?: AbortSignal): Promise<PreparedCall> {
+  async prepareCall(
+    config: CallConfig,
+    signal?: AbortSignal,
+    invocationContext?: ModelInvocationContext,
+  ): Promise<PreparedCall> {
     const registration = this.registration(config.provider)
-    const adapterCall = await registration.adapter.prepareCall(config.provider, config.model, signal)
+    const adapterCall = await registration.adapter.prepareCall(config.provider, config.model, signal, invocationContext)
     const modelInfo = this.normalizeModelInfo(registration, config.model, adapterCall.model)
     const resolved = this.resolveCallWithInfo(config, modelInfo)
     const resolvedConfig = deepFreeze(structuredClone(resolved.config))
@@ -400,7 +570,7 @@ export class ModelRegistry {
       ...modelInfo.inputModalities === undefined
         ? {}
         : { inputModalities: Object.freeze([...modelInfo.inputModalities]) },
-      stream: (options: GenerateOptions): AsyncIterable<StreamChunk> => {
+      stream: (options: GenerateOptions, context = invocationContext): ModelCallHandle => {
         // Both guards below exist so a stale handle fails loudly instead of
         // quietly dispatching against a configuration nobody vetted.
         if (dispatched) {
@@ -416,11 +586,11 @@ export class ModelRegistry {
           )
         }
         dispatched = true
-        return this.dispatch(options, {
+        return this.dispatch(options, context, {
           registration,
           config: resolvedConfig,
           modelInfo,
-          dispatch: request => adapterCall.stream(request),
+          dispatch: (request, activeContext) => adapterCall.stream(request, activeContext),
         })
       },
     })
@@ -436,8 +606,30 @@ export class ModelRegistry {
    * @param options - the full request; `options.provider` selects the adapter.
    * @returns the chunk stream, wrapped by any installed middleware.
    */
-  stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    return this.dispatch(options)
+  stream(options: GenerateOptions, context?: ModelInvocationContext): ModelCallHandle {
+    return this.dispatch(options, context)
+  }
+
+  private dispatch(
+    options: GenerateOptions,
+    context?: ModelInvocationContext,
+    prepared?: PreparedDispatch,
+  ): ModelCallHandle {
+    let dispatchState: 'not-sent' | 'unknown' = 'not-sent'
+    return createModelCallHandle({
+      options,
+      ...(context === undefined ? {} : { context }),
+      ...(this.observation === undefined ? {} : { defaultObservation: this.observation }),
+      resource: this.observationResource,
+      routePresent: prepared !== undefined || this.adapters.has(options.provider),
+      dispatchState: () => dispatchState,
+      stream: activeContext => this.dispatchRaw(
+        options,
+        activeContext,
+        () => { dispatchState = 'unknown' },
+        prepared,
+      ),
+    })
   }
 
   /**
@@ -452,18 +644,20 @@ export class ModelRegistry {
    * The middleware list is snapshotted here so that installing or removing
    * middleware mid-stream cannot change the chain of a call already in flight.
    */
-  private dispatch(
+  private dispatchRaw(
     options: GenerateOptions,
+    context: ModelInvocationContext,
+    onDispatch: () => void,
     prepared?: PreparedDispatch,
   ): AsyncIterable<StreamChunk> {
     const chain = [...this.middleware]
     const run = (): AsyncIterable<StreamChunk> => {
-      let next = (): AsyncIterable<StreamChunk> => this.adapterStream(options, prepared)
+      let next = (): AsyncIterable<StreamChunk> => this.adapterStream(options, context, onDispatch, prepared)
       for (let index = chain.length - 1; index >= 0; index--) {
         const middleware = chain[index]
         if (middleware === undefined) continue
         const inner = next
-        next = () => middleware(options, inner)
+        next = () => middleware(options, inner, context)
       }
       return next()
     }
@@ -690,6 +884,8 @@ export class ModelRegistry {
    */
   private async * adapterStream(
     options: GenerateOptions,
+    context: ModelInvocationContext,
+    onDispatch: () => void,
     prepared?: PreparedDispatch,
   ): AsyncGenerator<StreamChunk> {
     let iterator: AsyncIterator<StreamChunk>
@@ -699,16 +895,17 @@ export class ModelRegistry {
 
       let modelInfo: ResolvedModelInfo
       let resolvedConfig: CallConfig
-      let dispatch: (request: GenerateOptions) => AsyncIterable<StreamChunk>
+      let dispatch: (request: GenerateOptions, context: ModelInvocationContext) => AsyncIterable<StreamChunk>
       if (prepared === undefined) {
         const adapterCall: PreparedAdapterCall = await adapter.prepareCall(
           options.provider,
           options.model,
           options.signal,
+          context,
         )
         modelInfo = this.normalizeModelInfo(registration, options.model, adapterCall.model)
         resolvedConfig = this.resolveCallWithInfo(options, modelInfo).config
-        dispatch = request => adapterCall.stream(request)
+        dispatch = (request, activeContext) => adapterCall.stream(request, activeContext)
       } else {
         modelInfo = prepared.modelInfo
         resolvedConfig = prepared.config
@@ -742,7 +939,8 @@ export class ModelRegistry {
         }
       }
 
-      iterator = dispatch(this.forAdapter(projected, adapter))[Symbol.asyncIterator]()
+      onDispatch()
+      iterator = dispatch(this.forAdapter(projected, adapter), context)[Symbol.asyncIterator]()
     } catch (error: unknown) {
       yield adapterFailureChunk(error, options.signal)
       return

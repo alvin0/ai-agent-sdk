@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "package": {
     "name": "ai-agent-sdk",
     "version": "0.0.0"
@@ -37,9 +37,14 @@
         "ManagedAgentTeam",
         "MessageId",
         "ModelAdapter",
+        "ModelCallObservationError",
         "ModelError",
         "ModelRegistry",
+        "NOOP_OBSERVATION_PORT",
+        "OBSERVATION_ERROR_CODES",
         "OPENAI_RESPONSES_PROTOCOL_ID",
+        "PLUGIN_ERROR_CODES",
+        "PluginError",
         "ProviderRequestId",
         "QUOTA_EXCEEDED_CODE",
         "REGISTRY_ERROR_CODES",
@@ -53,6 +58,7 @@
         "ToolCallId",
         "ToolError",
         "ToolRegistry",
+        "addUsageCounters",
         "anthropicMessagesProtocol",
         "apiKeyFromEnv",
         "assertNever",
@@ -62,14 +68,17 @@
         "backoffDelayMs",
         "buildTraceTree",
         "callConfigEquals",
+        "classifyUsageCoverage",
         "cloneAgent",
         "contentHasImage",
         "createApprovalBroker",
         "createAssistantMessage",
+        "createCoreSpan",
         "createDefinedAgentTeam",
         "createHttpProvider",
         "createManagedAgentTeam",
         "createMessage",
+        "createOperationId",
         "createSkillTools",
         "createSpanId",
         "createTextMessage",
@@ -82,6 +91,7 @@
         "defineSkill",
         "defineSkillProvider",
         "defineTool",
+        "disabledDeliverySummary",
         "dispatchAuthorizedToolCall",
         "dispatchToolCall",
         "errorChain",
@@ -91,7 +101,9 @@
         "finalizeToolCall",
         "fixedApprovalBroker",
         "fixedUserInputBroker",
+        "freezeCorrelation",
         "freezeMessage",
+        "hasUsageCounters",
         "httpErrorCode",
         "isAgentSdkError",
         "isContextWindowExceededError",
@@ -99,12 +111,15 @@
         "isNativeToolSchema",
         "isQuotaExceededError",
         "isRetryable",
+        "isSpanId",
+        "isTraceId",
         "normalizeApiKey",
         "normalizeModelFailure",
         "normalizeToolPairing",
         "openAiResponsesProtocol",
         "parseErrorBody",
         "parseSse",
+        "possiblyBilledAttemptsWithoutUsage",
         "prepareToolCall",
         "projectHistorySurface",
         "projectImagesForTextModel",
@@ -121,18 +136,21 @@
         "runAgent",
         "runToolCalls",
         "runTurn",
+        "safeErrorRecord",
         "selectCompactablePrefix",
         "textOnlyImageText",
         "toolErrorDisposition",
         "toolFailure",
         "traceparent",
         "userAgent",
+        "validObservationSpan",
         "validateSkillId",
         "validateSkillSource",
+        "validateUsageCounters",
         "withIdleTimeout",
         "withRetry"
       ],
-      "typesSha256": "1cdd967c273eaebed5a45f9ba4be439b9524a74b7d510e077dd6af8e2faee2e2"
+      "typesSha256": "b04f5b6603c55e4e4dfac376f3ca75079270fa6cb10e6fd299f93eee7be8edd4"
     },
     "./anthropic": {
       "exports": [
@@ -143,7 +161,7 @@
         "anthropicAdapter",
         "anthropicMessagesProtocol"
       ],
-      "typesSha256": "c937f21ac2065255e4d792b2a9c4174a9c338d519fbfd5cb2c8d52c5f7de7238"
+      "typesSha256": "9d332f6878d28e82d6fc7eb3d5e2263b41366300e9c20af7caebb08737872447"
     },
     "./openai": {
       "exports": [
@@ -152,7 +170,7 @@
         "openAiAdapter",
         "openAiResponsesProtocol"
       ],
-      "typesSha256": "43f0962ef3050b0cdd2b6bfeb68198ae640fc0c42aaa869c75c8e5df5f81c294"
+      "typesSha256": "bb4b3b0bf426fb121b08419139af136a088d501dee8b51427c00214d8075b1bc"
     },
     "./codex": {
       "exports": [
@@ -179,7 +197,7 @@
         "runDeviceCodeLogin",
         "shouldRefresh"
       ],
-      "typesSha256": "f24a92d5a75194f11eebb1ef6d06567ba8683ab52eda16fc1e164864432a3181"
+      "typesSha256": "701404f78aa116d91e1287ae1428bda9254aa716ec35dad32c2ec72ea30fab2a"
     },
     "./a2a-client": {
       "exports": [
@@ -191,7 +209,7 @@
         "createA2AAgentLink",
         "linkA2AAgent"
       ],
-      "typesSha256": "4f67ba346580250acaa55dc37878be7021f4ad1b27a12cc586c6bfb3d7dc4d6e"
+      "typesSha256": "b6db54c6d88a52c30e768b19dfb4b13db1e92db0e59c28d3654b3fabf71ffe6a"
     },
     "./a2a-server": {
       "exports": [
@@ -209,7 +227,7 @@
         "createAgentCardFromDefinition",
         "createDefinedAgentA2AServer"
       ],
-      "typesSha256": "43559ef346954f2d576a7589be4e2ac6418a8c792736537a6d908487084f2947"
+      "typesSha256": "0c2d9c060b1b484310695c640b05dc7b30c59796e06215942b21bee546e43731"
     },
     "./skill-filesystem": {
       "exports": [
@@ -223,7 +241,7 @@
         "combineProviderRequestLoggers",
         "createDailyJsonlRequestLogger"
       ],
-      "typesSha256": "bc55d493d1907d83c8961c34451953904a9b6b438bb71b197f2303791cf80ebb"
+      "typesSha256": "4c10e45c977fc45a88d3529b23a640fb266d86474345e82fe7eb05f3eaf667c3"
     },
     "./mcp-client": {
       "exports": [
@@ -240,7 +258,7 @@
         "createSdkMcpHandler",
         "createSdkMcpServer"
       ],
-      "typesSha256": "16b72a644bfaecac2d6d03aa8a4f50678e37069000fa66a87ab7be4254ee0db1"
+      "typesSha256": "8672e6e49f19131dc076cd9bf4d5adce7684a227b4d715a4bdd5615172a4cc60"
     },
     "./mcp-node": {
       "exports": [
@@ -253,7 +271,7 @@
         "serveSdkMcpStdio",
         "toNodeHandler"
       ],
-      "typesSha256": "4bcd9934bb9c0ee86a5fa2b1da040b81aa09d16b4e2cdd763a59c9c15d585c9e"
+      "typesSha256": "8c3cb39d1cc578c07762ccc665ccdf9346f62a6bc26ac26eac2b295ee099b977"
     }
   },
   "errorCodes": {
@@ -302,6 +320,27 @@
       "DUPLICATE_TOOL",
       "INVALID_TOOL",
       "UNKNOWN_TOOL_FILTER"
+    ],
+    "observation": [
+      "LEDGER_LIMIT_EXCEEDED",
+      "OBSERVABILITY_AUDIT_UNAVAILABLE",
+      "OBSERVABILITY_BROWSER_QUOTA",
+      "OBSERVABILITY_CAPTURE_REJECTED",
+      "OBSERVABILITY_EXPORT_FAILED",
+      "OBSERVABILITY_FLUSH_TIMEOUT",
+      "OBSERVABILITY_JOURNAL_CORRUPT",
+      "OBSERVABILITY_JOURNAL_IO",
+      "OBSERVABILITY_PROCESSOR_FAILED",
+      "OPERATION_TERMINAL_MISSING",
+      "OTEL_PROVIDER_UNCONFIGURED",
+      "USAGE_COUNTER_OVERFLOW",
+      "USAGE_INVALID",
+      "USAGE_MISSING",
+      "USAGE_REQUIRED"
+    ],
+    "plugin": [
+      "PLUGIN_CLEANUP_FAILED",
+      "PLUGIN_INSTALL_FAILED"
     ],
     "standalone": [
       "CONTEXT_WINDOW_EXCEEDED",

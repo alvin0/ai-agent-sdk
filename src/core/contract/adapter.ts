@@ -15,6 +15,7 @@
  */
 
 import type { StreamChunk } from '../stream/chunk.ts'
+import type { ModelInvocationContext } from '../observation/report.ts'
 import type { GenerateOptions } from './generate-options.ts'
 import type { ModelInfo, ProviderInfo, ResolvedModelInfo } from './model-info.ts'
 import type { ResolvedRetryPolicy } from './retry-policy.ts'
@@ -32,7 +33,7 @@ export interface PreparedAdapterCall {
   /** Exact model metadata from the SAME generation as {@link stream}. */
   readonly model: ResolvedModelInfo
   /** Dispatch through that generation, without re-reading dynamic connection facts. */
-  stream(options: GenerateOptions): AsyncIterable<StreamChunk>
+  stream(options: GenerateOptions, context?: ModelInvocationContext): AsyncIterable<StreamChunk>
 }
 
 /**
@@ -108,10 +109,11 @@ export abstract class ModelAdapter {
     provider: string,
     model: string,
     signal?: AbortSignal,
+    context?: ModelInvocationContext,
   ): Promise<PreparedAdapterCall> {
     return {
       model: await this.resolveModel(provider, model, signal),
-      stream: options => this.stream(options),
+      stream: (options, invocation = context) => this.stream(options, invocation),
     }
   }
 
@@ -124,5 +126,5 @@ export abstract class ModelAdapter {
    * @param options - the fully assembled request.
    * @returns the chunk stream, obeying the {@link StreamChunk} protocol.
    */
-  abstract stream(options: GenerateOptions): AsyncIterable<StreamChunk>
+  abstract stream(options: GenerateOptions, context?: ModelInvocationContext): AsyncIterable<StreamChunk>
 }

@@ -34,6 +34,7 @@ import { MODEL_ERROR_CODES, ModelError } from '../../core/errors/model-error.ts'
 import { contentHasImage } from '../../core/message/projection.ts'
 import { waitForSettlement } from '../../core/async/settlement.ts'
 import type { StreamChunk } from '../../core/stream/chunk.ts'
+import type { ModelInvocationContext } from '../../core/observation/report.ts'
 import { withIdleTimeout } from '../../core/stream/idle-timeout.ts'
 import { parseSse, type SseEvent } from '../../core/stream/sse.ts'
 import { httpErrorCode, parseErrorBody, requestIdFrom, retryAfterMs } from './http-errors.ts'
@@ -234,6 +235,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     provider: string,
     model: string,
     signal?: AbortSignal,
+    context?: ModelInvocationContext,
   ): Promise<PreparedAdapterCall> {
     // Snapshot once, then bind both the capability answer and the eventual
     // dispatch to it, so the two cannot come from different generations.
@@ -241,7 +243,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     const info = this.modelInfoFor(connection, provider, model)
     return {
       model: info,
-      stream: options => this.run(options, connection, info),
+      stream: (options, invocation = context) => this.run(options, connection, info, invocation),
     }
   }
 
@@ -251,15 +253,15 @@ export abstract class HttpModelAdapter extends ModelAdapter {
    * Intentionally NOT an extension point — see the module note. Providers
    * customize behaviour through the abstract members instead.
    */
-  stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    return this.runResolving(options)
+  stream(options: GenerateOptions, context?: ModelInvocationContext): AsyncIterable<StreamChunk> {
+    return this.runResolving(options, context)
   }
 
   /** Resolve a connection first, for the un-prepared entry point. */
-  private async * runResolving(options: GenerateOptions): AsyncGenerator<StreamChunk> {
+  private async * runResolving(options: GenerateOptions, context?: ModelInvocationContext): AsyncGenerator<StreamChunk> {
     const connection = await this.connect(options.provider, options.signal)
     const info = this.modelInfoFor(connection, options.provider, options.model)
-    yield* this.run(options, connection, info)
+    yield* this.run(options, connection, info, context)
   }
 
   /** Resolve exact-model metadata from the catalog, falling back to config defaults. */
@@ -291,6 +293,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     options: GenerateOptions,
     connection: HttpConnection,
     model: ResolvedModelInfo,
+    _context?: ModelInvocationContext,
   ): AsyncGenerator<StreamChunk> {
     if (options.messages.some(message => contentHasImage(message.content))
       && model.inputModalities?.includes('image') !== true) {

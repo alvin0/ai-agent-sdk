@@ -1,9 +1,15 @@
 import { deepFreeze } from '../../core/primitives/freeze.ts'
+import {
+  createSpanId,
+  createTraceId,
+  traceparent,
+  type SpanId,
+  type TraceId,
+} from '../../core/observation/context.ts'
 import type { TokenUsage } from '../../core/stream/chunk.ts'
 
-declare const TRACE_BRAND: unique symbol
-export type TraceId = string & { readonly [TRACE_BRAND]: 'TraceId' }
-export type SpanId = string & { readonly [TRACE_BRAND]: 'SpanId' }
+export { createSpanId, createTraceId, traceparent }
+export type { SpanId, TraceId }
 
 export interface TraceRef {
   readonly traceId: TraceId
@@ -49,18 +55,6 @@ export interface AgentProcessSpan {
   readonly usage?: TokenUsage
   readonly error?: TraceSpanEnd['error']
   readonly children: readonly AgentProcessSpan[]
-}
-
-export function createTraceId(): TraceId {
-  return randomHex(16) as TraceId
-}
-
-export function createSpanId(): SpanId {
-  return randomHex(8) as SpanId
-}
-
-export function traceparent(ref: TraceRef): string {
-  return `00-${ref.traceId}-${ref.spanId}-01`
 }
 
 /** Project span lifecycle events into the nested shape expected by call-graph UIs. */
@@ -113,14 +107,4 @@ export function buildTraceTree(events: readonly TraceEvent[]): readonly AgentPro
     if (event.error !== undefined) span.error = event.error
   }
   return deepFreeze(structuredClone(roots))
-}
-
-function randomHex(bytes: number): string {
-  while (true) {
-    const values = new Uint8Array(bytes)
-    globalThis.crypto.getRandomValues(values)
-    if (values.some(value => value !== 0)) {
-      return [...values].map(value => value.toString(16).padStart(2, '0')).join('')
-    }
-  }
 }

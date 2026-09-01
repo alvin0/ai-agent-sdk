@@ -130,14 +130,14 @@ Commit: `refactor(core): move async settlement primitive inward`
 Dependencies: C0  
 Files: `packages/core/src/observation/**`, `packages/core/src/plugin/**`, registry/adapter contracts
 
-- [ ] Implement exact event envelope, fallback IDs, correlation context, synchronous `openSpan`/idempotent span handle, capture receipt, and delivery mode.
-- [ ] Implement usage counters, attempt/call report, validation, saturation, and coverage classifier.
-- [ ] Implement transactional `ModelRegistry.install(ModelProviderPlugin)` with a staging registrar: no live mutation/listener notification before atomic commit, full discard on setup failure, duplicate plugin/route rejection, contained listener errors, and reverse cleanup with stable install/cleanup error codes.
-- [ ] Add explicit `ModelInvocationContext` propagation through registry, prepared calls, middleware, and adapters.
-- [ ] Return `ModelCallHandle` with a report promise while retaining async-iterable compatibility.
+- [x] Implement exact event envelope, fallback IDs, correlation context, synchronous `openSpan`/idempotent span handle, capture receipt, and delivery mode.
+- [x] Implement usage counters, attempt/call report, validation, saturation, and coverage classifier.
+- [x] Implement transactional `ModelRegistry.install(ModelProviderPlugin)` with a staging registrar: no live mutation/listener notification before atomic commit, full discard on setup failure, duplicate plugin/route rejection, contained listener errors, and reverse cleanup with stable install/cleanup error codes.
+- [x] Add explicit `ModelInvocationContext` propagation through registry, prepared calls, middleware, and adapters.
+- [x] Return `ModelCallHandle` with a report promise while retaining async-iterable compatibility.
 
 Verify: contract tests for IDs, sequence, plugin rollback/disposal, direct-call reports, and no sink.  
-Exit evidence: public types match design; no concrete observability import.  
+Exit evidence: 515 deterministic tests passed; typecheck, core ownership graph, package graph, runtime boundary, supply-chain, six negative boundary fixtures, and a 75-file pack dry run passed; public API migration record confirms zero removed runtime exports and no concrete observability implementation import.
 Commit: `feat(core): add observation accounting and provider plugin ports`
 
 ### C2 — Extract `@ai-agent-sdk/core`

@@ -6,6 +6,8 @@
  *
  * - `primitives/` — branded ids, deep freeze, exhaustiveness. No dependencies.
  * - `async/`      — inward bounded-settlement primitives shared by outer layers.
+ * - `observation/` — Web-standard correlation, usage, and telemetry ports.
+ * - `plugin/`      — transactional provider extension contracts.
  * - `errors/`     — the `code`-routed taxonomy and its serializable twin.
  * - `message/`    — content blocks, immutable messages, content projection.
  * - `stream/`     — the chunk protocol, its assembler, SSE and idle bounds.
@@ -17,6 +19,8 @@
  */
 
 export * from './primitives/index.ts'
+export * from './observation/index.ts'
+export * from './plugin/index.ts'
 export * from './errors/index.ts'
 export * from './message/index.ts'
 export * from './stream/index.ts'
