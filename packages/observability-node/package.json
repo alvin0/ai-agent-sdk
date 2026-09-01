@@ -1,0 +1,42 @@
+{
+  "name": "@ai-agent-sdk/observability-node",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Durable Node JSONL observation journal, recovery, lifecycle, and opt-in wire diagnostics",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "README.md", "LICENSE"],
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": { "types": "./dist/index.d.mts", "default": "./dist/index.mjs" },
+    "./journal": { "types": "./dist/journal.d.mts", "default": "./dist/journal.mjs" },
+    "./diagnostic": { "types": "./dist/diagnostic.d.mts", "default": "./dist/diagnostic.mjs" },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": { "access": "public", "provenance": true },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('artifacts',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "pack": "pnpm pack --pack-destination artifacts",
+    "test:pack": "node scripts/test-packed.mts",
+    "check:publint": "publint",
+    "check:types": "attw --profile esm-only --pack ."
+  },
+  "dependencies": {
+    "@ai-agent-sdk/core": "workspace:^",
+    "@ai-agent-sdk/observability": "workspace:^"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@types/node": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "aiAgentSdk": { "runtime": "node" }
+}

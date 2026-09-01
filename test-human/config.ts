@@ -50,7 +50,7 @@ export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
       continue
     }
     if (token.startsWith('--')) {
-      if (!['--show-reasoning', '--force-tool', '--no-force-tool', '--no-logs', '--help', '--dry-run'].includes(token)) {
+      if (!['--show-reasoning', '--force-tool', '--no-force-tool', '--logs', '--no-logs', '--help', '--dry-run'].includes(token)) {
         throw new Error(`unknown option: ${token}`)
       }
       switches.add(token)
@@ -84,7 +84,7 @@ export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
     ...image === undefined ? {} : { image },
     showReasoning: switches.has('--show-reasoning'),
     forceTool: switches.has('--force-tool') || (!switches.has('--no-force-tool') && defaultForce),
-    logs: !switches.has('--no-logs'),
+    logs: switches.has('--logs') && !switches.has('--no-logs'),
     help: switches.has('--help') || switches.has('-h'),
     dryRun: switches.has('--dry-run'),
   }
@@ -118,6 +118,7 @@ Options:
   --prompt <text>                           Run once; omit for interactive REPL
   --image <path|url|file-id:ID>             Required by vision scenario
   --show-reasoning                          Print provider-emitted reasoning summaries
+  --logs                                    Enable high-risk exact provider-wire logs
   --force-tool / --no-force-tool            Override scenario tool choice
   --no-logs                                 Disable daily provider request JSONL
   --dry-run                                 Validate and print config without network

@@ -12,7 +12,9 @@ import { codexAdapter } from '../src/providers/codex/adapter.ts'
 import { createDailyJsonlRequestLogger } from '../src/providers/request-logger.ts'
 
 const models = new ModelRegistry()
-models.registerAdapter(['codex'], codexAdapter({ requestLogger: createDailyJsonlRequestLogger() }))
+models.registerAdapter(['codex'], codexAdapter({ requestLogger: createDailyJsonlRequestLogger({
+  content: 'full', allowWireBodies: true,
+}) }))
 
 const tools = new ToolRegistry()
 tools.register(defineTool({

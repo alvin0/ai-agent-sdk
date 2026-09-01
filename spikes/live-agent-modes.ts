@@ -14,7 +14,9 @@ type LiveModeOptions =
   | { readonly mode: 'deep-human-in-loop'; readonly maxTurns: number; readonly userInput: ReturnType<typeof createUserInputBroker> }
 
 const registry = new ModelRegistry()
-registry.registerAdapter(['codex'], codexAdapter({ requestLogger: createDailyJsonlRequestLogger() }))
+registry.registerAdapter(['codex'], codexAdapter({ requestLogger: createDailyJsonlRequestLogger({
+  content: 'full', allowWireBodies: true,
+}) }))
 
 const tools = new ToolRegistry()
 tools.register(defineTool({

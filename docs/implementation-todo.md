@@ -296,11 +296,11 @@ Commit: `feat(observability-browser): add indexeddb delivery queue`
 Dependencies: O0  
 Files: `packages/observability-node/**`
 
-- [ ] Implement symlink-safe unique per-process segments, permissions, exact payload-string checksum framing, modes/fsync, rotation, 1 GiB/7-day acknowledged-only retention, recovery, quarantine, cursor, and cleanup.
-- [ ] Implement explicit Node lifecycle helper and idempotent disposer.
-- [ ] Move exact-wire logger behind `content: full` + `allowWireBodies: true` hard opt-in.
+- [x] Implement symlink-safe unique per-process segments, permissions, exact payload-string checksum framing, modes/fsync, rotation, 1 GiB/7-day acknowledged-only retention, recovery, quarantine, cursor, and cleanup.
+- [x] Implement explicit Node lifecycle helper and idempotent disposer.
+- [x] Move exact-wire logger behind `content: full` + `allowWireBodies: true` hard opt-in.
 
-Exit evidence: filesystem fault-injection/recovery tests pass on Linux; platform-specific permission assertions are conditional but behavior is never silently skipped.  
+Exit evidence: 11 Linux filesystem tests cover exact payload checksums, private permissions, unique UTC/process segments, byte/day rotation, reliable and audit `fdatasync` (including non-critical records), injected `EIO`, partial-tail truncation, final-line quarantine, fatal mid-file corruption, symlink rejection, bounded acknowledged-only cleanup, atomic cursor pruning, unacknowledged-cap failure, idempotent batch retry, lifecycle disposal, and the two wire-content opt-ins. Permission assertions run on POSIX and are conditionally inapplicable only on Windows; no durability behavior is skipped. The Node tarball installs with core/observability only and executes the `/journal` and `/diagnostic` entries; publint and ATTW ESM resolution pass. The 610-test compatibility suite, full build/typecheck, frozen 11-entry public API contract (one documented request-logger declaration change and zero runtime removals), package/source/runtime graph, supply-chain, core-cycle, and seven negative-boundary gates pass with zero findings.
 Commit: `feat(observability-node): add durable journal and diagnostics`
 
 ### O4 — Implement OpenTelemetry bridge

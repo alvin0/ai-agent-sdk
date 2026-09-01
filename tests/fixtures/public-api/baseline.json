@@ -254,7 +254,7 @@
         "combineProviderRequestLoggers",
         "createDailyJsonlRequestLogger"
       ],
-      "typesSha256": "df13fd608c5c6f01e237399dd8306a05fb9e036ed1baa108694259ce576737cd"
+      "typesSha256": "ef0995728d77784721d7c4a29de0e629307f7ce091fa387b4e315051dc7b6afd"
     },
     "./mcp-client": {
       "exports": [

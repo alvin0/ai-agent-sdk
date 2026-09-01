@@ -10,8 +10,9 @@ describe('human CLI config', () => {
   it('defaults to Codex luna with medium effort', () => {
     const config = parseHumanCliArgs([])
     expect(config).toMatchObject({
-      provider: 'codex', mode: 'basic', scenario: 'chat', effort: 'medium', maxTurns: 8,
+      provider: 'codex', mode: 'basic', scenario: 'chat', effort: 'medium', maxTurns: 8, logs: false,
     })
+    expect(parseHumanCliArgs(['--logs']).logs).toBe(true)
     expect(resolveHumanModel(config, {})).toBe('gpt-5.6-luna')
   })
 

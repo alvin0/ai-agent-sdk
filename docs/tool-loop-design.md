@@ -850,8 +850,10 @@ write JSONL, SQLite, S3, or nothing at all without a storage interface in core.
 
 Provider request logs are complementary diagnostics. The implemented
 `createDailyJsonlRequestLogger()` records the exact serialized wire body at
-`.providers/<provider>/logs/YYYY-MM-DD.jsonl`, with sensitive headers redacted.
-It is best-effort and intentionally **not** a durability gate; history checkpoints
+one private unique file below `.providers/<provider>/wire/`, with sensitive
+headers redacted. Construction requires `content: 'full'` plus
+`allowWireBodies: true`; the human harness does not enable it by default. It is
+best-effort and intentionally **not** a durability gate; history checkpoints
 remain the crash-safety mechanism.
 
 Implementation note: `runTurn` cannot `yield` from nested model/tool callbacks.

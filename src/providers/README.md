@@ -229,7 +229,10 @@ import { createDailyJsonlRequestLogger } from 'ai-agent-sdk/request-logger'
 import { codexAdapter } from 'ai-agent-sdk/codex'
 
 const adapter = codexAdapter({
-  requestLogger: createDailyJsonlRequestLogger(),
+  requestLogger: createDailyJsonlRequestLogger({
+    content: 'full',
+    allowWireBodies: true,
+  }),
 })
 ```
 
@@ -238,8 +241,8 @@ The default layout is:
 ```
 .providers/
 └── codex/
-    └── logs/
-        └── 2026-08-30.jsonl
+    └── wire/
+        └── 2026-08-30-<pid>-<random>.wire.jsonl
 ```
 
 Each line is an independently parseable JSON record with timestamp, local request

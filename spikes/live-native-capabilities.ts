@@ -10,7 +10,7 @@ import { createDailyJsonlRequestLogger } from '../src/providers/request-logger.t
 
 const registry = new ModelRegistry()
 registry.registerAdapter(['codex'], codexAdapter({
-  requestLogger: createDailyJsonlRequestLogger(),
+  requestLogger: createDailyJsonlRequestLogger({ content: 'full', allowWireBodies: true }),
 }))
 
 const history = new History()

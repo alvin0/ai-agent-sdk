@@ -18,7 +18,7 @@ const HUMAN_REQUEST_LOG_ROOT = resolve(PROJECT_ROOT, '.providers')
 export interface HumanModelRegistryOptions {
   /** Optional per-run copy; every human run is also aggregated under project `.providers`. */
   readonly requestLogRoot?: string
-  /** Mirror into project-wide `.providers`; defaults to true for legacy human harnesses. */
+  /** Mirror into project-wide `.providers` when wire logging is explicitly enabled. */
   readonly aggregateRequestLogs?: boolean
 }
 
@@ -32,12 +32,16 @@ export function createHumanModelRegistry(
     : resolve(options.requestLogRoot)
   const aggregate = options.aggregateRequestLogs === false
     ? []
-    : [createDailyJsonlRequestLogger({ rootDir: HUMAN_REQUEST_LOG_ROOT })]
+    : [createDailyJsonlRequestLogger({
+      rootDir: HUMAN_REQUEST_LOG_ROOT, content: 'full', allowWireBodies: true,
+    })]
   const requestLogger = config.logs ? combineProviderRequestLoggers(
     ...aggregate,
     ...(reportRoot === undefined || samePath(reportRoot, HUMAN_REQUEST_LOG_ROOT)
       ? []
-      : [createDailyJsonlRequestLogger({ rootDir: reportRoot })]),
+      : [createDailyJsonlRequestLogger({
+        rootDir: reportRoot, content: 'full', allowWireBodies: true,
+      })]),
   ) : undefined
   const logging = requestLogger === undefined ? {} : { requestLogger }
 

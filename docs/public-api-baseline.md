@@ -154,3 +154,20 @@ The Browser leaf exposes `IndexedDbObservationExporter`, explicit recovery and
 acknowledgment methods, stable browser quota/unavailable errors, and an opt-in
 lifecycle installer. It claims only `local-durable`, after transaction commit.
 No frozen root runtime symbol is added, removed, or renamed.
+
+## O3 migration record — Node journal and gated wire diagnostics
+
+O3 adds the Node-only `@ai-agent-sdk/observability-node@0.1.0` leaf with separate
+`/journal` and `/diagnostic` capability entries. Its append-only journal claims
+`local-durable` only after `fdatasync`, uses private unique per-process segments,
+checksum framing, atomic acknowledgment cursors, acknowledged-only retention,
+and explicit recovery. Importing the package installs no process hooks.
+
+The frozen compatibility `./request-logger` JavaScript export set is unchanged.
+Its declaration hash changes intentionally because exact provider bodies now
+require both `content: 'full'` and `allowWireBodies: true`; the returned logger
+also exposes `shutdown()` so callers can sync and close its private unique wire
+files. The former `calendar` option remains as a deprecated type-only no-op, so
+no named runtime export is removed or renamed. Structured observation remains
+the default support path, and the human harness keeps exact-wire logging off
+unless `--logs` is supplied explicitly.

@@ -315,7 +315,7 @@ async function runTask(
 
 const models = new ModelRegistry()
 models.registerAdapter([PROVIDER], codexAdapter({
-  requestLogger: createDailyJsonlRequestLogger(),
+  requestLogger: createDailyJsonlRequestLogger({ content: 'full', allowWireBodies: true }),
 }))
 const tools = new ToolRegistry()
 tools.registerAll([listDir, readFileTool, grep] as never)

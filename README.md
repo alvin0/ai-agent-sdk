@@ -124,15 +124,18 @@ import { createDailyJsonlRequestLogger } from 'ai-agent-sdk/request-logger'
 import { codexAdapter } from 'ai-agent-sdk/codex'
 
 registry.registerAdapter(['codex'], codexAdapter({
-  requestLogger: createDailyJsonlRequestLogger(),
+  requestLogger: createDailyJsonlRequestLogger({
+    content: 'full',
+    allowWireBodies: true,
+  }),
 }))
 ```
 
-Requests append to `.providers/<provider>/logs/YYYY-MM-DD.jsonl`. Credentials,
+Requests append to a private unique file under `.providers/<provider>/wire/`. Credentials,
 cookies, and account ids are redacted; request bodies are not, because prompts and
 tool results are the point of this diagnostic. `.providers/` is git-ignored but
-should still be treated as sensitive local data. Spike B enables this logger by
-default.
+should still be treated as sensitive local data. The human harness leaves this
+disabled unless `--logs` is passed explicitly.
 
 ## Retry
 
