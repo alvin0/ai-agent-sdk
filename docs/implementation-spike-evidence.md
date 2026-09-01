@@ -29,7 +29,7 @@ Registry checks on the evidence date selected these exact workspace additions an
 | `@vitest/browser-playwright` | `4.1.11` |
 | Wrangler | `4.127.1` |
 | `@opentelemetry/api` | `1.9.1` |
-| `@opentelemetry/api-logs` | `0.222.0` |
+| `@opentelemetry/api-logs` | `0.221.0` (workspace pin; `0.222.0` was rejected by the 24-hour release-age gate) |
 
 ## 2. Build and package baseline
 

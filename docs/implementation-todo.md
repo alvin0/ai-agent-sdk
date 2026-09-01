@@ -71,11 +71,11 @@ Commit: `fix: compile executable cli entrypoints`
 Dependencies: F1  
 Files: root `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `turbo.json`, `.changeset/**`, shared tsconfigs, `scripts/build-config.ts`
 
-- [ ] Add every exact catalog pin from the monorepo design, including `pnpm@11.25.0`, Turbo `2.10.12`, Changesets `3.0.1`, publint `0.3.24`, ATTW `0.18.5`, dependency-cruiser `18.2.0`, Playwright `1.62.1`, Wrangler `4.127.1`, OpenTelemetry API development peers, and the existing exact compiler/test tools.
-- [ ] Add all security settings exactly as specified, including empty `allowBuilds`, strict release age, no-downgrade trust, untrusted lockfile verification, registry-only transitive sources, strict catalog, and workspace cycle rejection.
-- [ ] Generate one reviewed lockfile from a clean install. Do not remove `package-lock.json` yet.
-- [ ] Add shared Universal and Node tsconfigs and shared build factory.
-- [ ] Add Changesets fixed group with every planned public package name, initially private.
+- [x] Add every exact catalog pin from the monorepo design, including `pnpm@11.25.0`, Turbo `2.10.12`, Changesets `3.0.1`, publint `0.3.24`, ATTW `0.18.5`, dependency-cruiser `18.2.0`, Playwright `1.62.1`, Wrangler `4.127.1`, OpenTelemetry API development peers, and the existing exact compiler/test tools.
+- [x] Add all security settings exactly as specified, including an initially empty `allowBuilds`, strict release age, no-downgrade trust, untrusted lockfile verification, registry-only transitive sources, strict catalog, and workspace cycle rejection. The audited `esbuild`/`workerd` exceptions are recorded in `docs/dependency-policy.md`.
+- [x] Generate one reviewed lockfile from a clean install. Do not remove `package-lock.json` yet.
+- [x] Add shared Universal and Node tsconfigs and shared build factory.
+- [x] Add Changesets fixed group with every planned public package name, initially private.
 
 Verify:
 

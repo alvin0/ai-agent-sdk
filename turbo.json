@@ -1,0 +1,46 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "stream",
+  "tasks": {
+    "//#build": {
+      "outputs": ["dist/**", "dist-cli/**"]
+    },
+    "//#typecheck": {
+      "dependsOn": ["//#build"],
+      "outputs": []
+    },
+    "//#test": {
+      "dependsOn": ["//#build"],
+      "outputs": ["coverage/**"]
+    },
+    "clean": { "cache": false },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "dist-cli/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "outputs": ["coverage/**"]
+    },
+    "test:unit": {
+      "dependsOn": ["build"],
+      "outputs": ["coverage/**"]
+    },
+    "test:contract": {
+      "dependsOn": ["build"],
+      "outputs": []
+    },
+    "test:edge": { "dependsOn": ["build"], "outputs": [] },
+    "test:browser": { "dependsOn": ["build"], "outputs": [] },
+    "test:node": { "dependsOn": ["build"], "outputs": [] },
+    "pack": { "dependsOn": ["build"], "outputs": ["artifacts/*.tgz"] },
+    "test:pack": { "dependsOn": ["pack"], "outputs": [] },
+    "check:graph": { "outputs": [] },
+    "check:runtime-boundaries": { "dependsOn": ["build"], "outputs": [] },
+    "check:supply-chain": { "outputs": [] }
+  }
+}

@@ -134,6 +134,9 @@ dist-cli
 # pnpm
 .pnpm-store
 
+# Turborepo local cache and run summaries
+.turbo/
+
 # yarn v3
 .pnp.*
 .yarn/*

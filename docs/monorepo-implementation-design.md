@@ -94,7 +94,7 @@ The repository root is a private orchestration package. No runtime source remain
 | `@ai-agent-sdk/observability-fetch` | Universal | Remote acknowledged batch exporter and Edge lifecycle adapter | none |
 | `@ai-agent-sdk/observability-browser` | Browser | IndexedDB durable queue and page lifecycle adapter | none |
 | `@ai-agent-sdk/observability-node` | Node | JSONL journal, durable exporter, exact-wire diagnostic adapter | none |
-| `@ai-agent-sdk/observability-otel` | Universal | Span identity plus event/metric/log mapping through caller-supplied OpenTelemetry API objects; no network exporter | peer `@opentelemetry/api@^1.9.1`; optional peer `@opentelemetry/api-logs@^0.222.0` |
+| `@ai-agent-sdk/observability-otel` | Universal | Span identity plus event/metric/log mapping through caller-supplied OpenTelemetry API objects; no network exporter | peer `@opentelemetry/api@^1.9.1`; optional peer `@opentelemetry/api-logs@^0.221.0` |
 | `@ai-agent-sdk/auth-node` | Node | Environment credential sources, project-local Codex file store, and Codex Node plugin/adapter wrapper | none |
 | `@ai-agent-sdk/skill-filesystem` | Node | Local filesystem skill source | none |
 | `@ai-agent-sdk/mcp` | Universal | MCP HTTP client/server bridge | `@modelcontextprotocol/client@2.0.0`, `@modelcontextprotocol/server@2.0.0` |
@@ -372,7 +372,7 @@ catalog:
   '@modelcontextprotocol/node': 2.0.0
   '@modelcontextprotocol/server': 2.0.0
   '@opentelemetry/api': 1.9.1
-  '@opentelemetry/api-logs': 0.222.0
+  '@opentelemetry/api-logs': 0.221.0
   '@types/node': 26.4.0
   '@vitest/browser-playwright': 4.1.11
   dependency-cruiser: 18.2.0
@@ -398,10 +398,12 @@ trustPolicy: no-downgrade
 trustLockfile: false
 blockExoticSubdeps: true
 strictDepBuilds: true
-allowBuilds: {}
+allowBuilds:
+  esbuild: true
+  workerd: true
 ```
 
-All resolution pins, including API-only peer-development dependencies and fixture tools, are listed above. Public peer declarations use their documented compatibility ranges, while workspace development installs resolve through these exact catalog entries. `allowBuilds` starts empty. If a dependency genuinely requires an install script, the implementation stops, audits that exact package/version/source/script, and adds an exact matcher with a rationale comment in `docs/dependency-policy.md`; it never switches on `dangerouslyAllowAllBuilds`.
+All resolution pins, including API-only peer-development dependencies and fixture tools, are listed above. Public peer declarations use their documented compatibility ranges, while workspace development installs resolve through these exact catalog entries. `allowBuilds` started empty. The first clean install stopped on the required `esbuild@0.28.1` and `workerd@1.20260828.1` binary-selection scripts; their exact package/version/source/script/integrity and review expiry are recorded in `docs/dependency-policy.md`. No wildcard approval or `dangerouslyAllowAllBuilds` is permitted.
 
 CI runs `pnpm install --frozen-lockfile`. A dependency upgrade is its own changeset/PR, updates the lockfile, runs `pnpm audit --prod`, records material supply-chain changes, and passes the packed runtime matrix.
 

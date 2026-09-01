@@ -1,6 +1,8 @@
 {
   "name": "ai-agent-sdk",
   "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
   "description": "Provider-neutral TypeScript SDK for building AI agents on the Anthropic Claude and OpenAI APIs",
   "keywords": [
     "ai",
@@ -15,7 +17,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
-    "node": ">=22.6"
+    "node": ">=22.12"
   },
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -77,6 +79,10 @@
     "typecheck": "tsc --noEmit",
     "pretest": "npm run build && npm run build:cli",
     "snapshot:public-api": "node scripts/snapshot-public-api.mts",
+    "workspace:build": "turbo run build",
+    "workspace:typecheck": "turbo run typecheck",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
@@ -102,13 +108,13 @@
     "prepublishOnly": "npm test && npm run typecheck && npm run build"
   },
   "dependencies": {
-    "@a2a-js/sdk": "^1.1.0",
-    "eventsource-parser": "4.1.0"
+    "@a2a-js/sdk": "catalog:",
+    "eventsource-parser": "catalog:"
   },
   "peerDependencies": {
-    "@modelcontextprotocol/client": "^2.0.0",
-    "@modelcontextprotocol/node": "^2.0.0",
-    "@modelcontextprotocol/server": "^2.0.0"
+    "@modelcontextprotocol/client": "catalog:",
+    "@modelcontextprotocol/node": "catalog:",
+    "@modelcontextprotocol/server": "catalog:"
   },
   "peerDependenciesMeta": {
     "@modelcontextprotocol/client": { "optional": true },
@@ -116,12 +122,22 @@
     "@modelcontextprotocol/server": { "optional": true }
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "^2.0.0",
-    "@modelcontextprotocol/node": "^2.0.0",
-    "@modelcontextprotocol/server": "^2.0.0",
-    "@types/node": "26.4.0",
-    "tsdown": "0.22.14",
-    "typescript": "7.0.2",
-    "vitest": "4.1.11"
+    "@arethetypeswrong/cli": "catalog:",
+    "@changesets/cli": "catalog:",
+    "@modelcontextprotocol/client": "catalog:",
+    "@modelcontextprotocol/node": "catalog:",
+    "@modelcontextprotocol/server": "catalog:",
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/api-logs": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
   }
 }
