@@ -362,11 +362,11 @@ Commit: `refactor(node): extract filesystem auth env and mcp capabilities`
 Dependencies: N0, I1, O1–O4  
 Files: `packages/node/**`
 
-- [ ] Re-export core, agent, providers, observability/fetch/node/OTel, filesystem, MCP, and A2A capabilities through documented subpaths; do not pull browser-only IndexedDB lifecycle code into the Node facade.
-- [ ] Default Codex Node plugin to project-local isolated auth, never the Codex CLI global file.
-- [ ] Add one full harness smoke using filesystem skill, provider mock, journal, and MCP stdio fixture.
+- [x] Re-export core, agent, providers, observability/fetch/node/OTel, filesystem, MCP, and A2A capabilities through documented subpaths; do not pull browser-only IndexedDB lifecycle code into the Node facade.
+- [x] Default Codex Node plugin to project-local isolated auth, never the Codex CLI global file.
+- [x] Add one full harness smoke using filesystem skill, provider mock, journal, and MCP stdio fixture.
 
-Exit evidence: one-package Node consumer works from tarball and no duplicate SDK core instance exists.  
+Exit evidence: the facade contains only re-export entries and workspace dependencies, with documented `/core`, `/agent`, `/providers`, `/observability`, `/filesystem`, `/mcp`, `/a2a`, `/env`, and `/codex` boundaries. Identity tests prove core, agent, providers, auth, observability, filesystem, MCP, and A2A are the canonical leaf objects; IndexedDB/browser lifecycle exports and dependency are absent. A tarball-only consumer imports only `@ai-agent-sdk/node`, runs an agent with a lazily discovered filesystem skill and mock provider, records correlated agent/model events in the durable journal, spawns an MCP stdio child and calls its tool, confirms project-local Codex resolution, and proves the facade and leaf package share one `ModelRegistry` identity. Publint and ATTW resolve every entry; the full workspace closes at 54 test files and 627 tests with lint, typecheck, graph, boundary, integrity, and production-license gates green.
 Commit: `feat(node): add batteries-included node facade`
 
 ## Phase V — Provider/observability live acceptance

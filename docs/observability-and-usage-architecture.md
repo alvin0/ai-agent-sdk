@@ -494,12 +494,21 @@ await observability.flush()
 Node adds a capability without changing the agent API:
 
 ```ts
-import { createJsonlJournalExporter } from '@ai-agent-sdk/node/observability'
+import { JsonlObservationJournalExporter } from '@ai-agent-sdk/node/observability'
 
+const journal = new JsonlObservationJournalExporter({
+  rootDir: './observability',
+  mode: 'audit',
+})
+await journal.ready()
 const observability = createObservability({
   mode: 'audit',
   content: 'metadata',
-  exporters: [createJsonlJournalExporter({ directory: './observability' })],
+  exporters: [{
+    exporter: journal,
+    requirement: 'required',
+    boundary: 'local-durable',
+  }],
 })
 ```
 

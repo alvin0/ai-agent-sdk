@@ -111,6 +111,9 @@ importers:
       '@a2a-js/sdk':
         specifier: 'catalog:'
         version: 1.1.0
+      '@ai-agent-sdk/node':
+        specifier: workspace:^
+        version: link:packages/node
       '@ai-agent-sdk/observability':
         specifier: workspace:^
         version: link:packages/observability
@@ -344,6 +347,85 @@ importers:
       '@arethetypeswrong/cli':
         specifier: 'catalog:'
         version: 0.18.5
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.4.0
+      publint:
+        specifier: 'catalog:'
+        version: 0.3.24
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.24)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-playwright@4.1.11)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.1)(yaml@2.9.0))
+
+  packages/node:
+    dependencies:
+      '@ai-agent-sdk/a2a':
+        specifier: workspace:^
+        version: link:../a2a
+      '@ai-agent-sdk/agent':
+        specifier: workspace:^
+        version: link:../agent
+      '@ai-agent-sdk/auth-node':
+        specifier: workspace:^
+        version: link:../auth-node
+      '@ai-agent-sdk/core':
+        specifier: workspace:^
+        version: link:../core
+      '@ai-agent-sdk/mcp':
+        specifier: workspace:^
+        version: link:../mcp
+      '@ai-agent-sdk/mcp-node':
+        specifier: workspace:^
+        version: link:../mcp-node
+      '@ai-agent-sdk/observability':
+        specifier: workspace:^
+        version: link:../observability
+      '@ai-agent-sdk/observability-fetch':
+        specifier: workspace:^
+        version: link:../observability-fetch
+      '@ai-agent-sdk/observability-node':
+        specifier: workspace:^
+        version: link:../observability-node
+      '@ai-agent-sdk/observability-otel':
+        specifier: workspace:^
+        version: link:../observability-otel
+      '@ai-agent-sdk/protocol-anthropic-messages':
+        specifier: workspace:^
+        version: link:../protocol-anthropic-messages
+      '@ai-agent-sdk/protocol-responses':
+        specifier: workspace:^
+        version: link:../protocol-responses
+      '@ai-agent-sdk/provider-anthropic':
+        specifier: workspace:^
+        version: link:../provider-anthropic
+      '@ai-agent-sdk/provider-codex':
+        specifier: workspace:^
+        version: link:../provider-codex
+      '@ai-agent-sdk/provider-http':
+        specifier: workspace:^
+        version: link:../provider-http
+      '@ai-agent-sdk/provider-openai':
+        specifier: workspace:^
+        version: link:../provider-openai
+      '@ai-agent-sdk/skill-filesystem':
+        specifier: workspace:^
+        version: link:../skill-filesystem
+    devDependencies:
+      '@arethetypeswrong/cli':
+        specifier: 'catalog:'
+        version: 0.18.5
+      '@opentelemetry/api':
+        specifier: 'catalog:'
+        version: 1.9.1
+      '@opentelemetry/api-logs':
+        specifier: 'catalog:'
+        version: 0.221.0
       '@types/node':
         specifier: 'catalog:'
         version: 26.4.0

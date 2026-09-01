@@ -46,11 +46,14 @@ The target architecture should let consumers choose among these forms:
 ```ts
 // Edge, browser, Deno, Bun, or standards-only Node usage.
 import { defineAgent } from 'ai-agent-sdk'
-import { createOpenAIProvider } from '@ai-agent-sdk/provider-openai'
+import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
 
-// Full Node harness with local capabilities.
-import { defineAgent } from 'ai-agent-sdk'
-import { createFilesystemSkill, createJsonlRequestLogger } from '@ai-agent-sdk/node'
+// Full Node harness with local capabilities from one facade.
+import {
+  JsonlObservationJournalExporter,
+  defineAgent,
+  fileSystemSkills,
+} from '@ai-agent-sdk/node'
 
 // A provider implemented outside this repository.
 import { createHttpProvider } from '@ai-agent-sdk/provider-http'
@@ -166,12 +169,12 @@ Universal and Node capabilities link through the same contracts:
 ```ts
 import { defineAgent } from '@ai-agent-sdk/agent'
 import { webSearchSkill } from '@example/web-search-skill'
-import { createFilesystemSkill } from '@ai-agent-sdk/node/filesystem'
+import { fileSystemSkills } from '@ai-agent-sdk/node/filesystem'
 
 const agent = defineAgent({
   skills: [
     webSearchSkill,              // Universal implementation.
-    createFilesystemSkill({      // Node implementation of the same Skill contract.
+    fileSystemSkills({           // Node implementation of the same Skill contract.
       roots: ['./knowledge'],
     }),
   ],
