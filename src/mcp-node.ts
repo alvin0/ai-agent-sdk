@@ -1,1 +1,2 @@
-export * from './mcp/node.ts'
+/** Compatibility entry; prefer `@ai-agent-sdk/mcp-node`. */
+export * from '@ai-agent-sdk/mcp-node'

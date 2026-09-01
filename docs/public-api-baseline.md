@@ -225,3 +225,9 @@ the Worker/browser JSON Schema validator attaches dereference metadata, while
 SDK tool schemas are frozen. The bridge now passes a `structuredClone` to the
 protocol validator, preserving canonical schema immutability while allowing the
 upstream validator to operate on its private copy.
+
+## N0 migration record — granular Node capabilities
+
+N0 moves filesystem skill discovery, MCP stdio/Node HTTP adapters, environment credentials, and the project-local Codex file wrapper to `@ai-agent-sdk/skill-filesystem`, `@ai-agent-sdk/mcp-node`, and `@ai-agent-sdk/auth-node`. The legacy `./skill-filesystem`, `./mcp-node`, and `./codex` entries are identity-preserving package re-exports with exactly their existing runtime export sets. The compatibility root still retains `apiKeyFromEnv` until the documented K0 root-boundary migration, but it now points at the same `auth-node/env` function.
+
+Declaration hashes change only for the root and the three moved Node entries because emitted types now reference their canonical packages. `auth-node` adds the preferred `envCredential`, `codexNodeAdapter`, and `codexNodePlugin` names on its own package surface without adding them to the frozen legacy entries. Its Codex store resolves relative paths against an explicit/default working directory, never defaults to the Codex CLI global file, rejects credential-file symlinks, bounds reads, and commits through a private unique same-directory temporary file, file sync, atomic rename, `0600` target mode, and directory sync. Packed consumers execute that store and built login CLI, lazy filesystem discovery, and a real MCP stdio child/tool call.

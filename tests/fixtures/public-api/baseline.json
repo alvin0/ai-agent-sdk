@@ -160,7 +160,7 @@
         "withIdleTimeout",
         "withRetry"
       ],
-      "typesSha256": "d71cbf064b4ceedf4639f2ba8dac5b6a11e57bb640f442fa6fcc4c8e7bf52747"
+      "typesSha256": "91ec21c08cc2d96bcfdec7a0bbab8bfdea4b4b5aa37dce63e2dc79414b43e266"
     },
     "./anthropic": {
       "exports": [
@@ -210,7 +210,7 @@
         "runDeviceCodeLogin",
         "shouldRefresh"
       ],
-      "typesSha256": "bcfedfb704837e8d555cb726394e4c6b6c98f9e7fab2834e1001500e37561d4a"
+      "typesSha256": "e7a9182f241bc596622abc4dd38b6a59e130179f0d3ff466a8733118351df5fb"
     },
     "./a2a-client": {
       "exports": [
@@ -247,7 +247,7 @@
         "discoverFileSystemSkills",
         "fileSystemSkills"
       ],
-      "typesSha256": "86435fb94e98db5d8ff527373cfccfafea115b4df8cb8278f4eb6e65b77baca9"
+      "typesSha256": "8f7625de0fc032cc8fb83b8e621063cfae5a149ec1f50a1069f095e2bb5cd209"
     },
     "./request-logger": {
       "exports": [
@@ -284,7 +284,7 @@
         "serveSdkMcpStdio",
         "toNodeHandler"
       ],
-      "typesSha256": "ccb4c1abdef49278a4d86b97bb6121abb08c249afd528f80e33f5366182f330c"
+      "typesSha256": "2a0e24490a5feb3c5fc9fa8b8fa096cff3f73f938768ec4541420a916014c03e"
     }
   },
   "errorCodes": {

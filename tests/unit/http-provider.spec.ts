@@ -22,7 +22,7 @@ import {
   type SseEvent,
   type WireProtocol,
 } from '@ai-agent-sdk/provider-http'
-import { apiKeyFromEnv } from '../../src/providers/env-credential.ts'
+import { apiKeyFromEnv } from '@ai-agent-sdk/auth-node/env'
 import {
   openAiResponsesProtocol,
   type ResponsesDialect,

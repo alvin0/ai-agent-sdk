@@ -349,12 +349,12 @@ Commit: `refactor(a2a): extract node-elevated protocol bridge`
 Dependencies: A2, P2, O3, I0  
 Files: `packages/auth-node/**`, skill-filesystem, mcp-node
 
-- [ ] Extract filesystem skill.
-- [ ] Implement `@ai-agent-sdk/auth-node` with env credential resolver, project-local Codex auth store using atomic writes/`0600` target mode, and Codex Node plugin/adapter wrappers.
-- [ ] Build the auth-node Codex login CLI to JavaScript.
-- [ ] Extract MCP stdio/Node HTTP package against the already extracted Universal MCP contracts.
+- [x] Extract filesystem skill.
+- [x] Implement `@ai-agent-sdk/auth-node` with env credential resolver, project-local Codex auth store using atomic writes/`0600` target mode, and Codex Node plugin/adapter wrappers.
+- [x] Build the auth-node Codex login CLI to JavaScript.
+- [x] Extract MCP stdio/Node HTTP package against the already extracted Universal MCP contracts.
 
-Exit evidence: no Node implementation leaks back into Universal package closures; Node packed tests pass.  
+Exit evidence: three Node packages own only their declared direct dependencies and all Universal/Browser closures remain clean. Six auth-node tests cover path precedence, lazy env lookup, compatibility identities, private atomic round-trip/replacement, symlink rejection, bounded/redacted failures, and Node Codex wrappers; eight filesystem tests retain lazy/bounded discovery behavior; the MCP Node unit protects the explicit stdio/HTTP boundary. Tarball-only consumers execute the built login CLI and private auth store, discover/load a real `SKILL.md`, and spawn a real MCP stdio child before discovering and calling a tool. All three packages pass publint and ATTW. The 625-test compatibility suite, full build/typecheck, frozen 11-entry public API contract with zero runtime changes, package/source/runtime graph, supply-chain, core-cycle, and seven negative-boundary gates pass with zero findings.
 Commit: `refactor(node): extract filesystem auth env and mcp capabilities`
 
 ### N1 — Create full `@ai-agent-sdk/node` facade

@@ -3,7 +3,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import type { CheckpointContext, TurnHooks } from '@ai-agent-sdk/agent'
-import type { FileSystemSkillIoEvent } from '../../src/agent/skill/filesystem.ts'
+import type { FileSystemSkillIoEvent } from '@ai-agent-sdk/skill-filesystem'
 import {
   AGENT_CONTROL_TOOLS,
   type AgentRunEvent,

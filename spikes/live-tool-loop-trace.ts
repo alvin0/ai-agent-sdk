@@ -8,7 +8,7 @@ import { buildTraceTree, type TraceEvent } from '@ai-agent-sdk/agent'
 import { createTextMessage } from '@ai-agent-sdk/core'
 import { ReasoningEffortId } from '@ai-agent-sdk/core'
 import { ModelRegistry } from '@ai-agent-sdk/core'
-import { codexAdapter } from '../src/providers/codex/adapter.ts'
+import { codexNodeAdapter as codexAdapter } from '@ai-agent-sdk/auth-node/codex'
 import { createDailyJsonlRequestLogger } from '../src/providers/request-logger.ts'
 
 const models = new ModelRegistry()

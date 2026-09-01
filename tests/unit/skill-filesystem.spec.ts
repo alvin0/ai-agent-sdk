@@ -12,7 +12,7 @@ import {
 import {
   discoverFileSystemSkills,
   fileSystemSkills,
-} from '../../src/agent/skill/filesystem.ts'
+} from '@ai-agent-sdk/skill-filesystem'
 import { dispatchToolCall } from '@ai-agent-sdk/agent'
 import { ToolRegistry } from '@ai-agent-sdk/agent'
 import { ToolCallId } from '@ai-agent-sdk/core'

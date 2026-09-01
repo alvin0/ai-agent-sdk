@@ -1,47 +1,37 @@
-/**
- * Codex provider: the ChatGPT-backed Codex endpoint, authenticated with this
- * project's own credential store rather than the Codex CLI's global one.
- *
- * Sign in with `npm run provider:codex:login-device`.
- */
-
-export {
-  CODEX_BASE_URL,
-  CODEX_CLIENT_VERSION,
-  CODEX_ORIGINATOR,
-  codexAdapter,
-  codexPlugin,
-  type CodexAdapterOptions,
-  type CodexPluginOptions,
-} from './adapter.ts'
+/** Compatibility entry; prefer `@ai-agent-sdk/auth-node/codex`. */
 export {
   ACCESS_TOKEN_REFRESH_WINDOW_MS,
   CODEX_AUTH_PATH_ENV,
+  CODEX_BASE_URL,
+  CODEX_CLIENT_ID,
+  CODEX_CLIENT_VERSION,
+  CODEX_ORIGINATOR,
+  CodexRefreshError,
   DEFAULT_CODEX_AUTH_PATH,
+  DEFAULT_CODEX_ISSUER,
   LAST_REFRESH_MAX_AGE_MS,
+  codexAdapter,
+  codexPlugin,
   fileCodexAuthStore,
   isFedrampAccount,
   memoryCodexAuthStore,
   readJwtClaims,
+  refreshCodexTokens,
+  requestDeviceCode,
   requireTokens,
   resolveAccountId,
   resolveCodexAuthPath,
+  runDeviceCodeLogin,
   shouldRefresh,
+  type CodexAdapterOptions,
   type CodexAuthFile,
   type CodexAuthStore,
-  type CodexJwtClaims,
-  type CodexTokens,
-} from './auth-file.ts'
-export {
-  CODEX_CLIENT_ID,
-  CodexRefreshError,
-  DEFAULT_CODEX_ISSUER,
-  refreshCodexTokens,
-  requestDeviceCode,
-  runDeviceCodeLogin,
   type CodexDeviceCode,
+  type CodexJwtClaims,
   type CodexLoginProgress,
   type CodexLoginResult,
   type CodexOAuthOptions,
+  type CodexPluginOptions,
+  type CodexTokens,
   type RefreshFailureKind,
-} from './oauth.ts'
+} from '@ai-agent-sdk/auth-node/codex'

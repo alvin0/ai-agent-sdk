@@ -54,13 +54,16 @@ Each boundary earns its place:
 No new folder. No new file. No edit to `tsdown.config.ts` or `package.json`.
 
 ```ts
-import { ModelRegistry, createHttpProvider, apiKeyFromEnv, openAiResponsesProtocol } from 'ai-agent-sdk'
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import { envCredential } from '@ai-agent-sdk/auth-node/env'
+import { createHttpProvider } from '@ai-agent-sdk/provider-http'
+import { openAiResponsesProtocol } from '@ai-agent-sdk/protocol-responses'
 
 const openrouter = createHttpProvider({
   displayName: 'OpenRouter',
   protocol: openAiResponsesProtocol,
   baseUrl: 'https://openrouter.ai/api/v1',
-  auth: { kind: 'bearer', token: apiKeyFromEnv('OPENROUTER_API_KEY') },
+  auth: { kind: 'bearer', token: envCredential('OPENROUTER_API_KEY') },
 })
 
 registry.registerAdapter(['openrouter'], openrouter)
@@ -226,9 +229,9 @@ than the neutral `GenerateOptions` used above the adapter.
 
 ```ts
 import { createDailyJsonlRequestLogger } from 'ai-agent-sdk/request-logger'
-import { codexAdapter } from 'ai-agent-sdk/codex'
+import { codexNodeAdapter } from '@ai-agent-sdk/auth-node/codex'
 
-const adapter = codexAdapter({
+const adapter = codexNodeAdapter({
   requestLogger: createDailyJsonlRequestLogger({
     content: 'full',
     allowWireBodies: true,

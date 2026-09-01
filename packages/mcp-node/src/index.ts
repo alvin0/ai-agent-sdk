@@ -1,4 +1,4 @@
-/** Node-only MCP transports and HTTP framework adapters. */
+/** Node-only MCP stdio transports and HTTP framework adapters. */
 
 import { StdioClientTransport, type StdioServerParameters } from '@modelcontextprotocol/client/stdio'
 import { serveStdio, type ServeStdioOptions, type StdioServerHandle } from '@modelcontextprotocol/server/stdio'

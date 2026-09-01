@@ -273,8 +273,8 @@ this contract imports Node filesystem modules.
 For a Node CLI, use the isolated filesystem entry point:
 
 ```ts
-import { defineAgent } from 'ai-agent-sdk'
-import { fileSystemSkills } from 'ai-agent-sdk/skill-filesystem'
+import { defineAgent } from '@ai-agent-sdk/agent'
+import { fileSystemSkills } from '@ai-agent-sdk/skill-filesystem'
 
 const agent = defineAgent({
   id: 'coding-cli',

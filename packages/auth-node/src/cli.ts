@@ -22,9 +22,10 @@ import {
   fileCodexAuthStore,
   readJwtClaims,
   resolveCodexAuthPath,
+  runDeviceCodeLogin,
   shouldRefresh,
-} from '../src/providers/codex/auth-file.ts'
-import { runDeviceCodeLogin, type CodexDeviceCode } from '../src/providers/codex/oauth.ts'
+  type CodexDeviceCode,
+} from './codex.ts'
 
 const BLUE = '\u001B[94m'
 const GRAY = '\u001B[90m'

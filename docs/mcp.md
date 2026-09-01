@@ -223,7 +223,7 @@ keeps web/serverless persistence and isolation policy explicit.
 ## Node and stdio
 
 ```ts
-import { connectMcpStdio, serveSdkMcpStdio } from 'ai-agent-sdk/mcp-node'
+import { connectMcpStdio, serveSdkMcpStdio } from '@ai-agent-sdk/mcp-node'
 
 const local = await connectMcpStdio({
   serverName: 'filesystem',

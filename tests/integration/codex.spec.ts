@@ -16,8 +16,7 @@ import type { StreamChunk } from '@ai-agent-sdk/core'
 import { createTextMessage } from '@ai-agent-sdk/core'
 import { ReasoningEffortId } from '@ai-agent-sdk/core'
 import { ModelRegistry } from '@ai-agent-sdk/core'
-import { codexAdapter } from '../../src/providers/codex/adapter.ts'
-import { fileCodexAuthStore } from '../../src/providers/codex/auth-file.ts'
+import { codexNodeAdapter as codexAdapter, fileCodexAuthStore } from '@ai-agent-sdk/auth-node/codex'
 
 /** A model this account can reach. Discovered via the adapter's own catalog. */
 const MODEL = 'gpt-5.6-luna'

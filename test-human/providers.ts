@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ModelRegistry } from '@ai-agent-sdk/core'
 import { anthropicAdapter } from '../src/providers/anthropic/adapter.ts'
-import { codexAdapter } from '../src/providers/codex/adapter.ts'
+import { codexNodeAdapter as codexAdapter } from '@ai-agent-sdk/auth-node/codex'
 import { openAiAdapter } from '../src/providers/openai/adapter.ts'
 import {
   combineProviderRequestLoggers,

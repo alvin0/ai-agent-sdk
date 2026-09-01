@@ -4,7 +4,6 @@ import { defineConfig } from 'tsdown'
 export default defineConfig({
   entry: {
     human: 'test-human/cli.ts',
-    'provider-codex-login-device': 'scripts/provider-codex-login-device.ts',
     'agentcode': 'test-human/agentcode/cli.ts',
     'agentcode-multi-skill': 'test-human/agentcode/multi-skill/cli.ts',
     'agentcode-multi-skill-verify': 'test-human/agentcode/multi-skill/reverify.ts',

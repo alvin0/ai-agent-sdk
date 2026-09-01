@@ -4,7 +4,7 @@ import { defineAgent, type DefinedAgent } from '@ai-agent-sdk/agent'
 import {
   fileSystemSkills,
   type FileSystemSkillIoEvent,
-} from '../../src/agent/skill/filesystem.ts'
+} from '@ai-agent-sdk/skill-filesystem'
 import type { AgentCodeCliConfig } from './config.ts'
 
 export interface CreateAgentCodeAgentOptions {
