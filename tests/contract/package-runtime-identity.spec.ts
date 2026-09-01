@@ -7,6 +7,8 @@ const root = resolve(import.meta.dirname, '../..')
 describe('workspace compatibility runtime identity', () => {
   it('re-exports single core, agent, transport, and protocol package instances', async () => {
     const compatibility = await import(pathToFileURL(resolve(root, 'dist/index.js')).href)
+    const a2aClientCompatibility = await import(pathToFileURL(resolve(root, 'dist/a2a-client.js')).href)
+    const a2aServerCompatibility = await import(pathToFileURL(resolve(root, 'dist/a2a-server.js')).href)
     const anthropicCompatibility = await import(pathToFileURL(resolve(root, 'dist/anthropic.js')).href)
     const openAiCompatibility = await import(pathToFileURL(resolve(root, 'dist/openai.js')).href)
     const mcpClientCompatibility = await import(pathToFileURL(resolve(root, 'dist/mcp-client.js')).href)
@@ -22,6 +24,8 @@ describe('workspace compatibility runtime identity', () => {
     )).href)
     const mcpClient = await import(pathToFileURL(resolve(root, 'packages/mcp/dist/client.js')).href)
     const mcpServer = await import(pathToFileURL(resolve(root, 'packages/mcp/dist/server.js')).href)
+    const a2aClient = await import(pathToFileURL(resolve(root, 'packages/a2a/dist/client.mjs')).href)
+    const a2aServer = await import(pathToFileURL(resolve(root, 'packages/a2a/dist/server.mjs')).href)
 
     expect(compatibility.ModelRegistry).toBe(core.ModelRegistry)
     expect(compatibility.AgentSession).toBe(agent.AgentSession)
@@ -41,5 +45,9 @@ describe('workspace compatibility runtime identity', () => {
     expect(mcpClientCompatibility.createMcpHttpClient).toBe(mcpClient.createMcpHttpClient)
     expect(mcpServerCompatibility.createSdkMcpHandler).toBe(mcpServer.createSdkMcpHandler)
     expect(mcpServerCompatibility.createSdkMcpServer).toBe(mcpServer.createSdkMcpServer)
+    expect(a2aClientCompatibility.A2AAgentLink).toBe(a2aClient.A2AAgentLink)
+    expect(a2aClientCompatibility.ClientFactory).toBe(a2aClient.ClientFactory)
+    expect(a2aServerCompatibility.DefinedAgentA2AExecutor).toBe(a2aServer.DefinedAgentA2AExecutor)
+    expect(a2aServerCompatibility.DefaultRequestHandler).toBe(a2aServer.DefaultRequestHandler)
   })
 })

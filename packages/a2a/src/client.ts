@@ -593,3 +593,20 @@ function isPrivateHostname(value: string): boolean {
     || (first === 192 && second === 168)
     || (first === 198 && (second === 18 || second === 19))
 }
+
+export {
+  ClientFactory,
+  DefaultAgentCardResolver,
+  JsonRpcTransportFactory,
+  RestTransportFactory,
+  type Client,
+  type RequestOptions,
+} from '@a2a-js/sdk/client'
+export type {
+  AgentCard,
+  Message,
+  Part,
+  SendMessageRequest,
+  StreamResponse,
+  Task,
+} from '@a2a-js/sdk'

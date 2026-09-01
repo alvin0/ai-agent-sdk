@@ -335,11 +335,11 @@ Commit: `refactor(mcp): extract universal http bridge`
 Dependencies: A2, W1  
 Files: `packages/a2a/**`, A2A spike
 
-- [ ] Move official A2A client/server bridge and declare Node runtime honestly.
-- [ ] Keep text/data/url/binary tests; binary must pass in Node.
-- [ ] Keep the strict Worker binary test as a promotion guard and expect it to fail only in a labelled negative fixture.
+- [x] Move official A2A client/server bridge and declare Node runtime honestly.
+- [x] Keep text/data/url/binary tests; binary must pass in Node.
+- [x] Keep the strict Worker binary test as a promotion guard and expect it to fail only in a labelled negative fixture.
 
-Exit evidence: Node suite passes; manifests/docs do not claim Universal.  
+Exit evidence: `@ai-agent-sdk/a2a` directly owns exact `@a2a-js/sdk@1.1.0` and exposes combined, `/client`, and `/server` entries. Eleven protocol tests pass. Its packed Node fixture covers official raw-binary encoding plus SDK text/data/url/raw mapping; its strict Worker fixture removes `Buffer`/`process`, requires text success, and accepts only the labelled upstream binary failure as the negative promotion guard. Legacy client/server runtime exports remain unchanged and identity tests prove canonical re-exports. Publint, ATTW, package/source/runtime graph, supply-chain, and runtime-boundary gates pass; manifests and documentation consistently classify the package as Node-elevated.
 Commit: `refactor(a2a): extract node-elevated protocol bridge`
 
 ## Phase N — Node capabilities

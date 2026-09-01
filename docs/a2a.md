@@ -5,9 +5,16 @@ The SDK combines two layers behind one agent roster:
 - `AgentTeam` provides Codex/DeepSeek-style collaboration between long-lived
   in-process `AgentSession`s: roster discovery, quiet context injection,
   wake-up follow-ups, sender identity, serialized work, and an audit log.
-- `ai-agent-sdk/a2a-client` and `ai-agent-sdk/a2a-server` use the official
+- `@ai-agent-sdk/a2a/client` and `@ai-agent-sdk/a2a/server` use the official
   [`@a2a-js/sdk`](https://github.com/a2aproject/a2a-js) implementation of A2A
   Protocol v1.0 for Agent Card discovery and remote JSON-RPC or HTTP+JSON calls.
+
+Install `@ai-agent-sdk/a2a` alongside `@ai-agent-sdk/agent`. This protocol bridge
+is currently Node-elevated: the upstream binary codec in `@a2a-js/sdk@1.1.0`
+calls `Buffer.from`. Text paths happen to work in strict Workers, but the package
+must not be deployed as a Universal/Edge package until its committed binary
+promotion guard passes. The former `ai-agent-sdk/a2a-client` and
+`ai-agent-sdk/a2a-server` subpaths remain compatibility aliases.
 
 This distinction matters. Protocol interoperability alone does not implement a
 local harness scheduler, while an in-process mailbox cannot communicate with an
@@ -134,7 +141,7 @@ await team.whenIdle('reviewer')
 supported transport, and adds the peer to the same roster used by local agents.
 
 ```ts
-import { linkA2AAgent } from 'ai-agent-sdk/a2a-client'
+import { linkA2AAgent } from '@ai-agent-sdk/a2a/client'
 
 const { link, unlink } = await linkA2AAgent(team, {
   name: 'security',
@@ -179,7 +186,7 @@ targets local sessions; `followup_task` targets either local or remote agents.
 import {
   createAgentCardFromDefinition,
   createDefinedAgentA2AServer,
-} from 'ai-agent-sdk/a2a-server'
+} from '@ai-agent-sdk/a2a/server'
 
 const reviewer = defineAgent({
   id: 'reviewer',

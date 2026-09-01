@@ -12,11 +12,11 @@ import { ServerCallContext } from '@a2a-js/sdk/server'
 import { describe, expect, it, vi } from 'vitest'
 import { AgentTeam } from '@ai-agent-sdk/agent'
 import { defineAgent } from '@ai-agent-sdk/agent'
-import { createA2AAgentLink, linkA2AAgent } from '../../src/a2a/client.ts'
+import { createA2AAgentLink, linkA2AAgent } from '@ai-agent-sdk/a2a/client'
 import {
   createAgentCardFromDefinition,
   createDefinedAgentA2AServer,
-} from '../../src/a2a/server.ts'
+} from '@ai-agent-sdk/a2a/server'
 import { ModelAdapter } from '@ai-agent-sdk/core'
 import type { GenerateOptions } from '@ai-agent-sdk/core'
 import type { ResolvedModelInfo } from '@ai-agent-sdk/core'

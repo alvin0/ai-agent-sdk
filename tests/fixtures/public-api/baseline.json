@@ -222,7 +222,7 @@
         "createA2AAgentLink",
         "linkA2AAgent"
       ],
-      "typesSha256": "67c2531be88b669a9b1f7a232353960df303b50977ade0add89622f7cee0b521"
+      "typesSha256": "a964e9744e85647fd662312117757f427fe61de3102305fdc44e145e9cf7d747"
     },
     "./a2a-server": {
       "exports": [
@@ -240,7 +240,7 @@
         "createAgentCardFromDefinition",
         "createDefinedAgentA2AServer"
       ],
-      "typesSha256": "bff2499010ef59f688375441a2337c24482e58f28d90ed5cfde2896cef308f62"
+      "typesSha256": "42114a1e140a589cac7e285899ed0a7a850a13a497584dbc8d03d85572c9a219"
     },
     "./skill-filesystem": {
       "exports": [

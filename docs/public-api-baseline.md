@@ -60,6 +60,12 @@ Declaration hashes change for the root and the A2A, MCP, and filesystem entries 
 
 The packed agent manifest has one runtime dependency, `@ai-agent-sdk/core`, and no Node builtin/global usage in its source or emitted closure. Its tarball passed independent standards-only, Chromium, and Cloudflare Worker installs with mock provider, tool, team, run-accounting, and manual-compaction flows before this baseline was accepted.
 
+## I1 migration record — extracted Node-elevated A2A bridge
+
+I1 moves the official A2A protocol client/server bridge to `@ai-agent-sdk/a2a@0.1.0`. The legacy `ai-agent-sdk/a2a-client` and `ai-agent-sdk/a2a-server` entries remain identity-preserving re-exports of the package `/client` and `/server` subpaths. Their runtime export sets are unchanged; only their declaration hashes change because the declarations now point at the canonical package.
+
+The package is intentionally classified as Node-elevated. Packed Node tests cover text, structured data, URLs, and raw binary serialization. A strict Worker fixture proves text remains usable without Node globals but records raw binary failure at the upstream `@a2a-js/sdk@1.1.0` `Buffer.from` boundary as a labelled negative promotion guard. If that guard starts passing, the package runtime classification must be reviewed rather than silently changed.
+
 ## P0 migration record — extracted Universal HTTP provider
 
 P0 moves fetch dispatch, HTTP errors, configurable provider construction, the wire-protocol contract, and SSE framing to `@ai-agent-sdk/provider-http@0.1.0`. Root, Anthropic, OpenAI, Codex, and request-logger declaration hashes change because their public types now reference the package-owned transport contracts. Runtime export comparison found no added, removed, or renamed root symbol, and compatibility identity tests prove the root uses the same `HttpModelAdapter`, `createHttpProvider`, `parseSse`, and `resolveDialect` values as the package.
