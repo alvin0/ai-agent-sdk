@@ -4,10 +4,11 @@ MCP is an optional boundary. The provider-neutral SDK does not import MCP, and
 applications install only the entries they use:
 
 ```powershell
-npm install ai-agent-sdk @modelcontextprotocol/client @modelcontextprotocol/server
+npm install @ai-agent-sdk/mcp
 ```
 
-Add `@modelcontextprotocol/node` when using stdio or a Node HTTP framework.
+The HTTP package owns its exact MCP protocol dependencies. Add the separate
+`@ai-agent-sdk/mcp-node` capability when using stdio or a Node HTTP framework.
 
 ## Use the SDK as an MCP client
 
@@ -15,7 +16,7 @@ The HTTP entry is web-standard and works in a harness, server workflow, or web
 runtime:
 
 ```ts
-import { connectMcpHttp } from 'ai-agent-sdk/mcp-client'
+import { connectMcpHttp } from '@ai-agent-sdk/mcp/client'
 
 const mcp = await connectMcpHttp({
   serverName: 'billing',
@@ -80,7 +81,7 @@ Streamable HTTP.
 For applications that control startup themselves:
 
 ```ts
-import { createMcpHttpClient } from 'ai-agent-sdk/mcp-client'
+import { createMcpHttpClient } from '@ai-agent-sdk/mcp/client'
 
 const mcp = createMcpHttpClient({
   serverName: 'optional_search',
@@ -170,7 +171,7 @@ listener. It can be mounted in a Next.js route, Worker, Deno/Bun server, or any
 framework with `Request`/`Response` support:
 
 ```ts
-import { createSdkMcpHandler } from 'ai-agent-sdk/mcp-server'
+import { createSdkMcpHandler } from '@ai-agent-sdk/mcp/server'
 
 const mcp = createSdkMcpHandler({
   name: 'orders-api',

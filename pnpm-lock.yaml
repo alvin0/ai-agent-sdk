@@ -74,6 +74,9 @@ importers:
       '@ai-agent-sdk/core':
         specifier: workspace:^
         version: link:packages/core
+      '@ai-agent-sdk/mcp':
+        specifier: workspace:^
+        version: link:packages/mcp
       '@ai-agent-sdk/observability-node':
         specifier: workspace:^
         version: link:packages/observability-node
@@ -189,6 +192,43 @@ importers:
         version: 4.127.1
 
   packages/core:
+    devDependencies:
+      '@arethetypeswrong/cli':
+        specifier: 'catalog:'
+        version: 0.18.5
+      playwright:
+        specifier: 'catalog:'
+        version: 1.62.1
+      publint:
+        specifier: 'catalog:'
+        version: 0.3.24
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.24)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-playwright@4.1.11)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.1)(yaml@2.9.0))
+      wrangler:
+        specifier: 'catalog:'
+        version: 4.127.1
+
+  packages/mcp:
+    dependencies:
+      '@ai-agent-sdk/agent':
+        specifier: workspace:^
+        version: link:../agent
+      '@ai-agent-sdk/core':
+        specifier: workspace:^
+        version: link:../core
+      '@modelcontextprotocol/client':
+        specifier: 'catalog:'
+        version: 2.0.0
+      '@modelcontextprotocol/server':
+        specifier: 'catalog:'
+        version: 2.0.0
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: 'catalog:'

@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MCP browser tarball fixture</title>
+<script type="importmap">
+{
+  "imports": {
+    "@ai-agent-sdk/core": "/node_modules/@ai-agent-sdk/core/dist/index.js",
+    "@ai-agent-sdk/agent": "/node_modules/@ai-agent-sdk/agent/dist/index.js",
+    "@ai-agent-sdk/mcp": "/node_modules/@ai-agent-sdk/mcp/dist/index.js",
+    "@modelcontextprotocol/client": "/node_modules/@modelcontextprotocol/client/dist/index.mjs",
+    "@modelcontextprotocol/client/_shims": "/node_modules/@modelcontextprotocol/client/dist/shimsBrowser.mjs",
+    "@modelcontextprotocol/core/internal": "/node_modules/@modelcontextprotocol/core/dist/internal.mjs",
+    "@modelcontextprotocol/server": "/node_modules/@modelcontextprotocol/server/dist/index.mjs",
+    "@modelcontextprotocol/server/_shims": "/node_modules/@modelcontextprotocol/server/dist/shimsBrowser.mjs",
+    "eventsource": "/node_modules/eventsource/dist/index.js",
+    "eventsource-parser": "/node_modules/eventsource-parser/dist/index.js",
+    "eventsource-parser/stream": "/node_modules/eventsource-parser/dist/stream.js",
+    "pkce-challenge": "/node_modules/pkce-challenge/dist/index.browser.js",
+    "zod/v4": "/node_modules/zod/v4/index.js"
+  }
+}
+</script>
+<script type="module">
+  globalThis.Buffer = undefined
+  globalThis.process = undefined
+  const { runPackedMcpFixture } = await import('./fixture.mjs')
+  globalThis.__mcpFixture = await runPackedMcpFixture()
+</script>

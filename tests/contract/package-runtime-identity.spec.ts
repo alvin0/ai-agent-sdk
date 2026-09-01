@@ -9,6 +9,8 @@ describe('workspace compatibility runtime identity', () => {
     const compatibility = await import(pathToFileURL(resolve(root, 'dist/index.js')).href)
     const anthropicCompatibility = await import(pathToFileURL(resolve(root, 'dist/anthropic.js')).href)
     const openAiCompatibility = await import(pathToFileURL(resolve(root, 'dist/openai.js')).href)
+    const mcpClientCompatibility = await import(pathToFileURL(resolve(root, 'dist/mcp-client.js')).href)
+    const mcpServerCompatibility = await import(pathToFileURL(resolve(root, 'dist/mcp-server.js')).href)
     const core = await import(pathToFileURL(resolve(root, 'packages/core/dist/index.js')).href)
     const agent = await import(pathToFileURL(resolve(root, 'packages/agent/dist/index.js')).href)
     const providerHttp = await import(pathToFileURL(resolve(root, 'packages/provider-http/dist/index.js')).href)
@@ -18,6 +20,8 @@ describe('workspace compatibility runtime identity', () => {
     const responsesProtocol = await import(pathToFileURL(resolve(
       root, 'packages/protocol-responses/dist/index.js',
     )).href)
+    const mcpClient = await import(pathToFileURL(resolve(root, 'packages/mcp/dist/client.js')).href)
+    const mcpServer = await import(pathToFileURL(resolve(root, 'packages/mcp/dist/server.js')).href)
 
     expect(compatibility.ModelRegistry).toBe(core.ModelRegistry)
     expect(compatibility.AgentSession).toBe(agent.AgentSession)
@@ -33,5 +37,9 @@ describe('workspace compatibility runtime identity', () => {
       .toBe(anthropicProtocol.anthropicMessagesProtocol)
     expect(compatibility.openAiResponsesProtocol).toBe(responsesProtocol.openAiResponsesProtocol)
     expect(openAiCompatibility.openAiResponsesProtocol).toBe(responsesProtocol.openAiResponsesProtocol)
+    expect(mcpClientCompatibility.McpClientConnection).toBe(mcpClient.McpClientConnection)
+    expect(mcpClientCompatibility.createMcpHttpClient).toBe(mcpClient.createMcpHttpClient)
+    expect(mcpServerCompatibility.createSdkMcpHandler).toBe(mcpServer.createSdkMcpHandler)
+    expect(mcpServerCompatibility.createSdkMcpServer).toBe(mcpServer.createSdkMcpServer)
   })
 })

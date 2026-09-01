@@ -14,8 +14,8 @@ import {
 import {
   McpClientConnection,
   type McpClientLifecycleOptions,
-} from './client.ts'
-import { createSdkMcpServer, type SdkMcpServerOptions } from './server.ts'
+} from '@ai-agent-sdk/mcp/client'
+import { createSdkMcpServer, type SdkMcpServerOptions } from '@ai-agent-sdk/mcp/server'
 
 export interface McpStdioClientOptions extends McpClientLifecycleOptions, StdioServerParameters {}
 

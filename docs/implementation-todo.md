@@ -323,11 +323,11 @@ Commit: `feat(observability-otel): add semantic convention bridge`
 Dependencies: A2, W1  
 Files: `packages/mcp/**`, strict Worker fixture
 
-- [ ] Move HTTP client/server bridge and direct MCP dependencies.
-- [ ] Convert the committed spike into a packed-package test.
-- [ ] Test initialize, list tools, call tool, abort, auth state, and bounds with Node globals removed.
+- [x] Move HTTP client/server bridge and direct MCP dependencies.
+- [x] Convert the committed spike into a packed-package test.
+- [x] Test initialize, list tools, call tool, abort, auth state, and bounds with Node globals removed.
 
-Exit evidence: strict Worker and Chromium round-trips pass.  
+Exit evidence: the package directly owns the exact MCP client/server dependencies and exposes combined, `/client`, and `/server` entries while stdio/Node HTTP remains outside. Seventeen package tests cover lifecycle, discovery/call, HTTP policy/bounds, auth/OAuth/scope states, protocol fallback, agents, teardown, and reconnect behavior. Tarball-only standards import, real Chromium, and strict Cloudflare Worker fixtures cover initialize, tools/list, tools/call, abort, invalid bearer state, catalog bounds, and no `Buffer`/`process`; the browser gate found and fixed frozen-schema incompatibility by cloning only at the mutable upstream validator boundary. Legacy client/server runtime exports are unchanged and identity tests prove they re-export the canonical package. Publint, ATTW, the 618-test compatibility suite, full typecheck, package/source/runtime graph, supply-chain, and strict runtime matrix pass with zero findings.
 Commit: `refactor(mcp): extract universal http bridge`
 
 ### I1 — Extract A2A as Node-elevated package

@@ -264,14 +264,14 @@
         "createMcpHttpClient",
         "resolveMcpReconnectOptions"
       ],
-      "typesSha256": "8952657e532befb65907ed7a95acabc7b6d032bb8ef4f30da54fc8162c9ddaa8"
+      "typesSha256": "a2386be7a957536b359a224bb28a901ada9f4c099056dff14aa94e838f821615"
     },
     "./mcp-server": {
       "exports": [
         "createSdkMcpHandler",
         "createSdkMcpServer"
       ],
-      "typesSha256": "6e8a0cf3a046f4d1e55bb955d5e2a2fe40e516ec7c8b9df37d04c8cee524d672"
+      "typesSha256": "8bd19a0e5b3f63285fd81f1586cbd766b1cec4fa35c05031235a34091a7d055c"
     },
     "./mcp-node": {
       "exports": [
@@ -284,7 +284,7 @@
         "serveSdkMcpStdio",
         "toNodeHandler"
       ],
-      "typesSha256": "72765cac550c566de8507c1c2ed883db3e8425658396b1563b18c38247872bf6"
+      "typesSha256": "ccb4c1abdef49278a4d86b97bb6121abb08c249afd528f80e33f5366182f330c"
     }
   },
   "errorCodes": {

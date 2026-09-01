@@ -19,8 +19,8 @@ import {
   McpClientConnection,
   createMcpHttpClient,
   resolveMcpReconnectOptions,
-} from '../../src/mcp/client.ts'
-import { createSdkMcpHandler, createSdkMcpServer } from '../../src/mcp/server.ts'
+} from '@ai-agent-sdk/mcp/client'
+import { createSdkMcpHandler, createSdkMcpServer } from '@ai-agent-sdk/mcp/server'
 import { GitHubOAuthProvider } from '../../test-human/github-mcp/oauth.ts'
 
 class TextAdapter extends ModelAdapter {

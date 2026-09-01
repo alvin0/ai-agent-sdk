@@ -195,3 +195,27 @@ usage. Prompt/completion span attributes require `content: 'full'` on both the
 privacy bus and bridge. Invalid/no-op contexts degrade safely with
 `OTEL_PROVIDER_UNCONFIGURED`; synchronous API failures are observable without
 copying arbitrary exporter messages or content into health diagnostics.
+
+## I0 migration record — Universal MCP HTTP package
+
+I0 moves the canonical fetch-shaped MCP client/server bridge to
+`@ai-agent-sdk/mcp@0.1.0`, with separate `/client` and `/server` capability
+entries. The compatibility `./mcp-client` and `./mcp-server` entries statically
+re-export those package objects, and identity tests prove they do not bundle a
+second `McpClientConnection` or server implementation. Their declaration
+hashes—and the transitive `./mcp-node` hash—change only because public types now
+reference the package-owned contracts. All three frozen runtime export sets are
+unchanged.
+
+The package directly owns `@modelcontextprotocol/client@2.0.0` and
+`@modelcontextprotocol/server@2.0.0`; stdio, child processes, `node:http`, and
+host lifecycle adapters remain outside it. A packed standards import plus real
+Chromium and strict Cloudflare Worker round-trip exercise legacy initialize,
+tool discovery/call, abort, invalid bearer state, and catalog bounds. The
+Worker and browser execute with `Buffer` and `process` unavailable.
+
+That runtime gate found an upstream boundary incompatibility hidden by Node:
+the Worker/browser JSON Schema validator attaches dereference metadata, while
+SDK tool schemas are frozen. The bridge now passes a `structuredClone` to the
+protocol validator, preserving canonical schema immutability while allowing the
+upstream validator to operate on its private copy.
