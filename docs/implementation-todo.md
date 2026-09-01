@@ -513,10 +513,10 @@ Dependencies: R2
 - [ ] Verify authenticated npm identity and `@ai-agent-sdk` scope publish rights without exposing tokens.
 - [ ] Remove `private: true` only from publishable packages in one reviewed commit.
 - [ ] Changesets prerelease, provenance publish, then fresh registry install smoke.
-- [ ] If scope ownership fails, leave packages private and stop R3. Do not rename or publish under an unreviewed scope.
+- [x] If scope ownership fails, leave packages private and stop R3. Do not rename or publish under an unreviewed scope.
 
-Exit evidence: provenance-backed prerelease packages install and pass Edge/Node smoke.  
-Commit: `release: publish monorepo prerelease`
+Exit evidence: `npm whoami` returned `ENEEDAUTH`, so this environment has no authenticated npm identity and cannot establish publish authority for `@ai-agent-sdk`. A scope-list response alone was not treated as authority without an authenticated identity. All 20 intended package manifests remain `private: true`; no Changesets prerelease, publish, package visibility mutation, registry smoke, rename, or token-printing command ran. R3 is stopped at its documented external gate and can resume after an authorized npm login.
+Commit: `docs: record blocked npm scope preflight`
 
 ## Requirements self-audit checklist
 
@@ -557,4 +557,4 @@ Fill this during implementation; do not mark the implementation complete with bl
 | E SSE ownership | `d4beee3`, `c1bcbf2` | Qualified owned-parser spike failed performance gate; exact dependency retained by ADR and isolated owner. |
 | R deterministic matrix | `6e8d45a` | Frozen clean archive passed packed Worker/Chromium/Node, recovery, boundary, supply, and audit matrix. |
 | R live Luna acceptance | `cc2ca9b` | Exactly one paid Luna request passed complete usage, correlation, terminal, privacy, and health assertions. |
-| R docs/scope/prerelease | R2 commit; R3 pending | Documentation/self-audit is zero-finding; npm identity/scope preflight is the remaining external gate. |
+| R docs/scope/prerelease | `a474eaa`; R3 preflight record | Documentation/self-audit is zero-finding; R3 stopped safely because npm returned `ENEEDAUTH`, with all packages still private. |
