@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { ProviderRequestLogRecord } from '../../src/providers/base/http-adapter.ts'
+import type { ProviderRequestLogRecord } from '@ai-agent-sdk/provider-http'
 import {
   combineProviderRequestLoggers,
   createDailyJsonlRequestLogger,

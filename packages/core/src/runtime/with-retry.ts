@@ -141,7 +141,7 @@ class RetryingAdapter extends ModelAdapter {
       // Retries reuse the SAME prepared generation. Re-preparing mid-retry could
       // pair a fresh endpoint with capabilities resolved against the old one,
       // which is exactly what the prepare/dispatch binding exists to prevent.
-      stream: (options, invocation = context) => this.retryStream(options, request => prepared.stream(request, invocation), policy),
+      stream: (options, invocation = context) => this.retryStream(options, request => prepared.stream(request, invocation), policy, invocation),
     }
   }
 
@@ -150,6 +150,7 @@ class RetryingAdapter extends ModelAdapter {
       options,
       request => this.inner.stream(request, context),
       this.policyFor(options.provider),
+      context,
     )
   }
 
@@ -165,6 +166,7 @@ class RetryingAdapter extends ModelAdapter {
     options: GenerateOptions,
     dispatch: (request: GenerateOptions) => AsyncIterable<StreamChunk>,
     policy: ResolvedRetryPolicy,
+    context?: ModelInvocationContext,
   ): AsyncGenerator<StreamChunk> {
     if (policy.mode === 'always' && options.signal === undefined) {
       yield {
@@ -210,6 +212,11 @@ class RetryingAdapter extends ModelAdapter {
       }
 
       retries += 1
+      context?.recordProviderRetry?.({
+        nextAttemptNumber: retries + 1,
+        delayMs,
+        failureCode: failure.code,
+      })
       try {
         this.options.onRetry?.({
           provider: options.provider,

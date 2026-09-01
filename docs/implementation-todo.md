@@ -213,14 +213,14 @@ Commit: `refactor(agent): extract universal agent package`
 Dependencies: C2  
 Files: `packages/provider-http/**`
 
-- [ ] Move HTTP base, errors, configurable provider, SSE parser.
-- [ ] Move env lookup out; accept injected credentials only.
-- [ ] Exact-pin `eventsource-parser@4.1.0` in this package and nowhere else.
-- [ ] Add provider-attempt start/end, success/error request ID capture, dispatch-state classification, audit pre-dispatch checkpoint, reliable/audit terminal checkpoint, and safe origin metadata.
-- [ ] Deprecate legacy exact-wire request logger in favor of observation; preserve one compatibility bridge.
+- [x] Move HTTP base, errors, configurable provider, SSE parser.
+- [x] Move env lookup out; accept injected credentials only.
+- [x] Exact-pin `eventsource-parser@4.1.0` in this package and nowhere else.
+- [x] Add provider-attempt start/end, success/error request ID capture, dispatch-state classification, audit pre-dispatch checkpoint, reliable/audit terminal checkpoint, and safe origin metadata.
+- [x] Deprecate legacy exact-wire request logger in favor of observation; preserve one compatibility bridge.
 
 Verify: HTTP success/error/retry/abort/resource-limit/audit tests; dependency grep.  
-Exit evidence: every fetch invocation has an attempt report; no other package resolves eventsource-parser directly.  
+Exit evidence: 52 focused HTTP/SSE tests cover success, HTTP error, retry, credential failure, pre/post-dispatch abort, fetch rejection, resource rejection, parser framing/overflow, reliable/audit terminal delivery, durable-vs-memory-only receipts, and audit fail-closed before fetch. The 550-test compatibility suite preserves every root runtime export and proves root/package runtime identity. Publint and ATTW ESM checks pass; packed installs execute the same attempt-accounted mock request in standards-only Node, Chromium, and Cloudflare Worker. The packed manifest has only `@ai-agent-sdk/core@^0.1.0` and exact `eventsource-parser@4.1.0`; dependency grep finds no other direct owner.
 Commit: `feat(provider-http): extract fetch pipeline and attempt accounting`
 
 ### P1 — Extract wire protocol packages

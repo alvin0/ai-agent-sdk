@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>provider-http browser tarball fixture</title>
+<script type="importmap">
+{
+  "imports": {
+    "@ai-agent-sdk/core": "/node_modules/@ai-agent-sdk/core/dist/index.js",
+    "@ai-agent-sdk/provider-http": "/node_modules/@ai-agent-sdk/provider-http/dist/index.js",
+    "eventsource-parser": "/node_modules/eventsource-parser/dist/index.js"
+  }
+}
+</script>
+<script type="module">
+  import { runPackedProviderFixture } from './fixture.mjs'
+  globalThis.__agentFixture = await runPackedProviderFixture()
+</script>

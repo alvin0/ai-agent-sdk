@@ -4,7 +4,7 @@ import {
   parseErrorBody,
   requestIdFrom,
   retryAfterMs,
-} from '../../src/providers/base/http-errors.ts'
+} from '@ai-agent-sdk/provider-http'
 
 describe('httpErrorCode', () => {
   it('maps credential and request failures away from the retryable bucket', () => {

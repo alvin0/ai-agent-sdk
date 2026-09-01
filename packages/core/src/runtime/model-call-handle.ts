@@ -5,8 +5,9 @@ import type { StreamChunk, TokenUsage } from '../stream/chunk.ts'
 import { createObservationRunScope, createOperationId, isSpanId, isTraceId, type CorrelationContext, type ObservationRunScope } from '../observation/context.ts'
 import { safeErrorRecord, type ObservationEvent, type ObservationResource, type OperationStatus, type SafeErrorRecord } from '../observation/event.ts'
 import { createCoreSpan, disabledDeliverySummary, NOOP_OBSERVATION_PORT, snapshotObservationSpan, validateCaptureReceipt, type CaptureReceipt, type DeliveryMode, type ObservationBoundary, type ObservationDeliverySummary, type ObservationPort, type ObservationSpan } from '../observation/port.ts'
-import { ModelCallObservationError, OBSERVATION_ERROR_CODES, type ModelCallHandle, type ModelCallReport, type ModelInvocationContext } from '../observation/report.ts'
-import { validateUsageCounters, type UsageCoverage } from '../observation/usage.ts'
+import { AgentSdkError } from '../errors/agent-sdk-error.ts'
+import { ModelCallObservationError, OBSERVATION_ERROR_CODES, type EndProviderAttemptInput, type ModelCallHandle, type ModelCallReport, type ModelInvocationContext, type ProviderAttemptHandle, type ProviderRetryScheduledInput, type StartProviderAttemptInput } from '../observation/report.ts'
+import { addUsageCounters, classifyUsageCoverage, possiblyBilledAttemptsWithoutUsage, validateUsageCounters, type AttemptUsageReport, type UsageCoverage } from '../observation/usage.ts'
 
 const scopes = new WeakMap<object, Map<string, ObservationRunScope>>()
 
@@ -34,7 +35,9 @@ function safeFailureFromFinish(chunk: Extract<StreamChunk, { type: 'finish' }>):
   const failure = chunk.reason.failure
   return Object.freeze({
     type: 'ModelError',
-    message: failure.message,
+    message: chunk.reason.kind === 'aborted'
+      ? 'model call was aborted; inspect the stable code for classification'
+      : 'model call failed; inspect the stable code and provider request ID',
     code: failure.code,
     ...failure.status === undefined ? {} : { status: failure.status },
   })
@@ -168,13 +171,6 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
     startedAt,
     monotonicMs: scope.monotonicMs(),
   }, tracker)
-  const effectiveContext: ModelInvocationContext = Object.freeze({
-    observation: port,
-    correlation: span.correlation,
-    terminalCheckpointOwner: input.context?.terminalCheckpointOwner ?? 'model-call',
-    scope,
-  })
-
   const makeEvent = (phase: 'start' | 'end', data: JsonObject): ObservationEvent<'sdk.model.call'> => deepFreeze({
     schemaVersion: 1,
     eventId: createOperationId(),
@@ -198,6 +194,196 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
       tracker.lastFailure = safeErrorRecord(error)
     }
   }
+
+  const attempts: AttemptUsageReport[] = []
+  const openAttempts = new Set<(input: EndProviderAttemptInput) => AttemptUsageReport>()
+  let nextAttemptNumber = 1
+  let providerAttemptAccountingDeclared = false
+
+  function recordProviderRetry(retry: ProviderRetryScheduledInput): void {
+    capture(deepFreeze({
+      schemaVersion: 1,
+      eventId: createOperationId(),
+      sequence: scope.nextSequence(),
+      name: 'sdk.provider.retry.scheduled',
+      phase: 'point',
+      occurredAt: new Date().toISOString(),
+      monotonicMs: scope.monotonicMs(),
+      priority: 'critical',
+      resource: input.resource,
+      correlation: span.correlation,
+      data: {
+        nextAttemptNumber: retry.nextAttemptNumber,
+        delayMs: retry.delayMs,
+        failureCode: retry.failureCode,
+      },
+    }))
+  }
+
+  async function startProviderAttempt(
+    attemptInput: StartProviderAttemptInput,
+    signal?: AbortSignal,
+  ): Promise<ProviderAttemptHandle> {
+    const attemptNumber = nextAttemptNumber++
+    const attemptId = createOperationId()
+    const attemptStartedAt = new Date().toISOString()
+    const attemptStartedMonotonic = nowMonotonic()
+    const attemptSpan = openContainedSpan(port, {
+      name: 'sdk.provider.attempt',
+      runId,
+      parent: span.correlation,
+      correlation: { modelCallId, attemptId },
+      startedAt: attemptStartedAt,
+      monotonicMs: scope.monotonicMs(),
+    }, tracker)
+    const startEvent: ObservationEvent<'sdk.provider.attempt'> = deepFreeze({
+      schemaVersion: 1,
+      eventId: createOperationId(),
+      sequence: scope.nextSequence(),
+      name: 'sdk.provider.attempt',
+      phase: 'start',
+      occurredAt: attemptStartedAt,
+      monotonicMs: scope.monotonicMs(),
+      priority: 'critical',
+      resource: input.resource,
+      correlation: attemptSpan.correlation,
+      data: {
+        provider: attemptInput.provider,
+        model: attemptInput.model,
+        attemptNumber,
+        method: attemptInput.method,
+        origin: attemptInput.origin,
+        dispatchState: 'not-sent',
+      },
+    })
+
+    if (mode === 'audit') {
+      tracker.pending += 1
+      try {
+        const rawReceipt = port.checkpoint
+          ? await port.checkpoint(startEvent, signal)
+          : Object.freeze({
+            eventId: startEvent.eventId,
+            status: 'rejected' as const,
+            durable: false,
+            boundary: 'none' as const,
+            reason: 'exporter-unavailable' as const,
+          })
+        const receipt = validateCaptureReceipt(rawReceipt, startEvent.eventId)
+        tracker.pending -= 1
+        applyReceipt(tracker, receipt, true)
+        if (receipt.status !== 'accepted' || !receipt.durable) {
+          if (receipt.status === 'accepted') tracker.rejected += 1
+          tracker.lastFailure = Object.freeze({
+            type: 'ObservationCheckpointError',
+            message: `provider-attempt audit checkpoint was ${receipt.status}`,
+            code: OBSERVATION_ERROR_CODES.CAPTURE_REJECTED,
+          })
+          attemptSpan.end('rejected', new Date().toISOString(), scope.monotonicMs())
+          throw new AgentSdkError(
+            'audit observation is unavailable before provider dispatch',
+            OBSERVATION_ERROR_CODES.AUDIT_UNAVAILABLE,
+          )
+        }
+      } catch (checkpointError) {
+        if (tracker.pending > 0) tracker.pending -= 1
+        if (!(checkpointError instanceof AgentSdkError
+          && checkpointError.code === OBSERVATION_ERROR_CODES.AUDIT_UNAVAILABLE)) {
+          tracker.rejected += 1
+          tracker.lastFailure = safeErrorRecord(checkpointError)
+          attemptSpan.end('rejected', new Date().toISOString(), scope.monotonicMs())
+        }
+        throw checkpointError instanceof AgentSdkError
+          && checkpointError.code === OBSERVATION_ERROR_CODES.AUDIT_UNAVAILABLE
+          ? checkpointError
+          : new AgentSdkError(
+            'audit observation is unavailable before provider dispatch',
+            OBSERVATION_ERROR_CODES.AUDIT_UNAVAILABLE,
+            { cause: checkpointError },
+          )
+      }
+    } else capture(startEvent)
+
+    let finalReport: AttemptUsageReport | undefined
+    const end = (endInput: EndProviderAttemptInput): AttemptUsageReport => {
+      if (finalReport !== undefined) return finalReport
+      const endedAt = new Date().toISOString()
+      const endedMonotonic = nowMonotonic()
+      const validated = validateUsageCounters(endInput.reported, true)
+      const coverage: UsageCoverage = endInput.dispatchState === 'not-sent'
+        ? 'not-applicable'
+        : validated.complete ? 'complete'
+          : Object.keys(validated.reported).length > 0 ? 'partial' : 'missing'
+      const invalidError = validated.invalidFields.length > 0 || validated.overflow
+        ? Object.freeze({
+          type: 'UsageValidationError',
+          message: validated.overflow
+            ? 'provider attempt usage counters overflowed safe integer validation'
+            : `provider attempt usage contained invalid fields: ${validated.invalidFields.join(', ')}`,
+          code: validated.overflow
+            ? OBSERVATION_ERROR_CODES.USAGE_COUNTER_OVERFLOW
+            : OBSERVATION_ERROR_CODES.USAGE_INVALID,
+        })
+        : undefined
+      const terminalError = endInput.error ?? invalidError
+      const durationMs = Math.max(0, endedMonotonic - attemptStartedMonotonic)
+      attemptSpan.end(endInput.status, endedAt, scope.monotonicMs())
+      const terminalCorrelation = endInput.providerRequestId === undefined
+        ? attemptSpan.correlation
+        : deepFreeze({ ...attemptSpan.correlation, providerRequestId: endInput.providerRequestId })
+      capture(deepFreeze({
+        schemaVersion: 1,
+        eventId: createOperationId(),
+        sequence: scope.nextSequence(),
+        name: 'sdk.provider.attempt',
+        phase: 'end',
+        occurredAt: endedAt,
+        monotonicMs: scope.monotonicMs(),
+        priority: 'critical',
+        resource: input.resource,
+        correlation: terminalCorrelation,
+        data: {
+          status: endInput.status,
+          durationMs,
+          dispatchState: endInput.dispatchState,
+          coverage,
+          reported: { ...validated.reported },
+          ...endInput.httpStatus === undefined ? {} : { httpStatus: endInput.httpStatus },
+          ...endInput.providerRequestId === undefined ? {} : { providerRequestId: endInput.providerRequestId },
+          ...terminalError === undefined ? {} : { error: { ...terminalError } },
+        },
+      }))
+      finalReport = deepFreeze({
+        attemptId,
+        spanId: attemptSpan.correlation.spanId,
+        attemptNumber,
+        status: endInput.status,
+        startedAt: attemptStartedAt,
+        endedAt,
+        durationMs,
+        dispatchState: endInput.dispatchState,
+        coverage,
+        reported: validated.reported,
+        ...endInput.httpStatus === undefined ? {} : { httpStatus: endInput.httpStatus },
+        ...endInput.providerRequestId === undefined ? {} : { providerRequestId: endInput.providerRequestId },
+        ...terminalError === undefined ? {} : { error: terminalError },
+      })
+      attempts.push(finalReport)
+      openAttempts.delete(end)
+      return finalReport
+    }
+    openAttempts.add(end)
+    return Object.freeze({ attemptId, attemptNumber, traceparent: attemptSpan.traceparent, end })
+  }
+  const effectiveContext: ModelInvocationContext = Object.freeze({
+    observation: port,
+    correlation: span.correlation,
+    terminalCheckpointOwner: input.context?.terminalCheckpointOwner ?? 'model-call',
+    scope,
+    declareProviderAttemptAccounting: () => { providerAttemptAccountingDeclared = true },
+    startProviderAttempt,
+    recordProviderRetry,
+  })
   capture(makeEvent('start', {
     provider: input.options.provider,
     model: input.options.model,
@@ -225,13 +411,22 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
         code: OBSERVATION_ERROR_CODES.OPERATION_TERMINAL_MISSING,
       })
     }
+    for (const closeAttempt of [...openAttempts]) {
+      closeAttempt({
+        status: status === 'aborted' ? 'aborted' : 'unknown',
+        dispatchState: input.dispatchState() === 'not-sent' ? 'not-sent' : 'unknown',
+        ...(error === undefined ? {} : { error }),
+      })
+    }
     try { span.end(status, endedAt, scope.monotonicMs()) } catch (spanError) { tracker.lastFailure = safeErrorRecord(spanError) }
 
     const validated = usage === undefined ? undefined : validateUsageCounters(usage, true)
     const preDispatch = !input.routePresent || input.dispatchState() === 'not-sent'
-    const coverage: UsageCoverage = validated === undefined
-      ? preDispatch ? 'not-applicable' : 'missing'
-      : validated.complete ? 'complete' : 'partial'
+    const coverage: UsageCoverage = attempts.length > 0 || providerAttemptAccountingDeclared
+      ? classifyUsageCoverage(attempts)
+      : validated === undefined
+        ? preDispatch ? 'not-applicable' : 'missing'
+        : validated.complete ? 'complete' : 'partial'
     if (validated && (validated.invalidFields.length > 0 || validated.overflow)) {
       error ??= Object.freeze({
         type: 'UsageValidationError',
@@ -248,13 +443,17 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
       })
     }
     const durationMs = Math.max(0, endedMonotonic - startedMonotonic)
+    const attemptUsage = attempts.length === 0
+      ? undefined
+      : addUsageCounters(attempts.map(attempt => attempt.reported)).counters
+    const reported = attemptUsage ?? validated?.reported ?? {}
     const endEvent = makeEvent('end', {
       status,
       durationMs,
       ...finishReason === undefined ? {} : { finishReason },
       coverage,
-      reported: { ...(validated?.reported ?? {}) },
-      attemptCount: 0,
+      reported: { ...reported },
+      attemptCount: attempts.length,
     })
     let auditFailure = false
     const checkpointOwner = effectiveContext.terminalCheckpointOwner ?? 'model-call'
@@ -296,9 +495,11 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
       durationMs,
       ...finishReason === undefined ? {} : { finishReason },
       coverage,
-      reported: validated?.reported ?? {},
-      attempts: [],
-      possiblyBilledAttemptsWithoutUsage: coverage === 'missing' || coverage === 'partial' ? 1 : 0,
+      reported,
+      attempts: [...attempts].sort((left, right) => left.attemptNumber - right.attemptNumber),
+      possiblyBilledAttemptsWithoutUsage: attempts.length > 0
+        ? possiblyBilledAttemptsWithoutUsage(attempts)
+        : coverage === 'missing' || coverage === 'partial' ? 1 : 0,
       authoritative: coverage === 'complete' || coverage === 'not-applicable',
       delivery: deliverySummary(port, mode, tracker),
       ...error === undefined ? {} : { error },

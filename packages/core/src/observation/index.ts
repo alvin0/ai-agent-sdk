@@ -44,6 +44,10 @@ export {
   type ModelCallHandle,
   type ModelCallReport,
   type ModelInvocationContext,
+  type EndProviderAttemptInput,
+  type ProviderAttemptHandle,
+  type ProviderRetryScheduledInput,
+  type StartProviderAttemptInput,
 } from './report.ts'
 export {
   addUsageCounters,

@@ -9,18 +9,21 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createTextMessage } from '@ai-agent-sdk/core'
-import { ModelRegistry } from '@ai-agent-sdk/core'
+import { ModelAdapter, ModelRegistry } from '@ai-agent-sdk/core'
+import { createCoreSpan, withRetry } from '@ai-agent-sdk/core'
 import type { StreamChunk } from '@ai-agent-sdk/core'
-import type { SseEvent } from '../../src/core/stream/sse.ts'
-import type { ProviderRequest } from '../../src/providers/base/http-adapter.ts'
-import type { ProviderRequestLogRecord } from '../../src/providers/base/http-adapter.ts'
+import type { CaptureReceipt, ObservationEvent, ObservationPort } from '@ai-agent-sdk/core'
 import {
-  apiKeyFromEnv,
   createHttpProvider,
+  resolveDialect,
   type ModelDiscoveryContext,
-} from '../../src/providers/http-provider.ts'
+  type ProviderRequest,
+  type ProviderRequestLogRecord,
+  type SseEvent,
+  type WireProtocol,
+} from '@ai-agent-sdk/provider-http'
+import { apiKeyFromEnv } from '../../src/providers/env-credential.ts'
 import { openAiResponsesProtocol } from '../../src/providers/protocols/openai-responses.ts'
-import { resolveDialect, type WireProtocol } from '../../src/providers/protocols/protocol.ts'
 import type { ResponsesDialect } from '../../src/providers/responses/wire.ts'
 
 /** Build a `Response` whose body streams the given SSE frames. */
@@ -65,6 +68,32 @@ function stubFetch(replies: readonly (() => Response)[]): Captured[] {
     return Promise.resolve(reply())
   }))
   return captured
+}
+
+function accepted(event: ObservationEvent): CaptureReceipt {
+  return { eventId: event.eventId, status: 'accepted', durable: false, boundary: 'none' }
+}
+
+function recordingPort(mode: ObservationPort['mode'] = 'operational') {
+  const events: ObservationEvent[] = []
+  const port: ObservationPort = {
+    mode,
+    openSpan: createCoreSpan,
+    capture(event) {
+      events.push(event)
+      return accepted(event)
+    },
+    checkpoint(event) {
+      events.push(event)
+      return Promise.resolve({
+        eventId: event.eventId,
+        status: 'accepted',
+        durable: true,
+        boundary: 'local-durable',
+      })
+    },
+  }
+  return { events, port }
 }
 
 /** A minimal Responses stream: one text block, then completion. */
@@ -551,5 +580,346 @@ describe('createHttpProvider: transport resource limits', () => {
     }
     expect(finish.reason.failure.code).toBe('SERVER')
     expect(finish.reason.failure.message).not.toContain('secret-tailsecret-tail')
+  })
+})
+
+describe('createHttpProvider: physical attempt accounting', () => {
+  function observedProvider(overrides: Record<string, unknown> = {}) {
+    return createHttpProvider({
+      displayName: 'Observed HTTP',
+      protocol: openAiResponsesProtocol,
+      baseUrl: 'https://observed.invalid/v1',
+      auth: { kind: 'none' },
+      ...overrides,
+    })
+  }
+
+  function observedRegistry(adapter: ModelAdapter = observedProvider(), observation?: ObservationPort) {
+    const registry = new ModelRegistry(observation === undefined ? {} : { observation })
+    registry.registerAdapter(['observed-http'], adapter)
+    return registry
+  }
+
+  const observedRequest = () => ({
+    provider: 'observed-http',
+    model: 'm',
+    messages: [createTextMessage('x')],
+  })
+
+  it('reports success, usage, safe origin, status, and provider request ID once per fetch', async () => {
+    stubFetch([() => sseResponse(RESPONSES_OK, { headers: { 'request-id': 'req-success' } })])
+    const observed = recordingPort()
+    const handle = observedRegistry(observedProvider(), observed.port).stream(observedRequest())
+    await drain(handle)
+    const report = await handle.report
+
+    expect(report).toMatchObject({
+      coverage: 'complete',
+      reported: { inputTokens: 10, outputTokens: 2, totalTokens: 12 },
+      possiblyBilledAttemptsWithoutUsage: 0,
+    })
+    expect(report.attempts).toEqual([
+      expect.objectContaining({
+        attemptNumber: 1,
+        status: 'success',
+        dispatchState: 'sent',
+        coverage: 'complete',
+        httpStatus: 200,
+        providerRequestId: 'req-success',
+      }),
+    ])
+    expect(observed.events.map(event => [event.name, event.phase, event.sequence])).toEqual([
+      ['sdk.model.call', 'start', 1],
+      ['sdk.provider.attempt', 'start', 2],
+      ['sdk.provider.attempt', 'end', 3],
+      ['sdk.model.call', 'end', 4],
+    ])
+    expect(observed.events[1]?.data).toMatchObject({
+      origin: 'https://observed.invalid',
+      dispatchState: 'not-sent',
+    })
+    expect(JSON.stringify(observed.events)).not.toContain('/v1/responses')
+  })
+
+  it('captures error response IDs and never copies a raw provider body into attempt reports', async () => {
+    stubFetch([() => new Response('{"error":{"message":"secret prompt echoed"}}', {
+      status: 429,
+      headers: { 'x-request-id': 'req-error' },
+    })])
+    const handle = observedRegistry().stream(observedRequest())
+    await drain(handle)
+    const report = await handle.report
+
+    expect(report.attempts).toEqual([
+      expect.objectContaining({
+        status: 'error',
+        dispatchState: 'sent',
+        coverage: 'missing',
+        httpStatus: 429,
+        providerRequestId: 'req-error',
+        error: expect.objectContaining({ code: 'RATE_LIMIT', status: 429 }),
+      }),
+    ])
+    expect(JSON.stringify(report.attempts)).not.toContain('secret prompt echoed')
+    expect(report.possiblyBilledAttemptsWithoutUsage).toBe(1)
+  })
+
+  it('keeps a distinct report for every retry under one logical model call', async () => {
+    stubFetch([
+      () => new Response('{"error":{"message":"busy"}}', { status: 500 }),
+      () => sseResponse(RESPONSES_OK),
+    ])
+    const adapter = withRetry(observedProvider(), {
+      policy: {
+        mode: 'normal',
+        maxRetries: 1,
+        backoff: { initialDelayMs: 1, maxDelayMs: 1, jitterRatio: 0 },
+      },
+    })
+    const observed = recordingPort()
+    const handle = observedRegistry(adapter, observed.port).stream(observedRequest())
+    await drain(handle)
+    const report = await handle.report
+
+    expect(report.attempts.map(attempt => ({
+      number: attempt.attemptNumber,
+      status: attempt.status,
+      dispatch: attempt.dispatchState,
+      coverage: attempt.coverage,
+    }))).toEqual([
+      { number: 1, status: 'error', dispatch: 'sent', coverage: 'missing' },
+      { number: 2, status: 'success', dispatch: 'sent', coverage: 'complete' },
+    ])
+    expect(report.coverage).toBe('partial')
+    expect(report.possiblyBilledAttemptsWithoutUsage).toBe(1)
+    expect(observed.events.find(event => event.name === 'sdk.provider.retry.scheduled')?.data)
+      .toEqual({ nextAttemptNumber: 2, delayMs: 1, failureCode: 'SERVER' })
+  })
+
+  it('proves pre-dispatch abort and resource rejection have no physical attempt', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const controller = new AbortController()
+    controller.abort(new Error('cancel before dispatch'))
+    const aborted = observedRegistry().stream({ ...observedRequest(), signal: controller.signal })
+    await drain(aborted)
+    expect(await aborted.report).toMatchObject({ coverage: 'not-applicable', attempts: [] })
+
+    const bounded = observedRegistry(observedProvider({ maxRequestBytes: 8 })).stream(observedRequest())
+    await drain(bounded)
+    expect(await bounded.report).toMatchObject({ coverage: 'not-applicable', attempts: [] })
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('classifies credential resolution failure as not applicable before dispatch', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const provider = observedProvider({
+      auth: {
+        kind: 'bearer',
+        token: () => { throw new Error('credential store unavailable') },
+      },
+    })
+    const handle = observedRegistry(provider).stream(observedRequest())
+    await drain(handle)
+    expect(await handle.report).toMatchObject({
+      status: 'error',
+      coverage: 'not-applicable',
+      attempts: [],
+      possiblyBilledAttemptsWithoutUsage: 0,
+    })
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('marks a rejected fetch promise unknown because the remote may have received it', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('network failed'))))
+    const handle = observedRegistry().stream(observedRequest())
+    await drain(handle)
+    expect((await handle.report).attempts).toEqual([
+      expect.objectContaining({ status: 'error', dispatchState: 'unknown', coverage: 'missing' }),
+    ])
+  })
+
+  it('closes an in-flight attempt as aborted with unknown dispatch state', async () => {
+    const controller = new AbortController()
+    let started: (() => void) | undefined
+    const fetchStarted = new Promise<void>(resolve => { started = resolve })
+    vi.stubGlobal('fetch', vi.fn((_input: string | URL, init?: RequestInit) => {
+      started?.()
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+      })
+    }))
+    const handle = observedRegistry().stream({ ...observedRequest(), signal: controller.signal })
+    const draining = drain(handle)
+    await fetchStarted
+    controller.abort(new Error('cancel in flight'))
+    await draining
+    expect((await handle.report).attempts).toEqual([
+      expect.objectContaining({ status: 'aborted', dispatchState: 'unknown', coverage: 'missing' }),
+    ])
+  })
+
+  it('fails audit before fetch when the durable attempt-start checkpoint is unavailable', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const events: ObservationEvent[] = []
+    const port: ObservationPort = {
+      mode: 'audit',
+      openSpan: createCoreSpan,
+      capture(event) {
+        events.push(event)
+        return accepted(event)
+      },
+      checkpoint(event) {
+        events.push(event)
+        if (event.name === 'sdk.provider.attempt') {
+          return Promise.resolve({
+            eventId: event.eventId,
+            status: 'rejected',
+            durable: false,
+            boundary: 'none',
+            reason: 'exporter-unavailable',
+          })
+        }
+        return Promise.resolve({
+          eventId: event.eventId,
+          status: 'accepted',
+          durable: true,
+          boundary: 'local-durable',
+        })
+      },
+    }
+    const handle = observedRegistry(observedProvider(), port).stream(observedRequest())
+    await drain(handle)
+    const report = await handle.report
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(report).toMatchObject({ coverage: 'not-applicable', attempts: [] })
+    expect(report.error?.code).toBe('OBSERVABILITY_AUDIT_UNAVAILABLE')
+  })
+
+  it('does not treat memory-only acceptance as an audit durability boundary', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const port: ObservationPort = {
+      mode: 'audit',
+      openSpan: createCoreSpan,
+      capture: accepted,
+      checkpoint(event) {
+        return Promise.resolve(event.name === 'sdk.provider.attempt'
+          ? {
+            eventId: event.eventId,
+            status: 'accepted' as const,
+            durable: false,
+            boundary: 'none' as const,
+          }
+          : {
+            eventId: event.eventId,
+            status: 'accepted' as const,
+            durable: true,
+            boundary: 'local-durable' as const,
+          })
+      },
+    }
+    const handle = observedRegistry(observedProvider(), port).stream(observedRequest())
+    await drain(handle)
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(await handle.report).toMatchObject({
+      coverage: 'not-applicable',
+      attempts: [],
+      delivery: { complete: false },
+      error: { code: 'OBSERVABILITY_AUDIT_UNAVAILABLE' },
+    })
+  })
+
+  it('does not replay a successful fetch when the audit terminal checkpoint fails', async () => {
+    const captured = stubFetch([() => sseResponse(RESPONSES_OK)])
+    const events: ObservationEvent[] = []
+    const port: ObservationPort = {
+      mode: 'audit',
+      openSpan: createCoreSpan,
+      capture(event) {
+        events.push(event)
+        return accepted(event)
+      },
+      checkpoint(event) {
+        events.push(event)
+        return Promise.resolve(event.name === 'sdk.provider.attempt'
+          ? {
+            eventId: event.eventId,
+            status: 'accepted' as const,
+            durable: true,
+            boundary: 'local-durable' as const,
+          }
+          : {
+            eventId: event.eventId,
+            status: 'rejected' as const,
+            durable: false,
+            boundary: 'none' as const,
+            reason: 'exporter-unavailable' as const,
+          })
+      },
+    }
+    const handle = observedRegistry(observedProvider(), port).stream(observedRequest())
+    let recovered: Awaited<typeof handle.report> | undefined
+    try {
+      await drain(handle)
+    } catch (error) {
+      const candidate = error as { code?: string; report?: Awaited<typeof handle.report> }
+      expect(candidate.code).toBe('OBSERVABILITY_AUDIT_UNAVAILABLE')
+      recovered = candidate.report
+    }
+    expect(captured).toHaveLength(1)
+    expect(recovered).toBe(await handle.report)
+    expect(recovered).toMatchObject({ status: 'success', delivery: { complete: false } })
+  })
+
+  it('preserves a successful result when the reliable terminal checkpoint fails', async () => {
+    stubFetch([() => sseResponse(RESPONSES_OK)])
+    const port: ObservationPort = {
+      mode: 'reliable',
+      openSpan: createCoreSpan,
+      capture: accepted,
+      checkpoint(event) {
+        return Promise.resolve({
+          eventId: event.eventId,
+          status: 'rejected',
+          durable: false,
+          boundary: 'none',
+          reason: 'exporter-unavailable',
+        })
+      },
+    }
+    const handle = observedRegistry(observedProvider(), port).stream(observedRequest())
+    await expect(drain(handle)).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'finish', reason: { kind: 'stop' } }),
+    ]))
+    expect(await handle.report).toMatchObject({ status: 'success', delivery: { complete: false } })
+  })
+
+  it('requires explicit opt-in for cleartext HTTP and rejects credentials in URLs', async () => {
+    const fetchSpy = vi.fn(() => Promise.resolve(sseResponse(RESPONSES_OK)))
+    vi.stubGlobal('fetch', fetchSpy)
+    const insecure = observedRegistry(observedProvider({ baseUrl: 'http://localhost:8787/v1' }))
+      .stream(observedRequest())
+    await drain(insecure)
+    expect((await insecure.report).attempts).toEqual([])
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    const allowed = observedRegistry(observedProvider({
+      baseUrl: 'http://localhost:8787/v1',
+      allowInsecureHttp: true,
+    })).stream(observedRequest())
+    await drain(allowed)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+
+    vi.mocked(fetchSpy).mockClear()
+    const credentialed = observedRegistry(observedProvider({
+      baseUrl: 'https://user:pass@observed.invalid/v1',
+    })).stream(observedRequest())
+    await drain(credentialed)
+    expect((await credentialed.report).attempts).toEqual([])
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 })

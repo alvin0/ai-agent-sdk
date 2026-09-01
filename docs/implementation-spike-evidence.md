@@ -126,6 +126,8 @@ Its runtime implementation is Web-standard and isolated behind the SDK SSE parse
 
 This is a closed migration decision: removal is not a prerequisite for the monorepo, and accidental spread into core or agent is forbidden.
 
+P0 executable follow-up: `eventsource-parser@4.1.0` reports its configured buffer overflow through the optional `onError` callback instead of throwing automatically from `feed()`. Without an SDK callback, a malicious oversized unterminated event can therefore end as an empty stream. The provider-owned wrapper now throws only `max-buffer-size-exceeded`, continues to ignore forward-compatible unknown fields, and has conformance coverage for BOM, CRLF, split UTF-8, multiline data, comments, unterminated EOF, and overflow. The packed package passed standards-only Node, Chromium, and Cloudflare Worker execution with the dependency exact-pinned in its manifest.
+
 ## 6. Evidence limitations
 
 - Local Wrangler is a real Worker isolate/bundler path, but it is not every Edge vendor. Packed-package gates still run on Cloudflare Workers plus an independent standards-only fixture before an initial release.

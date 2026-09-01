@@ -3,7 +3,7 @@ import { AgentSdkError } from '../errors/agent-sdk-error.ts'
 import type { CorrelationContext, ObservationRunScope, SpanId, TraceId } from './context.ts'
 import type { OperationStatus, SafeErrorRecord } from './event.ts'
 import type { ObservationDeliverySummary, ObservationPort } from './port.ts'
-import type { AttemptUsageReport, UsageCounters, UsageCoverage } from './usage.ts'
+import type { AttemptUsageReport, DispatchState, UsageCounters, UsageCoverage } from './usage.ts'
 
 export interface ModelCallReport {
   readonly runId: string
@@ -33,12 +33,58 @@ export interface ModelCallHandle extends AsyncIterable<StreamChunk> {
   readonly report: Promise<ModelCallReport>
 }
 
+/** Safe facts known immediately before one physical provider dispatch. */
+export interface StartProviderAttemptInput {
+  readonly provider: string
+  readonly model: string
+  readonly method: string
+  /** Scheme, host, and explicit non-default port only; never a path or query. */
+  readonly origin: string
+}
+
+/** Terminal facts supplied by a transport after exactly one dispatch boundary. */
+export interface EndProviderAttemptInput {
+  readonly status: OperationStatus
+  readonly dispatchState: DispatchState
+  readonly reported?: UsageCounters
+  readonly httpStatus?: number
+  readonly providerRequestId?: string
+  /** Must already be safe for support reports; raw response bodies are forbidden. */
+  readonly error?: SafeErrorRecord
+}
+
+/** Safe scheduling facts between two physical provider attempts. */
+export interface ProviderRetryScheduledInput {
+  readonly nextAttemptNumber: number
+  readonly delayMs: number
+  readonly failureCode: string
+}
+
+/** One physical provider-attempt lifecycle owned by the model-call handle. */
+export interface ProviderAttemptHandle {
+  readonly attemptId: string
+  readonly attemptNumber: number
+  readonly traceparent: string
+  end(input: EndProviderAttemptInput): AttemptUsageReport
+}
+
 export interface ModelInvocationContext {
   readonly observation?: ObservationPort
   readonly correlation?: Partial<CorrelationContext>
   readonly terminalCheckpointOwner?: 'model-call' | 'agent-run'
   /** Shared sequence/monotonic scope when this call belongs to a larger agent run. */
   readonly scope?: ObservationRunScope
+  /** Declares that the adapter will report the real network boundary itself. */
+  readonly declareProviderAttemptAccounting?: () => void
+  /**
+   * Internal transport accounting boundary. HTTP providers call this immediately
+   * before dispatch; audit mode may reject before any network request is invoked.
+   */
+  readonly startProviderAttempt?: (
+    input: StartProviderAttemptInput,
+    signal?: AbortSignal,
+  ) => Promise<ProviderAttemptHandle>
+  readonly recordProviderRetry?: (input: ProviderRetryScheduledInput) => void
 }
 
 export const OBSERVATION_ERROR_CODES = Object.freeze({
