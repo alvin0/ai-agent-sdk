@@ -237,3 +237,17 @@ Declaration hashes change only for the root and the three moved Node entries bec
 N1 adds `@ai-agent-sdk/node@0.1.0` without changing any frozen compatibility entry. Its root and documented capability subpaths are re-export-only and preserve leaf-package identities; MCP and A2A are namespaced at the main entry to avoid ambiguous protocol types while remaining fully available through `/mcp` and `/a2a`. The facade excludes `@ai-agent-sdk/observability-browser` from both source and manifest, while `/observability` includes the Universal bus/fetch/OTel layers and Node journal.
 
 The default `codexAdapter`/`codexPlugin` and preferred `codexNodeAdapter`/`codexNodePlugin` all come from `auth-node`, so an omitted store resolves only the project-local `.providers/.codex/auth.json`; the injected-store Universal provider remains explicit under the `universalCodex` namespace. A packed full-harness consumer proves one canonical core identity across the facade, filesystem skill discovery, a mock provider run with durable correlated journal events, and an MCP stdio child/tool call. No public compatibility baseline hash changes in N1.
+
+## K0 migration record — compatibility package cutover
+
+K0 moves the unscoped `ai-agent-sdk` package manifest, export map, and compatibility shims to `packages/sdk`; the repository root becomes private orchestration. The frozen eleven legacy entry paths retain exactly their runtime export sets except for the one design-approved removal of `apiKeyFromEnv` from `.`. That deprecated alias remains available from `@ai-agent-sdk/auth-node/env`, `@ai-agent-sdk/auth-node`, `@ai-agent-sdk/node/env`, and `@ai-agent-sdk/node`. The only added compatibility path is `./node`.
+
+Four declaration hashes change intentionally and are locked explicitly by the contract fixture:
+
+- `.` removes the Node environment reader and now declares only direct Universal package-owned types;
+- `./anthropic` and `./openai` re-export their Universal providers, making injected `apiKey` mandatory instead of silently reading `process.env`;
+- `./request-logger` retains the same runtime and callable shape while its declarations reference the public provider-http contract instead of a compatibility package-private declaration chunk.
+
+The Codex, A2A, MCP, filesystem, and every other legacy declaration entry remain byte-identical to the frozen hashes. The Codex shim uses an explicit list so the preferred `codexNodeAdapter`/`codexNodePlugin` names remain at their new owners without accidentally expanding the legacy path.
+
+The compatibility manifest has regular dependencies only on core, agent, provider-http, and the two protocol packages. Provider, auth, integration, diagnostic, and full-Node leaf targets are optional peers with exact install commands in the package README. A tarball root-only installation runs with Node globals removed and contains no Node-only leaf; a separate all-peer tarball installation executes every legacy path, verifies canonical object identity, and resolves all type-only entries.

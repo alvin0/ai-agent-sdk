@@ -1,9 +1,9 @@
 {
-  "name": "ai-agent-sdk",
+  "name": "ai-agent-sdk-workspace",
   "version": "0.0.0",
   "private": true,
   "packageManager": "pnpm@11.25.0",
-  "description": "Provider-neutral TypeScript SDK for building AI agents on the Anthropic Claude and OpenAI APIs",
+  "description": "Private workspace orchestration for ai-agent-sdk packages",
   "keywords": [
     "ai",
     "agent",
@@ -19,64 +19,11 @@
   "engines": {
     "node": ">=22.12"
   },
-  "sideEffects": false,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./anthropic": {
-      "types": "./dist/anthropic.d.ts",
-      "default": "./dist/anthropic.js"
-    },
-    "./openai": {
-      "types": "./dist/openai.d.ts",
-      "default": "./dist/openai.js"
-    },
-    "./codex": {
-      "types": "./dist/codex.d.ts",
-      "default": "./dist/codex.js"
-    },
-    "./a2a-client": {
-      "types": "./dist/a2a-client.d.ts",
-      "default": "./dist/a2a-client.js"
-    },
-    "./a2a-server": {
-      "types": "./dist/a2a-server.d.ts",
-      "default": "./dist/a2a-server.js"
-    },
-    "./skill-filesystem": {
-      "types": "./dist/skill-filesystem.d.ts",
-      "default": "./dist/skill-filesystem.js"
-    },
-    "./request-logger": {
-      "types": "./dist/request-logger.d.ts",
-      "default": "./dist/request-logger.js"
-    },
-    "./mcp-client": {
-      "types": "./dist/mcp-client.d.ts",
-      "default": "./dist/mcp-client.js"
-    },
-    "./mcp-server": {
-      "types": "./dist/mcp-server.d.ts",
-      "default": "./dist/mcp-server.js"
-    },
-    "./mcp-node": {
-      "types": "./dist/mcp-node.d.ts",
-      "default": "./dist/mcp-node.js"
-    },
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "dist"
-  ],
   "scripts": {
-    "build": "pnpm --filter @ai-agent-sdk/core build && pnpm --filter @ai-agent-sdk/agent build && pnpm --filter @ai-agent-sdk/a2a build && pnpm --filter @ai-agent-sdk/mcp build && pnpm --filter @ai-agent-sdk/mcp-node build && pnpm --filter @ai-agent-sdk/skill-filesystem build && pnpm --filter @ai-agent-sdk/provider-http build && pnpm --filter @ai-agent-sdk/protocol-anthropic-messages build && pnpm --filter @ai-agent-sdk/protocol-responses build && pnpm --filter @ai-agent-sdk/provider-anthropic build && pnpm --filter @ai-agent-sdk/provider-openai build && pnpm --filter @ai-agent-sdk/provider-codex build && pnpm --filter @ai-agent-sdk/auth-node build && pnpm --filter @ai-agent-sdk/observability build && pnpm --filter @ai-agent-sdk/observability-fetch build && pnpm --filter @ai-agent-sdk/observability-browser build && pnpm --filter @ai-agent-sdk/observability-node build && pnpm --filter @ai-agent-sdk/observability-otel build && pnpm --filter @ai-agent-sdk/node build && tsdown",
+    "build": "pnpm --filter @ai-agent-sdk/core build && pnpm --filter @ai-agent-sdk/agent build && pnpm --filter @ai-agent-sdk/a2a build && pnpm --filter @ai-agent-sdk/mcp build && pnpm --filter @ai-agent-sdk/mcp-node build && pnpm --filter @ai-agent-sdk/skill-filesystem build && pnpm --filter @ai-agent-sdk/provider-http build && pnpm --filter @ai-agent-sdk/protocol-anthropic-messages build && pnpm --filter @ai-agent-sdk/protocol-responses build && pnpm --filter @ai-agent-sdk/provider-anthropic build && pnpm --filter @ai-agent-sdk/provider-openai build && pnpm --filter @ai-agent-sdk/provider-codex build && pnpm --filter @ai-agent-sdk/auth-node build && pnpm --filter @ai-agent-sdk/observability build && pnpm --filter @ai-agent-sdk/observability-fetch build && pnpm --filter @ai-agent-sdk/observability-browser build && pnpm --filter @ai-agent-sdk/observability-node build && pnpm --filter @ai-agent-sdk/observability-otel build && pnpm --filter @ai-agent-sdk/node build && pnpm --filter ai-agent-sdk build",
     "build:cli": "tsdown --config tsdown.cli.config.ts",
     "clean": "node -e \"for(const p of ['dist','dist-cli'])require('node:fs').rmSync(p,{recursive:true,force:true})\"",
-    "typecheck": "pnpm --filter @ai-agent-sdk/core build && pnpm --filter @ai-agent-sdk/agent build && pnpm --filter @ai-agent-sdk/a2a build && pnpm --filter @ai-agent-sdk/mcp build && pnpm --filter @ai-agent-sdk/mcp-node build && pnpm --filter @ai-agent-sdk/skill-filesystem build && pnpm --filter @ai-agent-sdk/provider-http build && pnpm --filter @ai-agent-sdk/protocol-anthropic-messages build && pnpm --filter @ai-agent-sdk/protocol-responses build && pnpm --filter @ai-agent-sdk/provider-anthropic build && pnpm --filter @ai-agent-sdk/provider-openai build && pnpm --filter @ai-agent-sdk/provider-codex build && pnpm --filter @ai-agent-sdk/auth-node build && pnpm --filter @ai-agent-sdk/observability build && pnpm --filter @ai-agent-sdk/observability-fetch build && pnpm --filter @ai-agent-sdk/observability-browser build && pnpm --filter @ai-agent-sdk/observability-node build && pnpm --filter @ai-agent-sdk/observability-otel build && pnpm --filter @ai-agent-sdk/node build && tsc --noEmit",
+    "typecheck": "pnpm build && pnpm --filter ai-agent-sdk typecheck && tsc --noEmit",
     "pretest": "npm run build && npm run build:cli",
     "snapshot:public-api": "node scripts/snapshot-public-api.mts",
     "lint": "node scripts/check-package-graph.mts && node scripts/check-dependency-cruiser.mts && node scripts/check-agent-boundaries.mts && node scripts/check-runtime-boundaries.mts",
@@ -114,39 +61,27 @@
     "human:mcp:github": "npm run build:cli --silent && node dist-cli/mcp-github.mjs",
     "prepublishOnly": "npm test && npm run typecheck && npm run build"
   },
-  "dependencies": {
+  "devDependencies": {
+    "@a2a-js/sdk": "catalog:",
     "@ai-agent-sdk/a2a": "workspace:^",
     "@ai-agent-sdk/agent": "workspace:^",
     "@ai-agent-sdk/auth-node": "workspace:^",
     "@ai-agent-sdk/core": "workspace:^",
     "@ai-agent-sdk/mcp": "workspace:^",
     "@ai-agent-sdk/mcp-node": "workspace:^",
+    "@ai-agent-sdk/node": "workspace:^",
+    "@ai-agent-sdk/observability-browser": "workspace:^",
+    "@ai-agent-sdk/observability-fetch": "workspace:^",
     "@ai-agent-sdk/observability-node": "workspace:^",
+    "@ai-agent-sdk/observability": "workspace:^",
+    "@ai-agent-sdk/observability-otel": "workspace:^",
     "@ai-agent-sdk/provider-anthropic": "workspace:^",
     "@ai-agent-sdk/provider-codex": "workspace:^",
     "@ai-agent-sdk/provider-http": "workspace:^",
     "@ai-agent-sdk/provider-openai": "workspace:^",
     "@ai-agent-sdk/protocol-anthropic-messages": "workspace:^",
     "@ai-agent-sdk/protocol-responses": "workspace:^",
-    "@ai-agent-sdk/skill-filesystem": "workspace:^"
-  },
-  "peerDependencies": {
-    "@modelcontextprotocol/client": "catalog:",
-    "@modelcontextprotocol/node": "catalog:",
-    "@modelcontextprotocol/server": "catalog:"
-  },
-  "peerDependenciesMeta": {
-    "@modelcontextprotocol/client": { "optional": true },
-    "@modelcontextprotocol/node": { "optional": true },
-    "@modelcontextprotocol/server": { "optional": true }
-  },
-  "devDependencies": {
-    "@a2a-js/sdk": "catalog:",
-    "@ai-agent-sdk/node": "workspace:^",
-    "@ai-agent-sdk/observability-browser": "workspace:^",
-    "@ai-agent-sdk/observability-fetch": "workspace:^",
-    "@ai-agent-sdk/observability": "workspace:^",
-    "@ai-agent-sdk/observability-otel": "workspace:^",
+    "@ai-agent-sdk/skill-filesystem": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",
     "@changesets/cli": "catalog:",
     "@modelcontextprotocol/client": "catalog:",
@@ -163,6 +98,7 @@
     "turbo": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "catalog:"
+    "wrangler": "catalog:",
+    "ai-agent-sdk": "workspace:^"
   }
 }

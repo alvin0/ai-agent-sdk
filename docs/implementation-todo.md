@@ -398,14 +398,14 @@ Commit: `test(provider-codex): verify live luna accounting`
 Dependencies: all C/A/P/O/V/I/N tasks  
 Files: `packages/sdk/**`
 
-- [ ] Re-export all current subpaths to their new package owners.
-- [ ] Keep regular facade dependencies limited to Universal core/agent/HTTP/protocol packages; declare every legacy leaf target as an optional peer so root-only installation cannot pull Node packages.
-- [ ] Keep root `.` import closure Universal and document the exact optional peer install command for every legacy subpath.
-- [ ] Remove the Node-only `apiKeyFromEnv` root symbol, preserve it as a deprecated alias in auth-node/node, and record this sole required root-symbol break in migration/type fixtures.
-- [ ] Add `./node`; document runtime of each subpath.
-- [ ] Run frozen F0 public API fixtures and list every intentional type change.
+- [x] Re-export all current subpaths to their new package owners.
+- [x] Keep regular facade dependencies limited to Universal core/agent/HTTP/protocol packages; declare every legacy leaf target as an optional peer so root-only installation cannot pull Node packages.
+- [x] Keep root `.` import closure Universal and document the exact optional peer install command for every legacy subpath.
+- [x] Remove the Node-only `apiKeyFromEnv` root symbol, preserve it as a deprecated alias in auth-node/node, and record this sole required root-symbol break in migration/type fixtures.
+- [x] Add `./node`; document runtime of each subpath.
+- [x] Run frozen F0 public API fixtures and list every intentional type change.
 
-Exit evidence: root-only tarball install contains no Node-only dependency; a second fixture installs optional peers and proves every current import path.  
+Exit evidence: `packages/sdk` owns the 12-entry compatibility surface plus package metadata. Its five regular dependencies are exactly core, agent, provider-http, and the two protocols; nine leaf targets are optional peers. The packed root-only fixture imports with `process` and `Buffer` removed, finds only those five scoped packages plus `eventsource-parser`, and proves no Node/filesystem/A2A/MCP/observability leaf was installed. The full packed fixture installs every optional peer, executes every legacy import and `/node`, proves canonical runtime identity, and compiles type-only imports for all entries. Frozen F0 runtime exports are exact except the approved root removal of `apiKeyFromEnv`; `/node` is the only added path. Four declaration hashes change for the documented root boundary, required injected Anthropic/OpenAI credentials, and request-logger public type ownership; every other legacy declaration hash remains byte-identical. Publint and ATTW resolve every entry.
 Commit: `refactor: switch compatibility facade to workspace packages`
 
 ### K1 — Remove old source and npm lock

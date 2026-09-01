@@ -6,7 +6,8 @@ import { pathToFileURL } from 'node:url'
 interface ExportTarget { readonly types: string; readonly default: string }
 
 const root = resolve(import.meta.dirname, '..')
-const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')) as {
+const packageRoot = resolve(root, 'packages/sdk')
+const packageJson = JSON.parse(await readFile(resolve(packageRoot, 'package.json'), 'utf8')) as {
   readonly name: string
   readonly version: string
   readonly exports: Readonly<Record<string, ExportTarget | string>>
@@ -15,8 +16,8 @@ const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'ut
 const entries: Record<string, { exports: string[]; typesSha256: string }> = {}
 for (const [subpath, target] of Object.entries(packageJson.exports)) {
   if (subpath === './package.json' || typeof target === 'string') continue
-  const runtimePath = resolve(root, target.default)
-  const typesPath = resolve(root, target.types)
+  const runtimePath = resolve(packageRoot, target.default)
+  const typesPath = resolve(packageRoot, target.types)
   const runtime = await import(pathToFileURL(runtimePath).href)
   const types = await readFile(typesPath)
   entries[subpath] = {
@@ -25,7 +26,7 @@ for (const [subpath, target] of Object.entries(packageJson.exports)) {
   }
 }
 
-const rootRuntime = await import(pathToFileURL(resolve(root, 'dist/index.js')).href) as {
+const rootRuntime = await import(pathToFileURL(resolve(packageRoot, 'dist/index.js')).href) as {
   readonly MODEL_ERROR_CODES: Readonly<Record<string, string>>
   readonly REGISTRY_ERROR_CODES: Readonly<Record<string, string>>
   readonly TOOL_ERROR_CODES: Readonly<Record<string, string>>

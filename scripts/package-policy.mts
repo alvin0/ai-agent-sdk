@@ -92,10 +92,7 @@ export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {
       scoped('observability-browser'), scoped('observability-node'), scoped('observability-otel'), scoped('auth-node'), scoped('skill-filesystem'),
       scoped('mcp'), scoped('mcp-node'), scoped('a2a'), scoped('node'),
     ],
-    // Temporary single-package baseline ownership. K0 replaces these with workspace edges.
-    externalRuntimeDependencies: [
-      '@a2a-js/sdk', '@modelcontextprotocol/client', '@modelcontextprotocol/node', '@modelcontextprotocol/server', 'eventsource-parser',
-    ],
+    externalRuntimeDependencies: [],
   },
 }
 
@@ -130,8 +127,6 @@ export function discoverWorkspacePackages(workspaceRoot: string): readonly Works
       if (entry.isDirectory() && existsSync(join(packagesRoot, entry.name, 'package.json'))) roots.push(join(packagesRoot, entry.name))
     }
   }
-  if (existsSync(join(workspaceRoot, 'package.json')) && existsSync(join(workspaceRoot, 'src'))) roots.push(workspaceRoot)
-
   return roots.map((root) => {
     const manifestPath = join(root, 'package.json')
     const manifest = readManifest(manifestPath)
