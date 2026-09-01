@@ -1,7 +1,7 @@
 /** Human input as a resumable, call-id-addressed boundary. */
 
-import type { ToolCallId } from '../../core/primitives/brand.ts'
-import { detachedFrozen } from '../../core/primitives/snapshot.ts'
+import type { ToolCallId } from '@ai-agent-sdk/core'
+import { detachedFrozen } from '@ai-agent-sdk/core'
 
 export interface UserInputOption {
   /** Short text shown on the choice button. */

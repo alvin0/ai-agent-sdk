@@ -1,10 +1,10 @@
 /** Public identities, delivery values, and event records for local and remote A2A. */
 
-import type { ContentBlock } from '../../core/message/content.ts'
+import type { ContentBlock } from '@ai-agent-sdk/core'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
 import type { AgentTeam } from './team.ts'
 
-export type { AgentMessageSource } from '../../core/message/message.ts'
+export type { AgentMessageSource } from '@ai-agent-sdk/core'
 
 /** A quiet delivery adds context; a wakeup delivery also schedules a turn. */
 export type AgentMessageDelivery = 'quiet' | 'wakeup'

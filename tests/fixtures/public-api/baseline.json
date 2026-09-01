@@ -91,6 +91,7 @@
         "defineSkill",
         "defineSkillProvider",
         "defineTool",
+        "detachedFrozen",
         "disabledDeliverySummary",
         "dispatchAuthorizedToolCall",
         "dispatchToolCall",
@@ -147,10 +148,11 @@
         "validateSkillId",
         "validateSkillSource",
         "validateUsageCounters",
+        "waitForSettlement",
         "withIdleTimeout",
         "withRetry"
       ],
-      "typesSha256": "b04f5b6603c55e4e4dfac376f3ca75079270fa6cb10e6fd299f93eee7be8edd4"
+      "typesSha256": "3943b12cf336082baae925a37a2ad984e8155336adf77520fdf0566c1501d4fc"
     },
     "./anthropic": {
       "exports": [
@@ -161,7 +163,7 @@
         "anthropicAdapter",
         "anthropicMessagesProtocol"
       ],
-      "typesSha256": "9d332f6878d28e82d6fc7eb3d5e2263b41366300e9c20af7caebb08737872447"
+      "typesSha256": "d6637b2a3fc459a7baa6d76ea197359963c4ea7ac28c263b257bb2df2ae864ab"
     },
     "./openai": {
       "exports": [
@@ -170,7 +172,7 @@
         "openAiAdapter",
         "openAiResponsesProtocol"
       ],
-      "typesSha256": "bb4b3b0bf426fb121b08419139af136a088d501dee8b51427c00214d8075b1bc"
+      "typesSha256": "6eadc7c1b12a809ab8a1cc41913cda853f7a0f41de4326fe966733d6c339d75e"
     },
     "./codex": {
       "exports": [
@@ -197,7 +199,7 @@
         "runDeviceCodeLogin",
         "shouldRefresh"
       ],
-      "typesSha256": "701404f78aa116d91e1287ae1428bda9254aa716ec35dad32c2ec72ea30fab2a"
+      "typesSha256": "d80d7ea2bf995992179da4b041a7d386071816a7e468c9ca41ec8ac045666643"
     },
     "./a2a-client": {
       "exports": [
@@ -209,7 +211,7 @@
         "createA2AAgentLink",
         "linkA2AAgent"
       ],
-      "typesSha256": "b6db54c6d88a52c30e768b19dfb4b13db1e92db0e59c28d3654b3fabf71ffe6a"
+      "typesSha256": "898f82689beed2bc44a6a634436fd80153a8c6b13f1d039c55cba08eae30eaca"
     },
     "./a2a-server": {
       "exports": [
@@ -227,7 +229,7 @@
         "createAgentCardFromDefinition",
         "createDefinedAgentA2AServer"
       ],
-      "typesSha256": "0c2d9c060b1b484310695c640b05dc7b30c59796e06215942b21bee546e43731"
+      "typesSha256": "48ed142d2357489f749fb79fae5b045cb26e5502ac6c4e7173d7af77cb2df875"
     },
     "./skill-filesystem": {
       "exports": [
@@ -241,7 +243,7 @@
         "combineProviderRequestLoggers",
         "createDailyJsonlRequestLogger"
       ],
-      "typesSha256": "4c10e45c977fc45a88d3529b23a640fb266d86474345e82fe7eb05f3eaf667c3"
+      "typesSha256": "b89e8a741332f494bad30fda759ea76e9cf9c3cedf3c7c79e2c95e55ddc9173a"
     },
     "./mcp-client": {
       "exports": [
@@ -251,14 +253,14 @@
         "createMcpHttpClient",
         "resolveMcpReconnectOptions"
       ],
-      "typesSha256": "8c7cf395a3ca8464f0394961eed96a3abd4969345b684d50008af185060e786e"
+      "typesSha256": "99f13d87cf1122d79b566447de06162cb31da115ccbe56fb10560c1c5aef6ec2"
     },
     "./mcp-server": {
       "exports": [
         "createSdkMcpHandler",
         "createSdkMcpServer"
       ],
-      "typesSha256": "8672e6e49f19131dc076cd9bf4d5adce7684a227b4d715a4bdd5615172a4cc60"
+      "typesSha256": "fc880c72e658f42d3f7bba324b0fdc5490569d2c0a458b149a7b5ee369858b0d"
     },
     "./mcp-node": {
       "exports": [
@@ -271,7 +273,7 @@
         "serveSdkMcpStdio",
         "toNodeHandler"
       ],
-      "typesSha256": "8c3cb39d1cc578c07762ccc665ccdf9346f62a6bc26ac26eac2b295ee099b977"
+      "typesSha256": "1818f99a6f5d557a04935ddf226e8799147dae01624d0ef57c22b188b1170942"
     }
   },
   "errorCodes": {

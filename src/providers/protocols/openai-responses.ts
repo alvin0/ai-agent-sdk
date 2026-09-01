@@ -8,7 +8,7 @@
  * @module ai-agent-sdk/providers/protocols/openai-responses
  */
 
-import type { StreamChunk } from '../../core/stream/chunk.ts'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 import type { SseEvent } from '../../core/stream/sse.ts'
 import type { ProviderRequest } from '../base/http-adapter.ts'
 import { serializeResponsesRequest } from '../responses/serialize.ts'

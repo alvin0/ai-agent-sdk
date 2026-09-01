@@ -1,7 +1,7 @@
 /** Declarative, code-first agent definitions. */
 
-import type { ToolChoice, NativeToolSchema } from '../../core/contract/tool.ts'
-import { ReasoningEffortId, type ReasoningEffortId as ReasoningEffort } from '../../core/primitives/brand.ts'
+import type { ToolChoice, NativeToolSchema } from '@ai-agent-sdk/core'
+import { ReasoningEffortId, type ReasoningEffortId as ReasoningEffort } from '@ai-agent-sdk/core'
 import type { AgentMode } from '../mode/run-agent.ts'
 import type { ToolDefinition } from '../tool/definition.ts'
 import {

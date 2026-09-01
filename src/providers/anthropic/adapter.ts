@@ -8,9 +8,9 @@
  * @module ai-agent-sdk/providers/anthropic/adapter
  */
 
-import type { ModelReasoningInfo } from '../../core/contract/model-info.ts'
-import type { RetryPolicyConfig } from '../../core/contract/retry-policy.ts'
-import { ReasoningEffortId } from '../../core/primitives/brand.ts'
+import type { ModelReasoningInfo } from '@ai-agent-sdk/core'
+import type { RetryPolicyConfig } from '@ai-agent-sdk/core'
+import { ReasoningEffortId } from '@ai-agent-sdk/core'
 import type {
   HttpModelAdapter,
   ProviderCatalogModel,

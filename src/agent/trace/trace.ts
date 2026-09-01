@@ -1,12 +1,12 @@
-import { deepFreeze } from '../../core/primitives/freeze.ts'
+import { deepFreeze } from '@ai-agent-sdk/core'
 import {
   createSpanId,
   createTraceId,
   traceparent,
   type SpanId,
   type TraceId,
-} from '../../core/observation/context.ts'
-import type { TokenUsage } from '../../core/stream/chunk.ts'
+} from '@ai-agent-sdk/core'
+import type { TokenUsage } from '@ai-agent-sdk/core'
 
 export { createSpanId, createTraceId, traceparent }
 export type { SpanId, TraceId }

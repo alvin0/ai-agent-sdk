@@ -16,8 +16,8 @@ import {
   createTextMessage,
   createToolResultMessage,
   type Message,
-} from '../src/core/message/message.ts'
-import { ToolCallId } from '../src/core/primitives/brand.ts'
+} from '@ai-agent-sdk/core'
+import { ToolCallId } from '@ai-agent-sdk/core'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Implementation 1: plain Message[] with a splice for compaction

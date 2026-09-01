@@ -3,11 +3,11 @@
 import type { AgentSession } from '../define/session.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
-import type { ContentBlock } from '../../core/message/content.ts'
-import { createUserMessage } from '../../core/message/message.ts'
-import type { JsonValue } from '../../core/primitives/json.ts'
-import { deepFreeze as freezeDeep } from '../../core/primitives/freeze.ts'
-import { waitForSettlement } from '../../core/async/settlement.ts'
+import type { ContentBlock } from '@ai-agent-sdk/core'
+import { createUserMessage } from '@ai-agent-sdk/core'
+import type { JsonValue } from '@ai-agent-sdk/core'
+import { deepFreeze as freezeDeep } from '@ai-agent-sdk/core'
+import { waitForSettlement } from '@ai-agent-sdk/core'
 import type {
   AgentMessageRecord,
   AgentTeamEvent,

@@ -20,8 +20,8 @@
  * @module ai-agent-sdk/agent/tool/approval
  */
 
-import type { ToolCallId } from '../../core/primitives/brand.ts'
-import { detachedFrozen } from '../../core/primitives/snapshot.ts'
+import type { ToolCallId } from '@ai-agent-sdk/core'
+import { detachedFrozen } from '@ai-agent-sdk/core'
 
 /** What the approver decided. */
 export type ApprovalDecision =

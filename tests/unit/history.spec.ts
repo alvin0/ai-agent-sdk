@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { History } from '../../src/agent/history/history.ts'
 import { normalizeToolPairing } from '../../src/agent/history/normalize.ts'
-import { createMessage, createTextMessage, createToolResultMessage } from '../../src/core/message/message.ts'
-import { ToolCallId } from '../../src/core/primitives/brand.ts'
+import { createMessage, createTextMessage, createToolResultMessage } from '@ai-agent-sdk/core'
+import { ToolCallId } from '@ai-agent-sdk/core'
 
 type MutableSnapshot = {
   version: number

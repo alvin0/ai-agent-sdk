@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { isJsonValue } from '../../src/core/primitives/json.ts'
+import { isJsonValue } from '@ai-agent-sdk/core'
 import {
   defineTool,
   executionModeOf,

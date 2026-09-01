@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ToolCallId } from '../../src/core/primitives/brand.ts'
+import { ToolCallId } from '@ai-agent-sdk/core'
 import { createApprovalBroker, fixedApprovalBroker } from '../../src/agent/tool/approval.ts'
 import { defineTool, type ToolDefinition } from '../../src/agent/tool/definition.ts'
 import { ToolError } from '../../src/agent/tool/errors.ts'

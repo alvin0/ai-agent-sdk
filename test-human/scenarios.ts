@@ -1,7 +1,7 @@
 /** Scenario-specific model controls and user-message construction. */
 
-import type { NativeToolSchema, ToolChoice } from '../src/core/contract/tool.ts'
-import { createTextMessage, createUserMessage, type UserMessage } from '../src/core/message/message.ts'
+import type { NativeToolSchema, ToolChoice } from '@ai-agent-sdk/core'
+import { createTextMessage, createUserMessage, type UserMessage } from '@ai-agent-sdk/core'
 import type { HumanCliConfig } from './config.ts'
 import { loadImageBlock } from './media.ts'
 

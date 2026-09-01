@@ -15,11 +15,11 @@
  * @module ai-agent-sdk/providers/anthropic/translate
  */
 
-import { MODEL_ERROR_CODES, ModelError } from '../../core/errors/model-error.ts'
-import { ToolCallId } from '../../core/primitives/brand.ts'
-import { isJsonValue, type JsonValue } from '../../core/primitives/json.ts'
-import type { ContentBlock, TextAnnotation } from '../../core/message/content.ts'
-import type { FinishReason, StreamChunk, TokenUsage } from '../../core/stream/chunk.ts'
+import { MODEL_ERROR_CODES, ModelError } from '@ai-agent-sdk/core'
+import { ToolCallId } from '@ai-agent-sdk/core'
+import { isJsonValue, type JsonValue } from '@ai-agent-sdk/core'
+import type { ContentBlock, TextAnnotation } from '@ai-agent-sdk/core'
+import type { FinishReason, StreamChunk, TokenUsage } from '@ai-agent-sdk/core'
 import type { SseEvent } from '../../core/stream/sse.ts'
 import { httpErrorCode } from '../base/http-errors.ts'
 import type { AnthropicReasoningState } from './serialize.ts'

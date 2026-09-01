@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SseEvent } from '../../src/core/stream/sse.ts'
 import { translateResponsesStream } from '../../src/providers/responses/translate.ts'
-import { createTextMessage } from '../../src/core/message/message.ts'
+import { createTextMessage } from '@ai-agent-sdk/core'
 import { providerRequest } from './fixtures.ts'
 
 async function* events(values: readonly object[]): AsyncIterable<SseEvent> {

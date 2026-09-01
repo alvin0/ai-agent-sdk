@@ -1,8 +1,8 @@
 /** Surface range selection and lossless-log tool-result pruning. */
 
-import type { ContentBlock } from '../../core/message/content.ts'
-import { createMessage, type Message } from '../../core/message/message.ts'
-import type { ToolCallId } from '../../core/primitives/brand.ts'
+import type { ContentBlock } from '@ai-agent-sdk/core'
+import { createMessage, type Message } from '@ai-agent-sdk/core'
+import type { ToolCallId } from '@ai-agent-sdk/core'
 import type { History } from '../history/history.ts'
 import type { HistorySurfaceNode } from '../history/project.ts'
 import { estimateMessageTokens } from './token-estimator.ts'

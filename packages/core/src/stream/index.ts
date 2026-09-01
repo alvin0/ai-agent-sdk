@@ -9,4 +9,3 @@ export type {
   TokenUsage,
 } from './chunk.ts'
 export { withIdleTimeout } from './idle-timeout.ts'
-export { parseSse, type SseEvent } from './sse.ts'

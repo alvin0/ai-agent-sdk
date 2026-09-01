@@ -20,10 +20,10 @@ import {
   type RequestContext,
   type TaskStore,
 } from '@a2a-js/sdk/server'
-import type { ContentBlock, ImageMediaType } from '../core/message/content.ts'
-import { createUserMessage } from '../core/message/message.ts'
-import type { ModelRegistry } from '../core/runtime/registry.ts'
-import { waitForSettlement } from '../core/async/settlement.ts'
+import type { ContentBlock, ImageMediaType } from '@ai-agent-sdk/core'
+import { createUserMessage } from '@ai-agent-sdk/core'
+import type { ModelRegistry } from '@ai-agent-sdk/core'
+import { waitForSettlement } from '@ai-agent-sdk/core'
 import type { DefinedAgent } from '../agent/define/definition.ts'
 import {
   AgentSession,

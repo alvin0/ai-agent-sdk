@@ -19,7 +19,7 @@
  */
 
 import { createParser } from 'eventsource-parser'
-import { waitForSettlement } from '../async/settlement.ts'
+import { waitForSettlement } from '@ai-agent-sdk/core'
 
 /**
  * Ceiling on characters the parser may buffer across reads.

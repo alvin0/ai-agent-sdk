@@ -2,7 +2,7 @@
 
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ModelRegistry } from '../src/core/runtime/registry.ts'
+import { ModelRegistry } from '@ai-agent-sdk/core'
 import { anthropicAdapter } from '../src/providers/anthropic/adapter.ts'
 import { codexAdapter } from '../src/providers/codex/adapter.ts'
 import { openAiAdapter } from '../src/providers/openai/adapter.ts'

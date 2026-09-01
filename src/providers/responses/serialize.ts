@@ -12,9 +12,9 @@
  */
 
 import type { ProviderRequest } from '../base/http-adapter.ts'
-import { MODEL_ERROR_CODES, ModelError } from '../../core/errors/model-error.ts'
-import type { ContentBlock, ImageBlock, TextBlock } from '../../core/message/content.ts'
-import type { Message } from '../../core/message/message.ts'
+import { MODEL_ERROR_CODES, ModelError } from '@ai-agent-sdk/core'
+import type { ContentBlock, ImageBlock, TextBlock } from '@ai-agent-sdk/core'
+import type { Message } from '@ai-agent-sdk/core'
 import {
   isNativeToolSchema,
   type ModelToolSchema,
@@ -22,7 +22,7 @@ import {
   type NativeWebSearchTool,
   type ToolChoice,
   type ToolSchema,
-} from '../../core/contract/tool.ts'
+} from '@ai-agent-sdk/core'
 import type {
   ResponsesDialect,
   WireContentPart,

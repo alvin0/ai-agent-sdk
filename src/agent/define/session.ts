@@ -18,10 +18,10 @@ import {
 import { AgentMemory, type AgentMemorySnapshot } from '../memory/memory.ts'
 import { runAgent, type AgentRunEvent, type AgentRunOutcome } from '../mode/run-agent.ts'
 import type { UserInputBroker } from '../mode/user-input.ts'
-import type { Message, UserMessage } from '../../core/message/message.ts'
-import { createTextMessage, createUserMessage, freezeMessage } from '../../core/message/message.ts'
-import type { ModelRegistry } from '../../core/runtime/registry.ts'
-import { waitForSettlement } from '../../core/async/settlement.ts'
+import type { Message, UserMessage } from '@ai-agent-sdk/core'
+import { createTextMessage, createUserMessage, freezeMessage } from '@ai-agent-sdk/core'
+import type { ModelRegistry } from '@ai-agent-sdk/core'
+import { waitForSettlement } from '@ai-agent-sdk/core'
 import type { SpanId, TraceId } from '../trace/trace.ts'
 import {
   SkillCatalog,

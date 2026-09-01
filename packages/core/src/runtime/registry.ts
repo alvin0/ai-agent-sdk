@@ -31,6 +31,7 @@ import { MODEL_ERROR_CODES, ModelError, REGISTRY_ERROR_CODES } from '../errors/m
 import { freezeMessage, type Message } from '../message/message.ts'
 import { contentHasImage, projectImagesForTextModel } from '../message/projection.ts'
 import { deepFreeze } from '../primitives/freeze.ts'
+import { SDK_VERSION } from '../primitives/version.ts'
 import type { StreamChunk } from '../stream/chunk.ts'
 import { waitForSettlement } from '../async/settlement.ts'
 import type { ObservationResource } from '../observation/event.ts'
@@ -164,7 +165,7 @@ export class ModelRegistry {
     this.observation = options.observation
     this.observationResource = deepFreeze(options.observationResource ?? {
       sdkName: 'ai-agent-sdk',
-      sdkVersion: '0.0.0',
+      sdkVersion: SDK_VERSION,
       runtime: 'unknown',
     })
   }

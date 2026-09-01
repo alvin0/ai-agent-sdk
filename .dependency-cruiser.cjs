@@ -24,10 +24,9 @@ module.exports = {
       path: 'node_modules',
       dependencyTypes: ['npm', 'npm-dev', 'npm-optional', 'npm-peer', 'npm-bundled', 'npm-no-pkg'],
     },
-    tsConfig: { fileName: 'tsconfig.json' },
     enhancedResolveOptions: {
       exportsFields: ['exports'],
-      conditionNames: ['types', 'import', 'default'],
+      conditionNames: ['import', 'default'],
     },
     exclude: { path: '(^|/)(node_modules|tests?)(/|$)' },
   },

@@ -8,12 +8,12 @@ import { defineTool } from '../../src/agent/tool/definition.ts'
 import { ToolError } from '../../src/agent/tool/errors.ts'
 import { ToolRegistry } from '../../src/agent/tool/registry.ts'
 import { buildTraceTree, type TraceEvent } from '../../src/agent/trace/trace.ts'
-import { ModelAdapter } from '../../src/core/contract/adapter.ts'
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
-import { createTextMessage } from '../../src/core/message/message.ts'
-import { ToolCallId } from '../../src/core/primitives/brand.ts'
-import { ModelRegistry } from '../../src/core/runtime/registry.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+import { ModelAdapter } from '@ai-agent-sdk/core'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
+import { createTextMessage } from '@ai-agent-sdk/core'
+import { ToolCallId } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 
 class ScriptedAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []

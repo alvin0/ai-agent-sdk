@@ -14,8 +14,8 @@ import {
   createAssistantMessage,
   createTextMessage,
   type Message,
-} from '../src/core/message/message.ts'
-import { ToolCallId } from '../src/core/primitives/brand.ts'
+} from '@ai-agent-sdk/core'
+import { ToolCallId } from '@ai-agent-sdk/core'
 
 interface SpikeEntry {
   seq: number

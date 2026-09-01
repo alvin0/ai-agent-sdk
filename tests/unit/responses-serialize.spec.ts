@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { ToolCallId } from '../../src/core/primitives/brand.ts'
-import { ReasoningEffortId } from '../../src/core/primitives/brand.ts'
+import { ToolCallId } from '@ai-agent-sdk/core'
+import { ReasoningEffortId } from '@ai-agent-sdk/core'
 import {
   createAssistantMessage,
   createTextMessage,
   createToolResultMessage,
-} from '../../src/core/message/message.ts'
+} from '@ai-agent-sdk/core'
 import { serializeResponsesRequest } from '../../src/providers/responses/serialize.ts'
 import type { ResponsesDialect } from '../../src/providers/responses/wire.ts'
 import { providerRequest } from './fixtures.ts'

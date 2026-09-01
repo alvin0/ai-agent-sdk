@@ -16,9 +16,9 @@ import {
   QUOTA_EXCEEDED_CODE,
   isContextWindowExceededError,
   isQuotaExceededError,
-} from '../../core/errors/agent-sdk-error.ts'
-import { MODEL_ERROR_CODES } from '../../core/errors/model-error.ts'
-import { ProviderRequestId } from '../../core/primitives/brand.ts'
+} from '@ai-agent-sdk/core'
+import { MODEL_ERROR_CODES } from '@ai-agent-sdk/core'
+import { ProviderRequestId } from '@ai-agent-sdk/core'
 
 /**
  * Map an HTTP status plus whatever the provider said into a stable code.

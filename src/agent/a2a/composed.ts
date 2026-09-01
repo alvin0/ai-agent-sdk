@@ -1,6 +1,6 @@
 /** Composition root for teams made from pre-defined, long-lived agents. */
 
-import type { ModelRegistry } from '../../core/runtime/registry.ts'
+import type { ModelRegistry } from '@ai-agent-sdk/core'
 import type { DefinedAgent } from '../define/definition.ts'
 import {
   type AgentInput,

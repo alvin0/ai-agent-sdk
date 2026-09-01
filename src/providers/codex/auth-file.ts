@@ -15,7 +15,7 @@
  * @module ai-agent-sdk/providers/codex/auth-file
  */
 
-import { AgentSdkError, MISSING_CREDENTIAL_CODE } from '../../core/errors/agent-sdk-error.ts'
+import { AgentSdkError, MISSING_CREDENTIAL_CODE } from '@ai-agent-sdk/core'
 
 /** Default project-relative location of this SDK's own Codex credentials. */
 export const DEFAULT_CODEX_AUTH_PATH = '.providers/.codex/auth.json'

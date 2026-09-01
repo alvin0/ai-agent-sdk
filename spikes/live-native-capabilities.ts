@@ -2,9 +2,9 @@
 import { History } from '../src/agent/history/history.ts'
 import { runTurn } from '../src/agent/loop/run-turn.ts'
 import type { AgentEvent } from '../src/agent/loop/types.ts'
-import { createTextMessage } from '../src/core/message/message.ts'
-import { ReasoningEffortId } from '../src/core/primitives/brand.ts'
-import { ModelRegistry } from '../src/core/runtime/registry.ts'
+import { createTextMessage } from '@ai-agent-sdk/core'
+import { ReasoningEffortId } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
 import { codexAdapter } from '../src/providers/codex/adapter.ts'
 import { createDailyJsonlRequestLogger } from '../src/providers/request-logger.ts'
 

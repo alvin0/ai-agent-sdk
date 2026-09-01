@@ -4,8 +4,8 @@ import { runAgent, type AgentRunEvent, type AgentRunOutcome } from '../src/agent
 import { createUserInputBroker } from '../src/agent/mode/user-input.ts'
 import { defineTool } from '../src/agent/tool/definition.ts'
 import { ToolRegistry } from '../src/agent/tool/registry.ts'
-import { createTextMessage } from '../src/core/message/message.ts'
-import { ModelRegistry } from '../src/core/runtime/registry.ts'
+import { createTextMessage } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
 import { codexAdapter } from '../src/providers/codex/adapter.ts'
 import { createDailyJsonlRequestLogger } from '../src/providers/request-logger.ts'
 

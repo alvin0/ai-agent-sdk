@@ -1,4 +1,4 @@
-import type { Message } from '../../core/message/message.ts'
+import type { Message } from '@ai-agent-sdk/core'
 import type { HistoryEntry } from './history.ts'
 
 export interface HistorySurfaceNode {

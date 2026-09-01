@@ -31,7 +31,9 @@
  * @module ai-agent-sdk
  */
 
-export * from './core/index.ts'
+export * from '@ai-agent-sdk/core'
+// Compatibility ownership until provider-http extraction (P0).
+export { parseSse, type SseEvent } from './core/stream/sse.ts'
 export * from './agent/index.ts'
 
 // The shared provider pipeline, for building your own endpoint.

@@ -24,9 +24,9 @@ import type {
   LinkedAgentSendInput,
   LinkedAgentTransport,
 } from '../agent/a2a/types.ts'
-import type { ContentBlock } from '../core/message/content.ts'
-import { detachedFrozen } from '../core/primitives/snapshot.ts'
-import { waitForSettlement } from '../core/async/settlement.ts'
+import type { ContentBlock } from '@ai-agent-sdk/core'
+import { detachedFrozen } from '@ai-agent-sdk/core'
+import { waitForSettlement } from '@ai-agent-sdk/core'
 
 export interface A2AAgentLinkOptions {
   /** Stable id exposed in AgentTeam roster; defaults to card name or base URL. */

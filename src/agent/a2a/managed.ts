@@ -1,8 +1,8 @@
 /** Codex-style dynamic worker creation and delegation over AgentTeam. */
 
-import type { JsonValue } from '../../core/primitives/json.ts'
-import { createTextMessage } from '../../core/message/message.ts'
-import type { ModelRegistry } from '../../core/runtime/registry.ts'
+import type { JsonValue } from '@ai-agent-sdk/core'
+import { createTextMessage } from '@ai-agent-sdk/core'
+import type { ModelRegistry } from '@ai-agent-sdk/core'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
 import { cloneAgent, type DefinedAgent } from '../define/definition.ts'
 import {
@@ -16,7 +16,7 @@ import { defineTool, type ToolDefinition } from '../tool/definition.ts'
 import { ToolRegistry, type ToolCatalog } from '../tool/registry.ts'
 import { AgentTeam } from './team.ts'
 import type { AgentTeamOptions } from './types.ts'
-import { waitForSettlement } from '../../core/async/settlement.ts'
+import { waitForSettlement } from '@ai-agent-sdk/core'
 
 type DetachedSessionOptions = Omit<AgentSessionOptions, 'registry' | 'team' | 'tools'>
 

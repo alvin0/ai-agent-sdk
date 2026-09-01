@@ -1,6 +1,6 @@
 /** Durable, explicitly inspectable task memory kept outside compactable history. */
 
-import type { UserMessage } from '../../core/message/message.ts'
+import type { UserMessage } from '@ai-agent-sdk/core'
 
 export type AgentMemoryKind =
   | 'objective'

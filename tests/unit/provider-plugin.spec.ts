@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ModelAdapter } from '../../src/core/contract/adapter.ts'
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
-import type { ModelProviderPlugin, ModelProviderRegistrar } from '../../src/core/plugin/provider-plugin.ts'
-import { ModelRegistry } from '../../src/core/runtime/registry.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+import { ModelAdapter } from '@ai-agent-sdk/core'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
+import type { ModelProviderPlugin, ModelProviderRegistrar } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 
 class PluginAdapter extends ModelAdapter {
   stream(_options: GenerateOptions): AsyncIterable<StreamChunk> {

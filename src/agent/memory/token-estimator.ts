@@ -1,8 +1,8 @@
 /** Provider-neutral deterministic context estimator used by compaction policy. */
 
-import type { ModelToolSchema } from '../../core/contract/tool.ts'
-import type { ContentBlock } from '../../core/message/content.ts'
-import type { Message } from '../../core/message/message.ts'
+import type { ModelToolSchema } from '@ai-agent-sdk/core'
+import type { ContentBlock } from '@ai-agent-sdk/core'
+import type { Message } from '@ai-agent-sdk/core'
 
 export function estimateContextTokens(input: {
   readonly system?: string

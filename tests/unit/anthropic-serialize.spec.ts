@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { ToolCallId } from '../../src/core/primitives/brand.ts'
+import { ToolCallId } from '@ai-agent-sdk/core'
 import {
   createAssistantMessage,
   createTextMessage,
   createToolResultMessage,
-} from '../../src/core/message/message.ts'
+} from '@ai-agent-sdk/core'
 import { DEFAULT_THINKING_BUDGETS } from '../../src/providers/anthropic/adapter.ts'
 import { serializeAnthropicRequest } from '../../src/providers/anthropic/serialize.ts'
-import { ReasoningEffortId } from '../../src/core/primitives/brand.ts'
+import { ReasoningEffortId } from '@ai-agent-sdk/core'
 import { providerRequest } from './fixtures.ts'
 
 const options = { budgets: DEFAULT_THINKING_BUDGETS }

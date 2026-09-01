@@ -1,14 +1,14 @@
 /** Context-pressure compaction inspired by Codex checkpoints and deepseek-harness surface replacement. */
 
-import type { CallConfig } from '../../core/contract/call-config.ts'
-import type { ModelToolSchema } from '../../core/contract/tool.ts'
-import type { ContentBlock, ToolCallBlock, ToolResultBlock } from '../../core/message/content.ts'
-import { createMessage, createUserMessage, type Message } from '../../core/message/message.ts'
-import { ReasoningEffortId } from '../../core/primitives/brand.ts'
-import type { ModelRegistry } from '../../core/runtime/registry.ts'
-import { waitForSettlement } from '../../core/async/settlement.ts'
-import { BlockAssembler } from '../../core/stream/assembler.ts'
-import type { TokenUsage } from '../../core/stream/chunk.ts'
+import type { CallConfig } from '@ai-agent-sdk/core'
+import type { ModelToolSchema } from '@ai-agent-sdk/core'
+import type { ContentBlock, ToolCallBlock, ToolResultBlock } from '@ai-agent-sdk/core'
+import { createMessage, createUserMessage, type Message } from '@ai-agent-sdk/core'
+import { ReasoningEffortId } from '@ai-agent-sdk/core'
+import type { ModelRegistry } from '@ai-agent-sdk/core'
+import { waitForSettlement } from '@ai-agent-sdk/core'
+import { BlockAssembler } from '@ai-agent-sdk/core'
+import type { TokenUsage } from '@ai-agent-sdk/core'
 import type { History } from '../history/history.ts'
 import { normalizeToolPairing } from '../history/normalize.ts'
 import type {

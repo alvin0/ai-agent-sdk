@@ -21,9 +21,9 @@
  * @module ai-agent-sdk/providers/codex/adapter
  */
 
-import type { RetryPolicyConfig } from '../../core/contract/retry-policy.ts'
-import { ReasoningEffortId } from '../../core/primitives/brand.ts'
-import { waitForSettlement } from '../../core/async/settlement.ts'
+import type { RetryPolicyConfig } from '@ai-agent-sdk/core'
+import { ReasoningEffortId } from '@ai-agent-sdk/core'
+import { waitForSettlement } from '@ai-agent-sdk/core'
 import type {
   HttpModelAdapter,
   ProviderCatalogModel,

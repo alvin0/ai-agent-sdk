@@ -2,7 +2,7 @@
 
 import type { History } from '../../src/agent/history/history.ts'
 import type { TurnHooks } from '../../src/agent/loop/types.ts'
-import { createUserMessage } from '../../src/core/message/message.ts'
+import { createUserMessage } from '@ai-agent-sdk/core'
 
 export interface SteeringItem {
   readonly id: string

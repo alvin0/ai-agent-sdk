@@ -10,8 +10,8 @@ import {
 } from '../../src/agent/mode/run-agent.ts'
 import { MAX_SKILL_ID_CHARS, SKILL_ID_PATTERN } from '../../src/agent/skill/definition.ts'
 import type { ToolExecutionResult } from '../../src/agent/tool/definition.ts'
-import type { ContentBlock } from '../../src/core/message/content.ts'
-import type { Message } from '../../src/core/message/message.ts'
+import type { ContentBlock } from '@ai-agent-sdk/core'
+import type { Message } from '@ai-agent-sdk/core'
 
 const SKILL_TOOLS = new Set([
   'load_skill',

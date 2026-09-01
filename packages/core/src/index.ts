@@ -19,6 +19,7 @@
  */
 
 export * from './primitives/index.ts'
+export * from './async/index.ts'
 export * from './observation/index.ts'
 export * from './plugin/index.ts'
 export * from './errors/index.ts'

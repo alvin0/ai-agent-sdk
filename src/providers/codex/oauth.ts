@@ -16,8 +16,8 @@
  * @module ai-agent-sdk/providers/codex/oauth
  */
 
-import { AgentSdkError } from '../../core/errors/agent-sdk-error.ts'
-import { waitForSettlement } from '../../core/async/settlement.ts'
+import { AgentSdkError } from '@ai-agent-sdk/core'
+import { waitForSettlement } from '@ai-agent-sdk/core'
 import {
   readJwtClaims,
   resolveAccountId,

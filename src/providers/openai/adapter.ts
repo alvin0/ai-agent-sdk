@@ -9,7 +9,7 @@
  * @module ai-agent-sdk/providers/openai/adapter
  */
 
-import type { RetryPolicyConfig } from '../../core/contract/retry-policy.ts'
+import type { RetryPolicyConfig } from '@ai-agent-sdk/core'
 import type {
   HttpModelAdapter,
   ProviderCatalogModel,

@@ -18,7 +18,7 @@
  * @module ai-agent-sdk/agent/tool/errors
  */
 
-import { AgentSdkError } from '../../core/errors/agent-sdk-error.ts'
+import { AgentSdkError } from '@ai-agent-sdk/core'
 
 /** What the loop should do with a tool failure. */
 export type ToolErrorDisposition =

@@ -11,11 +11,11 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { BlockAssembler } from '../../src/core/stream/assembler.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
-import { createTextMessage } from '../../src/core/message/message.ts'
-import { ReasoningEffortId } from '../../src/core/primitives/brand.ts'
-import { ModelRegistry } from '../../src/core/runtime/registry.ts'
+import { BlockAssembler } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
+import { createTextMessage } from '@ai-agent-sdk/core'
+import { ReasoningEffortId } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
 import { codexAdapter } from '../../src/providers/codex/adapter.ts'
 import { fileCodexAuthStore } from '../../src/providers/codex/auth-file.ts'
 

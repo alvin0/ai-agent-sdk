@@ -9,17 +9,17 @@
  */
 
 import assert from 'node:assert/strict'
-import { isNativeToolSchema, type ToolChoice, type ToolSchema } from '../src/core/contract/tool.ts'
-import type { ContentBlock } from '../src/core/message/content.ts'
+import { isNativeToolSchema, type ToolChoice, type ToolSchema } from '@ai-agent-sdk/core'
+import type { ContentBlock } from '@ai-agent-sdk/core'
 import {
   createAssistantMessage,
   createTextMessage,
   createToolResultMessage,
   type Message,
-} from '../src/core/message/message.ts'
-import { ToolCallId } from '../src/core/primitives/brand.ts'
-import { BlockAssembler } from '../src/core/stream/assembler.ts'
-import type { StreamChunk, TokenUsage } from '../src/core/stream/chunk.ts'
+} from '@ai-agent-sdk/core'
+import { ToolCallId } from '@ai-agent-sdk/core'
+import { BlockAssembler } from '@ai-agent-sdk/core'
+import type { StreamChunk, TokenUsage } from '@ai-agent-sdk/core'
 import type { SseEvent } from '../src/core/stream/sse.ts'
 import type { ProviderRequest } from '../src/providers/base/http-adapter.ts'
 import type { WireProtocol } from '../src/providers/protocols/protocol.ts'

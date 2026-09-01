@@ -1,7 +1,7 @@
-import type { Message } from '../../core/message/message.ts'
-import type { TokenUsage } from '../../core/stream/chunk.ts'
-import type { ToolCallId } from '../../core/primitives/brand.ts'
-import { deepFreeze } from '../../core/primitives/freeze.ts'
+import type { Message } from '@ai-agent-sdk/core'
+import type { TokenUsage } from '@ai-agent-sdk/core'
+import type { ToolCallId } from '@ai-agent-sdk/core'
+import { deepFreeze } from '@ai-agent-sdk/core'
 import type { ToolExecutionResult } from '../tool/definition.ts'
 import { projectHistorySurface, projectMessages } from './project.ts'
 

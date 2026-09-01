@@ -4,7 +4,7 @@
  * @module ai-agent-sdk/providers/protocols/anthropic-messages
  */
 
-import type { StreamChunk } from '../../core/stream/chunk.ts'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 import type { SseEvent } from '../../core/stream/sse.ts'
 import { serializeAnthropicRequest, type ThinkingBudgets } from '../anthropic/serialize.ts'
 import { translateAnthropicStream } from '../anthropic/translate.ts'

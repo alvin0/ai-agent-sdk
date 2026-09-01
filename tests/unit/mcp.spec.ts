@@ -9,12 +9,12 @@ import { defineAgent } from '../../src/agent/define/definition.ts'
 import { dispatchToolCall } from '../../src/agent/tool/pipeline.ts'
 import { defineTool } from '../../src/agent/tool/definition.ts'
 import { ToolRegistry } from '../../src/agent/tool/registry.ts'
-import { ModelAdapter } from '../../src/core/contract/adapter.ts'
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
-import type { ResolvedModelInfo } from '../../src/core/contract/model-info.ts'
-import { ReasoningEffortId, ToolCallId } from '../../src/core/primitives/brand.ts'
-import { ModelRegistry } from '../../src/core/runtime/registry.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+import { ModelAdapter } from '@ai-agent-sdk/core'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
+import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
+import { ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 import {
   McpClientConnection,
   createMcpHttpClient,

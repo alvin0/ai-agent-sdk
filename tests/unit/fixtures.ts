@@ -1,8 +1,8 @@
 /** Shared builders so serializer tests read as data, not as setup. */
 
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
-import type { ResolvedModelInfo } from '../../src/core/contract/model-info.ts'
-import { resolveRetryPolicy } from '../../src/core/contract/retry-policy.ts'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
+import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
+import { resolveRetryPolicy } from '@ai-agent-sdk/core'
 import type { ProviderRequest } from '../../src/providers/base/http-adapter.ts'
 
 /** Build a `ProviderRequest` around the parts a serializer actually reads. */

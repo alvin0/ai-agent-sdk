@@ -1,8 +1,8 @@
-import { ModelAdapter } from '../../src/core/contract/adapter.ts'
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
-import type { ResolvedModelInfo } from '../../src/core/contract/model-info.ts'
-import { ReasoningEffortId, ToolCallId } from '../../src/core/primitives/brand.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+import { ModelAdapter } from '@ai-agent-sdk/core'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
+import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
+import { ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 import type { StressRequestKind } from './observer.ts'
 
 export interface ScriptedToolCall {

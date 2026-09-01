@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { AgentRunEvent } from '../../src/agent/mode/run-agent.ts'
 import { buildTraceTree, type TraceEvent } from '../../src/agent/trace/trace.ts'
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
 import type { StressInvariant } from './types.ts'
 
 export type StressRequestKind = 'model' | 'compaction'

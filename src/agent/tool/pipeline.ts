@@ -1,8 +1,8 @@
 /** Staged tool dispatch: prepare/authorize/dispatch/finalize. */
-import type { ContentBlock } from '../../core/message/content.ts'
-import type { ToolCallId } from '../../core/primitives/brand.ts'
-import { isJsonValue, type JsonObject, type JsonValue } from '../../core/primitives/json.ts'
-import { waitForSettlement } from '../../core/async/settlement.ts'
+import type { ContentBlock } from '@ai-agent-sdk/core'
+import type { ToolCallId } from '@ai-agent-sdk/core'
+import { isJsonValue, type JsonObject, type JsonValue } from '@ai-agent-sdk/core'
+import { waitForSettlement } from '@ai-agent-sdk/core'
 import type { ApprovalBroker, ApprovalRequest } from './approval.ts'
 import {
   executionModeOf, renderJsonValue, type ToolCallPosition, type ToolDefinition,

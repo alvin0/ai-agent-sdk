@@ -6,9 +6,9 @@ import { History } from '../../src/agent/history/history.ts'
 import type { AgentRunEvent } from '../../src/agent/mode/run-agent.ts'
 import type { ToolExecutionResult } from '../../src/agent/tool/definition.ts'
 import { createSpanId, createTraceId, type TraceRef } from '../../src/agent/trace/trace.ts'
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
-import { createToolResultMessage } from '../../src/core/message/message.ts'
-import { MessageId, ToolCallId } from '../../src/core/primitives/brand.ts'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
+import { createToolResultMessage } from '@ai-agent-sdk/core'
+import { MessageId, ToolCallId } from '@ai-agent-sdk/core'
 import {
   AgentCodeSkillReportRecorder,
   isAgentCodeSkillEvidenceComplete,

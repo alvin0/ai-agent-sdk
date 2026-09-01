@@ -21,7 +21,7 @@ import {
   resolveA2AStressCommand,
 } from '../../test-human/a2a-stress/security.ts'
 import type { ToolRunContext } from '../../src/agent/tool/definition.ts'
-import type { ToolCallId } from '../../src/core/primitives/brand.ts'
+import type { ToolCallId } from '@ai-agent-sdk/core'
 
 const roots: string[] = []
 

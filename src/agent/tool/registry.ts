@@ -12,9 +12,9 @@
  * @module ai-agent-sdk/agent/tool/registry
  */
 
-import type { ToolSchema } from '../../core/contract/tool.ts'
-import { AgentSdkError } from '../../core/errors/agent-sdk-error.ts'
-import { deepFreeze } from '../../core/primitives/freeze.ts'
+import type { ToolSchema } from '@ai-agent-sdk/core'
+import { AgentSdkError } from '@ai-agent-sdk/core'
+import { deepFreeze } from '@ai-agent-sdk/core'
 import {
   executionModeOf,
   type ToolDefinition,

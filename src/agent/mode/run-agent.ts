@@ -1,17 +1,17 @@
 /** High-level agent modes built on the provider-neutral bounded tool loop. */
 
-import { createUserMessage } from '../../core/message/message.ts'
-import type { CallConfig } from '../../core/contract/call-config.ts'
-import { ReasoningEffortId } from '../../core/primitives/brand.ts'
-import type { JsonObject } from '../../core/primitives/json.ts'
-import { detachedFrozen } from '../../core/primitives/snapshot.ts'
+import { createUserMessage } from '@ai-agent-sdk/core'
+import type { CallConfig } from '@ai-agent-sdk/core'
+import { ReasoningEffortId } from '@ai-agent-sdk/core'
+import type { JsonObject } from '@ai-agent-sdk/core'
+import { detachedFrozen } from '@ai-agent-sdk/core'
 import { runTurn, type RunTurnOptions } from '../loop/run-turn.ts'
 import { AwaitedEventQueue } from '../loop/queue.ts'
 import type { AgentEvent, TurnBounds, TurnHooks, TurnOutcome } from '../loop/types.ts'
 import { defineTool, type ToolDefinition, type ToolExecutionMode } from '../tool/definition.ts'
 import type { ToolInterceptor } from '../tool/pipeline.ts'
 import type { ToolCatalog } from '../tool/registry.ts'
-import { waitForSettlement } from '../../core/async/settlement.ts'
+import { waitForSettlement } from '@ai-agent-sdk/core'
 import type {
   UserInputBroker, UserInputQuestion, UserInputRequest, UserInputResponse,
 } from './user-input.ts'

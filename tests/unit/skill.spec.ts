@@ -17,11 +17,11 @@ import { defineTool, executionModeOf } from '../../src/agent/tool/definition.ts'
 import { dispatchToolCall } from '../../src/agent/tool/pipeline.ts'
 import { ToolRegistry } from '../../src/agent/tool/registry.ts'
 import { createSpanId, createTraceId } from '../../src/agent/trace/trace.ts'
-import { ModelAdapter } from '../../src/core/contract/adapter.ts'
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
-import { ReasoningEffortId, ToolCallId } from '../../src/core/primitives/brand.ts'
-import { ModelRegistry } from '../../src/core/runtime/registry.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+import { ModelAdapter } from '@ai-agent-sdk/core'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
+import { ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 
 function skill(overrides: Partial<Parameters<typeof defineSkill>[0]> = {}) {
   return defineSkill({

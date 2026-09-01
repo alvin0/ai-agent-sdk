@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { withIdleTimeout } from '../../src/core/stream/idle-timeout.ts'
+import { withIdleTimeout } from '@ai-agent-sdk/core'
 
 describe('withIdleTimeout', () => {
   it('does not wait forever for an uncooperative iterator return', async () => {

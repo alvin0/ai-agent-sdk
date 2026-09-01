@@ -19,10 +19,10 @@ import {
   type NativeWebSearchTool,
   type ToolChoice,
   type ToolSchema,
-} from '../../core/contract/tool.ts'
-import { MODEL_ERROR_CODES, ModelError } from '../../core/errors/model-error.ts'
-import type { ContentBlock, ImageSource } from '../../core/message/content.ts'
-import type { Message } from '../../core/message/message.ts'
+} from '@ai-agent-sdk/core'
+import { MODEL_ERROR_CODES, ModelError } from '@ai-agent-sdk/core'
+import type { ContentBlock, ImageSource } from '@ai-agent-sdk/core'
+import type { Message } from '@ai-agent-sdk/core'
 import type { ProviderRequest } from '../base/http-adapter.ts'
 import type {
   WireImageSource,

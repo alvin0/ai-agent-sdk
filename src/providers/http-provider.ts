@@ -26,14 +26,14 @@
  * @module ai-agent-sdk/providers/http-provider
  */
 
-import type { ResolvedModelInfo } from '../core/contract/model-info.ts'
-import { resolveRetryPolicy, type RetryPolicyConfig } from '../core/contract/retry-policy.ts'
-import type { ResolvedRetryPolicy } from '../core/contract/retry-policy.ts'
-import { assertUsableApiKey } from '../core/http/api-key.ts'
-import { attributionHeaders } from '../core/http/attribution.ts'
-import { AgentSdkError, MISSING_CREDENTIAL_CODE } from '../core/errors/agent-sdk-error.ts'
-import { detachedFrozen } from '../core/primitives/snapshot.ts'
-import type { StreamChunk } from '../core/stream/chunk.ts'
+import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
+import { resolveRetryPolicy, type RetryPolicyConfig } from '@ai-agent-sdk/core'
+import type { ResolvedRetryPolicy } from '@ai-agent-sdk/core'
+import { assertUsableApiKey } from '@ai-agent-sdk/core'
+import { attributionHeaders } from '@ai-agent-sdk/core'
+import { AgentSdkError, MISSING_CREDENTIAL_CODE } from '@ai-agent-sdk/core'
+import { detachedFrozen } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 import type { SseEvent } from '../core/stream/sse.ts'
 import {
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,

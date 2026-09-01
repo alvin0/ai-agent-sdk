@@ -1,6 +1,6 @@
 /** Environment-neutral skill definitions and provider contracts. */
 
-import { deepFreeze } from '../../core/primitives/freeze.ts'
+import { deepFreeze } from '@ai-agent-sdk/core'
 
 export const SKILL_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 export const MAX_SKILL_INSTRUCTIONS_CHARS = 40_000

@@ -15,7 +15,7 @@ import {
 } from '../../src/agent/skill/filesystem.ts'
 import { dispatchToolCall } from '../../src/agent/tool/pipeline.ts'
 import { ToolRegistry } from '../../src/agent/tool/registry.ts'
-import { ToolCallId } from '../../src/core/primitives/brand.ts'
+import { ToolCallId } from '@ai-agent-sdk/core'
 
 const observedReads = vi.hoisted(() => vi.fn<(path: string, bytes: number) => void>())
 vi.mock('node:fs/promises', async importOriginal => {

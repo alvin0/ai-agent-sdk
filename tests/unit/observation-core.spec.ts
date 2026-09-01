@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ModelAdapter } from '../../src/core/contract/adapter.ts'
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
+import { ModelAdapter } from '@ai-agent-sdk/core'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
 import {
   createCoreSpan,
   createSpanId,
@@ -14,9 +14,9 @@ import {
   type ObservationEvent,
   type ObservationPort,
   type OpenObservationSpanInput,
-} from '../../src/core/observation/index.ts'
-import { ModelRegistry } from '../../src/core/runtime/registry.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+} from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 
 class ObservedAdapter extends ModelAdapter {
   seenContext: ModelInvocationContext | undefined
@@ -95,6 +95,7 @@ describe('core observation identities and model-call handles', () => {
 
     expect(observed.events.map(event => [event.phase, event.sequence])).toEqual([['start', 1], ['end', 2]])
     expect(observed.events.every(event => Object.isFrozen(event))).toBe(true)
+    expect(observed.events[0]?.resource.sdkVersion).toBe('0.1.0')
     expect(report).toMatchObject({ status: 'success', coverage: 'complete', authoritative: true })
     expect(report.reported).toEqual({ inputTokens: 3, outputTokens: 2, reasoningTokens: 1, totalTokens: 5 })
     expect(observed.ended).toHaveBeenCalledTimes(1)

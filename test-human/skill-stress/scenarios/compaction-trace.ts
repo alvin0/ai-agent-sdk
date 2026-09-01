@@ -1,5 +1,5 @@
 import { History } from '../../../src/agent/history/history.ts'
-import { createMessage, createTextMessage } from '../../../src/core/message/message.ts'
+import { createMessage, createTextMessage } from '@ai-agent-sdk/core'
 import { createAgentCodeToolRegistry } from '../../agentcode/tools.ts'
 import { createOfflineRegistry, createStressAgent } from '../agent.ts'
 import { InvariantRecorder, StressObserver } from '../observer.ts'

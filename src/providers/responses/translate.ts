@@ -21,17 +21,17 @@
 import {
   CONTEXT_WINDOW_EXCEEDED_CODE,
   QUOTA_EXCEEDED_CODE,
-} from '../../core/errors/agent-sdk-error.ts'
-import { MODEL_ERROR_CODES, ModelError } from '../../core/errors/model-error.ts'
-import { ToolCallId } from '../../core/primitives/brand.ts'
-import { isJsonValue } from '../../core/primitives/json.ts'
+} from '@ai-agent-sdk/core'
+import { MODEL_ERROR_CODES, ModelError } from '@ai-agent-sdk/core'
+import { ToolCallId } from '@ai-agent-sdk/core'
+import { isJsonValue } from '@ai-agent-sdk/core'
 import type {
   AssistantTextPhase,
   ContentBlock,
   ImageMediaType,
   TextAnnotation,
-} from '../../core/message/content.ts'
-import type { FinishReason, StreamChunk, TokenUsage } from '../../core/stream/chunk.ts'
+} from '@ai-agent-sdk/core'
+import type { FinishReason, StreamChunk, TokenUsage } from '@ai-agent-sdk/core'
 import type { SseEvent } from '../../core/stream/sse.ts'
 import type { ProviderRequest } from '../base/http-adapter.ts'
 import type { ResponsesReasoningState } from './serialize.ts'

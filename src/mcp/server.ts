@@ -10,15 +10,15 @@ import {
   type McpRequestContext,
   type ServerContext,
 } from '@modelcontextprotocol/server'
-import type { ContentBlock } from '../core/message/content.ts'
-import { ToolCallId } from '../core/primitives/brand.ts'
-import { isJsonValue, type JsonValue } from '../core/primitives/json.ts'
+import type { ContentBlock } from '@ai-agent-sdk/core'
+import { ToolCallId } from '@ai-agent-sdk/core'
+import { isJsonValue, type JsonValue } from '@ai-agent-sdk/core'
 import type { DefinedAgent } from '../agent/define/definition.ts'
 import type { AgentSession } from '../agent/define/session.ts'
 import type { ApprovalBroker } from '../agent/tool/approval.ts'
 import { dispatchToolCall, type ToolInterceptor } from '../agent/tool/pipeline.ts'
 import type { ToolCatalog } from '../agent/tool/registry.ts'
-import { waitForSettlement } from '../core/async/settlement.ts'
+import { waitForSettlement } from '@ai-agent-sdk/core'
 
 export interface McpAgentSessionContext {
   readonly conversationId?: string

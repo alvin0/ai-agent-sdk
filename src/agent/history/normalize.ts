@@ -1,6 +1,6 @@
-import type { ContentBlock, ToolCallBlock } from '../../core/message/content.ts'
-import { freezeMessage, type Message } from '../../core/message/message.ts'
-import { MessageId, type ToolCallId } from '../../core/primitives/brand.ts'
+import type { ContentBlock, ToolCallBlock } from '@ai-agent-sdk/core'
+import { freezeMessage, type Message } from '@ai-agent-sdk/core'
+import { MessageId, type ToolCallId } from '@ai-agent-sdk/core'
 
 /** Repair provider-invalid tool pairing without mutating persisted history. */
 export function normalizeToolPairing(messages: readonly Message[]): readonly Message[] {

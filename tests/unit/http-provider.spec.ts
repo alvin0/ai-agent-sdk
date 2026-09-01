@@ -8,9 +8,9 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createTextMessage } from '../../src/core/message/message.ts'
-import { ModelRegistry } from '../../src/core/runtime/registry.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+import { createTextMessage } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 import type { SseEvent } from '../../src/core/stream/sse.ts'
 import type { ProviderRequest } from '../../src/providers/base/http-adapter.ts'
 import type { ProviderRequestLogRecord } from '../../src/providers/base/http-adapter.ts'

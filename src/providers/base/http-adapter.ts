@@ -19,23 +19,23 @@
  * @module ai-agent-sdk/providers/base/http-adapter
  */
 
-import { ModelAdapter, type PreparedAdapterCall } from '../../core/contract/adapter.ts'
-import type { GenerateOptions } from '../../core/contract/generate-options.ts'
+import { ModelAdapter, type PreparedAdapterCall } from '@ai-agent-sdk/core'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
 import type {
   ModelInfo,
   ModelModality,
   ModelReasoningInfo,
   ProviderInfo,
   ResolvedModelInfo,
-} from '../../core/contract/model-info.ts'
-import type { ResolvedRetryPolicy } from '../../core/contract/retry-policy.ts'
-import type { NativeToolName } from '../../core/contract/tool.ts'
-import { MODEL_ERROR_CODES, ModelError } from '../../core/errors/model-error.ts'
-import { contentHasImage } from '../../core/message/projection.ts'
-import { waitForSettlement } from '../../core/async/settlement.ts'
-import type { StreamChunk } from '../../core/stream/chunk.ts'
-import type { ModelInvocationContext } from '../../core/observation/report.ts'
-import { withIdleTimeout } from '../../core/stream/idle-timeout.ts'
+} from '@ai-agent-sdk/core'
+import type { ResolvedRetryPolicy } from '@ai-agent-sdk/core'
+import type { NativeToolName } from '@ai-agent-sdk/core'
+import { MODEL_ERROR_CODES, ModelError } from '@ai-agent-sdk/core'
+import { contentHasImage } from '@ai-agent-sdk/core'
+import { waitForSettlement } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
+import type { ModelInvocationContext } from '@ai-agent-sdk/core'
+import { withIdleTimeout } from '@ai-agent-sdk/core'
 import { parseSse, type SseEvent } from '../../core/stream/sse.ts'
 import { httpErrorCode, parseErrorBody, requestIdFrom, retryAfterMs } from './http-errors.ts'
 

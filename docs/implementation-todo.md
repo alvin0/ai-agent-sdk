@@ -145,10 +145,10 @@ Commit: `feat(core): add observation accounting and provider plugin ports`
 Dependencies: C1  
 Files: `packages/core/**`
 
-- [ ] Move core source except SSE parser.
-- [ ] Create exact manifest/exports/readme/license/build config.
-- [ ] Remove all external runtime dependencies.
-- [ ] Pack and install the tarball into standards-only, Worker, browser, and Node fixtures.
+- [x] Move core source except SSE parser.
+- [x] Create exact manifest/exports/readme/license/build config.
+- [x] Remove all external runtime dependencies.
+- [x] Pack and install the tarball into standards-only, Worker, browser, and Node fixtures.
 
 Verify:
 
@@ -159,7 +159,7 @@ pnpm --filter @ai-agent-sdk/core pack
 pnpm check:runtime-boundaries
 ```
 
-Exit evidence: packed Universal matrix passes; tarball has zero runtime dependencies.  
+Exit evidence: 89 core tests and 515 compatibility tests passed; the seven-file ESM tarball installed and ran in independent standards-only, Cloudflare Worker, Chromium, and Node consumers; `publint`, ESM type-resolution, package/source graph, runtime-boundary, supply-chain, and six negative-boundary gates passed with zero findings; the tarball declares zero runtime, optional, or peer dependencies.
 Commit: `refactor(core): extract universal core package`
 
 ## Phase A — Agent and canonical ledger

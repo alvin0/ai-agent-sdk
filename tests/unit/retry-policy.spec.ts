@@ -4,7 +4,7 @@ import {
   backoffDelayMs,
   isRetryable,
   resolveRetryPolicy,
-} from '../../src/core/contract/retry-policy.ts'
+} from '@ai-agent-sdk/core'
 
 describe('resolveRetryPolicy', () => {
   it('defaults to a bounded policy whose allow-list excludes permanent failures', () => {

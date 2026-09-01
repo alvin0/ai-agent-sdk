@@ -7,6 +7,10 @@
  * @module ai-agent-sdk/core/http/attribution
  */
 
+import { SDK_VERSION } from '../primitives/version.ts'
+
+export { SDK_VERSION }
+
 /**
  * This package's version, mirrored from `package.json`.
  *
@@ -14,8 +18,6 @@
  * neutral platforms where no module loader is guaranteed. Keep it in step with
  * `package.json` on release.
  */
-export const SDK_VERSION = '0.0.0'
-
 /**
  * Static PUBLIC application identity sent to providers.
  *

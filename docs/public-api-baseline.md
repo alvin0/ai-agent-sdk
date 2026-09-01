@@ -29,3 +29,11 @@ The following declaration changes are intentional:
 - provider, A2A, MCP, and request-logger declaration entry hashes change transitively because their emitted declarations reference the shared adapter/registry types. Their JavaScript export sets are unchanged.
 
 Machine-baseline schema version 2 adds the stable observation and provider-plugin error-code families. The C1 comparison found no removed runtime symbol in any of the 11 frozen entries.
+
+## C2 migration record — extracted Universal core
+
+The C2 snapshot update changes source ownership from the root bundle to the workspace dependency `@ai-agent-sdk/core@0.1.0`. The compatibility root re-exports that package and retains SSE framing locally until `@ai-agent-sdk/provider-http` takes ownership in P0. Runtime export comparison found no removed or renamed symbol in any frozen entry.
+
+Two inward primitives become additive root exports because workspace consumers must use a public core contract rather than bypass package exports: `detachedFrozen` and `waitForSettlement`. Declaration hashes change wherever emitted types now import shared contracts from `@ai-agent-sdk/core`; this is the intended package boundary, not a semantic removal. `./skill-filesystem` keeps its declaration hash because its public declaration does not reference a moved core type.
+
+The packed `@ai-agent-sdk/core` surface is ESM-only with only `.` and `./package.json` exports. It has zero runtime dependencies and was installed from its tarball in independent standards-only, Cloudflare Worker, Chromium, and Node consumers before this baseline was accepted.

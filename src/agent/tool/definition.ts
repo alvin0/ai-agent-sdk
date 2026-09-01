@@ -18,10 +18,10 @@
  * @module ai-agent-sdk/agent/tool/definition
  */
 
-import type { ToolSchema } from '../../core/contract/tool.ts'
-import type { ContentBlock } from '../../core/message/content.ts'
-import type { ToolCallId } from '../../core/primitives/brand.ts'
-import type { JsonObject, JsonValue } from '../../core/primitives/json.ts'
+import type { ToolSchema } from '@ai-agent-sdk/core'
+import type { ContentBlock } from '@ai-agent-sdk/core'
+import type { ToolCallId } from '@ai-agent-sdk/core'
+import type { JsonObject, JsonValue } from '@ai-agent-sdk/core'
 
 /** Where a tool call sits in the run, for logging and diagnostics. */
 export interface ToolCallPosition {

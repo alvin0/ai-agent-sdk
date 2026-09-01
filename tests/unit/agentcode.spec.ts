@@ -4,11 +4,11 @@ import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { runTurn } from '../../src/agent/loop/run-turn.ts'
 import type { ToolRunContext } from '../../src/agent/tool/definition.ts'
-import { ModelAdapter } from '../../src/core/contract/adapter.ts'
-import { createTextMessage } from '../../src/core/message/message.ts'
-import type { ToolCallId } from '../../src/core/primitives/brand.ts'
-import { ModelRegistry } from '../../src/core/runtime/registry.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+import { ModelAdapter } from '@ai-agent-sdk/core'
+import { createTextMessage } from '@ai-agent-sdk/core'
+import type { ToolCallId } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 import {
   DEFAULT_AGENTCODE_PROMPT,
   parseAgentCodeCliArgs,
