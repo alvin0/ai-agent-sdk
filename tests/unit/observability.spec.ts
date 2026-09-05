@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import * as canonicalObservability from '@ai-agent-sdk/core/observability'
 import {
   createCoreSpan,
   createObservationRunScope,
@@ -18,7 +19,7 @@ import {
   projectMetrics,
   projectTrace,
   type ObservationExporter,
-} from '@ai-agent-sdk/observability'
+} from '@ai-agent-sdk/core/observability'
 
 const resource = Object.freeze({
   sdkName: 'ai-agent-sdk' as const,
@@ -57,6 +58,14 @@ async function drain(stream: AsyncIterable<StreamChunk>): Promise<StreamChunk[]>
 }
 
 describe('Universal observation bus', () => {
+  it('keeps the compatibility bridge on the exact core-owned runtime values', () => {
+    expect(createObservability).toBe(canonicalObservability.createObservability)
+    expect(MemoryObservationExporter).toBe(canonicalObservability.MemoryObservationExporter)
+    expect(TestObservationExporter).toBe(canonicalObservability.TestObservationExporter)
+    expect(projectLog).toBe(canonicalObservability.projectLog)
+    expect(projectMetrics).toBe(canonicalObservability.projectMetrics)
+    expect(projectTrace).toBe(canonicalObservability.projectTrace)
+  })
   it('captures, batches, exports, and reports healthy delivery', async () => {
     const memory = new MemoryObservationExporter()
     const observation = createObservability({
@@ -232,7 +241,7 @@ describe('Universal observation bus', () => {
 
   it('contains a user processor failure and emits one protected health event', async () => {
     const memory = new MemoryObservationExporter()
-    const process = vi.fn(() => { throw new Error('processor secret body') })
+    const process = vi.fn(() => { throw new Error('PRIVATE_PROCESSOR/BODY~SENTINEL%') })
     const observation = createObservability({
       processors: [{ id: 'broken', transform: process }],
       exporters: [{ exporter: memory, requirement: 'best-effort', boundary: 'none' }],
@@ -241,7 +250,7 @@ describe('Universal observation bus', () => {
     await observation.flush()
     expect(process).toHaveBeenCalledTimes(1)
     expect(memory.events().map(item => item.name)).toEqual(['sdk.observer.failure'])
-    expect(JSON.stringify(memory.events())).not.toContain('processor secret body')
+    expect(JSON.stringify(memory.events())).not.toContain('PRIVATE_PROCESSOR/BODY~SENTINEL%')
     expect(observation.health()).toMatchObject({ state: 'degraded', processorFailures: 1 })
   })
 

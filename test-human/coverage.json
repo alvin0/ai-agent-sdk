@@ -6,6 +6,7 @@
     { "script": "human:deep", "journey": "agent tool loop", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/README.md" },
     { "script": "human:hil", "journey": "human in the loop", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/README.md" },
     { "script": "human:web", "journey": "provider-native web search", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/README.md" },
+    { "script": "human:deep-research", "journey": "multi-query web research with citation audit and Markdown report", "runtime": "node", "network": "live-provider-internet", "artifact": "support-safe-jsonl-and-report-markdown", "readme": "test-human/README.md" },
     { "script": "human:vision", "journey": "multimodal input", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/README.md" },
     { "script": "human:image-gen", "journey": "provider-native image generation", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/README.md" },
     { "script": "human:agentcode", "journey": "long-running filesystem coding agent", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl", "readme": "test-human/agentcode/README.md" },
@@ -17,6 +18,9 @@
     { "script": "human:skill-stress:prepare", "journey": "pinned external skill acquisition", "runtime": "node", "network": "registry", "artifact": "hash-verified-source-lock", "readme": "test-human/skill-stress/README.md" },
     { "script": "human:skill-showcase", "journey": "external skill website build", "runtime": "node", "network": "live-provider", "artifact": "stress-evidence-directory", "readme": "test-human/skill-showcase/README.md" },
     { "script": "human:sdk-stress", "journey": "hermetic SDK customer journeys", "runtime": "universal-and-node", "network": "offline", "artifact": "support-safe-jsonl-per-case", "readme": "test-human/sdk-stress/README.md" },
+    { "script": "human:edge-chat", "journey": "ChatGPT-like website with streamed tool timeline and multi-audit deep search", "runtime": "edge-workerd-web-standards", "network": "offline", "artifact": "support-safe-jsonl-and-browser-screenshots", "readme": "test-human/edge-chat/README.md" },
+    { "script": "human:edge-chat:live", "journey": "authenticated autonomous Internet research with host-owned read receipts and independent-review handoff", "runtime": "edge-workerd-web-standards", "network": "live-provider-internet", "artifact": "support-safe-jsonl-report-receipts-review-and-browser-screenshots", "readme": "test-human/edge-chat/README.md" },
+    { "script": "human:node-codex", "journey": "Codex-like full Node SDK coding harness", "runtime": "node", "network": "offline-local-mcp", "artifact": "support-safe-jsonl-workspace-and-durable-journal", "readme": "test-human/node-codex/README.md" },
     { "script": "human:mcp", "journey": "MCP bridge round trips", "runtime": "node", "network": "offline", "artifact": "support-safe-jsonl", "readme": "test-human/mcp/README.md" },
     { "script": "human:mcp:github", "journey": "remote authenticated GitHub MCP", "runtime": "node", "network": "remote-service", "artifact": "support-safe-jsonl", "readme": "test-human/github-mcp/README.md" }
   ]

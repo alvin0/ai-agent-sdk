@@ -17,7 +17,9 @@
 import type { StreamChunk } from '../stream/chunk.ts'
 import type { ModelInvocationContext } from '../observation/report.ts'
 import type { GenerateOptions } from './generate-options.ts'
-import type { ModelInfo, ProviderInfo, ResolvedModelInfo } from './model-info.ts'
+import type {
+  ModelCatalogOptions, ModelCatalogSnapshot, ModelInfo, ProviderInfo, ResolvedModelInfo,
+} from './model-info.ts'
 import type { ResolvedRetryPolicy } from './retry-policy.ts'
 
 /**
@@ -73,8 +75,17 @@ export abstract class ModelAdapter {
    * @param _provider - one route owned by this adapter.
    * @returns discoverable models, in adapter-preferred order.
    */
-  listModels(_provider: string): Promise<readonly ModelInfo[]> {
+  listModels(_provider: string, _signal?: AbortSignal): Promise<readonly ModelInfo[]> {
     return Promise.resolve([])
+  }
+
+  /** Uncached adapter-level catalog; the composition runtime owns refresh policy. */
+  async modelCatalog(provider: string, options: ModelCatalogOptions = {}): Promise<ModelCatalogSnapshot> {
+    const models = await this.listModels(provider, options.signal)
+    const observedAt = new Date().toISOString()
+    return Object.freeze({ provider: Object.freeze({ ...this.providerInfo(provider) }),
+      state: models.length === 0 ? 'empty' : 'fresh', revision: 'adapter-uncached',
+      models: Object.freeze([...models]), observedAt })
   }
 
   /**

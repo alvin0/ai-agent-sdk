@@ -1,0 +1,1 @@
+Nếu một doanh nghiệp đang xây dựng một nền tảng AI Agent có Agent, Workflow, Tool, Skill, MCP, A2A, RAG/Knowledge, Memory, Observability và Evaluation, liệu có nên đưa toàn bộ hệ thống lên Microsoft Foundry hay vẫn nên duy trì một phần kiến trúc bằng custom code/runtime riêng?

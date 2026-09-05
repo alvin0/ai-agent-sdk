@@ -3,4 +3,11 @@ export {
   type DiagnosticWireLoggerOptions,
   type ProviderWireLogRecord,
   type ProviderWireLogger,
-} from './wire-logger.ts'
+} from './diagnostic/wire-logger.ts'
+export {
+  combineProviderRequestLoggers,
+  createDailyJsonlRequestLogger,
+  type DailyJsonlRequestLogger,
+  type DailyJsonlRequestLoggerOptions,
+  type ProviderRequestLogLike,
+} from './diagnostic/request-logger.ts'

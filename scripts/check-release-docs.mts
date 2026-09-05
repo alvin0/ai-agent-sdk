@@ -13,8 +13,31 @@ const manifests = packageRoots.map(root => ({
   manifest: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as PackageManifest,
 }))
 const packageNames = new Set(manifests.map(entry => entry.manifest.name))
+const targetTopology = JSON.parse(readFileSync(
+  join(workspaceRoot, 'design-contracts', 'core-capability-v1', 'topology.json'),
+  'utf8',
+)) as { readonly packages: Readonly<Record<string, unknown>> }
+const documentationMigration = JSON.parse(readFileSync(
+  join(workspaceRoot, 'design-contracts', 'core-capability-v1', 'documentation-migration.json'),
+  'utf8',
+)) as DocumentationMigration
+const targetPackageNames = new Set(Object.keys(targetTopology.packages))
+const developmentPackageNames = new Set(['@ai-agent-sdk/testkit'])
+const migrationPackageNames = documentationMigration.state === 'complete'
+  ? new Set<string>()
+  : new Set(Object.keys(documentationMigration.removedPackages))
+const expectedPackageNames = new Set([
+  ...targetPackageNames,
+  ...migrationPackageNames,
+  ...developmentPackageNames,
+])
 
-if (manifests.length !== 20) errors.push(`expected 20 publishable package manifests, found ${manifests.length}`)
+for (const name of [...expectedPackageNames].filter(name => !packageNames.has(name)).sort()) {
+  errors.push(`expected package manifest is missing: ${name}`)
+}
+for (const name of [...packageNames].filter(name => !expectedPackageNames.has(name)).sort()) {
+  errors.push(`unexpected package manifest is present: ${name}`)
+}
 
 for (const { root, manifest } of manifests) {
   if (manifest.private !== true) {
@@ -87,7 +110,10 @@ for (const path of markdownFiles) {
     errors.push(`${relative(workspaceRoot, path)} contains an unresolved implementation marker`)
   }
   for (const match of text.matchAll(/@ai-agent-sdk\/[a-z0-9-]+/g)) {
-    if (!packageNames.has(match[0])) {
+    if (!packageNames.has(match[0])
+      && !(isCoreCapabilityProposal(path) && targetPackageNames.has(match[0]))
+      && !(isHistoricalMigrationRecord(path)
+        && Object.hasOwn(documentationMigration.removedPackages, match[0]))) {
       errors.push(`${relative(workspaceRoot, path)} names unknown package ${match[0]}`)
     }
   }
@@ -133,6 +159,18 @@ function walkMarkdown(root: string): string[] {
   return files.sort()
 }
 
+function isCoreCapabilityProposal(path: string): boolean {
+  const localPath = relative(workspaceRoot, path)
+  return /^docs\/core-capability-[^/]+\.md$/.test(localPath)
+    || localPath === 'docs/adr/0002-core-capability-package-and-api-contract.md'
+}
+
+function isHistoricalMigrationRecord(path: string): boolean {
+  const localPath = relative(workspaceRoot, path).replaceAll('\\', '/')
+  return documentationMigration.fileDispositions.supersededCurrentDesign.includes(localPath)
+    || documentationMigration.fileDispositions.retainedMigrationRecord.includes(localPath)
+}
+
 interface PackageManifest {
   name: string
   private?: boolean
@@ -141,4 +179,13 @@ interface PackageManifest {
   optionalDependencies?: Record<string, string>
   peerDependencies?: Record<string, string>
   aiAgentSdk?: { runtime?: string }
+}
+
+interface DocumentationMigration {
+  readonly state: 'pending' | 'active-guides-migrated' | 'complete'
+  readonly removedPackages: Readonly<Record<string, unknown>>
+  readonly fileDispositions: {
+    readonly supersededCurrentDesign: readonly string[]
+    readonly retainedMigrationRecord: readonly string[]
+  }
 }

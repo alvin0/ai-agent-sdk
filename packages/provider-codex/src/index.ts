@@ -8,18 +8,22 @@ export {
   codexPlugin,
   type CodexAdapterOptions,
   type CodexPluginOptions,
+  type CodexProviderOptions,
+  type CodexRevisionedAdapterOptions,
 } from './adapter.ts'
 export {
   ACCESS_TOKEN_REFRESH_WINDOW_MS,
   LAST_REFRESH_MAX_AGE_MS,
   isFedrampAccount,
   memoryCodexAuthStore,
+  memoryCodexCredentialStore,
   readJwtClaims,
   requireTokens,
   resolveAccountId,
   shouldRefresh,
   type CodexAuthFile,
   type CodexAuthStore,
+  type CodexCredentialStore,
   type CodexJwtClaims,
   type CodexTokens,
 } from './auth.ts'

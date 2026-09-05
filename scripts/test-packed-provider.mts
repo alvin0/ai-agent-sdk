@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { extname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
+import { assertSingleInstalledPackage } from './contracts/installed-tree.mts'
 
 type ProviderPackageName = 'provider-anthropic' | 'provider-openai' | 'provider-codex'
 
@@ -43,6 +44,7 @@ try {
     run('npm', [
       'install', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund', ...tarballs,
     ], consumer)
+    assertSingleInstalledPackage(consumer, '@ai-agent-sdk/core')
     consumers.set(runtime, consumer)
   }
 

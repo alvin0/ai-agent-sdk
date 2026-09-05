@@ -10,34 +10,35 @@
  * @module ai-agent-sdk/core/runtime/registry
  */
 
-import type { ModelAdapter, PreparedAdapterCall } from '../contract/adapter.ts'
+import type { ModelAdapter } from '../contract/adapter.ts'
 import {
   callConfigEquals,
   type CallConfig,
   type CallConfigAdapterDefaults,
 } from '../contract/call-config.ts'
 import type { GenerateOptions } from '../contract/generate-options.ts'
-import { isNativeToolSchema } from '../contract/tool.ts'
 import type {
   ModelContext,
+  ModelCatalogOptions,
+  ModelCatalogSnapshot,
   ModelInfo,
   ModelModality,
   ProviderInfo,
   ResolvedModelInfo,
 } from '../contract/model-info.ts'
 import { resolveRetryPolicy, type ResolvedRetryPolicy } from '../contract/retry-policy.ts'
-import { normalizeModelFailure } from '../errors/failure.ts'
-import { MODEL_ERROR_CODES, ModelError, REGISTRY_ERROR_CODES } from '../errors/model-error.ts'
-import { freezeMessage, type Message } from '../message/message.ts'
-import { contentHasImage, projectImagesForTextModel } from '../message/projection.ts'
+import { ModelError, REGISTRY_ERROR_CODES } from '../errors/model-error.ts'
 import { deepFreeze } from '../primitives/freeze.ts'
 import { SDK_VERSION } from '../primitives/version.ts'
-import type { StreamChunk } from '../stream/chunk.ts'
-import { waitForSettlement } from '../async/settlement.ts'
 import type { ObservationResource } from '../observation/event.ts'
 import type { ObservationPort } from '../observation/port.ts'
 import type { ModelCallHandle, ModelInvocationContext } from '../observation/report.ts'
+import type { StreamChunk } from '../stream/chunk.ts'
 import { createModelCallHandle } from './model-call-handle.ts'
+import { normalizeResolvedModelInfo, resolveCallWithModelInfo,
+  validateCatalogModels, validateModelCatalogSnapshot } from './model-metadata.ts'
+import { streamAdapter, type PreparedDispatch,
+  type RuntimeAdapterRegistration } from './model-stream.ts'
 import {
   PLUGIN_ERROR_CODES,
   PluginError,
@@ -90,11 +91,7 @@ export interface ModelRegistryOptions {
   readonly observationResource?: ObservationResource
 }
 
-interface AdapterRegistration {
-  readonly adapter: ModelAdapter
-  readonly provider: ProviderInfo
-  readonly retryPolicy: ResolvedRetryPolicy
-}
+type AdapterRegistration = RuntimeAdapterRegistration
 
 interface InstalledPlugin {
   readonly routes: ReadonlySet<string>
@@ -103,12 +100,6 @@ interface InstalledPlugin {
   readonly cleanup?: () => void
 }
 
-interface PreparedDispatch {
-  readonly registration: AdapterRegistration
-  readonly config: CallConfig
-  readonly modelInfo: ResolvedModelInfo
-  readonly dispatch: (options: GenerateOptions, context: ModelInvocationContext) => AsyncIterable<StreamChunk>
-}
 
 function containThenable(value: unknown): boolean {
   if ((typeof value !== 'object' || value === null) && typeof value !== 'function') return false
@@ -132,16 +123,6 @@ function synchronousCleanupFailure(cleanup: () => void): unknown | undefined {
   }
 }
 
-/** Convert one adapter throw into the stream protocol's terminal outcome. */
-function adapterFailureChunk(error: unknown, signal?: AbortSignal): StreamChunk {
-  const failure = normalizeModelFailure(error)
-  return {
-    type: 'finish',
-    reason: signal?.aborted === true || failure.code === 'ABORTED'
-      ? { kind: 'aborted', failure }
-      : { kind: 'error', failure },
-  }
-}
 
 /**
  * Routes model calls to registered adapters.
@@ -182,6 +163,11 @@ export class ModelRegistry {
     if (this.plugins.has(pluginId)) fail(`plugin "${pluginId}" is already installed`)
     if (typeof plugin.displayName !== 'string' || plugin.displayName.trim().length === 0) fail(`plugin "${pluginId}" displayName must be non-empty`)
     if (typeof plugin.setup !== 'function') fail(`plugin "${pluginId}" setup must be a function`)
+    const family = plugin.family ?? pluginId
+    if (typeof family !== 'string' || family.trim().length === 0 || family !== family.trim()) {
+      fail(`plugin "${pluginId}" family must be a non-empty trimmed string`)
+    }
+    const owner = Object.freeze({ pluginId, family })
 
     interface StagedAdapter {
       active: boolean
@@ -203,7 +189,7 @@ export class ModelRegistry {
         for (const route of routes) if (occupied.has(route)) {
           throw new ModelError(`an adapter for provider route "${route}" is already staged`, REGISTRY_ERROR_CODES.DUPLICATE_ADAPTER)
         }
-        this.prepareRoutes(routes, adapter, new Set())
+        this.prepareRoutes(routes, adapter, new Set(), owner)
         stagedAdapters.push(item)
         const handle = (() => {
           if (staging) item.active = false
@@ -214,7 +200,7 @@ export class ModelRegistry {
           for (const route of next) if (occupiedByOthers.has(route)) {
             throw new ModelError(`an adapter for provider route "${route}" is already staged`, REGISTRY_ERROR_CODES.DUPLICATE_ADAPTER)
           }
-          this.prepareRoutes(next, adapter, new Set())
+          this.prepareRoutes(next, adapter, new Set(), owner)
           item.routes = [...next]
         }
         return handle
@@ -250,7 +236,7 @@ export class ModelRegistry {
           if (routeNames.has(route)) throw new ModelError(`an adapter for provider route "${route}" is already staged`, REGISTRY_ERROR_CODES.DUPLICATE_ADAPTER)
           routeNames.add(route)
         }
-        registrations.push(...this.prepareRoutes(item.routes, item.adapter, new Set()))
+        registrations.push(...this.prepareRoutes(item.routes, item.adapter, new Set(), owner))
       }
     } catch (error) {
       const cleanupFailures: unknown[] = []
@@ -363,6 +349,7 @@ export class ModelRegistry {
     providers: readonly string[],
     adapter: ModelAdapter,
     owned: ReadonlySet<string>,
+    owner?: Readonly<{ pluginId: string; family: string }>,
   ): AdapterRegistration[] {
     const unique = new Set<string>()
     const registrations: AdapterRegistration[] = []
@@ -391,6 +378,7 @@ export class ModelRegistry {
       registrations.push({
         adapter,
         provider: { id: info.id, name: info.name },
+        ...(owner === undefined ? {} : owner),
         // Captured at REGISTRATION time, not per call. An adapter whose policy
         // follows mutable configuration re-registers via `handle.replace`.
         retryPolicy: adapter.providerRetryPolicy(provider)
@@ -473,40 +461,17 @@ export class ModelRegistry {
    * @param provider - a registered route.
    * @returns detached, validated model metadata.
    */
-  async listModels(provider: string): Promise<ModelInfo[]> {
+  async listModels(provider: string, signal?: AbortSignal): Promise<ModelInfo[]> {
     const registration = this.registration(provider)
-    const models = await registration.adapter.listModels(provider)
-    if (!Array.isArray(models)) {
-      throw new ModelError(
-        `route "${provider}" returned a catalog that is not an array`,
-        REGISTRY_ERROR_CODES.INVALID_CATALOG,
-      )
-    }
-    if (models.length > this.maxCatalogModels
-      || serializedBytes(models, REGISTRY_ERROR_CODES.INVALID_CATALOG) > this.maxCatalogBytes) {
-      throw new ModelError(
-        `route "${provider}" catalog exceeds the configured registry limit`,
-        REGISTRY_ERROR_CODES.INVALID_CATALOG,
-      )
-    }
-    const seen = new Set<string>()
-    return models.map((model) => {
-      if (model.provider !== provider || typeof model.id !== 'string' || model.id.length === 0
-        || typeof model.name !== 'string' || model.name.length === 0) {
-        throw new ModelError(
-          `route "${provider}" advertised a model entry with invalid identity`,
-          REGISTRY_ERROR_CODES.INVALID_CATALOG,
-        )
-      }
-      if (seen.has(model.id)) {
-        throw new ModelError(
-          `route "${provider}" advertised model "${model.id}" more than once`,
-          REGISTRY_ERROR_CODES.INVALID_CATALOG,
-        )
-      }
-      seen.add(model.id)
-      return structuredClone(model)
-    })
+    const models = await registration.adapter.listModels(provider, signal)
+    return validateCatalogModels(provider, models, this.maxCatalogModels, this.maxCatalogBytes)
+  }
+
+  /** Resolve and validate one uncached adapter-level catalog generation. */
+  async modelCatalog(provider: string, options: ModelCatalogOptions = {}): Promise<ModelCatalogSnapshot> {
+    const registration = this.registration(provider)
+    const snapshot = await registration.adapter.modelCatalog(provider, options)
+    return validateModelCatalogSnapshot(provider, snapshot, this.maxCatalogModels, this.maxCatalogBytes)
   }
 
   /**
@@ -523,7 +488,7 @@ export class ModelRegistry {
   ): Promise<ResolvedModelInfo> {
     const registration = this.registration(provider)
     const resolved = await registration.adapter.resolveModel(provider, model, signal)
-    return this.normalizeModelInfo(registration, model, resolved)
+    return normalizeResolvedModelInfo(registration.provider.id, model, resolved, this.maxCatalogBytes)
   }
 
   /** The retry policy captured for one route. */
@@ -545,8 +510,10 @@ export class ModelRegistry {
   ): Promise<PreparedCall> {
     const registration = this.registration(config.provider)
     const adapterCall = await registration.adapter.prepareCall(config.provider, config.model, signal, invocationContext)
-    const modelInfo = this.normalizeModelInfo(registration, config.model, adapterCall.model)
-    const resolved = this.resolveCallWithInfo(config, modelInfo)
+    const modelInfo = normalizeResolvedModelInfo(
+      registration.provider.id, config.model, adapterCall.model, this.maxCatalogBytes,
+    )
+    const resolved = resolveCallWithModelInfo(config, modelInfo)
     const resolvedConfig = deepFreeze(structuredClone(resolved.config))
     const context = resolved.context === undefined
       ? undefined
@@ -617,8 +584,15 @@ export class ModelRegistry {
     prepared?: PreparedDispatch,
   ): ModelCallHandle {
     let dispatchState: 'not-sent' | 'unknown' = 'not-sent'
+    const registration = prepared?.registration ?? this.adapters.get(options.provider)
     return createModelCallHandle({
       options,
+      ...(registration?.family === undefined ? {} : { providerFamily: registration.family }),
+      ...(registration?.pluginId === undefined ? {} : { providerPluginId: registration.pluginId }),
+      ...(registration === undefined ? {} : { isRetryable: (code: string) => (
+        registration.retryPolicy.mode === 'always'
+          || registration.retryPolicy.retryableCodes.includes(code)
+      ) }),
       ...(context === undefined ? {} : { context }),
       ...(this.observation === undefined ? {} : { defaultObservation: this.observation }),
       resource: this.observationResource,
@@ -653,7 +627,12 @@ export class ModelRegistry {
   ): AsyncIterable<StreamChunk> {
     const chain = [...this.middleware]
     const run = (): AsyncIterable<StreamChunk> => {
-      let next = (): AsyncIterable<StreamChunk> => this.adapterStream(options, context, onDispatch, prepared)
+      let next = (): AsyncIterable<StreamChunk> => streamAdapter({
+        options, context, onDispatch, maxCatalogBytes: this.maxCatalogBytes,
+        registration: provider => this.registration(provider),
+        registeredAdapter: provider => this.adapters.get(provider)?.adapter,
+        ...(prepared === undefined ? {} : { prepared }),
+      })
       for (let index = chain.length - 1; index >= 0; index--) {
         const middleware = chain[index]
         if (middleware === undefined) continue
@@ -680,308 +659,6 @@ export class ModelRegistry {
     return registration
   }
 
-  /**
-   * Validate and detach adapter-reported model metadata.
-   *
-   * Checks identity, a positive context window, a sane output cap, and reasoning
-   * efforts that are unique with a default that actually exists  Eall of which are
-   * cheap here and produce baffling downstream behaviour if wrong.
-   */
-  private normalizeModelInfo(
-    registration: AdapterRegistration,
-    model: string,
-    info: ResolvedModelInfo,
-  ): ResolvedModelInfo {
-    const provider = registration.provider.id
-    if (info.provider !== provider || info.id !== model
-      || typeof info.name !== 'string' || info.name.length === 0) {
-      throw new ModelError(
-        `route "${provider}" resolved model "${model}" with mismatched identity`,
-        REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
-      )
-    }
-    if (info.context !== undefined
-      && (!Number.isSafeInteger(info.context.contextWindow) || info.context.contextWindow <= 0)) {
-      throw new ModelError(
-        `route "${provider}" resolved model "${model}" with a non-positive context window`,
-        REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
-      )
-    }
-    if (info.defaultMaxTokens !== undefined
-      && (!Number.isSafeInteger(info.defaultMaxTokens) || info.defaultMaxTokens <= 0)) {
-      throw new ModelError(
-        `route "${provider}" resolved model "${model}" with a non-positive defaultMaxTokens`,
-        REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
-      )
-    }
-    if (info.maxOutputTokens !== undefined
-      && (!Number.isSafeInteger(info.maxOutputTokens) || info.maxOutputTokens <= 0)) {
-      throw new ModelError(
-        `route "${provider}" resolved model "${model}" with a non-positive maxOutputTokens`,
-        REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
-      )
-    }
-    if (info.defaultMaxTokens !== undefined && info.maxOutputTokens !== undefined
-      && info.defaultMaxTokens > info.maxOutputTokens) {
-      throw new ModelError(
-        `route "${provider}" resolved model "${model}" with defaultMaxTokens above maxOutputTokens`,
-        REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
-      )
-    }
-    if (info.context !== undefined && info.defaultMaxTokens !== undefined
-      && info.defaultMaxTokens >= info.context.contextWindow) {
-      throw new ModelError(
-        `route "${provider}" resolved model "${model}" without input headroom`,
-        REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
-      )
-    }
-    if (info.context !== undefined && info.maxOutputTokens !== undefined
-      && info.maxOutputTokens >= info.context.contextWindow) {
-      throw new ModelError(
-        `route "${provider}" resolved model "${model}" without input headroom`,
-        REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
-      )
-    }
-    if (info.reasoning !== undefined) {
-      const ids = info.reasoning.efforts.map(effort => effort.id)
-      if (ids.length === 0 || new Set(ids).size !== ids.length
-        || info.reasoning.efforts.some(effort =>
-          typeof effort.id !== 'string' || effort.id.length === 0
-          || typeof effort.name !== 'string' || effort.name.length === 0)) {
-        throw new ModelError(
-          `route "${provider}" resolved model "${model}" with empty or duplicated reasoning efforts`,
-          REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
-        )
-      }
-      if (info.reasoning.defaultEffort !== undefined
-        && !ids.includes(info.reasoning.defaultEffort)) {
-        throw new ModelError(
-          `route "${provider}" resolved model "${model}" with a default reasoning effort it does not offer`,
-          REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
-        )
-      }
-    }
-    for (const [label, values] of [
-      ['input modalities', info.inputModalities],
-      ['output modalities', info.outputModalities],
-      ['native tools', info.nativeTools],
-    ] as const) {
-      if (values !== undefined
-        && (new Set(values).size !== values.length
-          || values.some(value => typeof value !== 'string' || value.length === 0))) {
-        throw new ModelError(
-          `route "${provider}" resolved model "${model}" with invalid ${label}`,
-          REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
-        )
-      }
-    }
-    const normalized = deepFreeze(structuredClone({
-      ...info,
-      ...info.inputModalities === undefined
-        ? {}
-        : { inputModalities: Object.freeze([...info.inputModalities]) },
-      ...info.outputModalities === undefined
-        ? {}
-        : { outputModalities: Object.freeze([...info.outputModalities]) },
-      ...info.nativeTools === undefined
-        ? {}
-        : { nativeTools: Object.freeze([...info.nativeTools]) },
-    }))
-    if (serializedBytes(normalized, REGISTRY_ERROR_CODES.INVALID_MODEL_INFO) > this.maxCatalogBytes) {
-      throw new ModelError(
-        `route "${provider}" model metadata exceeds the configured registry limit`,
-        REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
-      )
-    }
-    return normalized
-  }
-
-  /**
-   * Materialize adapter-owned defaults and reject an unsupported effort.
-   *
-   * Rejection happens HERE, before any provider I/O: an effort the model does not
-   * offer is a caller mistake, and failing fast beats a request that a provider
-   * either errors on or silently ignores. No clamping and no aliasing  Ea silently
-   * downgraded effort is worse than a refusal, because the caller keeps paying for
-   * a capability they are not getting.
-   */
-  private resolveCallWithInfo(
-    config: CallConfig,
-    info: ResolvedModelInfo,
-  ): { config: CallConfig; context: ModelContext | undefined } {
-    const reasoningEffort = config.reasoningEffort ?? info.reasoning?.defaultEffort
-    if (config.reasoningEffort !== undefined) {
-      const offered = info.reasoning?.efforts.some(effort => effort.id === config.reasoningEffort)
-      if (offered !== true) {
-        throw new ModelError(
-          `model "${info.id}" on route "${info.provider}" does not offer reasoning effort `
-          + `"${config.reasoningEffort}"`,
-          REGISTRY_ERROR_CODES.UNSUPPORTED_REASONING_EFFORT,
-        )
-      }
-    }
-    const maxTokens = config.maxTokens ?? info.defaultMaxTokens
-    if (maxTokens !== undefined && info.maxOutputTokens !== undefined
-      && maxTokens > info.maxOutputTokens) {
-      throw new ModelError(
-        `model "${info.id}" on route "${info.provider}" supports at most `
-        + `${info.maxOutputTokens} output tokens, received ${maxTokens}`,
-        REGISTRY_ERROR_CODES.OUTPUT_TOKEN_LIMIT_EXCEEDED,
-      )
-    }
-    if (maxTokens !== undefined && info.context !== undefined
-      && maxTokens >= info.context.contextWindow) {
-      throw new ModelError(
-        `model "${info.id}" on route "${info.provider}" cannot reserve ${maxTokens} output tokens `
-        + `inside its ${info.context.contextWindow}-token combined context window`,
-        REGISTRY_ERROR_CODES.OUTPUT_TOKEN_LIMIT_EXCEEDED,
-      )
-    }
-    return {
-      config: {
-        provider: config.provider,
-        model: config.model,
-        ...reasoningEffort === undefined ? {} : { reasoningEffort },
-        ...config.temperature === undefined ? {} : { temperature: config.temperature },
-        ...config.topP === undefined ? {} : { topP: config.topP },
-        ...maxTokens === undefined ? {} : { maxTokens },
-        ...config.stop === undefined ? {} : { stop: [...config.stop] },
-      },
-      context: info.context,
-    }
-  }
-
-  /**
-   * Strip replay state whose historical route belongs to a DIFFERENT adapter.
-   *
-   * Replay state is adapter-private opaque JSON. Handing one provider's state to
-   * another is at best meaningless and at worst a rejected request, so it is
-   * removed unless the same adapter instance owns both routes.
-   */
-  private forAdapter(options: GenerateOptions, adapter: ModelAdapter): GenerateOptions {
-    const messages: Message[] = options.messages.map((message) => {
-      const source = message.source
-      if (message.role !== 'assistant' || source.kind !== 'model'
-        || source.replayState === undefined) {
-        return message
-      }
-      if (this.adapters.get(source.provider)?.adapter === adapter) return message
-      return freezeMessage({
-        ...message,
-        source: { kind: 'model', provider: source.provider, model: source.model },
-      })
-    })
-    if (messages.every((message, index) => message === options.messages[index])) return options
-    return { ...options, messages }
-  }
-
-  /**
-   * The final adapter boundary and the single failure funnel.
-   *
-   * Adapter selection, dispatch, iterator construction, and every `next()` throw
-   * become ONE terminal finish chunk. The `yield` deliberately sits outside the
-   * adapter-owned `try`, so a failure thrown back INTO this generator by a
-   * consumer stays thrown rather than being misattributed to the provider.
-   */
-  private async * adapterStream(
-    options: GenerateOptions,
-    context: ModelInvocationContext,
-    onDispatch: () => void,
-    prepared?: PreparedDispatch,
-  ): AsyncGenerator<StreamChunk> {
-    let iterator: AsyncIterator<StreamChunk>
-    try {
-      const registration = prepared?.registration ?? this.registration(options.provider)
-      const adapter = registration.adapter
-
-      let modelInfo: ResolvedModelInfo
-      let resolvedConfig: CallConfig
-      let dispatch: (request: GenerateOptions, context: ModelInvocationContext) => AsyncIterable<StreamChunk>
-      if (prepared === undefined) {
-        const adapterCall: PreparedAdapterCall = await adapter.prepareCall(
-          options.provider,
-          options.model,
-          options.signal,
-          context,
-        )
-        modelInfo = this.normalizeModelInfo(registration, options.model, adapterCall.model)
-        resolvedConfig = this.resolveCallWithInfo(options, modelInfo).config
-        dispatch = (request, activeContext) => adapterCall.stream(request, activeContext)
-      } else {
-        modelInfo = prepared.modelInfo
-        resolvedConfig = prepared.config
-        dispatch = prepared.dispatch
-        if (!callConfigEquals(options, resolvedConfig)) {
-          throw new ModelError(
-            'prepared call config changed before adapter dispatch',
-            REGISTRY_ERROR_CODES.INVALID_PREPARED_CALL,
-          )
-        }
-      }
-
-      const withConfig = callConfigEquals(options, resolvedConfig)
-        ? options
-        : { ...options, ...resolvedConfig }
-      const projected = modelInfo.inputModalities !== undefined
-        && !modelInfo.inputModalities.includes('image')
-        && withConfig.messages.some(message => contentHasImage(message.content))
-        ? { ...withConfig, messages: projectImagesForTextModel(withConfig.messages) }
-        : withConfig
-
-      if (modelInfo.nativeTools !== undefined) {
-        for (const tool of projected.tools ?? []) {
-          if (isNativeToolSchema(tool) && !modelInfo.nativeTools.includes(tool.name)) {
-            throw new ModelError(
-              `model "${modelInfo.id}" on route "${modelInfo.provider}" does not support native tool `
-              + `"${tool.name}"`,
-              REGISTRY_ERROR_CODES.UNSUPPORTED_NATIVE_TOOL,
-            )
-          }
-        }
-      }
-
-      onDispatch()
-      iterator = dispatch(this.forAdapter(projected, adapter), context)[Symbol.asyncIterator]()
-    } catch (error: unknown) {
-      yield adapterFailureChunk(error, options.signal)
-      return
-    }
-
-    let completed = false
-    try {
-      while (true) {
-        let item: { done: true } | { done: false; value: StreamChunk }
-        try {
-          const next = await iterator.next()
-          item = next.done === true ? { done: true } : { done: false, value: next.value }
-        } catch (error: unknown) {
-          completed = true
-          yield adapterFailureChunk(error, options.signal)
-          return
-        }
-        if (item.done) {
-          completed = true
-          return
-        }
-        yield item.value
-      }
-    } finally {
-      // The consumer broke out early (a `break`, a `return`, or a throw). Tell the
-      // adapter so it can abort the in-flight HTTP request instead of leaking it.
-      if (!completed) {
-        const close = iterator.return?.bind(iterator)
-        if (close !== undefined) {
-          const closing = Promise.resolve().then(async () => { await close() })
-          if (!await waitForSettlement(closing, 30_000)) {
-            throw new ModelError(
-              'model adapter ignored cancellation for more than 30000ms',
-              MODEL_ERROR_CODES.TEARDOWN_TIMEOUT,
-            )
-          }
-        }
-      }
-    }
-  }
 }
 
 function positiveSafeInteger(value: number, label: string): number {
@@ -989,24 +666,4 @@ function positiveSafeInteger(value: number, label: string): number {
     throw new RangeError(`ModelRegistry ${label} must be a positive safe integer`)
   }
   return value
-}
-
-function serializedBytes(value: unknown, code: string): number {
-  let encoded: string | undefined
-  try {
-    encoded = JSON.stringify(value)
-  } catch (error) {
-    throw new ModelError(
-      'adapter model metadata must be JSON-serializable',
-      code,
-      { cause: error },
-    )
-  }
-  if (encoded === undefined) {
-    throw new ModelError(
-      'adapter model metadata must be JSON-serializable',
-      code,
-    )
-  }
-  return new TextEncoder().encode(encoded).byteLength
 }

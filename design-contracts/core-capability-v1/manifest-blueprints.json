@@ -1,0 +1,307 @@
+{
+  "schemaVersion": 1,
+  "policy": {
+    "explicitExportsOnly": true,
+    "wildcardExports": false,
+    "requireCondition": false,
+    "packageJsonExport": true
+  },
+  "packages": {
+    "@ai-agent-sdk/provider-http": {
+      "runtime": "universal",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js",
+          "default": "./dist/index.js"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/provider-openai": {
+      "runtime": "universal",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js",
+          "default": "./dist/index.js"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/provider-anthropic": {
+      "runtime": "universal",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js",
+          "default": "./dist/index.js"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/provider-codex": {
+      "runtime": "universal",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js",
+          "default": "./dist/index.js"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/protocol-responses": {
+      "runtime": "universal",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js",
+          "default": "./dist/index.js"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/protocol-anthropic-messages": {
+      "runtime": "universal",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js",
+          "default": "./dist/index.js"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/core": {
+      "runtime": "universal",
+      "canonicalOwnerExported": false,
+      "rootFacadeExportCount": 264,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js",
+          "default": "./dist/index.js"
+        },
+        "./agent": {
+          "types": "./dist/agent.d.ts",
+          "import": "./dist/agent.js",
+          "default": "./dist/agent.js"
+        },
+        "./tools": {
+          "types": "./dist/tools.d.ts",
+          "import": "./dist/tools.js",
+          "default": "./dist/tools.js"
+        },
+        "./skills": {
+          "types": "./dist/skills.d.ts",
+          "import": "./dist/skills.js",
+          "default": "./dist/skills.js"
+        },
+        "./memory": {
+          "types": "./dist/memory.d.ts",
+          "import": "./dist/memory.js",
+          "default": "./dist/memory.js"
+        },
+        "./observability": {
+          "types": "./dist/observability.d.ts",
+          "import": "./dist/observability.js",
+          "default": "./dist/observability.js"
+        },
+        "./provider": {
+          "types": "./dist/provider.d.ts",
+          "import": "./dist/provider.js",
+          "default": "./dist/provider.js"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/auth-node": {
+      "runtime": "node",
+      "canonicalOwnerExported": false,
+      "identityRoutes": [".", "./env"],
+      "optionalPeerRoutes": {
+        "./codex": "@ai-agent-sdk/provider-codex"
+      },
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.mts",
+          "import": "./dist/index.mjs",
+          "default": "./dist/index.mjs"
+        },
+        "./env": {
+          "types": "./dist/env.d.mts",
+          "import": "./dist/env.mjs",
+          "default": "./dist/env.mjs"
+        },
+        "./codex": {
+          "types": "./dist/codex.d.mts",
+          "import": "./dist/codex.mjs",
+          "default": "./dist/codex.mjs"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/a2a": {
+      "runtime": "node",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.mts",
+          "import": "./dist/index.mjs",
+          "default": "./dist/index.mjs"
+        },
+        "./client": {
+          "types": "./dist/client.d.mts",
+          "import": "./dist/client.mjs",
+          "default": "./dist/client.mjs"
+        },
+        "./server": {
+          "types": "./dist/server.d.mts",
+          "import": "./dist/server.mjs",
+          "default": "./dist/server.mjs"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/mcp": {
+      "runtime": "universal",
+      "canonicalOwnerExported": false,
+      "identityRoutes": [".", "./client"],
+      "optionalPeerRoutes": {
+        "./server": "@ai-agent-sdk/mcp-server"
+      },
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js",
+          "default": "./dist/index.js"
+        },
+        "./client": {
+          "types": "./dist/client.d.ts",
+          "import": "./dist/client.js",
+          "default": "./dist/client.js"
+        },
+        "./server": {
+          "types": "./dist/server.d.ts",
+          "import": "./dist/server.js",
+          "default": "./dist/server.js"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/mcp-server": {
+      "runtime": "universal",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js",
+          "default": "./dist/index.js"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/mcp-node": {
+      "runtime": "node",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.mts",
+          "import": "./dist/index.mjs",
+          "default": "./dist/index.mjs"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/mcp-node-server": {
+      "runtime": "node",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.mts",
+          "import": "./dist/index.mjs",
+          "default": "./dist/index.mjs"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/skill-filesystem": {
+      "runtime": "node",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.mts",
+          "import": "./dist/index.mjs",
+          "default": "./dist/index.mjs"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/observability-fetch": {
+      "runtime": "universal",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js",
+          "default": "./dist/index.js"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/observability-browser": {
+      "runtime": "browser",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js",
+          "default": "./dist/index.js"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/observability-node": {
+      "runtime": "node",
+      "canonicalOwnerExported": false,
+      "identityRoutes": [".", "./journal", "./diagnostic"],
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.mts",
+          "import": "./dist/index.mjs",
+          "default": "./dist/index.mjs"
+        },
+        "./journal": {
+          "types": "./dist/journal.d.mts",
+          "import": "./dist/journal.mjs",
+          "default": "./dist/journal.mjs"
+        },
+        "./diagnostic": {
+          "types": "./dist/diagnostic.d.mts",
+          "import": "./dist/diagnostic.mjs",
+          "default": "./dist/diagnostic.mjs"
+        },
+        "./package.json": "./package.json"
+      }
+    },
+    "@ai-agent-sdk/observability-otel": {
+      "runtime": "universal",
+      "canonicalOwnerExported": false,
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js",
+          "default": "./dist/index.js"
+        },
+        "./package.json": "./package.json"
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ import {
   createTraceId,
   isSpanId,
   isTraceId,
+  normalizeModelFailure,
   safeErrorRecord,
   snapshotObservationSpan,
   type CaptureReceipt,
@@ -386,6 +387,25 @@ describe('core observation identities and model-call handles', () => {
       code: { get() { throw new Error('code getter') } },
     })
     expect(safeErrorRecord(hostile)).toEqual({ type: 'Error', message: 'undefined' })
+  })
+
+  it('normalizes foreign failure data without invoking outer or inner accessors', () => {
+    const outerGetter = vi.fn(() => 'RATE_LIMIT')
+    const innerGetter = vi.fn(() => 'RATE_LIMIT')
+    const outer = new Error('outer')
+    Object.defineProperty(outer, 'code', { get: outerGetter })
+    Object.defineProperty(outer, 'failure', {
+      value: { message: 'busy', code: 'RATE_LIMIT' },
+    })
+    const inner = Object.assign(new Error('inner'), { code: 'RATE_LIMIT' })
+    const failure = { message: 'busy' }
+    Object.defineProperty(failure, 'code', { get: innerGetter })
+    Object.defineProperty(inner, 'failure', { value: failure })
+
+    expect(normalizeModelFailure(outer)).toEqual({ message: 'outer', code: 'UNKNOWN' })
+    expect(normalizeModelFailure(inner)).toEqual({ message: 'inner', code: 'UNKNOWN' })
+    expect(outerGetter).not.toHaveBeenCalled()
+    expect(innerGetter).not.toHaveBeenCalled()
   })
 
   it('preserves results in reliable mode but fails closed after audit terminal checkpoint failure', async () => {

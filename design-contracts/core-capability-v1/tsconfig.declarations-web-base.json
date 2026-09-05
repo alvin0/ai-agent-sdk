@@ -1,0 +1,27 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "skipLibCheck": false,
+    "types": []
+  },
+  "include": [
+    "packages/core/**/*.d.ts",
+    "packages/provider-openai/**/*.d.ts",
+    "packages/provider-anthropic/**/*.d.ts",
+    "packages/provider-codex/**/*.d.ts",
+    "packages/provider-http/**/*.d.ts",
+    "packages/protocol-responses/**/*.d.ts",
+    "packages/protocol-anthropic-messages/**/*.d.ts",
+    "packages/observability-fetch/**/*.d.ts",
+    "packages/observability-browser/**/*.d.ts",
+    "packages/observability-otel/**/*.d.ts",
+    "consumers/edge-minimal.ts",
+    "consumers/capability-author.ts",
+    "consumers/provider-author.ts",
+    "consumers/provider-extension-author.ts",
+    "consumers/anthropic-provider-author.ts",
+    "consumers/adapter-author.ts",
+    "consumers/browser-observability.ts",
+    "consumers/browser-durable-minimal.ts"
+  ]
+}

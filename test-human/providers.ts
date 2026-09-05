@@ -9,7 +9,7 @@ import { openAiAdapter } from '@ai-agent-sdk/provider-openai'
 import {
   combineProviderRequestLoggers,
   createDailyJsonlRequestLogger,
-} from 'ai-agent-sdk/request-logger'
+} from '@ai-agent-sdk/observability-node/diagnostic'
 import type { HumanCliConfig } from './config.ts'
 
 const PROJECT_ROOT = resolve(process.cwd())

@@ -1,4 +1,4 @@
-import { ModelRegistry, createCoreSpan } from '@ai-agent-sdk/core'
+import { createAgentRuntime } from '@ai-agent-sdk/core'
 import { createPlugin, expectedCredential, frames, providerId } from './provider.mjs'
 
 export async function runPackedProviderFixture() {
@@ -7,10 +7,18 @@ export async function runPackedProviderFixture() {
   globalThis.fetch = async () => {
     const encoder = new TextEncoder()
     return {
+      type: 'basic',
+      redirected: false,
+      url: '',
       ok: true,
       status: 200,
       headers: {
-        get(name) { return name.toLowerCase() === 'request-id' ? 'packed-request' : null },
+        get(name) {
+          const normalized = name.toLowerCase()
+          if (normalized === 'content-type') return 'text/event-stream'
+          if (normalized === 'request-id') return 'packed-request'
+          return null
+        },
       },
       body: new ReadableStream({
         start(controller) {
@@ -21,31 +29,30 @@ export async function runPackedProviderFixture() {
     }
   }
   try {
-    const observation = {
-      mode: 'operational',
-      openSpan: createCoreSpan,
-      capture(event) {
-        events.push(event)
-        return { eventId: event.eventId, status: 'accepted', durable: false, boundary: 'none' }
-      },
-    }
-    const registry = new ModelRegistry({ observation })
-    registry.install(createPlugin())
-    const handle = registry.stream({ provider: providerId, model: 'packed-model', messages: [] })
-    let text = ''
-    for await (const chunk of handle) if (chunk.type === 'text-delta') text += chunk.text
-    const report = await handle.report
-    const serialized = JSON.stringify(events)
-    return {
-      provider: providerId,
-      text,
-      totalTokens: report.reported.totalTokens,
-      attempts: report.attempts.length,
-      dispatchState: report.attempts[0]?.dispatchState,
-      credentialEvents: events.filter(event => event.name === 'sdk.credential.operation').length,
-      safeEvents: !serialized.includes(expectedCredential),
-      buffer: typeof globalThis.Buffer,
-      process: typeof globalThis.process,
+    const runtime = await createAgentRuntime({ providers: [createPlugin()] })
+    try {
+      const response = await runtime.agent({
+        id: 'packed-provider-agent',
+        model: { provider: providerId, id: 'packed-model' },
+        instructions: 'Return the fixture response.',
+        compaction: false,
+      }).generate('Run the packed provider fixture.')
+      events.push(...runtime.diagnostics().events)
+      const modelCall = response.report.modelCalls[0]
+      const serialized = JSON.stringify(events)
+      return {
+        provider: providerId,
+        text: response.text,
+        totalTokens: response.usage.reported.totalTokens,
+        attempts: modelCall?.attempts.length,
+        dispatchState: modelCall?.attempts[0]?.dispatchState,
+        credentialEvents: events.filter(event => event.name === 'sdk.credential.operation').length,
+        safeEvents: !serialized.includes(expectedCredential),
+        buffer: typeof globalThis.Buffer,
+        process: typeof globalThis.process,
+      }
+    } finally {
+      await runtime.close()
     }
   } finally {
     globalThis.fetch = originalFetch

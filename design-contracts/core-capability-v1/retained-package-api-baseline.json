@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "policy": "preserve-unless-owner-approved",
+  "targetAudit": {
+    "evidence": "exact-sorted-source-specifier-and-missing-symbol-sha256",
+    "expectedEntrypointCount": 19,
+    "expectedBaselineSymbolCount": 344,
+    "expectedMissingSymbolCount": 0,
+    "expectedMissingSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "expectedMissingByEntrypoint": {
+      "@ai-agent-sdk/a2a": 0,
+      "@ai-agent-sdk/a2a/client": 0,
+      "@ai-agent-sdk/a2a/server": 0,
+      "@ai-agent-sdk/auth-node": 0,
+      "@ai-agent-sdk/auth-node/env": 0,
+      "@ai-agent-sdk/auth-node/codex": 0,
+      "@ai-agent-sdk/mcp": 0,
+      "@ai-agent-sdk/mcp/client": 0,
+      "@ai-agent-sdk/mcp/server": 0,
+      "@ai-agent-sdk/mcp-node": 0,
+      "@ai-agent-sdk/skill-filesystem": 0,
+      "@ai-agent-sdk/protocol-responses": 0,
+      "@ai-agent-sdk/protocol-anthropic-messages": 0,
+      "@ai-agent-sdk/observability-fetch": 0,
+      "@ai-agent-sdk/observability-browser": 0,
+      "@ai-agent-sdk/observability-node": 0,
+      "@ai-agent-sdk/observability-node/journal": 0,
+      "@ai-agent-sdk/observability-node/diagnostic": 0,
+      "@ai-agent-sdk/observability-otel": 0
+    }
+  },
+  "sources": {
+    "@ai-agent-sdk/a2a": {
+      "declaration": "packages/a2a/dist/index.d.mts",
+      "declarationSha256": "032c30a2f3ed0dd6df76922caf3bce6485d2068d02039df41364454d2f81f1ee",
+      "exports": ["A2AAgentLink", "A2AAgentLinkOptions", "A2A_PROTOCOL_VERSION", "AgentCardFromDefinitionOptions", "AgentEvent", "AgentExecutor", "Client", "ClientFactory", "DefaultAgentCardResolver", "DefaultExecutionEventBus", "DefaultExecutionEventBusManager", "DefaultRequestHandler", "DefinedAgentA2AExecutor", "DefinedAgentA2AExecutorOptions", "DefinedAgentA2AServer", "DefinedAgentA2AServerOptions", "ExecutionEventBus", "InMemoryTaskStore", "JsonRpcTransportFactory", "JsonRpcTransportHandler", "LinkA2AAgentOptions", "RequestContext", "RequestOptions", "RestTransportFactory", "Role", "SendMessageRequest", "ServerCallContext", "StreamResponse", "TaskState", "TaskStore", "createA2AAgentLink", "createAgentCardFromDefinition", "createDefinedAgentA2AServer", "linkA2AAgent"],
+      "additiveExports": ["A2ADisposeReport", "A2ALinkableTeam", "A2AUnlinkReport"],
+      "targetSpecifiers": ["@ai-agent-sdk/a2a"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/a2a/client": {
+      "declaration": "packages/a2a/dist/client.d.mts",
+      "declarationSha256": "aabcaa0bfa188a795a68bc88ab15c8e1ffc2f0fc7011a130e5194f7d543a602d",
+      "exports": ["A2AAgentLink", "A2AAgentLinkOptions", "AgentCard", "Client", "ClientFactory", "DefaultAgentCardResolver", "JsonRpcTransportFactory", "LinkA2AAgentOptions", "Message", "Part", "RequestOptions", "RestTransportFactory", "SendMessageRequest", "StreamResponse", "Task", "createA2AAgentLink", "linkA2AAgent"],
+      "additiveExports": ["A2ALinkableTeam", "A2AUnlinkReport"],
+      "targetSpecifiers": ["@ai-agent-sdk/a2a/client"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/a2a/server": {
+      "declaration": "packages/a2a/dist/server.d.mts",
+      "declarationSha256": "3c67d01f47eb0f123ad91f02c9f1a1520a8e638eb5d48402afda5bc582b62e7a",
+      "exports": ["A2A_PROTOCOL_VERSION", "AgentCard", "AgentCardFromDefinitionOptions", "AgentEvent", "AgentExecutor", "DefaultExecutionEventBus", "DefaultExecutionEventBusManager", "DefaultRequestHandler", "DefinedAgentA2AExecutor", "DefinedAgentA2AExecutorOptions", "DefinedAgentA2AServer", "DefinedAgentA2AServerOptions", "ExecutionEventBus", "InMemoryTaskStore", "JsonRpcTransportHandler", "Message", "Part", "RequestContext", "Role", "ServerCallContext", "Task", "TaskState", "TaskStore", "createAgentCardFromDefinition", "createDefinedAgentA2AServer"],
+      "additiveExports": ["A2ADisposeReport"],
+      "targetSpecifiers": ["@ai-agent-sdk/a2a/server"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/auth-node": {
+      "declaration": "packages/auth-node/dist/index.d.mts",
+      "declarationSha256": "f57257d7d90eadb031a0c10d3c3829ec9738c1c5c14c65534f807d843adeb635",
+      "exports": ["ACCESS_TOKEN_REFRESH_WINDOW_MS", "CODEX_AUTH_PATH_ENV", "CODEX_BASE_URL", "CODEX_CLIENT_ID", "CODEX_CLIENT_VERSION", "CODEX_ORIGINATOR", "CodexAdapterOptions", "CodexAuthFile", "CodexAuthPathOptions", "CodexAuthStore", "CodexDeviceCode", "CodexJwtClaims", "CodexLoginProgress", "CodexLoginResult", "CodexNodeAdapterOptions", "CodexNodePluginOptions", "CodexOAuthOptions", "CodexPluginOptions", "CodexRefreshError", "CodexTokens", "DEFAULT_CODEX_AUTH_PATH", "DEFAULT_CODEX_ISSUER", "LAST_REFRESH_MAX_AGE_MS", "RefreshFailureKind", "apiKeyFromEnv", "codexAdapter", "codexNodeAdapter", "codexNodePlugin", "codexPlugin", "envCredential", "fileCodexAuthStore", "isFedrampAccount", "memoryCodexAuthStore", "readJwtClaims", "refreshCodexTokens", "requestDeviceCode", "requireTokens", "resolveAccountId", "resolveCodexAuthPath", "runDeviceCodeLogin", "shouldRefresh"],
+      "targetSpecifiers": ["@ai-agent-sdk/auth-node", "@ai-agent-sdk/auth-node/codex"],
+      "action": "split-with-owner-approval",
+      "decisionId": "P0-07",
+      "movedExports": {
+        "@ai-agent-sdk/auth-node/codex": ["ACCESS_TOKEN_REFRESH_WINDOW_MS", "CODEX_AUTH_PATH_ENV", "CODEX_BASE_URL", "CODEX_CLIENT_ID", "CODEX_CLIENT_VERSION", "CODEX_ORIGINATOR", "CodexAdapterOptions", "CodexAuthFile", "CodexAuthPathOptions", "CodexAuthStore", "CodexDeviceCode", "CodexJwtClaims", "CodexLoginProgress", "CodexLoginResult", "CodexNodeAdapterOptions", "CodexNodePluginOptions", "CodexOAuthOptions", "CodexPluginOptions", "CodexRefreshError", "CodexTokens", "DEFAULT_CODEX_AUTH_PATH", "DEFAULT_CODEX_ISSUER", "LAST_REFRESH_MAX_AGE_MS", "RefreshFailureKind", "codexAdapter", "codexNodeAdapter", "codexNodePlugin", "codexPlugin", "fileCodexAuthStore", "isFedrampAccount", "memoryCodexAuthStore", "readJwtClaims", "refreshCodexTokens", "requestDeviceCode", "requireTokens", "resolveAccountId", "resolveCodexAuthPath", "runDeviceCodeLogin", "shouldRefresh"]
+      }
+    },
+    "@ai-agent-sdk/auth-node/env": {
+      "declaration": "packages/auth-node/dist/env.d.mts",
+      "declarationSha256": "9c63bd7bcf3310208a0a38329529676fe46349ac14162f5653e4328d7dd4de37",
+      "exports": ["apiKeyFromEnv", "envCredential"],
+      "targetSpecifiers": ["@ai-agent-sdk/auth-node/env"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/auth-node/codex": {
+      "declaration": "packages/auth-node/dist/codex.d.mts",
+      "declarationSha256": "f4e89b63815c5ac3a9edc645bffa1bfb2ac3344b0687a73f1fdc3a9ad19368ac",
+      "exports": ["ACCESS_TOKEN_REFRESH_WINDOW_MS", "CODEX_AUTH_PATH_ENV", "CODEX_BASE_URL", "CODEX_CLIENT_ID", "CODEX_CLIENT_VERSION", "CODEX_ORIGINATOR", "CodexAdapterOptions", "CodexAuthFile", "CodexAuthPathOptions", "CodexAuthStore", "CodexDeviceCode", "CodexJwtClaims", "CodexLoginProgress", "CodexLoginResult", "CodexNodeAdapterOptions", "CodexNodePluginOptions", "CodexOAuthOptions", "CodexPluginOptions", "CodexRefreshError", "CodexTokens", "DEFAULT_CODEX_AUTH_PATH", "DEFAULT_CODEX_ISSUER", "LAST_REFRESH_MAX_AGE_MS", "RefreshFailureKind", "codexAdapter", "codexNodeAdapter", "codexNodePlugin", "codexPlugin", "fileCodexAuthStore", "isFedrampAccount", "memoryCodexAuthStore", "readJwtClaims", "refreshCodexTokens", "requestDeviceCode", "requireTokens", "resolveAccountId", "resolveCodexAuthPath", "runDeviceCodeLogin", "shouldRefresh"],
+      "additiveExports": ["CodexCredentialStore", "CodexNodeProviderOptions", "codexNodeProviderPlugin", "fileCodexCredentialStore", "memoryCodexCredentialStore"],
+      "targetSpecifiers": ["@ai-agent-sdk/auth-node/codex"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/mcp": {
+      "declaration": "packages/mcp/dist/index.d.ts",
+      "declarationSha256": "ea6975b3200d8c0f051f1877dd264cc2664b74f11e3a0397114d1f1ff51416c3",
+      "exports": ["McpAgentSessionContext", "McpAgentTool", "McpAuthenticationKind", "McpAuthorizationState", "McpClientConnection", "McpClientLifecycleOptions", "McpClientRuntimeOptions", "McpClientState", "McpClientStatus", "McpHttpClientOptions", "McpOAuthCallbackOptions", "McpProtocolState", "McpReconnectOptions", "McpRemoteToolError", "McpServerErrorContext", "McpToolResultValue", "McpTransportFactory", "McpTransportKind", "ResolvedMcpReconnectOptions", "SdkMcpServerOptions", "connectMcpHttp", "createMcpHttpClient", "createSdkMcpHandler", "createSdkMcpServer", "resolveMcpReconnectOptions"],
+      "additiveExports": ["McpAuthenticationProvider", "McpBearerAuthProvider", "McpCallToolResult", "McpCloseReport", "McpConnectionError", "McpConnectionPublicShape", "McpFetch", "McpProtocolClient", "McpRemoteToolDefinition", "McpSseTransportOptions", "McpStreamableHttpReconnectionOptions", "McpStreamableHttpTransportOptions", "McpTransport", "McpVersionNegotiationMode"],
+      "targetSpecifiers": ["@ai-agent-sdk/mcp", "@ai-agent-sdk/mcp-server"],
+      "action": "split-with-owner-approval",
+      "decisionId": "P0-14",
+      "movedExports": {
+        "@ai-agent-sdk/mcp-server": ["McpAgentSessionContext", "McpAgentTool", "McpServerErrorContext", "SdkMcpServerOptions", "createSdkMcpHandler", "createSdkMcpServer"]
+      }
+    },
+    "@ai-agent-sdk/mcp/client": {
+      "declaration": "packages/mcp/dist/client.d.ts",
+      "declarationSha256": "5123eabb38c9c1e4846e34f02183c50882c63859dee97fc4ce1aa6edde965c0f",
+      "exports": ["McpAuthenticationKind", "McpAuthorizationState", "McpClientConnection", "McpClientLifecycleOptions", "McpClientRuntimeOptions", "McpClientState", "McpClientStatus", "McpHttpClientOptions", "McpOAuthCallbackOptions", "McpProtocolState", "McpReconnectOptions", "McpRemoteToolError", "McpToolResultValue", "McpTransportFactory", "McpTransportKind", "ResolvedMcpReconnectOptions", "connectMcpHttp", "createMcpHttpClient", "resolveMcpReconnectOptions"],
+      "additiveExports": ["McpAuthenticationProvider", "McpBearerAuthProvider", "McpCallToolResult", "McpCloseReport", "McpConnectionError", "McpConnectionPublicShape", "McpFetch", "McpProtocolClient", "McpRemoteToolDefinition", "McpSseTransportOptions", "McpStreamableHttpReconnectionOptions", "McpStreamableHttpTransportOptions", "McpTransport", "McpVersionNegotiationMode"],
+      "targetSpecifiers": ["@ai-agent-sdk/mcp/client"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/mcp/server": {
+      "declaration": "packages/mcp/dist/server.d.ts",
+      "declarationSha256": "f0bc9e4bdca65650b5b3d79bac59dae8d0fee04d6d7554f9495351eb35a3660e",
+      "exports": ["McpAgentSessionContext", "McpAgentTool", "McpServerErrorContext", "SdkMcpServerOptions", "createSdkMcpHandler", "createSdkMcpServer"],
+      "targetSpecifiers": ["@ai-agent-sdk/mcp/server"],
+      "action": "preserve-via-optional-peer-view",
+      "decisionId": "P0-14"
+    },
+    "@ai-agent-sdk/mcp-node": {
+      "declaration": "packages/mcp-node/dist/index.d.mts",
+      "declarationSha256": "4343156868e561d18bb42cb40d499200c6893e5f9b427cedfb20672f4af385e6",
+      "exports": ["McpStdioClientOptions", "NodeMcpRequestHandler", "ToNodeHandlerOptions", "connectMcpStdio", "createMcpStdioClient", "hostHeaderValidation", "localhostHostValidation", "localhostOriginValidation", "originValidation", "serveSdkMcpStdio", "toNodeHandler"],
+      "additiveExports": ["McpCloseReport", "McpConnectionError", "McpStdioConnection"],
+      "targetSpecifiers": ["@ai-agent-sdk/mcp-node", "@ai-agent-sdk/mcp-node-server"],
+      "action": "split-with-owner-approval",
+      "decisionId": "P0-14",
+      "movedExports": {
+        "@ai-agent-sdk/mcp-node-server": ["NodeMcpRequestHandler", "ToNodeHandlerOptions", "hostHeaderValidation", "localhostHostValidation", "localhostOriginValidation", "originValidation", "serveSdkMcpStdio", "toNodeHandler"]
+      }
+    },
+    "@ai-agent-sdk/skill-filesystem": {
+      "declaration": "packages/skill-filesystem/dist/index.d.mts",
+      "declarationSha256": "8b02f371c7840a86272cc81d1bb1938b05ff7474efd71d818c7dccf6856a5699",
+      "exports": ["FileSystemSkillIoEvent", "FileSystemSkillIoPhase", "FileSystemSkillRoot", "FileSystemSkillsOptions", "discoverFileSystemSkills", "fileSystemSkills"],
+      "additiveExports": ["fileSystemSkillProviderPlugin"],
+      "targetSpecifiers": ["@ai-agent-sdk/skill-filesystem"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/protocol-responses": {
+      "declaration": "packages/protocol-responses/dist/index.d.ts",
+      "declarationSha256": "ab6dbfd23ce13a96b2f921ff3cdd542d76376c36a3687b20f5459dbaef9a4bb4",
+      "exports": ["OPENAI_RESPONSES_PROTOCOL_ID", "ProtocolDefinition", "ProtocolRequest", "ProtocolSseEvent", "ProtocolStreamChunk", "ResponsesDialect", "ResponsesReasoningState", "WireContentPart", "WireErrorBody", "WireFunctionTool", "WireImageDetail", "WireIncompleteDetails", "WireInputItem", "WireInputTokensDetails", "WireNativeTool", "WireOutputItem", "WireOutputTokensDetails", "WireReasoning", "WireReasoningContent", "WireReasoningSummary", "WireRequest", "WireResponse", "WireStreamEvent", "WireTextAnnotation", "WireTextControls", "WireTool", "WireToolChoice", "WireUsage", "openAiResponsesProtocol", "serializeResponsesRequest", "translateResponsesStream"],
+      "additiveExports": ["ResponsesProtocolDefinition"],
+      "targetSpecifiers": ["@ai-agent-sdk/protocol-responses"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/protocol-anthropic-messages": {
+      "declaration": "packages/protocol-anthropic-messages/dist/index.d.ts",
+      "declarationSha256": "d2c729e6bcdd83d90d973abbaba7d7fd23add0c080545876157494b679bc27c0",
+      "exports": ["ANTHROPIC_MESSAGES_PROTOCOL_ID", "ANTHROPIC_VERSION", "AnthropicDialect", "AnthropicReasoningState", "AnthropicSerializeOptions", "DEFAULT_THINKING_BUDGETS", "ProtocolDefinition", "ProtocolRequest", "ProtocolSseEvent", "ProtocolStreamChunk", "ThinkingBudgets", "WireCitation", "WireDelta", "WireErrorBody", "WireErrorResponse", "WireFunctionTool", "WireImageSource", "WireMessage", "WireRequest", "WireRequestBlock", "WireResponseBlock", "WireServerToolUseBlock", "WireStopReason", "WireStreamEvent", "WireThinking", "WireTool", "WireToolChoice", "WireToolResultContent", "WireUsage", "WireWebSearchTool", "WireWebSearchToolResultBlock", "anthropicMessagesProtocol", "serializeAnthropicRequest", "translateAnthropicStream"],
+      "additiveExports": ["AnthropicMessagesProtocolDefinition"],
+      "targetSpecifiers": ["@ai-agent-sdk/protocol-anthropic-messages"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/observability-fetch": {
+      "declaration": "packages/observability-fetch/dist/index.d.ts",
+      "declarationSha256": "e141d294dc460fe351ed4d2579ec2906b492671d26a1a770a8582f6fd1441b90",
+      "exports": ["FetchObservationExporter", "FetchObservationExporterOptions", "WaitUntil", "flushObservabilityWithWaitUntil"],
+      "additiveExports": ["fetchObservationExporter"],
+      "targetSpecifiers": ["@ai-agent-sdk/observability-fetch"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/observability-browser": {
+      "declaration": "packages/observability-browser/dist/index.d.ts",
+      "declarationSha256": "cbaf1b990a4374fc77456b2cad0c4cf5ac1cc213023a87f1f434ac295fc72e64",
+      "exports": ["BROWSER_OBSERVATION_ERROR_CODES", "BrowserLifecycleOptions", "BrowserObservationError", "BrowserObservationErrorCode", "BrowserQueueStats", "IndexedDbObservationExporter", "IndexedDbObservationExporterOptions", "installBrowserObservabilityLifecycle"],
+      "additiveExports": ["indexedDbObservationExporter"],
+      "targetSpecifiers": ["@ai-agent-sdk/observability-browser"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/observability-node": {
+      "declaration": "packages/observability-node/dist/index.d.mts",
+      "declarationSha256": "5a8c12891ae6214848f677ad0e4941997230be6cfacc08345b6940b38a76e5cb",
+      "exports": ["DiagnosticWireLoggerOptions", "JournalDurabilityMode", "JournalRecoveryRecord", "JournalRecoveryResult", "JournalStats", "JsonlObservationJournalExporter", "JsonlObservationJournalOptions", "NODE_OBSERVATION_ERROR_CODES", "NodeLifecycleOptions", "NodeLifecycleTarget", "NodeObservationError", "NodeObservationErrorCode", "ProviderWireLogRecord", "ProviderWireLogger", "createDiagnosticWireLogger", "installNodeObservabilityLifecycle", "recoverJournal"],
+      "additiveExports": ["DailyJsonlRequestLogger", "DailyJsonlRequestLoggerOptions", "ProviderRequestLogLike", "RuntimeJournalRecoveryRecord", "RuntimeJournalRecoveryResult", "combineProviderRequestLoggers", "createDailyJsonlRequestLogger", "jsonlObservationExporter", "recoverRuntimeObservationJournal"],
+      "targetSpecifiers": ["@ai-agent-sdk/observability-node"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/observability-node/journal": {
+      "declaration": "packages/observability-node/dist/journal.d.mts",
+      "declarationSha256": "3400c4f08a09a37a12adde066b98a89a1d77be590ab932d21a2ed84f8be42a1b",
+      "exports": ["JournalDurabilityMode", "JournalRecoveryRecord", "JournalRecoveryResult", "JournalStats", "JsonlObservationJournalExporter", "JsonlObservationJournalOptions", "NODE_OBSERVATION_ERROR_CODES", "NodeLifecycleOptions", "NodeLifecycleTarget", "NodeObservationError", "NodeObservationErrorCode", "installNodeObservabilityLifecycle", "recoverJournal"],
+      "additiveExports": ["RuntimeJournalRecoveryRecord", "RuntimeJournalRecoveryResult", "jsonlObservationExporter", "recoverRuntimeObservationJournal"],
+      "targetSpecifiers": ["@ai-agent-sdk/observability-node/journal"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/observability-node/diagnostic": {
+      "declaration": "packages/observability-node/dist/diagnostic.d.mts",
+      "declarationSha256": "1b2ba532c1f90167698f9d5a8cb7ec5fc210ea962bfd19a07f6bc89477daaf55",
+      "exports": ["DiagnosticWireLoggerOptions", "ProviderWireLogRecord", "ProviderWireLogger", "createDiagnosticWireLogger"],
+      "additiveExports": ["DailyJsonlRequestLogger", "DailyJsonlRequestLoggerOptions", "ProviderRequestLogLike", "combineProviderRequestLoggers", "createDailyJsonlRequestLogger"],
+      "targetSpecifiers": ["@ai-agent-sdk/observability-node/diagnostic"],
+      "action": "preserve"
+    },
+    "@ai-agent-sdk/observability-otel": {
+      "declaration": "packages/observability-otel/dist/index.d.ts",
+      "declarationSha256": "7cb2385780ee6a7329af0143180bae0a5984d9b89bed82773985e18a40aa1105",
+      "exports": ["OTEL_SEMANTIC_CONVENTIONS_COMMIT", "OpenTelemetryBridge", "OpenTelemetryBridgeError", "OpenTelemetryBridgeOptions", "OpenTelemetryLogEnabledOptions", "OpenTelemetryLogRecord", "OpenTelemetryLogger", "createOpenTelemetryBridge"],
+      "targetSpecifiers": ["@ai-agent-sdk/observability-otel"],
+      "action": "preserve"
+    }
+  }
+}

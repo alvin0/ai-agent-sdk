@@ -1,7 +1,7 @@
 {
-  "name": "@ai-agent-sdk/core",
+  "name": "@fixture/core",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "dependencies": { "@ai-agent-sdk/agent": "workspace:^" }
+  "dependencies": { "@fixture/agent": "workspace:^" }
 }

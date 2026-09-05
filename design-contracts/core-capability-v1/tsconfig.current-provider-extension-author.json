@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@ai-agent-sdk/core/provider": ["../../packages/core/dist/provider.d.ts"],
+      "@ai-agent-sdk/provider-http": ["../../packages/provider-http/dist/index.d.ts"]
+    }
+  },
+  "include": ["consumers/provider-extension-author.ts"]
+}

@@ -4,8 +4,8 @@ import {
   createTraceId,
   disabledDeliverySummary,
   type ModelCallReport,
-} from '@ai-agent-sdk/core'
-import { RunLedger } from '../../packages/agent/src/accounting/ledger.ts'
+} from '../../packages/core/src/observation/index.ts'
+import { RunLedger } from '../../packages/core/src/agent/accounting/ledger.ts'
 
 function call(overrides: Partial<ModelCallReport> = {}): ModelCallReport {
   return {

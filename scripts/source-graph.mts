@@ -6,6 +6,8 @@ export interface SourceGraphResult {
   readonly groups: number
   readonly edges: number
   readonly cycles: readonly string[]
+  readonly dependencyFirstGroups: readonly string[]
+  readonly dependenciesByGroup: Readonly<Record<string, readonly string[]>>
 }
 
 function resolveSourceTarget(importer: string, specifier: string): string | undefined {
@@ -42,6 +44,7 @@ export function analyzeSourceOwnershipGraph(sourceRoot: string): SourceGraphResu
   const visited = new Set<string>()
   const path: string[] = []
   const cycles = new Set<string>()
+  const dependencyFirstGroups: string[] = []
   const visit = (group: string): void => {
     if (visiting.has(group)) {
       const start = path.indexOf(group)
@@ -55,11 +58,18 @@ export function analyzeSourceOwnershipGraph(sourceRoot: string): SourceGraphResu
     path.pop()
     visiting.delete(group)
     visited.add(group)
+    dependencyFirstGroups.push(group)
   }
   for (const group of graph.keys()) visit(group)
   return {
     groups: graph.size,
     edges: [...graph.values()].reduce((total, targets) => total + targets.size, 0),
     cycles: [...cycles].sort(),
+    dependencyFirstGroups,
+    dependenciesByGroup: Object.fromEntries(
+      [...graph.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([group, dependencies]) => [group, [...dependencies].sort()]),
+    ),
   }
 }

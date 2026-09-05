@@ -16,6 +16,14 @@ import type { ProviderRequestId } from '../primitives/brand.ts'
 import { AgentSdkError } from './agent-sdk-error.ts'
 import { MODEL_ERROR_CODES } from './model-error.ts'
 
+const ENCODER = new TextEncoder()
+const INVALID_DATA = Symbol('invalid failure data')
+const FAILURE_ENVELOPE_LIMITS = Object.freeze({
+  messageBytes: 2_048,
+  codeBytes: 128,
+  requestIdBytes: 1_024,
+})
+
 /**
  * Serializable facts about a provider or transport failure.
  *
@@ -45,18 +53,27 @@ export interface ModelFailure {
  * @returns immutable provider-neutral facts, suitable for a terminal finish chunk.
  */
 export function normalizeModelFailure(value: unknown): ModelFailure {
-  const error = value instanceof Error
-    ? value
-    : new AgentSdkError(thrownMessage(value), MODEL_ERROR_CODES.UNKNOWN, { cause: value })
+  const source = objectLike(value) ? value : undefined
   // A ModelError from a DIFFERENT copy of this package keeps its own data but not
   // its class identity, so `instanceof` misses it. Trust the carried facts only
   // when both own properties survive validation and agree with each other.
-  const carried = ownFailureSnapshot(error)
-  if (carried !== undefined && carried.code === ownErrorCode(error)) return carried
+  const carried = source === undefined ? undefined : ownFailureSnapshot(source)
+  if (source !== undefined && carried !== undefined && carried.code === ownErrorCode(source)) return carried
+  const error = isError(value)
+    ? value
+    : new AgentSdkError(thrownMessage(value), MODEL_ERROR_CODES.UNKNOWN, { cause: value })
   return Object.freeze({
     message: errorMessage(error),
     code: agentSdkErrorCode(error),
   })
+}
+
+function objectLike(value: unknown): value is object {
+  return (typeof value === 'object' && value !== null) || typeof value === 'function'
+}
+
+function isError(value: unknown): value is Error {
+  try { return value instanceof Error } catch { return false }
 }
 
 /** Render a non-Error throw without letting hostile coercion escape. */
@@ -70,7 +87,7 @@ function thrownMessage(value: unknown): string {
 }
 
 /** Read a foreign error's own data-backed `code` without invoking accessors. */
-function ownErrorCode(error: Error): unknown {
+function ownErrorCode(error: object): unknown {
   try {
     const descriptor = Object.getOwnPropertyDescriptor(error, 'code')
     return descriptor !== undefined && 'value' in descriptor ? descriptor.value : undefined
@@ -80,7 +97,7 @@ function ownErrorCode(error: Error): unknown {
 }
 
 /** Snapshot an own data property without invoking an SDK-defined accessor. */
-function ownFailureSnapshot(error: Error): ModelFailure | undefined {
+function ownFailureSnapshot(error: object): ModelFailure | undefined {
   try {
     const descriptor = Object.getOwnPropertyDescriptor(error, 'failure')
     return descriptor !== undefined && 'value' in descriptor
@@ -93,38 +110,50 @@ function ownFailureSnapshot(error: Error): ModelFailure | undefined {
 
 /** Validate and detach an arbitrary serializable failure payload. */
 function failureSnapshot(value: unknown): ModelFailure | undefined {
-  if (typeof value !== 'object' || value === null) return undefined
-  try {
-    const candidate = value as Partial<ModelFailure>
-    const { message, code, status, providerRetryAfterMs, requestId } = candidate
-    if (typeof message !== 'string' || message.length === 0
-      || typeof code !== 'string' || code.length === 0
-      || (status !== undefined && (!Number.isInteger(status) || status < 100 || status > 599))
-      || (providerRetryAfterMs !== undefined
-        && (!Number.isFinite(providerRetryAfterMs) || providerRetryAfterMs <= 0))
-      || (requestId !== undefined && (typeof requestId !== 'string' || requestId.length === 0))) {
-      return undefined
-    }
-    return Object.freeze({
-      message,
-      code,
-      ...status === undefined ? {} : { status },
-      ...providerRetryAfterMs === undefined ? {} : { providerRetryAfterMs },
-      ...requestId === undefined ? {} : { requestId },
-    })
-  } catch {
+  if (!objectLike(value) || Array.isArray(value)) return undefined
+  const message = ownFailureData(value, 'message')
+  const code = ownFailureData(value, 'code')
+  const status = ownFailureData(value, 'status')
+  const providerRetryAfterMs = ownFailureData(value, 'providerRetryAfterMs')
+  const requestId = ownFailureData(value, 'requestId')
+  if (message === INVALID_DATA || code === INVALID_DATA || status === INVALID_DATA
+    || providerRetryAfterMs === INVALID_DATA || requestId === INVALID_DATA
+    || !boundedString(message, FAILURE_ENVELOPE_LIMITS.messageBytes)
+    || !boundedString(code, FAILURE_ENVELOPE_LIMITS.codeBytes)
+    || (status !== undefined && (!Number.isSafeInteger(status) || (status as number) < 100 || (status as number) > 599))
+    || (providerRetryAfterMs !== undefined
+      && (!Number.isFinite(providerRetryAfterMs) || (providerRetryAfterMs as number) <= 0))
+    || (requestId !== undefined && !boundedString(requestId, FAILURE_ENVELOPE_LIMITS.requestIdBytes))) {
     return undefined
   }
+  return Object.freeze({
+    message,
+    code,
+    ...status === undefined ? {} : { status: status as number },
+    ...providerRetryAfterMs === undefined ? {} : { providerRetryAfterMs: providerRetryAfterMs as number },
+    ...requestId === undefined ? {} : { requestId: requestId as ProviderRequestId },
+  })
+}
+
+function ownFailureData(source: object, key: PropertyKey): unknown {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(source, key)
+    if (descriptor === undefined) return undefined
+    return 'value' in descriptor ? descriptor.value : INVALID_DATA
+  } catch {
+    return INVALID_DATA
+  }
+}
+
+function boundedString(value: unknown, maxBytes: number): value is string {
+  return typeof value === 'string' && value.length > 0
+    && ENCODER.encode(value).byteLength <= maxBytes
 }
 
 /** Read an error message without letting an accessor replace the primary failure. */
 function errorMessage(error: Error): string {
-  try {
-    const message: unknown = error.message
-    if (typeof message === 'string' && message.length > 0) return message
-  } catch {
-    // Fall through: a serializable failure still has to exist beside the Error.
-  }
+  const message = ownFailureData(error, 'message')
+  if (boundedString(message, FAILURE_ENVELOPE_LIMITS.messageBytes)) return message
   return 'model adapter failed'
 }
 
@@ -135,5 +164,13 @@ function errorMessage(error: Error): string {
  * unrelated string like `ERR_BAD_REQUEST` collide with a retry allow-list entry.
  */
 function agentSdkErrorCode(error: Error): string {
-  return error instanceof AgentSdkError ? error.code : MODEL_ERROR_CODES.UNKNOWN
+  try {
+    const code = ownErrorCode(error)
+    return error instanceof AgentSdkError
+      && boundedString(code, FAILURE_ENVELOPE_LIMITS.codeBytes)
+      ? code
+      : MODEL_ERROR_CODES.UNKNOWN
+  } catch {
+    return MODEL_ERROR_CODES.UNKNOWN
+  }
 }

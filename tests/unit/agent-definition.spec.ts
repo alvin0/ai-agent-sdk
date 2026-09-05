@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { cloneAgent, defineAgent } from '@ai-agent-sdk/agent'
-import type { AgentRunEvent } from '@ai-agent-sdk/agent'
-import { defineTool } from '@ai-agent-sdk/agent'
+import * as canonicalAgent from '@ai-agent-sdk/core/agent'
+import * as legacyAgent from '@ai-agent-sdk/core/agent'
+import { cloneAgent, defineAgent } from '@ai-agent-sdk/core/agent'
+import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
+import { defineTool } from '@ai-agent-sdk/core/agent'
 import { ModelAdapter } from '@ai-agent-sdk/core'
 import type { GenerateOptions } from '@ai-agent-sdk/core'
 import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
@@ -61,6 +63,13 @@ function model(rounds: readonly (readonly StreamChunk[])[]) {
 }
 
 describe('declarative agent definitions', () => {
+  it('keeps every legacy runtime export identical to its canonical core owner', () => {
+    expect(Object.keys(legacyAgent).sort()).toEqual(Object.keys(canonicalAgent).sort())
+    for (const name of Object.keys(legacyAgent) as (keyof typeof legacyAgent)[]) {
+      expect(legacyAgent[name], name).toBe(canonicalAgent[name])
+    }
+  })
+
   it('provides friendly Codex defaults and immutable normalized values', () => {
     const agent = defineAgent({ id: 'ada', instructions: 'Be precise.' })
 

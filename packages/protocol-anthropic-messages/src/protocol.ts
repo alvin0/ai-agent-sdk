@@ -10,6 +10,7 @@ import type {
   ProtocolSseEvent,
   ProtocolStreamChunk,
 } from './contract.ts'
+import type { ModelTarget, ResolvedModelInfo } from '@ai-agent-sdk/core/provider'
 import { serializeAnthropicRequest, type ThinkingBudgets } from './serialize.ts'
 import { translateAnthropicStream } from './translate.ts'
 
@@ -55,8 +56,39 @@ const DEFAULT_DIALECT: AnthropicDialect = Object.freeze({
   beta: Object.freeze([]),
 })
 
+interface RuntimeProtocolRequest extends ProtocolRequest {
+  readonly model: ResolvedModelInfo
+  readonly connection: {
+    readonly baseUrl: string
+    readonly headers: Readonly<Record<string, string>>
+  }
+}
+
+/** Marker-based runtime view, kept structurally independent from provider-http. */
+export interface AnthropicMessagesProtocolDefinition {
+  readonly kind: 'http-wire-protocol'
+  readonly apiVersion: 1
+  readonly id: string
+  readonly defaultDialect: AnthropicDialect
+  readonly exampleModel?: ModelTarget
+  readonly endpointPath: (request: RuntimeProtocolRequest, dialect: AnthropicDialect) => string
+  readonly protocolHeaders?: (dialect: AnthropicDialect) => Readonly<Record<string, string>>
+  readonly serialize: (
+    request: RuntimeProtocolRequest,
+    dialect: AnthropicDialect,
+  ) => Readonly<Record<string, unknown>>
+  readonly translate: (
+    events: AsyncIterable<ProtocolSseEvent>,
+    request: RuntimeProtocolRequest,
+    displayName: string,
+  ) => AsyncGenerator<ProtocolStreamChunk>
+}
+
 /** The Anthropic Messages wire protocol. */
-export const anthropicMessagesProtocol: ProtocolDefinition<AnthropicDialect> = Object.freeze({
+export const anthropicMessagesProtocol: ProtocolDefinition<AnthropicDialect>
+  & AnthropicMessagesProtocolDefinition = Object.freeze({
+  kind: 'http-wire-protocol' as const,
+  apiVersion: 1 as const,
   id: ANTHROPIC_MESSAGES_PROTOCOL_ID,
   defaultDialect: DEFAULT_DIALECT,
   endpointPath: () => '/v1/messages',
@@ -64,8 +96,10 @@ export const anthropicMessagesProtocol: ProtocolDefinition<AnthropicDialect> = O
     'anthropic-version': dialect.version,
     ...dialect.beta.length === 0 ? {} : { 'anthropic-beta': dialect.beta.join(',') },
   }),
-  serialize: (request: ProtocolRequest, dialect: AnthropicDialect) =>
-    serializeAnthropicRequest(request, { budgets: dialect.budgets }),
+  serialize(request: ProtocolRequest, dialect: AnthropicDialect): Readonly<Record<string, unknown>> {
+    const body: unknown = serializeAnthropicRequest(request, { budgets: dialect.budgets })
+    return body as Readonly<Record<string, unknown>>
+  },
   // Params are annotated because `Object.freeze` erases the contextual typing the
   // `WireProtocol` annotation would otherwise supply.
   translate: (

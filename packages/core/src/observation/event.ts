@@ -1,9 +1,16 @@
-import type { JsonObject } from '../primitives/json.ts'
+import type { JsonObject, JsonValue } from '../primitives/json.ts'
 import type { CorrelationContext } from './context.ts'
 
 export type ObservationPriority = 'critical' | 'normal' | 'verbose'
 export type ObservationPhase = 'start' | 'end' | 'point'
 export type OperationStatus = 'success' | 'error' | 'aborted' | 'rejected' | 'unknown'
+
+export interface ObservationResourceInput {
+  readonly serviceName?: string
+  readonly serviceVersion?: string
+  readonly environment?: string
+  readonly attributes?: Readonly<Record<string, JsonValue>>
+}
 
 export interface ObservationResource {
   readonly sdkName: 'ai-agent-sdk'
@@ -11,6 +18,9 @@ export interface ObservationResource {
   readonly serviceName?: string
   readonly serviceVersion?: string
   readonly runtime: 'browser' | 'edge' | 'node' | 'unknown'
+  readonly runtimeId?: string
+  readonly environment?: string
+  readonly attributes?: Readonly<Record<string, JsonValue>>
 }
 
 export type ObservationEventName =

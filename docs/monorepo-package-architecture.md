@@ -1,6 +1,6 @@
 # Monorepo Package and Runtime Architecture Plan
 
-Status: **Implemented and verified; npm publication intentionally deferred**
+Status: **historical; superseded by `core-capability-package-plan.md`; npm publication intentionally deferred**
 
 Last reviewed: **2026-09-01**
 
@@ -546,6 +546,11 @@ The 2026-09-01 qualification decision is final for the 0.x line:
 - pin its exact version;
 - prevent install scripts;
 - test fragmented UTF-8, CR/LF variants, multiline `data`, comments, `id`, `retry`, empty events, partial chunks, and malformed fields;
+- validate `text/event-stream`, reset the provider attempt's idle clock on raw
+  reads/comment heartbeats, and bound decoded event count/size in addition to
+  raw response bytes/chunks;
+- drain parser callbacks linearly, never reconnect from the SSE `retry` field,
+  and require one terminal protocol finish before clean EOF;
 - ensure no other package imports it directly.
 
 The owned candidate and deterministic selection rule chose option 1:

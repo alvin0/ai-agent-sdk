@@ -18,13 +18,35 @@
 
 import { AgentSdkError } from '@ai-agent-sdk/core'
 import { waitForSettlement } from '@ai-agent-sdk/core'
+import type { CredentialOperationOptions, SdkLogger } from '@ai-agent-sdk/core/provider'
 import {
   readJwtClaims,
   resolveAccountId,
   type CodexAuthFile,
   type CodexAuthStore,
+  type CodexCredentialStore,
   type CodexTokens,
 } from './auth.ts'
+import { captureCodexStore, type CapturedCodexStore } from './common/store-capture.ts'
+import { rejectCodexRedirect } from './common/no-follow.ts'
+
+const NEVER_ABORTED_SIGNAL = new AbortController().signal
+const NULL_LOGGER: SdkLogger = Object.freeze({
+  child: () => NULL_LOGGER,
+  trace: () => undefined,
+  debug: () => undefined,
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+  fatal: () => undefined,
+})
+
+type AnyCodexStore = CodexAuthStore | CodexCredentialStore
+
+interface CodexStoreSnapshot {
+  readonly file: CodexAuthFile | undefined
+  readonly revision: string | null
+}
 
 /** OpenAI's auth issuer. */
 export const DEFAULT_CODEX_ISSUER = 'https://auth.openai.com'
@@ -109,12 +131,9 @@ async function oauthFetch(
   const response = await raceAbort(Promise.resolve(fetchImpl(url, {
     ...init,
     signal,
-    redirect: 'error',
+    redirect: 'manual',
   })), signal)
-  if (response.url.length > 0 && new URL(response.url).origin !== issuer.origin) {
-    if (response.body !== null) await waitForSettlement(response.body.cancel().catch(() => undefined), 30_000)
-    throw new TypeError(`Codex OAuth response origin '${new URL(response.url).origin}' is not allowed`)
-  }
+  await rejectCodexRedirect(response, url.href, 'OAuth', 30_000)
   return response
 }
 
@@ -387,21 +406,34 @@ export interface CodexLoginResult {
  * @param progress - prompt and poll notifications for a CLI to render.
  * @returns a summary of who signed in and where it was stored.
  */
-export async function runDeviceCodeLogin(
+export function runDeviceCodeLogin(
+  store: CodexCredentialStore,
+  options?: CodexOAuthOptions,
+  progress?: CodexLoginProgress,
+): Promise<CodexLoginResult>
+export function runDeviceCodeLogin(
   store: CodexAuthStore,
+  options?: CodexOAuthOptions,
+  progress?: CodexLoginProgress,
+): Promise<CodexLoginResult>
+export async function runDeviceCodeLogin(
+  store: AnyCodexStore,
   options: CodexOAuthOptions = {},
   progress: CodexLoginProgress = {},
 ): Promise<CodexLoginResult> {
+  const captured = captureCodexStore(store)
+  const operation = credentialOperation(options.signal)
+  const initial = await readStore(captured, operation)
   const code = await requestDeviceCode(options)
   try { progress.onPrompt?.(code) } catch { /* progress observers do not own authentication */ }
   const grant = await pollForAuthorization(code, options, progress)
   const tokens = await exchangeCodeForTokens(grant, options)
   const file = authFileFor(tokens)
-  await store.write(file)
+  await commitStore(captured, file, initial.revision, operation)
 
   const claims = readJwtClaims(tokens.id_token)
   return {
-    location: store.location,
+    location: storeLabel(captured),
     email: claims?.email,
     accountId: file.tokens?.account_id ?? undefined,
     planType: claims?.planType,
@@ -457,15 +489,34 @@ function refreshErrorCode(raw: string): string | undefined {
  * @param options - issuer, client id, cancellation.
  * @returns the refreshed tokens.
  */
-export async function refreshCodexTokens(
+export function refreshCodexTokens(
+  store: CodexCredentialStore,
+  options?: CodexOAuthOptions,
+): Promise<CodexTokens>
+export function refreshCodexTokens(
   store: CodexAuthStore,
+  options?: CodexOAuthOptions,
+): Promise<CodexTokens>
+export async function refreshCodexTokens(
+  store: AnyCodexStore,
   options: CodexOAuthOptions = {},
 ): Promise<CodexTokens> {
-  const file = await store.read()
+  return await refreshCodexTokensWithOperation(store, options, credentialOperation(options.signal))
+}
+
+/** Internal runtime path that preserves the caller's bound credential logger. */
+export async function refreshCodexTokensWithOperation(
+  store: AnyCodexStore,
+  options: CodexOAuthOptions,
+  operation: CredentialOperationOptions,
+): Promise<CodexTokens> {
+  const captured = captureCodexStore(store)
+  const snapshot = await readStore(captured, operation)
+  const file = snapshot.file
   const current = file?.tokens
   if (current === undefined || current === null || current.refresh_token.length === 0) {
     throw new CodexRefreshError(
-      `no refresh token at ${store.location}; run \`npm run provider:codex:login-device\``,
+      `no refresh token at ${storeLabel(captured)}; run \`npm run provider:codex:login-device\``,
       'permanent',
     )
   }
@@ -511,11 +562,71 @@ export async function refreshCodexTokens(
   }
   const accountId = resolveAccountId(next)
   const updated: CodexTokens = { ...next, account_id: accountId ?? null }
-  await store.write({
+  const nextFile: CodexAuthFile = {
     ...file,
     auth_mode: file?.auth_mode ?? 'chatgpt',
     tokens: updated,
     last_refresh: new Date().toISOString(),
-  })
+  }
+  try {
+    await commitStore(captured, nextFile, snapshot.revision, operation)
+  } catch (error) {
+    if (!isRevisionConflict(error) || captured.kind !== 'versioned') throw error
+    const winner = await readStore(captured, operation)
+    const winnerTokens = winner.file?.tokens
+    if (winner.revision === snapshot.revision || winnerTokens === undefined || winnerTokens === null) {
+      throw error
+    }
+    return requireRefreshTokens(winnerTokens, storeLabel(captured))
+  }
   return updated
+}
+
+function credentialOperation(signal: AbortSignal | undefined): CredentialOperationOptions {
+  return { signal: signal ?? NEVER_ABORTED_SIGNAL, logger: NULL_LOGGER }
+}
+
+async function readStore(
+  captured: CapturedCodexStore,
+  operation: CredentialOperationOptions,
+): Promise<CodexStoreSnapshot> {
+  if (captured.kind === 'versioned') {
+    const record = await captured.store.read(operation)
+    return record === undefined
+      ? { file: undefined, revision: null }
+      : { file: record.value, revision: record.revision }
+  }
+  return { file: await captured.store.read(), revision: null }
+}
+
+async function commitStore(
+  captured: CapturedCodexStore,
+  file: CodexAuthFile,
+  expectedRevision: string | null,
+  operation: CredentialOperationOptions,
+): Promise<void> {
+  if (captured.kind === 'versioned') {
+    await captured.store.commit({ value: file, expectedRevision }, operation)
+    return
+  }
+  await captured.store.write(file)
+}
+
+function storeLabel(captured: CapturedCodexStore): string {
+  return captured.label
+}
+
+function isRevisionConflict(error: unknown): boolean {
+  if (error === null || typeof error !== 'object') return false
+  const descriptor = Object.getOwnPropertyDescriptor(error, 'code')
+  return descriptor !== undefined && 'value' in descriptor
+    && descriptor.value === 'CODEX_CREDENTIAL_REVISION_CONFLICT'
+}
+
+function requireRefreshTokens(tokens: CodexTokens, location: string): CodexTokens {
+  if (typeof tokens.access_token !== 'string' || tokens.access_token.length === 0
+    || typeof tokens.refresh_token !== 'string' || tokens.refresh_token.length === 0) {
+    throw new CodexRefreshError(`refreshed credentials at ${location} are incomplete`, 'permanent')
+  }
+  return tokens
 }

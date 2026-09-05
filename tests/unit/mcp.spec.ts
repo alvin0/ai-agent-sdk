@@ -5,10 +5,10 @@ import {
   type Transport,
 } from '@modelcontextprotocol/client'
 import { describe, expect, it, vi } from 'vitest'
-import { defineAgent } from '@ai-agent-sdk/agent'
-import { dispatchToolCall } from '@ai-agent-sdk/agent'
-import { defineTool } from '@ai-agent-sdk/agent'
-import { ToolRegistry } from '@ai-agent-sdk/agent'
+import { defineAgent } from '@ai-agent-sdk/core/agent'
+import { dispatchToolCall } from '@ai-agent-sdk/core/agent'
+import { defineTool } from '@ai-agent-sdk/core/agent'
+import { ToolRegistry } from '@ai-agent-sdk/core/agent'
 import { ModelAdapter } from '@ai-agent-sdk/core'
 import type { GenerateOptions } from '@ai-agent-sdk/core'
 import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
@@ -17,11 +17,14 @@ import { ModelRegistry } from '@ai-agent-sdk/core'
 import type { StreamChunk } from '@ai-agent-sdk/core'
 import {
   McpClientConnection,
+  McpConnectionError,
+  connectMcpHttp,
   createMcpHttpClient,
   resolveMcpReconnectOptions,
 } from '@ai-agent-sdk/mcp/client'
 import { createSdkMcpHandler, createSdkMcpServer } from '@ai-agent-sdk/mcp/server'
 import { GitHubOAuthProvider } from '../../test-human/github-mcp/oauth.ts'
+import { RecordingLogger, integrationOperations } from './fixtures/integration-logger.ts'
 
 class TextAdapter extends ModelAdapter {
   async * stream(_options: GenerateOptions): AsyncIterable<StreamChunk> {
@@ -69,6 +72,158 @@ async function bridgedClient(tools: ToolRegistry) {
 }
 
 describe('MCP integration', () => {
+  it('is a versioned live ToolSource with revisioned invocation snapshots', async () => {
+    const tools = calculatorRegistry()
+    const { connection, server } = await bridgedClient(tools)
+    try {
+      expect(connection).toMatchObject({ kind: 'tool-source', apiVersion: 1, id: 'fixture' })
+      expect(connection.state.catalogRevision).toBe(1)
+      const first = connection.snapshot({
+        signal: new AbortController().signal,
+        logger: new RecordingLogger(),
+      })
+      expect(first.revision).toBe('1')
+      expect(first.tools.map(tool => tool.name)).toEqual(['mcp__fixture__add'])
+      expect(Object.isFrozen(first)).toBe(true)
+      expect(Object.isFrozen(first.tools)).toBe(true)
+
+      tools.register(defineTool({
+        name: 'subtract', description: 'Subtract two numbers.', parameters: { type: 'object' },
+        execute: () => ({ difference: 1 }),
+      }))
+      await connection.refreshTools()
+      expect(connection.state.catalogRevision).toBe(2)
+      expect(connection.snapshot({ signal: new AbortController().signal,
+        logger: new RecordingLogger() }).tools.map(tool => tool.name))
+        .toEqual(['mcp__fixture__add'])
+
+      const aborted = new AbortController()
+      aborted.abort(new Error('stop'))
+      expect(() => connection.snapshot({ signal: aborted.signal, logger: new RecordingLogger() })).toThrow('stop')
+    } finally {
+      await connection.close()
+      await server.close()
+    }
+    expect(connection.state.catalogRevision).toBe(3)
+  })
+
+  it('keeps the last good ToolSource snapshot when refresh validation fails', async () => {
+    const tools = calculatorRegistry()
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const server = createSdkMcpServer({ name: 'refresh-bound', version: '1.0.0', tools })
+    await server.connect(serverTransport)
+    const connection = new McpClientConnection(
+      { serverName: 'refresh-bound', reconnect: false, maxTools: 1 },
+      () => clientTransport,
+    )
+    try {
+      await connection.connect()
+      const before = connection.snapshot({ signal: new AbortController().signal,
+        logger: new RecordingLogger() })
+      const generation = (connection as unknown as { current: Client }).current
+      generation.listTools = vi.fn(async () => ({ tools: [
+        { name: 'add', inputSchema: { type: 'object' } },
+        { name: 'extra', inputSchema: { type: 'object' } },
+      ] })) as typeof generation.listTools
+      await expect(connection.refreshTools()).rejects.toThrow(/1-tool limit/)
+      const after = connection.snapshot({ signal: new AbortController().signal,
+        logger: new RecordingLogger() })
+      expect(after.revision).toBe(before.revision)
+      expect(after.tools.map(tool => tool.name)).toEqual(['mcp__refresh-bound__add'])
+    } finally {
+      await connection.close()
+      await server.close()
+    }
+  })
+
+  it('returns support-safe state projection and honors an abortable close boundary', async () => {
+    const failedTransport: Transport = {
+      start: async () => { throw new Error('PRIVATE_CONNECT/STATE~SENTINEL%') },
+      send: async () => undefined,
+      close: async () => undefined,
+    }
+    const failed = new McpClientConnection(
+      { serverName: 'failed-state', reconnect: false },
+      () => failedTransport,
+    )
+    await expect(failed.connect()).rejects.toThrow('PRIVATE_CONNECT/STATE~SENTINEL%')
+    expect(failed.state.supportError).toMatchObject({ stage: 'mcp-client' })
+    expect(JSON.stringify(failed.state.supportError)).not.toContain('PRIVATE_CONNECT/STATE~SENTINEL%')
+    await failed.close()
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const server = createSdkMcpServer({ name: 'abort-close', version: '1.0.0' })
+    await server.connect(serverTransport)
+    const connection = new McpClientConnection(
+      { serverName: 'abort-close', reconnect: false, closeTimeoutMs: 5_000 },
+      () => clientTransport,
+    )
+    await connection.connect()
+    clientTransport.close = vi.fn(async () => await new Promise<never>(() => {}))
+    const controller = new AbortController()
+    controller.abort(new Error('caller stopped waiting'))
+    const report = await connection.closeWithReport({ signal: controller.signal })
+    expect(report).toMatchObject({
+      state: 'closed', deadlineReached: false, unsettledOperations: 1,
+      error: { code: 'MCP_CLOSE_ABORTED', stage: 'mcp-close' },
+    })
+    void server
+  })
+
+  it('returns one idempotent support-safe close report and retains timeout evidence', async () => {
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const server = createSdkMcpServer({ name: 'reported-close', version: '1.0.0' })
+    await server.connect(serverTransport)
+    const connection = new McpClientConnection(
+      { serverName: 'reported-close', reconnect: false, closeTimeoutMs: 5 },
+      () => clientTransport,
+    )
+    await connection.connect()
+    clientTransport.close = vi.fn(async () => await new Promise<never>(() => {}))
+    const first = await connection.closeWithReport()
+    const second = await connection.closeWithReport()
+    expect(second).toBe(first)
+    expect(first).toMatchObject({ state: 'closed', deadlineReached: true, unsettledOperations: 1,
+      error: { code: 'MCP_CLOSE_TIMEOUT', stage: 'mcp-close' } })
+    expect(JSON.stringify(first)).not.toContain('reported-close')
+    void server
+  })
+
+  it('reports rejected cleanup without misclassifying it as a deadline or successful log', async () => {
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const server = createSdkMcpServer({ name: 'failed-close', version: '1.0.0' })
+    await server.connect(serverTransport)
+    const connection = new McpClientConnection(
+      { serverName: 'failed-close', reconnect: false, closeTimeoutMs: 50 },
+      () => clientTransport,
+    )
+    await connection.connect()
+    clientTransport.close = vi.fn(async () => { throw new Error('PRIVATE_MCP/CLOSE~FAILURE%') })
+    const report = await connection.closeWithReport()
+    expect(report).toMatchObject({ state: 'closed', deadlineReached: false, unsettledOperations: 0,
+      error: { code: 'MCP_CLOSE_FAILED', stage: 'mcp-close' } })
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_MCP/CLOSE~FAILURE%')
+    await expect(connection.close()).resolves.toBeUndefined()
+    expect(await connection.closeWithReport()).toBe(report)
+    void server
+  })
+
+  it('keeps startup failure primary when transactional rollback completes', async () => {
+    const privateFailure = 'PRIVATE_MCP_CONNECT/credential'
+    let thrown: unknown
+    try {
+      await connectMcpHttp({
+        serverName: 'transactional', url: 'https://mcp.example.test', reconnect: false,
+        legacySse: false, transport: { fetch: async () => { throw new Error(privateFailure) } },
+      })
+    } catch (error: unknown) { thrown = error }
+    expect(thrown).toBeInstanceOf(McpConnectionError)
+    expect(thrown).toMatchObject({ code: 'MCP_CONNECT_FAILED', stage: 'unknown',
+      cleanup: { state: 'closed', deadlineReached: false, unsettledOperations: 0 } })
+    expect(JSON.stringify(thrown)).not.toContain(privateFailure)
+    expect((thrown as Error).cause).toBeInstanceOf(Error)
+  })
+
   it('contains lifecycle observers and enforces catalog cardinality', async () => {
     const tools = calculatorRegistry()
     tools.register(defineTool({
@@ -170,13 +325,17 @@ describe('MCP integration', () => {
   })
 
   it('serves the same bridge through a web-standard HTTP API', async () => {
+    const lifecycleLogger = new RecordingLogger()
+    const activeLogger = new RecordingLogger()
+    const serverLogger = new RecordingLogger()
     const handler = createSdkMcpHandler({
-      name: 'http-fixture', version: '1.0.0', tools: calculatorRegistry(),
+      name: 'http-fixture', version: '1.0.0', tools: calculatorRegistry(), logger: serverLogger,
     })
     const connection = createMcpHttpClient({
       serverName: 'http',
       url: 'https://mcp.example.test/api',
       reconnect: false,
+      logger: lifecycleLogger,
       transport: {
         fetch: async (input, init) => handler.fetch(new Request(input, init)),
       },
@@ -187,10 +346,28 @@ describe('MCP integration', () => {
         name: 'add', arguments: { left: 2, right: 5 },
       }))
       expect(result.structuredContent).toEqual({ sum: 7 })
+      const bridged = await dispatchToolCall({
+        catalog: connection.tools,
+        call: { callId: ToolCallId('logged-tool'), toolName: 'mcp__http__add',
+          rawArguments: '{"left":3,"right":4}' },
+        position: { turn: 1, step: 1 }, signal: new AbortController().signal,
+        logger: activeLogger,
+      })
+      expect(bridged).toMatchObject({ isError: false })
     } finally {
-      await connection.close()
+      await connection.closeWithReport()
       await handler.close()
     }
+    expect(integrationOperations(lifecycleLogger)).toEqual(expect.arrayContaining([
+      'connect', 'catalog-refresh', 'close',
+    ]))
+    expect(integrationOperations(lifecycleLogger)).not.toContain('tool-call')
+    expect(integrationOperations(activeLogger)).toEqual(['tool-call'])
+    expect(integrationOperations(serverLogger)).toEqual(expect.arrayContaining(['request', 'tool-call']))
+    const requestScopes = serverLogger.entries
+      .filter(entry => entry.fields.kind === 'logical-start' && entry.fields.integrationOperation === 'request')
+      .map(entry => entry.fields.integrationScope)
+    expect(requestScopes).toEqual(requestScopes.map(() => 'mcp-server-request'))
   })
 
   it('aborts and retires a generation when a raw MCP operation ignores its deadline', async () => {

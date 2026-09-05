@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { extname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
+import { assertSingleInstalledPackage } from '../../../scripts/contracts/installed-tree.mts'
 
 const packageRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const workspaceRoot = resolve(packageRoot, '../..')
@@ -26,6 +27,7 @@ try {
       'install', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund',
       coreTarball, providerTarball,
     ], consumer)
+    assertSingleInstalledPackage(consumer, '@ai-agent-sdk/core')
     consumers.set(name, consumer)
   }
 
@@ -85,8 +87,15 @@ async function testBrowser(consumer: string): Promise<void> {
   const browser = await chromium.launch({ headless: true, ...(chrome ? { executablePath: chrome } : {}) })
   try {
     const page = await browser.newPage()
+    const diagnostics: string[] = []
+    page.on('pageerror', error => diagnostics.push(`pageerror: ${error.message}`))
+    page.on('console', message => diagnostics.push(`console.${message.type()}: ${message.text()}`))
     await page.goto(`http://127.0.0.1:${address.port}/`)
-    await page.waitForFunction(() => '__agentFixture' in globalThis)
+    try {
+      await page.waitForFunction(() => '__agentFixture' in globalThis, undefined, { timeout: 10_000 })
+    } catch (error) {
+      throw new Error(`browser fixture did not settle\n${diagnostics.join('\n')}`, { cause: error })
+    }
     const result = await page.evaluate(() => (
       globalThis as typeof globalThis & { __agentFixture: unknown }
     ).__agentFixture)
@@ -121,6 +130,9 @@ function assertFixture(value: unknown, runtime: string): void {
   if (result.text !== 'packed provider completed' || result.totalTokens !== 12
     || result.attempts !== 1 || result.dispatchState !== 'sent'
     || result.requestId !== 'packed-request' || result.eventCount !== 6
+    || result.staticCatalogState !== 'static' || result.staticModelContext !== 64_000
+    || result.staticModelTool !== 'web-search' || result.staticCredentialCalls !== 0
+    || result.staticDiscoveryCalls !== 0
     || result.buffer !== 'undefined' || result.process !== 'undefined') {
     throw new Error(`${runtime} fixture returned invalid evidence: ${JSON.stringify(result)}`)
   }

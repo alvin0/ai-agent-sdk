@@ -9,6 +9,7 @@ export {
   type AnthropicAdapterOptions,
   type AnthropicCredential,
   type AnthropicPluginOptions,
+  type AnthropicProviderOptions,
 } from './adapter.ts'
 export {
   anthropicMessagesProtocol,

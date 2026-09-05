@@ -3,17 +3,17 @@
 Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
 
 ```sh
-pnpm add @ai-agent-sdk/observability @ai-agent-sdk/observability-fetch
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/observability-fetch
 ```
 
-Universal acknowledged HTTPS exporter for `@ai-agent-sdk/observability`. It sends
+Universal acknowledged HTTPS exporter for `@ai-agent-sdk/core/observability`. It sends
 bounded JSON batches with an idempotency key and retries only the observation
 batch—not the model/provider operation that produced it.
 
 ```ts
-import { FetchObservationExporter } from '@ai-agent-sdk/observability-fetch'
+import { fetchObservationExporter } from '@ai-agent-sdk/observability-fetch'
 
-const exporter = new FetchObservationExporter({
+const exporter = fetchObservationExporter({
   endpoint: 'https://telemetry.example.com/v1/observations',
   headers: { authorization: `Bearer ${telemetryToken}` },
 })
@@ -29,3 +29,7 @@ or `{ "acceptedBatchId": "<batchId>" }`. Network failures, 408, 425, 429, and
 other responses fail without retry. HTTPS is required except for an explicitly
 enabled localhost/loopback test endpoint, and redirects or cross-origin
 responses are rejected.
+
+Composition: `runtime.observability.exporters`. Lifecycle:
+`explicit-owned-or-borrowed`; every runtime registration states ownership,
+requirement, and `remote-acknowledged` boundary.

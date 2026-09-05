@@ -12,7 +12,6 @@ rmSync(artifacts, { recursive: true, force: true })
 mkdirSync(artifacts, { recursive: true })
 
 const coreTarball = pack(join(workspaceRoot, 'packages', 'core'), artifacts)
-const agentTarball = pack(join(workspaceRoot, 'packages', 'agent'), artifacts)
 const a2aTarball = pack(packageRoot, artifacts)
 const temporaryRoot = mkdtempSync(join(tmpdir(), 'ai-agent-sdk-a2a-pack-'))
 try {
@@ -30,7 +29,7 @@ function installFixture(name: string): string {
   cpSync(join(packageRoot, 'fixtures', name), consumer, { recursive: true })
   run('npm', [
     'install', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund',
-    coreTarball, agentTarball, a2aTarball,
+    coreTarball, a2aTarball,
   ], consumer)
   return consumer
 }

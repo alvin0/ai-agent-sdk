@@ -13,6 +13,11 @@ try {
     dispatchState: 'sent',
     requestId: 'packed-request',
     eventCount: 6,
+    staticCatalogState: 'static',
+    staticModelContext: 64000,
+    staticModelTool: 'web-search',
+    staticCredentialCalls: 0,
+    staticDiscoveryCalls: 0,
     buffer: 'undefined',
     process: 'undefined',
   })

@@ -15,6 +15,7 @@ try {
     complete: true,
     lifetimeCount: 1,
     safe: true,
+    runtimeFactory: true,
     buffer: 'undefined',
     process: 'undefined',
   })

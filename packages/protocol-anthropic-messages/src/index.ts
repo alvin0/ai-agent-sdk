@@ -12,6 +12,7 @@ export {
   DEFAULT_THINKING_BUDGETS,
   anthropicMessagesProtocol,
   type AnthropicDialect,
+  type AnthropicMessagesProtocolDefinition,
 } from './protocol.ts'
 export {
   serializeAnthropicRequest,

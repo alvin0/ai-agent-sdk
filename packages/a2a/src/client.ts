@@ -7,78 +7,31 @@ import {
   type Message,
   type Part,
   type SendMessageRequest,
-  type StreamResponse,
   type Task,
 } from '@a2a-js/sdk'
 import {
-  ClientFactory,
   DefaultAgentCardResolver,
-  JsonRpcTransportFactory,
-  RestTransportFactory,
   type Client,
   type RequestOptions,
 } from '@a2a-js/sdk/client'
 import type {
-  AgentTeam,
   LinkedAgentResult,
   LinkedAgentSendInput,
   LinkedAgentTransport,
-} from '@ai-agent-sdk/agent'
+} from '@ai-agent-sdk/core/agent'
 import type { ContentBlock } from '@ai-agent-sdk/core'
 import { detachedFrozen } from '@ai-agent-sdk/core'
 import { waitForSettlement } from '@ai-agent-sdk/core'
+import { a2aErrorCode, beginA2AIntegrationOperation } from './common/integration-operation.ts'
+import { defaultFactory, unlinkReport } from './client/link-helpers.ts'
+import { fetchA2AEndpoint } from './client/http-redirect.ts'
+import type {
+  A2AAgentLinkOptions, A2ALinkableTeam, A2AUnlinkReport, LinkA2AAgentOptions,
+} from './client/types.ts'
 
-export interface A2AAgentLinkOptions {
-  /** Stable id exposed in AgentTeam roster; defaults to card name or base URL. */
-  readonly agentId?: string
-  readonly baseUrl?: string
-  readonly cardPath?: string
-  readonly agentCard?: AgentCard
-  readonly client?: Client
-  readonly clientFactory?: ClientFactory
-  readonly fetch?: typeof fetch
-  /** Enables official v0.3 compatibility in JSON-RPC and REST factories. */
-  readonly legacyCompat?: boolean
-  /** Exact origins permitted for discovery and advertised interfaces. */
-  readonly allowedOrigins?: readonly string[]
-  /** Opt-in host policy requiring https:// endpoints. */
-  readonly requireHttps?: boolean
-  /** Set false for a public-internet policy that rejects local/private endpoint literals. */
-  readonly allowPrivateNetwork?: boolean
-  /** Set false to reject HTTP redirects at the fetch boundary. */
-  readonly allowRedirects?: boolean
-  /** Additional synchronous endpoint policy invoked after built-in validation. */
-  readonly validateEndpoint?: (url: URL) => void
-  /** Per-call timeout. Defaults to 120 seconds. */
-  readonly timeoutMs?: number
-  /** Maximum wait for an uncooperative stream/body teardown. Defaults to 30 seconds. */
-  readonly teardownTimeoutMs?: number
-  /** Maximum serialized outbound request size. Defaults to 1 MiB. */
-  readonly maxRequestBytes?: number
-  /** Maximum normalized response text size. Defaults to 1 MiB. */
-  readonly maxResponseBytes?: number
-  /** Maximum events accepted from one stream. Defaults to 10,000. */
-  readonly maxStreamEvents?: number
-  /** Maximum cumulative serialized stream bytes. Defaults to 8 MiB. */
-  readonly maxStreamBytes?: number
-  /** Maximum bytes read from one HTTP response body. Defaults to 16 MiB. */
-  readonly maxTransportBytes?: number
-  /** Maximum resumable sender contexts retained by this link. Defaults to 1,000. */
-  readonly maxContexts?: number
-  /** Idle context retention. Defaults to 30 minutes. */
-  readonly contextTtlMs?: number
-  /** Defaults to the discovered card's streaming capability. */
-  readonly streaming?: boolean
-  readonly acceptedOutputModes?: readonly string[]
-  readonly historyLength?: number
-  readonly serviceParameters?: RequestOptions['serviceParameters']
-  readonly onStreamEvent?: (event: StreamResponse) => void
-}
-
-export interface LinkA2AAgentOptions extends A2AAgentLinkOptions {
-  readonly name: string
-  readonly description?: string
-}
+export type {
+  A2AAgentLinkOptions, A2ALinkableTeam, A2AUnlinkReport, LinkA2AAgentOptions,
+} from './client/types.ts'
 
 /** A resolved official SDK client presented as an AgentTeam transport. */
 export class A2AAgentLink implements LinkedAgentTransport {
@@ -124,28 +77,43 @@ export class A2AAgentLink implements LinkedAgentTransport {
   }
 
   async send(input: LinkedAgentSendInput): Promise<LinkedAgentResult> {
-    input.signal?.throwIfAborted()
-    const contextKey = JSON.stringify([input.teamId, input.sender])
-    const context = this.reserveContext(contextKey)
-    const request = this.request(input, context?.id)
-    if (byteLength(request) > this.maxRequestBytes) {
-      this.pendingContextKeys.delete(contextKey)
-      throw new Error(`A2A request exceeds the ${this.maxRequestBytes}-byte limit`)
-    }
-    const signal = combineSignals(input.signal, AbortSignal.timeout(this.timeoutMs))
-    const requestOptions: RequestOptions = {
-      signal,
-      ...(this.options.serviceParameters === undefined
-        ? {}
-        : { serviceParameters: this.options.serviceParameters }),
-    }
-    const streaming = this.options.streaming
-      ?? this.agentCard?.capabilities?.streaming
-      ?? false
+    const operation = beginA2AIntegrationOperation(input.logger, 'a2a-client-link', 'send')
+    const attempt = operation.attempt(1)
+    let contextKey: string | undefined
+    let signal = input.signal
     try {
+      input.signal?.throwIfAborted()
+      contextKey = JSON.stringify([input.teamId, input.sender])
+      const context = this.reserveContext(contextKey)
+      const request = this.request(input, context?.id)
+      if (byteLength(request) > this.maxRequestBytes) {
+        throw new Error(`A2A request exceeds the ${this.maxRequestBytes}-byte limit`)
+      }
+      signal = combineSignals(input.signal, AbortSignal.timeout(this.timeoutMs))
+      const requestOptions: RequestOptions = {
+        signal,
+        ...(this.options.serviceParameters === undefined
+          ? {}
+          : { serviceParameters: this.options.serviceParameters }),
+      }
+      const streaming = this.options.streaming
+        ?? this.agentCard?.capabilities?.streaming
+        ?? false
       let result: LinkedAgentResult
       if (streaming) {
-        result = await this.sendStreaming(request, requestOptions)
+        const stream = beginA2AIntegrationOperation(input.logger, 'a2a-client-link', 'stream')
+        const streamAttempt = stream.attempt(1)
+        try {
+          result = await this.sendStreaming(request, requestOptions)
+          streamAttempt.success(); stream.success()
+        } catch (error: unknown) {
+          if (signal.aborted) { streamAttempt.abort(); stream.abort() }
+          else {
+            const code = a2aErrorCode(error)
+            streamAttempt.fail(code); stream.fail(code)
+          }
+          throw error
+        }
       } else {
         const wireResult = await raceWithSignal(this.client.sendMessage(request, requestOptions), signal)
         if (byteLength(wireResult) > this.maxTransportBytes) {
@@ -159,9 +127,17 @@ export class A2AAgentLink implements LinkedAgentTransport {
       if (result.contextId.length > 0) {
         this.contexts.set(contextKey, { id: result.contextId, lastAccess: Date.now() })
       }
+      attempt.success(); operation.success()
       return result
+    } catch (error: unknown) {
+      if (signal?.aborted === true) { attempt.abort(); operation.abort() }
+      else {
+        const code = a2aErrorCode(error)
+        attempt.fail(code); operation.fail(code)
+      }
+      throw error
     } finally {
-      this.pendingContextKeys.delete(contextKey)
+      if (contextKey !== undefined) this.pendingContextKeys.delete(contextKey)
     }
   }
 
@@ -322,23 +298,32 @@ export class A2AAgentLink implements LinkedAgentTransport {
 
 /** Discover an Agent Card and construct a protocol link with official transports. */
 export async function createA2AAgentLink(options: A2AAgentLinkOptions): Promise<A2AAgentLink> {
+  const operation = beginA2AIntegrationOperation(options.logger, 'a2a-client-link', 'agent-card-resolve')
+  const attempt = operation.attempt(1)
+  try {
   options = snapshotLinkOptions(options)
   const sources = [options.client, options.agentCard, options.baseUrl].filter(value => value !== undefined)
   if (sources.length !== 1) {
     throw new TypeError('createA2AAgentLink requires exactly one of client, agentCard, or baseUrl')
   }
-  if (options.client !== undefined) return new A2AAgentLink(options.client, options)
+  if (options.client !== undefined) {
+    const link = new A2AAgentLink(options.client, options)
+    attempt.success(); operation.success()
+    return link
+  }
   if (options.agentCard !== undefined) {
     const cardOptions: A2AAgentLinkOptions = { ...options }
     validateAgentCard(options.agentCard, cardOptions)
     const guardedFetch = endpointFetch(options.fetch ?? globalThis.fetch, cardOptions)
     const factory = options.clientFactory ?? defaultFactory({ ...cardOptions, fetch: guardedFetch })
     const signal = AbortSignal.timeout(positiveInteger(options.timeoutMs ?? 120_000, 'timeoutMs'))
-    return new A2AAgentLink(
+    const link = new A2AAgentLink(
       await raceWithSignal(factory.createFromAgentCard(options.agentCard), signal),
       cardOptions,
       options.agentCard,
     )
+    attempt.success(); operation.success()
+    return link
   }
   const baseUrl = validateEndpoint(options.baseUrl as string, options)
   const discoveryOptions: A2AAgentLinkOptions = { ...options }
@@ -352,34 +337,71 @@ export async function createA2AAgentLink(options: A2AAgentLinkOptions): Promise<
   validateAgentCard(agentCard, discoveryOptions)
   const factory = options.clientFactory ?? defaultFactory({ ...discoveryOptions, fetch: guardedFetch })
   const client = await raceWithSignal(factory.createFromAgentCard(agentCard), signal)
-  return new A2AAgentLink(client, discoveryOptions, agentCard)
+  const link = new A2AAgentLink(client, discoveryOptions, agentCard)
+  attempt.success(); operation.success()
+  return link
+  } catch (error: unknown) {
+    const code = a2aErrorCode(error)
+    attempt.fail(code); operation.fail(code)
+    throw error
+  }
 }
 
 /** Discover and add a remote A2A peer to the same roster local agents use. */
 export async function linkA2AAgent(
-  team: AgentTeam,
+  team: A2ALinkableTeam,
   options: LinkA2AAgentOptions,
-): Promise<{ readonly link: A2AAgentLink; readonly unlink: () => void }> {
-  const link = await createA2AAgentLink(options)
-  const unlink = team.linkAgent({
-    name: options.name,
-    transport: link,
-    ...(options.description === undefined ? {} : { description: options.description }),
-  })
-  return Object.freeze({ link, unlink })
-}
-
-function defaultFactory(options: A2AAgentLinkOptions): ClientFactory {
-  const transportOptions = {
-    ...(options.fetch === undefined ? {} : { fetchImpl: options.fetch }),
-    legacyCompat: { enabled: options.legacyCompat ?? false },
+): Promise<{ readonly link: A2AAgentLink; readonly unlink: () => void;
+  readonly unlinkWithReport: () => A2AUnlinkReport }> {
+  const linkOperation = beginA2AIntegrationOperation(options.logger, 'a2a-client-link', 'link')
+  const linkAttempt = linkOperation.attempt(1)
+  let link: A2AAgentLink
+  let removeLink: () => void
+  try {
+    link = await createA2AAgentLink(options)
+    removeLink = team.linkAgent({
+      name: options.name,
+      transport: link,
+      ...(options.description === undefined ? {} : { description: options.description }),
+    })
+    linkAttempt.success(); linkOperation.success()
+  } catch (error: unknown) {
+    const code = a2aErrorCode(error)
+    linkAttempt.fail(code); linkOperation.fail(code)
+    throw error
   }
-  return new ClientFactory({
-    transports: [
-      new JsonRpcTransportFactory(transportOptions),
-      new RestTransportFactory(transportOptions),
-    ],
-  })
+  let report: A2AUnlinkReport | undefined
+  const unlink = (): void => {
+    if (report !== undefined) return
+    const operation = beginA2AIntegrationOperation(options.logger, 'a2a-client-link', 'unlink')
+    const attempt = operation.attempt(1)
+    try {
+      removeLink()
+      report = unlinkReport('unlinked', false)
+      attempt.success(); operation.success()
+    } catch (error) {
+      report = unlinkReport('failed', false)
+      const code = a2aErrorCode(error)
+      attempt.fail(code); operation.fail(code)
+      throw error
+    }
+  }
+  const unlinkWithReport = (): A2AUnlinkReport => {
+    if (report !== undefined) return unlinkReport(report.status, true, report.error)
+    const operation = beginA2AIntegrationOperation(options.logger, 'a2a-client-link', 'unlink')
+    const attempt = operation.attempt(1)
+    try {
+      removeLink()
+      report = unlinkReport('unlinked', false)
+      attempt.success(); operation.success()
+    } catch (error: unknown) {
+      report = unlinkReport('failed', false)
+      const code = a2aErrorCode(error)
+      attempt.fail(code); operation.fail(code)
+    }
+    return report
+  }
+  return Object.freeze({ link, unlink, unlinkWithReport })
 }
 
 function contentPart(block: ContentBlock): Part {
@@ -542,11 +564,12 @@ function endpointFetch(baseFetch: typeof fetch, options: A2AAgentLinkOptions): t
     const value = typeof input === 'string' || input instanceof URL ? input.toString() : input.url
     validateEndpoint(value, options)
     const signal = combineSignals(init?.signal ?? undefined, AbortSignal.timeout(timeoutMs))
-    const response = await raceWithSignal(baseFetch(input, {
-      ...init,
+    const response = await fetchA2AEndpoint(baseFetch, input, init, {
       signal,
-      ...(options.allowRedirects === false ? { redirect: 'error' as const } : {}),
-    }), signal)
+      allowRedirects: options.allowRedirects !== false,
+      teardownTimeoutMs,
+      validateEndpoint: value => validateEndpoint(value.toString(), options),
+    })
     if (response.url.length > 0) validateEndpoint(response.url, options)
     const declared = Number(response.headers.get('content-length'))
     if (Number.isFinite(declared) && declared > maxBytes) {

@@ -32,7 +32,6 @@ for (const path of codeFiles(resolve(root, 'test-human'))) {
     findings.push(`${path.slice(root.length + 1)} derives data paths from module location; bundled CLIs must use the workspace root`)
   }
 }
-
 if (findings.length > 0) {
   console.error(`Human coverage check failed with ${findings.length} finding(s):`)
   for (const finding of findings) console.error(`- ${finding}`)

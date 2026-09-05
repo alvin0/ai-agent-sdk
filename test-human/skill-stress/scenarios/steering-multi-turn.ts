@@ -1,6 +1,6 @@
 import { join } from 'node:path'
-import type { AgentSession } from '@ai-agent-sdk/agent'
-import type { AgentRunOutcome } from '@ai-agent-sdk/agent'
+import type { AgentSession } from '@ai-agent-sdk/core/agent'
+import type { AgentRunOutcome } from '@ai-agent-sdk/core/agent'
 import { createAgentCodeToolRegistry } from '../../agentcode/tools.ts'
 import { AgentCodeSteeringQueue } from '../../agentcode/steering.ts'
 import { createOfflineRegistry, createStressAgent } from '../agent.ts'

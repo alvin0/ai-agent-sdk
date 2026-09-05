@@ -29,21 +29,23 @@ Choose the smallest runtime closure you need:
 
 ```bash
 # Edge/Worker harness with a remote provider and acknowledged HTTPS telemetry
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/agent @ai-agent-sdk/provider-openai \
-  @ai-agent-sdk/observability @ai-agent-sdk/observability-fetch
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
+  @ai-agent-sdk/observability-fetch
 
 # Browser harness with IndexedDB crash recovery
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/agent @ai-agent-sdk/provider-openai \
-  @ai-agent-sdk/observability @ai-agent-sdk/observability-browser
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
+  @ai-agent-sdk/observability-browser
 
-# Full Node harness: providers, filesystem skills, env/auth, stdio, journal, MCP, and A2A
-pnpm add @ai-agent-sdk/node
+# Node coding harness: choose only the capabilities it uses
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/auth-node @ai-agent-sdk/provider-codex \
+  @ai-agent-sdk/mcp-node @ai-agent-sdk/observability-node \
+  @ai-agent-sdk/skill-filesystem
 ```
 
 All three profiles share the same Universal core and agent loop. Importing a Node
 capability elevates only that application's reachable graph; it does not swap in a
-different harness implementation. The unscoped `ai-agent-sdk` package remains a
-Universal compatibility facade for existing applications.
+different harness implementation. Applications import the scoped core and exact
+capability packages directly.
 
 ## Quick start
 
@@ -52,9 +54,9 @@ import {
   BlockAssembler,
   ModelRegistry,
   createTextMessage,
-  envCredential,
-  openAiAdapter,
-} from '@ai-agent-sdk/node'
+} from '@ai-agent-sdk/core'
+import { envCredential } from '@ai-agent-sdk/auth-node/env'
+import { openAiAdapter } from '@ai-agent-sdk/provider-openai'
 
 const registry = new ModelRegistry()
 registry.registerAdapter(['openai'], openAiAdapter({
@@ -127,11 +129,11 @@ credential/catalog operations, safe errors, and correlated application logs whil
 defaulting to `content: 'none'`:
 
 ```ts
-import { ModelRegistry } from 'ai-agent-sdk'
+import { ModelRegistry } from '@ai-agent-sdk/core'
 import {
   MemoryObservationExporter,
   createObservability,
-} from '@ai-agent-sdk/observability'
+} from '@ai-agent-sdk/core/observability'
 
 const exporter = new MemoryObservationExporter() // test/local inspection only
 const observation = createObservability({
@@ -155,8 +157,8 @@ body contains prompts and tool results.
 Enable the Node-only logger when debugging the wire payload sent to a provider:
 
 ```ts
-import { createDailyJsonlRequestLogger } from 'ai-agent-sdk/request-logger'
-import { codexAdapter } from 'ai-agent-sdk/codex'
+import { createDailyJsonlRequestLogger } from '@ai-agent-sdk/observability-node/diagnostic'
+import { codexAdapter } from '@ai-agent-sdk/provider-codex'
 
 registry.registerAdapter(['codex'], codexAdapter({
   requestLogger: createDailyJsonlRequestLogger({
@@ -178,7 +180,7 @@ Retry is a decorator, and it only retries failures that occur **before the first
 chunk reaches the consumer** — replaying delivered tokens would duplicate output.
 
 ```ts
-import { withRetry } from 'ai-agent-sdk'
+import { withRetry } from '@ai-agent-sdk/core'
 
 registry.registerAdapter(['openai'], withRetry(openAiAdapter({
   apiKey: envCredential('OPENAI_API_KEY'),
@@ -198,14 +200,12 @@ direct callers must supply their own cancellation boundary.
 ## Architecture
 
 ```text
-packages/core                         provider-neutral contracts and registry
-packages/agent                        Universal loop, tools, memory, and ledger
+packages/core                         Universal runtime, agent, observability, contracts, and registry
 packages/provider-http                shared Fetch/SSE transport
 packages/protocol-*                   reusable wire protocols
 packages/provider-*                   explicit provider plugins
-packages/observability*               bus and runtime-specific exporters
-packages/auth-node, mcp-node, node    explicit Node elevation
-packages/sdk                          unscoped compatibility facade
+packages/observability-*              runtime-specific exporters and bridges
+packages/auth-node, mcp-node          explicit Node elevation
 ```
 
 Two structural rules carry most of the weight:
@@ -234,7 +234,7 @@ per conversation. The session owns history, so callers do not have to assemble a
 new `runAgent()` options object for every user turn:
 
 ```ts
-import { defineAgent, defineTool } from 'ai-agent-sdk'
+import { defineAgent, defineTool } from '@ai-agent-sdk/core'
 
 const multiply = defineTool({
   name: 'multiply',
@@ -274,7 +274,7 @@ native tools, variants, and session ownership.
 Agents can also own progressively disclosed skills. Web applications declare
 portable in-memory skills with `defineSkill()` or a custom `defineSkillProvider()`;
 Node CLIs discover `SKILL.md` folders through the separate
-`ai-agent-sdk/skill-filesystem` entry point. Reusable definitions may declare a
+`@ai-agent-sdk/skill-filesystem` entry point. Reusable definitions may declare a
 strict `skillIds` allowlist over session-provided request/workflow sources without
 pre-activating those skills. See the
 [skills section](docs/agent-definitions.md#skills-web-definitions-and-cli-discovery)
@@ -313,7 +313,7 @@ Use `runTurn()` when the application needs to own history and every execution
 boundary directly:
 
 ```ts
-import { History, ToolRegistry, defineTool, createTextMessage, runTurn } from 'ai-agent-sdk'
+import { History, ToolRegistry, defineTool, createTextMessage, runTurn } from '@ai-agent-sdk/core/agent'
 
 const history = new History()
 history.append({ kind: 'user', message: createTextMessage('What is 21 * 2?') })
@@ -346,7 +346,7 @@ for await (const event of runTurn({
 For a ready-made execution policy, use `runAgent()` above `runTurn`:
 
 ```ts
-import { createUserInputBroker, runAgent } from 'ai-agent-sdk'
+import { createUserInputBroker, runAgent } from '@ai-agent-sdk/core'
 
 const userInput = createUserInputBroker()
 
@@ -405,7 +405,7 @@ are passed separately from host functions so the scheduler never tries to execut
 them:
 
 ```ts
-import { ReasoningEffortId, runAgent } from 'ai-agent-sdk'
+import { ReasoningEffortId, runAgent } from '@ai-agent-sdk/core'
 
 for await (const event of runAgent({
   mode: 'basic',
@@ -453,7 +453,8 @@ For any endpoint speaking a protocol this package already implements, adding it 
 configuration — no new file, no new folder, no edit to this package:
 
 ```ts
-import { createHttpProvider, openAiResponsesProtocol } from 'ai-agent-sdk'
+import { openAiResponsesProtocol } from '@ai-agent-sdk/protocol-responses'
+import { createHttpProvider } from '@ai-agent-sdk/provider-http'
 import { envCredential } from '@ai-agent-sdk/auth-node/env'
 
 registry.registerAdapter(['openrouter'], createHttpProvider({

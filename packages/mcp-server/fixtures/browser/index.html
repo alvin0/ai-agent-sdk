@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MCP server browser tarball fixture</title>
+<script type="importmap">
+{
+  "imports": {
+    "@ai-agent-sdk/core": "/node_modules/@ai-agent-sdk/core/dist/index.js",
+    "@ai-agent-sdk/core/tools": "/node_modules/@ai-agent-sdk/core/dist/tools.js",
+    "@ai-agent-sdk/mcp-server": "/node_modules/@ai-agent-sdk/mcp-server/dist/index.js",
+    "@modelcontextprotocol/server": "/node_modules/@modelcontextprotocol/server/dist/index.mjs",
+    "@modelcontextprotocol/server/_shims": "/node_modules/@modelcontextprotocol/server/dist/shimsBrowser.mjs",
+    "@modelcontextprotocol/core/internal": "/node_modules/@modelcontextprotocol/core/dist/internal.mjs",
+    "zod/v4": "/node_modules/zod/v4/index.js"
+  }
+}
+</script>
+<script type="module">
+  globalThis.Buffer = undefined
+  globalThis.process = undefined
+  const { runPackedMcpServerFixture } = await import('./fixture.mjs')
+  globalThis.__mcpServerFixture = await runPackedMcpServerFixture()
+</script>

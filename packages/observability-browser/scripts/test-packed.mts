@@ -13,8 +13,8 @@ rmSync(artifacts, { recursive: true, force: true })
 mkdirSync(artifacts, { recursive: true })
 
 const coreTarball = pack(join(workspaceRoot, 'packages', 'core'), artifacts)
-const observabilityTarball = pack(join(workspaceRoot, 'packages', 'observability'), artifacts)
 const browserTarball = pack(packageRoot, artifacts)
+const otelTarball = pack(join(workspaceRoot, 'packages', 'observability-otel'), artifacts)
 const temporaryRoot = mkdtempSync(join(tmpdir(), 'ai-agent-sdk-observability-browser-pack-'))
 try {
   const consumer = join(temporaryRoot, 'browser')
@@ -22,8 +22,11 @@ try {
   cpSync(join(packageRoot, 'fixtures', 'shared', 'smoke.mjs'), join(consumer, 'fixture.mjs'))
   run('npm', [
     'install', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund',
-    coreTarball, observabilityTarball, browserTarball,
+    '@opentelemetry/api@1.9.1', coreTarball, browserTarball, otelTarball,
   ], consumer)
+  if (existsSync(join(consumer, 'node_modules', '@opentelemetry', 'api-logs'))) {
+    throw new Error('optional @opentelemetry/api-logs was installed without a logger')
+  }
   await testBrowser(consumer)
   process.stdout.write(`packed observability-browser Chromium recovery passed: ${relative(workspaceRoot, browserTarball)}\n`)
 } finally {
@@ -50,7 +53,8 @@ async function testBrowser(consumer: string): Promise<void> {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1')
     const requested = url.pathname === '/' ? '/index.html' : url.pathname
-    const target = resolve(consumer, `.${requested}`)
+    let target = resolve(consumer, `.${requested}`)
+    if (!existsSync(target) && existsSync(`${target}.js`)) target = `${target}.js`
     if (!target.startsWith(`${resolve(consumer)}${sep}`) || !existsSync(target)) {
       response.writeHead(404).end()
       return
@@ -70,18 +74,31 @@ async function testBrowser(consumer: string): Promise<void> {
     const context = await browser.newContext()
     const database = `ai-agent-sdk-packed-${Date.now()}`
     const crashPage = await context.newPage()
+    const crashErrors: string[] = []
+    crashPage.on('pageerror', error => crashErrors.push(error.message))
+    crashPage.on('console', message => { if (message.type() === 'error') crashErrors.push(message.text()) })
     await crashPage.goto(`http://127.0.0.1:${address.port}/?phase=crash&database=${database}`)
-    const crash = await fixtureResult(crashPage)
+    const crash = await fixtureResult(crashPage).catch(error => {
+      throw new Error(`crash fixture did not initialize: ${crashErrors.join(' | ')}`, { cause: error })
+    })
     if ((crash as Record<string, unknown>).staged !== true) throw new Error(`crash phase failed: ${JSON.stringify(crash)}`)
     await crashPage.close()
 
     const verifyPage = await context.newPage()
+    const verifyErrors: string[] = []
+    verifyPage.on('pageerror', error => verifyErrors.push(error.message))
+    verifyPage.on('console', message => { if (message.type() === 'error') verifyErrors.push(message.text()) })
     await verifyPage.goto(`http://127.0.0.1:${address.port}/?phase=verify&database=${database}`)
-    const value = await fixtureResult(verifyPage) as Record<string, unknown>
+    const value = await fixtureResult(verifyPage).catch(error => {
+      throw new Error(`verify fixture did not initialize: ${verifyErrors.join(' | ')}`, { cause: error })
+    }) as Record<string, unknown>
     if (value.error !== undefined || value.recoveredAfterPageClose !== 1 || value.duplicateRejected !== true
       || value.durable !== true || value.boundary !== 'local-durable' || value.acknowledgedEvents !== 1
       || value.remainingEvents !== 1 || JSON.stringify(value.retainedPriorities) !== '["critical","critical"]'
       || value.capacityBatches !== 0
+      || value.runtimeInert !== true || value.runtimeDurable !== true
+      || value.runtimeTerminalStored !== true || value.runtimeAcknowledged !== true
+      || value.runtimeSpans !== true || value.optionalLogsAbsent !== true
       || value.quotaCode !== value.expectedQuotaCode || value.auditDurable !== true
       || value.blockedRejected !== true || value.lifecycleFlushes !== 2
       || value.buffer !== 'undefined' || value.process !== 'undefined') {

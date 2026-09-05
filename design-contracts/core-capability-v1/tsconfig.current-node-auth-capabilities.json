@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@ai-agent-sdk/core": ["../../packages/core/dist/index.d.ts"],
+      "@ai-agent-sdk/core/provider": ["../../packages/core/dist/provider.d.ts"],
+      "@ai-agent-sdk/auth-node": ["../../packages/auth-node/dist/index.d.mts"],
+      "@ai-agent-sdk/auth-node/codex": ["../../packages/auth-node/dist/codex.d.mts"],
+      "@ai-agent-sdk/provider-codex": ["../../packages/provider-codex/dist/index.d.ts"],
+      "@ai-agent-sdk/provider-http": ["../../packages/provider-http/dist/index.d.ts"],
+      "@ai-agent-sdk/protocol-responses": ["../../packages/protocol-responses/dist/index.d.ts"],
+      "@ai-agent-sdk/mcp": ["../../packages/mcp/dist/index.d.ts"],
+      "@ai-agent-sdk/mcp-node": ["../../packages/mcp-node/dist/index.d.mts"],
+      "@ai-agent-sdk/observability-node": ["../../packages/observability-node/dist/index.d.mts"],
+      "@ai-agent-sdk/skill-filesystem": ["../../packages/skill-filesystem/dist/index.d.mts"]
+    }
+  },
+  "include": ["consumers/node-env.ts", "consumers/node-harness.ts"]
+}

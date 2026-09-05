@@ -13,10 +13,23 @@ rmSync(artifacts, { recursive: true, force: true })
 mkdirSync(artifacts, { recursive: true })
 
 const coreTarball = pack(join(workspaceRoot, 'packages', 'core'), artifacts)
-const observabilityTarball = pack(join(workspaceRoot, 'packages', 'observability'), artifacts)
 const otelTarball = pack(packageRoot, artifacts)
 const temporaryRoot = mkdtempSync(join(tmpdir(), 'ai-agent-sdk-observability-otel-pack-'))
 try {
+  const missingPeer = join(temporaryRoot, 'missing-peer')
+  mkdirSync(missingPeer)
+  run('npm', [
+    'install', '--legacy-peer-deps', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund',
+    coreTarball, otelTarball,
+  ], missingPeer)
+  const missing = spawnSync(process.execPath, [
+    '--input-type=module', '-e', "await import('@ai-agent-sdk/observability-otel')",
+  ], { cwd: missingPeer, encoding: 'utf8', env: process.env })
+  const missingOutput = `${missing.stdout}${missing.stderr}`
+  if (missing.status === 0 || !missingOutput.includes('@opentelemetry/api')) {
+    throw new Error(`missing required OTel API peer was not actionable\n${missingOutput}`)
+  }
+
   const consumers = new Map<string, string>()
   for (const runtime of ['standards', 'browser', 'worker']) {
     const consumer = join(temporaryRoot, runtime)
@@ -24,7 +37,7 @@ try {
     cpSync(join(packageRoot, 'fixtures', 'shared', 'smoke.mjs'), join(consumer, 'fixture.mjs'))
     run('npm', [
       'install', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund',
-      '@opentelemetry/api@1.9.1', coreTarball, observabilityTarball, otelTarball,
+      '@opentelemetry/api@1.9.1', coreTarball, otelTarball,
     ], consumer)
     consumers.set(runtime, consumer)
   }

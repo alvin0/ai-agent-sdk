@@ -9,6 +9,9 @@ export {
 export type { GenerateOptions } from './generate-options.ts'
 export type {
   ModelContext,
+  ModelCatalogOptions,
+  ModelCatalogSnapshot,
+  ModelCatalogState,
   ModelInfo,
   ModelModality,
   ModelModalityMap,

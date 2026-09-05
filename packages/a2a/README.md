@@ -3,14 +3,14 @@
 Runtime: **Node 22.12+**.
 
 ```sh
-pnpm add @ai-agent-sdk/a2a
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/a2a
 ```
 
 Node-elevated bridge between ai-agent-sdk agents/teams and the official A2A
 client/server APIs.
 
 ```ts
-import { createA2AAgentLink } from '@ai-agent-sdk/a2a/client'
+import { linkA2AAgent } from '@ai-agent-sdk/a2a/client'
 import { createDefinedAgentA2AServer } from '@ai-agent-sdk/a2a/server'
 ```
 
@@ -23,3 +23,7 @@ passes without Node globals.
 Authentication, endpoint policy, persistence, and HTTP framework adaptation
 remain host-owned. Configure explicit origins, HTTPS/private-network policy,
 resource bounds, session ownership, and deadlines for the deployment boundary.
+
+Composition: `runtime-team.linkAgent`. Lifecycle: `borrowed-caller-owned`; close
+the runtime/team first, then retain the idempotent unlink and server-dispose
+reports separately.

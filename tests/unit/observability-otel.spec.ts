@@ -26,7 +26,7 @@ import {
   type ObservationResource,
   type SafeErrorRecord,
 } from '@ai-agent-sdk/core'
-import { createObservability } from '@ai-agent-sdk/observability'
+import { createObservability } from '@ai-agent-sdk/core/observability'
 import {
   OTEL_SEMANTIC_CONVENTIONS_COMMIT,
   createOpenTelemetryBridge,
@@ -215,7 +215,8 @@ describe('OpenTelemetry observation bridge', () => {
       correlation: { modelCallId: 'call-1' },
     })
     observation.capture(event(scope.nextSequence(), 'sdk.model.call', 'start', model.correlation, {
-      provider: 'openai', model: 'gpt-test', operation: 'stream', prompt: 'must-not-leak',
+      provider: 'openai', model: 'gpt-test', operation: 'stream',
+      prompt: 'PRIVATE_OTEL_PROMPT/BODY~SENTINEL%',
     }))
     observation.capture(event(scope.nextSequence(), 'sdk.log', 'point', model.correlation, {
       level: 'warn', message: 'safe diagnostic', fields: { component: 'provider' },
@@ -246,7 +247,7 @@ describe('OpenTelemetry observation bridge', () => {
       'gen_ai.usage.input_tokens': 13,
       'gen_ai.usage.output_tokens': 4,
     })
-    expect(JSON.stringify(modelSpan.attributes)).not.toContain('must-not-leak')
+    expect(JSON.stringify(modelSpan.attributes)).not.toContain('PRIVATE_OTEL_PROMPT/BODY~SENTINEL%')
     expect(modelSpan.statuses.at(-1)?.code).toBe(SpanStatusCode.OK)
     expect(modelSpan.endedAt).toBeInstanceOf(Date)
 
@@ -347,7 +348,7 @@ describe('OpenTelemetry observation bridge', () => {
     const fake = new FakeSpan(
       'broken', { traceId: 'b'.repeat(32), spanId: '1'.repeat(16), traceFlags: 1 }, undefined, {},
     )
-    fake.setAttributes = () => { throw new Error('tracer-secret-body') }
+    fake.setAttributes = () => { throw new Error('PRIVATE_TRACER/BODY~SENTINEL%') }
     const diagnostics: SafeErrorRecord[] = []
     const bridge = createOpenTelemetryBridge({
       tracer: { startSpan: () => fake } as unknown as Tracer,
@@ -361,7 +362,7 @@ describe('OpenTelemetry observation bridge', () => {
     expect(observation.capture(event(1, 'sdk.model.call', 'start', span.correlation, {
       provider: 'openai', model: 'gpt-test', operation: 'stream',
     }))).toMatchObject({ status: 'rejected', reason: 'processor-failed' })
-    expect(JSON.stringify(diagnostics)).not.toContain('tracer-secret-body')
+    expect(JSON.stringify(diagnostics)).not.toContain('PRIVATE_TRACER/BODY~SENTINEL%')
     expect(diagnostics[0]?.message).toBe('OpenTelemetry bridge API call failed')
     span.end('error', new Date().toISOString(), 1)
     await Promise.resolve()

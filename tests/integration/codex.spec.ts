@@ -23,13 +23,28 @@ import {
   MemoryObservationExporter,
   createObservability,
   type Observability,
-} from '@ai-agent-sdk/observability'
+} from '@ai-agent-sdk/core/observability'
 
 /** A model this account can reach. Discovered via the adapter's own catalog. */
 const MODEL = 'gpt-5.6-luna'
 const PROVIDER = 'codex'
 const PROMPT = 'What colour is a clear midday sky? One word.'
 const SYSTEM = 'Answer with a single lowercase word and no punctuation.'
+const CONTENT_FIELD_NAMES = new Set([
+  'answer', 'arguments', 'body', 'completion', 'content', 'filecontent', 'image',
+  'input', 'messages', 'output', 'prompt', 'reasoning', 'requestbody', 'responsebody',
+  'result', 'system', 'text', 'toolarguments', 'toolresult',
+])
+
+function contentFieldPaths(value: unknown, path: readonly string[] = []): string[] {
+  if (value === null || typeof value !== 'object') return []
+  if (Array.isArray(value)) return value.flatMap((item, index) => contentFieldPaths(item, [...path, String(index)]))
+  return Object.entries(value).flatMap(([key, child]) => {
+    const next = [...path, key]
+    const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, '')
+    return CONTENT_FIELD_NAMES.has(normalized) ? [next.join('.')] : contentFieldPaths(child, next)
+  })
+}
 
 /** Skip the whole suite rather than fail it when nobody has logged in. */
 const signedIn = await (async () => {
@@ -156,10 +171,7 @@ describe.skipIf(!signedIn)('codex provider (live)', () => {
         expect(terminal?.data.providerRequestId).toBe(attempt.providerRequestId)
       }
     }
-    const captured = JSON.stringify(events)
-    expect(captured).not.toContain(PROMPT)
-    expect(captured).not.toContain(SYSTEM)
-    expect(captured.toLowerCase()).not.toContain('blue')
+    expect(events.flatMap(event => contentFieldPaths(event.data))).toEqual([])
 
     const artifactDirectory = resolve(
       process.env.AI_AGENT_SDK_LIVE_REPORT_DIR ?? '.temp/live-acceptance',

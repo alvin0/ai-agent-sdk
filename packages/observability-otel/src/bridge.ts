@@ -34,7 +34,7 @@ import {
   type LogLevel,
   type ObservationContentPolicy,
   type ObservationProcessor,
-} from '@ai-agent-sdk/observability'
+} from '@ai-agent-sdk/core/observability'
 
 export const OTEL_SEMANTIC_CONVENTIONS_COMMIT = '5ca9052bc796ef1e497200b1d558fd87a201f335'
 

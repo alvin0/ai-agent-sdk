@@ -14,7 +14,7 @@ const scoped = (name: string): string => `@ai-agent-sdk/${name}`
 /** Normative package graph from docs/monorepo-implementation-design.md. */
 export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {
   [scoped('core')]: { runtime: 'universal', workspaceDependencies: [], externalRuntimeDependencies: [] },
-  [scoped('agent')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: [] },
+  [scoped('testkit')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: [] },
   [scoped('provider-http')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: ['eventsource-parser'] },
   [scoped('protocol-anthropic-messages')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: [] },
   [scoped('protocol-responses')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: [] },
@@ -33,25 +33,24 @@ export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {
     workspaceDependencies: [scoped('core'), scoped('provider-http'), scoped('protocol-responses')],
     externalRuntimeDependencies: [],
   },
-  [scoped('observability')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: [] },
   [scoped('observability-fetch')]: {
     runtime: 'universal',
-    workspaceDependencies: [scoped('core'), scoped('observability')],
+    workspaceDependencies: [scoped('core')],
     externalRuntimeDependencies: [],
   },
   [scoped('observability-browser')]: {
     runtime: 'browser',
-    workspaceDependencies: [scoped('core'), scoped('observability')],
+    workspaceDependencies: [scoped('core')],
     externalRuntimeDependencies: [],
   },
   [scoped('observability-node')]: {
     runtime: 'node',
-    workspaceDependencies: [scoped('core'), scoped('observability')],
+    workspaceDependencies: [scoped('core')],
     externalRuntimeDependencies: [],
   },
   [scoped('observability-otel')]: {
     runtime: 'universal',
-    workspaceDependencies: [scoped('core'), scoped('observability')],
+    workspaceDependencies: [scoped('core')],
     externalRuntimeDependencies: ['@opentelemetry/api', '@opentelemetry/api-logs'],
   },
   [scoped('auth-node')]: {
@@ -59,40 +58,29 @@ export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {
     workspaceDependencies: [scoped('core'), scoped('provider-codex')],
     externalRuntimeDependencies: [],
   },
-  [scoped('skill-filesystem')]: { runtime: 'node', workspaceDependencies: [scoped('agent')], externalRuntimeDependencies: [] },
+  [scoped('skill-filesystem')]: { runtime: 'node', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: [] },
   [scoped('mcp')]: {
     runtime: 'universal',
-    workspaceDependencies: [scoped('core'), scoped('agent')],
-    externalRuntimeDependencies: ['@modelcontextprotocol/client', '@modelcontextprotocol/server'],
+    workspaceDependencies: [scoped('core'), scoped('mcp-server')],
+    externalRuntimeDependencies: ['@modelcontextprotocol/client'],
+  },
+  [scoped('mcp-server')]: {
+    runtime: 'universal', workspaceDependencies: [scoped('core')],
+    externalRuntimeDependencies: ['@modelcontextprotocol/server'],
   },
   [scoped('mcp-node')]: {
     runtime: 'node',
-    workspaceDependencies: [scoped('mcp')],
-    externalRuntimeDependencies: ['@modelcontextprotocol/client', '@modelcontextprotocol/node', '@modelcontextprotocol/server'],
+    workspaceDependencies: [scoped('core'), scoped('mcp')],
+    externalRuntimeDependencies: ['@modelcontextprotocol/client'],
+  },
+  [scoped('mcp-node-server')]: {
+    runtime: 'node', workspaceDependencies: [scoped('core'), scoped('mcp-server')],
+    externalRuntimeDependencies: ['@modelcontextprotocol/node', '@modelcontextprotocol/server'],
   },
   [scoped('a2a')]: {
     runtime: 'node',
-    workspaceDependencies: [scoped('core'), scoped('agent')],
+    workspaceDependencies: [scoped('core')],
     externalRuntimeDependencies: ['@a2a-js/sdk'],
-  },
-  [scoped('node')]: {
-    runtime: 'node',
-    workspaceDependencies: [
-      scoped('core'), scoped('agent'), scoped('provider-http'), scoped('protocol-anthropic-messages'), scoped('protocol-responses'),
-      scoped('provider-anthropic'), scoped('provider-openai'), scoped('provider-codex'), scoped('observability'), scoped('observability-fetch'),
-      scoped('observability-node'), scoped('observability-otel'), scoped('auth-node'), scoped('skill-filesystem'), scoped('mcp'), scoped('mcp-node'), scoped('a2a'),
-    ],
-    externalRuntimeDependencies: [],
-  },
-  'ai-agent-sdk': {
-    runtime: 'mixed',
-    workspaceDependencies: [
-      scoped('core'), scoped('agent'), scoped('provider-http'), scoped('protocol-anthropic-messages'), scoped('protocol-responses'),
-      scoped('provider-anthropic'), scoped('provider-openai'), scoped('provider-codex'), scoped('observability'), scoped('observability-fetch'),
-      scoped('observability-browser'), scoped('observability-node'), scoped('observability-otel'), scoped('auth-node'), scoped('skill-filesystem'),
-      scoped('mcp'), scoped('mcp-node'), scoped('a2a'), scoped('node'),
-    ],
-    externalRuntimeDependencies: [],
   },
 }
 

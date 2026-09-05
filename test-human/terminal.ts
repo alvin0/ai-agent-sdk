@@ -2,26 +2,33 @@
 
 import { stdout } from 'node:process'
 import type { Interface } from 'node:readline/promises'
-import type { AgentRunEvent } from '@ai-agent-sdk/agent'
-import type { ToolExecutionResult } from '@ai-agent-sdk/agent'
+import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
+import type { ToolExecutionResult } from '@ai-agent-sdk/core/agent'
 import type {
   InteractiveUserInputBroker,
   UserInputQuestion,
   UserInputResponse,
-} from '@ai-agent-sdk/agent'
+} from '@ai-agent-sdk/core/agent'
 import type { HumanCliConfig } from './config.ts'
 import { label, paint } from './console.ts'
 import { saveGeneratedImages } from './media.ts'
+
+export interface HumanRunRenderStats {
+  readonly nativeToolCalls: Readonly<Record<string, number>>
+  readonly citationUrls: readonly string[]
+}
 
 export async function renderHumanRun(
   stream: AsyncIterable<AgentRunEvent>,
   config: HumanCliConfig,
   broker: InteractiveUserInputBroker,
   terminal: Interface,
-): Promise<void> {
+): Promise<HumanRunRenderStats> {
   let streamingText = false
   let streamBlock = ''
   const partials = new Map<string, number>()
+  const nativeToolCalls = new Map<string, number>()
+  const citationUrls = new Set<string>()
 
   for await (const event of stream) {
     if (event.type === 'text-delta') {
@@ -50,6 +57,7 @@ export async function renderHumanRun(
       console.log(label('image-progress'), event.itemId, `partial=${event.partialIndex ?? count}`, event.mediaType)
     } else if (event.type === 'assistant-native-tool') {
       streamingText = endStreamLine(streamingText)
+      nativeToolCalls.set(event.call.name, (nativeToolCalls.get(event.call.name) ?? 0) + 1)
       console.log(label('native-tool'), event.call.id, event.call.name, event.call.status ?? '')
       await saveGeneratedImages(event.call.id, event.call.content)
     } else if (event.type === 'assistant-message') {
@@ -58,6 +66,7 @@ export async function renderHumanRun(
       if (citations.length > 0) streamingText = endStreamLine(streamingText)
       for (const citation of citations) {
         if (citation.type === 'url-citation') {
+          citationUrls.add(citation.url)
           console.log(label('citation'), citation.title ?? '', citation.url)
         }
       }
@@ -91,6 +100,10 @@ export async function renderHumanRun(
       streamingText = endStreamLine(streamingText)
       console.log(label('outcome'), JSON.stringify(event.outcome, null, 2))
     }
+  }
+  return {
+    nativeToolCalls: Object.fromEntries(nativeToolCalls),
+    citationUrls: [...citationUrls],
   }
 }
 

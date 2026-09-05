@@ -1,5 +1,5 @@
-import type { AgentRunOutcome } from '@ai-agent-sdk/agent'
-import { defineTool } from '@ai-agent-sdk/agent'
+import type { AgentRunOutcome } from '@ai-agent-sdk/core/agent'
+import { defineTool } from '@ai-agent-sdk/core/agent'
 import { createAgentCodeToolRegistry } from '../../agentcode/tools.ts'
 import { createOfflineRegistry, createStressAgent } from '../agent.ts'
 import { InvariantRecorder, StressObserver } from '../observer.ts'

@@ -8,6 +8,7 @@ const args = process.argv.slice(2)
 const rootIndex = args.indexOf('--root')
 const workspaceRoot = resolve(rootIndex === -1 ? process.cwd() : required(args[rootIndex + 1], '--root'))
 const agentRoot = [
+  join(workspaceRoot, 'packages', 'core', 'src', 'agent'),
   join(workspaceRoot, 'packages', 'agent', 'src'),
   join(workspaceRoot, 'src', 'agent'),
   workspaceRoot,

@@ -9,29 +9,32 @@ import { chromium } from 'playwright'
 const packageRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const workspaceRoot = resolve(packageRoot, '../..')
 const artifacts = join(packageRoot, 'artifacts')
-rmSync(artifacts, { recursive: true, force: true })
 mkdirSync(artifacts, { recursive: true })
+const runArtifacts = mkdtempSync(join(artifacts, 'core-packed-'))
 
-const packed = run('npm', ['pack', '--json', '--pack-destination', artifacts], packageRoot)
+const packed = run('npm', ['pack', '--json', '--pack-destination', runArtifacts], packageRoot)
 const parsed = JSON.parse(packed) as unknown
 const record = Array.isArray(parsed)
   ? parsed[0] as { filename: string }
   : Object.values(parsed as Record<string, { filename: string }>)[0]
 if (!record?.filename) throw new Error('npm pack did not report a tarball filename')
-const tarball = join(artifacts, record.filename)
+const tarball = join(runArtifacts, record.filename)
 
 const temporaryRoot = mkdtempSync(join(tmpdir(), 'ai-agent-sdk-core-pack-'))
 try {
   const consumers = new Map<string, string>()
-  for (const name of ['standards', 'node', 'browser', 'worker']) {
+  for (const name of ['standards', 'node', 'browser', 'worker', 'types']) {
     const consumer = join(temporaryRoot, name)
     cpSync(join(packageRoot, 'fixtures', name), consumer, { recursive: true })
+    cpSync(join(packageRoot, 'fixtures', 'shared'), join(consumer, 'shared'), { recursive: true })
     run('npm', ['install', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund', tarball], consumer)
     consumers.set(name, consumer)
   }
 
   run(process.execPath, ['smoke.mjs'], required(consumers, 'standards'))
   run(process.execPath, ['smoke.mjs'], required(consumers, 'node'))
+  run(process.execPath, [join(workspaceRoot, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.json'],
+    required(consumers, 'types'))
   await testBrowser(required(consumers, 'browser'))
   await testWorker(required(consumers, 'worker'))
   process.stdout.write(`packed core runtime matrix passed: ${relative(workspaceRoot, tarball)}\n`)
@@ -107,10 +110,24 @@ async function testWorker(consumer: string): Promise<void> {
 }
 
 function assertFixture(value: unknown, totalTokens: number, runtime: string): void {
-  const result = value as { traceId?: unknown; status?: unknown; totalTokens?: unknown; buffer?: unknown; process?: unknown }
+  const result = value as { traceId?: unknown; status?: unknown; totalTokens?: unknown; buffer?: unknown; process?: unknown;
+    overflow?: { settled?: unknown; authoritative?: unknown; errorCode?: unknown; attempts?: unknown };
+    topology?: { providers?: unknown; catalogs?: unknown } }
+  const expectedProviders = [
+    { route: 'route-a', pluginId: 'account-a', family: 'openai' },
+    { route: 'route-b', pluginId: 'account-b', family: 'openai' },
+  ]
+  const expectedCatalogs = [
+    { route: 'route-a', pluginId: 'account-a', family: 'openai', model: 'model-a' },
+    { route: 'route-b', pluginId: 'account-b', family: 'openai', model: 'model-b' },
+  ]
   if (typeof result.traceId !== 'string' || !/^[0-9a-f]{32}$/.test(result.traceId)
     || result.status !== 'success' || result.totalTokens !== totalTokens
-    || result.buffer !== 'undefined' || result.process !== 'undefined') {
+    || result.buffer !== 'undefined' || result.process !== 'undefined'
+    || result.overflow?.settled !== true || result.overflow.authoritative !== false
+    || result.overflow.errorCode !== 'USAGE_COUNTER_OVERFLOW' || result.overflow.attempts !== 1
+    || JSON.stringify(result.topology?.providers) !== JSON.stringify(expectedProviders)
+    || JSON.stringify(result.topology?.catalogs) !== JSON.stringify(expectedCatalogs)) {
     throw new Error(`${runtime} fixture returned invalid evidence: ${JSON.stringify(result)}`)
   }
 }

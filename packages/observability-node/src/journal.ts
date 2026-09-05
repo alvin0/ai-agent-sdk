@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import {
   chmod,
   lstat,
@@ -13,46 +13,23 @@ import {
 import { join } from 'node:path'
 import {
   deepFreeze,
-  isSpanId,
-  isTraceId,
   type ObservationBoundary,
   type ObservationEvent,
-  type ObservationEventName,
 } from '@ai-agent-sdk/core'
-import type { ExportAck, ObservationBatch, ObservationExporter } from '@ai-agent-sdk/observability'
-import { NODE_OBSERVATION_ERROR_CODES, NodeObservationError } from './errors.ts'
-import { atomicWriteJson, ensureSafeRoot, openExclusiveFile } from './safe-filesystem.ts'
+import type { ExportAck, ObservationBatch, ObservationExporter } from '@ai-agent-sdk/core/observability'
+import {
+  JOURNAL_DEFAULTS,
+  JOURNAL_FILES,
+  JOURNAL_LIMITS,
+  positiveSafeInteger,
+  safeSegmentId,
+} from './journal/config.ts'
+import { journalFailure } from './journal/errors.ts'
+import { journalChecksum, validObservationEvent } from './journal/frame.ts'
+import { atomicWriteJson, ensureSafeRoot, openExclusiveFile } from './common/safe-filesystem.ts'
+import type { JsonlObservationJournalOptions } from './journal/types.ts'
 
-const DEFAULT_MAX_SEGMENT_BYTES = 64 * 1024 * 1024
-const DEFAULT_MAX_RETAINED_BYTES = 1024 * 1024 * 1024
-const DEFAULT_ACKNOWLEDGED_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
-const DEFAULT_SYNC_INTERVAL_MS = 100
-const DEFAULT_SYNC_RECORDS = 256
-const CURSOR_FILE = 'cursor.json'
-const MAX_RECOVERY_SEGMENT_BYTES = 65 * 1024 * 1024
-const MAX_CURSOR_BYTES = 64 * 1024 * 1024
-const EVENT_NAMES = new Set<ObservationEventName>([
-  'sdk.agent.run', 'sdk.agent.turn', 'sdk.model.call', 'sdk.provider.attempt',
-  'sdk.provider.retry.scheduled', 'sdk.tool.call', 'sdk.compaction', 'sdk.hook.call',
-  'sdk.user.input.wait', 'sdk.skill.operation', 'sdk.memory.operation',
-  'sdk.credential.operation', 'sdk.integration.request', 'sdk.observer.failure',
-  'sdk.exporter.state', 'sdk.log',
-])
-
-export type JournalDurabilityMode = 'operational' | 'reliable' | 'audit'
-
-export interface JsonlObservationJournalOptions {
-  readonly id?: string
-  readonly rootDir: string
-  readonly mode: JournalDurabilityMode
-  readonly maxSegmentBytes?: number
-  readonly maxRetainedBytes?: number
-  readonly acknowledgedRetentionMs?: number
-  readonly syncIntervalMs?: number
-  readonly syncRecordCount?: number
-  readonly now?: () => Date
-  readonly segmentId?: () => string
-}
+export type { JournalDurabilityMode, JsonlObservationJournalOptions } from './journal/types.ts'
 
 export interface JournalRecoveryRecord {
   readonly segment: string
@@ -92,68 +69,8 @@ interface PendingStage {
   readonly promise: Promise<void>
 }
 
-function positiveSafeInteger(value: number, field: string): number {
-  if (!Number.isSafeInteger(value) || value < 1) throw new RangeError(`${field} must be a positive safe integer`)
-  return value
-}
-
-function safeSegmentId(value: string): string {
-  const normalized = value.replace(/[^A-Za-z0-9_-]/g, '')
-  if (normalized.length < 8 || normalized.length > 64) throw new TypeError('journal segmentId must yield 8-64 safe characters')
-  return normalized
-}
-
-function checksum(payloadJson: string): string {
-  return createHash('sha256').update(payloadJson, 'utf8').digest('hex')
-}
-
 function journalLine(event: ObservationEvent, payloadJson: string): string {
-  return `${JSON.stringify({ schemaVersion: 1, eventId: event.eventId, payloadJson, sha256: checksum(payloadJson) })}\n`
-}
-
-function journalError(code: 'corrupt' | 'io', message: string, cause?: unknown): NodeObservationError {
-  return new NodeObservationError(NODE_OBSERVATION_ERROR_CODES[code], message,
-    cause === undefined ? undefined : { cause })
-}
-
-function validEvent(value: unknown, eventId: string): value is ObservationEvent {
-  if (typeof value !== 'object' || value === null) return false
-  try {
-    const sequence = Reflect.get(value, 'sequence')
-    const monotonicMs = Reflect.get(value, 'monotonicMs')
-    const occurredAt = Reflect.get(value, 'occurredAt')
-    const resource = Reflect.get(value, 'resource') as unknown
-    const correlation = Reflect.get(value, 'correlation') as unknown
-    const name = Reflect.get(value, 'name') as ObservationEventName
-    const optionalCorrelation = [
-      'conversationId', 'turnId', 'modelCallId', 'attemptId', 'toolCallId',
-      'providerRequestId', 'sessionId',
-    ].every(key => {
-      const field = Reflect.get(correlation as object, key)
-      return field === undefined || (typeof field === 'string' && field.length > 0)
-    })
-    return Reflect.get(value, 'schemaVersion') === 1
-      && Reflect.get(value, 'eventId') === eventId && /^[0-9a-f]{32}$/.test(eventId) && !/^0+$/.test(eventId)
-      && Number.isSafeInteger(sequence) && sequence > 0
-      && EVENT_NAMES.has(name)
-      && ['start', 'end', 'point'].includes(Reflect.get(value, 'phase'))
-      && ['critical', 'normal', 'verbose'].includes(Reflect.get(value, 'priority'))
-      && typeof occurredAt === 'string' && !Number.isNaN(Date.parse(occurredAt))
-      && new Date(occurredAt).toISOString() === occurredAt
-      && typeof monotonicMs === 'number' && Number.isFinite(monotonicMs) && monotonicMs >= 0
-      && typeof resource === 'object' && resource !== null
-      && Reflect.get(resource, 'sdkName') === 'ai-agent-sdk'
-      && typeof Reflect.get(resource, 'sdkVersion') === 'string'
-      && Reflect.get(resource, 'sdkVersion').length > 0
-      && ['browser', 'edge', 'node', 'unknown'].includes(Reflect.get(resource, 'runtime'))
-      && typeof correlation === 'object' && correlation !== null
-      && isTraceId(Reflect.get(correlation, 'traceId')) && isSpanId(Reflect.get(correlation, 'spanId'))
-      && (Reflect.get(correlation, 'parentSpanId') === null || isSpanId(Reflect.get(correlation, 'parentSpanId')))
-      && typeof Reflect.get(correlation, 'runId') === 'string' && Reflect.get(correlation, 'runId').length > 0
-      && optionalCorrelation
-      && typeof Reflect.get(value, 'data') === 'object' && Reflect.get(value, 'data') !== null
-      && !Array.isArray(Reflect.get(value, 'data'))
-  } catch { return false }
+  return `${JSON.stringify({ schemaVersion: 1, eventId: event.eventId, payloadJson, sha256: journalChecksum(payloadJson) })}\n`
 }
 
 function dateDay(value: Date): string {
@@ -185,13 +102,13 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
     this.supportedBoundaries = Object.freeze(options.mode === 'operational' ? ['none'] : ['local-durable'])
     this.options = {
       mode: options.mode,
-      maxSegmentBytes: positiveSafeInteger(options.maxSegmentBytes ?? DEFAULT_MAX_SEGMENT_BYTES, 'maxSegmentBytes'),
-      maxRetainedBytes: positiveSafeInteger(options.maxRetainedBytes ?? DEFAULT_MAX_RETAINED_BYTES, 'maxRetainedBytes'),
+      maxSegmentBytes: positiveSafeInteger(options.maxSegmentBytes ?? JOURNAL_DEFAULTS.maxSegmentBytes, 'maxSegmentBytes'),
+      maxRetainedBytes: positiveSafeInteger(options.maxRetainedBytes ?? JOURNAL_DEFAULTS.maxRetainedBytes, 'maxRetainedBytes'),
       acknowledgedRetentionMs: positiveSafeInteger(
-        options.acknowledgedRetentionMs ?? DEFAULT_ACKNOWLEDGED_RETENTION_MS, 'acknowledgedRetentionMs',
+        options.acknowledgedRetentionMs ?? JOURNAL_DEFAULTS.acknowledgedRetentionMs, 'acknowledgedRetentionMs',
       ),
-      syncIntervalMs: positiveSafeInteger(options.syncIntervalMs ?? DEFAULT_SYNC_INTERVAL_MS, 'syncIntervalMs'),
-      syncRecordCount: positiveSafeInteger(options.syncRecordCount ?? DEFAULT_SYNC_RECORDS, 'syncRecordCount'),
+      syncIntervalMs: positiveSafeInteger(options.syncIntervalMs ?? JOURNAL_DEFAULTS.syncIntervalMs, 'syncIntervalMs'),
+      syncRecordCount: positiveSafeInteger(options.syncRecordCount ?? JOURNAL_DEFAULTS.syncRecordCount, 'syncRecordCount'),
       now: options.now ?? (() => new Date()),
       segmentId: options.segmentId ?? (() => randomBytes(12).toString('hex')),
     }
@@ -204,24 +121,24 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
   }
 
   stage(event: ObservationEvent): Promise<void> {
-    if (this.closing) throw journalError('io', 'observation journal is closed')
+    if (this.closing) throw journalFailure('io', 'observation journal is closed')
     const payloadJson = JSON.stringify(event)
     const existing = this.pendingStages.get(event.eventId)
     if (existing !== undefined) {
-      if (existing.payloadJson !== payloadJson) throw journalError('corrupt', 'duplicate journal eventId has different data')
+      if (existing.payloadJson !== payloadJson) throw journalFailure('corrupt', 'duplicate journal eventId has different data')
       return existing.promise
     }
     const promise = this.enqueueWrite(async () => {
       const root = await this.rootPromise
       const line = journalLine(event, payloadJson)
       const lineBytes = Buffer.byteLength(line)
-      if (lineBytes > MAX_RECOVERY_SEGMENT_BYTES) throw journalError(
+      if (lineBytes > JOURNAL_LIMITS.recoverySegmentBytes) throw journalFailure(
         'io', 'journal record exceeds the recovery bound',
       )
       await this.ensureCapacity(root, lineBytes, event.priority)
       await this.rotateIfNeeded(root, lineBytes)
       const segment = this.current
-      if (segment === undefined) throw journalError('io', 'journal segment was not opened')
+      if (segment === undefined) throw journalFailure('io', 'journal segment was not opened')
       await segment.handle.writeFile(line, 'utf8')
       segment.bytes += lineBytes
       segment.eventIds.push(event.eventId)
@@ -242,7 +159,7 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
       const eventIds = batch.events.map(event => event.eventId)
       if (eventIds.length !== existingBatch.length
         || eventIds.some((eventId, index) => eventId !== existingBatch[index])) {
-        throw journalError('corrupt', 'duplicate journal batchId has different events')
+        throw journalFailure('corrupt', 'duplicate journal batchId has different events')
       }
       return deepFreeze({ batchId: batch.batchId, accepted: true, retryable: false })
     }
@@ -285,7 +202,7 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
     await this.enqueueWrite(async () => {
       result = await recoverJournal(await this.rootPromise)
     })
-    if (result === undefined) throw journalError('io', 'journal recovery did not complete')
+    if (result === undefined) throw journalFailure('io', 'journal recovery did not complete')
     return result
   }
 
@@ -327,7 +244,7 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
       for (const eventId of deletedAcknowledged) this.acknowledged.delete(eventId)
       await this.persistCursor(root)
     }
-    if (retained > this.options.maxRetainedBytes) throw journalError(
+    if (retained > this.options.maxRetainedBytes) throw journalFailure(
       'io', 'journal retention cap contains unacknowledged records',
     )
   }
@@ -347,7 +264,7 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
         ...this.current === undefined ? {} : { currentSegment: this.current.name },
       })
     })
-    if (result === undefined) throw journalError('io', 'journal stats did not complete')
+    if (result === undefined) throw journalFailure('io', 'journal stats did not complete')
     return result
   }
 
@@ -433,7 +350,7 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
       const path = join(root, name)
       total += await stat(path).then(value => value.size, () => 0)
     }
-    if (total + incomingBytes > this.options.maxRetainedBytes) throw journalError(
+    if (total + incomingBytes > this.options.maxRetainedBytes) throw journalFailure(
       'io', priority === 'critical'
         ? 'journal capacity contains unacknowledged critical records'
         : 'journal capacity is exhausted',
@@ -443,14 +360,14 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
   private async loadCursor(root: string): Promise<void> {
     let raw: string
     try {
-      const path = join(root, CURSOR_FILE)
+      const path = join(root, JOURNAL_FILES.advancedCursor)
       const info = await lstat(path)
-      if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_CURSOR_BYTES) throw new Error('unsafe cursor')
+      if (!info.isFile() || info.isSymbolicLink() || info.size > JOURNAL_LIMITS.cursorBytes) throw new Error('unsafe cursor')
       raw = await readFile(path, 'utf8')
     }
     catch (error) {
       if (typeof error === 'object' && error !== null && Reflect.get(error, 'code') === 'ENOENT') return
-      throw journalError('io', 'journal cursor read failed', error)
+      throw journalFailure('io', 'journal cursor read failed', error)
     }
     try {
       const value = JSON.parse(raw) as CursorFile
@@ -460,7 +377,7 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
       }
       for (const id of value.acknowledgedEventIds) this.acknowledged.add(id)
     } catch (error) {
-      throw journalError('corrupt', 'journal cursor is corrupt', error)
+      throw journalFailure('corrupt', 'journal cursor is corrupt', error)
     }
   }
 
@@ -469,10 +386,10 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
       schemaVersion: 1,
       acknowledgedEventIds: [...this.acknowledged].sort(),
     } satisfies CursorFile
-    if (Buffer.byteLength(JSON.stringify(value)) > MAX_CURSOR_BYTES) throw journalError(
+    if (Buffer.byteLength(JSON.stringify(value)) > JOURNAL_LIMITS.cursorBytes) throw journalFailure(
       'io', 'journal cursor exceeds its persistence bound',
     )
-    await atomicWriteJson(root, CURSOR_FILE, value)
+    await atomicWriteJson(root, JOURNAL_FILES.advancedCursor, value)
   }
 }
 
@@ -486,8 +403,8 @@ export async function recoverJournal(rootInput: string): Promise<JournalRecovery
   for (const name of names) {
     const path = join(root, name)
     const info = await lstat(path)
-    if (!info.isFile() || info.isSymbolicLink()) throw journalError('io', 'journal segment is not a regular file')
-    if (info.size > MAX_RECOVERY_SEGMENT_BYTES) throw journalError('corrupt', 'journal segment exceeds recovery bound')
+    if (!info.isFile() || info.isSymbolicLink()) throw journalFailure('io', 'journal segment is not a regular file')
+    if (info.size > JOURNAL_LIMITS.recoverySegmentBytes) throw journalFailure('corrupt', 'journal segment exceeds recovery bound')
     await chmod(path, 0o600)
     let text = await readFile(path, 'utf8')
     if (text.length > 0 && !text.endsWith('\n')) {
@@ -504,9 +421,9 @@ export async function recoverJournal(rootInput: string): Promise<JournalRecovery
         const envelope = JSON.parse(line) as Record<string, unknown>
         if (envelope.schemaVersion !== 1 || typeof envelope.eventId !== 'string'
           || typeof envelope.payloadJson !== 'string' || typeof envelope.sha256 !== 'string'
-          || envelope.sha256 !== checksum(envelope.payloadJson)) throw new Error('invalid frame')
+          || envelope.sha256 !== journalChecksum(envelope.payloadJson)) throw new Error('invalid frame')
         const event = JSON.parse(envelope.payloadJson) as unknown
-        if (!validEvent(event, envelope.eventId) || eventIds.has(envelope.eventId)) throw new Error('invalid event')
+        if (!validObservationEvent(event, envelope.eventId) || eventIds.has(envelope.eventId)) throw new Error('invalid event')
         eventIds.add(envelope.eventId)
         segmentEventIds.push(envelope.eventId)
         records.push(deepFreeze({ segment: name, line: index + 1, event, payloadJson: envelope.payloadJson }))
@@ -521,7 +438,7 @@ export async function recoverJournal(rootInput: string): Promise<JournalRecovery
           for (const eventId of segmentEventIds) eventIds.delete(eventId)
           break
         }
-        throw journalError('corrupt', `journal segment ${name} has mid-file corruption`, error)
+        throw journalFailure('corrupt', `journal segment ${name} has mid-file corruption`, error)
       }
     }
   }

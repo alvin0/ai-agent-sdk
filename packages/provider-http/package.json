@@ -12,6 +12,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./package.json": "./package.json"
@@ -31,10 +32,13 @@
     "check:types": "attw --profile esm-only --pack ."
   },
   "dependencies": {
-    "@ai-agent-sdk/core": "workspace:^",
     "eventsource-parser": "4.1.0"
   },
+  "peerDependencies": {
+    "@ai-agent-sdk/core": "workspace:^"
+  },
   "devDependencies": {
+    "@ai-agent-sdk/core": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",
     "playwright": "catalog:",
     "publint": "catalog:",
@@ -44,6 +48,8 @@
     "wrangler": "catalog:"
   },
   "aiAgentSdk": {
-    "runtime": "universal"
+    "runtime": "universal",
+    "coreApi": 1,
+    "roles": ["provider-extension-kit"]
   }
 }

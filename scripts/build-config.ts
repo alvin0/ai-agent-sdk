@@ -5,6 +5,10 @@ export interface LibraryBuildOptions {
   readonly outDir?: string
   readonly runtime: 'universal' | 'node'
   readonly dts?: boolean
+  readonly outputOptions?: UserConfig['outputOptions']
+  readonly minify?: UserConfig['minify']
+  readonly unbundle?: boolean
+  readonly root?: string
 }
 
 /** Shared deterministic ESM build settings for every publishable package. */
@@ -19,6 +23,10 @@ export function libraryBuild(options: LibraryBuildOptions): ReturnType<typeof de
     sourcemap: true,
     clean: true,
     treeshake: true,
+    minify: options.minify ?? false,
+    unbundle: options.unbundle ?? false,
+    ...(options.root === undefined ? {} : { root: options.root }),
+    ...(options.outputOptions === undefined ? {} : { outputOptions: options.outputOptions }),
     deps: { neverBundle: [/^node:/] },
   })
 }

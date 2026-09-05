@@ -25,6 +25,8 @@ export interface AttemptUsageReport {
   readonly coverage: UsageCoverage
   readonly reported: UsageCounters
   readonly estimated?: UsageCounters
+  /** Scheme, host and explicit non-default port retained without path/query. */
+  readonly origin?: string
   readonly httpStatus?: number
   readonly providerRequestId?: string
   readonly error?: SafeErrorRecord
@@ -108,9 +110,12 @@ export function addUsageCounters(values: readonly UsageCounters[]): UsageAdditio
   let overflow = false
   for (const value of values) {
     const validated = validateUsageCounters(value)
-    if (validated.invalidFields.length > 0 || validated.overflow) {
+    if (validated.invalidFields.length > 0) {
       throw new TypeError('usage counters must be validated before aggregation')
     }
+    // Individually valid buckets remain known even when their disjoint total
+    // exceeds safe integer precision. Keep them and report loss of authority.
+    overflow ||= validated.overflow
     for (const key of COUNTER_KEYS) {
       const addend = validated.reported[key]
       if (addend === undefined) continue
@@ -121,6 +126,7 @@ export function addUsageCounters(values: readonly UsageCounters[]): UsageAdditio
       } else output[key] = sum
     }
   }
+  overflow ||= validateUsageCounters(output).overflow
   return Object.freeze({ counters: Object.freeze({ ...output }), overflow })
 }
 

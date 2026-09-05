@@ -1,6 +1,6 @@
 /** Declarative code agent configured to exercise tools, durable memory, and compaction. */
 
-import { defineAgent, type DefinedAgent } from '@ai-agent-sdk/agent'
+import { defineAgent, type DefinedAgent } from '@ai-agent-sdk/core/agent'
 import {
   fileSystemSkills,
   type FileSystemSkillIoEvent,

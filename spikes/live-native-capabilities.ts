@@ -1,12 +1,12 @@
 /** Live smoke for provider-native web search through the real Codex Responses route. */
-import { History } from '@ai-agent-sdk/agent'
-import { runTurn } from '@ai-agent-sdk/agent'
-import type { AgentEvent } from '@ai-agent-sdk/agent'
+import { History } from '@ai-agent-sdk/core/agent'
+import { runTurn } from '@ai-agent-sdk/core/agent'
+import type { AgentEvent } from '@ai-agent-sdk/core/agent'
 import { createTextMessage } from '@ai-agent-sdk/core'
 import { ReasoningEffortId } from '@ai-agent-sdk/core'
 import { ModelRegistry } from '@ai-agent-sdk/core'
 import { codexNodeAdapter as codexAdapter } from '@ai-agent-sdk/auth-node/codex'
-import { createDailyJsonlRequestLogger } from 'ai-agent-sdk/request-logger'
+import { createDailyJsonlRequestLogger } from '@ai-agent-sdk/observability-node/diagnostic'
 
 const registry = new ModelRegistry()
 registry.registerAdapter(['codex'], codexAdapter({

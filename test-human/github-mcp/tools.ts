@@ -1,6 +1,6 @@
-import type { ToolExecutionResult } from '@ai-agent-sdk/agent'
-import { dispatchToolCall } from '@ai-agent-sdk/agent'
-import type { ToolCatalog } from '@ai-agent-sdk/agent'
+import type { ToolExecutionResult } from '@ai-agent-sdk/core/agent'
+import { dispatchToolCall } from '@ai-agent-sdk/core/agent'
+import type { ToolCatalog } from '@ai-agent-sdk/core/agent'
 import { ToolCallId } from '@ai-agent-sdk/core'
 import type { JsonObject } from '@ai-agent-sdk/core'
 

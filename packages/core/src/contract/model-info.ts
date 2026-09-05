@@ -6,6 +6,7 @@
 
 import type { ReasoningEffortId } from '../primitives/brand.ts'
 import type { NativeToolName } from './tool.ts'
+import type { SupportSafeError } from '../support-safe/error.ts'
 
 /** Display metadata for one registered provider route. */
 export interface ProviderInfo {
@@ -90,4 +91,22 @@ export interface ResolvedModelInfo extends ModelInfo {
   maxOutputTokens?: number
   /** Selectable reasoning levels, when the route exposes any. */
   reasoning?: ModelReasoningInfo
+}
+
+export type ModelCatalogState = 'static' | 'fresh' | 'empty' | 'stale' | 'unavailable'
+
+export interface ModelCatalogOptions {
+  readonly signal?: AbortSignal
+  readonly refresh?: 'if-stale' | 'force'
+}
+
+export interface ModelCatalogSnapshot {
+  readonly provider: ProviderInfo
+  readonly state: ModelCatalogState
+  readonly revision: string
+  readonly models: readonly ModelInfo[]
+  readonly observedAt: string
+  readonly expiresAt?: string
+  readonly retryAt?: string
+  readonly error?: SupportSafeError
 }

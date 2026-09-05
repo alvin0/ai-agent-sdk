@@ -1,13 +1,13 @@
 /** Live Codex smoke for basic, deep, and deep human-in-loop agent modes. */
-import { History } from '@ai-agent-sdk/agent'
-import { runAgent, type AgentRunEvent, type AgentRunOutcome } from '@ai-agent-sdk/agent'
-import { createUserInputBroker } from '@ai-agent-sdk/agent'
-import { defineTool } from '@ai-agent-sdk/agent'
-import { ToolRegistry } from '@ai-agent-sdk/agent'
+import { History } from '@ai-agent-sdk/core/agent'
+import { runAgent, type AgentRunEvent, type AgentRunOutcome } from '@ai-agent-sdk/core/agent'
+import { createUserInputBroker } from '@ai-agent-sdk/core/agent'
+import { defineTool } from '@ai-agent-sdk/core/agent'
+import { ToolRegistry } from '@ai-agent-sdk/core/agent'
 import { createTextMessage } from '@ai-agent-sdk/core'
 import { ModelRegistry } from '@ai-agent-sdk/core'
 import { codexNodeAdapter as codexAdapter } from '@ai-agent-sdk/auth-node/codex'
-import { createDailyJsonlRequestLogger } from 'ai-agent-sdk/request-logger'
+import { createDailyJsonlRequestLogger } from '@ai-agent-sdk/observability-node/diagnostic'
 
 type LiveModeOptions =
   | { readonly mode: 'basic' | 'deep'; readonly maxTurns: number }
@@ -46,6 +46,7 @@ async function live(
   console.log(`\n=== ${name} ===`)
   for await (const event of runAgent({
     ...options,
+    config: { provider: 'codex', model: 'gpt-5.6-luna' },
     registry,
     tools,
     history,

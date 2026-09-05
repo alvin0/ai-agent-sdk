@@ -27,6 +27,10 @@ The implementation is intentionally split by control boundary:
   model to turn it into a visible website with host-owned causal checks.
 - `mcp/` verifies the MCP bridge locally; `github-mcp/` connects the same client
   and tool pipeline to GitHub's official remote MCP server.
+- `edge-chat/` is a real ChatGPT-like website under `workerd`, built only on the
+  universal packages and Web Standards, with browser screenshots and SSE/tool-loop evidence.
+- `node-codex/` is the complementary explicit-capability Node coding harness
+  with filesystem skills, scoped writes, MCP stdio, durable observations, and resume proof.
 
 ## Quick commands
 
@@ -45,6 +49,9 @@ pnpm human:hil -- --prompt "Help me choose an API design; ask before selecting a
 
 # Provider-native web search, forced for a deterministic acceptance test
 pnpm human:web -- --prompt "Find the official GPT-5.6 developer page"
+
+# Live multi-query research; the agent plans, searches, audits gaps, and writes report.md
+pnpm human:deep-research -- --prompt "Compare SSE, WebSocket, and WebTransport for a browser/Edge agent SDK across streaming, backpressure, cancellation, proxy compatibility, and runtime support"
 
 # Image input from a local path, URL, or Responses file id
 pnpm human:vision -- --image .\sample.png --prompt "Describe this image"
@@ -72,6 +79,15 @@ pnpm human:skill-stress -- run --suite offline --scenario harness-folder-rounds 
 # Hermetic customer journeys: use --profile stress or soak for higher pressure
 pnpm human:sdk-stress -- --profile complex --seed 20260901
 
+# Real Edge website + Playwright acceptance, fully offline
+pnpm human:edge-chat
+
+# Authenticated Internet research in workerd; automatic model fallback is bounded
+pnpm human:edge-chat:live -- --run-id live-edge --model gpt-5.3-codex-spark --fallback-model gpt-5.6-luna
+
+# Full Node facade coding CLI + filesystem skill/MCP/journal acceptance
+pnpm human:node-codex -- --repeat 4 --parallel 2
+
 # Live proof: external skills.sh SKILL → tool loop → website → verification
 pnpm human:skill-showcase
 
@@ -87,6 +103,25 @@ $env:GITHUB_MCP_OAUTH_CLIENT_SECRET = '<client secret>'
 pnpm human:mcp:github -- whoami
 pnpm human:mcp:github -- read --repo github/github-mcp-server --path README.md
 ```
+
+`human:deep-research` is intentionally separate from the hermetic Edge Chat
+test. It uses the selected provider's real Internet search capability with the
+provider-compatible deep-search profile and no forced fixed tool sequence. A run passes only when it has
+at least three native web-search calls, six unique cited pages, three source
+domains, a 4,000-character Markdown report, and an accepted deep-mode
+self-check. The final report is saved as
+`test-human/results/human/<run-id>/report.md`; `summary.json` records search,
+citation, domain, report-size, token-usage, and completion evidence. The session
+has a 180,000-token hard cap because a real multi-source audit can be expensive.
+
+`human:edge-chat:live` is the browser/workerd research gate. It requires
+host-owned read receipts, provenance/coverage audits, visible native and host
+tool calls, authoritative usage and independent review. A model-quality failure
+can fall back to another explicitly named model without merging artifacts or
+token totals. The ChatGPT-backed Codex endpoint rejects direct workerd transport
+in the recorded environment, so this manual harness uses a bounded test-only
+loopback relay; that relay is not part of the Universal SDK or a production
+deployment recommendation.
 
 `human:agentcode` defaults to a React Todo/Zustand/localStorage task. Its direct
 file/search tools are confined to `test-human/workspaces/agentcode`, but npm

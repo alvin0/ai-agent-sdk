@@ -47,6 +47,14 @@ describe('usage validation and aggregation', () => {
     expect(result.overflow).toBe(true)
   })
 
+  it('retains individually valid buckets when their disjoint total overflows', () => {
+    const counters = { inputTokens: Number.MAX_SAFE_INTEGER, outputTokens: 1, totalTokens: Number.MAX_SAFE_INTEGER }
+    expect(validateUsageCounters(counters)).toMatchObject({ reported: counters, invalidFields: [], overflow: true })
+    expect(addUsageCounters([counters])).toEqual({ counters, overflow: true })
+    expect(addUsageCounters([{ inputTokens: Number.MAX_SAFE_INTEGER }, { outputTokens: 1 }]))
+      .toEqual({ counters: { inputTokens: Number.MAX_SAFE_INTEGER, outputTokens: 1 }, overflow: true })
+  })
+
   it('contains unreadable provider counters and refuses invalid aggregation input', () => {
     const hostile = new Proxy({}, {
       get(_target, key) {

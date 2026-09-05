@@ -1,5 +1,5 @@
 import { InMemoryTransport } from '@modelcontextprotocol/client'
-import { defineTool, dispatchToolCall, ToolRegistry } from '@ai-agent-sdk/agent'
+import { defineTool, dispatchToolCall, ToolRegistry } from '@ai-agent-sdk/core/agent'
 import { ToolCallId } from '@ai-agent-sdk/core'
 import { McpClientConnection, type McpClientState } from '@ai-agent-sdk/mcp/client'
 import { createSdkMcpServer } from '@ai-agent-sdk/mcp/server'
@@ -128,10 +128,18 @@ async function runCycle(
   }
   return Object.freeze({
     cycle, requests, passed, expectedErrors, unexpected: Object.freeze(unexpected),
-    lifecycle: Object.freeze(states.map(state => state.status)),
+    lifecycle: Object.freeze(lifecycleTransitions(states)),
     discoveredTools,
     ...(protocolVersion === undefined ? {} : { protocolVersion }),
   })
+}
+
+function lifecycleTransitions(states: readonly McpClientState[]): readonly string[] {
+  const transitions: string[] = []
+  for (const state of states) {
+    if (transitions.at(-1) !== state.status) transitions.push(state.status)
+  }
+  return transitions
 }
 
 function createInventoryTools(): ToolRegistry {

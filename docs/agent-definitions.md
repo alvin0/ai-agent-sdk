@@ -5,7 +5,7 @@ agent identity and policy in one readable declaration, while `AgentSession`
 owns the mutable state of one conversation.
 
 ```ts
-import { cloneAgent, defineAgent } from 'ai-agent-sdk'
+import { cloneAgent, defineAgent } from '@ai-agent-sdk/core'
 
 export const ada = defineAgent({
   id: 'ada',
@@ -192,7 +192,7 @@ For a browser, edge worker, database-backed application, or any host without a
 skill directory, declare a skill as ordinary application data:
 
 ```ts
-import { defineAgent, defineSkill } from 'ai-agent-sdk'
+import { defineAgent, defineSkill } from '@ai-agent-sdk/core/agent'
 
 const incidentTriage = defineSkill({
   id: 'incident-triage',
@@ -216,7 +216,7 @@ For a shared web or workflow skill store, keep the source at session/runtime
 scope and declare only the ids one reusable agent is allowed to use:
 
 ```ts
-import { defineAgent, defineSkillProvider } from 'ai-agent-sdk'
+import { defineAgent, defineSkillProvider } from '@ai-agent-sdk/core/agent'
 
 const scopedSkills = defineSkillProvider({
   kind: 'skill-provider',
@@ -273,7 +273,7 @@ this contract imports Node filesystem modules.
 For a Node CLI, use the isolated filesystem entry point:
 
 ```ts
-import { defineAgent } from '@ai-agent-sdk/agent'
+import { defineAgent } from '@ai-agent-sdk/core/agent'
 import { fileSystemSkills } from '@ai-agent-sdk/skill-filesystem'
 
 const agent = defineAgent({

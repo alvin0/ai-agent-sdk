@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ToolExecutionResult } from '@ai-agent-sdk/agent'
+import type { ToolExecutionResult } from '@ai-agent-sdk/core/agent'
 import type { JsonObject, JsonValue } from '@ai-agent-sdk/core'
 import { runGitHubMcpCommand } from '../../test-human/github-mcp/commands.ts'
 import { selectedGitHubTools } from '../../test-human/github-mcp/connection.ts'

@@ -1,4 +1,5 @@
 import { deepFreeze } from '../primitives/freeze.ts'
+import { systemMonotonicNow, systemRandomHex } from '../platform/adapter.ts'
 
 declare const OBSERVATION_ID_BRAND: unique symbol
 
@@ -27,7 +28,7 @@ export interface ObservationRunScope {
 
 /** Create an isolated run event scope. The first sequence returned is one. */
 export function createObservationRunScope(): ObservationRunScope {
-  const origin = globalThis.performance?.now() ?? Date.now()
+  const origin = systemMonotonicNow()
   let next = 1
   return Object.freeze({
     nextSequence(): number {
@@ -35,32 +36,22 @@ export function createObservationRunScope(): ObservationRunScope {
       return next++
     },
     monotonicMs(): number {
-      return Math.max(0, (globalThis.performance?.now() ?? Date.now()) - origin)
+      return Math.max(0, systemMonotonicNow() - origin)
     },
   })
 }
 
-function randomHex(bytes: number): string {
-  while (true) {
-    const values = new Uint8Array(bytes)
-    globalThis.crypto.getRandomValues(values)
-    if (values.some(value => value !== 0)) {
-      return [...values].map(value => value.toString(16).padStart(2, '0')).join('')
-    }
-  }
-}
-
 export function createTraceId(): TraceId {
-  return randomHex(16) as TraceId
+  return systemRandomHex(16) as TraceId
 }
 
 export function createSpanId(): SpanId {
-  return randomHex(8) as SpanId
+  return systemRandomHex(8) as SpanId
 }
 
 /** IDs for runs, model calls, attempts, events, and other non-W3C operations. */
 export function createOperationId(): string {
-  return randomHex(16)
+  return systemRandomHex(16)
 }
 
 export function isTraceId(value: unknown): value is TraceId {

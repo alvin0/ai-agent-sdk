@@ -14,7 +14,19 @@
  */
 
 import type { SseEvent } from '../stream/sse.ts'
-import type { ProviderProtocolChunk, ProviderRequest } from '../base/http-adapter.ts'
+import type { ProviderRequest } from '../base/http-adapter.ts'
+import type { ProviderProtocolChunk } from '../stream/types.ts'
+
+export { HTTP_PROTOCOL_API_VERSION, HTTP_PROVIDER_ERROR_CODES } from './config.ts'
+export { defineWireProtocol } from './definition.ts'
+export type {
+  HttpAuthResolveOptions,
+  ProtocolRequest,
+  ProtocolSseEvent,
+  ProtocolStreamChunk,
+  RuntimeWireProtocol,
+  WireProtocolDefinition,
+} from './runtime-types.ts'
 
 /** A protocol may report partial/untrusted usage before transport validation. */
 export type WireProtocolChunk = ProviderProtocolChunk

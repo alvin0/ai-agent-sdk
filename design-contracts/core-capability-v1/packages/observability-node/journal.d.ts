@@ -1,0 +1,20 @@
+/** Identity-preserving journal view; the root remains the declaration owner. */
+export {
+  JsonlObservationJournalExporter,
+  NODE_OBSERVATION_ERROR_CODES,
+  NodeObservationError,
+  installNodeObservabilityLifecycle,
+  recoverJournal,
+  recoverRuntimeObservationJournal,
+  type JournalDurabilityMode,
+  type JournalRecoveryRecord,
+  type JournalRecoveryResult,
+  type JournalStats,
+  type JsonlObservationJournalOptions,
+  type NodeLifecycleOptions,
+  type NodeLifecycleTarget,
+  type NodeObservationErrorCode,
+  type RuntimeJournalRecoveryRecord,
+  type RuntimeJournalRecoveryResult,
+  jsonlObservationExporter,
+} from './index.js'

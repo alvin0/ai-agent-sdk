@@ -3,8 +3,8 @@
 MCP is an optional boundary. The provider-neutral SDK does not import MCP, and
 applications install only the entries they use:
 
-```powershell
-npm install @ai-agent-sdk/mcp
+```sh
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/mcp
 ```
 
 The HTTP package owns its exact MCP protocol dependencies. Add the separate
@@ -16,22 +16,28 @@ The HTTP entry is web-standard and works in a harness, server workflow, or web
 runtime:
 
 ```ts
+import { createAgentRuntime } from '@ai-agent-sdk/core'
 import { connectMcpHttp } from '@ai-agent-sdk/mcp/client'
 
-const mcp = await connectMcpHttp({
-  serverName: 'billing',
-  url: 'https://tools.example.com/mcp',
-  headers: { authorization: `Bearer ${token}` },
-  toolFilter: { allow: ['lookup_invoice', 'refund_preview'] },
-})
-
-const session = agent.createSession({
-  registry,
-  tools: mcp.tools,
-})
-
-await session.run('Check invoice INV-42.')
-await mcp.close()
+const runtime = await createAgentRuntime({ providers: [modelProvider] })
+let mcp: Awaited<ReturnType<typeof connectMcpHttp>> | undefined
+try {
+  mcp = await connectMcpHttp({
+    serverName: 'billing',
+    url: 'https://tools.example.com/mcp',
+    headers: { authorization: `Bearer ${token}` },
+    toolFilter: { allow: ['lookup_invoice', 'refund_preview'] },
+    logger: runtime.logger({ fields: { integration: 'mcp-http' } }),
+  })
+  const agent = runtime.agent({ model, toolSources: [mcp] })
+  await agent.generate('Check invoice INV-42.')
+} finally {
+  try {
+    await runtime.close()
+  } finally {
+    await mcp?.closeWithReport()
+  }
+}
 ```
 
 Remote tools are exposed as `mcp__billing__lookup_invoice` by default. The
@@ -223,13 +229,27 @@ keeps web/serverless persistence and isolation policy explicit.
 ## Node and stdio
 
 ```ts
+import { createAgentRuntime } from '@ai-agent-sdk/core'
 import { connectMcpStdio, serveSdkMcpStdio } from '@ai-agent-sdk/mcp-node'
 
-const local = await connectMcpStdio({
-  serverName: 'filesystem',
-  command: process.execPath,
-  args: ['path/to/server.js'],
-})
+const runtime = await createAgentRuntime({ providers: [modelProvider] })
+let local: Awaited<ReturnType<typeof connectMcpStdio>> | undefined
+try {
+  local = await connectMcpStdio({
+    serverName: 'filesystem',
+    command: process.execPath,
+    args: ['path/to/server.js'],
+    logger: runtime.logger({ fields: { integration: 'mcp-stdio' } }),
+  })
+  const agent = runtime.agent({ model, toolSources: [local] })
+  await agent.generate('Inspect the requested files.')
+} finally {
+  try {
+    await runtime.close()
+  } finally {
+    await local?.closeWithReport()
+  }
+}
 
 // In an MCP server process:
 serveSdkMcpStdio({ name: 'local-tools', version: '1.0.0', tools })

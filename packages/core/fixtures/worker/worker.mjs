@@ -1,8 +1,11 @@
+import { overflowEvidence } from './shared/overflow.js'
+import { providerTopologyEvidence } from './shared/provider-topology.js'
+
 export default {
   async fetch() {
     globalThis.Buffer = undefined
     globalThis.process = undefined
-    const { ModelAdapter, ModelRegistry, createTraceId } = await import('@ai-agent-sdk/core')
+    const { ModelAdapter, ModelRegistry, createAgentRuntime, createTraceId } = await import('@ai-agent-sdk/core')
     class FixtureAdapter extends ModelAdapter {
       stream() {
         return (async function* () {
@@ -22,6 +25,8 @@ export default {
       totalTokens: report.reported.totalTokens,
       buffer: typeof globalThis.Buffer,
       process: typeof globalThis.process,
+      overflow: await overflowEvidence({ ModelAdapter, ModelRegistry }),
+      topology: await providerTopologyEvidence({ ModelAdapter, createAgentRuntime }),
     })
   },
 }

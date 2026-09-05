@@ -1,0 +1,21 @@
+export const DELIVERY_LIMITS = Object.freeze({
+  modelCalls: 4_096,
+  attemptsPerCall: 4_096,
+  errors: 1_024,
+  toolSources: 128,
+  recordBytes: 2 * 1024 * 1024,
+  batchItems: 256,
+  maxBatchItems: 4_096,
+  batchBytes: 512 * 1024,
+  maxBatchBytes: 16 * 1024 * 1024,
+})
+
+export const DELIVERY_ERROR_CODES = Object.freeze({
+  DATA_INVALID: 'OBSERVATION_DELIVERY_DATA_INVALID',
+  ACK_INVALID: 'OBSERVATION_ACK_INVALID',
+  EXPORT_FAILED: 'OBSERVABILITY_EXPORT_FAILED',
+  STAGE_FAILED: 'OBSERVABILITY_STAGE_FAILED',
+  TIMEOUT: 'OBSERVABILITY_FLUSH_TIMEOUT',
+  ABORTED: 'OBSERVATION_DELIVERY_ABORTED',
+  CLOSED: 'OBSERVATION_DELIVERY_CLOSED',
+})

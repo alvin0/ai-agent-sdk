@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@ai-agent-sdk/core": ["../../packages/core/dist/index.d.ts"],
+      "@ai-agent-sdk/protocol-responses": ["../../packages/protocol-responses/dist/index.d.ts"]
+    }
+  },
+  "include": ["consumers/protocol-responses-api-compatibility.ts"]
+}

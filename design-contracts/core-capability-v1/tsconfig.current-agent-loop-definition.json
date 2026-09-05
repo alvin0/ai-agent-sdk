@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@ai-agent-sdk/core": ["../../packages/core/dist/index.d.ts"],
+      "@ai-agent-sdk/core/agent": ["../../packages/core/dist/agent.d.ts"]
+    }
+  },
+  "include": ["consumers/agent-loop-definition-api-compatibility.ts"]
+}

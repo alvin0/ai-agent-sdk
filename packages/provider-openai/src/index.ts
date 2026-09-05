@@ -7,6 +7,7 @@ export {
   type OpenAiAdapterOptions,
   type OpenAiCredential,
   type OpenAiPluginOptions,
+  type OpenAiProviderOptions,
 } from './adapter.ts'
 export {
   openAiResponsesProtocol,

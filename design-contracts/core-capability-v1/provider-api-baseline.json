@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "policy": "preserve-unless-owner-approved",
+  "sources": {
+    "@ai-agent-sdk/provider-http": {
+      "declaration": "packages/provider-http/dist/index.d.ts",
+      "declarationSha256": "ae5b0fcbe37ef6b45d28551411c1343af13ae3dfba81db31a71687015f22fd16",
+      "targetSpecifier": "@ai-agent-sdk/provider-http",
+      "exports": [
+        "AnyWireProtocol", "AuthScheme", "CredentialSource",
+        "DEFAULT_MAX_ERROR_BODY_BYTES", "DEFAULT_MAX_REQUEST_BYTES",
+        "DEFAULT_MAX_RESPONSE_BYTES", "DEFAULT_MAX_RESPONSE_CHUNKS",
+        "DEFAULT_REQUEST_LOGGER_TIMEOUT_MS", "DEFAULT_REQUEST_TIMEOUT_MS",
+        "DEFAULT_STREAM_IDLE_TIMEOUT_MS", "HttpConnection", "HttpModelAdapter",
+        "HttpProviderOptions", "ModelDiscoveryContext", "ParsedErrorBody",
+        "ProviderCatalogModel", "ProviderRequest", "ProviderRequestLogRecord",
+        "ProviderRequestLogger", "SseEvent", "WireProtocol", "WireProtocolChunk",
+        "createHttpProvider", "httpErrorCode", "observeCredentialOperation",
+        "observeModelCatalogOperation", "parseErrorBody", "parseSse",
+        "redactHeaders", "requestIdFrom", "resolveDialect", "retryAfterMs"
+      ],
+      "additiveExports": [
+        "HTTP_PROTOCOL_API_VERSION", "HTTP_PROVIDER_ERROR_CODES",
+        "HttpAuthResolveOptions", "ProtocolRequest", "ProtocolSseEvent",
+        "ProtocolStreamChunk", "RuntimeAuthScheme", "RuntimeCredentialSource",
+        "RuntimeHttpProviderOptions", "RuntimeModelDiscoveryContext",
+        "RuntimeWireProtocol", "WireProtocolDefinition",
+        "createRuntimeHttpProvider", "defineWireProtocol"
+      ],
+      "remove": []
+    },
+    "@ai-agent-sdk/provider-openai": {
+      "declaration": "packages/provider-openai/dist/index.d.ts",
+      "declarationSha256": "bc524adb3a2181d490504ba81afb4c8351c17d9bc80213149258bae29dc9238e",
+      "targetSpecifier": "@ai-agent-sdk/provider-openai",
+      "exports": [
+        "OPENAI_BASE_URL", "OpenAiAdapterOptions", "OpenAiCredential",
+        "OpenAiPluginOptions", "ResponsesDialect", "openAiAdapter",
+        "openAiPlugin", "openAiResponsesProtocol"
+      ],
+      "additiveExports": ["OpenAiProviderOptions"],
+      "remove": []
+    },
+    "@ai-agent-sdk/provider-anthropic": {
+      "declaration": "packages/provider-anthropic/dist/index.d.ts",
+      "declarationSha256": "cb9d7b156916a41d043a169129f45e2c5e8cc4170a3eca50b5011fb273992173",
+      "targetSpecifier": "@ai-agent-sdk/provider-anthropic",
+      "exports": [
+        "ANTHROPIC_BASE_URL", "ANTHROPIC_VERSION", "AnthropicAdapterOptions",
+        "AnthropicCredential", "AnthropicDialect", "AnthropicPluginOptions",
+        "AnthropicReasoningState", "DEFAULT_THINKING_BUDGETS", "ThinkingBudgets",
+        "anthropicAdapter", "anthropicMessagesProtocol", "anthropicPlugin"
+      ],
+      "additiveExports": ["AnthropicProviderOptions"],
+      "remove": []
+    },
+    "@ai-agent-sdk/provider-codex": {
+      "declaration": "packages/provider-codex/dist/index.d.ts",
+      "declarationSha256": "abe61361e746347a6fe0d7b79bbd7ca980409e22697cb698faadd3f0e88c21d4",
+      "targetSpecifier": "@ai-agent-sdk/provider-codex",
+      "exports": [
+        "ACCESS_TOKEN_REFRESH_WINDOW_MS", "CODEX_BASE_URL", "CODEX_CLIENT_ID",
+        "CODEX_CLIENT_VERSION", "CODEX_ORIGINATOR", "CodexAdapterOptions",
+        "CodexAuthFile", "CodexAuthStore", "CodexDeviceCode", "CodexJwtClaims",
+        "CodexLoginProgress", "CodexLoginResult", "CodexOAuthOptions",
+        "CodexPluginOptions", "CodexRefreshError", "CodexTokens",
+        "DEFAULT_CODEX_ISSUER", "LAST_REFRESH_MAX_AGE_MS", "RefreshFailureKind",
+        "ResponsesDialect", "codexAdapter", "codexPlugin", "isFedrampAccount",
+        "memoryCodexAuthStore", "openAiResponsesProtocol", "readJwtClaims",
+        "refreshCodexTokens", "requestDeviceCode", "requireTokens",
+        "resolveAccountId", "runDeviceCodeLogin", "shouldRefresh"
+      ],
+      "additiveExports": [
+        "CodexCredentialStore", "CodexProviderOptions",
+        "CodexRevisionedAdapterOptions", "memoryCodexCredentialStore"
+      ],
+      "remove": []
+    }
+  }
+}

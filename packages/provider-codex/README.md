@@ -20,3 +20,7 @@ Use `codexAdapter()` for manual route registration. The store contract is
 Universal; a browser, Worker, secret manager, or Node package owns persistence.
 Credential and catalog observation excludes OAuth tokens, account details, store
 locations, and raw authentication errors.
+
+Composition: `runtime.providers`. Lifecycle: `inert-runtime-owned-registration`;
+the runtime owns registration while the injected credential store remains
+caller-owned.

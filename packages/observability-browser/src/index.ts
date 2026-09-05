@@ -5,8 +5,9 @@ export {
   type BrowserObservationErrorCode,
   type BrowserQueueStats,
   type IndexedDbObservationExporterOptions,
-} from './indexeddb-exporter.ts'
+} from './storage/indexeddb-exporter.ts'
 export {
   installBrowserObservabilityLifecycle,
   type BrowserLifecycleOptions,
-} from './lifecycle.ts'
+} from './lifecycle/browser.ts'
+export { indexedDbObservationExporter } from './runtime/indexeddb-plugin.ts'

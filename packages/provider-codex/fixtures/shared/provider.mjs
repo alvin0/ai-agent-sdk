@@ -1,9 +1,9 @@
-import { codexPlugin, memoryCodexAuthStore } from '@ai-agent-sdk/provider-codex'
+import { codexPlugin, memoryCodexCredentialStore } from '@ai-agent-sdk/provider-codex'
 
 export const providerId = 'codex'
 export const expectedCredential = 'packed-codex-secret'
 export const createPlugin = () => codexPlugin({
-  authStore: memoryCodexAuthStore({
+  authStore: memoryCodexCredentialStore({
     tokens: { id_token: 'x.y.z', access_token: expectedCredential, refresh_token: 'packed-refresh-secret' },
   }),
   models: [],

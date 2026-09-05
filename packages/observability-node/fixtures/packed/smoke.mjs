@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readdir, rm, stat } from 'node:fs/promises'
+import { access, mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createCoreSpan, createObservationRunScope, createOperationId } from '@ai-agent-sdk/core'
-import { createObservability } from '@ai-agent-sdk/observability'
+import { createObservability } from '@ai-agent-sdk/core/observability'
 import {
   JsonlObservationJournalExporter,
+  jsonlObservationExporter,
 } from '@ai-agent-sdk/observability-node/journal'
 import {
   createDiagnosticWireLogger,
@@ -51,6 +52,69 @@ try {
     rootDir: join(root, 'wire'), content: 'metadata', allowWireBodies: true,
   }), /content: 'full'/i)
   await observation.shutdown()
+
+  const runtimeRoot = join(root, 'runtime-journal')
+  const runtimeExporter = jsonlObservationExporter({
+    rootDir: runtimeRoot,
+    mode: 'reliable',
+    segmentId: () => 'runtime001',
+  })
+  assert.equal(runtimeExporter.kind, 'observation-exporter')
+  assert.equal(runtimeExporter.apiVersion, 1)
+  await assert.rejects(access(runtimeRoot))
+  const signal = new AbortController().signal
+  await runtimeExporter.ready(signal)
+  const terminal = {
+    kind: 'run-terminal-record',
+    runId: 'packed-node-run',
+    traceId: event.correlation.traceId,
+    startedAt: event.occurredAt,
+    endedAt: event.occurredAt,
+    durationMs: 0,
+    status: 'success',
+    usage: { reported: {}, coverage: { complete: true, missingModelCallIds: [] }, authoritative: true },
+    modelCalls: [],
+    toolSourceSnapshots: [],
+    operationCounts: {},
+    errors: [],
+  }
+  const delivery = {
+    id: 'packed-runtime-batch',
+    resource: event.resource,
+    events: [event],
+    runRecords: [terminal],
+  }
+  await runtimeExporter.stage(event)
+  await runtimeExporter.stage(terminal)
+  assert.deepEqual(await runtimeExporter.export(delivery, signal), {
+    batchId: delivery.id,
+    acceptedEventIds: [event.eventId],
+    acceptedRunIds: [terminal.runId],
+  })
+  await runtimeExporter.shutdown(signal)
+  const deliveryRoot = join(runtimeRoot, 'runtime-delivery')
+  const [deliverySegment] = (await readdir(deliveryRoot)).filter(name => name.endsWith('.jsonl'))
+  const deliveryFrames = (await readFile(join(deliveryRoot, deliverySegment), 'utf8'))
+    .trim().split('\n').map(line => JSON.parse(line))
+  assert.deepEqual(deliveryFrames.map(frame => frame.itemKind), ['event', 'run-terminal-record'])
+  assert.equal(deliveryFrames.some(frame => frame.payloadJson.includes('delivery')), false)
+  if (process.platform !== 'win32') {
+    assert.equal((await stat(deliveryRoot)).mode & 0o777, 0o700)
+    assert.equal((await stat(join(deliveryRoot, deliverySegment))).mode & 0o777, 0o600)
+  }
+
+  const reopened = jsonlObservationExporter({
+    rootDir: runtimeRoot,
+    mode: 'reliable',
+    segmentId: () => 'runtime002',
+  })
+  await reopened.ready(signal)
+  assert.deepEqual(await reopened.export(delivery, signal), {
+    batchId: delivery.id,
+    acceptedEventIds: [event.eventId],
+    acceptedRunIds: [terminal.runId],
+  })
+  await reopened.shutdown(signal)
   console.log('node-packed:pass')
 } finally {
   await rm(root, { recursive: true, force: true })

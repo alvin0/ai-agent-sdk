@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { AgentSession } from '@ai-agent-sdk/agent'
-import type { AgentRunOutcome } from '@ai-agent-sdk/agent'
+import type { AgentSession } from '@ai-agent-sdk/core/agent'
+import type { AgentRunOutcome } from '@ai-agent-sdk/core/agent'
 import type { StressObserver } from '../observer.ts'
 
 export async function consume(

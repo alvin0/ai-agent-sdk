@@ -1,0 +1,347 @@
+{
+  "schemaVersion": 1,
+  "policy": {
+    "optionalPeersExcludedUntilExplicitlySelected": true,
+    "requiredCorePeerMustBeDirect": true,
+    "externalSelectionsInclude": "runtime-dependencies-and-required-peers"
+  },
+  "journeys": {
+    "edge-minimal": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/provider-openai"
+      ],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "anthropic-minimal": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/protocol-anthropic-messages",
+        "@ai-agent-sdk/provider-anthropic",
+        "@ai-agent-sdk/provider-http"
+      ],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "codex-injected-minimal": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-codex",
+        "@ai-agent-sdk/provider-http"
+      ],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "edge-capabilities": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/mcp",
+        "@ai-agent-sdk/observability-fetch",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/provider-openai"
+      ],
+      "externalClosure": [
+        "@modelcontextprotocol/client@2.0.0",
+        "eventsource-parser@4.1.0"
+      ],
+      "effectiveRuntime": "universal"
+    },
+    "edge-worker-chat": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/provider-openai"
+      ],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "node-minimal": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/provider-openai"
+      ],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "node-env": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/auth-node",
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/provider-openai"
+      ],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "node"
+    },
+    "node-harness": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/auth-node",
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/mcp",
+        "@ai-agent-sdk/mcp-node",
+        "@ai-agent-sdk/observability-node",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-codex",
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/skill-filesystem"
+      ],
+      "externalClosure": [
+        "@modelcontextprotocol/client@2.0.0",
+        "eventsource-parser@4.1.0"
+      ],
+      "effectiveRuntime": "node"
+    },
+    "node-mcp-server-host": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/mcp-node-server",
+        "@ai-agent-sdk/mcp-server"
+      ],
+      "externalClosure": [
+        "@modelcontextprotocol/node@2.0.0",
+        "@modelcontextprotocol/server@2.0.0"
+      ],
+      "effectiveRuntime": "node"
+    },
+    "edge-mcp-server-host": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/mcp-server"
+      ],
+      "externalClosure": ["@modelcontextprotocol/server@2.0.0"],
+      "effectiveRuntime": "universal"
+    },
+    "provider-author": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-http"
+      ],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "anthropic-provider-author": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/protocol-anthropic-messages",
+        "@ai-agent-sdk/provider-http"
+      ],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "provider-extension-author": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/provider-http"
+      ],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "provider-catalog-consumer": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/provider-openai"
+      ],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "adapter-author": {
+      "workspaceClosure": ["@ai-agent-sdk/core"],
+      "externalClosure": [],
+      "effectiveRuntime": "universal"
+    },
+    "provider-multiple-instances": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/provider-openai"
+      ],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "official-provider-factories": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/protocol-anthropic-messages",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-anthropic",
+        "@ai-agent-sdk/provider-codex",
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/provider-openai"
+      ],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "browser-observability": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/observability-browser",
+        "@ai-agent-sdk/observability-otel",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/provider-openai"
+      ],
+      "externalClosure": [
+        "@opentelemetry/api@1.9.1",
+        "eventsource-parser@4.1.0"
+      ],
+      "effectiveRuntime": "browser"
+    },
+    "browser-durable-minimal": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/observability-browser",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/provider-openai"
+      ],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "browser"
+    },
+    "capability-author": {
+      "workspaceClosure": ["@ai-agent-sdk/core"],
+      "externalClosure": [],
+      "effectiveRuntime": "universal"
+    },
+    "core-subpath-author": {
+      "workspaceClosure": ["@ai-agent-sdk/core"],
+      "externalClosure": [],
+      "effectiveRuntime": "universal"
+    },
+    "core-root-facade": {
+      "workspaceClosure": ["@ai-agent-sdk/core"],
+      "externalClosure": [],
+      "effectiveRuntime": "universal"
+    },
+    "auth-env-alias": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/auth-node",
+        "@ai-agent-sdk/core"
+      ],
+      "externalClosure": [],
+      "effectiveRuntime": "node"
+    },
+    "node-a2a-runtime-team": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/a2a",
+        "@ai-agent-sdk/core"
+      ],
+      "externalClosure": ["@a2a-js/sdk@1.1.0"],
+      "effectiveRuntime": "node"
+    },
+    "retained-subpath-routing": {
+      "workspaceClosure": [
+        "@ai-agent-sdk/a2a",
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/mcp",
+        "@ai-agent-sdk/mcp-server",
+        "@ai-agent-sdk/observability-node"
+      ],
+      "externalClosure": [
+        "@a2a-js/sdk@1.1.0",
+        "@modelcontextprotocol/client@2.0.0",
+        "@modelcontextprotocol/server@2.0.0"
+      ],
+      "effectiveRuntime": "node"
+    }
+  },
+  "packageProbes": {
+    "@ai-agent-sdk/a2a": {
+      "workspaceClosure": ["@ai-agent-sdk/a2a", "@ai-agent-sdk/core"],
+      "externalClosure": ["@a2a-js/sdk@1.1.0"],
+      "effectiveRuntime": "node"
+    },
+    "@ai-agent-sdk/auth-node": {
+      "workspaceClosure": ["@ai-agent-sdk/auth-node", "@ai-agent-sdk/core"],
+      "externalClosure": [],
+      "effectiveRuntime": "node"
+    },
+    "@ai-agent-sdk/mcp": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/mcp"],
+      "externalClosure": ["@modelcontextprotocol/client@2.0.0"],
+      "effectiveRuntime": "universal"
+    },
+    "@ai-agent-sdk/mcp-node": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/mcp", "@ai-agent-sdk/mcp-node"],
+      "externalClosure": ["@modelcontextprotocol/client@2.0.0"],
+      "effectiveRuntime": "node"
+    },
+    "@ai-agent-sdk/mcp-node-server": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/mcp-node-server", "@ai-agent-sdk/mcp-server"],
+      "externalClosure": ["@modelcontextprotocol/node@2.0.0", "@modelcontextprotocol/server@2.0.0"],
+      "effectiveRuntime": "node"
+    },
+    "@ai-agent-sdk/mcp-server": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/mcp-server"],
+      "externalClosure": ["@modelcontextprotocol/server@2.0.0"],
+      "effectiveRuntime": "universal"
+    },
+    "@ai-agent-sdk/observability-browser": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/observability-browser"],
+      "externalClosure": [],
+      "effectiveRuntime": "browser"
+    },
+    "@ai-agent-sdk/observability-fetch": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/observability-fetch"],
+      "externalClosure": [],
+      "effectiveRuntime": "universal"
+    },
+    "@ai-agent-sdk/observability-node": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/observability-node"],
+      "externalClosure": [],
+      "effectiveRuntime": "node"
+    },
+    "@ai-agent-sdk/observability-otel": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/observability-otel"],
+      "externalClosure": ["@opentelemetry/api@1.9.1"],
+      "effectiveRuntime": "universal"
+    },
+    "@ai-agent-sdk/protocol-anthropic-messages": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/protocol-anthropic-messages"],
+      "externalClosure": [],
+      "effectiveRuntime": "universal"
+    },
+    "@ai-agent-sdk/protocol-responses": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/protocol-responses"],
+      "externalClosure": [],
+      "effectiveRuntime": "universal"
+    },
+    "@ai-agent-sdk/provider-anthropic": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/protocol-anthropic-messages", "@ai-agent-sdk/provider-anthropic", "@ai-agent-sdk/provider-http"],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "@ai-agent-sdk/provider-codex": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/protocol-responses", "@ai-agent-sdk/provider-codex", "@ai-agent-sdk/provider-http"],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "@ai-agent-sdk/provider-http": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/provider-http"],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "@ai-agent-sdk/provider-openai": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/protocol-responses", "@ai-agent-sdk/provider-http", "@ai-agent-sdk/provider-openai"],
+      "externalClosure": ["eventsource-parser@4.1.0"],
+      "effectiveRuntime": "universal"
+    },
+    "@ai-agent-sdk/skill-filesystem": {
+      "workspaceClosure": ["@ai-agent-sdk/core", "@ai-agent-sdk/skill-filesystem"],
+      "externalClosure": [],
+      "effectiveRuntime": "node"
+    }
+  }
+}

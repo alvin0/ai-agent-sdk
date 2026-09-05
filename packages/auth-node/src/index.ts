@@ -1,4 +1,3 @@
-/** Granular Node credential sources and Codex filesystem authentication. */
+/** Node environment credentials; Codex filesystem auth is explicit on `/codex`. */
 
 export * from './env.ts'
-export * from './codex.ts'

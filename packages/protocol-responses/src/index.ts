@@ -9,6 +9,7 @@ export type {
 export {
   OPENAI_RESPONSES_PROTOCOL_ID,
   openAiResponsesProtocol,
+  type ResponsesProtocolDefinition,
 } from './protocol.ts'
 export {
   serializeResponsesRequest,

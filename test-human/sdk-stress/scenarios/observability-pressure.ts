@@ -1,4 +1,4 @@
-import { MemoryObservationExporter, TestObservationExporter, createObservability } from '@ai-agent-sdk/observability'
+import { MemoryObservationExporter, TestObservationExporter, createObservability } from '@ai-agent-sdk/core/observability'
 import type { SdkStressContext, SdkStressScenarioResult } from '../types.ts'
 import { StressChecks } from './shared.ts'
 
@@ -59,4 +59,3 @@ export async function observabilityPressure(context: SdkStressContext): Promise<
     }),
   })
 }
-

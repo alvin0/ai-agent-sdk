@@ -68,11 +68,11 @@ Therefore, the SDK guarantees an in-run ledger and observable delivery health. S
 
 The project already has useful foundations:
 
-- [`trace.ts`](../packages/agent/src/trace/trace.ts) creates W3C-sized trace/span IDs and models `invoke_agent`, `chat`, `execute_tool`, and `compact` spans.
-- [`events.ts`](../packages/agent/src/loop/events.ts) exposes agent, model usage, tool, maintenance, and span lifecycle events.
-- [`run-turn.ts`](../packages/agent/src/loop/run-turn.ts) aggregates reported usage and closes agent/model/tool spans on many error paths.
+- [`trace.ts`](../packages/core/src/agent/trace/trace.ts) creates W3C-sized trace/span IDs and models `invoke_agent`, `chat`, `execute_tool`, and `compact` spans.
+- [`events.ts`](../packages/core/src/agent/loop/events.ts) exposes agent, model usage, tool, maintenance, and span lifecycle events.
+- [`run-turn.ts`](../packages/core/src/agent/loop/run-turn.ts) aggregates reported usage and closes agent/model/tool spans on many error paths.
 - [`http-adapter.ts`](../packages/provider-http/src/base/http-adapter.ts) centralizes HTTP provider dispatch and captures exact redacted outbound request metadata.
-- [`wire-logger.ts`](../packages/observability-node/src/wire-logger.ts) serializes Node JSONL writes within one process.
+- [`wire-logger.ts`](../packages/observability-node/src/diagnostic/wire-logger.ts) serializes Node JSONL writes within one process.
 - [`chunk.ts`](../packages/core/src/stream/chunk.ts) defines a disjoint internal token convention so cached tokens are not double-counted.
 
 These pieces should be evolved rather than replaced blindly.
@@ -112,7 +112,7 @@ interface ObservationEnvelope<TName extends string, TData> {
     parentSpanId: string | null
   }
   resource: {
-    sdkName: 'ai-agent-sdk'
+    sdkName: string
     sdkVersion: string
     serviceName?: string
     runtime?: 'edge' | 'browser' | 'node' | 'other'
@@ -443,10 +443,10 @@ Allowed metric dimensions are bounded values such as provider, model, operation,
 Keep the dependency direction inward through these universal layers:
 
 - `@ai-agent-sdk/core` owns the minimal correlation, usage-coverage, observation-recorder, and run-report contracts needed by registry, retry, provider, and agent code. It also owns the zero-dependency per-call accounting primitive.
-- `@ai-agent-sdk/agent` owns the canonical per-run ledger because it owns the run lifecycle and terminal outcome.
-- `@ai-agent-sdk/observability` implements the concrete bounded bus, processors, delivery health, trace/log/metric projection, in-memory/test exporter, and explicit no-op implementation. It depends on `core`.
+- `@ai-agent-sdk/core/agent` owns the canonical per-run ledger because it owns the run lifecycle and terminal outcome.
+- `@ai-agent-sdk/core/observability` implements the concrete bounded bus, processors, delivery health, trace/log/metric projection, in-memory/test exporter, and explicit no-op implementation. It depends on `core`.
 
-Agent, registry, retry, and provider code emit through the minimal interface from `core`; they do not import a concrete bus or exporter. The host supplies an `@ai-agent-sdk/observability` implementation through dependency injection when external delivery is wanted.
+Agent, registry, retry, and provider code emit through the minimal interface from `core`; they do not import a concrete bus or exporter. The host supplies an `@ai-agent-sdk/core/observability` implementation through dependency injection when external delivery is wanted.
 
 All three layers remain Web Standards-compatible and import neither Node nor a concrete provider.
 
@@ -476,13 +476,18 @@ The journal should use per-process or per-run segments with sequence numbers rat
 The initial package names are fixed by the implementation design, and the ownership looks like this:
 
 ```ts
-import { createObservability } from '@ai-agent-sdk/observability'
-import { createFetchExporter } from '@ai-agent-sdk/observability-fetch'
+import { createObservability } from '@ai-agent-sdk/core/observability'
+import { fetchObservationExporter } from '@ai-agent-sdk/observability-fetch'
 
 const observability = createObservability({
   mode: 'reliable',
   content: 'none',
-  exporters: [createFetchExporter({ endpoint: telemetryUrl })],
+  exporters: [{
+    exporter: fetchObservationExporter({ endpoint: telemetryUrl }),
+    ownership: 'owned',
+    requirement: 'required',
+    boundary: 'remote-acknowledged',
+  }],
 })
 
 const session = agent.createSession({ observability })
@@ -496,7 +501,7 @@ await observability.flush()
 Node adds a capability without changing the agent API:
 
 ```ts
-import { JsonlObservationJournalExporter } from '@ai-agent-sdk/node/observability'
+import { JsonlObservationJournalExporter } from '@ai-agent-sdk/observability-node'
 
 const journal = new JsonlObservationJournalExporter({
   rootDir: './observability',

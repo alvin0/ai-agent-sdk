@@ -6,7 +6,7 @@ import type { ProviderRequestLogRecord } from '@ai-agent-sdk/provider-http'
 import {
   combineProviderRequestLoggers,
   createDailyJsonlRequestLogger,
-} from 'ai-agent-sdk/request-logger'
+} from '@ai-agent-sdk/observability-node/diagnostic'
 
 const roots: string[] = []
 

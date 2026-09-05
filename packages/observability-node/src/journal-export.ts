@@ -8,6 +8,12 @@ export {
   type JsonlObservationJournalOptions,
 } from './journal.ts'
 export {
+  jsonlObservationExporter,
+  recoverRuntimeObservationJournal,
+  type RuntimeJournalRecoveryRecord,
+  type RuntimeJournalRecoveryResult,
+} from './journal/runtime-exporter.ts'
+export {
   installNodeObservabilityLifecycle,
   type NodeLifecycleOptions,
   type NodeLifecycleTarget,
@@ -16,4 +22,4 @@ export {
   NODE_OBSERVATION_ERROR_CODES,
   NodeObservationError,
   type NodeObservationErrorCode,
-} from './errors.ts'
+} from './common/errors.ts'

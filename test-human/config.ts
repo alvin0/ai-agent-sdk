@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 
 export type HumanProvider = 'codex' | 'openai' | 'anthropic'
 export type HumanMode = 'basic' | 'deep' | 'deep-human-in-loop'
-export type HumanScenario = 'chat' | 'web' | 'vision' | 'image-gen'
+export type HumanScenario = 'chat' | 'web' | 'deep-research' | 'vision' | 'image-gen'
 
 export interface HumanCliConfig {
   readonly provider: HumanProvider
@@ -39,7 +39,11 @@ export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
     const token = argv[index]
     if (token === undefined) continue
     if (positional) { trailing.push(token); continue }
-    if (token === '--') { positional = true; continue }
+    if (token === '--') {
+      if (argv[index + 1]?.startsWith('--') === true) continue
+      positional = true
+      continue
+    }
     if (token === '-h') { switches.add(token); continue }
     const equals = token.indexOf('=')
     if (equals > 0) {
@@ -66,7 +70,7 @@ export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
 
   const provider = enumValue(values.get('--provider') ?? 'codex', ['codex', 'openai', 'anthropic'], '--provider')
   const mode = enumValue(values.get('--mode') ?? 'basic', ['basic', 'deep', 'deep-human-in-loop'], '--mode')
-  const scenario = enumValue(values.get('--scenario') ?? 'chat', ['chat', 'web', 'vision', 'image-gen'], '--scenario')
+  const scenario = enumValue(values.get('--scenario') ?? 'chat', ['chat', 'web', 'deep-research', 'vision', 'image-gen'], '--scenario')
   const rawTurns = values.get('--max-turns') ?? '8'
   const maxTurns = Number(rawTurns)
   if (!Number.isInteger(maxTurns) || maxTurns < 1) throw new Error('--max-turns must be a positive integer')
@@ -123,7 +127,8 @@ Options:
   --provider <codex|openai|anthropic>       Default: codex
   --model <id>                              Codex default: gpt-5.6-luna
   --mode <basic|deep|deep-human-in-loop>    Default: basic
-  --scenario <chat|web|vision|image-gen>    Default: chat
+  --scenario <chat|web|deep-research|vision|image-gen>
+                                             Default: chat
   --effort <id>                             Default: medium
   --max-turns <number>                      Default: 8
   --prompt <text>                           Run once; omit for interactive REPL

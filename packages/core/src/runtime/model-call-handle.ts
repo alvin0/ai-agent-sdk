@@ -30,7 +30,10 @@ function scopeFor(key: object, runId: string, supplied?: ObservationRunScope): O
   return scope
 }
 
-function safeFailureFromFinish(chunk: Extract<StreamChunk, { type: 'finish' }>): SafeErrorRecord | undefined {
+function safeFailureFromFinish(
+  chunk: Extract<StreamChunk, { type: 'finish' }>,
+  isRetryable?: (code: string) => boolean,
+): SafeErrorRecord | undefined {
   if (chunk.reason.kind !== 'error' && chunk.reason.kind !== 'aborted') return undefined
   const failure = chunk.reason.failure
   return Object.freeze({
@@ -39,6 +42,7 @@ function safeFailureFromFinish(chunk: Extract<StreamChunk, { type: 'finish' }>):
       ? 'model call was aborted; inspect the stable code for classification'
       : 'model call failed; inspect the stable code and provider request ID',
     code: failure.code,
+    ...isRetryable === undefined ? {} : { retryable: isRetryable(failure.code) },
     ...failure.status === undefined ? {} : { status: failure.status },
   })
 }
@@ -129,6 +133,9 @@ function openContainedSpan(port: ObservationPort, input: Parameters<ObservationP
 
 export interface CreateModelCallHandleOptions {
   readonly options: GenerateOptions
+  readonly providerFamily?: string
+  readonly providerPluginId?: string
+  readonly isRetryable?: (code: string) => boolean
   readonly context?: ModelInvocationContext
   readonly defaultObservation?: ObservationPort
   readonly resource: ObservationResource
@@ -345,6 +352,7 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
         data: {
           status: endInput.status,
           durationMs,
+          origin: attemptInput.origin,
           dispatchState: endInput.dispatchState,
           coverage,
           reported: { ...validated.reported },
@@ -364,6 +372,7 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
         dispatchState: endInput.dispatchState,
         coverage,
         reported: validated.reported,
+        origin: attemptInput.origin,
         ...endInput.httpStatus === undefined ? {} : { httpStatus: endInput.httpStatus },
         ...endInput.providerRequestId === undefined ? {} : { providerRequestId: endInput.providerRequestId },
         ...terminalError === undefined ? {} : { error: terminalError },
@@ -381,6 +390,7 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
     correlation: span.correlation,
     terminalCheckpointOwner: input.context?.terminalCheckpointOwner ?? 'model-call',
     scope,
+    ...(input.context?.logger === undefined ? {} : { logger: input.context.logger }),
     declareProviderAttemptAccounting: () => { providerAttemptAccountingDeclared = true },
     startProviderAttempt,
     recordProviderRetry,
@@ -446,12 +456,19 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
     const durationMs = Math.max(0, endedMonotonic - startedMonotonic)
     const attemptUsage = attempts.length === 0
       ? undefined
-      : addUsageCounters(attempts.map(attempt => attempt.reported)).counters
-    const reported = attemptUsage ?? validated?.reported ?? {}
+      : addUsageCounters(attempts.map(attempt => attempt.reported))
+    const accountingOverflow = attemptUsage?.overflow === true || validated?.overflow === true
+    if (accountingOverflow) error ??= Object.freeze({
+      type: 'UsageValidationError', message: 'provider usage counters overflowed safe integer aggregation',
+      code: OBSERVATION_ERROR_CODES.USAGE_COUNTER_OVERFLOW,
+    })
+    const reported = attemptUsage?.counters ?? validated?.reported ?? {}
     const endEvent = makeEvent('end', {
       status,
       durationMs,
       ...finishReason === undefined ? {} : { finishReason },
+      dispatchState: attempts.at(-1)?.dispatchState
+        ?? (input.dispatchState() === 'not-sent' ? 'not-sent' : 'unknown'),
       coverage,
       reported: { ...reported },
       attemptCount: attempts.length,
@@ -489,19 +506,23 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
       modelCallId,
       spanId: span.correlation.spanId,
       provider: input.options.provider,
+      ...input.providerFamily === undefined ? {} : { providerFamily: input.providerFamily },
+      ...input.providerPluginId === undefined ? {} : { providerPluginId: input.providerPluginId },
       model: input.options.model,
       status,
       startedAt,
       endedAt,
       durationMs,
       ...finishReason === undefined ? {} : { finishReason },
+      dispatchState: attempts.at(-1)?.dispatchState
+        ?? (input.dispatchState() === 'not-sent' ? 'not-sent' : 'unknown'),
       coverage,
       reported,
       attempts: [...attempts].sort((left, right) => left.attemptNumber - right.attemptNumber),
       possiblyBilledAttemptsWithoutUsage: attempts.length > 0
         ? possiblyBilledAttemptsWithoutUsage(attempts)
         : coverage === 'missing' || coverage === 'partial' ? 1 : 0,
-      authoritative: coverage === 'complete' || coverage === 'not-applicable',
+      authoritative: (coverage === 'complete' || coverage === 'not-applicable') && !accountingOverflow,
       delivery: deliverySummary(port, mode, tracker),
       ...error === undefined ? {} : { error },
     })
@@ -527,7 +548,7 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
           finishReason = chunk.reason.kind
           status = chunk.reason.kind === 'aborted' ? 'aborted'
             : chunk.reason.kind === 'error' ? 'error' : 'success'
-          error = safeFailureFromFinish(chunk)
+          error = safeFailureFromFinish(chunk, input.isRetryable)
         }
         yield chunk
       }

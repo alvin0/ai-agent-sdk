@@ -14,6 +14,7 @@ import type {
   ProtocolSseEvent,
   ProtocolStreamChunk,
 } from './contract.ts'
+import type { ModelTarget, ResolvedModelInfo } from '@ai-agent-sdk/core/provider'
 import { serializeResponsesRequest } from './serialize.ts'
 import { translateResponsesStream } from './translate.ts'
 import type { ResponsesDialect } from './wire.ts'
@@ -37,13 +38,45 @@ const DEFAULT_DIALECT: ResponsesDialect = Object.freeze({
   reasoningSummary: 'auto',
 })
 
+interface RuntimeProtocolRequest extends ProtocolRequest {
+  readonly model: ResolvedModelInfo
+  readonly connection: {
+    readonly baseUrl: string
+    readonly headers: Readonly<Record<string, string>>
+  }
+}
+
+/** Marker-based runtime view, kept structurally independent from provider-http. */
+export interface ResponsesProtocolDefinition {
+  readonly kind: 'http-wire-protocol'
+  readonly apiVersion: 1
+  readonly id: string
+  readonly defaultDialect: ResponsesDialect
+  readonly exampleModel?: ModelTarget
+  readonly endpointPath: (request: RuntimeProtocolRequest, dialect: ResponsesDialect) => string
+  readonly protocolHeaders?: (dialect: ResponsesDialect) => Readonly<Record<string, string>>
+  readonly serialize: (
+    request: RuntimeProtocolRequest,
+    dialect: ResponsesDialect,
+  ) => Readonly<Record<string, unknown>>
+  readonly translate: (
+    events: AsyncIterable<ProtocolSseEvent>,
+    request: RuntimeProtocolRequest,
+    displayName: string,
+  ) => AsyncGenerator<ProtocolStreamChunk>
+}
+
 /** The OpenAI Responses wire protocol. */
-export const openAiResponsesProtocol: ProtocolDefinition<ResponsesDialect> = Object.freeze({
+export const openAiResponsesProtocol: ProtocolDefinition<ResponsesDialect>
+  & ResponsesProtocolDefinition = Object.freeze({
+  kind: 'http-wire-protocol' as const,
+  apiVersion: 1 as const,
   id: OPENAI_RESPONSES_PROTOCOL_ID,
   defaultDialect: DEFAULT_DIALECT,
   endpointPath: () => '/responses',
-  serialize: (request: ProtocolRequest, dialect: ResponsesDialect) =>
-    serializeResponsesRequest(request, dialect),
+  serialize(request: ProtocolRequest, dialect: ResponsesDialect): Readonly<Record<string, unknown>> {
+    return serializeResponsesRequest(request, dialect) as unknown as Readonly<Record<string, unknown>>
+  },
   // Params are annotated because `Object.freeze` erases the contextual typing the
   // `WireProtocol` annotation would otherwise supply.
   translate: (

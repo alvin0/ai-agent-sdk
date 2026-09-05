@@ -18,6 +18,7 @@ export {
   type ObservationEventName,
   type ObservationPhase,
   type ObservationPriority,
+  type ObservationResourceInput,
   type ObservationResource,
   type OperationStatus,
   type SafeErrorRecord,

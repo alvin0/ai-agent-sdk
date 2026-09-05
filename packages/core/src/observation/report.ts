@@ -4,6 +4,7 @@ import type { CorrelationContext, ObservationRunScope, SpanId, TraceId } from '.
 import type { ObservationResource, OperationStatus, SafeErrorRecord } from './event.ts'
 import type { ObservationDeliverySummary, ObservationPort } from './port.ts'
 import type { AttemptUsageReport, DispatchState, UsageCounters, UsageCoverage } from './usage.ts'
+import type { SdkLogger } from '../logging/types.ts'
 
 export interface ModelCallReport {
   readonly runId: string
@@ -11,12 +12,18 @@ export interface ModelCallReport {
   readonly modelCallId: string
   readonly spanId: SpanId
   readonly provider: string
+  /** Provider family independently of the selected route, when installed as a plugin. */
+  readonly providerFamily?: string
+  /** Exact plugin installation that owned the selected route. */
+  readonly providerPluginId?: string
   readonly model: string
   readonly status: OperationStatus
   readonly startedAt: string
   readonly endedAt: string
   readonly durationMs: number
   readonly finishReason?: string
+  /** Logical dispatch state, retained even when an adapter did not expose physical attempts. */
+  readonly dispatchState?: DispatchState
   readonly coverage: UsageCoverage
   readonly reported: UsageCounters
   readonly estimated?: UsageCounters
@@ -76,6 +83,8 @@ export interface ModelInvocationContext {
   readonly terminalCheckpointOwner?: 'model-call' | 'agent-run'
   /** Shared sequence/monotonic scope when this call belongs to a larger agent run. */
   readonly scope?: ObservationRunScope
+  /** Always present on AgentRuntime calls; optional for preserved low-level callers. */
+  readonly logger?: SdkLogger
   /** Declares that the adapter will report the real network boundary itself. */
   readonly declareProviderAttemptAccounting?: () => void
   /**

@@ -26,23 +26,45 @@ export async function runPackedProviderFixture() {
       { type: 'usage', usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 } },
       { type: 'done' },
     ]
-    return {
-      ok: true,
-      status: 200,
-      headers: {
-        get(name) {
-          return name.toLowerCase() === 'request-id' ? 'packed-request' : null
-        },
-      },
-      body: new ReadableStream({
+    const body = new ReadableStream({
         start(controller) {
           for (const frame of frames) controller.enqueue(encoder.encode(`data: ${JSON.stringify(frame)}\n\n`))
           controller.close()
         },
-      }),
+      })
+    return {
+      type: 'basic',
+      redirected: false,
+      url: '',
+      ok: true,
+      status: 200,
+      headers: {
+        get(name) {
+          const normalized = name.toLowerCase()
+          if (normalized === 'content-type') return 'text/event-stream'
+          if (normalized === 'request-id') return 'packed-request'
+          return null
+        },
+      },
+      body,
     }
   }
   try {
+    let staticCredentialCalls = 0
+    let staticDiscoveryCalls = 0
+    const staticProvider = createHttpProvider({
+      displayName: 'Packed static metadata',
+      protocol,
+      baseUrl: 'https://packed-static.invalid/v1',
+      auth: { kind: 'bearer', token: () => { staticCredentialCalls++; return 'unused' } },
+      models: [{
+        id: 'declared', contextWindow: 64_000, maxTokens: 2_048,
+        inputModalities: ['text', 'image'], nativeTools: ['web-search'],
+      }],
+      discoverModels: async () => { staticDiscoveryCalls++; return [{ id: 'ignored' }] },
+    })
+    const staticCatalog = await staticProvider.modelCatalog('packed-static')
+    const staticModel = await staticProvider.resolveModel('packed-static', 'declared')
     const observation = {
       mode: 'operational',
       openSpan: createCoreSpan,
@@ -69,6 +91,11 @@ export async function runPackedProviderFixture() {
       dispatchState: report.attempts[0]?.dispatchState,
       requestId: report.attempts[0]?.providerRequestId,
       eventCount: events.length,
+      staticCatalogState: staticCatalog.state,
+      staticModelContext: staticModel.context?.contextWindow,
+      staticModelTool: staticModel.nativeTools?.[0],
+      staticCredentialCalls,
+      staticDiscoveryCalls,
       buffer: typeof globalThis.Buffer,
       process: typeof globalThis.process,
     }

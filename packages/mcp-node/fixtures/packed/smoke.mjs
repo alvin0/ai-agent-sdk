@@ -1,18 +1,14 @@
-import { dispatchToolCall } from '@ai-agent-sdk/agent'
 import { ToolCallId } from '@ai-agent-sdk/core'
-import {
-  connectMcpStdio,
-  hostHeaderValidation,
-  toNodeHandler,
-} from '@ai-agent-sdk/mcp-node'
+import { dispatchToolCall } from '@ai-agent-sdk/core/tools'
+import { connectMcpStdio } from '@ai-agent-sdk/mcp-node'
 
-if (typeof toNodeHandler !== 'function' || typeof hostHeaderValidation !== 'function') {
-  throw new Error('Node HTTP adapters are not exported')
-}
 const connection = await connectMcpStdio({
   serverName: 'packed-node', command: process.execPath, args: ['server.mjs'], reconnect: false,
 })
 try {
+  if (connection.kind !== 'tool-source' || connection.apiVersion !== 1) {
+    throw new Error('stdio client is not a versioned ToolSource')
+  }
   if (!connection.tools.names().includes('mcp__packed-node__add')) throw new Error('stdio catalog failed')
   const result = await dispatchToolCall({
     catalog: connection.tools,

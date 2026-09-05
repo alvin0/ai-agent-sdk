@@ -10,14 +10,13 @@ const artifacts = join(packageRoot, 'artifacts')
 rmSync(artifacts, { recursive: true, force: true })
 mkdirSync(artifacts, { recursive: true })
 const coreTarball = pack(join(workspaceRoot, 'packages', 'core'), artifacts)
-const observabilityTarball = pack(join(workspaceRoot, 'packages', 'observability'), artifacts)
 const nodeTarball = pack(packageRoot, artifacts)
 const temporaryRoot = mkdtempSync(join(tmpdir(), 'ai-agent-sdk-observability-node-pack-'))
 try {
   cpSync(join(packageRoot, 'fixtures', 'packed'), temporaryRoot, { recursive: true })
   run('npm', [
     'install', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund',
-    coreTarball, observabilityTarball, nodeTarball,
+    coreTarball, nodeTarball,
   ], temporaryRoot)
   run(process.execPath, ['smoke.mjs'], temporaryRoot)
   process.stdout.write(`packed observability-node execution passed: ${relative(workspaceRoot, nodeTarball)}\n`)

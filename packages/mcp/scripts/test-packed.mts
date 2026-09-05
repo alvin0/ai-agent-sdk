@@ -13,22 +13,23 @@ rmSync(artifacts, { recursive: true, force: true })
 mkdirSync(artifacts, { recursive: true })
 
 const coreTarball = pack(join(workspaceRoot, 'packages', 'core'), artifacts)
-const agentTarball = pack(join(workspaceRoot, 'packages', 'agent'), artifacts)
 const mcpTarball = pack(packageRoot, artifacts)
 const temporaryRoot = mkdtempSync(join(tmpdir(), 'ai-agent-sdk-mcp-pack-'))
 try {
   const consumers = new Map<string, string>()
-  for (const runtime of ['standards', 'browser', 'worker']) {
+  for (const runtime of ['standards', 'browser', 'worker', 'types']) {
     const consumer = join(temporaryRoot, runtime)
     cpSync(join(packageRoot, 'fixtures', runtime), consumer, { recursive: true })
     cpSync(join(packageRoot, 'fixtures', 'shared', 'smoke.mjs'), join(consumer, 'fixture.mjs'))
     run('npm', [
       'install', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund',
-      coreTarball, agentTarball, mcpTarball,
+      coreTarball, mcpTarball,
     ], consumer)
     consumers.set(runtime, consumer)
   }
   run(process.execPath, ['smoke.mjs'], required(consumers, 'standards'))
+  run(process.execPath, [join(workspaceRoot, 'node_modules', 'typescript', 'bin', 'tsc'), '-p', 'tsconfig.json'],
+    required(consumers, 'types'))
   await testBrowser(required(consumers, 'browser'))
   await testWorker(required(consumers, 'worker'))
   process.stdout.write(`packed MCP runtime matrix passed: ${relative(workspaceRoot, mcpTarball)}\n`)

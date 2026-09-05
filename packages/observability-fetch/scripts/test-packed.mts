@@ -13,7 +13,6 @@ rmSync(artifacts, { recursive: true, force: true })
 mkdirSync(artifacts, { recursive: true })
 
 const coreTarball = pack(join(workspaceRoot, 'packages', 'core'), artifacts)
-const observabilityTarball = pack(join(workspaceRoot, 'packages', 'observability'), artifacts)
 const fetchTarball = pack(packageRoot, artifacts)
 const temporaryRoot = mkdtempSync(join(tmpdir(), 'ai-agent-sdk-observability-fetch-pack-'))
 try {
@@ -24,7 +23,7 @@ try {
     cpSync(join(packageRoot, 'fixtures', 'shared', 'smoke.mjs'), join(consumer, 'fixture.mjs'))
     run('npm', [
       'install', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund',
-      coreTarball, observabilityTarball, fetchTarball,
+      coreTarball, fetchTarball,
     ], consumer)
     consumers.set(runtime, consumer)
   }
@@ -114,6 +113,7 @@ function assertFixture(value: unknown, runtime: string): void {
   if (result.durable !== true || result.boundary !== 'remote-acknowledged' || result.calls !== 2
     || result.identicalBody !== true || result.identicalKey !== true || result.complete !== true
     || result.lifetimeCount !== 1 || result.safe !== true
+    || result.runtimeFactory !== true
     || result.buffer !== 'undefined' || result.process !== 'undefined') {
     throw new Error(`${runtime} fixture returned invalid evidence: ${JSON.stringify(result)}`)
   }

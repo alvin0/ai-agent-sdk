@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "policy": {
+    "state": "phase-tracked",
+    "currentImplementationSlice": "I7",
+    "moveNotCopy": true,
+    "preserveRelativePaths": true,
+    "eliminateMovedSelfPackageImports": true,
+    "bridgeImplementation": "re-export-only",
+    "bridgeManifest": "private-esm-side-effect-free-core-only-runtime-dependency",
+    "newBridgeConsumers": "forbidden",
+    "partialCrossRootOwnership": "forbidden",
+    "migrationOrder": ["observability", "agent"]
+  },
+  "roots": {
+    "observability": {
+      "state": "deleted",
+      "implementationSlice": "I1",
+      "sourcePackage": "@ai-agent-sdk/observability",
+      "sourceRoot": "packages/observability/src",
+      "targetRoot": "packages/core/src/observability",
+      "packageManifest": "packages/observability/package.json",
+      "deletionSlice": "I7",
+      "bridgeEntrypoints": {
+        ".": {
+          "sourceFile": "index.ts",
+          "canonicalTarget": "@ai-agent-sdk/core/observability",
+          "emittedBase": "index"
+        }
+      },
+      "fileCount": 7,
+      "fileListSha256": "a099dd14a1379b3719fa06c6c4359b109ca9fcd8d3116e43cb385a0c8789811a",
+      "files": [
+        "bus.ts",
+        "exporters.ts",
+        "index.ts",
+        "logger.ts",
+        "privacy.ts",
+        "projections.ts",
+        "types.ts"
+      ],
+      "selfCoreImportFileCount": 6,
+      "selfCoreImportFileListSha256": "b44f27883b394fb91521c2e52a0a95021736aad471618fc33c1303abfe19eb5d",
+      "dependencyFirstGroups": ["(root)"],
+      "targetCollisions": {}
+    },
+    "agent": {
+      "state": "deleted",
+      "implementationSlice": "I2",
+      "sourcePackage": "@ai-agent-sdk/agent",
+      "sourceRoot": "packages/agent/src",
+      "targetRoot": "packages/core/src/agent",
+      "packageManifest": "packages/agent/package.json",
+      "deletionSlice": "I7",
+      "bridgeEntrypoints": {
+        ".": {
+          "sourceFile": "index.ts",
+          "canonicalTarget": "@ai-agent-sdk/core/agent",
+          "emittedBase": "index"
+        },
+        "./skill-validation": {
+          "sourceFile": "skill/validation-export.ts",
+          "canonicalTarget": "@ai-agent-sdk/core/skills",
+          "emittedBase": "skill-validation"
+        }
+      },
+      "fileCount": 49,
+      "fileListSha256": "ab42f8268c219f1e0ae0a19383b5be711ebd79041a6beaf83d2505c3ed235212",
+      "files": [
+        "a2a/index.ts",
+        "accounting/contracts.ts",
+        "accounting/error.ts",
+        "accounting/event-buffer.ts",
+        "accounting/index.ts",
+        "accounting/ledger.ts",
+        "accounting/report.ts",
+        "define/definition.ts",
+        "define/index.ts",
+        "define/session.ts",
+        "history/history.ts",
+        "history/index.ts",
+        "history/normalize.ts",
+        "history/project.ts",
+        "index.ts",
+        "loop/events.ts",
+        "loop/index.ts",
+        "loop/queue.ts",
+        "loop/run-turn.ts",
+        "loop/schedule.ts",
+        "loop/types.ts",
+        "memory/compaction-config.ts",
+        "memory/compaction.ts",
+        "memory/index.ts",
+        "memory/memory.ts",
+        "memory/surface-compaction.ts",
+        "memory/token-estimator.ts",
+        "mode/index.ts",
+        "mode/run-agent.ts",
+        "mode/user-input.ts",
+        "skill/catalog.ts",
+        "skill/definition.ts",
+        "skill/index.ts",
+        "skill/tools.ts",
+        "skill/validation-export.ts",
+        "team/composed.ts",
+        "team/contracts.ts",
+        "team/index.ts",
+        "team/managed.ts",
+        "team/team.ts",
+        "team/types.ts",
+        "tool/approval.ts",
+        "tool/definition.ts",
+        "tool/errors.ts",
+        "tool/index.ts",
+        "tool/pipeline.ts",
+        "tool/registry.ts",
+        "trace/index.ts",
+        "trace/trace.ts"
+      ],
+      "selfCoreImportFileCount": 31,
+      "selfCoreImportFileListSha256": "9dc2e4371732cc10017c9f79ab0fbe86d8bcad2196a37c0e256445bd76151f52",
+      "dependencyFirstGroups": [
+        "tool",
+        "history",
+        "trace",
+        "accounting",
+        "loop",
+        "mode",
+        "skill",
+        "memory",
+        "define",
+        "team",
+        "a2a",
+        "(root)"
+      ],
+      "targetCollisions": {}
+    }
+  }
+}

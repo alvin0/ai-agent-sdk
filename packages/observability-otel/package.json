@@ -10,7 +10,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "default": "./dist/index.js" },
     "./package.json": "./package.json"
   },
   "publishConfig": { "access": "public", "provenance": true },
@@ -24,11 +24,8 @@
     "check:publint": "publint",
     "check:types": "attw --profile esm-only --pack ."
   },
-  "dependencies": {
-    "@ai-agent-sdk/core": "workspace:^",
-    "@ai-agent-sdk/observability": "workspace:^"
-  },
   "peerDependencies": {
+    "@ai-agent-sdk/core": "workspace:^",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/api-logs": "^0.221.0"
   },
@@ -36,6 +33,7 @@
     "@opentelemetry/api-logs": { "optional": true }
   },
   "devDependencies": {
+    "@ai-agent-sdk/core": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/api-logs": "catalog:",
@@ -46,5 +44,9 @@
     "vitest": "catalog:",
     "wrangler": "catalog:"
   },
-  "aiAgentSdk": { "runtime": "universal" }
+  "aiAgentSdk": {
+    "runtime": "universal",
+    "coreApi": 1,
+    "roles": ["observation-processor"]
+  }
 }

@@ -1,4 +1,4 @@
-import type { FlushResult, Observability } from '@ai-agent-sdk/observability'
+import type { FlushResult, Observability } from '@ai-agent-sdk/core/observability'
 
 export type WaitUntil = (pending: Promise<unknown>) => void
 

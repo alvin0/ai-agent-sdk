@@ -1,51 +1,63 @@
-import { ToolRegistry, defineTool } from '@ai-agent-sdk/agent'
-import { createMcpHttpClient, createSdkMcpHandler } from '@ai-agent-sdk/mcp'
+import { createMcpHttpClient } from '@ai-agent-sdk/mcp'
 
-function registry(count = 1) {
-  const tools = new ToolRegistry()
-  tools.register(defineTool({
-    name: 'add',
-    description: 'Add two numbers.',
-    parameters: {
-      type: 'object',
-      properties: { left: { type: 'number' }, right: { type: 'number' } },
-      required: ['left', 'right'],
-      additionalProperties: false,
-    },
-    parse: value => value,
-    execute: ({ left, right }) => ({ sum: left + right }),
-  }))
-  if (count > 1) tools.register(defineTool({
-    name: 'subtract', description: 'Subtract two numbers.', parameters: { type: 'object' },
-    execute: () => ({ difference: 0 }),
-  }))
-  return tools
+const ADD_SCHEMA = Object.freeze({
+  type: 'object',
+  properties: { left: { type: 'number' }, right: { type: 'number' } },
+  required: ['left', 'right'],
+  additionalProperties: false,
+})
+
+function protocolResponse(id, result) {
+  return Response.json({ jsonrpc: '2.0', id, result })
 }
 
-function methodsIn(value) {
-  if (Array.isArray(value)) return value.flatMap(methodsIn)
-  return typeof value === 'object' && value !== null && typeof value.method === 'string'
-    ? [value.method]
-    : []
+function createProtocolFetch(methods, toolCount = 1) {
+  return async (input, init) => {
+    const request = new Request(input, init)
+    const message = await request.json()
+    methods.push(message.method)
+    if (message.method === 'server/discover') {
+      return protocolResponse(message.id, {
+        supportedVersions: ['2026-07-28'],
+        capabilities: { tools: { listChanged: false } },
+        resultType: 'complete',
+        ttlMs: 0,
+        cacheScope: 'private',
+        _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'packed', version: '1.0.0' } },
+      })
+    }
+    if (message.method === 'tools/list') {
+      const tools = [{ name: 'add', description: 'Add two numbers.', inputSchema: ADD_SCHEMA }]
+      if (toolCount > 1) tools.push({
+        name: 'subtract', description: 'Subtract two numbers.', inputSchema: { type: 'object' },
+      })
+      return protocolResponse(message.id, {
+        tools, resultType: 'complete', ttlMs: 0, cacheScope: 'private',
+        _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'packed', version: '1.0.0' } },
+      })
+    }
+    if (message.method === 'tools/call' && message.params?.name === 'add') {
+      const { left, right } = message.params.arguments
+      const value = { sum: left + right }
+      return protocolResponse(message.id, {
+        content: [{ type: 'text', text: JSON.stringify(value) }],
+        structuredContent: value,
+        resultType: 'complete',
+        _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'packed', version: '1.0.0' } },
+      })
+    }
+    return Response.json({
+      jsonrpc: '2.0', id: message.id ?? null,
+      error: { code: -32601, message: `Unsupported fixture method ${String(message.method)}` },
+    })
+  }
 }
 
 export async function runPackedMcpFixture() {
   const methods = []
-  const serverErrors = []
-  const handler = createSdkMcpHandler(
-    { name: 'packed-mcp', version: '1.0.0', tools: registry() },
-    { onerror: error => serverErrors.push(error.stack ?? String(error)) },
-  )
   const connection = createMcpHttpClient({
     serverName: 'packed', url: 'https://mcp.example.test/api', reconnect: false,
-    protocol: 'legacy', legacySse: false,
-    transport: { fetch: async (input, init) => {
-      const request = new Request(input, init)
-      if (request.method === 'POST') {
-        try { methods.push(...methodsIn(await request.clone().json())) } catch { /* empty notification body */ }
-      }
-      return await handler.fetch(request)
-    } },
+    legacySse: false, transport: { fetch: createProtocolFetch(methods) },
   })
   let sum
   let mainError
@@ -59,15 +71,13 @@ export async function runPackedMcpFixture() {
     mainError = String(error)
   } finally {
     await connection.close()
-    await handler.close()
   }
 
   let aborted = false
-  const abortHandler = createSdkMcpHandler({ name: 'abort', version: '1.0.0' })
   const abortConnection = createMcpHttpClient({
     serverName: 'abort', url: 'https://mcp.example.test/api', reconnect: false, legacySse: false,
     operationTimeoutMs: 10, closeTimeoutMs: 10,
-    transport: { fetch: async (input, init) => abortHandler.fetch(new Request(input, init)) },
+    transport: { fetch: createProtocolFetch([]) },
   })
   try {
     await abortConnection.connect()
@@ -76,7 +86,7 @@ export async function runPackedMcpFixture() {
       signal.addEventListener('abort', onAbort, { once: true })
     }))
   } catch { /* the bounded abort is the expected result */ }
-  finally { await abortConnection.close(); await abortHandler.close() }
+  finally { await abortConnection.close() }
 
   const auth = createMcpHttpClient({
     serverName: 'auth', url: 'https://mcp.example.test/api', reconnect: false, legacySse: false,
@@ -99,13 +109,9 @@ export async function runPackedMcpFixture() {
   }
   finally { await auth.close() }
 
-  const boundedHandler = createSdkMcpHandler({
-    name: 'bounded', version: '1.0.0', tools: registry(2),
-  })
   const bounded = createMcpHttpClient({
     serverName: 'bounded', url: 'https://mcp.example.test/api', reconnect: false,
-    legacySse: false, maxTools: 1,
-    transport: { fetch: async (input, init) => boundedHandler.fetch(new Request(input, init)) },
+    legacySse: false, maxTools: 1, transport: { fetch: createProtocolFetch([], 2) },
   })
   let boundedFailure = false
   let boundedMessage
@@ -113,16 +119,15 @@ export async function runPackedMcpFixture() {
     boundedMessage = String(error)
     boundedFailure = boundedMessage.includes('1-tool limit')
   }
-  finally { await bounded.close(); await boundedHandler.close() }
+  finally { await bounded.close() }
 
   return {
-    ready: methods.includes('initialize'),
+    ready: methods.includes('server/discover'),
     listed: methods.includes('tools/list'),
     called: methods.includes('tools/call'),
     methods,
     sum,
     mainError,
-    serverErrors,
     aborted,
     authFailed,
     authObserved,

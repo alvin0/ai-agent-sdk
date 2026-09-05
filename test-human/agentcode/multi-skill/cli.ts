@@ -6,25 +6,22 @@ import { dirname, join, resolve } from 'node:path'
 import { stdin, stdout } from 'node:process'
 import { createInterface, type Interface } from 'node:readline/promises'
 import { pathToFileURL } from 'node:url'
-import type { AgentSession } from '@ai-agent-sdk/agent'
+import type { AgentSession } from '@ai-agent-sdk/core/agent'
 import { HumanArtifactRecorder } from '../../artifacts.ts'
 import {
   createUserInputBroker,
   type AgentRunEvent,
   type AgentRunOutcome,
   type InteractiveUserInputBroker,
-} from '@ai-agent-sdk/agent'
+} from '@ai-agent-sdk/core/agent'
 import { errorMessage, label } from '../../console.ts'
 import { createHumanModelRegistry } from '../../providers.ts'
 import { prepareSkillStressFixtures, type PreparedSkillStressFixtures } from '../../skill-stress/prepare.ts'
 import { renderHumanRun } from '../../terminal.ts'
 import { createAgentCodeAgent } from '../agent.ts'
-import {
-  agentCodeCliHelp,
-  parseAgentCodeCliArgs,
-  resolveAgentCodeModel,
-  type AgentCodeCliConfig,
-} from '../config.ts'
+import type { AgentCodeCliConfig } from '../config.ts'
+import type { MultiSkillAcceptance, MultiSkillCliConfig, MultiSkillRunSummary, MultiSkillTurnSummary } from './cli/contracts.ts'
+export type { MultiSkillAcceptance, MultiSkillCliConfig, MultiSkillRunSummary, MultiSkillTurnSummary } from './cli/contracts.ts'
 import {
   AgentCodeSkillReportRecorder,
   isAgentCodeSkillEvidenceComplete,
@@ -47,174 +44,20 @@ import {
   type SignalDeskCommandResult,
   type SignalDeskVerificationReport,
 } from './verify.ts'
+import { multiSkillCliHelp, parseMultiSkillCliArgs, DEFAULT_SKILLS_ROOT, PROJECT_ROOT, samePath } from './cli/args.ts'
+export { multiSkillCliHelp, parseMultiSkillCliArgs } from './cli/args.ts'
 
-const PROJECT_ROOT = resolve(process.cwd())
-const DEFAULT_WORKSPACE = join(PROJECT_ROOT, 'test-human', 'workspaces', 'agentcode-multiskill')
-const DEFAULT_REPORT_DIRECTORY = join(PROJECT_ROOT, 'test-human', 'results', 'agentcode-multiskill')
-const DEFAULT_SKILLS_ROOT = join(PROJECT_ROOT, 'test-human', 'skill-stress', '.cache', 'skills')
-const DEFAULT_REPAIR_TURNS = 1
 const COMMAND_TIMEOUT_MS = 120_000
 const MAX_COMMAND_OUTPUT_CHARS = 64_000
 const MAX_REPORT_STRING_CHARS = 64_000
 const MAX_REPORT_ARRAY_ITEMS = 2_000
 const MAX_REPORT_OBJECT_KEYS = 500
 const MAX_REPORT_DEPTH = 12
-const AGENT_VALUE_FLAGS = new Set([
-  '--provider', '--model', '--mode', '--scenario', '--effort', '--max-turns',
-  '--prompt', '--image', '--workdir', '--skills-root', '--max-input-tokens',
-  '--retain-tokens', '--max-tool-calls',
-])
-
-export interface MultiSkillCliConfig {
-  readonly agent: AgentCodeCliConfig
-  readonly model: string
-  readonly reportDirectory: string
-  readonly repairTurns: number
-}
-
-export interface MultiSkillAcceptance {
-  readonly baselineRed: boolean
-  readonly functionalVerifier: boolean
-  readonly expectedSkillsBehaviorallyApplied: boolean
-  readonly skillEvidenceComplete: boolean
-  readonly traceComplete: boolean
-  readonly deepOutcomeCompleted: boolean
-  readonly compactionCompleted: boolean
-}
-
-export interface MultiSkillRunSummary {
-  readonly schemaVersion: 1
-  readonly startedAt: string
-  readonly finishedAt: string
-  readonly durationMs: number
-  readonly passed: boolean
-  readonly config: {
-    readonly provider: string
-    readonly model: string
-    readonly effort: string
-    readonly maxTurns: number
-    readonly maxToolCalls: number
-    readonly maxInputTokens: number
-    readonly retainTokens: number
-    readonly workspace: string
-    readonly reportDirectory: string
-    readonly providerLogs: string | null
-    readonly repairTurns: number
-  }
-  readonly requiredSkills: readonly string[]
-  readonly discoveredSkills: readonly string[]
-  readonly skillsCache?: {
-    readonly root: string
-    readonly reused: boolean
-    readonly sources: readonly string[]
-  }
-  readonly preparation?: {
-    readonly passed: boolean
-    readonly dependenciesReady: boolean
-    readonly browserReady: boolean
-    readonly report: string
-  }
-  readonly baseline?: {
-    readonly red: boolean
-    readonly exitCode: number | null
-    readonly timedOut: boolean
-    readonly aborted: boolean
-    readonly report: string
-  }
-  readonly runs: readonly MultiSkillTurnSummary[]
-  readonly verifications: readonly {
-    readonly attempt: number
-    readonly passed: boolean
-    readonly failedChecks: readonly string[]
-    readonly commands: Readonly<Record<string, number | null>>
-    readonly report: string
-  }[]
-  readonly acceptance: MultiSkillAcceptance
-  readonly skillReport: string
-  readonly errors: readonly string[]
-}
-
-export interface MultiSkillTurnSummary {
-  readonly label: string
-  readonly completed: boolean
-  readonly reason?: string
-  readonly steps?: number
-  readonly toolCalls?: number
-  readonly traceId?: string
-  readonly error?: string
-}
-
-interface HarnessFlags {
-  readonly reportDirectory: string
-  readonly repairTurns: number
-  readonly agentArgs: readonly string[]
-}
 
 interface TurnResult {
   readonly label: string
   readonly outcome?: AgentRunOutcome
   readonly error?: string
-}
-
-/** Parse harness-only flags, then delegate every AgentCode flag to its canonical parser. */
-export function parseMultiSkillCliArgs(
-  argv: readonly string[],
-  cwd = process.cwd(),
-  env: NodeJS.ProcessEnv = process.env,
-): MultiSkillCliConfig {
-  const harness = extractHarnessFlags(argv, cwd)
-  const separator = harness.agentArgs.indexOf('--')
-  const positionalTail = separator < 0 ? [] : harness.agentArgs.slice(separator)
-  const presets = separator < 0
-    ? [...harness.agentArgs]
-    : [...harness.agentArgs.slice(0, separator)]
-  const promptProvided = hasPromptInput(harness.agentArgs)
-  addValuePreset(presets, '--workdir', DEFAULT_WORKSPACE)
-  addValuePreset(presets, '--provider', 'codex')
-  if ((argumentValue(presets, '--provider') ?? 'codex') === 'codex') {
-    addValuePreset(presets, '--model', 'gpt-5.6-luna')
-  }
-  addValuePreset(presets, '--effort', 'medium')
-  addValuePreset(presets, '--max-turns', '48')
-  addValuePreset(presets, '--max-tool-calls', '128')
-  addValuePreset(presets, '--max-input-tokens', '12000')
-  addValuePreset(presets, '--retain-tokens', '3000')
-  if (!promptProvided) presets.push('--prompt', SIGNAL_DESK_PROMPT)
-  if (!hasSwitch(presets, '--once')) presets.push('--once')
-  if (!hasPathValue(presets, '--skills-root', DEFAULT_SKILLS_ROOT, cwd)) {
-    presets.push('--skills-root', DEFAULT_SKILLS_ROOT)
-  }
-  presets.push(...positionalTail)
-  const agent = parseAgentCodeCliArgs(presets, cwd)
-  return Object.freeze({
-    agent,
-    model: resolveAgentCodeModel(agent, env),
-    reportDirectory: harness.reportDirectory,
-    repairTurns: harness.repairTurns,
-  })
-}
-
-export function multiSkillCliHelp(): string {
-  return `Automated real-provider Signal Desk multi-skill acceptance
-
-Usage:
-  node test-human/agentcode/multi-skill/cli.ts [harness options] [AgentCode options]
-
-Harness options:
-  --report-dir <path>     Reports and isolated provider logs; default:
-                          test-human/results/agentcode-multiskill
-  --repair-turns <count>  Continuation repair turns in the same session; default: 1
-
-AgentCode presets (all remain overridable):
-  --workdir test-human/workspaces/agentcode-multiskill
-  --provider codex --model gpt-5.6-luna --effort medium
-  --max-turns 48 --max-tool-calls 128
-  --max-input-tokens 12000 --retain-tokens 3000 --once
-
---help and --dry-run perform no filesystem mutation and make no network request.
-All remaining options are parsed by the AgentCode CLI parser.
-
-${agentCodeCliHelp()}`
 }
 
 /** Execute the full host-owned acceptance workflow. */
@@ -571,114 +414,6 @@ function logCommandEnd(scope: string, result: SignalDeskCommandResult): void {
   console.log(label(`${scope}/result`), `${result.name} exit=${result.exitCode ?? 'spawn-error'} durationMs=${result.durationMs}`)
 }
 
-function extractHarnessFlags(argv: readonly string[], cwd: string): HarnessFlags {
-  const agentArgs: string[] = []
-  let reportDirectory = DEFAULT_REPORT_DIRECTORY
-  let repairTurns = DEFAULT_REPAIR_TURNS
-  let positional = false
-  for (let index = 0; index < argv.length; index++) {
-    const token = argv[index]
-    if (token === undefined) continue
-    if (positional) {
-      agentArgs.push(token)
-      continue
-    }
-    if (token === '--') {
-      positional = true
-      agentArgs.push(token)
-      continue
-    }
-    const equals = token.indexOf('=')
-    const key = equals > 0 ? token.slice(0, equals) : token
-    if (key !== '--report-dir' && key !== '--repair-turns') {
-      agentArgs.push(token)
-      continue
-    }
-    const value = equals > 0 ? token.slice(equals + 1) : argv[++index]
-    if (value === undefined || value.length === 0 || (equals < 0 && value.startsWith('--'))) {
-      throw new Error(`${key} requires a value`)
-    }
-    if (key === '--report-dir') reportDirectory = resolve(cwd, value)
-    else repairTurns = boundedRepairTurns(value)
-  }
-  return Object.freeze({
-    reportDirectory: resolve(reportDirectory),
-    repairTurns,
-    agentArgs: Object.freeze(agentArgs),
-  })
-}
-
-function addValuePreset(argv: string[], flag: string, value: string): void {
-  if (!hasValueFlag(argv, flag)) argv.push(flag, value)
-}
-
-function hasValueFlag(argv: readonly string[], flag: string): boolean {
-  return argv.some(token => token === flag || token.startsWith(`${flag}=`))
-}
-
-function argumentValue(argv: readonly string[], flag: string): string | undefined {
-  for (let index = argv.length - 1; index >= 0; index--) {
-    const token = argv[index]
-    if (token === undefined) continue
-    if (token.startsWith(`${flag}=`)) return token.slice(flag.length + 1)
-    if (token === flag) return argv[index + 1]
-  }
-  return undefined
-}
-
-function hasPromptInput(argv: readonly string[]): boolean {
-  let positional = false
-  for (let index = 0; index < argv.length; index++) {
-    const token = argv[index]
-    if (token === undefined) continue
-    if (positional) return true
-    if (token === '--') {
-      positional = true
-      continue
-    }
-    const equals = token.indexOf('=')
-    const key = equals > 0 ? token.slice(0, equals) : token
-    if (key === '--prompt') return true
-    if (AGENT_VALUE_FLAGS.has(key)) {
-      if (equals < 0) index++
-      continue
-    }
-    if (!token.startsWith('-')) return true
-  }
-  return false
-}
-
-function hasSwitch(argv: readonly string[], flag: string): boolean {
-  return argv.includes(flag)
-}
-
-function hasPathValue(
-  argv: readonly string[],
-  flag: string,
-  expected: string,
-  cwd: string,
-): boolean {
-  for (let index = 0; index < argv.length; index++) {
-    const token = argv[index]
-    if (token === undefined) continue
-    if (token.startsWith(`${flag}=`)) {
-      if (samePath(resolve(cwd, token.slice(flag.length + 1)), expected)) return true
-    } else if (token === flag) {
-      const value = argv[index + 1]
-      if (value !== undefined && samePath(resolve(cwd, value), expected)) return true
-    }
-  }
-  return false
-}
-
-function boundedRepairTurns(raw: string): number {
-  const value = Number(raw)
-  if (!Number.isSafeInteger(value) || value < 0 || value > 4) {
-    throw new Error('--repair-turns must be an integer between 0 and 4')
-  }
-  return value
-}
-
 function printableConfig(config: MultiSkillCliConfig, providerLogs: string): Record<string, unknown> {
   return {
     provider: config.agent.provider,
@@ -735,12 +470,6 @@ function boundReportValue(value: unknown, depth = 0): unknown {
 function boundedError(error: unknown): string {
   const message = errorMessage(error)
   return message.length <= 2_000 ? message : `${message.slice(0, 1_968)}... <${message.length} chars>`
-}
-
-function samePath(left: string, right: string): boolean {
-  const a = resolve(left)
-  const b = resolve(right)
-  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b
 }
 
 async function main(): Promise<void> {

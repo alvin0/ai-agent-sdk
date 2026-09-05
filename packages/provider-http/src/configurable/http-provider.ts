@@ -26,7 +26,13 @@
  * @module ai-agent-sdk/providers/http-provider
  */
 
-import type { ModelInvocationContext, ResolvedModelInfo } from '@ai-agent-sdk/core'
+import type {
+  ModelCatalogOptions,
+  ModelCatalogSnapshot,
+  ModelInfo,
+  ModelInvocationContext,
+  ResolvedModelInfo,
+} from '@ai-agent-sdk/core'
 import { resolveRetryPolicy, type RetryPolicyConfig } from '@ai-agent-sdk/core'
 import type { ResolvedRetryPolicy } from '@ai-agent-sdk/core'
 import { assertUsableApiKey } from '@ai-agent-sdk/core'
@@ -43,16 +49,25 @@ import {
   HttpModelAdapter,
   type HttpConnection,
   type ProviderCatalogModel,
-  type ProviderProtocolChunk,
   type ProviderRequest,
   type ProviderRequestLogger,
   type ProviderRequestLogRecord,
 } from '../base/http-adapter.ts'
+import type { ProviderProtocolChunk } from '../stream/types.ts'
 import { resolveDialect, type WireProtocol } from '../protocol/protocol.ts'
 import {
   observeCredentialOperation,
   observeModelCatalogOperation,
 } from '../observation/operations.ts'
+import {
+  captureHeaderLayer,
+  DEFAULT_TRANSPORT_HEADERS,
+  mergeHeaderLayers,
+} from '../common/header-layers.ts'
+import {
+  catalogModelInfo,
+  resolvedCatalogModelInfo,
+} from '../base/transport.ts'
 
 /** A credential, either literal or resolved per operation. */
 export type CredentialSource = string | ((
@@ -80,8 +95,13 @@ export type AuthScheme =
     resolve: (
       signal?: AbortSignal,
       context?: ModelInvocationContext,
+      provider?: string,
     ) => Record<string, string> | Promise<Record<string, string>>
   }
+
+interface ResolvedAuthHeaders {
+  readonly headers: Readonly<Record<string, string>>
+}
 
 /** What a model-discovery hook receives. */
 export interface ModelDiscoveryContext {
@@ -90,6 +110,10 @@ export interface ModelDiscoveryContext {
   /** Every header the request would carry, including authentication. */
   readonly headers: Readonly<Record<string, string>>
   readonly signal?: AbortSignal
+  /** Additive runtime context; legacy discovery hooks may ignore it. */
+  readonly provider?: string
+  /** Additive invocation context; legacy discovery hooks may ignore it. */
+  readonly context?: ModelInvocationContext
 }
 
 /** Configuration for {@link createHttpProvider}. */
@@ -102,6 +126,8 @@ export interface HttpProviderOptions<Dialect extends object> {
   baseUrl: string
   /** Permit cleartext HTTP explicitly, for trusted local development only. */
   allowInsecureHttp?: boolean
+  /** Captured fetch implementation for tests, custom runtimes, and transport policy. */
+  fetch?: typeof globalThis.fetch
   /** How to authenticate. */
   auth: AuthScheme
   /**
@@ -130,6 +156,10 @@ export interface HttpProviderOptions<Dialect extends object> {
   discoverModels?: (context: ModelDiscoveryContext) => Promise<readonly ProviderCatalogModel[]>
   /** How long a discovered catalog is reused. Defaults to five minutes. */
   catalogTtlMs?: number
+  /** Additional opt-in lifetime for the last valid catalog after refresh failure. */
+  catalogStaleTtlMs?: number
+  /** Backoff after discovery failure before another refresh is attempted. */
+  catalogFailureBackoffMs?: number
   /** Maximum catalog entries retained from static config or discovery. Defaults to 2,048. */
   maxCatalogModels?: number
   /** Maximum serialized catalog bytes retained. Defaults to 4 MiB. */
@@ -156,6 +186,10 @@ export interface HttpProviderOptions<Dialect extends object> {
   maxResponseBytes?: number
   /** Maximum raw response chunks. Defaults to 100,000. */
   maxResponseChunks?: number
+  /** Maximum decoded SSE events accepted from one response. */
+  maxSseEvents?: number
+  /** Maximum characters accepted in one decoded SSE event. */
+  maxSseEventChars?: number
   /** Maximum non-success response bytes retained. Defaults to 1 MiB. */
   maxErrorBodyBytes?: number
   /** Maximum time granted to the optional request logger. Defaults to 5 seconds. */
@@ -180,6 +214,8 @@ export interface HttpProviderOptions<Dialect extends object> {
 }
 
 const DEFAULT_CATALOG_TTL_MS = 5 * 60 * 1_000
+const DEFAULT_CATALOG_STALE_TTL_MS = 0
+const DEFAULT_CATALOG_FAILURE_BACKOFF_MS = 5_000
 const DEFAULT_MAX_CATALOG_MODELS = 2_048
 const DEFAULT_MAX_CATALOG_BYTES = 4 * 1024 * 1024
 
@@ -208,6 +244,7 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
   private readonly dialect: Dialect
   private readonly retry: ResolvedRetryPolicy
   private catalog: { models: readonly ProviderCatalogModel[]; fetchedAt: number } | undefined
+  private catalogFailureAt: number | undefined
 
   constructor(options: HttpProviderOptions<Dialect>) {
     super()
@@ -225,6 +262,14 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
     this.options = Object.freeze({
       ...options,
       catalogTtlMs: positiveFinite(options.catalogTtlMs ?? DEFAULT_CATALOG_TTL_MS, 'catalogTtlMs'),
+      catalogStaleTtlMs: nonNegativeFinite(
+        options.catalogStaleTtlMs ?? DEFAULT_CATALOG_STALE_TTL_MS,
+        'catalogStaleTtlMs',
+      ),
+      catalogFailureBackoffMs: nonNegativeFinite(
+        options.catalogFailureBackoffMs ?? DEFAULT_CATALOG_FAILURE_BACKOFF_MS,
+        'catalogFailureBackoffMs',
+      ),
       maxCatalogModels,
       maxCatalogBytes,
       auth: Object.freeze({ ...options.auth }),
@@ -243,13 +288,60 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
     return this.retry
   }
 
-  override async resolveModel(
+  override listModels(provider: string, signal?: AbortSignal): Promise<readonly ModelInfo[]> {
+    if (!this.hasStaticCatalog()) return super.listModels(provider, signal)
+    signal?.throwIfAborted()
+    return Promise.resolve(this.staticModels(provider))
+  }
+
+  override resolveModel(
     provider: string,
     model: string,
     signal?: AbortSignal,
   ): Promise<ResolvedModelInfo> {
-    const base = await super.resolveModel(provider, model, signal)
+    if (!this.hasStaticCatalog()) return super.resolveModel(provider, model, signal)
+    signal?.throwIfAborted()
+    return Promise.resolve(this.decorateModel(resolvedCatalogModelInfo(
+      provider,
+      model,
+      this.options.models ?? [],
+      this.options.defaultMaxTokens ?? 8_192,
+      this.options.defaultContextWindow ?? 128_000,
+    )))
+  }
+
+  override async modelCatalog(
+    provider: string,
+    options: ModelCatalogOptions = {},
+  ): Promise<ModelCatalogSnapshot> {
+    if (this.hasStaticCatalog()) {
+      options.signal?.throwIfAborted()
+      return Object.freeze({
+        provider: Object.freeze({ id: provider, name: this.displayName }),
+        state: 'static',
+        revision: 'http-static',
+        models: this.staticModels(provider),
+        observedAt: new Date().toISOString(),
+      })
+    }
+    const snapshot = await super.modelCatalog(provider, options)
+    if (this.catalogFailureAt !== undefined) {
+      throw new Error('HTTP provider model catalog is unavailable')
+    }
+    return snapshot
+  }
+
+  protected override decorateModel(base: ResolvedModelInfo): ResolvedModelInfo {
     return this.options.describeModel?.(base, this.dialect) ?? base
+  }
+
+  private hasStaticCatalog(): boolean {
+    return this.options.models !== undefined || this.options.discoverModels === undefined
+  }
+
+  private staticModels(provider: string): readonly ModelInfo[] {
+    return Object.freeze((this.options.models ?? []).map(model =>
+      Object.freeze(catalogModelInfo(provider, model))))
   }
 
   /** Resolve the authentication headers for one operation. */
@@ -257,29 +349,29 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
     provider: string,
     signal?: AbortSignal,
     context?: ModelInvocationContext,
-  ): Promise<Record<string, string>> {
+  ): Promise<ResolvedAuthHeaders> {
     const auth = this.options.auth
     switch (auth.kind) {
       case 'none':
-        return {}
+        return { headers: {} }
       case 'bearer': {
         const token = await observeCredentialOperation(context, provider, 'resolve', () => credential(
           auth.token, this.displayName, auth.label ?? 'the `auth.token` option', signal, context,
         ))
-        return { authorization: `Bearer ${token}` }
+        return { headers: { authorization: `Bearer ${token}` } }
       }
       case 'header': {
         const value = await observeCredentialOperation(context, provider, 'resolve', () => credential(
           auth.value, this.displayName, auth.label ?? `the \`${auth.name}\` credential`, signal, context,
         ))
-        return { [auth.name]: value }
+        return { headers: { [auth.name]: value } }
       }
       case 'dynamic':
-        return await observeCredentialOperation(
-          context, provider, 'resolve', async () => await auth.resolve(signal, context),
-        )
+        return { headers: await observeCredentialOperation(
+          context, provider, 'resolve', async () => await auth.resolve(signal, context, provider),
+        ) }
       default:
-        return {}
+        return { headers: {} }
     }
   }
 
@@ -300,25 +392,45 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
     const extra = typeof this.options.headers === 'function'
       ? this.options.headers()
       : this.options.headers ?? {}
-    const headers: Record<string, string> = {
-      ...attributionHeaders(),
-      ...this.options.protocol.protocolHeaders?.(this.dialect) ?? {},
-      ...extra,
-      ...await raceAbort(this.authHeaders(provider, operationSignal, context), operationSignal),
-    }
+    const publicLayers = [
+      captureHeaderLayer({
+        layer: 'transport', headers: this.options.baseHeaders ?? DEFAULT_TRANSPORT_HEADERS,
+      }),
+      captureHeaderLayer({ layer: 'sdk-attribution', headers: attributionHeaders() }),
+      captureHeaderLayer({
+        layer: 'wire-protocol',
+        headers: this.options.protocol.protocolHeaders?.(this.dialect) ?? {},
+      }),
+      captureHeaderLayer({ layer: 'endpoint', headers: extra }),
+    ] as const
+    // Structural conflicts that do not depend on credentials fail before secret
+    // resolution. The captured layer snapshots cannot mutate while auth awaits.
+    mergeHeaderLayers(publicLayers)
+    const auth = await raceAbort(this.authHeaders(provider, operationSignal, context), operationSignal)
+    const merged = mergeHeaderLayers([
+      ...publicLayers,
+      captureHeaderLayer({ layer: 'auth', headers: auth.headers }),
+    ])
+    const headers = merged.headers
 
     return {
       baseUrl,
       headers,
+      sensitiveHeaderNames: merged.sensitiveHeaderNames,
       streamIdleTimeoutMs: this.options.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS,
       requestTimeoutMs: this.options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
       maxRequestBytes: this.options.maxRequestBytes ?? DEFAULT_MAX_REQUEST_BYTES,
       maxResponseBytes: this.options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
       maxResponseChunks: this.options.maxResponseChunks ?? DEFAULT_MAX_RESPONSE_CHUNKS,
+      ...(this.options.maxSseEvents === undefined ? {} : { maxSseEvents: this.options.maxSseEvents }),
+      ...(this.options.maxSseEventChars === undefined
+        ? {}
+        : { maxSseEventChars: this.options.maxSseEventChars }),
       maxErrorBodyBytes: this.options.maxErrorBodyBytes ?? DEFAULT_MAX_ERROR_BODY_BYTES,
       ...this.options.allowInsecureHttp === undefined
         ? {}
         : { allowInsecureHttp: this.options.allowInsecureHttp },
+      ...this.options.fetch === undefined ? {} : { fetch: this.options.fetch },
       ...this.options.requestLoggerTimeoutMs === undefined
         ? {}
         : { requestLoggerTimeoutMs: this.options.requestLoggerTimeoutMs },
@@ -342,10 +454,16 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
     const discover = this.options.discoverModels
     if (discover === undefined) return []
     const ttl = this.options.catalogTtlMs ?? DEFAULT_CATALOG_TTL_MS
+    const staleTtl = this.options.catalogStaleTtlMs ?? DEFAULT_CATALOG_STALE_TTL_MS
+    const failureBackoff = this.options.catalogFailureBackoffMs
+      ?? DEFAULT_CATALOG_FAILURE_BACKOFF_MS
+    const now = Date.now()
     const cached = this.catalog
-    if (cached !== undefined && Date.now() - cached.fetchedAt < ttl) return cached.models
+    if (cached !== undefined && now - cached.fetchedAt < ttl) return cached.models
+    if (this.catalogFailureAt !== undefined && now - this.catalogFailureAt < failureBackoff) {
+      return staleCatalog(cached, now, ttl, staleTtl)
+    }
 
-    let models: readonly ProviderCatalogModel[] = []
     try {
       const discovered = await observeModelCatalogOperation(
         context,
@@ -355,26 +473,34 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
           const pending = discover({
             baseUrl,
             headers,
+            provider,
+            ...(context === undefined ? {} : { context }),
             ...signal === undefined ? {} : { signal },
           })
           return signal === undefined ? await pending : await raceAbort(pending, signal)
         },
       )
-      models = boundedCatalog(
+      const models = boundedCatalog(
         discovered,
         this.options.maxCatalogModels ?? DEFAULT_MAX_CATALOG_MODELS,
         this.options.maxCatalogBytes ?? DEFAULT_MAX_CATALOG_BYTES,
       )
-    } catch {
+      this.catalog = { models, fetchedAt: Date.now() }
+      this.catalogFailureAt = undefined
+      return models
+    } catch (error: unknown) {
+      // Cancellation belongs to the caller/runtime refresh generation. Treating
+      // it as an offline empty catalog would publish a false successful result.
+      if (signal?.aborted === true) throw signal.reason ?? error
       // Offline, unauthorized for metadata, or transient. An empty catalog only
       // costs capability detail; failing the call would cost the whole request.
+      this.catalogFailureAt = Date.now()
+      return staleCatalog(cached, this.catalogFailureAt, ttl, staleTtl)
     }
-    this.catalog = { models, fetchedAt: Date.now() }
-    return models
   }
 
   protected override baseHeaders(): Record<string, string> {
-    return this.options.baseHeaders ?? super.baseHeaders()
+    return {}
   }
 
   protected override observeRequest(record: ProviderRequestLogRecord): Promise<void> | void {
@@ -413,6 +539,23 @@ function positiveSafeInteger(value: number, field: string): number {
     throw new RangeError(`${field} must be a positive safe integer`)
   }
   return value
+}
+
+function nonNegativeFinite(value: number, field: string): number {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new RangeError(`${field} must be a non-negative finite number`)
+  }
+  return value
+}
+
+function staleCatalog(
+  cached: { models: readonly ProviderCatalogModel[]; fetchedAt: number } | undefined,
+  now: number,
+  ttl: number,
+  staleTtl: number,
+): readonly ProviderCatalogModel[] {
+  if (cached === undefined || now - cached.fetchedAt >= ttl + staleTtl) return []
+  return cached.models
 }
 
 /** Validate resource bounds before retaining a provider-controlled catalog. */

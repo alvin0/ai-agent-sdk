@@ -3,7 +3,7 @@
 Runtime: **Browser** (IndexedDB and optional page lifecycle APIs).
 
 ```sh
-pnpm add @ai-agent-sdk/observability @ai-agent-sdk/observability-browser
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/observability-browser
 ```
 
 Browser-only local durability for the structured observation bus. The exporter
@@ -11,11 +11,10 @@ stages privacy-processed events in IndexedDB during synchronous capture and
 confirms `local-durable` only after the transaction commits at flush/checkpoint.
 
 ```ts
-import { createObservability } from '@ai-agent-sdk/observability'
-import { IndexedDbObservationExporter } from '@ai-agent-sdk/observability-browser'
+import { createObservability } from '@ai-agent-sdk/core/observability'
+import { indexedDbObservationExporter } from '@ai-agent-sdk/observability-browser'
 
-const queue = new IndexedDbObservationExporter()
-await queue.ready()
+const queue = indexedDbObservationExporter()
 
 const observability = createObservability({
   mode: 'reliable',
@@ -29,3 +28,7 @@ the host calls `acknowledgeBatch()` after its own remote sink confirms delivery.
 `recoverEvents()` exposes crash/reopen recovery without importing a network
 exporter. `installBrowserObservabilityLifecycle()` is opt-in and flushes on
 hidden visibility and `pagehide`; it makes no unload-durability claim.
+
+Composition: `runtime.observability.exporters`. Lifecycle:
+`explicit-owned-or-borrowed`; normal browser runtime composition registers this
+exporter as owned at the `local-durable` boundary.

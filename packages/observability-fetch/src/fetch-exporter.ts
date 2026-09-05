@@ -3,7 +3,12 @@ import type {
   ExportAck,
   ObservationBatch,
   ObservationExporter,
-} from '@ai-agent-sdk/observability'
+} from '@ai-agent-sdk/core/observability'
+import {
+  defineObservationExporter,
+  type ObservationDeliveryBatch,
+  type ObservationExporterPlugin,
+} from '@ai-agent-sdk/core/observability'
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000
 const DEFAULT_MAX_ATTEMPTS = 8
@@ -219,8 +224,14 @@ async function boundedText(response: Response, options: ResolvedOptions, signal:
   }
 }
 
-function validateResponseOrigin(response: Response, endpoint: URL): void {
-  if (response.redirected) throw new ObservationProtocolError('observation exporter does not permit redirects')
+async function validateNoRedirectResponse(response: Response, endpoint: URL): Promise<void> {
+  const redirectStatus = response.status >= 300 && response.status < 400
+  const opaqueRedirect = response.type === 'opaqueredirect'
+  const responseUrlChanged = response.url.length > 0 && response.url !== endpoint.href
+  if (response.redirected || redirectStatus || opaqueRedirect || responseUrlChanged) {
+    await cancelBody(response)
+    throw new ObservationProtocolError('observation exporter rejected a redirect before following it')
+  }
   if (response.url.length > 0) {
     let responseOrigin: string
     try { responseOrigin = new URL(response.url).origin } catch {
@@ -250,69 +261,118 @@ export class FetchObservationExporter implements ObservationExporter {
   }
 
   async export(batch: ObservationBatch, signal: AbortSignal): Promise<ExportAck> {
-    if (batch.events.length > this.options.maxBatchEvents) {
-      return Object.freeze({ batchId: batch.batchId, accepted: false, retryable: false })
-    }
-    const body = JSON.stringify(batch)
-    if (new TextEncoder().encode(body).byteLength > this.options.maxBatchBytes) {
-      return Object.freeze({ batchId: batch.batchId, accepted: false, retryable: false })
-    }
+    const result = await sendBatch(this.options, batch.batchId, batch.events.length, batch, signal)
+    return Object.freeze({ batchId: batch.batchId, ...result })
+  }
+}
 
-    for (let attempt = 1; attempt <= this.options.maxAttempts; attempt++) {
-      if (signal.aborted) throw signal.reason ?? new Error('observation export aborted')
-      const request = combinedSignal(signal, this.options.requestTimeoutMs)
-      let retryDelay: number | undefined
-      try {
-        const response = await raceAbort(Promise.resolve(this.options.fetch(this.options.endpoint, {
+interface BatchSendResult {
+  readonly accepted: boolean
+  readonly retryable: boolean
+}
+
+async function sendBatch(
+  options: ResolvedOptions,
+  batchId: string,
+  itemCount: number,
+  batch: unknown,
+  signal: AbortSignal,
+): Promise<BatchSendResult> {
+  if (itemCount > options.maxBatchEvents) return Object.freeze({ accepted: false, retryable: false })
+  const body = JSON.stringify(batch)
+  if (new TextEncoder().encode(body).byteLength > options.maxBatchBytes) {
+    return Object.freeze({ accepted: false, retryable: false })
+  }
+  // Web IDL fetch rejects a property-call receiver such as `options.fetch(...)`
+  // in browsers. Capture it as a standalone callable so native Window/Worker
+  // fetch and injected implementations share the same invocation contract.
+  const dispatch = options.fetch
+
+  for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
+    if (signal.aborted) throw signal.reason ?? new Error('observation export aborted')
+    const request = combinedSignal(signal, options.requestTimeoutMs)
+    let retryDelay: number | undefined
+    try {
+        const response = await raceAbort(Promise.resolve(dispatch(options.endpoint, {
           method: 'POST',
           headers: {
-            ...this.options.headers,
+            ...options.headers,
             'content-type': 'application/json',
-            'idempotency-key': batch.batchId,
+            'idempotency-key': batchId,
           },
           body,
-          redirect: 'error',
+          redirect: 'manual',
           signal: request.signal,
         })), request.signal)
-        validateResponseOrigin(response, this.options.endpoint)
+        await validateNoRedirectResponse(response, options.endpoint)
         if (response.status === 204) {
           await cancelBody(response)
-          return Object.freeze({ batchId: batch.batchId, accepted: true, retryable: false })
+          return Object.freeze({ accepted: true, retryable: false })
         }
         if (response.status >= 200 && response.status < 300) {
-          const raw = await boundedText(response, this.options, request.signal)
+          const raw = await boundedText(response, options, request.signal)
           let parsed: unknown
           try { parsed = JSON.parse(raw) } catch { parsed = undefined }
           const acceptedBatchId = typeof parsed === 'object' && parsed !== null
             ? Reflect.get(parsed, 'acceptedBatchId')
             : undefined
           return Object.freeze({
-            batchId: batch.batchId,
-            accepted: acceptedBatchId === batch.batchId,
+            accepted: acceptedBatchId === batchId,
             retryable: false,
           })
         }
         const retryable = retryableStatus(response.status)
-        const retryAfter = retryAfterMs(response.headers.get('retry-after'), this.options.now())
+        const retryAfter = retryAfterMs(response.headers.get('retry-after'), options.now())
         await cancelBody(response)
-        if (!retryable || attempt === this.options.maxAttempts) {
-          return Object.freeze({ batchId: batch.batchId, accepted: false, retryable })
+        if (!retryable || attempt === options.maxAttempts) {
+          return Object.freeze({ accepted: false, retryable })
         }
-        retryDelay = retryAfter ?? backoffMs(attempt, this.options)
-      } catch (error) {
-        if (signal.aborted) throw signal.reason ?? error
-        if (error instanceof ObservationProtocolError || error instanceof RangeError) {
-          return Object.freeze({ batchId: batch.batchId, accepted: false, retryable: false })
-        }
-        if (attempt === this.options.maxAttempts) {
-          return Object.freeze({ batchId: batch.batchId, accepted: false, retryable: true })
-        }
-        retryDelay = backoffMs(attempt, this.options)
-      } finally {
-        request.clear()
+        retryDelay = retryAfter ?? backoffMs(attempt, options)
+    } catch (error) {
+      if (signal.aborted) throw signal.reason ?? error
+      if (error instanceof ObservationProtocolError || error instanceof RangeError) {
+        return Object.freeze({ accepted: false, retryable: false })
       }
-      await raceAbort(Promise.resolve(this.options.delay(retryDelay ?? 0, signal)), signal)
+      if (attempt === options.maxAttempts) {
+        return Object.freeze({ accepted: false, retryable: true })
+      }
+      retryDelay = backoffMs(attempt, options)
+    } finally {
+      request.clear()
     }
-    return Object.freeze({ batchId: batch.batchId, accepted: false, retryable: true })
+    await raceAbort(Promise.resolve(options.delay(retryDelay ?? 0, signal)), signal)
   }
+  return Object.freeze({ accepted: false, retryable: true })
+}
+
+/** Recommended inert runtime exporter; transport begins only when core exports a batch. */
+export function fetchObservationExporter(
+  options: FetchObservationExporterOptions,
+): ObservationExporterPlugin {
+  if (typeof options !== 'object' || options === null) {
+    throw new TypeError('Fetch observation exporter options are required')
+  }
+  const id = options.id ?? 'fetch'
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,63})$/.test(id)) {
+    throw new TypeError('Fetch observation exporter id must be a safe 1-64 character identifier')
+  }
+  const captured = resolveOptions(options)
+  return defineObservationExporter({
+    id,
+    supportedBoundaries: ['remote-acknowledged'],
+    async export(batch: ObservationDeliveryBatch, signal: AbortSignal) {
+      const result = await sendBatch(
+        captured,
+        batch.id,
+        batch.events.length + batch.runRecords.length,
+        batch,
+        signal,
+      )
+      return Object.freeze({
+        batchId: batch.id,
+        acceptedEventIds: result.accepted ? batch.events.map(event => event.eventId) : [],
+        acceptedRunIds: result.accepted ? batch.runRecords.map(record => record.runId) : [],
+      })
+    },
+  })
 }

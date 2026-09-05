@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { History } from '@ai-agent-sdk/agent'
-import { runAgent, type AgentRunEvent } from '@ai-agent-sdk/agent'
-import { createUserInputBroker } from '@ai-agent-sdk/agent'
-import { defineTool } from '@ai-agent-sdk/agent'
-import { ToolRegistry } from '@ai-agent-sdk/agent'
+import { History } from '@ai-agent-sdk/core/agent'
+import { runAgent, type AgentRunEvent } from '@ai-agent-sdk/core/agent'
+import { createUserInputBroker } from '@ai-agent-sdk/core/agent'
+import { defineTool } from '@ai-agent-sdk/core/agent'
+import { ToolRegistry } from '@ai-agent-sdk/core/agent'
 import { ModelAdapter } from '@ai-agent-sdk/core'
 import type { GenerateOptions } from '@ai-agent-sdk/core'
 import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
@@ -74,18 +74,18 @@ async function collect(options: Parameters<typeof runAgent>[0]): Promise<AgentRu
 }
 
 describe('agent modes', () => {
-  it('defaults to Codex gpt-5.6-luna with medium reasoning effort', async () => {
+  it('uses the caller-selected model without adding an implicit provider or effort', async () => {
     const adapter = new ScriptedAdapter([textRound('default response')])
     const registry = new ModelRegistry()
-    registry.registerAdapter(['codex'], adapter)
+    registry.registerAdapter(['selected'], adapter)
     const history = new History()
-    history.append({ kind: 'user', message: createTextMessage('use defaults') })
+    history.append({ kind: 'user', message: createTextMessage('use selected model') })
 
-    const events = await collect({ mode: 'basic', registry, history, maxTurns: 1 })
+    const events = await collect({ mode: 'basic', registry, history, maxTurns: 1,
+      config: { provider: 'selected', model: 'chosen' } })
 
-    expect(adapter.requests[0]).toMatchObject({
-      provider: 'codex', model: 'gpt-5.6-luna', reasoningEffort: 'medium',
-    })
+    expect(adapter.requests[0]).toMatchObject({ provider: 'selected', model: 'chosen' })
+    expect(adapter.requests[0]).not.toHaveProperty('reasoningEffort')
     expect(events.at(-1)?.type).toBe('agent-end')
   })
 

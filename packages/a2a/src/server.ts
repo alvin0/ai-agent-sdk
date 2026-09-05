@@ -1,14 +1,8 @@
 import {
-  A2A_PROTOCOL_VERSION,
   Role,
   TaskState,
   type AgentCard,
-  type AgentProvider,
-  type SecurityRequirement,
-  type SecurityScheme,
-  type AgentSkill,
   type Message as A2AMessage,
-  type Part,
   type Task,
 } from '@a2a-js/sdk'
 import {
@@ -20,7 +14,7 @@ import {
   type RequestContext,
   type TaskStore,
 } from '@a2a-js/sdk/server'
-import type { ContentBlock, ImageMediaType } from '@ai-agent-sdk/core'
+import type { SdkLogger, SupportSafeError } from '@ai-agent-sdk/core'
 import { createUserMessage } from '@ai-agent-sdk/core'
 import type { ModelRegistry } from '@ai-agent-sdk/core'
 import { waitForSettlement } from '@ai-agent-sdk/core'
@@ -28,10 +22,21 @@ import {
   AgentSession,
   type DefinedAgent,
   type AgentSessionOptions,
-} from '@ai-agent-sdk/agent'
+} from '@ai-agent-sdk/core/agent'
+import { cleanupFailure } from './common/cleanup-report.ts'
+import { a2aErrorCode, a2aIntegrationChildLogger,
+  beginA2AIntegrationOperation } from './common/integration-operation.ts'
+import { A2ATeardownTimeoutError, withTimeout } from './common/timeout.ts'
+import { assertSecurityRequirements } from './server/agent-card.ts'
+import { partsToContent } from './server/content.ts'
+import { snapshotSessionOptions } from './server/session-options.ts'
+
+export { createAgentCardFromDefinition,
+  type AgentCardFromDefinitionOptions } from './server/agent-card.ts'
 
 export interface DefinedAgentA2AExecutorOptions {
   readonly agent: DefinedAgent
+  readonly logger?: SdkLogger
   /** Required unless createSession supplies a fully configured session. */
   readonly registry?: ModelRegistry
   readonly sessionOptions?: Omit<AgentSessionOptions, 'conversationId' | 'registry'>
@@ -71,6 +76,12 @@ export interface DefinedAgentA2AExecutorOptions {
   readonly onError?: (error: unknown, context: RequestContext) => void | Promise<void>
 }
 
+export interface A2ADisposeReport {
+  readonly status: 'disposed' | 'failed' | 'timed-out'
+  readonly alreadyDisposed: boolean
+  readonly error?: SupportSafeError
+}
+
 interface ContextSession {
   readonly session: AgentSession
   tail: Promise<void>
@@ -108,6 +119,7 @@ export class DefinedAgentA2AExecutor implements AgentExecutor {
   private readonly observerTimeoutMs: number
   private disposed = false
   private disposeTask: Promise<void> | undefined
+  private disposeReport: A2ADisposeReport | undefined
 
   constructor(options: DefinedAgentA2AExecutorOptions) {
     if (options.registry === undefined && options.createSession === undefined) {
@@ -131,18 +143,35 @@ export class DefinedAgentA2AExecutor implements AgentExecutor {
   }
 
   async execute(context: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
+    const requestLogger = a2aIntegrationChildLogger(this.options.logger, 'a2a-server-request')
+    const requestOperation = beginA2AIntegrationOperation(requestLogger, 'a2a-server', 'request')
+    const requestAttempt = requestOperation.attempt(1)
+    const executeOperation = beginA2AIntegrationOperation(requestLogger, 'a2a-server', 'execute')
+    const executeAttempt = executeOperation.attempt(1)
     const task = initialTask(context)
-    eventBus.publish(AgentEvent.task(task))
+    try { eventBus.publish(AgentEvent.task(task)) }
+    catch (error: unknown) {
+      const code = a2aErrorCode(error)
+      requestAttempt.fail(code); requestOperation.fail(code)
+      executeAttempt.fail(code); executeOperation.fail(code)
+      throw error
+    }
 
     if (this.disposed) {
+      requestAttempt.fail('A2A_EXECUTOR_DISPOSED'); requestOperation.fail('A2A_EXECUTOR_DISPOSED')
+      executeAttempt.fail('A2A_EXECUTOR_DISPOSED'); executeOperation.fail('A2A_EXECUTOR_DISPOSED')
       this.publishFailure(context, eventBus, new Error('A2A executor is disposed'))
       return
     }
     if (this.running.has(context.taskId)) {
+      requestAttempt.fail('A2A_TASK_DUPLICATE'); requestOperation.fail('A2A_TASK_DUPLICATE')
+      executeAttempt.fail('A2A_TASK_DUPLICATE'); executeOperation.fail('A2A_TASK_DUPLICATE')
       this.publishFailure(context, eventBus, new Error(`A2A task '${context.taskId}' is already running`))
       return
     }
     if (this.running.size >= this.maxRunningTasks) {
+      requestAttempt.fail('A2A_TASK_LIMIT'); requestOperation.fail('A2A_TASK_LIMIT')
+      executeAttempt.fail('A2A_TASK_LIMIT'); executeOperation.fail('A2A_TASK_LIMIT')
       this.publishFailure(
         context, eventBus,
         new Error(`A2A executor reached its ${this.maxRunningTasks}-running-task limit`),
@@ -229,7 +258,17 @@ export class DefinedAgentA2AExecutor implements AgentExecutor {
         status: status(TaskState.TASK_STATE_COMPLETED, reply),
         metadata: undefined,
       }))
+      requestAttempt.success(); requestOperation.success()
+      executeAttempt.success(); executeOperation.success()
     } catch (error: unknown) {
+      if (taskSignal.aborted) {
+        requestAttempt.abort(); requestOperation.abort()
+        executeAttempt.abort(); executeOperation.abort()
+      } else {
+        const code = a2aErrorCode(error)
+        requestAttempt.fail(code); requestOperation.fail(code)
+        executeAttempt.fail(code); executeOperation.fail(code)
+      }
       if (!running.canceled) {
         await this.reportError(error, context)
         this.publishFailure(context, eventBus, error)
@@ -244,19 +283,30 @@ export class DefinedAgentA2AExecutor implements AgentExecutor {
   async cancelTask(taskId: string, eventBus: ExecutionEventBus): Promise<void> {
     const running = this.running.get(taskId)
     if (running === undefined || running.canceled) return
-    running.canceled = true
-    running.controller.abort(new Error(`A2A task '${taskId}' was canceled`))
-    eventBus.publish(AgentEvent.statusUpdate({
-      taskId,
-      contextId: running.contextId,
-      status: status(TaskState.TASK_STATE_CANCELED),
-      metadata: undefined,
-    }))
+    const operation = beginA2AIntegrationOperation(this.options.logger, 'a2a-server', 'cancel')
+    const attempt = operation.attempt(1)
+    try {
+      running.canceled = true
+      running.controller.abort(new Error(`A2A task '${taskId}' was canceled`))
+      eventBus.publish(AgentEvent.statusUpdate({
+        taskId,
+        contextId: running.contextId,
+        status: status(TaskState.TASK_STATE_CANCELED),
+        metadata: undefined,
+      }))
+      attempt.success(); operation.success()
+    } catch (error: unknown) {
+      const code = a2aErrorCode(error)
+      attempt.fail(code); operation.fail(code)
+      throw error
+    }
   }
 
   /** Cancel active work and permanently release retained context sessions. */
   async dispose(reason: unknown = new Error('A2A executor disposed')): Promise<void> {
     if (this.disposeTask !== undefined) return this.disposeTask
+    const operation = beginA2AIntegrationOperation(this.options.logger, 'a2a-server', 'dispose')
+    const attempt = operation.attempt(1)
     this.disposed = true
     for (const [taskId, running] of this.running) {
       running.canceled = true
@@ -277,11 +327,31 @@ export class DefinedAgentA2AExecutor implements AgentExecutor {
       settling,
       this.disposeTimeoutMs,
       `A2A executor did not dispose within ${this.disposeTimeoutMs}ms`,
-    ).finally(() => {
+    ).then(() => {
+      attempt.success(); operation.success()
+    }, error => {
+      const code = a2aErrorCode(error)
+      attempt.fail(code); operation.fail(code)
+      throw error
+    }).finally(() => {
       this.sessions.clear()
       this.running.clear()
     })
     return this.disposeTask
+  }
+
+  /** Return bounded support evidence while retaining dispose() compatibility. */
+  async disposeWithReport(reason?: unknown): Promise<A2ADisposeReport> {
+    if (this.disposeReport !== undefined) return disposeReport(this.disposeReport.status, true,
+      this.disposeReport.error)
+    const alreadyDisposed = this.disposeTask !== undefined
+    try {
+      await this.dispose(reason)
+      return this.disposeReport = disposeReport('disposed', alreadyDisposed)
+    } catch (error) {
+      const timedOut = error instanceof A2ATeardownTimeoutError
+      return this.disposeReport = disposeReport(timedOut ? 'timed-out' : 'failed', alreadyDisposed)
+    }
   }
 
   private async acquireContextSession(
@@ -397,98 +467,6 @@ export class DefinedAgentA2AExecutor implements AgentExecutor {
   }
 }
 
-function snapshotSessionOptions(
-  options: Omit<AgentSessionOptions, 'conversationId' | 'registry'>,
-): Omit<AgentSessionOptions, 'conversationId' | 'registry'> {
-  return Object.freeze({
-    ...options,
-    ...(options.historyLimits === undefined ? {} : {
-      historyLimits: Object.freeze({ ...options.historyLimits }),
-    }),
-    ...(options.runtimeLimits === undefined ? {} : {
-      runtimeLimits: Object.freeze({ ...options.runtimeLimits }),
-    }),
-    ...(Array.isArray(options.tools) ? { tools: Object.freeze([...options.tools]) } : {}),
-    ...(options.skills === undefined ? {} : { skills: Object.freeze([...options.skills]) }),
-    ...(options.interceptors === undefined ? {} : {
-      interceptors: Object.freeze([...options.interceptors]),
-    }),
-    ...(options.hooks === undefined ? {} : { hooks: Object.freeze({ ...options.hooks }) }),
-    ...(options.compaction === undefined || options.compaction === false
-      ? {}
-      : { compaction: Object.freeze({ ...options.compaction }) }),
-    ...(options.trace === undefined ? {} : { trace: Object.freeze({ ...options.trace }) }),
-    ...(options.team === undefined ? {} : { team: Object.freeze({ ...options.team }) }),
-  })
-}
-
-export interface AgentCardFromDefinitionOptions {
-  readonly url: string
-  readonly protocolBinding?: 'JSONRPC' | 'HTTP+JSON' | 'GRPC' | (string & {})
-  readonly version?: string
-  readonly provider?: AgentProvider
-  readonly documentationUrl?: string
-  readonly iconUrl?: string
-  readonly tags?: readonly string[]
-  readonly examples?: readonly string[]
-  readonly securitySchemes?: Readonly<Record<string, SecurityScheme>>
-  readonly securityRequirements?: readonly SecurityRequirement[]
-  /** Opt-in host policy requiring an https:// interface URL. */
-  readonly requireHttps?: boolean
-}
-
-/** Create a v1 Agent Card directly from a DefinedAgent. */
-export function createAgentCardFromDefinition(
-  agent: DefinedAgent,
-  options: AgentCardFromDefinitionOptions,
-): AgentCard {
-  const url = endpointUrl(options.url, options.requireHttps === true)
-  const securitySchemes = structuredClone(options.securitySchemes ?? {})
-  const securityRequirements: SecurityRequirement[] = structuredClone([
-    ...options.securityRequirements ?? [],
-  ])
-  assertSecurityRequirements(securitySchemes, securityRequirements)
-  const description = agent.description ?? `${agent.name} powered by ai-agent-sdk`
-  const skill: AgentSkill = {
-    id: agent.id,
-    name: agent.name,
-    description,
-    tags: [...options.tags ?? [agent.id]],
-    examples: [...options.examples ?? []],
-    inputModes: ['text/plain', 'image/*', 'application/json'],
-    outputModes: ['text/plain'],
-    securityRequirements: structuredClone(securityRequirements),
-  }
-  return {
-    name: agent.name,
-    description,
-    supportedInterfaces: [{
-      url: url.href,
-      protocolBinding: options.protocolBinding ?? 'JSONRPC',
-      // Required by the generated A2A interface shape. Deployment scoping is
-      // deliberately left to the host through authentication and sessionOwner.
-      tenant: '',
-      protocolVersion: A2A_PROTOCOL_VERSION,
-    }],
-    provider: options.provider,
-    version: options.version ?? '1.0.0',
-    ...(options.documentationUrl === undefined ? {} : { documentationUrl: options.documentationUrl }),
-    capabilities: {
-      streaming: true,
-      pushNotifications: false,
-      extensions: [],
-      extendedAgentCard: false,
-    },
-    securitySchemes,
-    securityRequirements,
-    defaultInputModes: ['text/plain', 'image/*', 'application/json'],
-    defaultOutputModes: ['text/plain'],
-    skills: [skill],
-    signatures: [],
-    ...(options.iconUrl === undefined ? {} : { iconUrl: options.iconUrl }),
-  }
-}
-
 export interface DefinedAgentA2AServerOptions extends DefinedAgentA2AExecutorOptions {
   readonly agentCard: AgentCard
   readonly taskStore?: TaskStore
@@ -556,45 +534,6 @@ function agentMessage(context: RequestContext, text: string): A2AMessage {
   }
 }
 
-function partsToContent(parts: readonly Part[]): ContentBlock[] {
-  const blocks: ContentBlock[] = []
-  for (const part of parts) {
-    const content = part.content
-    if (content?.$case === 'text') {
-      blocks.push({ type: 'text', text: content.value })
-    } else if (content?.$case === 'url' && isImageMediaType(part.mediaType)) {
-      blocks.push({ type: 'image', source: { kind: 'url', url: content.value } })
-    } else if (content?.$case === 'raw' && isImageMediaType(part.mediaType)) {
-      blocks.push({
-        type: 'image',
-        source: { kind: 'base64', mediaType: part.mediaType, data: bytesToBase64(content.value) },
-      })
-    } else if (content?.$case === 'data') {
-      blocks.push({ type: 'text', text: JSON.stringify(content.value) })
-    } else if (content !== undefined) {
-      const location = content.$case === 'url' ? `: ${content.value}` : ''
-      blocks.push({
-        type: 'text',
-        text: `[A2A attachment${part.mediaType.length === 0 ? '' : ` ${part.mediaType}`}${location}]`,
-      })
-    }
-  }
-  return blocks.length === 0 ? [{ type: 'text', text: '' }] : blocks
-}
-
-function isImageMediaType(value: string): value is ImageMediaType {
-  return value === 'image/jpeg' || value === 'image/png'
-    || value === 'image/gif' || value === 'image/webp'
-}
-
-function bytesToBase64(value: Uint8Array): string {
-  let binary = ''
-  for (let offset = 0; offset < value.length; offset += 0x8000) {
-    binary += String.fromCharCode(...value.subarray(offset, offset + 0x8000))
-  }
-  return btoa(binary)
-}
-
 function requiredRegistry(registry: ModelRegistry | undefined): ModelRegistry {
   if (registry === undefined) throw new TypeError('A2A executor requires registry')
   return registry
@@ -633,37 +572,6 @@ async function scopedConversationId(sessionKey: string): Promise<string> {
   return `a2a-${hex}`
 }
 
-function endpointUrl(value: string, requireHttps: boolean): URL {
-  const url = new URL(value)
-  if (url.username.length > 0 || url.password.length > 0) {
-    throw new TypeError('A2A interface URL must not contain credentials')
-  }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-    throw new TypeError('A2A interface URL must use http or https')
-  }
-  if (requireHttps && url.protocol !== 'https:') {
-    throw new TypeError('A2A interface URL must use https under the configured policy')
-  }
-  return url
-}
-
-function assertSecurityRequirements(
-  schemes: Record<string, SecurityScheme>,
-  requirements: readonly SecurityRequirement[],
-): void {
-  for (const requirement of requirements) {
-    const names = Object.keys(requirement.schemes)
-    for (const name of names) {
-      if (schemes[name] === undefined) {
-        throw new TypeError(`A2A security requirement references unknown scheme '${name}'`)
-      }
-      if (schemes[name]?.scheme === undefined) {
-        throw new TypeError(`A2A security scheme '${name}' has no concrete definition`)
-      }
-    }
-  }
-}
-
 async function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   signal.throwIfAborted()
   return new Promise<T>((resolve, reject) => {
@@ -673,11 +581,12 @@ async function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T
   })
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(message)), timeoutMs)
-    promise.then(resolve, reject).finally(() => clearTimeout(timer))
-  })
+function disposeReport(status: A2ADisposeReport['status'], alreadyDisposed: boolean,
+  error: SupportSafeError | undefined = status === 'disposed' ? undefined
+    : cleanupFailure(status === 'timed-out' ? 'A2A_DISPOSE_TIMEOUT' : 'A2A_DISPOSE_FAILED',
+      'a2a-dispose', status === 'timed-out' ? 'A2A executor cleanup timed out' : 'A2A executor cleanup failed')):
+  A2ADisposeReport {
+  return Object.freeze({ status, alreadyDisposed, ...(error === undefined ? {} : { error }) })
 }
 
 export {

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@compat/skill-validation": ["../../packages/core/dist/skills.d.ts"]
+    }
+  },
+  "include": ["consumers/skill-validation-api-compatibility.ts"]
+}

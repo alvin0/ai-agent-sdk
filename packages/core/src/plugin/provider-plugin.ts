@@ -23,6 +23,8 @@ export interface ModelProviderRegistrar {
 export interface ModelProviderPlugin {
   readonly id: string
   readonly displayName: string
+  /** Stable provider family; legacy plugins default to their plugin id. */
+  readonly family?: string
   setup(registrar: ModelProviderRegistrar): void | (() => void)
 }
 

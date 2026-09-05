@@ -1,7 +1,11 @@
 # Monorepo and Observability Implementation TODO
 
-Status: ready to execute  
-Design inputs: [monorepo implementation](./monorepo-implementation-design.md), [observability implementation](./observability-implementation-design.md)  
+> Historical ledger for the current architecture. The proposed core + capability
+> migration is tracked separately in
+> [`core-capability-implementation-todo.md`](./core-capability-implementation-todo.md).
+
+Status: historical; superseded by `core-capability-implementation-todo.md`.
+Design inputs: [monorepo implementation](./monorepo-implementation-design.md), [observability implementation](./observability-implementation-design.md)
 Evidence baseline: [implementation spikes](./implementation-spike-evidence.md)
 
 ## How to use this backlog

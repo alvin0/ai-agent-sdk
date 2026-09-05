@@ -21,7 +21,6 @@
 
 import { ModelAdapter, type PreparedAdapterCall } from '@ai-agent-sdk/core'
 import type { GenerateOptions } from '@ai-agent-sdk/core'
-import type { ModelFailure } from '@ai-agent-sdk/core'
 import type {
   ModelInfo,
   ModelModality,
@@ -31,9 +30,8 @@ import type {
 } from '@ai-agent-sdk/core'
 import type { ResolvedRetryPolicy } from '@ai-agent-sdk/core'
 import type { NativeToolName } from '@ai-agent-sdk/core'
-import { AgentSdkError, MODEL_ERROR_CODES, ModelError, OBSERVATION_ERROR_CODES } from '@ai-agent-sdk/core'
+import { MODEL_ERROR_CODES, ModelError } from '@ai-agent-sdk/core'
 import { contentHasImage } from '@ai-agent-sdk/core'
-import { waitForSettlement } from '@ai-agent-sdk/core'
 import type { StreamChunk } from '@ai-agent-sdk/core'
 import type { ModelInvocationContext } from '@ai-agent-sdk/core'
 import type {
@@ -43,14 +41,35 @@ import type {
   UsageCounters,
 } from '@ai-agent-sdk/core'
 import { validateUsageCounters } from '@ai-agent-sdk/core'
-import { withIdleTimeout } from '@ai-agent-sdk/core'
-import { parseSse, type SseEvent } from '../stream/sse.ts'
+import { parseSseBounded } from '../stream/parser.ts'
+import type { SseEvent } from '../stream/sse.ts'
+import { DEFAULT_MAX_SSE_EVENT_CHARS, DEFAULT_MAX_SSE_EVENTS } from '../stream/config.ts'
+import { createStreamIdleDeadline } from '../stream/idle-deadline.ts'
+import { requireTerminalFinish } from '../stream/terminal.ts'
+import type { ProviderProtocolChunk } from '../stream/types.ts'
+import { HTTP_PROVIDER_ERROR_CODES } from '../common/config.ts'
+import { normalizeHttpBoundaryError } from '../common/failure.ts'
+import { mergeHeaderLayers } from '../common/header-layers.ts'
+import { attributionHeaders } from '@ai-agent-sdk/core'
 import { httpErrorCode, parseErrorBody, requestIdFrom, retryAfterMs } from './http-errors.ts'
+import {
+  abortError,
+  boundedResponseBody,
+  catalogModelInfo,
+  endpointUrl,
+  positiveFinite,
+  positiveInteger,
+  raceWithSignal,
+  readBoundedText,
+  redactHeaders,
+  rejectProviderRedirect,
+  resolvedCatalogModelInfo,
+  requestLogId,
+  safeProviderFailure,
+  withAbortSignal,
+} from './transport.ts'
 
-/** Protocol output before untrusted usage has crossed the transport validator. */
-export type ProviderProtocolChunk =
-  | Exclude<StreamChunk, { readonly type: 'usage' }>
-  | { readonly type: 'usage'; readonly usage: UsageCounters }
+export { redactHeaders } from './transport.ts'
 
 /** Default idle bound: five minutes without a single byte is a hung stream. */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
@@ -107,6 +126,8 @@ export interface HttpConnection {
    * be sent to. The base pipeline adds attribution and `accept` on top.
    */
   readonly headers: Readonly<Record<string, string>>
+  /** Auth-produced names that must be redacted regardless of spelling. */
+  readonly sensitiveHeaderNames?: readonly string[]
   /** Maximum idle interval while a read is outstanding. */
   readonly streamIdleTimeoutMs: number
   /** End-to-end request/stream timeout. */
@@ -117,12 +138,18 @@ export interface HttpConnection {
   readonly maxResponseBytes?: number
   /** Maximum raw chunks accepted from a successful response. */
   readonly maxResponseChunks?: number
+  /** Maximum decoded SSE events accepted from one response. */
+  readonly maxSseEvents?: number
+  /** Maximum characters accepted in one decoded SSE event. */
+  readonly maxSseEventChars?: number
   /** Maximum bytes read from a non-success response. */
   readonly maxErrorBodyBytes?: number
   /** Maximum time granted to the optional request logger. */
   readonly requestLoggerTimeoutMs?: number
   /** Permit cleartext HTTP explicitly, for trusted local development endpoints only. */
   readonly allowInsecureHttp?: boolean
+  /** Captured fetch implementation; omission uses the platform global. */
+  readonly fetch?: typeof globalThis.fetch
   /** Retry policy this route owns. */
   readonly retryPolicy: ResolvedRetryPolicy
   /** Advisory catalog; requests are never restricted to it. */
@@ -174,6 +201,16 @@ export interface ProviderRequestLogRecord {
 export type ProviderRequestLogger = (
   record: ProviderRequestLogRecord,
 ) => Promise<void> | void
+
+interface PreparedWireBody {
+  readonly value: unknown
+  readonly encoded: string
+  readonly bytes: number
+}
+
+interface PreparedWireBodyCache {
+  prepared?: Promise<PreparedWireBody>
+}
 
 /** Base for every HTTP provider adapter in this package. */
 export abstract class HttpModelAdapter extends ModelAdapter {
@@ -244,8 +281,8 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     return { id: provider, name: this.displayName }
   }
 
-  override async listModels(provider: string): Promise<readonly ModelInfo[]> {
-    const connection = await this.connect(provider)
+  override async listModels(provider: string, signal?: AbortSignal): Promise<readonly ModelInfo[]> {
+    const connection = this.captureConnection(await this.connect(provider, signal))
     return connection.models.map(model => catalogModelInfo(provider, model))
   }
 
@@ -254,7 +291,8 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     model: string,
     signal?: AbortSignal,
   ): Promise<ResolvedModelInfo> {
-    return this.modelInfoFor(await this.connect(provider, signal), provider, model)
+    const connection = this.captureConnection(await this.connect(provider, signal))
+    return this.decorateModel(this.modelInfoFor(connection, provider, model), connection)
   }
 
   override async prepareCall(
@@ -266,11 +304,18 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     context?.declareProviderAttemptAccounting?.()
     // Snapshot once, then bind both the capability answer and the eventual
     // dispatch to it, so the two cannot come from different generations.
-    const connection = await this.connect(provider, signal, context)
-    const info = this.modelInfoFor(connection, provider, model)
+    const connection = this.captureConnection(await this.connect(provider, signal, context))
+    const info = this.decorateModel(this.modelInfoFor(connection, provider, model), connection)
+    const wireBody: PreparedWireBodyCache = {}
     return {
       model: info,
-      stream: (options, invocation = context) => this.run(options, connection, info, invocation),
+      stream: (options, invocation = context) => this.run(
+        options,
+        connection,
+        info,
+        invocation,
+        wireBody,
+      ),
     }
   }
 
@@ -287,9 +332,14 @@ export abstract class HttpModelAdapter extends ModelAdapter {
   /** Resolve a connection first, for the un-prepared entry point. */
   private async * runResolving(options: GenerateOptions, context?: ModelInvocationContext): AsyncGenerator<StreamChunk> {
     context?.declareProviderAttemptAccounting?.()
-    const connection = await this.connect(options.provider, options.signal, context)
-    const info = this.modelInfoFor(connection, options.provider, options.model)
-    yield* this.run(options, connection, info, context)
+    const connection = this.captureConnection(
+      await this.connect(options.provider, options.signal, context),
+    )
+    const info = this.decorateModel(
+      this.modelInfoFor(connection, options.provider, options.model),
+      connection,
+    )
+    yield* this.run(options, connection, info, context, {})
   }
 
   /** Resolve exact-model metadata from the catalog, falling back to config defaults. */
@@ -298,20 +348,36 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     provider: string,
     model: string,
   ): ResolvedModelInfo {
-    const configured = connection.models.find(entry => entry.id === model)
-    return {
-      // An uncatalogued model is treated as text-only. Claiming an unverified
-      // image capability would let a caller persist input that the endpoint
-      // rejects on this and every later turn.
-      ...configured === undefined
-        ? { provider, id: model, name: model, inputModalities: ['text' as const] }
-        : catalogModelInfo(provider, configured),
-      context: { contextWindow: configured?.contextWindow ?? connection.defaultContextWindow },
-      defaultMaxTokens: configured?.maxTokens ?? connection.defaultMaxTokens,
-      maxOutputTokens: configured?.maxTokens ?? connection.defaultMaxTokens,
-      ...configured?.reasoning === undefined ? {} : { reasoning: configured.reasoning },
-      ...configured?.outputModalities === undefined ? {} : { outputModalities: configured.outputModalities },
-    }
+    return resolvedCatalogModelInfo(
+      provider, model, connection.models,
+      connection.defaultMaxTokens, connection.defaultContextWindow,
+    )
+  }
+
+  /** Decorate resolved metadata without reopening the captured connection generation. */
+  protected decorateModel(
+    info: ResolvedModelInfo,
+    _connection: HttpConnection,
+  ): ResolvedModelInfo {
+    return info
+  }
+
+  /** Capture legacy subclass transport/auth layers once; configured adapters already return all five. */
+  private captureConnection(connection: HttpConnection): HttpConnection {
+    const transport = this.baseHeaders()
+    if (Reflect.ownKeys(transport).length === 0) return connection
+    const merged = mergeHeaderLayers([
+      { layer: 'transport', headers: transport },
+      { layer: 'sdk-attribution', headers: attributionHeaders() },
+      { layer: 'auth', headers: connection.headers },
+    ])
+    return Object.freeze({
+      ...connection,
+      headers: merged.headers,
+      sensitiveHeaderNames: Object.freeze([
+        ...new Set([...(connection.sensitiveHeaderNames ?? []), ...merged.sensitiveHeaderNames]),
+      ]),
+    })
   }
 
   /**
@@ -322,6 +388,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     connection: HttpConnection,
     model: ResolvedModelInfo,
     context?: ModelInvocationContext,
+    wireBodyCache: PreparedWireBodyCache = {},
   ): AsyncGenerator<StreamChunk> {
     context?.declareProviderAttemptAccounting?.()
     if (options.messages.some(message => contentHasImage(message.content))
@@ -365,6 +432,14 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       connection.maxResponseChunks ?? DEFAULT_MAX_RESPONSE_CHUNKS,
       'maxResponseChunks',
     )
+    const maxSseEvents = positiveInteger(
+      connection.maxSseEvents ?? DEFAULT_MAX_SSE_EVENTS,
+      'maxSseEvents',
+    )
+    const maxSseEventChars = positiveInteger(
+      connection.maxSseEventChars ?? DEFAULT_MAX_SSE_EVENT_CHARS,
+      'maxSseEventChars',
+    )
     const maxErrorBodyBytes = positiveInteger(
       connection.maxErrorBodyBytes ?? DEFAULT_MAX_ERROR_BODY_BYTES,
       'maxErrorBodyBytes',
@@ -374,16 +449,16 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       'requestLoggerTimeoutMs',
     )
 
+    let admissionFailure: { readonly value: unknown } | undefined
     try {
-      const wireBody = await raceWithSignal(Promise.resolve(this.buildBody(request)), signal)
-      const body = JSON.stringify(wireBody)
-      const bodyBytes = new TextEncoder().encode(body).byteLength
-      if (bodyBytes > maxRequestBytes) {
-        throw new ModelError(
-          `${this.displayName} request exceeds the ${maxRequestBytes}-byte limit`,
-          MODEL_ERROR_CODES.INVALID_REQUEST,
-        )
-      }
+      const preparedBody = await (wireBodyCache.prepared ??= this.prepareWireBody(
+        request,
+        maxRequestBytes,
+        signal,
+      ))
+      const wireBody = preparedBody.value
+      const body = preparedBody.encoded
+      const bodyBytes = preparedBody.bytes
       const endpoint = endpointUrl(
         connection.baseUrl,
         this.endpointPath(request),
@@ -391,7 +466,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       )
       const url = endpoint.href
       const origin = endpoint.origin
-      const headers = { ...this.baseHeaders(), ...connection.headers }
+      const headers = connection.headers
 
       // Logging is deliberately best-effort. A full disk or broken debug sink
       // must not turn a valid provider request into an application outage.
@@ -406,7 +481,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
           model: options.model,
           method: 'POST',
           url,
-          headers: redactHeaders(headers),
+          headers: redactHeaders(headers, connection.sensitiveHeaderNames),
           body: wireBody,
           bodyBytes,
         })), loggerSignal)
@@ -422,25 +497,39 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       let attemptUsage: UsageCounters | undefined
       let attemptError: SafeErrorRecord | undefined
       try {
-        attempt = await context?.startProviderAttempt?.({
-          provider: options.provider,
-          model: options.model,
-          method: 'POST',
-          origin,
-        }, signal)
+        try {
+          attempt = await context?.startProviderAttempt?.({
+            provider: options.provider,
+            model: options.model,
+            method: 'POST',
+            origin,
+          }, signal)
+        } catch (error: unknown) {
+          admissionFailure = { value: error }
+          throw error
+        }
         dispatchState = 'unknown'
-        const response = await raceWithSignal(fetch(url, {
+        const fetchImplementation = connection.fetch ?? globalThis.fetch
+        const response = await raceWithSignal(fetchImplementation(url, {
           method: 'POST',
           headers,
           body,
           signal,
-          redirect: 'error',
+          redirect: 'manual',
         }), signal)
         dispatchState = 'sent'
         httpStatus = response.status
         providerRequestId = requestIdFrom(response.headers)
+        await rejectProviderRedirect(response, url)
 
         if (!response.ok) throw await this.httpFailure(response, origin, maxErrorBodyBytes, signal)
+        const mediaType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
+        if (mediaType !== 'text/event-stream') {
+          throw new ModelError(
+            `${this.displayName} response is not text/event-stream`,
+            HTTP_PROVIDER_ERROR_CODES.STREAM_MEDIA_TYPE_INVALID,
+          )
+        }
         if (response.body === null) {
           throw new ModelError(
             `${this.displayName} returned no response body`,
@@ -456,21 +545,22 @@ export abstract class HttpModelAdapter extends ModelAdapter {
             MODEL_ERROR_CODES.TRANSPORT,
           )
         }
-        const events = parseSse(boundedResponseBody(
+        const idleDeadline = createStreamIdleDeadline(
+          connection.streamIdleTimeoutMs,
+          this.displayName,
+          30_000,
+        )
+        const events = parseSseBounded(boundedResponseBody(
           response.body,
           maxResponseBytes,
           maxResponseChunks,
           this.displayName,
-        ))
-        const bounded = withIdleTimeout(
-          events,
-          connection.streamIdleTimeoutMs,
-          () => new ModelError(
-            `${this.displayName} stream idle for more than ${connection.streamIdleTimeoutMs}ms`,
-            MODEL_ERROR_CODES.TIMEOUT,
-          ),
-        )
-        for await (const chunk of withAbortSignal(this.translate(bounded, request), signal)) {
+        ), idleDeadline.activity, 30_000, {
+          maxEvents: maxSseEvents,
+          maxEventChars: maxSseEventChars,
+        })
+        const translated = requireTerminalFinish(this.translate(events, request), this.displayName)
+        for await (const chunk of withAbortSignal(idleDeadline.guard(translated), signal)) {
           if (chunk.type === 'usage') {
             attemptUsage = chunk.usage
             const validated = validateUsageCounters(chunk.usage, true)
@@ -490,8 +580,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
           yield chunk
         }
       } catch (error: unknown) {
-        if (error instanceof AgentSdkError
-          && error.code === OBSERVATION_ERROR_CODES.AUDIT_UNAVAILABLE) throw error
+        if (admissionFailure !== undefined && error === admissionFailure.value) throw error
         const mapped = timeout.aborted && options.signal?.aborted !== true
           ? new ModelError(
             `${this.displayName} request exceeded its ${requestTimeoutMs}ms time limit`,
@@ -500,13 +589,10 @@ export abstract class HttpModelAdapter extends ModelAdapter {
           )
           : signal.aborted
             ? abortError(this.displayName, error)
-            : error instanceof ModelError
-              ? error
-              : new ModelError(
-                `${this.displayName} request to ${origin} failed`,
-                MODEL_ERROR_CODES.TRANSPORT,
-                { cause: error },
-              )
+            : normalizeHttpBoundaryError(
+              error,
+              `${this.displayName} request to ${origin} failed`,
+            )
         attemptStatus = mapped.code === MODEL_ERROR_CODES.ABORTED ? 'aborted' : 'error'
         attemptError = safeProviderFailure(mapped.failure)
         throw mapped
@@ -529,17 +615,28 @@ export abstract class HttpModelAdapter extends ModelAdapter {
           { cause: error },
         )
       }
-      if (error instanceof AgentSdkError
-        && error.code === OBSERVATION_ERROR_CODES.AUDIT_UNAVAILABLE) throw error
-      if (error instanceof ModelError) throw error
-      throw new ModelError(
-        `${this.displayName} stream failed`,
-        MODEL_ERROR_CODES.TRANSPORT,
-        { cause: error },
-      )
+      if (admissionFailure !== undefined && error === admissionFailure.value) throw error
+      throw normalizeHttpBoundaryError(error, `${this.displayName} stream failed`)
     } finally {
       consumer.abort(new Error(`${this.displayName} stream consumer stopped`))
     }
+  }
+
+  private async prepareWireBody(
+    request: ProviderRequest,
+    maxRequestBytes: number,
+    signal: AbortSignal,
+  ): Promise<PreparedWireBody> {
+    const value = await raceWithSignal(Promise.resolve(this.buildBody(request)), signal)
+    const encoded = JSON.stringify(value)
+    const bytes = new TextEncoder().encode(encoded).byteLength
+    if (bytes > maxRequestBytes) {
+      throw new ModelError(
+        `${this.displayName} request exceeds the ${maxRequestBytes}-byte limit`,
+        MODEL_ERROR_CODES.INVALID_REQUEST,
+      )
+    }
+    return Object.freeze({ value, encoded, bytes })
   }
 
   /** Turn a non-2xx response into a fully populated {@link ModelError}. */
@@ -570,203 +667,4 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       },
     )
   }
-}
-
-function boundedResponseBody(
-  source: ReadableStream<Uint8Array>,
-  maxBytes: number,
-  maxChunks: number,
-  displayName: string,
-): ReadableStream<Uint8Array> {
-  let bytes = 0
-  let chunks = 0
-  return source.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
-    transform(chunk, controller) {
-      chunks++
-      bytes += chunk.byteLength
-      if (chunks > maxChunks) {
-        throw new ModelError(
-          `${displayName} response exceeds the ${maxChunks}-chunk limit`,
-          MODEL_ERROR_CODES.TRANSPORT,
-        )
-      }
-      if (bytes > maxBytes) {
-        throw new ModelError(
-          `${displayName} response exceeds the ${maxBytes}-byte limit`,
-          MODEL_ERROR_CODES.TRANSPORT,
-        )
-      }
-      controller.enqueue(chunk)
-    },
-  }))
-}
-
-async function readBoundedText(
-  response: Response,
-  maxBytes: number,
-  signal: AbortSignal,
-): Promise<string> {
-  if (response.body === null) return ''
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let bytes = 0
-  let text = ''
-  try {
-    while (true) {
-      const { done, value } = await raceWithSignal(reader.read(), signal)
-      if (done) break
-      if (value === undefined) continue
-      const remaining = maxBytes - bytes
-      if (remaining <= 0) {
-        await waitForSettlement(reader.cancel().catch(() => undefined), 30_000)
-        return `${text}\n[error body truncated at ${maxBytes} bytes]`
-      }
-      const kept = value.byteLength <= remaining ? value : value.subarray(0, remaining)
-      bytes += kept.byteLength
-      text += decoder.decode(kept, { stream: true })
-      if (kept.byteLength !== value.byteLength) {
-        await waitForSettlement(reader.cancel().catch(() => undefined), 30_000)
-        return `${text}${decoder.decode()}\n[error body truncated at ${maxBytes} bytes]`
-      }
-    }
-    return text + decoder.decode()
-  } finally {
-    reader.releaseLock()
-  }
-}
-
-async function raceWithSignal<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) throw signal.reason ?? new Error('operation aborted')
-  return await new Promise<T>((resolve, reject) => {
-    const onAbort = () => {
-      signal.removeEventListener('abort', onAbort)
-      reject(signal.reason ?? new Error('operation aborted'))
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-    void pending.then(
-      value => {
-        signal.removeEventListener('abort', onAbort)
-        resolve(value)
-      },
-      error => {
-        signal.removeEventListener('abort', onAbort)
-        reject(error)
-      },
-    )
-  })
-}
-
-async function* withAbortSignal<T>(
-  iterable: AsyncIterable<T>,
-  signal: AbortSignal,
-): AsyncGenerator<T> {
-  const iterator = iterable[Symbol.asyncIterator]()
-  let exhausted = false
-  try {
-    while (true) {
-      const next = await raceWithSignal(iterator.next(), signal)
-      if (next.done === true) {
-        exhausted = true
-        return
-      }
-      yield next.value
-    }
-  } finally {
-    if (!exhausted) {
-      const close = iterator.return?.bind(iterator)
-      if (close !== undefined) {
-        const closing = Promise.resolve().then(async () => { await close() })
-        await waitForSettlement(closing, 30_000)
-      }
-    }
-  }
-}
-
-function positiveInteger(value: number, name: string): number {
-  if (!Number.isSafeInteger(value) || value < 1) throw new RangeError(`${name} must be a positive safe integer`)
-  return value
-}
-
-function positiveFinite(value: number, name: string): number {
-  if (!Number.isFinite(value) || value <= 0) throw new RangeError(`${name} must be a positive finite number`)
-  return value
-}
-
-function endpointUrl(baseUrl: string, path: string, allowInsecureHttp: boolean): URL {
-  let base: URL
-  try {
-    base = new URL(baseUrl)
-  } catch (error) {
-    throw new ModelError('provider baseUrl is not a valid absolute URL', MODEL_ERROR_CODES.INVALID_REQUEST, { cause: error })
-  }
-  if (base.username.length > 0 || base.password.length > 0) {
-    throw new ModelError('provider baseUrl must not contain credentials', MODEL_ERROR_CODES.INVALID_REQUEST)
-  }
-  if (base.search.length > 0 || base.hash.length > 0) {
-    throw new ModelError('provider baseUrl must not contain a query or fragment', MODEL_ERROR_CODES.INVALID_REQUEST)
-  }
-  if (base.protocol !== 'https:' && !(allowInsecureHttp && base.protocol === 'http:')) {
-    throw new ModelError(
-      'provider baseUrl must use HTTPS unless allowInsecureHttp is explicitly enabled',
-      MODEL_ERROR_CODES.INVALID_REQUEST,
-    )
-  }
-  const normalizedBase = base.href.replace(/\/+$/, '')
-  let endpoint: URL
-  try {
-    endpoint = new URL(`${normalizedBase}${path}`)
-  } catch (error) {
-    throw new ModelError('provider endpoint path produced an invalid URL', MODEL_ERROR_CODES.INVALID_REQUEST, { cause: error })
-  }
-  if (endpoint.origin !== base.origin) {
-    throw new ModelError('provider endpoint path must remain on the configured origin', MODEL_ERROR_CODES.INVALID_REQUEST)
-  }
-  return endpoint
-}
-
-function safeProviderFailure(failure: ModelFailure): SafeErrorRecord {
-  return Object.freeze({
-    type: 'ModelError',
-    message: 'provider attempt failed; inspect the stable code and request ID',
-    code: failure.code,
-    ...failure.status === undefined ? {} : { status: failure.status },
-  })
-}
-
-/** Header names whose values must never enter diagnostic logs. */
-const SENSITIVE_HEADER = /authorization|api[-_]?key|token|secret|cookie|account-id/i
-
-/** Detach headers and redact credentials while retaining useful protocol metadata. */
-export function redactHeaders(headers: Readonly<Record<string, string>>): Record<string, string> {
-  return Object.fromEntries(Object.entries(headers).map(([name, value]) => [
-    name,
-    SENSITIVE_HEADER.test(name) ? '[REDACTED]' : value,
-  ]))
-}
-
-function requestLogId(): string {
-  return globalThis.crypto?.randomUUID?.()
-    ?? `request-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-/** Project a catalog entry into advisory model metadata. */
-function catalogModelInfo(provider: string, model: ProviderCatalogModel): ModelInfo {
-  return {
-    provider,
-    id: model.id,
-    name: model.name ?? model.id,
-    ...model.description === undefined ? {} : { description: model.description },
-    inputModalities: model.inputModalities ?? ['text'],
-    ...model.outputModalities === undefined ? {} : { outputModalities: model.outputModalities },
-    ...model.nativeTools === undefined ? {} : { nativeTools: model.nativeTools },
-  }
-}
-
-/** The caller's own cancellation, reported as such rather than as a transport fault. */
-function abortError(displayName: string, cause: unknown): ModelError {
-  return new ModelError(
-    `${displayName} request aborted by caller`,
-    MODEL_ERROR_CODES.ABORTED,
-    { cause },
-  )
 }

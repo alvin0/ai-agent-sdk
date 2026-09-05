@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@compat/auth-root": ["../../packages/auth-node/dist/index.d.mts"],
+      "@compat/auth-env": ["../../packages/auth-node/dist/env.d.mts"],
+      "@compat/auth-codex": ["../../packages/auth-node/dist/codex.d.mts"],
+      "@compat/provider-codex": ["../../packages/provider-codex/dist/index.d.ts"],
+      "@ai-agent-sdk/core": ["../../packages/core/dist/index.d.ts"],
+      "@ai-agent-sdk/provider-codex": ["../../packages/provider-codex/dist/index.d.ts"],
+      "@ai-agent-sdk/provider-http": ["../../packages/provider-http/dist/index.d.ts"],
+      "@ai-agent-sdk/protocol-responses": ["../../packages/protocol-responses/dist/index.d.ts"]
+    }
+  },
+  "include": ["consumers/auth-api-compatibility.ts"]
+}

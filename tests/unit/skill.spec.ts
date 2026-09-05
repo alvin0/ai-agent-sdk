@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineAgent } from '@ai-agent-sdk/agent'
-import { History } from '@ai-agent-sdk/agent'
-import { runToolCalls } from '@ai-agent-sdk/agent'
+import { defineAgent } from '@ai-agent-sdk/core/agent'
+import { History } from '@ai-agent-sdk/core/agent'
+import { runToolCalls } from '@ai-agent-sdk/core/agent'
 import {
   MAX_SKILL_RESOURCE_CHARS,
   SkillCatalog,
@@ -12,10 +12,10 @@ import {
   resolveSkillOptions,
   type SkillCandidate,
   type SkillProviderListOptions,
-} from '@ai-agent-sdk/agent'
-import { defineTool, executionModeOf } from '@ai-agent-sdk/agent'
-import { dispatchToolCall } from '@ai-agent-sdk/agent'
-import { ToolRegistry } from '@ai-agent-sdk/agent'
+} from '@ai-agent-sdk/core/agent'
+import { defineTool, executionModeOf } from '@ai-agent-sdk/core/agent'
+import { dispatchToolCall } from '@ai-agent-sdk/core/agent'
+import { ToolRegistry } from '@ai-agent-sdk/core/agent'
 import { ModelAdapter } from '@ai-agent-sdk/core'
 import type { GenerateOptions } from '@ai-agent-sdk/core'
 import { ReasoningEffortId, ToolCallId, createSpanId, createTraceId } from '@ai-agent-sdk/core'
@@ -227,7 +227,10 @@ describe('environment-neutral skills', () => {
       }]),
       load: () => Promise.resolve(undefined),
     })
-    await expect(new SkillCatalog([skill(), provider]).discover()).rejects.toThrow(/duplicate skill/)
+    await expect(new SkillCatalog([skill(), provider]).discover()).rejects.toMatchObject({
+      code: 'SKILL_ID_CONFLICT',
+      conflict: { namespace: 'skill-id', key: '[redacted]', firstIndex: 0, secondIndex: 1 },
+    })
   })
 
   it('rejects candidates that spoof another provider identity', async () => {

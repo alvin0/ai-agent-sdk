@@ -10,9 +10,9 @@
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
   "exports": {
-    ".": { "types": "./dist/index.d.mts", "default": "./dist/index.mjs" },
-    "./env": { "types": "./dist/env.d.mts", "default": "./dist/env.mjs" },
-    "./codex": { "types": "./dist/codex.d.mts", "default": "./dist/codex.mjs" },
+    ".": { "types": "./dist/index.d.mts", "import": "./dist/index.mjs", "default": "./dist/index.mjs" },
+    "./env": { "types": "./dist/env.d.mts", "import": "./dist/env.mjs", "default": "./dist/env.mjs" },
+    "./codex": { "types": "./dist/codex.d.mts", "import": "./dist/codex.mjs", "default": "./dist/codex.mjs" },
     "./package.json": "./package.json"
   },
   "bin": { "ai-agent-sdk-codex-login": "./bin/ai-agent-sdk-codex-login.mjs" },
@@ -27,11 +27,16 @@
     "check:publint": "publint",
     "check:types": "attw --profile esm-only --pack ."
   },
-  "dependencies": {
+  "peerDependencies": {
     "@ai-agent-sdk/core": "workspace:^",
     "@ai-agent-sdk/provider-codex": "workspace:^"
   },
+  "peerDependenciesMeta": {
+    "@ai-agent-sdk/provider-codex": { "optional": true }
+  },
   "devDependencies": {
+    "@ai-agent-sdk/core": "workspace:^",
+    "@ai-agent-sdk/provider-codex": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",
     "@types/node": "catalog:",
     "publint": "catalog:",
@@ -40,5 +45,9 @@
     "vitest": "catalog:"
   },
   "engines": { "node": ">=22.12" },
-  "aiAgentSdk": { "runtime": "node" }
+  "aiAgentSdk": {
+    "runtime": "node",
+    "coreApi": 1,
+    "roles": ["credential-source", "credential-store"]
+  }
 }

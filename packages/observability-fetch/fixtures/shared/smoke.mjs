@@ -1,7 +1,8 @@
 import { createCoreSpan, createObservationRunScope, createOperationId } from '@ai-agent-sdk/core'
-import { createObservability } from '@ai-agent-sdk/observability'
+import { createObservability } from '@ai-agent-sdk/core/observability'
 import {
   FetchObservationExporter,
+  fetchObservationExporter,
   flushObservabilityWithWaitUntil,
 } from '@ai-agent-sdk/observability-fetch'
 
@@ -46,6 +47,18 @@ export async function runPackedFetchObservationFixture() {
   const flushed = await flushObservabilityWithWaitUntil(observation, pending => lifetimes.push(pending))
   const bodies = requests.map(request => request.body)
   const headers = requests.map(request => request.headers)
+  let runtimeCalls = 0
+  const runtimeExporter = fetchObservationExporter({
+    endpoint: 'https://telemetry.example.test/v1/runtime',
+    fetch: async () => { runtimeCalls++; return new Response(null, { status: 204 }) },
+  })
+  const runtimeInert = runtimeCalls === 0
+  const runtimeAck = await runtimeExporter.export({
+    id: '22222222222222222222222222222222',
+    resource: observation.resource,
+    events: [],
+    runRecords: [{ kind: 'run-terminal-record', runId: 'packed-runtime-run' }],
+  }, new AbortController().signal)
   return {
     durable: receipt.durable,
     boundary: receipt.boundary,
@@ -57,6 +70,9 @@ export async function runPackedFetchObservationFixture() {
     lifetimeCount: lifetimes.length,
     safe: !String(bodies[0]).includes('private-packed-prompt')
       && !String(bodies[0]).includes('packed-secret'),
+    runtimeFactory: runtimeExporter.kind === 'observation-exporter'
+      && runtimeInert && runtimeCalls === 1
+      && runtimeAck.acceptedRunIds[0] === 'packed-runtime-run',
     buffer: typeof globalThis.Buffer,
     process: typeof globalThis.process,
   }

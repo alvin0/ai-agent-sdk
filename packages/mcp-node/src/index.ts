@@ -1,26 +1,22 @@
-/** Node-only MCP stdio transports and HTTP framework adapters. */
+/** Node-only MCP stdio client transport. */
 
 import { StdioClientTransport, type StdioServerParameters } from '@modelcontextprotocol/client/stdio'
-import { serveStdio, type ServeStdioOptions, type StdioServerHandle } from '@modelcontextprotocol/server/stdio'
 import {
-  hostHeaderValidation,
-  localhostHostValidation,
-  localhostOriginValidation,
-  originValidation,
-  toNodeHandler,
-  type NodeMcpRequestHandler,
-  type ToNodeHandlerOptions,
-} from '@modelcontextprotocol/node'
-import {
+  McpConnectionError,
   McpClientConnection,
   type McpClientLifecycleOptions,
 } from '@ai-agent-sdk/mcp/client'
-import { createSdkMcpServer, type SdkMcpServerOptions } from '@ai-agent-sdk/mcp/server'
+
+export { McpConnectionError } from '@ai-agent-sdk/mcp/client'
+export type { McpCloseReport } from '@ai-agent-sdk/mcp/client'
+
+/** Stdio-specialized alias retained so normal Node recipes name their transport. */
+export interface McpStdioConnection extends McpClientConnection {}
 
 export interface McpStdioClientOptions extends McpClientLifecycleOptions, StdioServerParameters {}
 
 /** Construct a supervised stdio client without spawning the child yet. */
-export function createMcpStdioClient(options: McpStdioClientOptions): McpClientConnection {
+export function createMcpStdioClient(options: McpStdioClientOptions): McpStdioConnection {
   const {
     command, args, env, stderr, cwd, maxBufferSize,
     ...lifecycle
@@ -33,36 +29,27 @@ export function createMcpStdioClient(options: McpStdioClientOptions): McpClientC
     ...(stderr === undefined ? {} : { stderr }),
     ...(cwd === undefined ? {} : { cwd }),
     ...(maxBufferSize === undefined ? {} : { maxBufferSize }),
-  }))
+  }), { integrationFamily: 'mcp-stdio-client' })
 }
 
 /** Spawn, negotiate, discover tools, and return a ready stdio client. */
-export async function connectMcpStdio(options: McpStdioClientOptions): Promise<McpClientConnection> {
+export async function connectMcpStdio(options: McpStdioClientOptions): Promise<McpStdioConnection> {
   const connection = createMcpStdioClient(options)
   try {
     await connection.connect()
     return connection
   } catch (error: unknown) {
-    await connection.close()
-    throw error
+    const cleanup = await connection.closeWithReport()
+    throw new McpConnectionError(
+      connection.state.status === 'connecting' ? 'handshake' : 'unknown',
+      {
+        code: 'MCP_CONNECT_FAILED', stage: 'stdio-connect', message: 'MCP stdio connection startup failed',
+        usageCoverage: { logicalCalls: 0, attempts: 0, complete: 0, partial: 0, estimated: 0,
+          missing: 0, notApplicable: 0, possiblyBilledAttemptsWithoutUsage: 0 },
+        possiblyBilledAttemptsWithoutUsage: 0,
+      },
+      cleanup,
+      error,
+    )
   }
-}
-
-/** Serve the same SDK tool/agent surface over process stdin/stdout. */
-export function serveSdkMcpStdio(
-  options: SdkMcpServerOptions,
-  serveOptions?: ServeStdioOptions,
-): StdioServerHandle {
-  return serveStdio(request => createSdkMcpServer(options, request), serveOptions)
-}
-
-/** Adapt a web-standard SDK MCP handler for node:http, Express, or Fastify. */
-export {
-  hostHeaderValidation,
-  localhostHostValidation,
-  localhostOriginValidation,
-  originValidation,
-  toNodeHandler,
-  type NodeMcpRequestHandler,
-  type ToNodeHandlerOptions,
 }

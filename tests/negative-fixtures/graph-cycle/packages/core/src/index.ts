@@ -1,2 +1,2 @@
-import type { AgentMarker } from '@ai-agent-sdk/agent'
+import type { AgentMarker } from '@fixture/agent'
 export type CoreMarker = AgentMarker

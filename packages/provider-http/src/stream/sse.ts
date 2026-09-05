@@ -18,8 +18,12 @@
  * @module @ai-agent-sdk/provider-http/sse
  */
 
-import { createParser } from 'eventsource-parser'
-import { waitForSettlement } from '@ai-agent-sdk/core'
+import {
+  DEFAULT_MAX_SSE_EVENT_CHARS,
+  DEFAULT_MAX_SSE_EVENTS,
+  DEFAULT_SSE_TEARDOWN_TIMEOUT_MS,
+} from './config.ts'
+import { parseSseBounded } from './parser.ts'
 
 /**
  * Ceiling on characters the parser may buffer across reads.
@@ -28,8 +32,6 @@ import { waitForSettlement } from '@ai-agent-sdk/core'
  * bound. 1 MiB is far above any legitimate single SSE event from either provider
  * and far below a memory problem.
  */
-const MAX_SSE_BUFFER_CHARS = 1_048_576
-
 /** One decoded server-sent event. */
 export interface SseEvent {
   /**
@@ -59,61 +61,10 @@ export interface SseEvent {
 export async function* parseSse(
   stream: ReadableStream<Uint8Array>,
   onActivity?: () => void,
-  teardownTimeoutMs = 30_000,
+  teardownTimeoutMs = DEFAULT_SSE_TEARDOWN_TIMEOUT_MS,
 ): AsyncGenerator<SseEvent> {
-  // The parser reports events through callbacks, so they are queued here and
-  // drained after each read. Draining between reads (rather than accumulating)
-  // keeps the queue bounded by one network chunk's worth of events.
-  const pending: SseEvent[] = []
-  const parser = createParser({
-    maxBufferSize: MAX_SSE_BUFFER_CHARS,
-    onError(error) {
-      // Buffer overflow must fail the provider attempt immediately; silently
-      // terminating would misclassify truncation. Unknown fields stay ignored.
-      if (error.type === 'max-buffer-size-exceeded') throw error
-    },
-    onEvent(event) {
-      pending.push({ event: event.event, data: event.data })
-    },
-    onComment() {
-      onActivity?.()
-    },
+  yield* parseSseBounded(stream, onActivity, teardownTimeoutMs, {
+    maxEvents: DEFAULT_MAX_SSE_EVENTS,
+    maxEventChars: DEFAULT_MAX_SSE_EVENT_CHARS,
   })
-
-  const decoder = new TextDecoder()
-  const reader = stream.getReader()
-  let drained = false
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      onActivity?.()
-      if (value !== undefined) parser.feed(decoder.decode(value, { stream: true }))
-      yield* drain(pending)
-    }
-    // Flush any bytes the streaming decoder was holding for a split codepoint.
-    const tail = decoder.decode()
-    if (tail.length > 0) {
-      parser.feed(tail)
-      yield* drain(pending)
-    }
-    drained = true
-  } finally {
-    // The consumer stopped early, or a read failed. Cancelling is what actually
-    // tears down the underlying HTTP response instead of leaking the connection;
-    // it also releases the reader lock.
-    if (drained) reader.releaseLock()
-    else if (!await waitForSettlement(reader.cancel().catch(() => undefined), teardownTimeoutMs)) {
-      throw new Error(`SSE body ignored cancellation for more than ${teardownTimeoutMs}ms`)
-    }
-  }
-}
-
-/** Yield and remove every queued event, preserving arrival order. */
-function* drain(pending: SseEvent[]): Generator<SseEvent> {
-  while (pending.length > 0) {
-    const event = pending.shift()
-    if (event === undefined) return
-    yield event
-  }
 }

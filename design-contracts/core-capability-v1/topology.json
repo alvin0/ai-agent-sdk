@@ -1,0 +1,1728 @@
+{
+  "schemaVersion": 5,
+  "modelDefaultsPolicy": {
+    "agentOverride": "full-target-wins-per-agent",
+    "providerDefault": "explicit-model-target-owned-by-claimed-route",
+    "officialFactoryShorthand": "string-only-with-one-route-otherwise-explicit-target",
+    "selection": "agent-route-then-runtime-defaultProvider-then-unique-configured-default",
+    "missingOrAmbiguous": "reject-before-dispatch-no-registration-order-or-catalog-first",
+    "invalidExplicitTarget": "reject-never-substitute-default",
+    "capture": "detached-provider-defaults-at-preflight-resolved-agent-target-at-binding",
+    "failover": "none-retries-keep-resolved-target",
+    "reusableDefinitions": "preserve-model-object-versus-legacy-discriminant",
+    "evidence": "resolved-agent-model-and-provider-attempt-target"
+  },
+  "manifestPolicy": {
+    "moduleFormat": "esm-only",
+    "type": "module",
+    "sideEffects": false,
+    "privateUntilPublicationConfigured": true,
+    "basePackedFiles": ["dist", "README.md", "LICENSE"],
+    "additionalPackedFiles": {
+      "@ai-agent-sdk/auth-node": ["bin"]
+    },
+    "binaryEntrypoints": {
+      "@ai-agent-sdk/auth-node": {
+        "ai-agent-sdk-codex-login": "./bin/ai-agent-sdk-codex-login.mjs"
+      }
+    },
+    "legacyRootFields": "mirror-root-import-and-types",
+    "nodeEngineScope": "node-runtime-packages-only",
+    "requiredExportConditions": ["types", "import", "default"],
+    "forbiddenExportConditions": ["require"],
+    "includePackageJsonExport": true,
+    "forbidUndeclaredDeepImports": true,
+    "dependencyEncoding": {
+      "normalWorkspaceDependencies": "dependencies-workspace-caret",
+      "corePeer": "peerDependencies-workspace-caret-plus-devDependency",
+      "optionalWorkspacePeers": "peerDependencies-workspace-caret-plus-peerDependenciesMeta-optional",
+      "externalRuntimeDependencies": "dependencies-catalog-exact",
+      "requiredExternalRuntimePeers": "peerDependencies-compatible-range-plus-dev-catalog-exact",
+      "optionalExternalRuntimePeers": "peerDependencies-compatible-range-plus-meta-optional-plus-dev-catalog-exact"
+    },
+    "capabilityMetadata": {
+      "field": "aiAgentSdk",
+      "runtime": "from-package-rule",
+      "coreApi": 1,
+      "rolesField": "roles",
+      "nonExecutable": true,
+      "allowedRoles": [
+        "core-runtime",
+        "model-provider",
+        "provider-extension-kit",
+        "wire-protocol",
+        "mcp-client",
+        "tool-source",
+        "mcp-server",
+        "mcp-client-transport",
+        "mcp-server-transport",
+        "skill-provider",
+        "observation-exporter",
+        "observation-processor",
+        "diagnostics",
+        "credential-source",
+        "credential-store",
+        "agent-transport"
+      ]
+    },
+    "blueprint": "manifest-blueprints.json",
+    "blueprintPackages": [
+      "@ai-agent-sdk/core",
+      "@ai-agent-sdk/provider-http",
+      "@ai-agent-sdk/provider-openai",
+      "@ai-agent-sdk/provider-anthropic",
+      "@ai-agent-sdk/provider-codex",
+      "@ai-agent-sdk/protocol-responses",
+      "@ai-agent-sdk/protocol-anthropic-messages",
+      "@ai-agent-sdk/auth-node",
+      "@ai-agent-sdk/a2a",
+      "@ai-agent-sdk/mcp",
+      "@ai-agent-sdk/mcp-server",
+      "@ai-agent-sdk/mcp-node",
+      "@ai-agent-sdk/mcp-node-server",
+      "@ai-agent-sdk/skill-filesystem",
+      "@ai-agent-sdk/observability-fetch",
+      "@ai-agent-sdk/observability-browser",
+      "@ai-agent-sdk/observability-node",
+      "@ai-agent-sdk/observability-otel"
+    ],
+    "corePeerRange": "workspace:^",
+    "nodeEngine": ">=22.12"
+  },
+  "automatedEvidencePolicy": {
+    "allowed": [
+      "static-manifest-import-audit",
+      "dependency-graph-audit",
+      "typescript-compile-only-contract",
+      "deterministic-unit-test",
+      "executable-spike",
+      "live-provider",
+      "external-network",
+      "credentialed-runtime-acceptance"
+    ],
+    "manualOnly": [],
+    "knownBroadCommandHazards": {
+      "check:supply-chain": ["external-registry-advisory-query-without---skip-audit"]
+    },
+    "quarantinedHistoricalTests": {},
+    "broadCommandsAllowedForAi": true
+  },
+  "capabilityObjectPolicy": {
+    "families": [
+      "model-provider-plugin",
+      "credential-source",
+      "credential-store",
+      "tool-source",
+      "skill-provider",
+      "memory-store",
+      "observation-exporter",
+      "http-wire-protocol"
+    ],
+    "helperReturnsNewWrapper": true,
+    "helperResultFrozen": true,
+    "runtimeMutatesCallerObject": false,
+    "captureAtPreflight": [
+      "kind",
+      "apiVersion",
+      "id",
+      "configuration-snapshot",
+      "method-references"
+    ],
+    "rereadIdentityAfterPreflight": false,
+    "rereadMethodsAfterPreflight": false,
+    "captureReturnedCleanupImmediately": true,
+    "capabilityOwnedStateMayMutate": true,
+    "dynamicDataChangesThroughFamilyMethodsOnly": true,
+    "hostileProxyIsSecurityBoundary": false
+  },
+  "providerLifecyclePolicy": {
+    "setup": "synchronous-only",
+    "cleanup": "synchronous-only",
+    "asyncResult": "reject-and-contain",
+    "registrarAfterSetup": "sealed",
+    "topologyRemovalBeforeCleanup": true,
+    "startedCleanupCanBePreemptedByDeadline": false
+  },
+  "coreIdentityPolicy": {
+    "officialPackedClosure": "single-physical-core-resolution",
+    "runtimeCoreNormalDependency": "forbidden",
+    "crossPackageProtocolValidation": "structural-family-marker-and-validated-data",
+    "crossPackageInstanceofGate": "forbidden",
+    "modelAdapterClassRole": "authoring-convenience-not-runtime-nominal-gate",
+    "foreignFailurePolicy": "validated-data-envelope",
+    "globalDuplicateCoreDetector": "forbidden",
+    "publicReexports": "canonical-value-identity",
+    "currentNominalBoundaryInventory": {
+      "packages/provider-http/src/base/http-adapter.ts": {
+        "AgentSdkError": 0,
+        "ModelError": 0
+      }
+    }
+  },
+  "coreRootFacadePolicy": {
+    "canonicalDeclaration": "packages/core/index.d.ts",
+    "publicRootDeclaration": "packages/core/root.d.ts",
+    "canonicalOwnerVisibility": "internal-not-package-export",
+    "normalApplicationImports": "curated-root",
+    "packageAuthorImports": "focused-subpaths",
+    "currentCoreBaselineCount": 184,
+    "expectedRootExportCount": 264,
+    "ergonomicAdditions": [
+      "ActivatedSkillSnapshot",
+      "AgentCompactionOptions",
+      "AgentRunOptions",
+      "AgentRuntime",
+      "AgentRuntimeConstructionError",
+      "AgentRuntimeOptions",
+      "AgentTeamMemberInput",
+      "ApprovalBroker",
+      "ApprovalDecision",
+      "ApprovalRequest",
+      "CapabilityIdentityConflict",
+      "CompactionResult",
+      "ComposableModelProviderPlugin",
+      "DiagnosticSnapshot",
+      "InteractiveApprovalBroker",
+      "InteractiveApprovalBrokerOptions",
+      "MemoryBinding",
+      "ModelCatalogOptions",
+      "ModelCatalogSnapshot",
+      "ModelCatalogState",
+      "ModelTarget",
+      "ObservationHealthSnapshot",
+      "ObservationResourceInput",
+      "RunReport",
+      "RunTerminalRecord",
+      "RunUsageReport",
+      "RuntimeAgent",
+      "RuntimeAgentDefinition",
+      "RuntimeAgentDefinitionInput",
+      "RuntimeAgentInvocationOptions",
+      "RuntimeAgentLimits",
+      "RuntimeAgentResponse",
+      "RuntimeAgentRunEvent",
+      "RuntimeAgentRunEventContext",
+      "RuntimeAgentRunHandle",
+      "RuntimeAgentSession",
+      "RuntimeAgentSessionOptions",
+      "RuntimeAgentSessionSnapshot",
+      "RuntimeAgentTeam",
+      "RuntimeAgentTeamEvent",
+      "RuntimeAgentTeamOptions",
+      "RuntimeCloseReport",
+      "RuntimeComponentCloseReport",
+      "RuntimeConstructionComponent",
+      "RuntimeConstructionFailureCode",
+      "RuntimeConstructionFailureReason",
+      "RuntimeLoggerContext",
+      "RuntimeModelCatalogSnapshot",
+      "RuntimeObservationExporterRegistration",
+      "RuntimeOperationCloseSummary",
+      "RuntimeOperationKind",
+      "RuntimeProviderInfo",
+      "RuntimeSkillSource",
+      "SdkLogger",
+      "SkillDefinition",
+      "SkillDefinitionInput",
+      "SupportSafeError",
+      "ToolCatalog",
+      "ToolDefinition",
+      "ToolExecutionResult",
+      "ToolFailure",
+      "ToolRunContext",
+      "ToolSource",
+      "ToolSuccess",
+      "UsageCoverageSummary",
+      "UserInputAnswer",
+      "UserInputBroker",
+      "UserInputDecision",
+      "UserInputOption",
+      "UserInputQuestion",
+      "UserInputRequest",
+      "UserInputResponse",
+      "createAgentRuntime",
+      "createApprovalBroker",
+      "createUserInputBroker",
+      "defineAgent",
+      "defineSkill",
+      "defineTool",
+      "fixedApprovalBroker",
+      "fixedUserInputBroker"
+    ]
+  },
+  "httpHeaderPolicy": {
+    "normalization": "lowercase-case-insensitive",
+    "merge": "reject-cross-layer-collision",
+    "layers": [
+      "transport",
+      "sdk-attribution",
+      "wire-protocol",
+      "endpoint-static",
+      "authentication"
+    ],
+    "transportReserved": ["accept", "content-type"],
+    "sdkReservedHeaders": ["user-agent"],
+    "sdkReservedPrefixes": ["x-ai-agent-sdk-"],
+    "endpointStaticSensitiveHeaders": "forbidden-use-auth-scheme",
+    "authenticationHeadersSensitiveByProvenance": true,
+    "wireLogRedaction": "auth-provenance-plus-sensitive-name-policy",
+    "credentialResolution": "once-per-prepared-logical-call",
+    "retryCredentialBehavior": "reuse-prepared-connection-snapshot",
+    "crossOriginCredentialForwarding": false,
+    "redirectValidation": "before-each-hop"
+  },
+  "modelCatalogPolicy": {
+    "cacheScope": "provider-plugin-instance-and-route",
+    "states": ["static", "fresh", "empty", "stale", "unavailable"],
+    "staticModelsBypassDiscovery": true,
+    "failureStoredAsSuccessfulEmpty": false,
+    "lastGoodSnapshotPreservedOnFailure": true,
+    "concurrentRefresh": "singleflight-per-cache-key",
+    "callerAbort": "detach-waiter-without-aborting-other-waiters",
+    "allWaitersAbort": "abort-shared-refresh",
+    "failureBackoff": "bounded-configurable-separate-from-success-ttl",
+    "defaultFreshTtlMs": 300000,
+    "defaultStaleTtlMs": 0,
+    "defaultFailureBackoffMs": 5000,
+    "maxFailureBackoffMs": 60000,
+    "explicitModelInvocationRequiresCatalogMembership": false,
+    "accountSwitchRequiresNewProviderInstance": true,
+    "highLevelRuntimeSurface": ["providers", "modelCatalog"]
+  },
+  "providerDiscoveryIdentityPolicy": {
+    "rowScope": "one-row-per-route",
+    "modelTargetKey": "route",
+    "instanceKey": "pluginId",
+    "familyKey": "family",
+    "officialFamily": "fixed-by-provider-package",
+    "customFamilyFallback": "plugin-id",
+    "legacyAliases": { "id": "route", "name": "adapter-display-name" },
+    "multiRoutePlugin": "rows-share-plugin-id-and-family",
+    "catalogLookupKey": "route",
+    "credentialDerivedIdentityForbidden": true
+  },
+  "officialProviderFactoryPolicy": {
+    "normalInstall": "core-plus-one-official-provider",
+    "supportPackages": "transitive-hidden-from-normal-consumer-imports",
+    "factory": "synchronous-side-effect-free-no-credential-resolution-or-io",
+    "defaultInstanceId": "provider-family",
+    "defaultRoutes": "single-instance-id-route",
+    "explicitRoutes": "nonempty-unique-alias-claims",
+    "customInstanceErgonomics": "id-alone-selects-default-route",
+    "pluginOptions": "adapter-options-plus-id-routes-and-injected-fetch",
+    "providerSpecificOptions": "preserved-through-recommended-plugin-factory",
+    "credentialOwnership": "required-injected-web-safe-capability-no-env-read",
+    "advancedAdapter": "retained-but-not-required-for-normal-composition",
+    "family": "fixed-by-official-package-not-user-configurable",
+    "instanceScopedPromptCacheKey": "never-described-as-conversation-boundary"
+  },
+  "additiveCapabilityCompositionPolicy": {
+    "normalShape": "named-factory-or-explicit-connect-then-typed-slot",
+    "skillFilesystem": "preserved-advanced-plus-versioned-lazy-borrowed-plugin-node",
+    "mcpConnection": "async-connected-borrowed-tool-source-caller-close",
+    "observationExporter": "inert-exporter-explicit-owned-or-borrowed-registration",
+    "openTelemetry": "caller-owned-bridge-open-span-plus-processor-not-exporter",
+    "openTelemetryProviderShutdown": "caller-owned-never-runtime",
+    "factoryOptions": "preserve-operational-bounds-and-injected-host-functions",
+    "runtimeElevation": "selected-capability-package-not-core",
+    "implicitEnvironmentOrFilesystem": false,
+    "catchAllPluginArray": false
+  },
+  "capabilityOperationLoggingPolicy": {
+    "coreLifecycleEvidence": "start-terminal-error-independent-of-plugin-logging",
+    "requiredBoundLoggerContexts": [
+      "provider-setup-registrar",
+      "credential-operation",
+      "tool-source-snapshot",
+      "skill-provider-operation",
+      "memory-store-operation"
+    ],
+    "legacyOptionalLoggerContexts": [
+      "model-invocation",
+      "tool-run",
+      "turn-hook"
+    ],
+    "exporterLoggerInjection": "forbidden-recursion-boundary",
+    "correlationAuthority": "runtime-generated-not-plugin-overridable",
+    "sensitiveFields": "credentials-content-and-raw-errors-forbidden",
+    "accountingAuthority": "terminal-ledger-never-plugin-log",
+    "loggerFailure": "contained-observation-health-never-primary-operation-error"
+  },
+  "callerOwnedIntegrationLoggingPolicy": {
+    "bootstrapOrder": "runtime-then-connect-with-bound-logger",
+    "cleanupOrder": "runtime-quiesce-close-before-integration-close",
+    "loggerOption": "optional-for-advanced-direct-use-required-in-recommended-runtime-journeys",
+    "coveredIntegrations": [
+      "mcp-http-client",
+      "mcp-stdio-client",
+      "mcp-web-server",
+      "mcp-stdio-server",
+      "a2a-client-link",
+      "a2a-server"
+    ],
+    "operationEvidence": {
+      "mcp-http-client": ["connect", "authenticate", "catalog-refresh", "reconnect", "tool-call", "close"],
+      "mcp-stdio-client": ["connect", "catalog-refresh", "reconnect", "tool-call", "close"],
+      "mcp-web-server": ["request", "tool-call", "agent-call"],
+      "mcp-stdio-server": ["request", "tool-call", "agent-call", "close"],
+      "a2a-client-link": ["agent-card-resolve", "link", "send", "stream", "unlink"],
+      "a2a-server": ["request", "execute", "cancel", "dispose"]
+    },
+    "correlationChannels": {
+      "mcp-client-lifecycle": "connection-options-logger",
+      "mcp-tool-call": "runtime-tool-run-context-logger",
+      "mcp-server-request": "server-options-logger-child",
+      "a2a-link-lifecycle": "link-options-logger",
+      "a2a-send": "runtime-team-linked-send-input-logger",
+      "a2a-server-request": "executor-options-logger-child-and-agent-run-context"
+    },
+    "evidenceShape": "runtime-active-one-start-and-one-terminal-per-logical-operation-with-support-safe-error",
+    "physicalAttemptEvidence": "every-network-or-process-attempt-linked-to-logical-operation",
+    "accountingRole": "operational-only-never-token-or-billing-authority",
+    "contentPolicy": "metadata-only-no-credentials-headers-bodies-prompts-results-or-card-content",
+    "postRuntimeTeardownEvidence": {
+      "mcp-http-client.close": "McpCloseReport",
+      "mcp-stdio-client.close": "McpCloseReport",
+      "mcp-stdio-server.close": "McpNodeServerCloseReport",
+      "a2a-client-link.unlink": "A2AUnlinkReport",
+      "a2a-server.dispose": "A2ADisposeReport"
+    },
+    "postRuntimeLogger": "closed-no-op-never-used-as-teardown-proof",
+    "failedConnectRollback": "bounded-closeWithReport-primary-failure-preserved",
+    "failedConnectError": "McpConnectionError-with-support-safe-failure-and-cleanup-report",
+    "fieldContract": "core-observability.IntegrationOperationEvidenceFields",
+    "fieldBounds": {
+      "integrationFamilyMaxChars": 64,
+      "integrationOperationMaxChars": 64,
+      "operationOrAttemptIdMaxChars": 128,
+      "errorCodeMaxChars": 128,
+      "attemptNumberMinimum": 1,
+      "durationMs": "finite-nonnegative",
+      "message": "static-no-user-data"
+    },
+    "runtimeActiveLogLevels": "start-success-info-failure-error",
+    "runtimeHealthProjection": "RuntimeObservationHealthSnapshot-integration-accepted-filtered-dropped-rejected",
+    "completenessClaim": "only-when-zero-filtered-dropped-rejected-and-required-delivery-complete",
+    "completenessReconciliation": "expected-operation-attempt-pairs-and-event-id-acks-plus-teardown-reports",
+    "criticalDeliverySummary": "insufficient-for-normal-priority-integration-log-completeness",
+    "healthCounterScope": "runtime-lifetime-cumulative-not-per-run-delivery-receipts",
+    "baseDiagnosticRing": "evictable-support-view-never-complete-audit-log",
+    "absentLogger": "supported-no-implicit-console-sink",
+    "correlationAuthority": "runtime-generated-not-integration-overridable",
+    "cleanupFailure": "support-safe-report-never-replaces-primary-failure"
+  },
+  "recommendedCompositionEntrypoints": {
+    "@ai-agent-sdk/provider-openai": { "specifier": "@ai-agent-sdk/provider-openai", "symbol": "openAiPlugin", "compositionPoint": "runtime.providers", "lifecycle": "inert-runtime-owned-registration", "audience": "application", "proofFile": "consumers/edge-minimal.ts", "proofFragments": ["providers: [openAiPlugin("] },
+    "@ai-agent-sdk/provider-anthropic": { "specifier": "@ai-agent-sdk/provider-anthropic", "symbol": "anthropicPlugin", "compositionPoint": "runtime.providers", "lifecycle": "inert-runtime-owned-registration", "audience": "application", "proofFile": "consumers/anthropic-minimal.ts", "proofFragments": ["providers: [anthropicPlugin("] },
+    "@ai-agent-sdk/provider-codex": { "specifier": "@ai-agent-sdk/provider-codex", "symbol": "codexPlugin", "compositionPoint": "runtime.providers", "lifecycle": "inert-runtime-owned-registration", "audience": "application", "proofFile": "consumers/codex-injected-minimal.ts", "proofFragments": ["providers: [codexPlugin("] },
+    "@ai-agent-sdk/provider-http": { "specifier": "@ai-agent-sdk/provider-http", "symbol": "createRuntimeHttpProvider", "compositionPoint": "provider-author.adapter", "lifecycle": "inert-value", "audience": "authoring-support", "proofFile": "consumers/provider-author.ts", "proofFragments": ["const adapter = createRuntimeHttpProvider(", "registrar.registerAdapter(adapter)"] },
+    "@ai-agent-sdk/protocol-responses": { "specifier": "@ai-agent-sdk/protocol-responses", "symbol": "openAiResponsesProtocol", "compositionPoint": "provider-author.protocol", "lifecycle": "inert-value", "audience": "authoring-support", "proofFile": "consumers/provider-author.ts", "proofFragments": ["protocol: openAiResponsesProtocol"] },
+    "@ai-agent-sdk/protocol-anthropic-messages": { "specifier": "@ai-agent-sdk/protocol-anthropic-messages", "symbol": "anthropicMessagesProtocol", "compositionPoint": "provider-author.protocol", "lifecycle": "inert-value", "audience": "authoring-support", "proofFile": "consumers/anthropic-provider-author.ts", "proofFragments": ["protocol: anthropicMessagesProtocol"] },
+    "@ai-agent-sdk/mcp": { "specifier": "@ai-agent-sdk/mcp", "symbol": "connectMcpHttp", "compositionPoint": "runtime-agent.toolSources", "lifecycle": "connected-caller-owned", "audience": "application", "proofFile": "consumers/edge-capabilities.ts", "proofFragments": ["mcp = await connectMcpHttp(", "logger: runtime.logger(", "toolSources: [mcp]", "error instanceof McpConnectionError", "void error.cleanup.error", "mcpCloseReport = await mcp.closeWithReport()"] },
+    "@ai-agent-sdk/mcp-server": { "specifier": "@ai-agent-sdk/mcp-server", "symbol": "createMcpServer", "compositionPoint": "host.mcp-server", "lifecycle": "inert-host-mounted", "audience": "application", "proofFile": "consumers/edge-mcp-server-host.ts", "proofFragments": ["runtime.logger(", "const server = createMcpServer(", "logger,", "return server.handle(request, { signal })"] },
+    "@ai-agent-sdk/mcp-node": { "specifier": "@ai-agent-sdk/mcp-node", "symbol": "connectMcpStdio", "compositionPoint": "runtime-agent.toolSources", "lifecycle": "connected-caller-owned", "audience": "application", "proofFile": "consumers/node-harness.ts", "proofFragments": ["mcp = await connectMcpStdio(", "logger: runtime.logger(", "toolSources: [mcp]", "error instanceof McpConnectionError", "void error.cleanup.error", "mcpCloseReport = await mcp.closeWithReport()"] },
+    "@ai-agent-sdk/mcp-node-server": { "specifier": "@ai-agent-sdk/mcp-node-server", "symbol": "serveMcpStdio", "compositionPoint": "host.mcp-server", "lifecycle": "host-owned", "audience": "application", "proofFile": "consumers/node-mcp-server-host.ts", "proofFragments": ["runtime.logger(", "return serveMcpStdio(server", "logger })", "const report = await handle.close({ signal })", "void report.unsettledRequests"] },
+    "@ai-agent-sdk/skill-filesystem": { "specifier": "@ai-agent-sdk/skill-filesystem", "symbol": "fileSystemSkillProviderPlugin", "compositionPoint": "runtime-agent.skills", "lifecycle": "borrowed-caller-owned", "audience": "application", "proofFile": "consumers/node-harness.ts", "proofFragments": ["skills: [fileSystemSkillProviderPlugin("] },
+    "@ai-agent-sdk/observability-fetch": { "specifier": "@ai-agent-sdk/observability-fetch", "symbol": "fetchObservationExporter", "compositionPoint": "runtime.observability.exporters", "lifecycle": "explicit-owned-or-borrowed", "audience": "application", "proofFile": "consumers/edge-capabilities.ts", "proofFragments": ["exporter: fetchObservationExporter(", "ownership: 'owned'"] },
+    "@ai-agent-sdk/observability-browser": { "specifier": "@ai-agent-sdk/observability-browser", "symbol": "indexedDbObservationExporter", "compositionPoint": "runtime.observability.exporters", "lifecycle": "explicit-owned-or-borrowed", "audience": "application", "proofFile": "consumers/browser-observability.ts", "proofFragments": ["exporter: indexedDbObservationExporter(", "ownership: 'owned'"] },
+    "@ai-agent-sdk/observability-node": { "specifier": "@ai-agent-sdk/observability-node", "symbol": "jsonlObservationExporter", "compositionPoint": "runtime.observability.exporters", "lifecycle": "explicit-owned-or-borrowed", "audience": "application", "proofFile": "consumers/node-harness.ts", "proofFragments": ["exporter: jsonlObservationExporter(", "ownership: 'owned'"] },
+    "@ai-agent-sdk/observability-otel": { "specifier": "@ai-agent-sdk/observability-otel", "symbol": "createOpenTelemetryBridge", "compositionPoint": "runtime.observability.openSpan-processors", "lifecycle": "borrowed-caller-owned", "audience": "application", "proofFile": "consumers/browser-observability.ts", "proofFragments": ["const bridge = createOpenTelemetryBridge(", "openSpan: bridge.openSpan", "processors: [bridge.processor]"] },
+    "@ai-agent-sdk/auth-node": { "specifier": "@ai-agent-sdk/auth-node", "symbol": "envCredential", "compositionPoint": "provider-factory.credentials", "lifecycle": "borrowed-caller-owned", "audience": "application", "proofFile": "consumers/node-env.ts", "proofFragments": ["apiKey: envCredential("] },
+    "@ai-agent-sdk/a2a": { "specifier": "@ai-agent-sdk/a2a/client", "symbol": "linkA2AAgent", "compositionPoint": "runtime-team.linkAgent", "lifecycle": "borrowed-caller-owned", "audience": "application", "proofFile": "consumers/node-a2a-runtime-team.ts", "proofFragments": ["runtime.logger(", "await linkA2AAgent(team", "logger,", "return { unlink, unlinkWithReport }", "runtimeReport = await runtime.close({ signal })", "a2aReport = unlinkWithReport()", "disposeWithReport('runtime closed')"] }
+  },
+  "providerRouteClaimPolicy": {
+    "normalRuntimeInput": "composable-model-provider-plugin",
+    "legacyPluginSurface": "advanced-registry-only",
+    "claimVisibility": "inert-routes-before-setup",
+    "preflightOrder": "all-plugin-ids-and-routes-before-any-setup",
+    "helperRegistrar": "scoped-to-declared-route-claims",
+    "setupCoverage": "every-claim-registered-exactly-once-by-return",
+    "undeclaredRegistration": "reject-and-rollback",
+    "routeMutation": "setup-and-runtime-owned-rollback-close-within-claims-only"
+  },
+  "skillReferencePolicy": {
+    "catalogShape": "opaque-revision-plus-candidates",
+    "referenceCreation": "runtime-stamps-candidate-with-catalog-revision",
+    "locatorType": "bounded-json-value",
+    "candidateProvider": "must-equal-skill-provider-id",
+    "loadAndResourceInput": "exact-skill-reference",
+    "resumeValidation": "schema-bounds-provider-identity-then-provider-validation",
+    "unavailableReference": "fail-closed-before-model-or-resource-use",
+    "snapshotContent": "reference-only-no-loaded-instructions-or-resource-content",
+    "locatorInDiagnostics": false,
+    "resourcePathValidation": "provider-relative-bounded-no-traversal"
+  },
+  "toolSourceSnapshotPolicy": {
+    "acquisition": "synchronous-once-per-source-per-agent-invocation",
+    "signal": "required-before-source-method-access",
+    "revision": "bounded-nonempty-string",
+    "payload": "bounded-tool-definitions",
+    "toolMethodCapture": "identity-schema-and-executable-references-from-one-snapshot",
+    "refresh": "source-owned-explicit-visible-next-invocation",
+    "compatibilityCatalog": "direct-caller-only-core-never-reads",
+    "snapshotFailure": "fail-invocation-no-implicit-stale-fallback",
+    "terminalEvidence": "source-id-and-revision-per-run",
+    "catalogContentInDiagnosticsOrReports": false
+  },
+  "localToolDefinitionPolicy": {
+    "marker": "none-core-owned-leaf-contract",
+    "directObjectLiteral": "allowed-runtime-captures",
+    "defineTool": "side-effect-free-new-frozen-wrapper",
+    "callerObjectMutationOrFreeze": false,
+    "captureAt": "runtime-agent-or-session-binding-before-model-dispatch",
+    "capturedFields": [
+      "name",
+      "description",
+      "parameters-detached-bounded-snapshot",
+      "parse",
+      "execute",
+      "render",
+      "meta",
+      "timeoutMs",
+      "isConcurrencySafe"
+    ],
+    "methodReceiver": "original-tool-definition",
+    "rereadAfterCapture": false,
+    "postCaptureMutation": "no-effect-on-bound-tool",
+    "collisionScope": "one-agent-invocation-local-plus-source-tools"
+  },
+  "nativeToolPolicy": {
+    "vocabulary": "merge-extensible-native-tool-schema-map",
+    "builtins": ["web-search", "image-generation"],
+    "arbitraryUnknownIndexSignature": false,
+    "configuration": "bounded-deep-detached-json-safe",
+    "captureAt": "agent-definition-before-model-resolution",
+    "modelCapability": "absent-unknown-explicit-list-is-allowlist",
+    "executionOwner": "provider-not-host-tool-scheduler",
+    "approvalPipeline": "not-host-tool-approval-use-provider-policy",
+    "toolChoice": "typed-host-or-native-discriminated-union",
+    "progressEvents": "distinct-correlated-assistant-native-tool",
+    "progressPayload": "bounded-json-value-caller-stream-content-not-default-observation",
+    "postCaptureMutation": "no-effect-on-bound-agent"
+  },
+  "wireRequestBodyPolicy": {
+    "v1BodyKind": "json-object-only",
+    "serialization": "synchronous-pure-protocol-method",
+    "validation": "finite-json-deep-detached-bounded-before-dispatch",
+    "encodeAt": "once-per-prepared-logical-call",
+    "physicalRetryBody": "reuse-identical-encoded-bytes",
+    "contentType": "application-json-transport-owned",
+    "unsupportedValue": "stable-pre-dispatch-failure-no-provider-attempt",
+    "defaultObservationBody": false,
+    "compatibilityWireLogger": "explicit-high-risk-bounded-exact-json-body-redacted-headers"
+  },
+  "sseTransportPolicy": {
+    "owner": "provider-http-not-core-or-protocol-package",
+    "parserDependency": "exact-eventsource-parser-4.1.0-under-adr-0001",
+    "mediaType": "text-event-stream-required-parameters-allowed-before-parser",
+    "utf8": "whatwg-streaming-replacement-semantics",
+    "activity": "every-nonempty-body-read-including-comment-heartbeats",
+    "idleDeadline": "single-resettable-deadline-per-physical-attempt",
+    "eventCount": "configurable-default-100000",
+    "eventBufferChars": "configurable-default-1048576",
+    "queueDrain": "linear-cursor-never-array-shift",
+    "reconnect": "never-parser-retry-field-ignored",
+    "terminal": "exactly-one-finish-last-eof-before-finish-stream-closed",
+    "retryAfterOutput": "forbidden",
+    "teardown": "bounded-cancel-primary-failure-preserved"
+  },
+  "edgeWebDeploymentPolicy": {
+    "defaultExecutionOwner": "edge-worker",
+    "browserDefaultSdkPackages": "none-static-sse-client",
+    "providerCredentials": "worker-injected-never-browser-originated-or-returned",
+    "principalSource": "trusted-host-auth-context-never-request-json",
+    "conversationAuthorization": "principal-plus-conversation-id-or-server-issued-opaque-handle",
+    "hermeticPrincipal": "explicit-fixed-test-principal-only",
+    "sessionIdentity": "one-session-per-principal-conversation-mode-excluded",
+    "deepSearchActivation": "host-mapped-bounded-run-scoped-additional-instructions",
+    "deepSearchExecution": "agent-instruction-driven-adaptive-not-host-workflow",
+    "forwardRequestInstructions": false,
+    "concurrentRun": "stable-409-without-second-run",
+    "cancellation": "owned-controller-combines-request-abort-response-cancel-and-runtime-close",
+    "disconnectSettlement": "abort-and-bounded-await-no-surviving-provider-or-tool-operation",
+    "eventEnvelope": "schema-version-run-id-monotonic-sequence-type",
+    "terminal": "exactly-one-complete-failed-or-aborted-with-run-report",
+    "errorExposure": "support-safe-code-stage-message-no-raw-thrown-error",
+    "toolProjection": "explicit-public-json-safe-bounded",
+    "eofWithoutTerminal": "client-visible-incomplete-never-success",
+    "automaticReplay": "forbidden-without-explicit-resume-protocol",
+    "requestBoundary": "same-origin-default-bounded-json-before-agent-admission",
+    "credentialedAcceptance": "owner-authorized-targeted"
+  },
+  "runInstructionPolicy": {
+    "surface": "optional-host-owned-string",
+    "maxUtf8Bytes": 65536,
+    "validation": "synchronous-before-run-admission-history-ledger-or-capability-method",
+    "emptyOrWhitespace": "stable-rejection",
+    "contentNormalization": "none-preserve-exact-captured-string",
+    "capture": "once-at-run-admission",
+    "systemOrder": "agent-skill-catalog-team-run-overlay-core-mode",
+    "application": "every-model-request-in-run-including-retry-and-post-compaction",
+    "persistence": "never-history-memory-snapshot-resume-or-later-run",
+    "manualCompaction": "base-instructions-only-outside-run",
+    "privacy": "provider-request-only-no-default-observation-diagnostics-error-or-artifact",
+    "accounting": "included-in-provider-input-usage-and-local-estimation-request",
+    "retry": "reuse-exact-captured-overlay",
+    "sessionIdentity": "unchanged-agent-session-conversation-and-memory-binding",
+    "authority": "not-auth-approval-tool-or-resource-policy",
+    "untrustedTransportForwarding": false,
+    "errorCode": "RUN_ADDITIONAL_INSTRUCTIONS_INVALID"
+  },
+  "runHandleCancellationPolicy": {
+    "execution": "eager-at-stream-call-single-consumer-events",
+    "identity": "stable-run-id-before-first-event",
+    "abort": "synchronous-idempotent-owned-controller-signal",
+    "abortReason": "never-raw-observed-serialized-or-used-as-support-message",
+    "afterTerminal": "abort-noop",
+    "iteratorEarlyReturn": "abort-and-bounded-settle",
+    "result": "resolve-success-reject-stable-agent-run-error-with-report",
+    "report": "independently-awaitable-on-success-error-or-abort",
+    "eventTerminal": "exactly-one-usage-or-support-safe-error-with-same-report",
+    "idle": "session-idle-only-after-result-report-and-event-stream-settled",
+    "unhandledRejection": "internally-contained-without-hiding-caller-promises",
+    "errorCode": "AGENT_RUN_ABORTED"
+  },
+  "invocationObserverPolicy": {
+    "surface": "preserved-agent-invocation-options-on-event",
+    "runAndGenerate": "drain-handle-sequentially-await-observer-before-next-event",
+    "stream": "callback-not-invoked-caller-consumes-handle",
+    "compact": "callback-not-invoked-no-run-events",
+    "timeout": "runtime-limit-observer-timeout-default-30000ms",
+    "failure": "abort-run-settle-and-reject-convenience-method-stable-error",
+    "report": "canonical-report-remains-attached-and-independently-accounted",
+    "privacy": "raw-callback-failure-not-support-message-or-observation-content",
+    "durability": "application-observer-not-observation-exporter-or-ack",
+    "errorCode": "AGENT_EVENT_OBSERVER_FAILED"
+  },
+  "targetApiParityPolicy": {
+    "status": "pending-target-declaration-coverage",
+    "defaultAction": "preserve-unless-explicit-approved-removal",
+    "inventory": "exact-sorted-missing-symbol-count-and-sha256",
+    "phase0ApprovalRequiresZeroMissing": true,
+    "sources": {
+      "@ai-agent-sdk/core": {
+        "targetSpecifier": "@ai-agent-sdk/core",
+        "missingCount": 0,
+        "missingSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "@ai-agent-sdk/agent": {
+        "targetSpecifier": "@ai-agent-sdk/core/agent",
+        "missingCount": 0,
+        "missingSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "@ai-agent-sdk/agent/skill-validation": {
+        "targetSpecifier": "@ai-agent-sdk/core/skills",
+        "missingCount": 0,
+        "missingSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "@ai-agent-sdk/observability": {
+        "targetSpecifier": "@ai-agent-sdk/core/observability",
+        "missingCount": 0,
+        "missingSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  },
+  "observabilityCompatibilityPolicy": {
+    "advancedSpecifier": "@ai-agent-sdk/core/observability",
+    "legacySurface": "preserve-current-names-and-source-assignability",
+    "legacyExporter": "marker-free-caller-owned-observation-bus",
+    "runtimeExporter": "marker-based-observation-exporter-plugin",
+    "runtimeRegistration": "explicit-owned-or-borrowed",
+    "eventEnvelope": "preserve-current-correlated-schema-v1",
+    "resourceIdentity": "preserve-sdk-name-runtime-and-add-new-fields-optional",
+    "deliveryBatch": "new-name-with-atomic-run-terminal-records",
+    "deliveryAck": "new-name-with-event-and-run-id-acknowledgment",
+    "sameNameSemanticRepurpose": false,
+    "signatureEvidence": "compile-current-module-against-target-advanced-subpath"
+  },
+  "observabilityCapabilityCompatibilityPolicy": {
+    "advancedExporters": "preserve-marker-free-classes-and-lifecycle-controls",
+    "runtimeFactories": "additive-adapters-not-same-name-repurposing",
+    "focusedCoreTypes": ["JsonObject", "JsonValue"],
+    "sameNameSemanticRepurpose": false,
+    "source": "consumers/observability-capability-api-compatibility.ts",
+    "currentConfig": "tsconfig.current-observability-capabilities.json",
+    "targetConfig": "tsconfig.json",
+    "evidence": "same-source-dual-current-target-compile",
+    "entrypoints": [
+      "@ai-agent-sdk/observability-fetch",
+      "@ai-agent-sdk/observability-browser",
+      "@ai-agent-sdk/observability-node",
+      "@ai-agent-sdk/observability-node/journal",
+      "@ai-agent-sdk/observability-node/diagnostic",
+      "@ai-agent-sdk/observability-otel"
+    ]
+  },
+  "coreMessageCompatibilityPolicy": {
+    "source": "consumers/core-message-api-compatibility.ts",
+    "currentConfig": "tsconfig.current-core-message.json",
+    "targetConfig": "tsconfig.json",
+    "evidence": "same-source-dual-current-target-compile",
+    "coveredSymbols": [
+      "Branded",
+      "MessageId",
+      "ToolCallId",
+      "ProviderRequestId",
+      "ReasoningEffortId",
+      "ModelFailure",
+      "normalizeModelFailure",
+      "AssistantTextPhase",
+      "TextBlock",
+      "UrlCitationAnnotation",
+      "TextAnnotationMap",
+      "TextAnnotation",
+      "ReasoningBlock",
+      "ImageMediaType",
+      "ImageSource",
+      "ImageDetail",
+      "ImageBlock",
+      "NativeToolCallBlock",
+      "ToolCallBlock",
+      "ToolResultBlock",
+      "ContentBlockMap",
+      "ContentBlockType",
+      "ContentBlock",
+      "FinishReasonMap",
+      "FinishReason",
+      "TokenUsage",
+      "ReplayEnvelope",
+      "AssistantProvenance",
+      "ModelMessageSource",
+      "ToolMessageSource",
+      "AgentMessageSource",
+      "A2AMessageSource",
+      "MessageSourceMap",
+      "MessageSource",
+      "Message",
+      "UserMessage",
+      "AssistantMessage",
+      "ToolResultMessage",
+      "freezeMessage",
+      "createMessage",
+      "createUserMessage",
+      "createAssistantMessage",
+      "createTextMessage",
+      "ToolResultMessageInput",
+      "createToolResultMessage"
+    ]
+  },
+  "coreProviderCompatibilityPolicy": {
+    "source": "consumers/core-provider-api-compatibility.ts",
+    "currentConfig": "tsconfig.current-core-provider.json",
+    "targetConfig": "tsconfig.json",
+    "evidence": "same-source-dual-current-target-compile",
+    "coveredSymbols": [
+      "APP_IDENTITY",
+      "AgentSdkError",
+      "ApiKeyCheck",
+      "ApiKeyRejection",
+      "AppIdentity",
+      "BlockAssembler",
+      "CONTEXT_WINDOW_EXCEEDED_CODE",
+      "CallConfig",
+      "CallConfigAdapterDefaults",
+      "EMPTY_RESPONSE_CODE",
+      "INVALID_CREDENTIAL_CODE",
+      "MAX_TIMER_DELAY_MS",
+      "MISSING_CREDENTIAL_CODE",
+      "MODEL_ERROR_CODES",
+      "ModelCallHandle",
+      "ModelCallObservationError",
+      "ModelContext",
+      "ModelError",
+      "ModelErrorOptions",
+      "ModelModality",
+      "ModelModalityMap",
+      "ModelReasoningInfo",
+      "ModelRegistry",
+      "ModelRegistryOptions",
+      "OBSERVATION_ERROR_CODES",
+      "PluginError",
+      "PluginRegistrationHandle",
+      "PreparedCall",
+      "ProviderRetryScheduledInput",
+      "QUOTA_EXCEEDED_CODE",
+      "REGISTRY_ERROR_CODES",
+      "ReasoningEffortInfo",
+      "ResolvedAlwaysRetryPolicy",
+      "ResolvedNormalRetryPolicy",
+      "ResolvedRetryBackoff",
+      "RetryAttempt",
+      "SDK_VERSION",
+      "UsageAdditionResult",
+      "UsageValidationResult",
+      "WithRetryOptions",
+      "addUsageCounters",
+      "assertNever",
+      "assertUsableApiKey",
+      "attributionHeaders",
+      "backoffDelayMs",
+      "callConfigEquals",
+      "classifyUsageCoverage",
+      "contentHasImage",
+      "deepFreeze",
+      "detachedFrozen",
+      "errorChain",
+      "hasUsageCounters",
+      "isAgentSdkError",
+      "isContextWindowExceededError",
+      "isJsonValue",
+      "isQuotaExceededError",
+      "isRetryable",
+      "normalizeApiKey",
+      "possiblyBilledAttemptsWithoutUsage",
+      "projectImagesForTextModel",
+      "resolveRetryPolicy",
+      "textOnlyImageText",
+      "userAgent",
+      "validateUsageCounters",
+      "waitForSettlement",
+      "withIdleTimeout",
+      "withRetry"
+    ],
+    "signatureSensitiveExistingSymbols": [
+      "AttemptUsageReport",
+      "EndProviderAttemptInput",
+      "GenerateOptions",
+      "Message",
+      "ModelAdapter",
+      "ModelCallReport",
+      "ModelInfo",
+      "ModelInvocationContext",
+      "ModelProviderPlugin",
+      "ModelProviderRegistrar",
+      "ResolvedModelInfo",
+      "ResolvedRetryPolicy",
+      "StreamChunk",
+      "UsageCounters",
+      "UsageCoverage"
+    ]
+  },
+  "protocolCompatibilityPolicy": {
+    "advancedProtocol": "preserve-marker-free-protocol-definition",
+    "runtimeProtocol": "add-marker-based-intersection-view-on-same-value",
+    "sameNameSemanticRepurpose": false,
+    "evidence": "same-source-dual-current-target-compile",
+    "packages": {
+      "@ai-agent-sdk/protocol-responses": {
+        "source": "consumers/protocol-responses-api-compatibility.ts",
+        "currentConfig": "tsconfig.current-protocol-responses.json",
+        "targetConfig": "tsconfig.json"
+      },
+      "@ai-agent-sdk/protocol-anthropic-messages": {
+        "source": "consumers/protocol-anthropic-api-compatibility.ts",
+        "currentConfig": "tsconfig.current-protocol-anthropic.json",
+        "targetConfig": "tsconfig.json"
+      }
+    }
+  },
+  "mcpCompatibilityPolicy": {
+    "universalClientOwner": "@ai-agent-sdk/mcp",
+    "universalServerOwner": "@ai-agent-sdk/mcp-server",
+    "nodeClientOwner": "@ai-agent-sdk/mcp-node",
+    "nodeServerOwner": "@ai-agent-sdk/mcp-node-server",
+    "legacyServerRoute": "@ai-agent-sdk/mcp/server",
+    "legacyServerRouteKind": "optional-peer-reexport-view",
+    "rootMovesRequireDecision": "P0-14",
+    "advancedClose": "close-returns-promise-void",
+    "reportedClose": "distinct-closeWithReport-method",
+    "internalErrorField": "error",
+    "supportSafeErrorField": "supportError",
+    "sameNameSemanticRepurpose": false,
+    "source": "consumers/mcp-api-compatibility.ts",
+    "currentConfig": "tsconfig.current-mcp-compatibility.json",
+    "targetConfig": "tsconfig.json",
+    "evidence": "same-source-dual-current-target-route-compile",
+    "entrypoints": [
+      "@ai-agent-sdk/mcp",
+      "@ai-agent-sdk/mcp/client",
+      "@ai-agent-sdk/mcp/server",
+      "@ai-agent-sdk/mcp-node"
+    ]
+  },
+  "authCompatibilityPolicy": {
+    "envRootClosure": "core-plus-auth-node-only",
+    "codexRoute": "optional-provider-codex-peer",
+    "legacyEnvResult": "callable-zero-argument-string-resolver",
+    "runtimeEnvResult": "credential-source-intersection-on-same-callable-value",
+    "legacyCodexStore": "preserve-read-write-contract",
+    "runtimeCodexStore": "distinct-codex-credential-store-with-revisioned-read-commit",
+    "legacyNodeFactory": "preserve-codex-node-adapter-and-plugin",
+    "runtimeNodeFactory": "distinct-codex-node-provider-plugin",
+    "sameNameSemanticRepurpose": false,
+    "source": "consumers/auth-api-compatibility.ts",
+    "currentConfig": "tsconfig.current-auth-compatibility.json",
+    "targetConfig": "tsconfig.json",
+    "evidence": "same-source-dual-current-target-route-compile",
+    "entrypoints": [
+      "@ai-agent-sdk/auth-node",
+      "@ai-agent-sdk/auth-node/env",
+      "@ai-agent-sdk/auth-node/codex",
+      "@ai-agent-sdk/provider-codex"
+    ]
+  },
+  "a2aCompatibilityPolicy": {
+    "root": "combined-client-server-compatibility-view",
+    "client": "same-specifier-client-owner",
+    "server": "same-specifier-server-owner",
+    "sameNameSemanticRepurpose": false,
+    "source": "consumers/a2a-api-compatibility.ts",
+    "currentConfig": "tsconfig.current-a2a-compatibility.json",
+    "targetConfig": "tsconfig.json",
+    "evidence": "same-source-dual-current-target-route-compile",
+    "entrypoints": [
+      "@ai-agent-sdk/a2a",
+      "@ai-agent-sdk/a2a/client",
+      "@ai-agent-sdk/a2a/server"
+    ]
+  },
+  "runtimeTeamRemoteLinkPolicy": {
+    "bridge": "structural-linkAgent-contract",
+    "transportOwnership": "borrowed-caller-owned",
+    "teamClose": "unlink-only-never-close-transport",
+    "unlink": "synchronous-idempotent",
+    "messageAdmission": "team-operation-lease-with-bounds-and-support-safe-errors",
+    "remoteRun": "sendMessage-not-session-or-run",
+    "a2aCompatibility": "legacy-and-runtime-team-structural-acceptance"
+  },
+  "agentToolCompatibilityPolicy": {
+    "source": "consumers/agent-tool-api-compatibility.ts",
+    "currentConfig": "tsconfig.current-agent-tool.json",
+    "targetConfig": "tsconfig.json",
+    "evidence": "same-source-dual-current-target-compile",
+    "coveredSymbols": [
+      "AuthorizationOutcome",
+      "AuthorizedToolCall",
+      "DispatchToolCallOptions",
+      "InteractiveApprovalBrokerOptions",
+      "PreparedToolCall",
+      "TOOL_ERROR_CODES",
+      "TOOL_REGISTRY_ERROR_CODES",
+      "ToolCallPosition",
+      "ToolCallRequest",
+      "ToolError",
+      "ToolErrorDisposition",
+      "ToolExecutionResult",
+      "ToolFailure",
+      "ToolFilter",
+      "ToolRegistry",
+      "ToolSuccess",
+      "authorizeToolCall",
+      "dispatchAuthorizedToolCall",
+      "dispatchToolCall",
+      "executionModeOf",
+      "finalizeToolCall",
+      "prepareToolCall",
+      "renderJsonValue",
+      "toolErrorDisposition",
+      "toolFailure"
+    ],
+    "signatureSensitiveExistingSymbols": [
+      "ApprovalBroker",
+      "ApprovalRequest",
+      "InteractiveApprovalBroker",
+      "PostToolDecision",
+      "PreToolDecision",
+      "ToolCallContext",
+      "ToolCatalog",
+      "ToolDefinition",
+      "ToolExecutionMode",
+      "ToolInterceptor",
+      "ToolRunContext",
+      "createApprovalBroker",
+      "defineTool",
+      "fixedApprovalBroker"
+    ]
+  },
+  "agentSkillCompatibilityPolicy": {
+    "source": "consumers/agent-skill-api-compatibility.ts",
+    "currentConfig": "tsconfig.current-agent-skill.json",
+    "targetConfig": "tsconfig.json",
+    "evidence": "same-source-dual-current-target-compile",
+    "legacyProvider": "preserve-current-candidate-list-load-resource-contract",
+    "runtimeProvider": "distinct-versioned-skill-provider-plugin-with-revision-reference",
+    "sameNameSemanticRepurpose": false,
+    "coveredSymbols": [
+      "AgentSkillOptions",
+      "MAX_SKILL_DESCRIPTION_CHARS",
+      "MAX_SKILL_ID_CHARS",
+      "MAX_SKILL_INSTRUCTIONS_CHARS",
+      "MAX_SKILL_NAME_CHARS",
+      "MAX_SKILL_RESOURCE_CHARS",
+      "MAX_SKILL_RESOURCE_PATH_CHARS",
+      "ResolvedAgentSkillOptions",
+      "SKILL_ID_PATTERN",
+      "SKILL_TOOL_NAMES",
+      "SkillCatalog",
+      "SkillCatalogOptions",
+      "SkillProviderListOptions",
+      "SkillResourceBase",
+      "SkillResourceSummary",
+      "SkillSummary",
+      "createSkillTools",
+      "renderSkillCatalog",
+      "resolveSkillOptions",
+      "validateSkillId",
+      "validateSkillSource"
+    ],
+    "signatureSensitiveExistingSymbols": [
+      "SkillCandidate",
+      "SkillDefinition",
+      "SkillDefinitionInput",
+      "SkillInvocationPolicy",
+      "SkillLookupOptions",
+      "SkillProvider",
+      "SkillSource",
+      "defineSkill",
+      "defineSkillProvider"
+    ]
+  },
+  "agentMemoryHistoryCompatibilityPolicy": {
+    "source": "consumers/agent-memory-history-api-compatibility.ts",
+    "currentConfig": "tsconfig.current-agent-memory-history.json",
+    "targetConfig": "tsconfig.json",
+    "evidence": "same-source-dual-current-target-compile",
+    "coveredSymbols": [
+      "AgentCompactionConfig",
+      "AgentMemory",
+      "AgentMemoryConfig",
+      "AgentMemoryConfigInput",
+      "AgentMemorySeed",
+      "BeforeStepContext",
+      "COMPACTION_INSTRUCTION",
+      "CheckpointContext",
+      "CompactionBackoffReason",
+      "ContextCompactor",
+      "ContextCompactorOptions",
+      "History",
+      "HistoryEntry",
+      "HistoryEvent",
+      "HistoryLimits",
+      "HistorySurfaceNode",
+      "RequestErrorContext",
+      "StepDecision",
+      "SurfaceOp",
+      "TurnEndContext",
+      "estimateContextTokens",
+      "estimateMessageTokens",
+      "normalizeToolPairing",
+      "projectHistorySurface",
+      "projectMessages",
+      "resolveCompactionConfig",
+      "resolveMemoryConfig",
+      "selectCompactablePrefix"
+    ],
+    "signatureSensitiveExistingSymbols": [
+      "AgentCompactionOptions",
+      "AgentMemoryItem",
+      "AgentMemoryKind",
+      "AgentMemorySnapshot",
+      "CompactionResult",
+      "HistorySnapshot",
+      "TurnHooks"
+    ]
+  },
+  "agentAccountingTraceCompatibilityPolicy": {
+    "source": "consumers/agent-accounting-trace-api-compatibility.ts",
+    "currentConfig": "tsconfig.current-agent-accounting-trace.json",
+    "targetConfig": "tsconfig.json",
+    "evidence": "same-source-dual-current-target-compile",
+    "coveredSymbols": [
+      "AGENT_ACCOUNTING_ERROR_CODES",
+      "AgentProcessSpan",
+      "AgentRunError",
+      "AgentSpanKind",
+      "AgentSpanStatus",
+      "ModelCallPolicyDecision",
+      "RunAccountingPort",
+      "RunLedgerLimits",
+      "TraceEvent",
+      "TraceRef",
+      "TraceSpanEnd",
+      "TraceSpanStart",
+      "authoritativeTokenUsage",
+      "budgetTokenTotal",
+      "buildTraceTree",
+      "summarizeModelCallUsage"
+    ],
+    "signatureSensitiveExistingSymbols": [
+      "RunOperationCounts",
+      "RunReport",
+      "RunUsageReport",
+      "TrackedOperationKind",
+      "UsageCoverageSummary",
+      "UsageEstimationInput",
+      "UsageEstimator",
+      "UsagePolicy"
+    ]
+  },
+  "agentLoopDefinitionCompatibilityPolicy": {
+    "source": "consumers/agent-loop-definition-api-compatibility.ts",
+    "currentConfig": "tsconfig.current-agent-loop-definition.json",
+    "targetConfig": "tsconfig.json",
+    "evidence": "same-source-dual-current-target-compile",
+    "legacyEventProtocol": "preserve-current-agent-and-agent-run-events",
+    "runtimeEventProtocol": "distinct-runtime-agent-run-event",
+    "legacyDefinitionProtocol": "preserve-current-defined-agent-and-session",
+    "runtimeDefinitionProtocol": "distinct-runtime-agent-definition-and-session",
+    "runtimeDefinitionDiscriminant": "required-model-target-object",
+    "legacyDefinitionDiscriminant": "model-string-or-omitted",
+    "normalRuntimeEntry": "runtime-agent-accepts-runtime-definition-input-directly",
+    "factorySideEffects": "none",
+    "sameNameSemanticRepurpose": false,
+    "coveredSymbols": [
+      "AGENT_CONTROL_TOOLS",
+      "AgentDefinitionOverrides",
+      "AgentEvent",
+      "AgentInput",
+      "AgentMode",
+      "AgentResumeSessionOptions",
+      "AgentRunOutcome",
+      "AssistantContentTiming",
+      "BasicAgentOptions",
+      "CloneAgentOverrides",
+      "CompletionSubmission",
+      "DeepAgentOptions",
+      "DefinedAgent",
+      "ExhaustedBudget",
+      "HumanInLoopAgentOptions",
+      "InteractiveUserInputBrokerOptions",
+      "RunAgentOptions",
+      "RunToolCallsOptions",
+      "RunTurnOptions",
+      "StreamedAssistantTextPhase",
+      "ToolCallsOutcome",
+      "TurnBounds",
+      "TurnEndReason",
+      "TurnOutcome",
+      "runAgent",
+      "runToolCalls",
+      "runTurn"
+    ],
+    "signatureSensitiveExistingSymbols": [
+      "AgentDefinition",
+      "AgentDefinitionInput",
+      "AgentInvocationOptions",
+      "AgentResponse",
+      "AgentRunEvent",
+      "AgentRunHandle",
+      "AgentRuntimeLimits",
+      "AgentSession",
+      "AgentSessionOptions",
+      "AgentSessionSnapshot",
+      "InteractiveUserInputBroker",
+      "UserInputBroker",
+      "cloneAgent",
+      "createUserInputBroker",
+      "defineAgent"
+    ]
+  },
+  "agentTeamCompatibilityPolicy": {
+    "source": "consumers/agent-team-api-compatibility.ts",
+    "currentConfig": "tsconfig.current-agent-team.json",
+    "targetConfig": "tsconfig.json",
+    "evidence": "same-source-dual-current-target-compile",
+    "legacyTeamProtocol": "preserve-current-local-remote-control-plane",
+    "runtimeTeamProtocol": "distinct-runtime-agent-team",
+    "sameNameSemanticRepurpose": false,
+    "coveredSymbols": [
+      "AgentMessageDelivery",
+      "AgentMessageRecord",
+      "AgentTeam",
+      "AgentTeamMember",
+      "AgentTeamMemberOptions",
+      "DefinedAgentTeam",
+      "DefinedAgentTeamMemberInput",
+      "DefinedAgentTeamOptions",
+      "LinkAgentOptions",
+      "LinkedAgentResult",
+      "LinkedAgentSendInput",
+      "LinkedAgentTransport",
+      "ManagedAgentSpawnRequest",
+      "ManagedAgentTeam",
+      "ManagedAgentTeamOptions",
+      "ManagedAgentWorker",
+      "ManagedAgentWorkerResult",
+      "ResolvedManagedAgentSpawnRequest",
+      "SendAgentMessageRequest",
+      "SendAgentMessageResult",
+      "TeamMemberAttachmentOptions",
+      "TeamPort",
+      "TeamSessionPort",
+      "createDefinedAgentTeam",
+      "createManagedAgentTeam"
+    ],
+    "signatureSensitiveExistingSymbols": [
+      "AgentTeamEvent",
+      "AgentTeamOptions"
+    ]
+  },
+  "localExecutableLeafPolicy": {
+    "families": [
+      "approval-broker",
+      "user-input-broker",
+      "tool-interceptor",
+      "turn-hooks",
+      "usage-estimator"
+    ],
+    "marker": "none-core-owned-leaf-contracts",
+    "captureAt": "agent-session-binding-before-run",
+    "capturedConfiguration": "detached-bounded-readonly",
+    "capturedMethods": "runtime-used-function-references-once",
+    "methodReceiver": "original-leaf-object",
+    "operationalStateMayMutate": true,
+    "callerObjectMutationOrFreeze": false,
+    "rereadRuntimeMethodsAfterCapture": false,
+    "postCaptureReplacement": "no-effect-on-bound-session",
+    "requiredCancellation": "broker-and-hook-context-signals"
+  },
+  "deterministicTestEvidencePolicy": {
+    "privacyAssertion": "structural-field-absence-or-unique-non-id-sentinel",
+    "randomIdentifierFields": "never-global-substring-asserted-with-short-sentinel",
+    "rerunAfterRandomCollision": "classify-flake-and-retain-initial-failure",
+    "focusedPass": "diagnostic-evidence-not-erasure-of-suite-failure",
+    "liveNetworkProviderEvidence": "owner-authorized-targeted"
+  },
+  "memoryBindingPolicy": {
+    "compositionPrecedence": "session-false-or-binding-then-agent-binding-then-none",
+    "ownership": "always-borrowed-caller-owned-store",
+    "scopeKinds": ["conversation", "fixed"],
+    "conversationKey": "versioned-collision-free-tuple-of-namespace-agent-id-conversation-id",
+    "fixedSharing": "requires-shared-across-sessions-true",
+    "snapshotIdentity": "support-safe-binding-id-only",
+    "resumeBinding": "exact-binding-id-match-required",
+    "keyAndNamespaceInDiagnostics": false,
+    "keyAndNamespaceInSnapshot": false
+  },
+  "runtimeOperationPolicy": {
+    "trackedKinds": [
+      "agent-run",
+      "model-catalog",
+      "manual-compaction",
+      "team-operation"
+    ],
+    "admissionVsClose": "one-atomic-state-transition",
+    "operationSignal": "caller-plus-runtime-root-plus-operation-deadline",
+    "closeOrder": "reject-abort-quiesce-seal-dispose-flush",
+    "providerCleanupAfterOperationQuiescence": true,
+    "lateResultPublication": "discard-after-generation-seal",
+    "readOnlyAfterClose": ["providers", "diagnostics", "close-report"],
+    "rejectAfterClose": ["agent", "team", "modelCatalog", "run", "compact"],
+    "loggerAfterClose": "closed-noop-never-reopens-observation",
+    "closeReportPerKind": true,
+    "closeReportRows": "fixed-order-including-zero",
+    "closeReportInvariant": "active-equals-settled-plus-unsettled",
+    "legacyRunCounters": "projection-of-agent-run-row",
+    "concurrentClose": "first-call-starts-one-shared-terminal-task",
+    "closeCallerSignal": "accelerates-quiescence-never-cancels-cleanup-or-rejects-close",
+    "deadlineReached": "projection-of-quiescence-end-timeout"
+  },
+  "runtimeBaselines": {
+    "universal": {
+      "requiredFeatures": [
+        "AbortController",
+        "AbortSignal.any",
+        "AbortSignal.timeout",
+        "DOMException",
+        "ReadableStream",
+        "TextDecoder",
+        "TextEncoder",
+        "URL",
+        "crypto.getRandomValues",
+        "performance.now",
+        "structuredClone",
+        "timers"
+      ]
+    },
+    "browser": {
+      "extends": "universal",
+      "requiredFeatures": ["globalThis.addEventListener", "indexedDB"]
+    },
+    "node": {
+      "extends": "universal",
+      "minimumVersion": "22.12.0",
+      "requiredFeatures": ["node:module-resolution"]
+    }
+  },
+  "forbiddenPackages": [
+    "@ai-agent-sdk/agent",
+    "@ai-agent-sdk/node",
+    "@ai-agent-sdk/observability",
+    "ai-agent-sdk"
+  ],
+  "removalMigrationInventory": {
+    "@ai-agent-sdk/agent": {
+      "action": "merge-into-core-and-remove",
+      "replacementSpecifiers": {
+        "@ai-agent-sdk/agent": "@ai-agent-sdk/core/agent",
+        "@ai-agent-sdk/agent/skill-validation": "@ai-agent-sdk/core/skills"
+      },
+      "expectedImportFiles": []
+    },
+    "@ai-agent-sdk/observability": {
+      "action": "merge-into-core-and-remove",
+      "replacementSpecifiers": {
+        "@ai-agent-sdk/observability": "@ai-agent-sdk/core/observability"
+      },
+      "expectedImportFiles": []
+    },
+    "@ai-agent-sdk/node": {
+      "action": "remove",
+      "expectedImportFiles": []
+    },
+    "ai-agent-sdk": {
+      "action": "remove-or-time-bounded-compatibility",
+      "expectedImportFiles": []
+    }
+  },
+  "packages": {
+    "@ai-agent-sdk/core": {
+      "runtime": "universal",
+      "declarationDir": "core",
+      "specifiers": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/core/agent",
+        "@ai-agent-sdk/core/memory",
+        "@ai-agent-sdk/core/observability",
+        "@ai-agent-sdk/core/provider",
+        "@ai-agent-sdk/core/skills",
+        "@ai-agent-sdk/core/tools"
+      ],
+      "manifestRoles": ["core-runtime"],
+      "corePeer": "none",
+      "normalWorkspaceDependencies": [],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": []
+    },
+    "@ai-agent-sdk/provider-openai": {
+      "runtime": "universal",
+      "declarationDir": "provider-openai",
+      "specifiers": ["@ai-agent-sdk/provider-openai"],
+      "manifestRoles": ["model-provider"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/protocol-responses"
+      ],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": []
+    },
+    "@ai-agent-sdk/provider-anthropic": {
+      "runtime": "universal",
+      "declarationDir": "provider-anthropic",
+      "specifiers": ["@ai-agent-sdk/provider-anthropic"],
+      "manifestRoles": ["model-provider"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/protocol-anthropic-messages"
+      ],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": []
+    },
+    "@ai-agent-sdk/provider-codex": {
+      "runtime": "universal",
+      "declarationDir": "provider-codex",
+      "specifiers": ["@ai-agent-sdk/provider-codex"],
+      "manifestRoles": ["model-provider"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [
+        "@ai-agent-sdk/provider-http",
+        "@ai-agent-sdk/protocol-responses"
+      ],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": []
+    },
+    "@ai-agent-sdk/provider-http": {
+      "runtime": "universal",
+      "declarationDir": "provider-http",
+      "specifiers": ["@ai-agent-sdk/provider-http"],
+      "manifestRoles": ["provider-extension-kit"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": ["eventsource-parser@4.1.0"]
+    },
+    "@ai-agent-sdk/protocol-responses": {
+      "runtime": "universal",
+      "declarationDir": "protocol-responses",
+      "specifiers": ["@ai-agent-sdk/protocol-responses"],
+      "manifestRoles": ["wire-protocol"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": []
+    },
+    "@ai-agent-sdk/protocol-anthropic-messages": {
+      "runtime": "universal",
+      "declarationDir": "protocol-anthropic-messages",
+      "specifiers": ["@ai-agent-sdk/protocol-anthropic-messages"],
+      "manifestRoles": ["wire-protocol"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": []
+    },
+    "@ai-agent-sdk/mcp": {
+      "runtime": "universal",
+      "declarationDir": "mcp",
+      "specifiers": [
+        "@ai-agent-sdk/mcp",
+        "@ai-agent-sdk/mcp/client",
+        "@ai-agent-sdk/mcp/server"
+      ],
+      "manifestRoles": ["mcp-client", "tool-source"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [],
+      "optionalWorkspacePeers": ["@ai-agent-sdk/mcp-server"],
+      "specifierPeerRequirements": {
+        "@ai-agent-sdk/mcp/server": "@ai-agent-sdk/mcp-server"
+      },
+      "externalRuntimeDependencies": [
+        "@modelcontextprotocol/client@2.0.0"
+      ]
+    },
+    "@ai-agent-sdk/mcp-server": {
+      "runtime": "universal",
+      "declarationDir": "mcp-server",
+      "specifiers": ["@ai-agent-sdk/mcp-server"],
+      "manifestRoles": ["mcp-server"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": [
+        "@modelcontextprotocol/server@2.0.0"
+      ]
+    },
+    "@ai-agent-sdk/mcp-node": {
+      "runtime": "node",
+      "declarationDir": "mcp-node",
+      "specifiers": ["@ai-agent-sdk/mcp-node"],
+      "manifestRoles": ["mcp-client-transport"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": ["@ai-agent-sdk/mcp"],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": [
+        "@modelcontextprotocol/client@2.0.0"
+      ]
+    },
+    "@ai-agent-sdk/mcp-node-server": {
+      "runtime": "node",
+      "declarationDir": "mcp-node-server",
+      "specifiers": ["@ai-agent-sdk/mcp-node-server"],
+      "manifestRoles": ["mcp-server-transport"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": ["@ai-agent-sdk/mcp-server"],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": [
+        "@modelcontextprotocol/node@2.0.0",
+        "@modelcontextprotocol/server@2.0.0"
+      ]
+    },
+    "@ai-agent-sdk/skill-filesystem": {
+      "runtime": "node",
+      "declarationDir": "skill-filesystem",
+      "specifiers": ["@ai-agent-sdk/skill-filesystem"],
+      "manifestRoles": ["skill-provider"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": []
+    },
+    "@ai-agent-sdk/observability-fetch": {
+      "runtime": "universal",
+      "declarationDir": "observability-fetch",
+      "specifiers": ["@ai-agent-sdk/observability-fetch"],
+      "manifestRoles": ["observation-exporter"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": []
+    },
+    "@ai-agent-sdk/observability-browser": {
+      "runtime": "browser",
+      "declarationDir": "observability-browser",
+      "specifiers": ["@ai-agent-sdk/observability-browser"],
+      "manifestRoles": ["observation-exporter"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": []
+    },
+    "@ai-agent-sdk/observability-node": {
+      "runtime": "node",
+      "declarationDir": "observability-node",
+      "specifiers": [
+        "@ai-agent-sdk/observability-node",
+        "@ai-agent-sdk/observability-node/journal",
+        "@ai-agent-sdk/observability-node/diagnostic"
+      ],
+      "manifestRoles": ["observation-exporter", "diagnostics"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": []
+    },
+    "@ai-agent-sdk/observability-otel": {
+      "runtime": "universal",
+      "declarationDir": "observability-otel",
+      "specifiers": ["@ai-agent-sdk/observability-otel"],
+      "manifestRoles": ["observation-processor"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": [],
+      "requiredExternalRuntimePeers": ["@opentelemetry/api@1.9.1"],
+      "optionalExternalRuntimePeers": ["@opentelemetry/api-logs@0.221.0"]
+    },
+    "@ai-agent-sdk/auth-node": {
+      "runtime": "node",
+      "declarationDir": "auth-node",
+      "specifiers": [
+        "@ai-agent-sdk/auth-node",
+        "@ai-agent-sdk/auth-node/env",
+        "@ai-agent-sdk/auth-node/codex"
+      ],
+      "manifestRoles": ["credential-source", "credential-store"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [],
+      "optionalWorkspacePeers": ["@ai-agent-sdk/provider-codex"],
+      "specifierPeerRequirements": {
+        "@ai-agent-sdk/auth-node/codex": "@ai-agent-sdk/provider-codex"
+      },
+      "externalRuntimeDependencies": []
+    },
+    "@ai-agent-sdk/a2a": {
+      "runtime": "node",
+      "declarationDir": "a2a",
+      "specifiers": [
+        "@ai-agent-sdk/a2a",
+        "@ai-agent-sdk/a2a/client",
+        "@ai-agent-sdk/a2a/server"
+      ],
+      "manifestRoles": ["agent-transport"],
+      "corePeer": "required",
+      "normalWorkspaceDependencies": [],
+      "optionalWorkspacePeers": [],
+      "externalRuntimeDependencies": ["@a2a-js/sdk@1.1.0"]
+    }
+  },
+  "journeys": [
+    {
+      "id": "edge-minimal",
+      "file": "consumers/edge-minimal.ts",
+      "runtime": "universal",
+      "packages": ["@ai-agent-sdk/core", "@ai-agent-sdk/provider-openai"]
+    },
+    {
+      "id": "anthropic-minimal",
+      "file": "consumers/anthropic-minimal.ts",
+      "runtime": "universal",
+      "packages": ["@ai-agent-sdk/core", "@ai-agent-sdk/provider-anthropic"]
+    },
+    {
+      "id": "codex-injected-minimal",
+      "file": "consumers/codex-injected-minimal.ts",
+      "runtime": "universal",
+      "packages": ["@ai-agent-sdk/core", "@ai-agent-sdk/provider-codex"]
+    },
+    {
+      "id": "edge-capabilities",
+      "file": "consumers/edge-capabilities.ts",
+      "runtime": "universal",
+      "packages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/mcp",
+        "@ai-agent-sdk/observability-fetch",
+        "@ai-agent-sdk/provider-openai"
+      ]
+    },
+    {
+      "id": "edge-worker-chat",
+      "file": "consumers/edge-worker-chat.ts",
+      "runtime": "universal",
+      "packages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/provider-openai"
+      ]
+    },
+    {
+      "id": "node-minimal",
+      "file": "consumers/node-minimal.ts",
+      "runtime": "universal",
+      "packages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/provider-openai"
+      ]
+    },
+    {
+      "id": "node-env",
+      "file": "consumers/node-env.ts",
+      "runtime": "node",
+      "packages": [
+        "@ai-agent-sdk/auth-node",
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/provider-openai"
+      ]
+    },
+    {
+      "id": "node-harness",
+      "file": "consumers/node-harness.ts",
+      "runtime": "node",
+      "packages": [
+        "@ai-agent-sdk/auth-node",
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/mcp-node",
+        "@ai-agent-sdk/observability-node",
+        "@ai-agent-sdk/provider-codex",
+        "@ai-agent-sdk/skill-filesystem"
+      ]
+    },
+    {
+      "id": "node-mcp-server-host",
+      "file": "consumers/node-mcp-server-host.ts",
+      "runtime": "node",
+      "packages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/mcp-node-server"
+      ]
+    },
+    {
+      "id": "edge-mcp-server-host",
+      "file": "consumers/edge-mcp-server-host.ts",
+      "runtime": "universal",
+      "packages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/mcp-server"
+      ]
+    },
+    {
+      "id": "provider-author",
+      "file": "consumers/provider-author.ts",
+      "runtime": "universal",
+      "packages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/protocol-responses",
+        "@ai-agent-sdk/provider-http"
+      ]
+    },
+    {
+      "id": "anthropic-provider-author",
+      "file": "consumers/anthropic-provider-author.ts",
+      "runtime": "universal",
+      "packages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/protocol-anthropic-messages",
+        "@ai-agent-sdk/provider-http"
+      ]
+    },
+    {
+      "id": "provider-extension-author",
+      "file": "consumers/provider-extension-author.ts",
+      "runtime": "universal",
+      "packages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/provider-http"
+      ]
+    },
+    {
+      "id": "provider-catalog-consumer",
+      "file": "consumers/provider-catalog-consumer.ts",
+      "runtime": "universal",
+      "packages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/provider-openai"
+      ]
+    },
+    {
+      "id": "adapter-author",
+      "file": "consumers/adapter-author.ts",
+      "runtime": "universal",
+      "packages": ["@ai-agent-sdk/core"]
+    },
+    {
+      "id": "provider-multiple-instances",
+      "file": "consumers/provider-multiple-instances.ts",
+      "runtime": "universal",
+      "packages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/provider-openai"
+      ]
+    },
+    {
+      "id": "official-provider-factories",
+      "file": "consumers/official-provider-factories.ts",
+      "runtime": "universal",
+      "packages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/provider-anthropic",
+        "@ai-agent-sdk/provider-codex",
+        "@ai-agent-sdk/provider-openai"
+      ]
+    },
+    {
+      "id": "browser-observability",
+      "file": "consumers/browser-observability.ts",
+      "runtime": "browser",
+      "packages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/observability-browser",
+        "@ai-agent-sdk/observability-otel",
+        "@ai-agent-sdk/provider-openai"
+      ],
+      "directExternalPackages": ["@opentelemetry/api@1.9.1"]
+    },
+    {
+      "id": "browser-durable-minimal",
+      "file": "consumers/browser-durable-minimal.ts",
+      "runtime": "browser",
+      "packages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/observability-browser",
+        "@ai-agent-sdk/provider-openai"
+      ]
+    },
+    {
+      "id": "capability-author",
+      "file": "consumers/capability-author.ts",
+      "runtime": "universal",
+      "packages": ["@ai-agent-sdk/core"]
+    },
+    {
+      "id": "core-subpath-author",
+      "file": "consumers/core-subpath-author.ts",
+      "runtime": "universal",
+      "packages": ["@ai-agent-sdk/core"]
+    },
+    {
+      "id": "core-root-facade",
+      "file": "consumers/core-root-facade.ts",
+      "runtime": "universal",
+      "packages": ["@ai-agent-sdk/core"]
+    },
+    {
+      "id": "auth-env-alias",
+      "file": "consumers/auth-env-alias.ts",
+      "runtime": "node",
+      "packages": ["@ai-agent-sdk/auth-node", "@ai-agent-sdk/core"]
+    },
+    {
+      "id": "node-a2a-runtime-team",
+      "file": "consumers/node-a2a-runtime-team.ts",
+      "runtime": "node",
+      "packages": ["@ai-agent-sdk/a2a", "@ai-agent-sdk/core"]
+    },
+    {
+      "id": "retained-subpath-routing",
+      "file": "consumers/retained-subpath-routing.ts",
+      "runtime": "node",
+      "packages": [
+        "@ai-agent-sdk/a2a",
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/mcp",
+        "@ai-agent-sdk/mcp-server",
+        "@ai-agent-sdk/observability-node"
+      ]
+    }
+  ]
+}

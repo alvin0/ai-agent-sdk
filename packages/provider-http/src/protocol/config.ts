@@ -1,0 +1,5 @@
+export {
+  HTTP_PROTOCOL_API_VERSION,
+  HTTP_PROTOCOL_LIMITS,
+  HTTP_PROVIDER_ERROR_CODES,
+} from '../common/config.ts'

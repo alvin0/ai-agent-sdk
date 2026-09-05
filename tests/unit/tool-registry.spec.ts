@@ -5,9 +5,9 @@ import {
   executionModeOf,
   renderJsonValue,
   type ToolDefinition,
-} from '@ai-agent-sdk/agent'
-import { ToolError, toolErrorDisposition } from '@ai-agent-sdk/agent'
-import { ToolRegistry } from '@ai-agent-sdk/agent'
+} from '@ai-agent-sdk/core/agent'
+import { ToolError, toolErrorDisposition } from '@ai-agent-sdk/core/agent'
+import { ToolRegistry } from '@ai-agent-sdk/core/agent'
 
 const echo = defineTool({
   name: 'echo',
@@ -259,5 +259,46 @@ describe('defineTool', () => {
     })
     expect(await t.execute(t.parse!({ text: 'hi' }), {} as never)).toBe('HI')
     expect(() => t.parse!({ text: 1 })).toThrow(/must be a string/)
+  })
+
+  it('returns a detached frozen view and keeps the original method receiver', async () => {
+    const parameters = { type: 'object', properties: { value: { type: 'number' } } }
+    const source = {
+      name: 'captured', description: 'Captured tool.', parameters, multiplier: 2,
+      parse(this: { multiplier: number }, raw: unknown) {
+        return Number((raw as { value: number }).value) * this.multiplier
+      },
+      execute(this: { multiplier: number }, value: number) { return value * this.multiplier },
+    }
+    const captured = defineTool(source)
+    expect(captured).not.toBe(source)
+    expect(Object.isFrozen(captured)).toBe(true)
+    expect(Object.isFrozen(captured.parameters)).toBe(true)
+    expect(captured.parameters).not.toBe(parameters)
+    source.multiplier = 3
+    source.execute = () => 999
+    parameters.type = 'changed'
+    expect(captured.parse!({ value: 4 })).toBe(12)
+    expect(await captured.execute(4, {} as never)).toBe(12)
+    expect(captured.parameters).toMatchObject({ type: 'object' })
+    expect(Object.isFrozen(source)).toBe(false)
+  })
+
+  it('rejects accessor-backed metadata without invoking the accessor', () => {
+    const accessed = vi.fn()
+    const source = { name: 'accessor', description: 'Accessor.', execute: () => null }
+    Object.defineProperty(source, 'parameters', { enumerable: true, get() { accessed(); return { type: 'object' } } })
+    expect(() => defineTool(source as unknown as ToolDefinition)).toThrow(expect.objectContaining({ code: 'INVALID_TOOL' }))
+    expect(accessed).not.toHaveBeenCalled()
+  })
+
+  it('captures a behavior getter exactly once', async () => {
+    const accessed = vi.fn()
+    const source = { name: 'getter', description: 'Getter.', parameters: { type: 'object' } }
+    Object.defineProperty(source, 'execute', { configurable: true, get() { accessed(); return () => 'first' } })
+    const captured = defineTool(source as unknown as ToolDefinition)
+    Object.defineProperty(source, 'execute', { value: () => 'second' })
+    expect(await captured.execute({}, {} as never)).toBe('first')
+    expect(accessed).toHaveBeenCalledTimes(1)
   })
 })

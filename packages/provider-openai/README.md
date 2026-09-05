@@ -18,3 +18,6 @@ registry.install(openAiPlugin({ apiKey: () => secretStore.get('openai') }))
 
 Use `openAiAdapter()` for manual route registration. Both APIs are Universal and
 require an explicit `apiKey`; environment lookup belongs to a Node wrapper.
+
+Composition: `runtime.providers`. Lifecycle: `inert-runtime-owned-registration`;
+the runtime activates and removes the captured provider registration.

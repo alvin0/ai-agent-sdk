@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "policy": {
+    "defaultAction": "preserve",
+    "removalRequires": [
+      "stable-decision-id",
+      "replacement-or-rationale",
+      "consumer-migration",
+      "owner-approval"
+    ],
+    "currentCoreRoot": "retain-root",
+    "movedPackageRoot": "assigned-target-subpath",
+    "focusedSubpaths": "reexport-canonical-only",
+    "forbidDuplicateDeclarations": true
+  },
+  "canonicalCollisions": [
+    {
+      "symbol": "AgentMessageSource",
+      "sourcePackages": ["@ai-agent-sdk/core", "@ai-agent-sdk/agent"],
+      "canonicalSpecifier": "@ai-agent-sdk/core",
+      "reexportSpecifiers": ["@ai-agent-sdk/core/agent"]
+    }
+  ],
+  "sources": {
+    "@ai-agent-sdk/core": {
+      "declaration": "packages/core/dist/index.d.ts",
+      "declarationSha256": "bd84a6466174e3e97f345a08d253089da9c01e4341f5d5671517a325cf1175bf",
+      "targetSpecifier": "@ai-agent-sdk/core",
+      "exports": [
+        "A2AMessageSource", "APP_IDENTITY", "AdapterRegistrationHandle", "AgentMessageSource", "AgentSdkError", "AlwaysRetryPolicyConfig", "ApiKeyCheck", "ApiKeyRejection", "AppIdentity", "AssistantMessage", "AssistantProvenance", "AssistantTextPhase", "AttemptUsageReport", "BackoffConfig", "BlockAssembler", "Branded", "CONTEXT_WINDOW_EXCEEDED_CODE", "CallConfig", "CallConfigAdapterDefaults", "CaptureReceipt", "ContentBlock", "ContentBlockMap", "ContentBlockType", "CorrelationContext", "DeliveryMode", "DispatchState", "EMPTY_RESPONSE_CODE", "EndProviderAttemptInput", "FinishReason", "FinishReasonMap", "GenerateOptions", "INVALID_CREDENTIAL_CODE", "ImageBlock", "ImageDetail", "ImageMediaType", "ImageSource", "JsonObject", "JsonValue", "MAX_TIMER_DELAY_MS", "MISSING_CREDENTIAL_CODE", "MODEL_ERROR_CODES", "Message", "MessageId", "MessageSource", "MessageSourceMap", "ModelAdapter", "ModelCallHandle", "ModelCallObservationError", "ModelCallReport", "ModelContext", "ModelError", "ModelErrorOptions", "ModelFailure", "ModelInfo", "ModelInvocationContext", "ModelMessageSource", "ModelModality", "ModelModalityMap", "ModelProviderPlugin", "ModelProviderRegistrar", "ModelReasoningInfo", "ModelRegistry", "ModelRegistryOptions", "ModelToolSchema", "NOOP_OBSERVATION_PORT", "NativeImageGenerationTool", "NativeToolCallBlock", "NativeToolName", "NativeToolSchema", "NativeToolSchemaMap", "NativeWebSearchTool", "NormalRetryPolicyConfig", "OBSERVATION_ERROR_CODES", "ObservationBoundary", "ObservationDeliverySummary", "ObservationEvent", "ObservationEventName", "ObservationPhase", "ObservationPort", "ObservationPriority", "ObservationResource", "ObservationRunScope", "ObservationSpan", "ObservationSpanName", "OpenObservationSpanInput", "OperationStatus", "PLUGIN_ERROR_CODES", "PluginError", "PluginRegistrationHandle", "PreparedAdapterCall", "PreparedCall", "ProviderAttemptHandle", "ProviderInfo", "ProviderRequestId", "ProviderRetryScheduledInput", "QUOTA_EXCEEDED_CODE", "REGISTRY_ERROR_CODES", "ReasoningBlock", "ReasoningEffortId", "ReasoningEffortInfo", "ReplayEnvelope", "ResolvedAlwaysRetryPolicy", "ResolvedModelInfo", "ResolvedNormalRetryPolicy", "ResolvedRetryBackoff", "ResolvedRetryPolicy", "RetryAttempt", "RetryPolicyConfig", "SDK_VERSION", "SafeErrorRecord", "SpanId", "StartProviderAttemptInput", "StreamChunk", "StreamMiddleware", "TextAnnotation", "TextAnnotationMap", "TextBlock", "TokenUsage", "ToolCallBlock", "ToolCallId", "ToolChoice", "ToolMessageSource", "ToolResultBlock", "ToolResultMessage", "ToolResultMessageInput", "ToolSchema", "TraceId", "UrlCitationAnnotation", "UsageAdditionResult", "UsageCounters", "UsageCoverage", "UsageValidationResult", "UserMessage", "WebSearchLocation", "WithRetryOptions", "addUsageCounters", "assertNever", "assertUsableApiKey", "attributionHeaders", "backoffDelayMs", "callConfigEquals", "classifyUsageCoverage", "contentHasImage", "createAssistantMessage", "createCoreSpan", "createMessage", "createObservationRunScope", "createOperationId", "createSpanId", "createTextMessage", "createToolResultMessage", "createTraceId", "createUserMessage", "deepFreeze", "detachedFrozen", "disabledDeliverySummary", "errorChain", "freezeCorrelation", "freezeMessage", "hasUsageCounters", "isAgentSdkError", "isContextWindowExceededError", "isJsonValue", "isNativeToolSchema", "isQuotaExceededError", "isRetryable", "isSpanId", "isTraceId", "normalizeApiKey", "normalizeModelFailure", "possiblyBilledAttemptsWithoutUsage", "projectImagesForTextModel", "resolveRetryPolicy", "safeErrorRecord", "snapshotObservationSpan", "textOnlyImageText", "traceparent", "userAgent", "validObservationSpan", "validateCaptureReceipt", "validateUsageCounters", "waitForSettlement", "withIdleTimeout", "withRetry"
+      ],
+      "remove": []
+    },
+    "@ai-agent-sdk/agent": {
+      "declaration": "packages/agent/dist/index.d.ts",
+      "declarationSha256": "05633625485e71fc04d5b82b0539be9d9516f370c24d55afe9549da0a9c25b02",
+      "targetSpecifier": "@ai-agent-sdk/core/agent",
+      "exports": [
+        "AGENT_ACCOUNTING_ERROR_CODES", "AGENT_CONTROL_TOOLS", "AgentCompactionConfig", "AgentCompactionOptions", "AgentDefinition", "AgentDefinitionInput", "AgentDefinitionOverrides", "AgentEvent", "AgentInput", "AgentInvocationOptions", "AgentMemory", "AgentMemoryConfig", "AgentMemoryConfigInput", "AgentMemoryItem", "AgentMemoryKind", "AgentMemorySeed", "AgentMemorySnapshot", "AgentMessageDelivery", "AgentMessageRecord", "AgentMessageSource", "AgentMode", "AgentProcessSpan", "AgentResponse", "AgentResumeSessionOptions", "AgentRunError", "AgentRunEvent", "AgentRunHandle", "AgentRunOutcome", "AgentRuntimeLimits", "AgentSession", "AgentSessionOptions", "AgentSessionSnapshot", "AgentSkillOptions", "AgentSpanKind", "AgentSpanStatus", "AgentTeam", "AgentTeamEvent", "AgentTeamMember", "AgentTeamMemberOptions", "AgentTeamOptions", "ApprovalBroker", "ApprovalDecision", "ApprovalRequest", "AssistantContentTiming", "AuthorizationOutcome", "AuthorizedToolCall", "BasicAgentOptions", "BeforeStepContext", "COMPACTION_INSTRUCTION", "CheckpointContext", "CloneAgentOverrides", "CompactionBackoffReason", "CompactionResult", "CompletionSubmission", "ContextCompactor", "ContextCompactorOptions", "DEFAULT_AGENT_CALL_CONFIG", "DeepAgentOptions", "DefinedAgent", "DefinedAgentTeam", "DefinedAgentTeamMemberInput", "DefinedAgentTeamOptions", "DispatchToolCallOptions", "ExhaustedBudget", "History", "HistoryEntry", "HistoryEvent", "HistoryLimits", "HistorySnapshot", "HistorySurfaceNode", "HumanInLoopAgentOptions", "InteractiveApprovalBroker", "InteractiveApprovalBrokerOptions", "InteractiveUserInputBroker", "InteractiveUserInputBrokerOptions", "LinkAgentOptions", "LinkedAgentResult", "LinkedAgentSendInput", "LinkedAgentTransport", "MAX_SKILL_DESCRIPTION_CHARS", "MAX_SKILL_ID_CHARS", "MAX_SKILL_INSTRUCTIONS_CHARS", "MAX_SKILL_NAME_CHARS", "MAX_SKILL_RESOURCE_CHARS", "MAX_SKILL_RESOURCE_PATH_CHARS", "ManagedAgentSpawnRequest", "ManagedAgentTeam", "ManagedAgentTeamOptions", "ManagedAgentWorker", "ManagedAgentWorkerResult", "ModelCallPolicyDecision", "PostToolDecision", "PreToolDecision", "PreparedToolCall", "RequestErrorContext", "ResolvedAgentSkillOptions", "ResolvedManagedAgentSpawnRequest", "RunAccountingPort", "RunAgentOptions", "RunLedgerLimits", "RunOperationCounts", "RunReport", "RunToolCallsOptions", "RunTurnOptions", "RunUsageReport", "SKILL_ID_PATTERN", "SKILL_TOOL_NAMES", "SendAgentMessageRequest", "SendAgentMessageResult", "SkillCandidate", "SkillCatalog", "SkillCatalogOptions", "SkillDefinition", "SkillDefinitionInput", "SkillInvocationPolicy", "SkillLookupOptions", "SkillProvider", "SkillProviderListOptions", "SkillResourceBase", "SkillResourceSummary", "SkillSource", "SkillSummary", "StepDecision", "StreamedAssistantTextPhase", "SurfaceOp", "TOOL_ERROR_CODES", "TOOL_REGISTRY_ERROR_CODES", "TeamMemberAttachmentOptions", "TeamPort", "TeamSessionPort", "ToolCallContext", "ToolCallPosition", "ToolCallRequest", "ToolCallsOutcome", "ToolCatalog", "ToolDefinition", "ToolError", "ToolErrorDisposition", "ToolExecutionMode", "ToolExecutionResult", "ToolFailure", "ToolFilter", "ToolInterceptor", "ToolRegistry", "ToolRunContext", "ToolSuccess", "TraceEvent", "TraceRef", "TraceSpanEnd", "TraceSpanStart", "TrackedOperationKind", "TurnBounds", "TurnEndContext", "TurnEndReason", "TurnHooks", "TurnOutcome", "UsageCoverageSummary", "UsageEstimationInput", "UsageEstimator", "UsagePolicy", "UserInputAnswer", "UserInputBroker", "UserInputDecision", "UserInputOption", "UserInputQuestion", "UserInputRequest", "UserInputResponse", "authoritativeTokenUsage", "authorizeToolCall", "budgetTokenTotal", "buildTraceTree", "cloneAgent", "createApprovalBroker", "createDefinedAgentTeam", "createManagedAgentTeam", "createSkillTools", "createUserInputBroker", "defineAgent", "defineSkill", "defineSkillProvider", "defineTool", "dispatchAuthorizedToolCall", "dispatchToolCall", "estimateContextTokens", "estimateMessageTokens", "executionModeOf", "finalizeToolCall", "fixedApprovalBroker", "fixedUserInputBroker", "normalizeToolPairing", "prepareToolCall", "projectHistorySurface", "projectMessages", "renderJsonValue", "renderSkillCatalog", "resolveCompactionConfig", "resolveMemoryConfig", "resolveSkillOptions", "runAgent", "runToolCalls", "runTurn", "selectCompactablePrefix", "summarizeModelCallUsage", "toolErrorDisposition", "toolFailure", "validateSkillId", "validateSkillSource"
+      ],
+      "remove": [
+        {
+          "symbol": "DEFAULT_AGENT_CALL_CONFIG",
+          "decisionId": "P0-02",
+          "replacement": "Explicit AgentDefinition.model plus provider-owned model metadata defaults.",
+          "consumerMigration": "Replace implicit call defaults with an explicit { provider, id } model target."
+        }
+      ]
+    },
+    "@ai-agent-sdk/agent/skill-validation": {
+      "declaration": "packages/agent/dist/skill-validation.d.ts",
+      "declarationSha256": "63493e51597f23d82c8501618ef7087e035271a8cffad9446f0d3d16753d021c",
+      "targetSpecifier": "@ai-agent-sdk/core/skills",
+      "exports": [
+        "validateCandidate",
+        "validateSkillResourcePath"
+      ],
+      "remove": []
+    },
+    "@ai-agent-sdk/observability": {
+      "declaration": "packages/observability/dist/index.d.ts",
+      "declarationSha256": "31089416a8c9186e2c38f79085ceefdbfc380bd04cca80c327b773516cfa456a",
+      "targetSpecifier": "@ai-agent-sdk/core/observability",
+      "exports": [
+        "ContentRedactor", "ExportAck", "FlushResult", "LogLevel", "LogProjection", "LoggerContext", "MemoryObservationExporter", "MetricProjection", "Observability", "ObservabilityOptions", "ObservationBatch", "ObservationContentPolicy", "ObservationExporter", "ObservationExporterRegistration", "ObservationHealthSnapshot", "ObservationProcessor", "SdkLogger", "TestObservationExporter", "TestObservationExporterOptions", "TraceProjection", "createObservability", "projectLog", "projectMetrics", "projectTrace"
+      ],
+      "remove": []
+    }
+  }
+}

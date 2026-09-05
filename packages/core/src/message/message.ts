@@ -1,3 +1,4 @@
+import { systemRandomId } from '../platform/adapter.ts'
 /**
  * The message value type, its identity, and immutable construction helpers.
  *
@@ -120,14 +121,9 @@ type NewAssistantMessage = Omit<AssistantMessage, 'id' | 'role' | 'source'> & {
   readonly source: Omit<ModelMessageSource, 'kind'> & { readonly kind?: never }
 }
 
-/** Generate a message id, preferring the platform's own UUID source. */
+/** Generate a UUID from the required Web Crypto source. */
 function newMessageId(): MessageId {
-  const uuid = globalThis.crypto?.randomUUID?.()
-  if (uuid !== undefined) return MessageId(uuid)
-  // Non-secure contexts (and pre-19 Node) expose no global crypto. Message ids
-  // are correlation handles, never security tokens, so a unique-enough fallback
-  // is correct rather than a compromise.
-  return MessageId(`msg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`)
+  return MessageId(systemRandomId())
 }
 
 /**

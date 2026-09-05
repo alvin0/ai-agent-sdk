@@ -1,6 +1,12 @@
 # Observability and Usage Implementation Design
 
-Status: implemented and R0-verified
+Status: historical; superseded by `core-capability-composition-design.md`
+
+Migration note (2026-09-02): this document describes the current split-package
+implementation. For the Core + Capability target, ownership moves into core and
+the exporter batch adds atomic delivery-free `runRecords[]` as specified by
+[`core-capability-composition-design.md`](./core-capability-composition-design.md).
+The current events-only batch remains baseline evidence, not the target API.
 
 Architecture rationale: [observability-and-usage-architecture.md](./observability-and-usage-architecture.md)  
 Package design: [monorepo-implementation-design.md](./monorepo-implementation-design.md)  
@@ -610,6 +616,15 @@ export interface FlushResult {
 }
 ```
 
+These names remain the advanced marker-free, caller-owned bus contract after the
+core package move. They are not repurposed for `AgentRuntime` plugins. The
+high-level composition layer uses `ObservationExporterPlugin`,
+`ObservationDeliveryBatch`, `ObservationDeliveryAck`, and
+`RuntimeObservationExporterRegistration`; official exporter factories return
+that plugin type. This separation preserves existing source signatures while
+adding marker validation, readiness, atomic run records, acknowledgment identity,
+and explicit owned/borrowed lifecycle to the recommended path.
+
 `stage` is an optional local-durability hook. The bus calls it synchronously,
 after both privacy passes and in-memory capacity acceptance, and before
 `capture()` returns. The hook must start its local write before returning when
@@ -629,7 +644,12 @@ No Node process hooks are installed automatically. `observability-node` exports 
 
 ## 13. Fetch exporter
 
-`@ai-agent-sdk/observability-fetch` posts `ObservationBatch` JSON to an explicit HTTPS endpoint. Default request rules:
+The current advanced `FetchObservationExporter` posts the preserved
+`ObservationBatch` JSON contract. The recommended post-migration
+`fetchObservationExporter()` plugin posts `ObservationDeliveryBatch` JSON to an
+explicit HTTPS endpoint. Both paths use the same transport rules below; their
+wire schemas and acknowledgments remain distinct and must not be accepted as
+interchangeable merely because both carry a `batchId`. Default request rules:
 
 - method POST;
 - `content-type: application/json`;

@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "journeys": [
+    {
+      "id": "edge-chat",
+      "sourceRoots": ["test-human/edge-chat"],
+      "excludeRoots": ["test-human/edge-chat/live"],
+      "currentDirectPackages": ["@ai-agent-sdk/core"],
+      "targetDirectPackages": ["@ai-agent-sdk/core"],
+      "liveCompanionPackages": ["@ai-agent-sdk/core", "@ai-agent-sdk/provider-openai"],
+      "researchEvidence": {
+        "kind": "scripted-offline",
+        "oracle": "fixture-url-topic-matching",
+        "verifiedClaims": ["sdk-tool-loop", "ui-progress-projection"],
+        "unverifiedClaims": ["agent-autonomy", "internet-page-reading", "semantic-sufficiency", "contradiction-resolution"],
+        "liveAcceptance": "manual-pending"
+      },
+      "status": "target-achieved"
+    },
+    {
+      "id": "edge-chat-live",
+      "sourceRoots": ["test-human/edge-chat/live"],
+      "currentDirectPackages": ["@ai-agent-sdk/core", "@ai-agent-sdk/provider-codex"],
+      "targetDirectPackages": ["@ai-agent-sdk/core", "@ai-agent-sdk/provider-codex"],
+      "liveCompanionPackages": ["@ai-agent-sdk/core", "@ai-agent-sdk/provider-codex"],
+      "researchEvidence": {
+        "kind": "authenticated-live",
+        "oracle": "host-owned-read-receipts-and-independent-review",
+        "verifiedClaims": ["agent-autonomy", "internet-page-reading", "read-provenance", "coverage-floors", "contradiction-resolution", "independent-review", "model-fallback-recovery"],
+        "unverifiedClaims": ["direct-workerd-codex-upstream-transport", "cross-provider-semantic-equivalence"],
+        "liveAcceptance": "reviewed-pass-via-bounded-test-relay"
+      },
+      "status": "target-achieved"
+    },
+    {
+      "id": "node-codex",
+      "sourceRoots": ["test-human/node-codex"],
+      "currentDirectPackages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/mcp-node",
+        "@ai-agent-sdk/observability-node",
+        "@ai-agent-sdk/skill-filesystem"
+      ],
+      "targetDirectPackages": [
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/mcp-node",
+        "@ai-agent-sdk/observability-node",
+        "@ai-agent-sdk/skill-filesystem"
+      ],
+      "liveCompanionPackages": [
+        "@ai-agent-sdk/auth-node",
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/provider-codex"
+      ],
+      "status": "target-achieved"
+    }
+  ],
+  "targetForbiddenPackages": [
+    "@ai-agent-sdk/agent",
+    "@ai-agent-sdk/node",
+    "@ai-agent-sdk/observability",
+    "ai-agent-sdk"
+  ]
+}

@@ -9,9 +9,10 @@ import {
   type ObservationEvent,
   type StreamChunk,
 } from '@ai-agent-sdk/core'
-import { createObservability, type ObservationBatch } from '@ai-agent-sdk/observability'
+import { createObservability, type ObservationBatch } from '@ai-agent-sdk/core/observability'
 import {
   FetchObservationExporter,
+  fetchObservationExporter,
   flushObservabilityWithWaitUntil,
 } from '@ai-agent-sdk/observability-fetch'
 
@@ -57,6 +58,58 @@ async function drain(stream: AsyncIterable<StreamChunk>): Promise<void> {
 }
 
 describe('Fetch observation exporter', () => {
+  it('invokes captured fetch without an object receiver for browser Web IDL compatibility', async () => {
+    const source = batch()
+    const receivers: unknown[] = []
+    const receiverSensitive = async function (this: unknown): Promise<Response> {
+      receivers.push(this)
+      if (this !== undefined) throw new TypeError('Illegal invocation')
+      return new Response(null, { status: 204 })
+    }
+    const exporter = new FetchObservationExporter({
+      endpoint: 'https://telemetry.example.test/v1/events',
+      fetch: receiverSensitive as typeof fetch,
+    })
+
+    await expect(exporter.export(source, new AbortController().signal)).resolves.toMatchObject({
+      accepted: true,
+    })
+    expect(receivers).toEqual([undefined])
+  })
+
+  it('keeps the recommended runtime factory inert and acknowledges events plus terminal records', async () => {
+    const requests: RequestInit[] = []
+    const fetch = injectedFetch(async (_input, init) => {
+      requests.push(init ?? {})
+      return new Response(null, { status: 204 })
+    })
+    const exporter = fetchObservationExporter({
+      id: 'runtime-fetch', endpoint: 'https://telemetry.example.test/v1/runtime', fetch,
+    })
+    expect(exporter).toMatchObject({
+      kind: 'observation-exporter', apiVersion: 1, id: 'runtime-fetch',
+      supportedBoundaries: ['remote-acknowledged'],
+    })
+    expect(requests).toEqual([])
+    const event = observationEvent()
+    const delivery = {
+      id: createOperationId(),
+      resource: event.resource,
+      events: [event],
+      runRecords: [{ kind: 'run-terminal-record', runId: 'fetch-run' }],
+    }
+    await expect(exporter.export(delivery as never, new AbortController().signal)).resolves.toEqual({
+      batchId: delivery.id,
+      acceptedEventIds: [event.eventId],
+      acceptedRunIds: ['fetch-run'],
+    })
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({
+      method: 'POST', redirect: 'manual', body: JSON.stringify(delivery),
+      headers: expect.objectContaining({ 'idempotency-key': delivery.id }),
+    })
+  })
+
   it('posts the exact JSON batch with an idempotency key and accepts 204', async () => {
     const calls: Array<{ input: FetchInput; init: RequestInit | undefined }> = []
     const source = batch()
@@ -74,7 +127,7 @@ describe('Fetch observation exporter', () => {
     })
     expect(calls).toHaveLength(1)
     expect(String(calls[0]?.input)).toBe('https://telemetry.example.test/v1/events')
-    expect(calls[0]?.init).toMatchObject({ method: 'POST', redirect: 'error', body: JSON.stringify(source) })
+    expect(calls[0]?.init).toMatchObject({ method: 'POST', redirect: 'manual', body: JSON.stringify(source) })
     expect(calls[0]?.init?.headers).toMatchObject({
       authorization: 'Bearer telemetry-only',
       'content-type': 'application/json',
@@ -229,6 +282,19 @@ describe('Fetch observation exporter', () => {
       })
       expect(fetch).toHaveBeenCalledTimes(1)
     }
+
+    const redirect = vi.fn<typeof globalThis.fetch>(async () => new Response(null, {
+      status: 307,
+      headers: { location: 'https://other.example.test/v1/events' },
+    }))
+    const redirectExporter = new FetchObservationExporter({
+      endpoint: 'https://telemetry.example.test/v1/events', fetch: redirect as typeof globalThis.fetch,
+    })
+    await expect(redirectExporter.export(source, new AbortController().signal)).resolves.toEqual({
+      batchId: source.batchId, accepted: false, retryable: false,
+    })
+    expect(redirect).toHaveBeenCalledTimes(1)
+    expect(redirect.mock.calls[0]?.[1]?.redirect).toBe('manual')
   })
 
   it('rejects batches and acknowledgment bodies beyond configured resource bounds', async () => {

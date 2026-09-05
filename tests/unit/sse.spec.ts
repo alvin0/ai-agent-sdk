@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { ModelError } from '@ai-agent-sdk/core'
 import { parseSse } from '@ai-agent-sdk/provider-http'
 
 function byteStream(chunks: readonly Uint8Array[]): ReadableStream<Uint8Array> {
@@ -10,9 +11,13 @@ function byteStream(chunks: readonly Uint8Array[]): ReadableStream<Uint8Array> {
   })
 }
 
-async function collect(stream: ReadableStream<Uint8Array>, onActivity?: () => void) {
+async function collect(
+  stream: ReadableStream<Uint8Array>,
+  onActivity?: () => void,
+  teardownTimeoutMs?: number,
+) {
   const events = []
-  for await (const event of parseSse(stream, onActivity)) events.push(event)
+  for await (const event of parseSse(stream, onActivity, teardownTimeoutMs)) events.push(event)
   return events
 }
 
@@ -26,6 +31,33 @@ describe('parseSse', () => {
     ]
     await expect(collect(byteStream(chunks))).resolves.toEqual([
       { event: 'delta', data: 'xin\nchào 👋' },
+    ])
+  })
+
+  it('uses WHATWG replacement semantics for malformed and split UTF-8', async () => {
+    const prefix = new TextEncoder().encode('data: ')
+    const suffix = new TextEncoder().encode('\n\n')
+    const chunks = [
+      new Uint8Array([...prefix, 0xf0, 0x9f]),
+      new Uint8Array([0x41, 0x80, ...suffix]),
+    ]
+    await expect(collect(byteStream(chunks))).resolves.toEqual([
+      { event: undefined, data: '\uFFFDA\uFFFD' },
+    ])
+  })
+
+  it('accepts CR, LF, IDs, empty data and ignores retry as transport policy', async () => {
+    const bytes = new TextEncoder().encode([
+      'retry: 1\r',
+      'id: opaque\r',
+      'data:\r',
+      '\r',
+      'data: next\n',
+      '\n',
+    ].join(''))
+    await expect(collect(byteStream([bytes]))).resolves.toEqual([
+      { event: undefined, data: '' },
+      { event: undefined, data: 'next' },
     ])
   })
 
@@ -46,5 +78,29 @@ describe('parseSse', () => {
   it('rejects an event that exceeds the bounded parser buffer', async () => {
     const bytes = new TextEncoder().encode(`data: ${'x'.repeat(1_048_577)}`)
     await expect(collect(byteStream([bytes]))).rejects.toThrow(/buffer/i)
+  })
+
+  it('preserves a primary parser-path failure when body cancellation also fails', async () => {
+    const bytes = new TextEncoder().encode('data: value\n\n')
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(bytes) },
+      cancel() { return Promise.reject(new Error('secondary cancellation failure')) },
+    })
+    await expect(collect(stream, () => {
+      throw new ModelError('primary parser failure', 'PRIMARY_PARSER_FAILURE')
+    }, 10)).rejects.toMatchObject({ code: 'PRIMARY_PARSER_FAILURE' })
+  })
+
+  it('bounds a hanging body cancellation without replacing the primary failure', async () => {
+    const bytes = new TextEncoder().encode('data: value\n\n')
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(bytes) },
+      cancel() { return new Promise<void>(() => {}) },
+    })
+    const startedAt = Date.now()
+    await expect(collect(stream, () => {
+      throw new ModelError('primary parser failure', 'PRIMARY_PARSER_FAILURE')
+    }, 10)).rejects.toMatchObject({ code: 'PRIMARY_PARSER_FAILURE' })
+    expect(Date.now() - startedAt).toBeLessThan(250)
   })
 })

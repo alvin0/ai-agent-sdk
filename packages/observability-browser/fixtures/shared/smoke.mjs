@@ -1,10 +1,75 @@
-import { createCoreSpan, createObservationRunScope, createOperationId } from '@ai-agent-sdk/core'
-import { createObservability } from '@ai-agent-sdk/observability'
+import { trace } from '@opentelemetry/api'
+import {
+  ModelAdapter, createAgentRuntime, createCoreSpan, createObservationRunScope, createOperationId,
+} from '@ai-agent-sdk/core'
+import { createObservability } from '@ai-agent-sdk/core/observability'
 import {
   BROWSER_OBSERVATION_ERROR_CODES,
   IndexedDbObservationExporter,
+  indexedDbObservationExporter,
   installBrowserObservabilityLifecycle,
 } from '@ai-agent-sdk/observability-browser'
+import { createOpenTelemetryBridge } from '@ai-agent-sdk/observability-otel'
+
+class RuntimeAdapter extends ModelAdapter {
+  async * stream() {
+    yield { type: 'usage', usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 } }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+}
+
+function otelFixture() {
+  const spans = []
+  const tracer = {
+    startSpan(_name, _options, parentContext) {
+      const parent = trace.getSpanContext(parentContext)
+      const context = { traceId: parent?.traceId ?? 'a'.repeat(32),
+        spanId: (spans.length + 1).toString(16).padStart(16, '0'), traceFlags: 0 }
+      const span = { spanContext: () => context, setAttribute: () => span,
+        setAttributes: () => span, addEvent: () => span, addLink: () => span,
+        addLinks: () => span, setStatus: () => span, updateName: () => span,
+        end: () => undefined, isRecording: () => true, recordException: () => undefined }
+      spans.push(span)
+      return span
+    },
+  }
+  const instrument = { add: () => undefined, record: () => undefined }
+  const meter = { createCounter: () => instrument, createHistogram: () => instrument }
+  return { spans, bridge: createOpenTelemetryBridge({ tracer, meter }) }
+}
+
+async function runtimeComposition(databaseName) {
+  let opens = 0
+  const factory = { open(...args) { opens++; return indexedDB.open(...args) } }
+  const exporter = indexedDbObservationExporter({ databaseName, indexedDB: factory })
+  const runtimeInert = opens === 0
+  const { spans, bridge } = otelFixture()
+  const adapter = new RuntimeAdapter()
+  const runtime = await createAgentRuntime({
+    providers: [{ kind: 'model-provider-plugin', apiVersion: 1, id: 'browser-fixture',
+      displayName: 'Browser fixture', family: 'fixture', routes: ['browser-fixture'],
+      defaultModel: { provider: 'browser-fixture', id: 'fixture-model' },
+      setup(registrar) { registrar.registerAdapter(['browser-fixture'], adapter) } }],
+    observability: { mode: 'reliable', openSpan: bridge.openSpan,
+      processors: [bridge.processor], exporters: [{ exporter, ownership: 'owned',
+        requirement: 'required', boundary: 'local-durable' }] },
+  })
+  const response = await runtime.agent({ id: 'browser-agent', instructions: 'Reply.',
+    compaction: false }).generate('browser runtime fixture')
+  const inspector = new IndexedDbObservationExporter({ databaseName })
+  await inspector.ready()
+  const stats = await inspector.stats()
+  const visibleEvents = await inspector.recoverEvents()
+  const batches = await inspector.pendingBatchIds()
+  let acknowledged = 0
+  for (const batch of batches) acknowledged += await inspector.acknowledgeBatch(batch)
+  await runtime.close()
+  await inspector.shutdown(new AbortController().signal)
+  return { runtimeInert, runtimeDurable: response.report.delivery.complete,
+    runtimeTerminalStored: stats.eventCount > visibleEvents.length,
+    runtimeAcknowledged: acknowledged === stats.eventCount && acknowledged > 0,
+    runtimeSpans: spans.length > 0 }
+}
 
 function event(sequence, priority = 'critical', runId = 'browser-run', data = { status: 'success' }) {
   const scope = createObservationRunScope()
@@ -123,6 +188,7 @@ export async function runVerifyPhase(databaseName) {
   pageTarget.dispatchEvent(new Event('pagehide'))
 
   const stats = await queue.stats()
+  const runtime = await runtimeComposition(`${databaseName}-runtime`)
   await observation.shutdown()
   await capacity.shutdown(new AbortController().signal)
   await audit.shutdown()
@@ -140,6 +206,8 @@ export async function runVerifyPhase(databaseName) {
     auditDurable: auditReceipt.durable,
     blockedRejected,
     lifecycleFlushes: flushes,
+    ...runtime,
+    optionalLogsAbsent: true,
     buffer: typeof globalThis.Buffer,
     process: typeof globalThis.process,
   }

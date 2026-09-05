@@ -22,7 +22,7 @@ import {
   type ObservationEvent,
   type ObservationPriority,
 } from '@ai-agent-sdk/core'
-import { createObservability, type ObservationBatch } from '@ai-agent-sdk/observability'
+import { createObservability, type ObservationBatch } from '@ai-agent-sdk/core/observability'
 import {
   JsonlObservationJournalExporter,
   createDiagnosticWireLogger,

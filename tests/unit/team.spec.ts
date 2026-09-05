@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { AgentTeam } from '../../packages/agent/src/team/index.ts'
-import { AgentTeam as DeprecatedA2AAgentTeam } from '../../packages/agent/src/a2a/index.ts'
-import type { TeamSessionPort } from '../../packages/agent/src/team/index.ts'
-import { defineAgent } from '../../packages/agent/src/define/index.ts'
-import { ModelAdapter } from '@ai-agent-sdk/core'
-import type { GenerateOptions } from '@ai-agent-sdk/core'
-import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
-import { ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
+import { AgentTeam } from '../../packages/core/src/agent/team/index.ts'
+import { AgentTeam as DeprecatedA2AAgentTeam } from '../../packages/core/src/agent/a2a/index.ts'
+import type { TeamSessionPort } from '../../packages/core/src/agent/team/index.ts'
+import { defineAgent } from '../../packages/core/src/agent/define/index.ts'
+import { ModelAdapter, type GenerateOptions, type ResolvedModelInfo } from '../../packages/core/src/contract/index.ts'
+import { ReasoningEffortId, ToolCallId } from '../../packages/core/src/primitives/index.ts'
+import { ModelRegistry } from '../../packages/core/src/runtime/index.ts'
+import type { StreamChunk } from '../../packages/core/src/stream/index.ts'
 
 class ScriptedAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []

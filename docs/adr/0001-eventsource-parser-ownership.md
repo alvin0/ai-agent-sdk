@@ -50,6 +50,16 @@ the reason for retention; the benchmark failure is sufficient.
   production advisory scanning.
 - Convert `max-buffer-size-exceeded` into an immediate provider-attempt failure;
   never treat parser overflow as clean EOF.
+- Keep wrapper-level limits for total decoded events as well as response bytes,
+  raw chunks, and per-event buffered characters. Parser callbacks are drained in
+  linear time; a single input chunk must not create an `Array.shift()` O(n²)
+  path.
+- Require `text/event-stream` before parsing, route every non-empty body read
+  (including comment heartbeats) to the attempt's one resettable idle deadline,
+  ignore SSE `retry` as reconnection policy, and require a terminal protocol
+  `finish` before clean EOF.
+- Preserve the primary parser/protocol error if bounded reader cancellation also
+  fails; report teardown failure as secondary evidence.
 - Suspend release if a high or critical advisory affects `4.1.0`. Do not silently
   upgrade the pin or waive the qualification rule.
 

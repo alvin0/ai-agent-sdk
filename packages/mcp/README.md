@@ -3,22 +3,44 @@
 Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/agent @ai-agent-sdk/mcp
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/mcp
 ```
 
-Universal MCP bridge for Fetch-shaped HTTP runtimes. It connects remote MCP
-servers to the SDK `ToolCatalog` and exposes SDK tools or agents through a
-`Request`/`Response` handler.
+Universal MCP client for Fetch-shaped HTTP runtimes. It connects remote MCP
+servers to the SDK as a versioned `ToolSource`.
 
 ```ts
-import { createMcpHttpClient, createSdkMcpHandler } from '@ai-agent-sdk/mcp'
+import { createAgentRuntime } from '@ai-agent-sdk/core'
+import { connectMcpHttp } from '@ai-agent-sdk/mcp'
+
+const runtime = await createAgentRuntime({ providers: [modelProvider] })
+let connection: Awaited<ReturnType<typeof connectMcpHttp>> | undefined
+try {
+  connection = await connectMcpHttp({
+    serverName: 'tools',
+    url: 'https://tools.example.com/mcp',
+    logger: runtime.logger({ fields: { integration: 'mcp-http' } }),
+  })
+  const agent = runtime.agent({ model, toolSources: [connection] })
+  await agent.generate('Use the connected tools when needed.')
+} finally {
+  try {
+    await runtime.close()
+  } finally {
+    await connection?.closeWithReport()
+  }
+}
 ```
 
-The package works with Web Standards APIs and contains no stdio, filesystem,
+The normal root and `/client` route contain no server, stdio, filesystem,
 `node:http`, or process lifecycle integration. Use `@ai-agent-sdk/mcp-node` for
-those Node capabilities once it is installed.
+the Node stdio client, and a dedicated server package for hosting.
 
 HTTP endpoints are host-selected. Use `allowedOrigins`, `requireHttps`,
 `allowPrivateNetwork`, response/catalog/result bounds, and operation deadlines
 according to the application's trust boundary. OAuth credential persistence and
 redirect handling remain caller-owned.
+
+Composition: `runtime-agent.toolSources`. Lifecycle: `connected-caller-owned`;
+create the runtime first, pass `runtime.logger(...)` while connecting, close the
+runtime to quiesce runs, then inspect `connection.closeWithReport()`.

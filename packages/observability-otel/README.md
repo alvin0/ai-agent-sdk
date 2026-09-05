@@ -3,7 +3,7 @@
 Runtime: **Universal** (the caller chooses runtime-compatible OpenTelemetry APIs).
 
 ```sh
-pnpm add @ai-agent-sdk/observability @ai-agent-sdk/observability-otel @opentelemetry/api @opentelemetry/api-logs
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/observability-otel @opentelemetry/api @opentelemetry/api-logs
 ```
 
 Universal mapping bridge for caller-supplied OpenTelemetry API objects. It
@@ -20,7 +20,7 @@ requires the explicit bridge option `content: 'full'` and the same policy on the
 SDK observability bus.
 
 ```ts
-import { createObservability } from '@ai-agent-sdk/observability'
+import { createObservability } from '@ai-agent-sdk/core/observability'
 import { createOpenTelemetryBridge } from '@ai-agent-sdk/observability-otel'
 
 const bridge = createOpenTelemetryBridge({
@@ -39,3 +39,7 @@ Pass `observation` to the SDK core/agent entry point. The application keeps
 ownership of provider registration, processors, exporters, flushing, and
 shutdown. If `content: 'full'` is enabled on the bridge, enable the same policy
 on `createObservability`; every other policy omits prompt and completion bodies.
+
+Composition: `runtime.observability.openSpan-processors`. Lifecycle:
+`borrowed-caller-owned`; the host retains ownership of OTel providers, flush,
+and shutdown.

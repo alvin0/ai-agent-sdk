@@ -21,6 +21,9 @@
 export * from './primitives/index.ts'
 export * from './async/index.ts'
 export * from './observation/index.ts'
+// Compatibility debt: low-level registry/plugin assembly remains at root only
+// under the frozen API ledger. Removal needs a separately approved breaking
+// decision and a checked consumer migration; normal applications use AgentRuntime.
 export * from './plugin/index.ts'
 export * from './errors/index.ts'
 export * from './message/index.ts'
@@ -28,3 +31,52 @@ export * from './stream/index.ts'
 export * from './contract/index.ts'
 export * from './runtime/index.ts'
 export * from './http/index.ts'
+export * from './memory.ts'
+export * from './skills.ts'
+export { createAgentRuntime } from './composition/runtime/public.ts'
+export { defineAgent, cloneAgent } from './composition/agent/author.ts'
+export type {
+  AgentDefinition, AgentDefinitionInput, AgentDefinitionOverrides,
+  CloneAgentOverrides, DefinedAgent,
+} from './agent/define/definition.ts'
+export type {
+  AgentRuntime, AgentRuntimeOptions, DiagnosticSnapshot, RuntimeCloseReport,
+  RuntimeObservationResourceInput, RuntimeOwnerObservabilityOptions,
+} from './composition/runtime/types.ts'
+export type {
+  RuntimeAgent, RuntimeAgentBindingInput, RuntimeAgentDefinition, RuntimeAgentDefinitionInput,
+  RuntimeAgentInvocationOptions, RuntimeAgentLimits, RuntimeAgentResponse,
+  RuntimeAgentRunEvent, RuntimeAgentRunEventContext, RuntimeAgentRunHandle, RuntimeAgentSession,
+  RuntimeAgentSessionOptions, RuntimeAgentSessionSnapshot,
+} from './composition/agent/types.ts'
+export type { RuntimeProviderInfo } from './composition/provider/types.ts'
+export type { RuntimeModelCatalogSnapshot } from './composition/model-catalog/types.ts'
+export type {
+  AgentTeamMemberInput, RuntimeAgentTeam, RuntimeAgentTeamEvent, RuntimeAgentTeamOptions,
+} from './composition/team/types.ts'
+export type { SupportSafeError } from './support-safe/error.ts'
+export type { CapabilityIdentityConflict } from './composition/common/errors.ts'
+export type {
+  ObservationDeliveryAck, ObservationDeliveryBatch, ObservationExportItem,
+  RunReport, RunTerminalRecord,
+} from './composition/exporter/delivery-types.ts'
+export { defineObservationExporter } from './composition/exporter/definition.ts'
+export { OBSERVATION_EXPORTER_API_VERSION } from './composition/exporter/types.ts'
+export type {
+  ObservationExporterPlugin, ObservationExporterPluginDefinition,
+  RuntimeObservationExporterRegistration,
+} from './composition/exporter/types.ts'
+export type { LogLevel, SdkLogger } from './observability/types.ts'
+export { defineTool } from './agent/tool/definition.ts'
+export type { ToolDefinition, ToolRunContext } from './agent/tool/definition.ts'
+export { createApprovalBroker, fixedApprovalBroker } from './agent/tool/approval.ts'
+export type {
+  ApprovalBroker, ApprovalDecision, ApprovalRequest,
+  InteractiveApprovalBroker, InteractiveApprovalBrokerOptions,
+} from './agent/tool/approval.ts'
+export { createUserInputBroker, fixedUserInputBroker } from './agent/mode/user-input.ts'
+export type {
+  InteractiveUserInputBroker, InteractiveUserInputBrokerOptions,
+  UserInputAnswer, UserInputBroker, UserInputDecision, UserInputOption,
+  UserInputQuestion, UserInputRequest, UserInputResponse,
+} from './agent/mode/user-input.ts'

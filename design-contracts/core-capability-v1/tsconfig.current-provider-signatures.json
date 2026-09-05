@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@compat/provider-http": ["../../packages/provider-http/dist/index.d.ts"],
+      "@compat/provider-openai": ["../../packages/provider-openai/dist/index.d.ts"],
+      "@compat/provider-anthropic": ["../../packages/provider-anthropic/dist/index.d.ts"],
+      "@compat/provider-codex-signatures": ["../../packages/provider-codex/dist/index.d.ts"],
+      "@ai-agent-sdk/core": ["../../packages/core/dist/index.d.ts"],
+      "@ai-agent-sdk/provider-http": ["../../packages/provider-http/dist/index.d.ts"],
+      "@ai-agent-sdk/protocol-responses": ["../../packages/protocol-responses/dist/index.d.ts"],
+      "@ai-agent-sdk/protocol-anthropic-messages": ["../../packages/protocol-anthropic-messages/dist/index.d.ts"]
+    }
+  },
+  "include": ["consumers/provider-signature-compatibility.ts"]
+}

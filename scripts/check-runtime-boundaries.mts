@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { builtinModules } from 'node:module'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
 import { PACKAGE_RULES, discoverWorkspacePackages, importsInFile, listCodeFiles, maskNonCode } from './package-policy.mts'
 
@@ -45,6 +45,19 @@ for (const pkg of discoverWorkspacePackages(workspaceRoot)) {
       checkFile(file)
     }
   }
+}
+
+// Human acceptance sources that claim a Universal/Edge deployment are checked
+// by the same rule as published Universal packages. Their Node-side runners are
+// intentionally excluded.
+for (const relativePath of [
+  'test-human/edge-chat/app.ts',
+  'test-human/edge-chat/scripted-fixture.ts',
+]) {
+  const path = resolve(workspaceRoot, relativePath)
+  if (!existsSync(path)) continue
+  checkedFiles += 1
+  checkFile(path)
 }
 
 if (errors.length > 0) {

@@ -8,6 +8,24 @@ Runtime: **Universal**. Published code uses ECMAScript, Fetch-compatible types, 
 pnpm add @ai-agent-sdk/core
 ```
 
+`createAgentRuntime()` is the recommended composition root. `defineAgent()`
+captures a reusable agent definition, and every runtime exposes an `SdkLogger`
+whose records share runtime/run correlation and privacy policy:
+
+```ts
+import {
+  createAgentRuntime,
+  defineAgent,
+  type SdkLogger,
+} from '@ai-agent-sdk/core'
+
+const runtime = await createAgentRuntime({ providers: [provider] })
+const definition = defineAgent({ id: 'assistant', instructions: 'Be concise.' })
+const logger: SdkLogger = runtime.logger({ fields: { component: 'assistant' } })
+const agent = runtime.agent({ ...definition, model: { provider: 'openai', id: 'gpt-5.4' } })
+logger.info('agent ready')
+```
+
 ```ts
 import { ModelAdapter, ModelRegistry } from '@ai-agent-sdk/core'
 
@@ -29,4 +47,6 @@ const report = await call.report
 
 The package includes message and stream contracts, model registry and retry primitives, normalized errors, usage accounting, explicit observation/correlation ports, and transactional provider-plugin registration. Provider HTTP/SSE transport, concrete exporters, filesystem skills, environment credentials, and protocol implementations belong to separate capability packages.
 
-Only the documented root export and `./package.json` are public. Internal source paths are not compatibility contracts.
+The documented root plus `/agent`, `/memory`, `/observability`, `/provider`,
+`/skills`, `/tools`, and `./package.json` are public. Internal source paths are
+not compatibility contracts.

@@ -3,8 +3,9 @@
 
 import { stdin, stdout } from 'node:process'
 import { createInterface } from 'node:readline/promises'
-import { resolve } from 'node:path'
-import { createUserInputBroker } from '@ai-agent-sdk/agent'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
+import { createUserInputBroker } from '@ai-agent-sdk/core/agent'
 import { HumanArtifactRecorder } from './artifacts.ts'
 import { createHumanAgent } from './agent.ts'
 import {
@@ -55,7 +56,10 @@ async function main(): Promise<void> {
   const registry = createHumanModelRegistry(config)
   const tools = createHumanToolRegistry(process.cwd())
   const broker = createUserInputBroker()
-  const session = createHumanAgent(config, model).createSession({ registry, tools, userInput: broker })
+  const session = createHumanAgent(config, model).createSession({
+    registry, tools, userInput: broker,
+    ...(config.scenario === 'deep-research' ? { runtimeLimits: { maxTotalTokens: 180_000 } } : {}),
+  })
   const terminal = createInterface({ input: stdin, output: stdout })
   let active: AbortController | undefined
   let attachedImage = false
@@ -64,6 +68,10 @@ async function main(): Promise<void> {
   let turns = 0
   let failedTurns = 0
   let aborted = false
+  let deepResearchSearches = 0
+  let deepResearchReportChars = 0
+  let deepResearchCompleted = false
+  const deepResearchCitations = new Set<string>()
 
   terminal.on('SIGINT', () => {
     if (active === undefined) { terminal.close(); return }
@@ -142,10 +150,26 @@ async function main(): Promise<void> {
       try {
         const stream = session.stream(message, { signal: active.signal })
         artifact.record('turn-start', { turn: turns + 1, prompt: command, scenario: config.scenario })
-        await renderHumanRun(stream, config, broker, terminal)
+        const rendered = await renderHumanRun(stream, config, broker, terminal)
         const [result, report] = await Promise.all([stream.result, stream.report])
         turns++
         artifact.record('turn-end', { turn: turns, outcome: result.outcome, report })
+        if (config.scenario === 'deep-research') {
+          deepResearchSearches += rendered.nativeToolCalls['web-search'] ?? 0
+          for (const url of rendered.citationUrls) deepResearchCitations.add(url)
+          for (const url of markdownUrls(result.text)) deepResearchCitations.add(url)
+          deepResearchReportChars = result.text.length
+          deepResearchCompleted = result.outcome.completed
+          await mkdir(artifact.directory, { recursive: true, mode: 0o700 })
+          await writeFile(join(artifact.directory, 'report.md'), result.text, { encoding: 'utf8', mode: 0o600 })
+          artifact.record('deep-research-evidence', {
+            nativeWebSearchCalls: deepResearchSearches,
+            uniqueCitationUrls: deepResearchCitations.size,
+            citationDomains: citationDomains(deepResearchCitations),
+            reportChars: deepResearchReportChars,
+            completed: deepResearchCompleted,
+          })
+        }
       } catch (error: unknown) {
         failedTurns++
         artifact.record('turn-error', { turn: turns + 1, error })
@@ -158,14 +182,54 @@ async function main(): Promise<void> {
   } finally {
     broker.abortAll()
     terminal.close()
-    const status = aborted ? 'aborted' : failedTurns > 0 ? 'failed' : 'passed'
+    const researchInvariants = config.scenario === 'deep-research'
+      ? [
+          { name: 'Deep research uses at least three web-search calls', passed: deepResearchSearches >= 3, detail: `${deepResearchSearches} calls` },
+          { name: 'Deep research cites at least six unique pages', passed: deepResearchCitations.size >= 6, detail: `${deepResearchCitations.size} pages` },
+          { name: 'Deep research crosses at least three source domains', passed: citationDomains(deepResearchCitations).length >= 3, detail: `${citationDomains(deepResearchCitations).length} domains` },
+          { name: 'Deep research produces a substantial Markdown report', passed: deepResearchReportChars >= 4_000, detail: `${deepResearchReportChars} chars` },
+          { name: 'Deep-mode self-check accepts the completed research', passed: deepResearchCompleted },
+        ]
+      : []
+    const passed = failedTurns === 0 && researchInvariants.every(invariant => invariant.passed)
+    const status = aborted ? 'aborted' : passed ? 'passed' : 'failed'
     const summary = await artifact.finish({
       status, config: artifactConfig,
-      invariants: [{ name: 'all submitted turns completed without an unhandled error', passed: failedTurns === 0 }],
-      metrics: { turns, failedTurns, historyEvents: session.history.entries().length, memoryItems: session.memory.items().length },
+      invariants: [
+        { name: 'all submitted turns completed without an unhandled error', passed: failedTurns === 0 },
+        ...researchInvariants,
+      ],
+      metrics: {
+        turns, failedTurns, historyEvents: session.history.entries().length, memoryItems: session.memory.items().length,
+        ...(config.scenario === 'deep-research' ? {
+          nativeWebSearchCalls: deepResearchSearches,
+          uniqueCitationUrls: deepResearchCitations.size,
+          citationDomains: citationDomains(deepResearchCitations).length,
+          reportChars: deepResearchReportChars,
+        } : {}),
+      },
     })
     console.log(label('artifact'), summary.artifact.directory)
+    if (status === 'failed') process.exitCode = 1
   }
+}
+
+function citationDomains(urls: ReadonlySet<string>): string[] {
+  const domains = new Set<string>()
+  for (const value of urls) {
+    try { domains.add(new URL(value).hostname.toLocaleLowerCase()) }
+    catch { /* malformed provider annotations do not count as source domains */ }
+  }
+  return [...domains].sort()
+}
+
+function markdownUrls(markdown: string): string[] {
+  const urls = new Set<string>()
+  for (const match of markdown.matchAll(/https:\/\/[^\s)\]}>'"]+/gu)) {
+    try { urls.add(new URL(match[0]).toString()) }
+    catch { /* malformed report links do not count as citations */ }
+  }
+  return [...urls]
 }
 
 function parseConfig(): HumanCliConfig | undefined {

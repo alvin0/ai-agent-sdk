@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@ai-agent-sdk/core": ["../../packages/core/dist/index.d.ts"],
+      "@ai-agent-sdk/observability": ["../../packages/core/dist/observability.d.ts"],
+      "@ai-agent-sdk/observability-fetch": ["../../packages/observability-fetch/dist/index.d.ts"],
+      "@ai-agent-sdk/observability-browser": ["../../packages/observability-browser/dist/index.d.ts"],
+      "@ai-agent-sdk/observability-node": ["../../packages/observability-node/dist/index.d.mts"],
+      "@ai-agent-sdk/observability-node/journal": ["../../packages/observability-node/dist/journal.d.mts"],
+      "@ai-agent-sdk/observability-node/diagnostic": ["../../packages/observability-node/dist/diagnostic.d.mts"],
+      "@ai-agent-sdk/observability-otel": ["../../packages/observability-otel/dist/index.d.ts"]
+    }
+  },
+  "include": ["consumers/observability-capability-api-compatibility.ts"]
+}

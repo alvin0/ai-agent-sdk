@@ -11,6 +11,12 @@
 import type { ModelReasoningInfo } from '@ai-agent-sdk/core'
 import type { ModelProviderPlugin, ModelProviderRegistrar, RetryPolicyConfig } from '@ai-agent-sdk/core'
 import { ReasoningEffortId } from '@ai-agent-sdk/core'
+import {
+  defineModelProviderPlugin,
+  type ComposableModelProviderPlugin,
+  type CredentialInput,
+  type ModelTarget,
+} from '@ai-agent-sdk/core/provider'
 import type {
   HttpModelAdapter,
   ProviderCatalogModel,
@@ -18,6 +24,7 @@ import type {
 } from '@ai-agent-sdk/provider-http'
 import {
   createHttpProvider,
+  createRuntimeHttpProvider,
   type CredentialSource,
 } from '@ai-agent-sdk/provider-http'
 import {
@@ -84,12 +91,15 @@ export interface AnthropicAdapterOptions {
   maxRequestBytes?: number
   maxResponseBytes?: number
   maxResponseChunks?: number
+  maxSseEvents?: number
+  maxSseEventChars?: number
   maxErrorBodyBytes?: number
   requestLoggerTimeoutMs?: number
   /** Retry policy this route owns. */
   retryPolicy?: RetryPolicyConfig
   /** Optional exact wire-request logger; credentials are redacted. */
   requestLogger?: ProviderRequestLogger
+  fetch?: typeof globalThis.fetch
 }
 
 /**
@@ -138,8 +148,39 @@ export interface AnthropicPluginOptions extends AnthropicAdapterOptions {
   readonly routes?: readonly string[]
 }
 
+export interface AnthropicProviderOptions extends Omit<AnthropicAdapterOptions, 'apiKey'> {
+  readonly defaultModel?: string | ModelTarget
+  readonly apiKey: CredentialInput
+  readonly id?: string
+  readonly routes?: readonly string[]
+}
+
 /** Preferred transactional plugin for installing the Anthropic provider. */
-export function anthropicPlugin(options: AnthropicPluginOptions): ModelProviderPlugin {
+export function anthropicPlugin(
+  options: AnthropicProviderOptions,
+): ComposableModelProviderPlugin & { readonly family: 'anthropic' }
+export function anthropicPlugin(options: AnthropicPluginOptions): ModelProviderPlugin
+export function anthropicPlugin(
+  options: AnthropicProviderOptions | AnthropicPluginOptions,
+): ModelProviderPlugin | (ComposableModelProviderPlugin & { readonly family: 'anthropic' }) {
+  if (!usesRuntimeComposition(options)) return legacyAnthropicPlugin(options)
+  const id = options.id ?? 'anthropic'
+  const routes = Object.freeze([...(options.routes ?? [id])])
+  return defineModelProviderPlugin({
+    id,
+    family: 'anthropic',
+    displayName: 'Anthropic',
+    routes,
+    ...runtimeDefaultModel(options.defaultModel, routes),
+    setup(registrar) {
+      const adapter = createRuntimeAnthropicAdapter(options)
+      const remove = registrar.registerAdapter(adapter)
+      return () => { remove(); return undefined }
+    },
+  }) as ComposableModelProviderPlugin & { readonly family: 'anthropic' }
+}
+
+function legacyAnthropicPlugin(options: AnthropicPluginOptions): ModelProviderPlugin {
   const routes = Object.freeze([...(options.routes ?? ['anthropic'])])
   const adapter = anthropicAdapter(options)
   return Object.freeze({
@@ -151,13 +192,68 @@ export function anthropicPlugin(options: AnthropicPluginOptions): ModelProviderP
   })
 }
 
-function transportLimits(options: AnthropicAdapterOptions) {
+function createRuntimeAnthropicAdapter(options: AnthropicProviderOptions): HttpModelAdapter {
+  const budgets = options.thinkingBudgets ?? DEFAULT_THINKING_BUDGETS
+  const dialect: Partial<AnthropicDialect> = {
+    budgets,
+    ...(options.version === undefined ? {} : { version: options.version }),
+    ...(options.beta === undefined ? {} : { beta: options.beta }),
+  }
+  return createRuntimeHttpProvider({
+    displayName: 'Anthropic',
+    protocol: anthropicMessagesProtocol,
+    baseUrl: options.baseUrl ?? ANTHROPIC_BASE_URL,
+    auth: {
+      kind: 'header',
+      name: 'x-api-key',
+      value: options.apiKey,
+      label: 'the `apiKey` option',
+    },
+    dialect,
+    describeModel: (info, effective) => ({
+      ...info,
+      reasoning: info.reasoning ?? reasoningInfo(effective.budgets),
+    }),
+    ...(options.models === undefined ? {} : { models: options.models }),
+    defaultMaxTokens: options.defaultMaxTokens ?? 8_192,
+    defaultContextWindow: options.defaultContextWindow ?? 200_000,
+    ...(options.streamIdleTimeoutMs === undefined ? {} : { streamIdleTimeoutMs: options.streamIdleTimeoutMs }),
+    ...transportLimits(options),
+    ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),
+    ...(options.requestLogger === undefined ? {} : { requestLogger: options.requestLogger }),
+  })
+}
+
+function usesRuntimeComposition(
+  options: AnthropicProviderOptions | AnthropicPluginOptions,
+): options is AnthropicProviderOptions {
+  if ('id' in options || 'defaultModel' in options) return true
+  if (typeof options.apiKey === 'object' && options.apiKey !== null) return true
+  return typeof options.apiKey !== 'function'
+}
+
+function runtimeDefaultModel(
+  value: string | ModelTarget | undefined,
+  routes: readonly string[],
+): { readonly defaultModel?: ModelTarget } {
+  if (value === undefined) return {}
+  if (typeof value !== 'string') return { defaultModel: value }
+  if (routes.length !== 1) {
+    throw new TypeError('A string defaultModel requires exactly one Anthropic route')
+  }
+  return { defaultModel: Object.freeze({ provider: routes[0]!, id: value }) }
+}
+
+function transportLimits(options: AnthropicAdapterOptions | AnthropicProviderOptions) {
   return {
     ...options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs },
     ...options.maxRequestBytes === undefined ? {} : { maxRequestBytes: options.maxRequestBytes },
     ...options.maxResponseBytes === undefined ? {} : { maxResponseBytes: options.maxResponseBytes },
     ...options.maxResponseChunks === undefined ? {} : { maxResponseChunks: options.maxResponseChunks },
+    ...options.maxSseEvents === undefined ? {} : { maxSseEvents: options.maxSseEvents },
+    ...options.maxSseEventChars === undefined ? {} : { maxSseEventChars: options.maxSseEventChars },
     ...options.maxErrorBodyBytes === undefined ? {} : { maxErrorBodyBytes: options.maxErrorBodyBytes },
     ...options.requestLoggerTimeoutMs === undefined ? {} : { requestLoggerTimeoutMs: options.requestLoggerTimeoutMs },
+    ...options.fetch === undefined ? {} : { fetch: options.fetch },
   }
 }

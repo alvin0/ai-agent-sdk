@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTraceTree, type TraceEvent, type TraceRef } from '@ai-agent-sdk/agent'
+import { buildTraceTree, type TraceEvent, type TraceRef } from '@ai-agent-sdk/core/agent'
 import { createSpanId, createTraceId, traceparent } from '@ai-agent-sdk/core'
 
 describe('agent trace', () => {

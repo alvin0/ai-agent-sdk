@@ -1,6 +1,6 @@
 import { Message, Role, TaskState } from '@a2a-js/sdk'
 import { ServerCallContext } from '@a2a-js/sdk/server'
-import { defineAgent } from '@ai-agent-sdk/agent'
+import { defineAgent } from '@ai-agent-sdk/core/agent'
 import { ModelAdapter, ModelRegistry, ReasoningEffortId } from '@ai-agent-sdk/core'
 import {
   createAgentCardFromDefinition,

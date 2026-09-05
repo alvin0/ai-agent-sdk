@@ -6,44 +6,17 @@
  */
 
 import { AgentSdkError, MISSING_CREDENTIAL_CODE } from '@ai-agent-sdk/core'
+import {
+  defineCredentialStore,
+} from '@ai-agent-sdk/core/provider'
+import type {
+  CodexAuthFile,
+  CodexAuthStore,
+  CodexCredentialStore,
+  CodexTokens,
+} from './common/store-types.ts'
 
-/** OAuth tokens as stored on disk. */
-export interface CodexTokens {
-  /** Raw JWT. Carries the account and plan claims. */
-  id_token: string
-  /** Raw JWT used as the bearer token. Its `exp` drives refresh. */
-  access_token: string
-  /** Single-use; rotated on every refresh. */
-  refresh_token: string
-  /** Workspace/account id, or null when it must be read from `id_token`. */
-  account_id?: string | null
-}
-
-/** The credential file, matching the Codex CLI's own format. */
-export interface CodexAuthFile {
-  auth_mode?: string
-  /** Present for API-key logins; unused by the ChatGPT-token path. */
-  OPENAI_API_KEY?: string | null
-  tokens?: CodexTokens | null
-  /** RFC3339. Fallback staleness signal when `access_token.exp` is unreadable. */
-  last_refresh?: string | null
-}
-
-/**
- * Read and write the credential file.
- *
- * An interface rather than direct `node:fs` calls so the adapter stays free of a
- * filesystem dependency: tests substitute an in-memory store, and a deployment
- * that keeps credentials in a secret manager substitutes its own.
- */
-export interface CodexAuthStore {
-  /** Human-readable location, used only in diagnostics. */
-  readonly location: string
-  /** The file's contents, or `undefined` when it does not exist. */
-  read(): Promise<CodexAuthFile | undefined>
-  /** Replace the file's contents. */
-  write(file: CodexAuthFile): Promise<void>
-}
+export type { CodexAuthFile, CodexAuthStore, CodexCredentialStore, CodexTokens } from './common/store-types.ts'
 
 /** An in-memory {@link CodexAuthStore}, for tests. */
 export function memoryCodexAuthStore(initial?: CodexAuthFile): CodexAuthStore {
@@ -56,6 +29,35 @@ export function memoryCodexAuthStore(initial?: CodexAuthFile): CodexAuthStore {
       return Promise.resolve()
     },
   }
+}
+
+/** In-memory compare-and-swap store for deterministic runtime/tests. */
+export function memoryCodexCredentialStore(initial?: CodexAuthFile): CodexCredentialStore {
+  let current = initial === undefined ? undefined : structuredClone(initial)
+  let revision = 0
+  return defineCredentialStore<CodexAuthFile>({
+    id: 'codex-memory-credentials',
+    label: '<memory>',
+    async read({ signal }) {
+      signal.throwIfAborted()
+      return current === undefined
+        ? undefined
+        : { value: structuredClone(current), revision: String(revision) }
+    },
+    async commit(input, { signal }) {
+      signal.throwIfAborted()
+      const expected = current === undefined ? null : String(revision)
+      if (input.expectedRevision !== expected) {
+        throw new AgentSdkError(
+          'Codex credential revision changed before commit',
+          'CODEX_CREDENTIAL_REVISION_CONFLICT',
+        )
+      }
+      current = structuredClone(input.value)
+      revision++
+      return { revision: String(revision) }
+    },
+  })
 }
 
 /** The custom claim namespace OpenAI puts its ChatGPT account fields under. */

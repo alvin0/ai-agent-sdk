@@ -10,9 +10,9 @@
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
   "exports": {
-    ".": { "types": "./dist/index.d.mts", "default": "./dist/index.mjs" },
-    "./journal": { "types": "./dist/journal.d.mts", "default": "./dist/journal.mjs" },
-    "./diagnostic": { "types": "./dist/diagnostic.d.mts", "default": "./dist/diagnostic.mjs" },
+    ".": { "types": "./dist/index.d.mts", "import": "./dist/index.mjs", "default": "./dist/index.mjs" },
+    "./journal": { "types": "./dist/journal.d.mts", "import": "./dist/journal.mjs", "default": "./dist/journal.mjs" },
+    "./diagnostic": { "types": "./dist/diagnostic.d.mts", "import": "./dist/diagnostic.mjs", "default": "./dist/diagnostic.mjs" },
     "./package.json": "./package.json"
   },
   "publishConfig": { "access": "public", "provenance": true },
@@ -26,11 +26,11 @@
     "check:publint": "publint",
     "check:types": "attw --profile esm-only --pack ."
   },
-  "dependencies": {
-    "@ai-agent-sdk/core": "workspace:^",
-    "@ai-agent-sdk/observability": "workspace:^"
+  "peerDependencies": {
+    "@ai-agent-sdk/core": "workspace:^"
   },
   "devDependencies": {
+    "@ai-agent-sdk/core": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",
     "@types/node": "catalog:",
     "publint": "catalog:",
@@ -38,5 +38,10 @@
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
-  "aiAgentSdk": { "runtime": "node" }
+  "engines": { "node": ">=22.12" },
+  "aiAgentSdk": {
+    "runtime": "node",
+    "coreApi": 1,
+    "roles": ["observation-exporter", "diagnostics"]
+  }
 }

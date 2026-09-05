@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@compat/skill-filesystem": ["../../packages/skill-filesystem/dist/index.d.mts"],
+      "@ai-agent-sdk/agent": ["../../packages/core/dist/agent.d.ts"],
+      "@ai-agent-sdk/core": ["../../packages/core/dist/index.d.ts"]
+    }
+  },
+  "include": ["consumers/skill-filesystem-api-compatibility.ts"]
+}

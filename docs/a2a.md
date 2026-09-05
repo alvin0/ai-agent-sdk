@@ -9,12 +9,12 @@ The SDK combines two layers behind one agent roster:
   [`@a2a-js/sdk`](https://github.com/a2aproject/a2a-js) implementation of A2A
   Protocol v1.0 for Agent Card discovery and remote JSON-RPC or HTTP+JSON calls.
 
-Install `@ai-agent-sdk/a2a` alongside `@ai-agent-sdk/agent`. This protocol bridge
+Install `@ai-agent-sdk/a2a` alongside `@ai-agent-sdk/core/agent`. This protocol bridge
 is currently Node-elevated: the upstream binary codec in `@a2a-js/sdk@1.1.0`
 calls `Buffer.from`. Text paths happen to work in strict Workers, but the package
 must not be deployed as a Universal/Edge package until its committed binary
-promotion guard passes. The former `ai-agent-sdk/a2a-client` and
-`ai-agent-sdk/a2a-server` subpaths remain compatibility aliases.
+promotion guard passes. The former `@ai-agent-sdk/a2a/client` and
+`@ai-agent-sdk/a2a/server` subpaths remain compatibility aliases.
 
 This distinction matters. Protocol interoperability alone does not implement a
 local harness scheduler, while an in-process mailbox cannot communicate with an
@@ -32,7 +32,7 @@ a sender-bound `spawn_agent` tool and decides at runtime whether delegation is
 useful, how many specialists are needed, and what bounded task each receives.
 
 ```ts
-import { createManagedAgentTeam, defineAgent } from 'ai-agent-sdk'
+import { createManagedAgentTeam, defineAgent } from '@ai-agent-sdk/core'
 
 const leadDefinition = defineAgent({
   id: 'lead',
@@ -71,7 +71,7 @@ Use `createDefinedAgentTeam()` when agent identities, models, instructions,
 skills, tools, or policies are architecture rather than runtime decisions.
 
 ```ts
-import { createDefinedAgentTeam, defineAgent } from 'ai-agent-sdk'
+import { createDefinedAgentTeam, defineAgent } from '@ai-agent-sdk/core'
 
 const lead = defineAgent({
   id: 'lead',
@@ -108,7 +108,7 @@ agents and external services.
 ### Low-level manual composition
 
 ```ts
-import { AgentTeam, defineAgent } from 'ai-agent-sdk'
+import { AgentTeam, defineAgent } from '@ai-agent-sdk/core/agent'
 
 const team = new AgentTeam({ id: 'release-team', maxMembers: 8 })
 

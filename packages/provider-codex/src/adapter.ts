@@ -24,6 +24,13 @@
 import type { ModelProviderPlugin, ModelProviderRegistrar, RetryPolicyConfig } from '@ai-agent-sdk/core'
 import { ReasoningEffortId } from '@ai-agent-sdk/core'
 import { waitForSettlement } from '@ai-agent-sdk/core'
+import {
+  defineModelProviderPlugin,
+  type ComposableModelProviderPlugin,
+  type CredentialOperationOptions,
+  type ModelTarget,
+  type SdkLogger,
+} from '@ai-agent-sdk/core/provider'
 import type {
   HttpModelAdapter,
   ProviderCatalogModel,
@@ -31,6 +38,7 @@ import type {
 } from '@ai-agent-sdk/provider-http'
 import {
   createHttpProvider,
+  createRuntimeHttpProvider,
   observeCredentialOperation,
   type ModelDiscoveryContext,
 } from '@ai-agent-sdk/provider-http'
@@ -44,8 +52,16 @@ import {
   resolveAccountId,
   shouldRefresh,
   type CodexAuthStore,
+  type CodexCredentialStore,
 } from './auth.ts'
-import { refreshCodexTokens, type CodexOAuthOptions } from './oauth.ts'
+import {
+  refreshCodexTokens,
+  refreshCodexTokensWithOperation,
+  type CodexOAuthOptions,
+} from './oauth.ts'
+import { captureCodexStore, type CapturedCodexStore } from './common/store-capture.ts'
+import { codexResponseMediaFetch } from './common/response-media.ts'
+import { rejectCodexRedirect } from './common/no-follow.ts'
 
 /** The ChatGPT-backed Codex API base. */
 export const CODEX_BASE_URL = 'https://chatgpt.com/backend-api/codex'
@@ -109,6 +125,9 @@ export interface CodexAdapterOptions {
   maxCatalogChunks?: number
   /** Model-catalog request deadline. Defaults to 30 seconds. */
   catalogTimeoutMs?: number
+  catalogTtlMs?: number
+  catalogStaleTtlMs?: number
+  catalogFailureBackoffMs?: number
   /** Output cap when neither caller nor catalog names one. */
   defaultMaxTokens?: number
   /** Context capacity assumed for an uncatalogued model. */
@@ -119,6 +138,8 @@ export interface CodexAdapterOptions {
   maxRequestBytes?: number
   maxResponseBytes?: number
   maxResponseChunks?: number
+  maxSseEvents?: number
+  maxSseEventChars?: number
   maxErrorBodyBytes?: number
   requestLoggerTimeoutMs?: number
   /** Retry policy this route owns. */
@@ -130,10 +151,17 @@ export interface CodexAdapterOptions {
   /**
    * Stable key letting the provider reuse a cached prompt prefix across turns.
    *
-   * Defaults to a per-adapter-instance id, so one long conversation shares a cache
-   * while separate conversations do not collide.
+   * Defaults to one id captured by the adapter/provider-plugin instance. Every
+   * conversation routed through that same instance shares the key. Use separate
+   * plugin instances (and routes) when cache identity must be isolated; this is
+   * not a conversation- or tenant-scoped setting.
    */
   promptCacheKey?: string
+  fetch?: typeof globalThis.fetch
+}
+
+export interface CodexRevisionedAdapterOptions extends Omit<CodexAdapterOptions, 'authStore'> {
+  readonly authStore: CodexCredentialStore
 }
 
 function randomId(): string {
@@ -150,14 +178,17 @@ async function discoverCodexModels(
     readonly maxChunks: number
     readonly timeoutMs: number
   },
+  fetchImpl: typeof globalThis.fetch,
 ): Promise<readonly ProviderCatalogModel[]> {
   const url = `${context.baseUrl}/models?client_version=${encodeURIComponent(clientVersion)}`
   const timeout = AbortSignal.timeout(limits.timeoutMs)
   const signal = context.signal === undefined ? timeout : AbortSignal.any([context.signal, timeout])
-  const response = await fetch(url, {
+  const response = await fetchImpl(url, {
     headers: context.headers,
     signal,
+    redirect: 'manual',
   })
+  await rejectCodexRedirect(response, url, 'model catalog', 30_000)
   if (!response.ok) return []
   const body = await readCatalogJson(response, limits.maxBytes, limits.maxChunks, signal)
   const models = Array.isArray(body.models) ? body.models as WireCatalogModel[] : []
@@ -206,12 +237,23 @@ async function discoverCodexModels(
  * @param options - credential store, endpoint, and catalog overrides.
  * @returns the adapter, ready to register.
  */
-export function codexAdapter(options: CodexAdapterOptions): HttpModelAdapter {
-  const store = options?.authStore
-  if (typeof store !== 'object' || store === null
-    || typeof store.read !== 'function' || typeof store.write !== 'function') {
-    throw new TypeError('Codex authStore must be injected into the Universal provider')
-  }
+export function codexAdapter(options: CodexRevisionedAdapterOptions): HttpModelAdapter
+export function codexAdapter(options: CodexAdapterOptions): HttpModelAdapter
+export function codexAdapter(
+  options: CodexAdapterOptions | CodexRevisionedAdapterOptions,
+): HttpModelAdapter {
+  const captured = captureCodexStore(options?.authStore)
+  return captured.kind === 'versioned'
+    ? runtimeCodexAdapter(options as CodexRevisionedAdapterOptions, captured)
+    : legacyCodexAdapter(options as CodexAdapterOptions, captured)
+}
+
+function legacyCodexAdapter(
+  options: CodexAdapterOptions,
+  captured = captureCodexStore(options?.authStore),
+): HttpModelAdapter {
+  if (captured.kind !== 'legacy') throw new TypeError('Codex legacy adapter requires a read/write auth store')
+  const store = captured.store
   const promptCacheKey = options.promptCacheKey ?? randomId()
   const clientVersion = options.clientVersion ?? CODEX_CLIENT_VERSION
   const catalogLimits = Object.freeze({
@@ -271,16 +313,121 @@ export function codexAdapter(options: CodexAdapterOptions): HttpModelAdapter {
       },
     },
     ...options.models === undefined
-      ? { discoverModels: (context) => discoverCodexModels(context, clientVersion, catalogLimits) }
+      ? { discoverModels: (context) => discoverCodexModels(
+        context,
+        clientVersion,
+        catalogLimits,
+        options.fetch ?? globalThis.fetch,
+      ) }
       : { models: options.models },
     defaultMaxTokens: options.defaultMaxTokens ?? 32_000,
     defaultContextWindow: options.defaultContextWindow ?? 272_000,
     ...options.streamIdleTimeoutMs === undefined
       ? {}
       : { streamIdleTimeoutMs: options.streamIdleTimeoutMs },
+    ...options.catalogTtlMs === undefined ? {} : { catalogTtlMs: options.catalogTtlMs },
+    ...options.catalogStaleTtlMs === undefined ? {} : { catalogStaleTtlMs: options.catalogStaleTtlMs },
+    ...options.catalogFailureBackoffMs === undefined
+      ? {}
+      : { catalogFailureBackoffMs: options.catalogFailureBackoffMs },
     ...transportLimits(options),
     ...options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy },
     ...options.requestLogger === undefined ? {} : { requestLogger: options.requestLogger },
+  })
+}
+
+const NULL_LOGGER: SdkLogger = Object.freeze({
+  child: () => NULL_LOGGER,
+  trace: () => undefined, debug: () => undefined, info: () => undefined,
+  warn: () => undefined, error: () => undefined, fatal: () => undefined,
+})
+
+function runtimeCodexAdapter(
+  options: CodexRevisionedAdapterOptions,
+  captured = captureCodexStore(options.authStore),
+): HttpModelAdapter {
+  if (captured.kind !== 'versioned') {
+    throw new TypeError('Codex runtime authStore must be a versioned credential store')
+  }
+  const store = captured.store
+  const promptCacheKey = options.promptCacheKey ?? randomId()
+  const clientVersion = options.clientVersion ?? CODEX_CLIENT_VERSION
+  const catalogLimits = Object.freeze({
+    maxBytes: positiveSafeInteger(options.maxCatalogBytes ?? 4 * 1024 * 1024, 'maxCatalogBytes'),
+    maxModels: positiveSafeInteger(options.maxCatalogModels ?? 2_048, 'maxCatalogModels'),
+    maxChunks: positiveSafeInteger(options.maxCatalogChunks ?? 10_000, 'maxCatalogChunks'),
+    timeoutMs: positiveSafeInteger(options.catalogTimeoutMs ?? 30_000, 'catalogTimeoutMs'),
+  })
+  const dialect: Partial<ResponsesDialect> = {
+    sampling: false,
+    maxOutputTokens: false,
+    store: false,
+    messagePhase: true,
+    promptCacheKey,
+  }
+
+  return createRuntimeHttpProvider({
+    displayName: 'Codex',
+    protocol: openAiResponsesProtocol,
+    baseUrl: options.baseUrl ?? CODEX_BASE_URL,
+    dialect,
+    auth: {
+      kind: 'dynamic',
+      resolve: async ({ provider, signal, context }) => {
+        const operation: CredentialOperationOptions = {
+          signal,
+          logger: context?.logger ?? NULL_LOGGER,
+        }
+        const record = await store.read(operation)
+        const file = record?.value
+        let tokens = requireTokens(file, store.label)
+        if (file !== undefined && shouldRefresh(file)) {
+          tokens = await observeCredentialOperation(
+            context,
+            provider,
+            'refresh',
+            async () => await refreshCodexTokensWithOperation(
+              store,
+              { ...(options.oauth ?? {}), signal },
+              operation,
+            ),
+          )
+        }
+        const accountId = resolveAccountId(tokens)
+        return {
+          authorization: `Bearer ${tokens.access_token}`,
+          originator: options.originator ?? CODEX_ORIGINATOR,
+          ...(accountId === undefined ? {} : { 'chatgpt-account-id': accountId }),
+          ...(isFedrampAccount(tokens) ? { 'x-openai-fedramp': 'true' } : {}),
+          'session-id': promptCacheKey,
+        }
+      },
+    },
+    ...(options.models === undefined
+      ? { discoverModels: context => discoverCodexModels(
+        {
+          baseUrl: context.baseUrl.href.replace(/\/+$/, ''),
+          headers: context.headers,
+          signal: context.signal,
+          provider: context.provider,
+          ...(context.context === undefined ? {} : { context: context.context }),
+        },
+        clientVersion,
+        catalogLimits,
+        options.fetch ?? globalThis.fetch,
+      ) }
+      : { models: options.models }),
+    ...(options.catalogTtlMs === undefined ? {} : { catalogTtlMs: options.catalogTtlMs }),
+    ...(options.catalogStaleTtlMs === undefined ? {} : { catalogStaleTtlMs: options.catalogStaleTtlMs }),
+    ...(options.catalogFailureBackoffMs === undefined
+      ? {}
+      : { catalogFailureBackoffMs: options.catalogFailureBackoffMs }),
+    defaultMaxTokens: options.defaultMaxTokens ?? 32_000,
+    defaultContextWindow: options.defaultContextWindow ?? 272_000,
+    ...(options.streamIdleTimeoutMs === undefined ? {} : { streamIdleTimeoutMs: options.streamIdleTimeoutMs }),
+    ...transportLimits(options),
+    ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),
+    ...(options.requestLogger === undefined ? {} : { requestLogger: options.requestLogger }),
   })
 }
 
@@ -289,10 +436,55 @@ export interface CodexPluginOptions extends CodexAdapterOptions {
   readonly routes?: readonly string[]
 }
 
+export interface CodexProviderOptions extends CodexRevisionedAdapterOptions {
+  readonly defaultModel?: string | ModelTarget
+  readonly id?: string
+  readonly routes?: readonly string[]
+}
+
 /** Preferred transactional plugin for installing the Universal Codex provider. */
-export function codexPlugin(options: CodexPluginOptions): ModelProviderPlugin {
+export function codexPlugin(
+  options: CodexProviderOptions,
+): ComposableModelProviderPlugin & { readonly family: 'codex' }
+export function codexPlugin(options: CodexPluginOptions): ModelProviderPlugin
+export function codexPlugin(
+  options: CodexProviderOptions | CodexPluginOptions,
+): ModelProviderPlugin | (ComposableModelProviderPlugin & { readonly family: 'codex' }) {
+  if (isVersionedStoreInput(options.authStore)) {
+    const id = 'id' in options && options.id !== undefined ? options.id : 'codex'
+    const routes = Object.freeze([...options.routes ?? [id]])
+    return defineModelProviderPlugin({
+      id,
+      family: 'codex',
+      displayName: 'Codex',
+      routes,
+      ...runtimeDefaultModel(
+        'defaultModel' in options ? options.defaultModel : undefined,
+        routes,
+      ),
+      setup(registrar) {
+        const adapter = runtimeCodexAdapter(options as CodexProviderOptions)
+        const remove = registrar.registerAdapter(adapter)
+        return () => { remove(); return undefined }
+      },
+    }) as ComposableModelProviderPlugin & { readonly family: 'codex' }
+  }
+  return legacyCodexPlugin(options as CodexPluginOptions)
+}
+
+/** Marker inspection only; full store capture stays deferred to preferred setup. */
+function isVersionedStoreInput(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false
+  const kind = Object.getOwnPropertyDescriptor(value, 'kind')
+  return kind !== undefined && 'value' in kind && kind.value === 'credential-store'
+}
+
+function legacyCodexPlugin(
+  options: CodexPluginOptions,
+  captured?: CapturedCodexStore,
+): ModelProviderPlugin {
   const routes = Object.freeze([...(options.routes ?? ['codex'])])
-  const adapter = codexAdapter(options)
+  const adapter = legacyCodexAdapter(options, captured)
   return Object.freeze({
     id: 'codex',
     displayName: 'Codex',
@@ -300,6 +492,16 @@ export function codexPlugin(options: CodexPluginOptions): ModelProviderPlugin {
       registrar.registerAdapter(routes, adapter)
     },
   })
+}
+
+function runtimeDefaultModel(
+  value: string | ModelTarget | undefined,
+  routes: readonly string[],
+): { readonly defaultModel?: ModelTarget } {
+  if (value === undefined) return {}
+  if (typeof value !== 'string') return { defaultModel: value }
+  if (routes.length !== 1) throw new TypeError('A string defaultModel requires exactly one Codex route')
+  return { defaultModel: Object.freeze({ provider: routes[0]!, id: value }) }
 }
 
 async function readCatalogJson(
@@ -366,13 +568,21 @@ function positiveSafeInteger(value: number, field: string): number {
   return value
 }
 
-function transportLimits(options: CodexAdapterOptions) {
+function transportLimits(options: CodexAdapterOptions | CodexRevisionedAdapterOptions) {
+  const fetch = codexResponseMediaFetch({
+    baseUrl: options.baseUrl ?? CODEX_BASE_URL,
+    officialBaseUrl: CODEX_BASE_URL,
+    ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+  })
   return {
     ...options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs },
     ...options.maxRequestBytes === undefined ? {} : { maxRequestBytes: options.maxRequestBytes },
     ...options.maxResponseBytes === undefined ? {} : { maxResponseBytes: options.maxResponseBytes },
     ...options.maxResponseChunks === undefined ? {} : { maxResponseChunks: options.maxResponseChunks },
+    ...options.maxSseEvents === undefined ? {} : { maxSseEvents: options.maxSseEvents },
+    ...options.maxSseEventChars === undefined ? {} : { maxSseEventChars: options.maxSseEventChars },
     ...options.maxErrorBodyBytes === undefined ? {} : { maxErrorBodyBytes: options.maxErrorBodyBytes },
     ...options.requestLoggerTimeoutMs === undefined ? {} : { requestLoggerTimeoutMs: options.requestLoggerTimeoutMs },
+    fetch,
   }
 }
