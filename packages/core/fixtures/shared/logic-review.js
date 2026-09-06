@@ -40,7 +40,30 @@ export async function logicReviewEvidence({ ModelAdapter, createAgentRuntime }) 
       if (!await settled || session.isRunning || (await handle.report).modelCalls.length !== 1) {
         throw new Error('packed estimator cancellation contract failed')
       }
-      return { admission: true, completion: true, cancellation: true }
+      for (const onMissing of ['fail', 'warn']) {
+        const requests = []
+        adapter.stream = async function* (request) {
+          requests.push(request.model)
+          yield { type: 'text-delta', index: 0, text: 'Checkpoint.' }
+          yield { type: 'block-end', index: 0, block: { type: 'text', text: 'Checkpoint.' } }
+          if (request.model !== 'summary') yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } }
+          yield { type: 'finish', reason: { kind: 'stop' } }
+        }
+        const compacting = runtime.agent({ id: `compaction-${onMissing}`, instructions: 'Go', compaction: {
+          auto: true, summarizationProvider: 'logic', summarizationModel: 'summary',
+          maxInputTokens: 100, retainTokens: 10, compactionRetries: 2,
+        } }).createSession({ usagePolicy: { onMissing }, runtimeLimits: { maxTotalTokens: 100 } })
+        compacting.inject('Prior context '.repeat(1_000))
+        const run = compacting.stream('Go.')
+        const result = await run.result.then(value => value, error => error)
+        const report = await run.report
+        if (JSON.stringify(requests) !== '["summary"]' || report.modelCalls.length !== 1
+          || (onMissing === 'fail' ? result.code !== 'USAGE_REQUIRED'
+            : result.completed !== false || result.stopReason !== 'usage-unavailable')) {
+          throw new Error('packed compaction mandatory usage stop failed')
+        }
+      }
+      return { admission: true, completion: true, cancellation: true, compaction: true }
     }
     return await Promise.race([work(), new Promise((_, reject) => {
       timer = setTimeout(() => reject(new Error('packed logic fixture exceeded 5 seconds')), 5_000)

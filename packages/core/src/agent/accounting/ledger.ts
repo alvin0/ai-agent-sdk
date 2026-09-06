@@ -102,6 +102,8 @@ export class RunLedger implements RunAccountingPort {
   readonly modelInvocation: ModelInvocationContext
   readonly mode: DeliveryMode
   terminalAuditFailure = false
+  private stoppedUsage: ModelCallPolicyDecision | undefined
+  get usageStop(): ModelCallPolicyDecision | undefined { return this.stoppedUsage }
 
   private readonly port: ObservationPort
   private readonly resource: ObservationResource
@@ -231,7 +233,9 @@ export class RunLedger implements RunAccountingPort {
     this.assertOpen('model-call usage')
     if (this.modelCalls.has(report.modelCallId)) {
       this.defect(`duplicate model-call terminal '${report.modelCallId}'`)
-      return { report: this.modelCalls.get(report.modelCallId) ?? report, usageRequired: true, usageUnavailable: false }
+      const decision = Object.freeze({ report: this.modelCalls.get(report.modelCallId) ?? report, usageRequired: true, usageUnavailable: false })
+      this.stoppedUsage ??= decision
+      return decision
     }
     if (this.modelCalls.size >= this.limits.maxModelCalls) {
       this.limit(`run exceeded ${this.limits.maxModelCalls} logical model calls`)
@@ -303,7 +307,7 @@ export class RunLedger implements RunAccountingPort {
       estimated: accepted.estimated, coverage: accepted.coverage, authoritative: false,
     })
     this.modelCalls.set(accepted.modelCallId, accepted)
-    return Object.freeze({
+    const decision = Object.freeze({
       report: accepted,
       usageRequired,
       usageUnavailable: !usageRequired
@@ -312,6 +316,8 @@ export class RunLedger implements RunAccountingPort {
         && this.cumulativeTokenBudget
         && accepted.possiblyBilledAttemptsWithoutUsage > 0,
     })
+    if (decision.usageRequired || decision.usageUnavailable) this.stoppedUsage ??= decision
+    return decision
   }
 
   recordError(error: unknown): void {

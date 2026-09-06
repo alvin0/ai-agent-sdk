@@ -37,6 +37,25 @@ function ledger(overrides: Partial<ConstructorParameters<typeof RunLedger>[0]> =
 const request = { provider: 'fixture', model: 'model', messages: [] } as const
 
 describe('canonical agent run ledger', () => {
+  it('latches the mandatory stop returned for duplicate reports in production mode', async () => {
+    const state = ledger({ defectMode: 'production' })
+    const report = call()
+    await state.recordModelCall(report, request)
+    const decision = await state.recordModelCall(report, request)
+    expect(decision.usageRequired).toBe(true)
+    expect(state.usageStop).toBe(decision)
+    expect((await state.finalize('success', false)).modelCalls).toHaveLength(1)
+  })
+  it.each(['fail', 'warn'] as const)('retains the first %s usage stop after a later successful report', async onMissing => {
+    const state = ledger({ cumulativeTokenBudget: true, usagePolicy: { onMissing } })
+    const decision = await state.recordModelCall(call({ coverage: 'missing', reported: {}, authoritative: false,
+      possiblyBilledAttemptsWithoutUsage: 1 }), request)
+    await state.recordModelCall(call({ modelCallId: 'later' }), request)
+    expect(state.usageStop).toBe(decision)
+    const final = await state.finalize('success', false)
+    expect(final.modelCalls).toHaveLength(2)
+    expect(state.usageStop).toBe(decision)
+  })
   it('charges estimation projection overhead while preserving raw evidence at the ledger limit', async () => {
     const raw = call({ coverage: 'partial', reported: { inputTokens: 7 }, authoritative: false })
     const estimated = { outputTokens: 3, totalTokens: 10 }

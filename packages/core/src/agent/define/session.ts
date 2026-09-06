@@ -625,6 +625,7 @@ export class AgentSession {
         const generation = this.currentHistory.generation()
         if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, accounting)
         await this.compactor?.beforeStep(context)
+        if (accounting?.usageStop !== undefined) return { kind: 'proceed' as const }
         const refreshed = this.currentHistory.generation() === generation
           ? context
           : {
@@ -646,6 +647,7 @@ export class AgentSession {
       onRequestError: async context => {
         if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, accounting)
         const recovery = await this.compactor?.onRequestError(context)
+        if (accounting?.usageStop !== undefined) return 'fail'
         if (recovery === 'retry') return 'retry'
         return await user?.onRequestError?.(context) ?? 'fail'
       },

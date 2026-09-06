@@ -13,6 +13,7 @@ import { serializedBytes, modelFailureFinish, modelAbortedFinish, messageOf, now
 import { validateStreamChunk } from './validation.ts'
 import { StreamAbortError, nextWithAbort, closeIterator } from './cancellation.ts'
 import { runOptionalHook } from './hooks.ts'
+import { accountingUsageStop } from './usage-stop.ts'
 import {
   classifyTextPhases, invalidHostToolCall, contentTiming, recentToolResultIds, systemText,
   createAssistant, textOf,
@@ -35,11 +36,27 @@ export async function modelRound(
   const afterToolCallIds = recentToolResultIds(options.history)
   const generation = options.history.generation()
   const entries = options.history.entries().length
+  const stopped = (): RoundResult | undefined => {
+    const stop = accountingUsageStop(options.accounting)
+    if (stop === undefined && !signal.aborted) return undefined
+    return {
+      trace, finish: signal.aborted
+        ? { kind: 'aborted', failure: { code: 'ABORTED', message: messageOf(signal.reason) } }
+        : { kind: 'stop' },
+      calls: [], afterToolCallIds, timing: contentTiming(false, afterToolCallIds.length > 0),
+      ...(stop?.kind === 'error' ? { usageRequired: true } : {}),
+      ...(stop?.kind === 'usage-unavailable' ? { usageUnavailable: true } : {}),
+    }
+  }
+  const beforeMaintenance = stopped()
+  if (beforeMaintenance !== undefined) return beforeMaintenance
   const decision = await runOptionalHook(options.hooks?.beforeStep, [{
     turn, step, messages, snapshot: options.history.snapshot(), signal,
     ...(options.logger === undefined ? {} : { logger: options.logger }),
     emit: emitMaintenance,
   }], options, signal, 'beforeStep')
+  const afterMaintenance = stopped()
+  if (afterMaintenance !== undefined) return afterMaintenance
   if (decision?.kind === 'reject') {
     const failure: ModelFailure = { message: decision.reason, code: 'STEP_REJECTED' }
     return {
@@ -88,6 +105,8 @@ export async function modelRound(
       timing: contentTiming(false, afterToolCallIds.length > 0),
     }
   }
+  const beforeDispatch = stopped()
+  if (beforeDispatch !== undefined) return beforeDispatch
   await emit({ type: 'span-start', trace, at: now(), name: `chat ${options.config.model}`, kind: 'chat', attributes: {
     'gen_ai.operation.name': 'chat', 'gen_ai.request.model': options.config.model,
     turn, step, forcedFinal, phase,

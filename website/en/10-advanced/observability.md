@@ -183,6 +183,17 @@ cancel callback that ignores cancellation still cannot be forcibly stopped.
 
 ### When usage is missing
 
+Mandatory usage stops also apply to auto-compaction: a summary that produces
+`usageRequired` or `usageUnavailable` stops the invocation before any next main,
+summary, retry or finalizer request. Maintenance fail-open does not clear this
+decision; raw summary evidence stays in the report.
+
+`runtimeLimits.maxTotalTokens` covers normal rounds (including retries and
+finalizers), not compaction. Summary calls instead use `maxSummaryTokens`,
+`summaryTimeoutMs`, `compactionRetries` and `maxOverflowRetries` under `compaction`.
+There is no separate cumulative summary-token cap. Run reports include both,
+so their total can exceed the normal-turn cap; it is not a billing ceiling.
+
 `usagePolicy.estimateTimeoutMs` bounds an asynchronous estimator independently of
 `modelTimeoutMs` (default: 30,000ms; positive integer up to 2,147,483,647).
 The callback receives `input.signal`, aborted on caller cancellation, ledger

@@ -142,6 +142,8 @@ export class ContextCompactor {
       // Pressure maintenance is fail-open; the provider's canonical overflow
       // error still gets one forced recovery path below. Avoid retrying the same
       // broken maintenance request on every tool step and flooding logs/traces.
+      // Mandatory usage decisions stay latched in the owning ledger and are
+      // checked by modelRound after this hook, before any main dispatch.
       this.pressureCooldown = 2
     }
   }
@@ -393,6 +395,8 @@ export class ContextCompactor {
     const policy = this.input.policy
     const provider = policy.summarizationProvider ?? this.input.config.provider
     const model = policy.summarizationModel ?? this.input.config.model
+    const accounting = compactionAccounting(this)
+    assertUsageAdmission(accounting)
     const summaryInfo = await raceWithSignal(
       this.input.registry.resolveModelInfo(provider, model, signal),
       signal,
@@ -404,7 +408,6 @@ export class ContextCompactor {
         ? Number.MAX_SAFE_INTEGER
         : Math.max(1, summaryInfo.context.contextWindow - 1),
     )
-    const accounting = compactionAccounting(this)
     const prepared = await raceWithSignal(this.input.registry.prepareCall({
       provider,
       model,
@@ -439,6 +442,7 @@ export class ContextCompactor {
         'MODEL_REQUEST_TOO_LARGE',
       )
     }
+    assertUsageAdmission(accounting)
     const handle = prepared.stream(request, accounting?.modelInvocation)
     const iterator = handle[Symbol.asyncIterator]()
     let exhausted = false
@@ -486,6 +490,9 @@ export class ContextCompactor {
       const decision = await accounting?.recordModelCall(report, request)
       if (decision?.usageRequired === true) {
         failure ??= codedError('compaction model usage is required by the configured run policy', 'USAGE_REQUIRED')
+      }
+      if (decision?.usageUnavailable === true) {
+        failure ??= codedError('compaction model usage is unavailable for the configured budget', 'USAGE_UNAVAILABLE')
       }
     } catch (error: unknown) { failure ??= error }
     if (failure !== undefined) throw failure
@@ -596,6 +603,14 @@ function serializedBytes(value: unknown): number {
   const serialized = JSON.stringify(value)
   if (serialized === undefined) throw new TypeError('compaction model payload is not JSON serializable')
   return new TextEncoder().encode(serialized).byteLength
+}
+
+function assertUsageAdmission(accounting: ReturnType<typeof compactionAccounting>): void {
+  const stop = accounting?.usageStop
+  if (stop !== undefined) throw codedError(
+    'compaction cannot dispatch after a mandatory usage stop',
+    stop.usageRequired ? 'USAGE_REQUIRED' : 'USAGE_UNAVAILABLE',
+  )
 }
 
 function codedError(message: string, code: string, cause?: unknown): Error & { code: string } {

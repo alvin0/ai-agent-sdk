@@ -37,7 +37,9 @@ export interface AgentRuntimeLimits {
   readonly toolCycleWarningAt?: number
   readonly toolCycleLimit?: number
   readonly maxToolCycleLength?: number
-  /** Hard stop over aggregate usage reported by model adapters. */
+  /** Hard stop for normal rounds (including retries/finalizers), excluding compaction.
+   * Summary calls use compaction limits; run reports still include their usage.
+   * Mandatory usage policy applies to every call in the invocation. */
   readonly maxTotalTokens?: number
   readonly hookTimeoutMs?: number
   readonly hookTeardownTimeoutMs?: number

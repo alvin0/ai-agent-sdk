@@ -22,6 +22,8 @@ export interface EndRunOperationInput {
 
 /** Inward instrumentation surface consumed by the agent runtime. */
 export interface RunAccountingPort {
+  /** First mandatory usage stop in this invocation, including maintenance calls. */
+  readonly usageStop: ModelCallPolicyDecision | undefined
   readonly runId: string
   readonly traceId: string
   readonly modelInvocation: ModelInvocationContext

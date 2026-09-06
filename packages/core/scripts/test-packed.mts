@@ -113,7 +113,7 @@ function assertFixture(value: unknown, totalTokens: number, runtime: string): vo
   const result = value as { traceId?: unknown; status?: unknown; totalTokens?: unknown; buffer?: unknown; process?: unknown;
     overflow?: { settled?: unknown; authoritative?: unknown; errorCode?: unknown; attempts?: unknown };
     topology?: { providers?: unknown; catalogs?: unknown };
-    logic?: { admission?: unknown; completion?: unknown; cancellation?: unknown } }
+    logic?: { admission?: unknown; completion?: unknown; cancellation?: unknown; compaction?: unknown } }
   const expectedProviders = [
     { route: 'route-a', pluginId: 'account-a', family: 'openai' },
     { route: 'route-b', pluginId: 'account-b', family: 'openai' },
@@ -128,6 +128,7 @@ function assertFixture(value: unknown, totalTokens: number, runtime: string): vo
     || result.overflow?.settled !== true || result.overflow.authoritative !== false
     || result.overflow.errorCode !== 'USAGE_COUNTER_OVERFLOW' || result.overflow.attempts !== 1
     || result.logic?.admission !== true || result.logic.completion !== true || result.logic.cancellation !== true
+    || result.logic.compaction !== true
     || JSON.stringify(result.topology?.providers) !== JSON.stringify(expectedProviders)
     || JSON.stringify(result.topology?.catalogs) !== JSON.stringify(expectedCatalogs)) {
     throw new Error(`${runtime} fixture returned invalid evidence: ${JSON.stringify(result)}`)

@@ -14,6 +14,7 @@ import { runOptionalHook, runHook } from './turn/hooks.ts'
 import { maintenanceEmitter, emitAssistantContent, textOf } from './turn/content.ts'
 import { repeatKey, toolActionPattern, repeatedSuffixCycle } from './turn/repetition.ts'
 import { modelRound } from './turn/model-round.ts'
+import { accountingUsageStop } from './turn/usage-stop.ts'
 
 function hasCallableTools(options: RunTurnOptions): boolean {
   if (options.toolChoice === 'none') return false
@@ -90,6 +91,8 @@ async function driveTurn(
   // may have a separate step allowance, never a separate token allowance.
   const admissionStop = (): TurnOutcome['reason'] | undefined => {
     if (signal.aborted) return { kind: 'aborted' }
+    const mandatoryStop = accountingUsageStop(options.accounting)
+    if (mandatoryStop !== undefined) return mandatoryStop
     if (usageStop !== undefined) return usageStop
     const tokens = budgetTokenTotal(summarizeModelCallUsage(modelCallReports))
     return tokens !== undefined && tokens >= bounds.maxTotalTokens
@@ -137,11 +140,11 @@ async function driveTurn(
       await emitAssistantContent(round, emit)
       text = textOf(round.message.content)
     }
-    usageStop = round.usageRequired
+    usageStop = accountingUsageStop(options.accounting) ?? (round.usageRequired
       ? { kind: 'error', failure: { message: 'provider usage is required by the configured run policy', code: 'USAGE_REQUIRED' } }
       : round.usageUnavailable
         ? { kind: 'usage-unavailable', modelCallId: round.report?.modelCallId ?? 'unknown' }
-        : undefined
+        : undefined)
     if (signal.aborted || round.finish.kind === 'aborted') { reason = { kind: 'aborted' }; break }
     // Pair emitted tool calls with declined results even when policy stops the
     // run; never execute those calls or allow a retry hook to override policy.
@@ -158,13 +161,15 @@ async function driveTurn(
         ...(options.logger === undefined ? {} : { logger: options.logger }),
         emit: emitMaintenance,
       }], options, signal, 'onRequestError')
+      const maintenanceStop = accountingUsageStop(options.accounting)
+      if (maintenanceStop !== undefined) { reason = signal.aborted ? { kind: 'aborted' } : maintenanceStop; break }
       if (decision === 'retry' && steps < bounds.maxSteps) continue
       reason = { kind: 'error', failure: round.finish.failure }
       break
     }
     if (round.finish.kind === 'max-tokens' && !round.usageRequired) { reason = { kind: 'max-tokens' }; break }
     if (round.calls.length === 0 && round.usageUnavailable) {
-      reason = { kind: 'usage-unavailable', modelCallId: round.report?.modelCallId ?? 'unknown' }
+      reason = accountingUsageStop(options.accounting) ?? { kind: 'usage-unavailable', modelCallId: round.report?.modelCallId ?? 'unknown' }
       break
     }
     if (round.calls.length === 0 && dedicatedFinalOutput) {
@@ -199,7 +204,7 @@ async function driveTurn(
         code: 'USAGE_REQUIRED',
       } }
       else if (final.usageUnavailable) {
-        reason = { kind: 'usage-unavailable', modelCallId: final.report?.modelCallId ?? 'unknown' }
+        reason = accountingUsageStop(options.accounting) ?? { kind: 'usage-unavailable', modelCallId: final.report?.modelCallId ?? 'unknown' }
       } else reason = { kind: 'completed' }
       break
     }
@@ -290,7 +295,7 @@ async function driveTurn(
     if (signal.aborted) { reason = { kind: 'aborted' }; break }
     if (round.usageRequired) { reason = usageStop; break }
     if (round.usageUnavailable) {
-      reason = { kind: 'usage-unavailable', modelCallId: round.report?.modelCallId ?? 'unknown' }
+      reason = accountingUsageStop(options.accounting) ?? { kind: 'usage-unavailable', modelCallId: round.report?.modelCallId ?? 'unknown' }
       break
     }
     let exhausted: ExhaustedBudget | undefined
@@ -336,7 +341,7 @@ async function driveTurn(
           break
         }
         if (final.usageUnavailable) {
-          reason = { kind: 'usage-unavailable', modelCallId: final.report?.modelCallId ?? 'unknown' }
+          reason = accountingUsageStop(options.accounting) ?? { kind: 'usage-unavailable', modelCallId: final.report?.modelCallId ?? 'unknown' }
           break
         }
       }

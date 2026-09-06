@@ -166,6 +166,17 @@ không thể biết chính xác việc tính tiền từ phản hồi.
 
 ### Contribution ngân sách và các attempt partial
 
+Mandatory usage stop áp dụng cả auto-compaction: summary trả `usageRequired`
+hoặc `usageUnavailable` sẽ chặn request main, summary, retry và finalizer tiếp
+theo trong invocation. Fail-open của maintenance không xóa quyết định này;
+report vẫn giữ raw evidence của summary.
+
+`runtimeLimits.maxTotalTokens` giới hạn normal rounds (gồm retry/finalizer),
+không gồm compaction. Summary dùng riêng `maxSummaryTokens`, `summaryTimeoutMs`,
+`compactionRetries`, `maxOverflowRetries` trong `compaction`; chưa có cumulative
+summary-token cap riêng. Run report cộng cả hai nên tổng có thể vượt cap của
+normal turns. Đây không phải trần billing của toàn invocation.
+
 `usagePolicy.estimateTimeoutMs` giới hạn estimator bất đồng bộ, độc lập với
 `modelTimeoutMs` (mặc định 30.000ms; số nguyên dương tối đa 2.147.483.647).
 Callback nhận `input.signal`, bị hủy khi caller abort, ledger đóng hoặc hết hạn.
