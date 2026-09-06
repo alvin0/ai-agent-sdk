@@ -17,8 +17,8 @@ export function resolveMcpReconnectOptions(
     maxDelayMs: input?.maxDelayMs ?? MCP_RECONNECT_DEFAULTS.maxDelayMs,
     maxAttempts: input?.maxAttempts ?? MCP_RECONNECT_DEFAULTS.maxAttempts,
   }
-  assertPositive(resolved.initialDelayMs, 'reconnect.initialDelayMs')
-  assertPositive(resolved.maxDelayMs, 'reconnect.maxDelayMs')
+  timeoutMilliseconds(resolved.initialDelayMs, 'reconnect.initialDelayMs')
+  timeoutMilliseconds(resolved.maxDelayMs, 'reconnect.maxDelayMs')
   if (resolved.initialDelayMs > resolved.maxDelayMs) {
     throw new TypeError('reconnect.initialDelayMs must be less than or equal to reconnect.maxDelayMs')
   }
@@ -79,6 +79,13 @@ export function positiveSafeInteger(value: number, field: string): number {
   return value
 }
 
+export function timeoutMilliseconds(value: number, field: string): number {
+  if (!Number.isSafeInteger(value) || value < 1 || value > 2_147_483_647) {
+    throw new RangeError(`${field} must be an integer between 1 and 2147483647 milliseconds`)
+  }
+  return value
+}
+
 export function serializedBytes(value: unknown): number {
   const serialized = JSON.stringify(value)
   if (serialized === undefined) throw new TypeError('MCP value is not JSON serializable')
@@ -86,6 +93,7 @@ export function serializedBytes(value: unknown): number {
 }
 
 export function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  timeoutMilliseconds(timeoutMs, 'timeoutMs')
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(message)), timeoutMs)
     void promise.then(
@@ -107,6 +115,7 @@ export function createAbortTimeoutScope(
   message: string,
   callerSignal?: AbortSignal,
 ): { readonly signal: AbortSignal; readonly dispose: () => void } {
+  timeoutMilliseconds(timeoutMs, 'timeoutMs')
   const controller = new AbortController()
   const timeout = new McpOperationTimeoutError(message)
   const timer = setTimeout(() => controller.abort(timeout), timeoutMs)

@@ -12,6 +12,10 @@ not part of the compactable history span.
 
 ## Defaults
 
+Provider setup can declare each model's context window and output budget.
+See [Provider model limits](provider-model-limits.md) for configuration, fallback
+precedence, and the current shared default/maximum output field.
+
 Every `defineAgent()` definition enables both mechanisms unless configured
 otherwise:
 

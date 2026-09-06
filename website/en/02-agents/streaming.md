@@ -31,6 +31,8 @@ interface RuntimeAgentRunHandle extends AsyncIterable<RuntimeAgentRunEvent> {
 }
 ```
 
+`result` settles after run cleanup, so awaiting it makes the session available for
+another run, reset, or compaction (unless the session or runtime has closed).
 `result` and `report` are available whether or not you iterate. `abort(reason)`
 cancels the run and composes with any `signal` you passed.
 

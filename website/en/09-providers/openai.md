@@ -13,6 +13,9 @@ Targets the **OpenAI Responses API** through
 
 ## Compose it
 
+To declare context windows and output budgets per model, see
+[Configure context and output limits](/en/09-providers/#configure-context-and-output-limits).
+
 ```ts
 import { createAgentRuntime } from '@ai-agent-sdk/core'
 import { openAiPlugin } from '@ai-agent-sdk/provider-openai'

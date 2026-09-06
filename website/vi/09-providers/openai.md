@@ -1,5 +1,8 @@
 # OpenAI
 
+Để khai báo context window và ngân sách output theo model, xem phần
+[cấu hình giới hạn model](/vi/09-providers/).
+
 Runtime: **Universal** — Edge/Worker, trình duyệt, Deno, Bun, và Node.
 Slot ghép nối: `runtime.providers`.
 Vòng đời: `inert-runtime-owned-registration`.

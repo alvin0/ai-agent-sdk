@@ -113,6 +113,7 @@ export interface RuntimeAgentResponse {
 
 export interface RuntimeAgentRunHandle extends AsyncIterable<RuntimeAgentRunEvent> {
   readonly runId: string
+  /** Settles after run cleanup; the session can be reused unless it or its runtime is closed. */
   readonly result: Promise<RuntimeAgentResponse>
   readonly report: Promise<RuntimeRunReport>
   abort(reason?: unknown): void

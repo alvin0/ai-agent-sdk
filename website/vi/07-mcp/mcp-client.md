@@ -51,6 +51,11 @@ export type { McpCloseReport }
 
 ### Bề mặt của kết nối
 
+`operationTimeoutMs`, `toolCallTimeoutMs`, `closeTimeoutMs` và
+`initialDelayMs` / `maxDelayMs` của reconnect phải là số nguyên mili giây từ
+`1` đến `2147483647`. Giá trị ngoài khoảng bị từ chối trước khi tạo timer;
+các giới hạn byte và số lượng được kiểm tra riêng.
+
 ```ts
 connection.state                 // trạng thái + era/version/transport/fallback đã thương lượng
 connection.connect()             // từ chối ngay lỗi lần đầu

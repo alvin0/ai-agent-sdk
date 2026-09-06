@@ -217,6 +217,9 @@ Two structural rules carry most of the weight:
   accidentally ship its own fetch loop that forgets attribution headers,
   mishandles abort, or invents error codes.
 
+See [provider model limits](docs/provider-model-limits.md) to configure context
+windows and output budgets per model when setting up a provider.
+
 See [the package architecture](docs/monorepo-package-architecture.md) and
 [`@ai-agent-sdk/provider-http`](packages/provider-http/README.md) for the adapter
 pipeline, ownership rules, and provider extension boundary.

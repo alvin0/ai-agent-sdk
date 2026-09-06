@@ -1,7 +1,7 @@
 import { waitForSettlement } from '@ai-agent-sdk/core'
 import type { McpHttpClientOptions } from './api-types.ts'
 import type { McpFetch } from './public-types.ts'
-import { createAbortTimeoutScope, positiveSafeInteger, raceAbort } from './runtime-helpers.ts'
+import { createAbortTimeoutScope, positiveSafeInteger, raceAbort, timeoutMilliseconds } from './runtime-helpers.ts'
 import { MCP_CLIENT_DEFAULTS, MCP_HTTP_REDIRECT_STATUSES } from './config.ts'
 
 export interface McpHttpSecurityOptions {
@@ -36,10 +36,10 @@ export function snapshotHttpSecurityOptions(options: McpHttpClientOptions): McpH
     maxTransportBytes: positiveSafeInteger(
       options.maxTransportBytes ?? MCP_CLIENT_DEFAULTS.maxTransportBytes, 'maxTransportBytes',
     ),
-    timeoutMs: positiveSafeInteger(
+    timeoutMs: timeoutMilliseconds(
       options.operationTimeoutMs ?? MCP_CLIENT_DEFAULTS.operationTimeoutMs, 'operationTimeoutMs',
     ),
-    teardownTimeoutMs: positiveSafeInteger(
+    teardownTimeoutMs: timeoutMilliseconds(
       options.closeTimeoutMs ?? MCP_CLIENT_DEFAULTS.closeTimeoutMs, 'closeTimeoutMs',
     ),
   })

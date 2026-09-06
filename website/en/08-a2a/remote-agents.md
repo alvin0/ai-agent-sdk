@@ -78,6 +78,15 @@ One remote `contextId` is retained per `(team, sender)`, so later `followup_task
 calls resume the same remote conversation. Dispatches to the same remote target
 are **FIFO**.
 
+Cancelling a send ends the caller's wait, not necessarily the transport callback.
+The team retains FIFO ownership until that callback settles: subsequent sends
+remain queued, and unlink is rejected while work is pending. Cancellation or
+disposal that cannot drain within its deadline reports a timeout. Runtime close
+reports retain unsettled transport work; events are suppressed after runtime
+closure. The team never closes a borrowed transport. Per remote member,
+`AgentTeamOptions.maxMessages` also bounds unsettled sends; exceeding it rejects
+with `TEAM_REMOTE_PENDING_LIMIT`.
+
 Remote peers support **wake-up delivery only**, because A2A has no standard
 operation for silently mutating another agent's private history. `send_message`
 therefore targets local sessions; `followup_task` targets either.

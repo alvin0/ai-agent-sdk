@@ -4,6 +4,7 @@ import type { ContentBlock } from '../../message/index.ts'
 import { createUserMessage } from '../../message/index.ts'
 import { waitForSettlement } from '../../async/index.ts'
 import { AgentSdkError } from '../../errors/index.ts'
+import { timeoutValue } from '../../platform/config.ts'
 import type { TeamMemberAttachmentOptions, TeamPort, TeamSessionPort } from './contracts.ts'
 import type {
   AgentMessageRecord, AgentTeamEvent, AgentTeamMember, AgentTeamOptions, LinkAgentOptions,
@@ -74,7 +75,10 @@ export class AgentTeam implements TeamPort {
   private disposed = false
   private disposeTask: Promise<void> | undefined
 
-  constructor(options: AgentTeamOptions = {}) {
+  constructor(
+    options: AgentTeamOptions = {},
+    private readonly ownRemoteTask?: (signal: AbortSignal) => () => void,
+  ) {
     this.id = boundedString(options.id ?? newTeamId(), 'team id', 1024)
     this.maxMembers = positiveInteger(options.maxMembers ?? 8, 'maxMembers')
     this.maxMessageBytes = positiveInteger(options.maxMessageBytes ?? 64 * 1024, 'maxMessageBytes')
@@ -85,9 +89,9 @@ export class AgentTeam implements TeamPort {
     this.maxMessages = positiveInteger(options.maxMessages ?? 10_000, 'maxMessages')
     this.maxMailboxBytes = positiveInteger(options.maxMailboxBytes ?? 64 * 1024 * 1024, 'maxMailboxBytes')
     this.maxMetadataBytes = positiveInteger(options.maxMetadataBytes ?? 8 * 1024, 'maxMetadataBytes')
-    this.disposeTimeoutMs = positiveInteger(options.disposeTimeoutMs ?? 30_000, 'disposeTimeoutMs')
-    this.operationTimeoutMs = positiveInteger(options.operationTimeoutMs ?? 10 * 60_000, 'operationTimeoutMs')
-    this.observerTimeoutMs = positiveInteger(options.observerTimeoutMs ?? 1_000, 'observerTimeoutMs')
+    this.disposeTimeoutMs = timeoutValue(options.disposeTimeoutMs ?? 30_000)
+    this.operationTimeoutMs = timeoutValue(options.operationTimeoutMs ?? 10 * 60_000)
+    this.observerTimeoutMs = timeoutValue(options.observerTimeoutMs ?? 1_000)
     this.onEvent = options.onEvent
     this.onAgentEvent = options.onAgentEvent
   }
@@ -258,7 +262,11 @@ export class AgentTeam implements TeamPort {
   async whenIdle(name: string, signal?: AbortSignal): Promise<void> {
     const member = this.requireAddress(name)
     if (member.kind === 'remote') {
-      await abortable(member.tail, signal)
+      while (true) {
+        const tail = member.tail
+        await abortable(tail, signal)
+        if (tail === member.tail && member.pending === 0) break
+      }
       return
     }
     while (true) {
@@ -410,20 +418,29 @@ export class AgentTeam implements TeamPort {
     member: RemoteMemberRuntime,
     input: Parameters<RemoteMemberRuntime['transport']['send']>[0],
   ): Promise<LinkedAgentResult> {
+    if (member.pending >= this.maxMessages) {
+      throw new AgentSdkError('Remote member has too many unsettled sends', 'TEAM_REMOTE_PENDING_LIMIT')
+    }
     const controller = new AbortController()
-    member.controllers.add(controller)
     const signal = combineSignals(
       input.signal, this.lifecycle.signal, controller.signal,
       AbortSignal.timeout(this.operationTimeoutMs),
     )
+    signal.throwIfAborted()
+    const releaseOwnership = this.ownRemoteTask?.(signal)
+    member.controllers.add(controller)
     member.pending++
     const previous = member.tail
     const operation = (async () => {
-      await abortable(previous, signal)
+      // The serial tail represents physical callback settlement, not the
+      // abortable public wait. A cancelled queued request skips dispatch once
+      // its predecessor actually releases ownership.
+      await previous
       signal.throwIfAborted()
       this.emit({ type: 'member-run-start', member: member.name })
       try {
-        const result = await abortable(member.transport.send({ ...input, signal }), signal)
+        const result = await member.transport.send({ ...input, signal })
+        signal.throwIfAborted()
         if (byteLength(result) > this.maxLinkedResultBytes) {
           throw new Error(`linked A2A result exceeds the ${this.maxLinkedResultBytes}-byte limit`)
         }
@@ -435,12 +452,13 @@ export class AgentTeam implements TeamPort {
         this.emit({ type: 'member-run-error', member: member.name, error: member.error })
         throw error
       }
-    })()
-    member.tail = operation.then(() => undefined, () => undefined)
-    try { return await operation } finally {
+    })().finally(() => {
       member.pending--
       member.controllers.delete(controller)
-    }
+      releaseOwnership?.()
+    })
+    member.tail = operation.then(() => undefined, () => undefined)
+    return await abortable(operation, signal)
   }
 
   private scheduleWake(member: LocalMemberRuntime, seq: number): void {

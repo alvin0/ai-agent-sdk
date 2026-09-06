@@ -177,6 +177,9 @@ export function createRuntimeAgentTeam(
       // event must wait for those too, not just the control-plane wake tasks.
       if (event.type !== 'team-disposed') emit(projectEvent(event))
     },
+  }, signal => {
+    const lease = host.operations.acquire('team-operation', { signal })
+    return () => lease.settle()
   })
   const sessions = new Map<string, RuntimeAgentSession>()
   const ports = new Map<string, TeamSessionPort>()
@@ -210,7 +213,10 @@ export function createRuntimeAgentTeam(
     void team.dispose().catch(() => undefined)
     throw error
   }
-  emit = event => { options.onEvent?.(event) }
+  emit = event => {
+    // Physical transport work can outlive bounded runtime shutdown.
+    if (host.operations.status !== 'closed') options.onEvent?.(event)
+  }
   for (const event of pendingEvents) emit(event)
   return new RuntimeTeamValue(
     host, team, sessions, Object.freeze([...sessions.keys()]), registration => {

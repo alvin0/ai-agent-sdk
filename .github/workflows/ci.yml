@@ -29,6 +29,12 @@ jobs:
       - name: Install pinned pnpm
         run: npm install --global pnpm@11.25.0 --ignore-scripts
 
+      - name: Install workspace-tool prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
+          rg --version
+
       - name: Frozen dependency install
         run: pnpm install --frozen-lockfile
 

@@ -50,6 +50,11 @@ export type { McpCloseReport }
 
 ### Connection surface
 
+`operationTimeoutMs`, `toolCallTimeoutMs`, `closeTimeoutMs`, and reconnect
+`initialDelayMs` / `maxDelayMs` must be integer milliseconds from `1` through
+`2147483647`. Values outside this range are rejected before timers are scheduled;
+byte and count limits are validated separately.
+
 ```ts
 connection.state                 // status + negotiated protocol era/version/transport/fallback
 connection.connect()             // rejects the initial failure

@@ -51,6 +51,7 @@ import {
   filterRemoteTools,
   isJsonObject,
   positiveSafeInteger,
+  timeoutMilliseconds,
   publicToolName,
   raceAbort,
   resolveMcpReconnectOptions,
@@ -130,13 +131,13 @@ export class McpClientConnection implements ToolSource {
     runtime: McpClientRuntimeOptions = {},
   ) {
     assertServerName(options.serverName)
-    this.toolCallTimeoutMs = positiveSafeInteger(
+    this.toolCallTimeoutMs = timeoutMilliseconds(
       options.toolCallTimeoutMs ?? MCP_CLIENT_DEFAULTS.toolCallTimeoutMs, 'toolCallTimeoutMs',
     )
-    this.operationTimeoutMs = positiveSafeInteger(
+    this.operationTimeoutMs = timeoutMilliseconds(
       options.operationTimeoutMs ?? MCP_CLIENT_DEFAULTS.operationTimeoutMs, 'operationTimeoutMs',
     )
-    this.closeTimeoutMs = positiveSafeInteger(
+    this.closeTimeoutMs = timeoutMilliseconds(
       options.closeTimeoutMs ?? MCP_CLIENT_DEFAULTS.closeTimeoutMs, 'closeTimeoutMs',
     )
     this.maxTools = positiveSafeInteger(options.maxTools ?? MCP_CLIENT_DEFAULTS.maxTools, 'maxTools')

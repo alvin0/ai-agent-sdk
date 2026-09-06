@@ -161,13 +161,14 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
     if (lease.signal.aborted) abort()
     void lease.whenSealed.then(() => legacy.seal()).catch(() => undefined)
     const report = this.runtimeReport(legacy.report, legacy.toolSourceSnapshots, lease.signal)
-    const result = this.runtimeResult(legacy.result, report)
+    const internalResult = this.runtimeResult(legacy.result, report)
     const eventsSettled = Promise.race([legacy.eventsSettled, lease.whenSealed])
-    void Promise.allSettled([eventsSettled, result, report]).then(() => {
+    const released = Promise.allSettled([eventsSettled, internalResult, report]).then(() => {
       lease.signal.removeEventListener('abort', abort)
       lease.settle()
       this.finishOperation(operation)
     })
+    const result = released.then(() => internalResult)
     void result.catch(() => undefined)
     void report.catch(() => undefined)
     return Object.freeze({ legacy, report, result })

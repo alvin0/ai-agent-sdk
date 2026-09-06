@@ -78,6 +78,14 @@ Mỗi cặp `(team, người gửi)` giữ một `contextId` từ xa, nên các 
 `followup_task` sau đó nối lại đúng cuộc hội thoại từ xa. Việc gửi tới cùng một
 đích từ xa theo thứ tự **FIFO**.
 
+Hủy gửi chỉ kết thúc việc chờ của caller, không bảo đảm callback transport đã
+dừng. Team giữ thứ tự FIFO đến khi callback thực sự hoàn tất: lượt gửi tiếp
+theo vẫn chờ và không thể unlink khi còn việc pending. Cancel/dispose báo timeout
+nếu không drain kịp deadline. Báo cáo đóng runtime vẫn ghi nhận transport chưa
+settle; không phát event sau khi runtime đã đóng. Team không đóng transport
+borrowed. Với mỗi remote member, `AgentTeamOptions.maxMessages` cũng giới hạn số
+lượt gửi chưa settle; vượt giới hạn trả về `TEAM_REMOTE_PENDING_LIMIT`.
+
 Peer từ xa **chỉ hỗ trợ giao nhận kiểu đánh thức**, vì A2A không có thao tác
 chuẩn nào để âm thầm sửa lịch sử riêng tư của agent khác. Do đó `send_message`
 nhắm tới session cục bộ; `followup_task` nhắm tới cả hai loại.

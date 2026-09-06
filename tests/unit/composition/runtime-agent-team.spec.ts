@@ -9,6 +9,7 @@ import { createRuntimeCompositionOwner } from '../../../packages/core/src/compos
 import type { ComposableModelProviderPlugin } from '../../../packages/core/src/composition/provider/types.ts'
 import type { LinkedAgentResult, LinkedAgentSendInput } from '../../../packages/core/src/agent/team/types.ts'
 import { defineTool } from '../../../packages/core/src/agent/tool/definition.ts'
+import { AgentTeam } from '../../../packages/core/src/agent/team/team.ts'
 
 class TeamAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []
@@ -239,7 +240,8 @@ describe('runtime-owned Universal agent teams', () => {
     const report = await runtime.close()
     await expect(sending).rejects.toBeDefined()
     expect(report.operations.find(row => row.kind === 'team-operation')).toMatchObject({
-      activeAtClose: 1, aborted: 1, settled: 1, unsettled: 0,
+      // The public send and the physical transport callback are separate leases.
+      activeAtClose: 2, aborted: 2, settled: 2, unsettled: 0,
     })
     expect(report.components[0]).toMatchObject({ kind: 'agent-team', id: 'closing-team', status: 'closed' })
   })
@@ -294,6 +296,7 @@ describe('runtime-owned Universal agent teams', () => {
   })
 
   it('starts team disposal even when runtime quiescence exhausts the close deadline', async () => {
+    const dispose = vi.spyOn(AgentTeam.prototype, 'dispose')
     const adapter = new UncooperativeTeamAdapter()
     const runtime = await createRuntimeCompositionOwner({ closeTimeoutMs: 10, providers: [provider(adapter)] })
     const events: unknown[] = []
@@ -302,9 +305,13 @@ describe('runtime-owned Universal agent teams', () => {
     const running = team.run('worker', 'wait').catch(() => undefined)
     await adapter.entered
     await runtime.close()
+    expect(dispose).toHaveBeenCalled()
+    dispose.mockRestore()
+    const eventsAtClose = [...events]
     adapter.release()
     await running
-    await vi.waitFor(() => expect(events).toContainEqual({ type: 'team-closed', teamId: 'expired-close' }))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(events).toEqual(eventsAtClose)
   })
 
   it('accepts a wakeup follow-up while the target session is running', async () => {

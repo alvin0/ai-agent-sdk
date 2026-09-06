@@ -82,22 +82,23 @@ describe('runtime concrete continuation sealing', () => {
     const local = runtime.agent({ id: 'late-team-agent', instructions: 'Lead.', compaction: false })
     const events: unknown[] = []
     const remote = deferred<LinkedAgentResult>()
+    let physicalSettled = false
     const team = runtime.team({ id: 'late-team', onEvent: event => events.push(event),
       members: [{ name: 'lead', agent: local }] })
     team.linkAgent({ name: 'remote', transport: { protocol: 'test', agentId: 'remote',
-      send: async () => await remote.promise } })
+      send: async () => { const result = await remote.promise; physicalSettled = true; return result } } })
     const sending = team.sendMessage({ from: 'lead', target: 'remote', message: 'wait', delivery: 'wakeup' })
     await vi.waitFor(() => expect(events).toContainEqual({ type: 'member-run-start', member: 'remote' }))
     const closing = await runtime.close()
     await expect(sending).rejects.toBeDefined()
     expect(closing.operations.find(row => row.kind === 'team-operation')).toMatchObject({
-      activeAtClose: 1, aborted: 1, settled: 1, unsettled: 0,
+      activeAtClose: 2, aborted: 2, settled: 1, unsettled: 1,
     })
     const sealedEvents = structuredClone(events)
     remote.resolve({ kind: 'message', succeeded: true, text: 'PRIVATE_LATE/TEAM~SENTINEL%',
       contextId: 'late-context' })
-    await Promise.resolve()
-    await Promise.resolve()
+    await vi.waitFor(() => expect(physicalSettled).toBe(true))
+    await new Promise(resolve => setTimeout(resolve, 0))
     expect(events).toEqual(sealedEvents)
     expect(JSON.stringify(runtime.diagnostics())).not.toContain('PRIVATE_LATE/TEAM~SENTINEL%')
   })

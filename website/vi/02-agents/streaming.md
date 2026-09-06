@@ -31,6 +31,8 @@ interface RuntimeAgentRunHandle extends AsyncIterable<RuntimeAgentRunEvent> {
 }
 ```
 
+`result` hoàn tất sau khi cleanup lượt chạy kết thúc. Sau khi chờ nó, bạn có thể
+chạy tiếp, reset hoặc compact session (trừ khi session hoặc runtime đã đóng).
 `result` và `report` dùng được dù bạn có lặp qua luồng hay không. `abort(reason)`
 huỷ lượt chạy và tổ hợp với bất kỳ `signal` bạn đã truyền.
 

@@ -1,4 +1,5 @@
 /** Validated policy for automatic and manual context compaction. */
+import { timeoutValue } from '../../platform/config.ts'
 
 export interface AgentCompactionOptions {
   /** Run pressure checks before model steps. Defaults to true. */
@@ -91,8 +92,8 @@ export function resolveCompactionConfig(input: AgentCompactionOptions | undefine
     maxSummaryRequestBytes: positiveInteger(input?.maxSummaryRequestBytes ?? 32 * 1024 * 1024, 'maxSummaryRequestBytes'),
     maxSummaryResponseBytes: positiveInteger(input?.maxSummaryResponseBytes ?? 8 * 1024 * 1024, 'maxSummaryResponseBytes'),
     maxSummaryStreamEvents: positiveInteger(input?.maxSummaryStreamEvents ?? 50_000, 'maxSummaryStreamEvents'),
-    summaryTimeoutMs: positiveInteger(input?.summaryTimeoutMs ?? 10 * 60_000, 'summaryTimeoutMs'),
-    teardownTimeoutMs: positiveInteger(input?.teardownTimeoutMs ?? 30_000, 'teardownTimeoutMs'),
+    summaryTimeoutMs: timeoutValue(input?.summaryTimeoutMs ?? 10 * 60_000),
+    teardownTimeoutMs: timeoutValue(input?.teardownTimeoutMs ?? 30_000),
     maxToolResultChars: positiveInteger(input?.maxToolResultChars ?? 24_000, 'maxToolResultChars'),
   })
 }

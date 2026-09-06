@@ -395,7 +395,7 @@ describe('local agent teams', () => {
     const started = Date.now()
     await expect(team.followup('lead', 'remote', 'work')).rejects.toThrow()
     expect(Date.now() - started).toBeLessThan(250)
-    await expect(team.whenIdle('remote')).resolves.toBeUndefined()
+    await expect(team.whenIdle('remote', AbortSignal.timeout(10))).rejects.toBeDefined()
   })
 
   it('closes the idle race when work is scheduled during an idle wait', async () => {
@@ -481,7 +481,7 @@ describe('local agent teams', () => {
     void pending.catch(() => undefined)
     await started
     const disposing = Date.now()
-    await expect(team.dispose()).resolves.toBeUndefined()
+    await expect(team.dispose()).rejects.toMatchObject({ code: 'TEAM_DISPOSE_TIMEOUT' })
     expect(Date.now() - disposing).toBeLessThan(250)
   })
 })

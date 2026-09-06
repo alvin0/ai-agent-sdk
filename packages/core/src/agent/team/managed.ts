@@ -1,6 +1,7 @@
 /** Codex-style dynamic worker creation and delegation over AgentTeam. */
 
 import type { JsonValue } from '../../primitives/index.ts'
+import { timeoutValue } from '../../platform/config.ts'
 import { createTextMessage } from '../../message/index.ts'
 import type { ModelRegistry } from '../../runtime/index.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
@@ -115,8 +116,8 @@ export class ManagedAgentTeam {
     this.maxWorkers = positiveInteger(options.maxWorkers ?? 7, 'maxWorkers')
     this.maxTaskBytes = positiveInteger(options.maxTaskBytes ?? 64 * 1024, 'maxTaskBytes')
     this.maxSpecialtyBytes = positiveInteger(options.maxSpecialtyBytes ?? 8 * 1024, 'maxSpecialtyBytes')
-    this.workerTimeoutMs = positiveInteger(options.workerTimeoutMs ?? 10 * 60_000, 'workerTimeoutMs')
-    this.observerTimeoutMs = positiveInteger(options.observerTimeoutMs ?? 1_000, 'observerTimeoutMs')
+    this.workerTimeoutMs = timeoutValue(options.workerTimeoutMs ?? 10 * 60_000)
+    this.observerTimeoutMs = timeoutValue(options.observerTimeoutMs ?? 1_000)
     this.team = options.team instanceof AgentTeam
       ? options.team
       : new AgentTeam({

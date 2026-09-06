@@ -1,4 +1,5 @@
 import { type AgentRuntimeLimits } from './types.ts'
+import { timeoutValue } from '../../../platform/config.ts'
 
 export function resolveRuntimeLimits(input: AgentRuntimeLimits | undefined): Readonly<AgentRuntimeLimits> {
   if (input === undefined) return Object.freeze({})
@@ -13,6 +14,7 @@ export function resolveRuntimeLimits(input: AgentRuntimeLimits | undefined): Rea
     'observerTimeoutMs',
   ] as const) {
     const value = values[key]
+    if (value !== undefined && key.endsWith('Ms')) timeoutValue(value)
     if (value !== undefined && (!Number.isSafeInteger(value) || value < 1)) {
       throw new RangeError(`agent runtimeLimits.${key} must be a positive safe integer`)
     }
