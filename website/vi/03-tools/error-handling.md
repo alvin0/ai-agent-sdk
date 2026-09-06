@@ -33,8 +33,8 @@ Sự kiện `tool-result` của lượt chạy mang một trạng thái:
 | --- | --- | --- |
 | `completed` | `execute` đã trả về | Giá trị đã kết xuất |
 | `failed` | `execute` ném lỗi | Mô tả thất bại, diễn đạt cho model |
-| `rejected` | Broker phê duyệt từ chối lời gọi | Một lời từ chối để nó phản ứng |
-| `aborted` | Lượt chạy bị huỷ trong lúc gọi | Thông báo bị huỷ |
+| `rejected` | Policy, catalog, tham số hoặc budget từ chối lời gọi | Một lời từ chối để nó phản ứng |
+| `aborted` | Lượt chạy bị huỷ trước hoặc trong lúc gọi | Thông báo bị huỷ |
 
 ```ts
 for await (const event of agent.stream(input)) {

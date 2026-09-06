@@ -1,9 +1,13 @@
 import { AgentRunError } from '../../agent/accounting/error.ts'
 import type { RunReport } from '../exporter/delivery-types.ts'
 import { configureRuntimeSessionModel, streamRuntimeSession, type AgentSession } from '../../agent/define/session.ts'
-import { compactRuntimeSession, type RuntimeSessionRunHandle } from '../../agent/define/session/runtime-binding.ts'
+import {
+  compactRuntimeSession, streamPendingRuntimeSession, type RuntimeSessionRunHandle,
+} from '../../agent/define/session/runtime-binding.ts'
 import type { AgentRunHandle as LegacyRunHandle } from '../../agent/define/session/types.ts'
 import type { AgentRunEvent } from '../../agent/mode/run-agent.ts'
+import type { ToolExecutionResult } from '../../agent/tool/definition.ts'
+import { TOOL_ERROR_CODES } from '../../agent/tool/errors.ts'
 import { AgentSdkError } from '../../errors/agent-sdk-error.ts'
 import type { ModelRegistry } from '../../runtime/registry.ts'
 import { atDeadline } from '../lifecycle/bounded.ts'
@@ -28,6 +32,7 @@ import type {
 } from './types.ts'
 import type { CompactionResult } from '../../agent/memory/compaction.ts'
 import type { AgentTeamMemberOptions } from '../../agent/define/session/types.ts'
+import type { TeamSessionPort } from '../../agent/team/contracts.ts'
 import { assertAgentIdentitySnapshot } from '../identity/agent.ts'
 
 export interface RuntimeAgentHost {
@@ -64,12 +69,14 @@ export function createRuntimeTeamMemberSession(
   agent: RuntimeAgent,
   options: RuntimeAgentSessionOptions,
   team: AgentTeamMemberOptions,
-): RuntimeAgentSession {
+  ownerSignal: AbortSignal,
+): { readonly view: RuntimeAgentSession; readonly port: TeamSessionPort } {
   const binding = runtimeAgentBindings.get(agent)
   if (binding?.host !== host) throw new AgentSdkError(
     'Runtime team members must be agents from the same runtime', 'TEAM_AGENT_OWNERSHIP_INVALID',
   )
-  return createRuntimeSession(host, binding.definition, options, undefined, team)
+  const view = createRuntimeSession(host, binding.definition, options, undefined, team, ownerSignal)
+  return Object.freeze({ view, port: view.teamPort })
 }
 
 export function preflightRuntimeTeamMember(
@@ -98,15 +105,29 @@ export function runtimeOwnsAgent(host: RuntimeAgentHost, agent: unknown): agent 
 }
 
 class RuntimeAgentSessionValue implements RuntimeAgentSession {
-  private active: Promise<void> | undefined
+  private active: SessionOperation | undefined
   private readonly observerTimeoutMs: number
+  readonly teamPort: TeamSessionPort
 
   constructor(
     private readonly host: RuntimeAgentHost,
     private readonly session: AgentSession,
     private readonly nativeProvider: string,
+    definitionId: string,
     observerTimeoutMs = 30_000,
-  ) { this.observerTimeoutMs = observerTimeoutMs }
+    private readonly ownerSignal?: AbortSignal,
+  ) {
+    this.observerTimeoutMs = observerTimeoutMs
+    const owner = this
+    this.teamPort = Object.freeze({
+      definition: Object.freeze({ id: definitionId }),
+      get conversationId() { return owner.conversationId },
+      get isRunning() { return owner.isRunning },
+      inject(input: Parameters<TeamSessionPort['inject']>[0]) { return owner.injectForTeam(input) },
+      whenIdle(signal?: AbortSignal) { return owner.whenIdle(signal) },
+      runPending(invocation = {}) { return owner.runPendingForTeam(invocation) },
+    })
+  }
 
   get conversationId(): string { return this.session.conversationId }
   get isRunning(): boolean { return this.active !== undefined }
@@ -114,31 +135,42 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
   stream(input: string, rawOptions?: RuntimeAgentInvocationOptions): RuntimeAgentRunHandle {
     if (typeof input !== 'string') throw new TypeError('Runtime agent input must be a string')
     const options = captureInvocationOptions(rawOptions)
-    const lease = this.host.operations.acquire('agent-run', {
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-    })
+    const started = this.start(input, options)
+    return runtimeHandle(started.legacy, started.report, started.result, this.nativeProvider)
+  }
+
+  private start(input: string | undefined, options: RuntimeAgentInvocationOptions): StartedRuntimeRun {
+    const operation = this.beginOperation()
+    let lease: ReturnType<RuntimeOperations['acquire']>
+    try {
+      const signal = this.ownerSignal === undefined
+        ? options.signal
+        : options.signal === undefined ? this.ownerSignal : AbortSignal.any([options.signal, this.ownerSignal])
+      lease = this.host.operations.acquire('agent-run', {
+        ...(signal === undefined ? {} : { signal }),
+      })
+    } catch (error) { this.finishOperation(operation); throw error }
     let legacy: RuntimeSessionRunHandle
     try {
-      legacy = streamRuntimeSession(this.session, input, { signal: lease.signal }, options.additionalInstructions)
-    } catch (error) { lease.settle(); throw error }
+      legacy = input === undefined
+        ? streamPendingRuntimeSession(this.session, { signal: lease.signal })
+        : streamRuntimeSession(this.session, input, { signal: lease.signal }, options.additionalInstructions)
+    } catch (error) { lease.settle(); this.finishOperation(operation); throw error }
     const abort = (): void => legacy.abort()
     lease.signal.addEventListener('abort', abort, { once: true })
     if (lease.signal.aborted) abort()
     void lease.whenSealed.then(() => legacy.seal()).catch(() => undefined)
-    const report = this.runtimeReport(legacy.report, legacy.toolSourceSnapshots)
+    const report = this.runtimeReport(legacy.report, legacy.toolSourceSnapshots, lease.signal)
     const result = this.runtimeResult(legacy.result, report)
-    let resolveActive!: () => void
-    this.active = new Promise(done => { resolveActive = done })
     const eventsSettled = Promise.race([legacy.eventsSettled, lease.whenSealed])
     void Promise.allSettled([eventsSettled, result, report]).then(() => {
       lease.signal.removeEventListener('abort', abort)
       lease.settle()
-      this.active = undefined
-      resolveActive()
+      this.finishOperation(operation)
     })
     void result.catch(() => undefined)
     void report.catch(() => undefined)
-    return runtimeHandle(legacy, report, result, this.nativeProvider)
+    return Object.freeze({ legacy, report, result })
   }
 
   async run(input: string, rawOptions?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse> {
@@ -161,7 +193,14 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
 
   inject(input: string): number {
     this.host.operations.assertActive()
+    this.assertOwnerActive()
     if (this.active !== undefined) throw new Error('Cannot inject while a runtime session is active')
+    return this.session.inject(input)
+  }
+
+  private injectForTeam(input: Parameters<TeamSessionPort['inject']>[0]): number {
+    this.host.operations.assertActive()
+    this.assertOwnerActive()
     return this.session.inject(input)
   }
 
@@ -169,31 +208,39 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
 
   compact(rawOptions?: RuntimeAgentInvocationOptions): Promise<CompactionResult | null> {
     const options = captureInvocationOptions(rawOptions)
-    return this.host.operations.execute('manual-compaction', {
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-    }, async lease => {
-      const outcome = await compactRuntimeSession(this.session, { signal: lease.signal })
-      const record = createRunTerminalRecord(outcome.report)
-      const terminal = await this.host.observation.checkpointTerminal(record)
-      const report = finalizeRuntimeRunReport(record, outcome.report.delivery, terminal,
-        this.host.observation.mode, this.host.observation.requiredBoundary)
-      if (outcome.failure !== undefined) throw runtimeFailure(
-        outcome.failure,
-        report,
-        report.errors.at(-1)?.code ?? codeOf(outcome.failure),
-      )
-      return outcome.result === null ? null : Object.freeze({ ...outcome.result, status: 'completed' as const, report })
-    })
+    const operation = this.beginOperation()
+    let pending: Promise<CompactionResult | null>
+    try {
+      pending = this.host.operations.execute('manual-compaction', {
+        ...(this.ownerSignal === undefined
+          ? options.signal === undefined ? {} : { signal: options.signal }
+          : { signal: options.signal === undefined ? this.ownerSignal : AbortSignal.any([options.signal, this.ownerSignal]) }),
+      }, async lease => {
+        const outcome = await compactRuntimeSession(this.session, { signal: lease.signal })
+        const record = createRunTerminalRecord(outcome.report)
+        const terminal = await this.host.observation.checkpointTerminal(record, lease.signal)
+        const report = finalizeRuntimeRunReport(record, outcome.report.delivery, terminal,
+          this.host.observation.mode, this.host.observation.requiredBoundary)
+        if (outcome.failure !== undefined) throw runtimeFailure(
+          outcome.failure,
+          report,
+          report.errors.at(-1)?.code ?? codeOf(outcome.failure),
+        )
+        return outcome.result === null ? null : Object.freeze({ ...outcome.result, status: 'completed' as const, report })
+      })
+    } catch (error) { this.finishOperation(operation); throw error }
+    return pending.finally(() => this.finishOperation(operation))
   }
 
   reset(): void {
     this.host.operations.assertActive()
+    this.assertOwnerActive()
     if (this.active !== undefined) throw new Error('Cannot reset while a runtime session is active')
     this.session.reset()
   }
 
   whenIdle(signal?: AbortSignal): Promise<void> {
-    const pending = this.active
+    const pending = this.active?.done
     if (pending === undefined) return Promise.resolve()
     if (signal?.aborted) return Promise.reject(new AgentSdkError('Runtime idle wait was aborted', 'RUNTIME_OPERATION_ABORTED'))
     return new Promise((resolve, reject) => {
@@ -205,13 +252,52 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
     })
   }
 
+  private async runPendingForTeam(invocation: {
+    readonly signal?: AbortSignal
+    readonly onEvent?: (event: AgentRunEvent) => void | Promise<void>
+  }): Promise<unknown> {
+    const started = this.start(undefined, {
+      ...(invocation.signal === undefined ? {} : { signal: invocation.signal }),
+    })
+    try {
+      for await (const event of started.legacy) await invocation.onEvent?.(event)
+    } catch (error) {
+      started.legacy.abort()
+      await started.result.catch(() => undefined)
+      throw error
+    }
+    return await started.result
+  }
+
+  private beginOperation(): SessionOperation {
+    this.assertOwnerActive()
+    if (this.active !== undefined) throw new Error('Cannot start while a runtime session is active')
+    let resolve!: () => void
+    const operation: SessionOperation = { done: new Promise(done => { resolve = done }), resolve }
+    this.active = operation
+    return operation
+  }
+
+  private finishOperation(operation: SessionOperation): void {
+    if (this.active !== operation) return
+    this.active = undefined
+    operation.resolve()
+  }
+
+  private assertOwnerActive(): void {
+    if (this.ownerSignal?.aborted === true) {
+      throw new AgentSdkError('Runtime team session is closed', 'TEAM_CLOSED')
+    }
+  }
+
   private async runtimeReport(
     legacy: Promise<RunReport>,
     sourceSnapshots: Promise<readonly ToolSourceRunReference[]>,
+    signal: AbortSignal,
   ): Promise<RuntimeRunReport> {
     const [previous, sources] = await Promise.all([legacy, sourceSnapshots])
     const record = createRunTerminalRecord(previous, sources)
-    const terminal = await this.host.observation.checkpointTerminal(record)
+    const terminal = await this.host.observation.checkpointTerminal(record, signal)
     return finalizeRuntimeRunReport(record, previous.delivery, terminal,
       this.host.observation.mode, this.host.observation.requiredBoundary)
   }
@@ -251,7 +337,8 @@ function createRuntimeSession(
   options: RuntimeAgentSessionOptions = {},
   snapshot?: RuntimeAgentSessionSnapshot,
   team?: AgentTeamMemberOptions,
-): RuntimeAgentSession {
+  ownerSignal?: AbortSignal,
+): RuntimeAgentSessionValue {
   host.operations.assertActive()
   options = captureRuntimeSessionOptions(options)
   assertAgentIdentitySnapshot({
@@ -299,10 +386,27 @@ function createRuntimeSession(
       ),
     }),
     ...(memory === undefined ? {} : {
-      memory: createRuntimeMemoryPersistence(memory, definition.legacy.id),
+      memory: createRuntimeMemoryPersistence(
+        memory,
+        definition.legacy.id,
+        agentRuntimeLimits.memoryOperationTimeoutMs,
+      ),
     }),
   })
-  return new RuntimeAgentSessionValue(host, session, definition.model.provider, limits?.observerTimeoutMs)
+  return new RuntimeAgentSessionValue(
+    host, session, definition.model.provider, definition.legacy.id, limits?.observerTimeoutMs, ownerSignal,
+  )
+}
+
+interface SessionOperation {
+  readonly done: Promise<void>
+  readonly resolve: () => void
+}
+
+interface StartedRuntimeRun {
+  readonly legacy: RuntimeSessionRunHandle
+  readonly report: Promise<RuntimeRunReport>
+  readonly result: Promise<RuntimeAgentResponse>
 }
 
 function combineToolSources(
@@ -371,13 +475,28 @@ function projectEvent(event: AgentRunEvent, nativeProvider: string): ProjectedEv
   if (event.type === 'tool-call') return { type: 'tool-call', callId: event.call.callId,
     name: event.call.toolName, input: parseInput(event.call.rawArguments) }
   if (event.type === 'tool-result') return { type: 'tool-result', callId: event.call.callId,
-    name: event.call.toolName, status: event.result.isError ? 'failed' : 'completed', output: event.result }
+    name: event.call.toolName, status: toolResultStatus(event.result), output: event.result }
   if (event.type === 'assistant-native-tool') return projectNativeToolEvent(event.call, nativeProvider)
   if (event.type === 'approval-request') return { type: 'approval-request', request: event.request }
   if (event.type === 'user-input-request') return { type: 'user-input-request', request: event.request }
   if (event.type === 'user-input-response') return { type: 'user-input-response', requestId: event.request.requestId,
     response: event.response }
   return undefined
+}
+
+function toolResultStatus(
+  result: ToolExecutionResult,
+): 'completed' | 'failed' | 'aborted' | 'rejected' {
+  if (!result.isError) return 'completed'
+  if (result.error.code === TOOL_ERROR_CODES.ABORTED
+    || result.error.code === TOOL_ERROR_CODES.ABORTED_BEFORE_DISPATCH) return 'aborted'
+  if (result.error.code === TOOL_ERROR_CODES.UNKNOWN_TOOL
+    || result.error.code === TOOL_ERROR_CODES.INVALID_ARGUMENTS
+    || result.error.code === TOOL_ERROR_CODES.MALFORMED_ARGUMENTS
+    || result.error.code === TOOL_ERROR_CODES.DENIED
+    || result.error.code === TOOL_ERROR_CODES.BUDGET_EXHAUSTED
+    || result.error.code === TOOL_ERROR_CODES.CHECKPOINT_FAILED) return 'rejected'
+  return 'failed'
 }
 
 function parseInput(value: string): unknown { try { return JSON.parse(value) as unknown } catch { return value } }

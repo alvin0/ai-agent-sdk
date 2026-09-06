@@ -237,6 +237,40 @@ describe('local agent teams', () => {
     expect(events).toContain('worker:agent-end')
   })
 
+  it('rejects self-waits and wait-for cycles with a stable coordination error', async () => {
+    const team = new AgentTeam({ id: 'cycle-team' })
+    let releaseIdle!: () => void
+    let running = true
+    const blocked = new Promise<void>(resolve => { releaseIdle = () => { running = false; resolve() } })
+    const port = (id: string): TeamSessionPort => ({
+      definition: { id }, conversationId: `${id}-conversation`, get isRunning() { return running },
+      inject: () => 1, whenIdle: () => blocked, runPending: async () => undefined,
+    })
+    team.attach(port('agent-a'), { name: 'a' })
+    team.attach(port('agent-b'), { name: 'b' })
+    team.attach(port('agent-c'), { name: 'c' })
+    const context = (id: string) => ({
+      turn: 1, step: 1, callId: ToolCallId(id), toolName: 'wait_agents',
+      signal: new AbortController().signal, concludeTurn() {}, addContext() {},
+    })
+    const waitA = team.toolsFor('a').find(tool => tool.name === 'wait_agents')!
+    const waitB = team.toolsFor('b').find(tool => tool.name === 'wait_agents')!
+    const waitC = team.toolsFor('c').find(tool => tool.name === 'wait_agents')!
+    await expect(waitA.execute(waitA.parse?.({ targets: ['a'] }), context('self')))
+      .rejects.toMatchObject({ code: 'TEAM_WAIT_CYCLE' })
+    const aWaitsForB = Promise.resolve(waitA.execute(waitA.parse?.({ targets: ['b'] }), context('a-b')))
+    await Promise.resolve()
+    await expect(waitB.execute(waitB.parse?.({ targets: ['a'] }), context('b-a')))
+      .rejects.toMatchObject({ code: 'TEAM_WAIT_CYCLE' })
+    const bWaitsForC = Promise.resolve(waitB.execute(waitB.parse?.({ targets: ['c'] }), context('b-c')))
+    await Promise.resolve()
+    await expect(waitC.execute(waitC.parse?.({ targets: ['a'] }), context('c-a')))
+      .rejects.toMatchObject({ code: 'TEAM_WAIT_CYCLE' })
+    releaseIdle()
+    await expect(aWaitsForB).resolves.toEqual([expect.objectContaining({ name: 'b' })])
+    await expect(bWaitsForC).resolves.toEqual([expect.objectContaining({ name: 'c' })])
+  })
+
   it('rejects ambiguous addressing, self messages, and oversized content', async () => {
     const state = setup()
     const team = new AgentTeam({ id: 'bounded-team', maxMessageBytes: 100 })
@@ -405,6 +439,26 @@ describe('local agent teams', () => {
     expect(team.messages()).toEqual([])
     await expect(team.sendMessage({ from: 'lead', target: 'worker', message: 'too late' }))
       .rejects.toThrow(/disposed/)
+  })
+
+  it('reports teardown timeout when a local wake task ignores cancellation', async () => {
+    const team = new AgentTeam({ id: 'uncooperative-local', disposeTimeoutMs: 10 })
+    const idle = (id: string): TeamSessionPort => ({
+      definition: { id }, conversationId: `${id}-conversation`, isRunning: false,
+      inject: () => 1, whenIdle: async () => undefined, runPending: async () => undefined,
+    })
+    let entered!: () => void
+    const started = new Promise<void>(resolve => { entered = resolve })
+    const stuck: TeamSessionPort = {
+      ...idle('stuck'),
+      runPending: () => { entered(); return new Promise(() => undefined) },
+    }
+    team.attach(idle('lead'), { name: 'lead' })
+    team.attach(stuck, { name: 'stuck' })
+    await team.followup('lead', 'stuck', 'never settles')
+    await started
+    await expect(team.cancel('stuck')).rejects.toMatchObject({ code: 'TEAM_CANCELLATION_TIMEOUT' })
+    await expect(team.dispose()).rejects.toMatchObject({ code: 'TEAM_DISPOSE_TIMEOUT' })
   })
 
   it('bounds disposal when a linked transport ignores cancellation', async () => {

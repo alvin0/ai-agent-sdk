@@ -3,6 +3,7 @@ import { defineTool, type ToolDefinition } from '../tool/definition.ts'
 import type { ContentBlock } from '../../message/index.ts'
 import { createUserMessage } from '../../message/index.ts'
 import { waitForSettlement } from '../../async/index.ts'
+import { AgentSdkError } from '../../errors/index.ts'
 import type { TeamMemberAttachmentOptions, TeamPort, TeamSessionPort } from './contracts.ts'
 import type {
   AgentMessageRecord, AgentTeamEvent, AgentTeamMember, AgentTeamOptions, LinkAgentOptions,
@@ -69,6 +70,7 @@ export class AgentTeam implements TeamPort {
   private pendingMessages = 0
   private pendingMailboxBytes = 0
   private readonly lifecycle = new AbortController()
+  private readonly waitEdges = new Map<string, Map<string, number>>()
   private disposed = false
   private disposeTask: Promise<void> | undefined
 
@@ -279,6 +281,7 @@ export class AgentTeam implements TeamPort {
         member.tail,
         this.disposeTimeoutMs,
         `A2A member '${member.name}' did not cancel within ${this.disposeTimeoutMs}ms`,
+        'TEAM_CANCELLATION_TIMEOUT',
       )
       return
     }
@@ -286,16 +289,13 @@ export class AgentTeam implements TeamPort {
     const controller = member.wakeController
     const task = member.wakeTask
     controller?.abort(reason)
-    try {
-      if (task !== undefined) {
-        await withTimeout(
-          task,
-          this.disposeTimeoutMs,
-          `A2A member '${member.name}' did not cancel within ${this.disposeTimeoutMs}ms`,
-        )
-      }
-    } catch (error: unknown) {
-      if (controller?.signal.aborted !== true) throw error
+    if (task !== undefined) {
+      await withTimeout(
+        task,
+        this.disposeTimeoutMs,
+        `A2A member '${member.name}' did not cancel within ${this.disposeTimeoutMs}ms`,
+        'TEAM_CANCELLATION_TIMEOUT',
+      )
     }
   }
 
@@ -313,12 +313,14 @@ export class AgentTeam implements TeamPort {
       this.emit({ type: 'team-disposed', teamId: this.id })
       this.mailbox.length = 0
       this.mailboxBytes = 0
+      this.waitEdges.clear()
       this.onEvent = undefined
       this.onAgentEvent = undefined
       const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
       if (failure !== undefined) {
-        throw new Error(
+        throw new AgentSdkError(
           `A2A team '${this.id}' did not dispose within ${this.disposeTimeoutMs}ms`,
+          'TEAM_DISPOSE_TIMEOUT',
           { cause: failure.reason },
         )
       }
@@ -327,6 +329,7 @@ export class AgentTeam implements TeamPort {
       settling,
       this.disposeTimeoutMs,
       `A2A team '${this.id}' did not dispose within ${this.disposeTimeoutMs}ms`,
+      'TEAM_DISPOSE_TIMEOUT',
     )
     return this.disposeTask
   }
@@ -377,9 +380,12 @@ export class AgentTeam implements TeamPort {
         },
         parse: parseWaitTool,
         execute: async ({ targets }, ctx) => {
-          await Promise.all(targets.map(target => this.whenIdle(target, ctx.signal)))
-          const selected = new Set(targets)
-          return asJson(this.members().filter(member => selected.has(member.name)))
+          const release = this.beginWait(name, targets)
+          try {
+            await Promise.all(targets.map(target => this.whenIdle(target, ctx.signal)))
+            const selected = new Set(targets)
+            return asJson(this.members().filter(member => selected.has(member.name)))
+          } finally { release() }
         },
         isConcurrencySafe: () => true,
       }),
@@ -505,6 +511,43 @@ export class AgentTeam implements TeamPort {
     const member = this.roster.get(name)
     if (member === undefined) throw new Error(`unknown local A2A member '${name}'`)
     return member
+  }
+
+  private beginWait(sender: string, targets: readonly string[]): () => void {
+    for (const target of targets) {
+      this.requireAddress(target)
+      if (target === sender || this.hasWaitPath(target, sender, new Set())) {
+        throw new AgentSdkError('wait_agents would create a coordination cycle', 'TEAM_WAIT_CYCLE')
+      }
+    }
+    let outgoing = this.waitEdges.get(sender)
+    if (outgoing === undefined) {
+      outgoing = new Map()
+      this.waitEdges.set(sender, outgoing)
+    }
+    for (const target of targets) outgoing.set(target, (outgoing.get(target) ?? 0) + 1)
+    let active = true
+    return () => {
+      if (!active) return
+      active = false
+      const edges = this.waitEdges.get(sender)
+      if (edges === undefined) return
+      for (const target of targets) {
+        const count = edges.get(target) ?? 0
+        if (count <= 1) edges.delete(target); else edges.set(target, count - 1)
+      }
+      if (edges.size === 0) this.waitEdges.delete(sender)
+    }
+  }
+
+  private hasWaitPath(from: string, target: string, visited: Set<string>): boolean {
+    if (from === target) return true
+    if (visited.has(from)) return false
+    visited.add(from)
+    for (const next of this.waitEdges.get(from)?.keys() ?? []) {
+      if (this.hasWaitPath(next, target, visited)) return true
+    }
+    return false
   }
 
   private requireAddress(value: string): AddressableMember {

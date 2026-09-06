@@ -9,6 +9,7 @@ import type { ComposableModelProviderPlugin } from '../../../packages/core/src/c
 import { createRuntimeCompositionOwner } from '../../../packages/core/src/composition/runtime/owner.ts'
 import type { RuntimeAgentRunEvent } from '../../../packages/core/src/composition/agent/types.ts'
 import { defineTool } from '../../../packages/core/src/agent/tool/definition.ts'
+import { ToolError } from '../../../packages/core/src/agent/tool/errors.ts'
 import { ToolCallId } from '../../../packages/core/src/primitives/brand.ts'
 
 class RuntimeAdapter extends ModelAdapter {
@@ -28,12 +29,13 @@ class RuntimeAdapter extends ModelAdapter {
 }
 
 class ToolAdapter extends RuntimeAdapter {
+  constructor(private readonly requestedTool = 'lookup') { super() }
   override async * stream(options: GenerateOptions, context?: ModelInvocationContext): AsyncIterable<StreamChunk> {
     this.requests.push(options)
     if (context !== undefined) this.contexts.push(context)
     if (this.requests.length === 1) {
       yield { type: 'block-end', index: 0, block: {
-        type: 'tool-call', id: ToolCallId('lookup-1'), name: 'lookup', arguments: '{}',
+        type: 'tool-call', id: ToolCallId('lookup-1'), name: this.requestedTool, arguments: '{}',
       } }
       yield { type: 'usage', usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 } }
       yield { type: 'finish', reason: { kind: 'tool-calls' } }
@@ -77,6 +79,63 @@ function provider(adapter: ModelAdapter): ComposableModelProviderPlugin {
 }
 
 describe('runtime-bound agent', () => {
+  it('projects an actually unknown tool as rejected', async () => {
+    const adapter = new ToolAdapter('missing_tool')
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    await runtime.agent({
+      id: 'unknown-status', instructions: 'Use missing tool', compaction: false,
+      tools: [defineTool({ name: 'lookup', description: 'Lookup', parameters: { type: 'object' }, execute: () => 'ok' })],
+    })
+      .createSession()
+      .run('go', { onEvent: event => { events.push(event) } })
+    expect(events.find(event => event.type === 'tool-result')).toMatchObject({
+      type: 'tool-result', status: 'rejected',
+      output: { isError: true, error: { code: 'UNKNOWN_TOOL' } },
+    })
+    await runtime.close()
+  })
+
+  it.each([
+    ['TOOL_DENIED', 'rejected'],
+    ['TOOL_ABORTED', 'aborted'],
+    ['TOOL_ABORTED_BEFORE_DISPATCH', 'aborted'],
+    ['TOOL_TIMEOUT', 'failed'],
+    ['TOOL_FAILED', 'failed'],
+  ] as const)('projects %s tool results as %s', async (code, status) => {
+    const adapter = new ToolAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const session = runtime.agent({ id: `status-${status}`, instructions: 'Use lookup', tools: [
+      defineTool({ name: 'lookup', description: 'Lookup', parameters: { type: 'object' },
+        execute: () => { throw ToolError.respondToModel('classified tool result', code) } }),
+    ], compaction: false }).createSession()
+    await session.run('go', { onEvent: event => { events.push(event) } })
+    expect(events.find(event => event.type === 'tool-result')).toMatchObject({
+      type: 'tool-result', status, output: { isError: true, error: { code } },
+    })
+    await runtime.close()
+  })
+
+  it('projects an approval denial as rejected without running the tool', async () => {
+    const adapter = new ToolAdapter(), execute = vi.fn(() => 'ran')
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const session = runtime.agent({ id: 'approval-denial', instructions: 'Use lookup', tools: [
+      defineTool({ name: 'lookup', description: 'Lookup', parameters: { type: 'object' }, execute }),
+    ], compaction: false }).createSession({
+      approvals: { request: () => Promise.resolve('deny') },
+      interceptors: [{ name: 'approval', before: async () => ({ kind: 'ask' }) }],
+    })
+    await session.run('go', { onEvent: event => { events.push(event) } })
+    expect(events.find(event => event.type === 'tool-result')).toMatchObject({
+      type: 'tool-result', status: 'rejected',
+      output: { isError: true, error: { code: 'TOOL_DENIED' } },
+    })
+    expect(execute).not.toHaveBeenCalled()
+    await runtime.close()
+  })
+
   it('removes blocked additional context from model requests and public events', async () => {
     const sentinel = 'review/BLOCKED_PRIVATE_SENTINEL'
     const adapter = new ToolAdapter()

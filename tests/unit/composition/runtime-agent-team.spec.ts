@@ -27,6 +27,56 @@ class TeamAdapter extends ModelAdapter {
   }
 }
 
+class BlockingTeamAdapter extends ModelAdapter {
+  private enter!: () => void
+  readonly entered = new Promise<void>(resolve => { this.enter = resolve })
+  aborts = 0
+  onAbort: (() => void) | undefined
+  async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    this.enter()
+    await new Promise<void>((_resolve, reject) => {
+      if (options.signal?.aborted) { reject(options.signal.reason); return }
+      options.signal?.addEventListener('abort', () => {
+        this.aborts++
+        this.onAbort?.()
+        reject(options.signal?.reason)
+      }, { once: true })
+    })
+  }
+}
+
+class FollowupTeamAdapter extends ModelAdapter {
+  readonly requests: GenerateOptions[] = []
+  private enter!: () => void
+  readonly firstEntered = new Promise<void>(resolve => { this.enter = resolve })
+  private releaseFirst!: () => void
+  private readonly firstGate = new Promise<void>(resolve => { this.releaseFirst = resolve })
+  release(): void { this.releaseFirst() }
+  async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    this.requests.push(options)
+    if (this.requests.length === 1) { this.enter(); await this.firstGate }
+    yield { type: 'text-delta', index: 0, text: 'done' }
+    yield { type: 'block-end', index: 0, block: { type: 'text', text: 'done' } }
+    yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+}
+
+class UncooperativeTeamAdapter extends ModelAdapter {
+  private enter!: () => void
+  readonly entered = new Promise<void>(resolve => { this.enter = resolve })
+  private releaseGate!: () => void
+  private readonly gate = new Promise<void>(resolve => { this.releaseGate = resolve })
+  continued = false
+  release(): void { this.releaseGate() }
+  async * stream(): AsyncIterable<StreamChunk> {
+    this.enter()
+    await this.gate
+    this.continued = true
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+}
+
 function provider(adapter: ModelAdapter): ComposableModelProviderPlugin {
   return { kind: 'model-provider-plugin', apiVersion: 1, id: 'team-provider', family: 'team-family',
     displayName: 'Team Provider', routes: ['team'], defaultModel: { provider: 'team', id: 'fallback' },
@@ -192,6 +242,185 @@ describe('runtime-owned Universal agent teams', () => {
       activeAtClose: 1, aborted: 1, settled: 1, unsettled: 0,
     })
     expect(report.components[0]).toMatchObject({ kind: 'agent-team', id: 'closing-team', status: 'closed' })
+  })
+
+  it('cancels and drains a direct local team run before team close resolves', async () => {
+    const adapter = new BlockingTeamAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const local = agents(runtime)
+    const team = runtime.team({ id: 'direct-run-close', members: [{ name: 'lead', agent: local.lead }] })
+    const retained = team.session('lead')
+    const running = team.run('lead', 'wait')
+    await adapter.entered
+    let runSettled = false
+    void running.finally(() => { runSettled = true }).catch(() => undefined)
+    await expect(team.close()).resolves.toBeUndefined()
+    expect(runSettled).toBe(true)
+    await expect(running).rejects.toMatchObject({ report: { status: 'aborted' } })
+    expect(() => retained.stream('after close')).toThrow(expect.objectContaining({ code: 'TEAM_CLOSED' }))
+    await expect(retained.run('after close')).rejects.toMatchObject({ code: 'TEAM_CLOSED' })
+    expect(() => retained.inject('after close')).toThrow(expect.objectContaining({ code: 'TEAM_CLOSED' }))
+    expect(() => retained.reset()).toThrow(expect.objectContaining({ code: 'TEAM_CLOSED' }))
+    await runtime.close()
+  })
+
+  it('cancels and drains a run started through a retained team session', async () => {
+    const adapter = new BlockingTeamAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const local = agents(runtime)
+    const team = runtime.team({ id: 'session-run-close', members: [{ name: 'lead', agent: local.lead }] })
+    const retained = team.session('lead')
+    const running = retained.run('wait')
+    await adapter.entered
+    await expect(team.close()).resolves.toBeUndefined()
+    await expect(running).rejects.toMatchObject({ report: { status: 'aborted' } })
+    expect(adapter.aborts).toBe(1)
+    await runtime.close()
+  })
+
+  it('shares one close promise when an abort handler reenters team.close', async () => {
+    const adapter = new BlockingTeamAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const team = runtime.team({ id: 'reentrant-close', members: [{ name: 'worker', agent: agents(runtime).worker }] })
+    let nested: Promise<void> | undefined
+    adapter.onAbort = () => { nested = team.close() }
+    const running = team.run('worker', 'wait').catch(() => undefined)
+    await adapter.entered
+    const closing = team.close()
+    await closing
+    await running
+    await runtime.close()
+    expect(nested).toBe(closing)
+  })
+
+  it('starts team disposal even when runtime quiescence exhausts the close deadline', async () => {
+    const adapter = new UncooperativeTeamAdapter()
+    const runtime = await createRuntimeCompositionOwner({ closeTimeoutMs: 10, providers: [provider(adapter)] })
+    const events: unknown[] = []
+    const team = runtime.team({ id: 'expired-close', onEvent: event => events.push(event),
+      members: [{ name: 'worker', agent: agents(runtime).worker }] })
+    const running = team.run('worker', 'wait').catch(() => undefined)
+    await adapter.entered
+    await runtime.close()
+    adapter.release()
+    await running
+    await vi.waitFor(() => expect(events).toContainEqual({ type: 'team-closed', teamId: 'expired-close' }))
+  })
+
+  it('accepts a wakeup follow-up while the target session is running', async () => {
+    const adapter = new FollowupTeamAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const local = agents(runtime)
+    const team = runtime.team({ id: 'active-followup', members: [
+      { name: 'lead', agent: local.lead }, { name: 'worker', agent: local.worker },
+    ] })
+    const worker = team.session('worker')
+    const running = worker.run('first task')
+    await adapter.firstEntered
+    await expect(team.sendMessage({ from: 'lead', target: 'worker', message: 'new evidence', delivery: 'wakeup' }))
+      .resolves.toMatchObject({ status: 'accepted', target: 'worker' })
+    adapter.release()
+    await running
+    await vi.waitFor(() => expect(adapter.requests).toHaveLength(2))
+    await worker.whenIdle()
+    expect(adapter.requests[1]?.messages.some(message => message.source.kind === 'agent-message')).toBe(true)
+    await team.close()
+    await runtime.close()
+  })
+
+  it('cancels manual compaction when its team closes', async () => {
+    const adapter = new BlockingTeamAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const agent = runtime.agent({ id: 'compact-member', instructions: 'Compact',
+      compaction: {} })
+    const team = runtime.team({ id: 'compact-close', members: [{ name: 'worker', agent }] })
+    const session = team.session('worker')
+    session.inject('old context '.repeat(1_000))
+    session.inject('latest message')
+    const compacting = session.compact()
+    const rejected = expect(compacting).rejects.toBeDefined()
+    await adapter.entered
+    await team.close()
+    await rejected
+    expect(adapter.aborts).toBe(1)
+    expect(session.isRunning).toBe(false)
+    await runtime.close()
+  })
+
+  it('bounds close while a retained-session run ignores cancellation', async () => {
+    vi.useFakeTimers()
+    const adapter = new UncooperativeTeamAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const team = runtime.team({ id: 'bounded-close', members: [{ name: 'worker', agent: agents(runtime).worker }] })
+    const running = team.session('worker').run('wait').catch(() => undefined)
+    await adapter.entered
+    try {
+      const closing = team.close()
+      const rejected = expect(closing).rejects.toMatchObject({ code: 'TEAM_DISPOSE_TIMEOUT' })
+      await vi.advanceTimersByTimeAsync(30_001)
+      await rejected
+      expect(team.close()).toBe(closing)
+    } finally {
+      adapter.release()
+      await running
+      await runtime.close()
+      vi.useRealTimers()
+    }
+  })
+
+  it('allows callers to abort the close wait while cleanup continues', async () => {
+    const adapter = new UncooperativeTeamAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: unknown[] = []
+    const team = runtime.team({ id: 'abort-close', onEvent: event => events.push(event),
+      members: [{ name: 'worker', agent: agents(runtime).worker }] })
+    const running = team.session('worker').run('wait').catch(() => undefined)
+    await adapter.entered
+    const caller = new AbortController()
+    const closing = team.close({ signal: caller.signal })
+    caller.abort()
+    await expect(closing).rejects.toMatchObject({ code: 'TEAM_CLOSE_ABORTED' })
+    try {
+      expect(events).not.toContainEqual({ type: 'team-closed', teamId: 'abort-close' })
+    } finally { adapter.release(); await running }
+    const report = await runtime.close()
+    expect(report.components).toContainEqual({ kind: 'agent-team', id: 'abort-close', status: 'closed' })
+    expect(events.filter(event => (event as { type?: string }).type === 'team-closed')).toHaveLength(1)
+  })
+
+  it('tracks wakeup work as an agent-run lease during runtime close', async () => {
+    const adapter = new BlockingTeamAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const local = agents(runtime)
+    const team = runtime.team({ id: 'tracked-wakeup', members: [
+      { name: 'lead', agent: local.lead }, { name: 'worker', agent: local.worker },
+    ] })
+    await team.sendMessage({ from: 'lead', target: 'worker', message: 'wake', delivery: 'wakeup' })
+    await adapter.entered
+    const report = await runtime.close()
+    expect(report.operations.find(row => row.kind === 'agent-run')).toMatchObject({
+      activeAtClose: 1, aborted: 1, settled: 1, unsettled: 0,
+    })
+  })
+
+  it('reports an uncooperative wakeup as unsettled at the shared runtime deadline', async () => {
+    const adapter = new UncooperativeTeamAdapter()
+    const runtime = await createRuntimeCompositionOwner({ closeTimeoutMs: 10, providers: [provider(adapter)] })
+    const local = agents(runtime)
+    const team = runtime.team({ id: 'unsettled-wakeup', members: [
+      { name: 'lead', agent: local.lead }, { name: 'worker', agent: local.worker },
+    ] })
+    await team.sendMessage({ from: 'lead', target: 'worker', message: 'wake', delivery: 'wakeup' })
+    await adapter.entered
+    const report = await runtime.close()
+    expect(report.operations.find(row => row.kind === 'agent-run')).toMatchObject({
+      activeAtClose: 1, aborted: 1, settled: 0, unsettled: 1,
+    })
+    expect(report.components).toContainEqual(expect.objectContaining({
+      kind: 'agent-team', id: 'unsettled-wakeup', status: 'timed-out',
+    }))
+    adapter.release()
+    await vi.waitFor(() => expect(adapter.continued).toBe(true))
   })
 
   it('enforces configured message count and byte bounds before retention', async () => {

@@ -83,10 +83,12 @@ export interface McpHttpClientOptions extends McpClientLifecycleOptions {
   readonly allowRedirects?: boolean
   /**
    * Final host policy hook, awaited immediately before every request and
-   * redirect. A server can resolve DNS here; pair it with a fetch/egress layer
-   * that pins the validated address to eliminate validation/connect races.
+   * redirect under the operation's absolute deadline. The signal is cancelled
+   * on caller abort or timeout. A server can resolve DNS here; pair it with a
+   * fetch/egress layer that pins the validated address to eliminate
+   * validation/connect races.
    */
-  readonly validateEndpoint?: (url: URL) => void | Promise<void>
+  readonly validateEndpoint?: (url: URL, signal: AbortSignal) => void | Promise<void>
   readonly maxTransportBytes?: number
   readonly transport?: Omit<McpStreamableHttpTransportOptions, 'requestInit'> & {
     readonly requestInit?: RequestInit

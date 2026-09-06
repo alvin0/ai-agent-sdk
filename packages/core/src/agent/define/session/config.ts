@@ -9,7 +9,7 @@ export function resolveRuntimeLimits(input: AgentRuntimeLimits | undefined): Rea
     'maxToolDurationMs', 'toolTeardownTimeoutMs', 'maxParallelToolCalls',
     'maxConsecutiveToolErrors', 'repeatToolWarningAt', 'repeatToolLimit',
     'toolCycleWarningAt', 'toolCycleLimit', 'maxToolCycleLength', 'maxTotalTokens',
-    'hookTimeoutMs', 'hookTeardownTimeoutMs',
+    'hookTimeoutMs', 'hookTeardownTimeoutMs', 'memoryOperationTimeoutMs',
     'observerTimeoutMs',
   ] as const) {
     const value = values[key]

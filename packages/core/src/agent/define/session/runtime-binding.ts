@@ -35,6 +35,8 @@ type RuntimeStream = (
   additionalInstructions?: string,
 ) => AgentRunHandle
 
+type RuntimePendingStream = (invocation: AgentInvocationOptions) => AgentRunHandle
+
 export interface RuntimeCompactionOutcome {
   readonly result: CompactionResult | null
   readonly report: LegacyRunReport
@@ -44,6 +46,7 @@ export interface RuntimeCompactionOutcome {
 type RuntimeCompact = (invocation: AgentInvocationOptions) => Promise<RuntimeCompactionOutcome>
 
 const streams = new WeakMap<AgentSession, RuntimeStream>()
+const pendingStreams = new WeakMap<AgentSession, RuntimePendingStream>()
 const compactors = new WeakMap<AgentSession, RuntimeCompact>()
 const configurations = new WeakMap<AgentSession, RuntimeSessionConfiguration>()
 const configured = new WeakMap<AgentSession, () => void>()
@@ -51,12 +54,23 @@ const configured = new WeakMap<AgentSession, () => void>()
 export function attachRuntimeSession(
   session: AgentSession,
   stream: RuntimeStream,
+  streamPending: RuntimePendingStream,
   compact: RuntimeCompact,
   onConfigure: () => void,
 ): void {
   streams.set(session, stream)
+  pendingStreams.set(session, streamPending)
   compactors.set(session, compact)
   configured.set(session, onConfigure)
+}
+
+export function streamPendingRuntimeSession(
+  session: AgentSession,
+  invocation: AgentInvocationOptions,
+): RuntimeSessionRunHandle {
+  const stream = pendingStreams.get(session)
+  if (stream === undefined) throw new TypeError('Runtime session is unavailable')
+  return stream(invocation) as RuntimeSessionRunHandle
 }
 
 export function compactRuntimeSession(

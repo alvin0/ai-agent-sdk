@@ -1,0 +1,119 @@
+{
+  "repository": "dinh-ai-system-exe-com-vn/ai-agent-sdk",
+  "sha": "a456e38b3de62d114163ec77ef45433ee7cf20e4",
+  "full_sdk_tests_executed_locally": false,
+  "findings": [
+    {
+      "id": "N01",
+      "priority": "P1",
+      "title": "Async MCP endpoint validation nằm ngoài deadline",
+      "kind": "source-confirmed availability gap",
+      "sources": [
+        "packages/mcp/src/client/http-security.ts#createGuardedMcpFetch",
+        "packages/mcp/src/client/http-security.ts#validateBeforeFetch"
+      ],
+      "mechanism": "M01",
+      "trigger": "validateEndpoint trả Promise không settle; hoặc bị treo ở một redirect hop.",
+      "impact": "Request không hoàn tất trong operationTimeoutMs; caller abort không cắt await của validator.",
+      "fix": "Tạo cancellation scope và absolute deadline trước mọi callback; race validation với scope, truyền signal vào validator; kiểm tra abort trước dispatch; vẫn theo dõi cleanup của callback.",
+      "acceptance": "Never-resolving validator, validator reject, pre-aborted signal, abort-during-validation, redirect validation đều kết thúc theo contract; fetch không chạy sau khi bị từ chối."
+    },
+    {
+      "id": "N02",
+      "priority": "P1",
+      "title": "Session có stale finalizer và trạng thái active không thống nhất",
+      "kind": "source-confirmed race window; end-to-end regression required",
+      "sources": [
+        "packages/core/src/composition/agent/session.ts#RuntimeAgentSessionValue.stream",
+        "packages/core/src/agent/define/session.ts#createRunHandle",
+        "packages/core/src/composition/observation/port.ts#checkpointTerminal"
+      ],
+      "mechanism": "M02",
+      "trigger": "Raw run A đã release nhưng outer report còn chờ audit; B được start; finalizer A chạy sau đó.",
+      "impact": "A đặt wrapper.active=undefined trong khi B đang chạy; isRunning/whenIdle không còn phản ánh session. compact cũng không đặt marker active ở wrapper.",
+      "fix": "Chọn một session execution state machine; guard admission đồng bộ và generation-aware cleanup. Bao phủ run, stream, pending, compact và wakeup.",
+      "acceptance": "Park terminal report A, thử B: phải reject hoặc queue rõ ràng; stale callback không clear B; whenIdle chỉ resolve theo contract đã định; compact được phản ánh đúng."
+    },
+    {
+      "id": "N03",
+      "priority": "P1 for cancellable team workloads",
+      "title": "Team cancel nuốt cả timeout khi signal đã aborted",
+      "kind": "source-confirmed cleanup classification gap",
+      "sources": [
+        "packages/core/src/agent/team/team.ts#cancel",
+        "packages/core/src/agent/team/team.ts#dispose",
+        "packages/core/src/agent/team/common.ts#withTimeout"
+      ],
+      "mechanism": "M05",
+      "trigger": "wakeTask phớt lờ cancellation; withTimeout reject sau khi wakeController.abort đã được gọi.",
+      "impact": "cancel có thể resolve mặc dù wakeTask còn pending. Kết quả dispose phụ thuộc outer deadline race; không được coi aborted signal là bằng chứng work đã dừng.",
+      "fix": "Phân biệt cancellation acknowledgment, deadline exceeded và task unsettled; không nuốt teardown timeout. Dùng typed error/report và shared deadline.",
+      "acceptance": "Cancellable worker: sạch; uncooperative worker: timed-out/unsettled rõ ràng. Chạy cùng case qua cancel, team.close, runtime.close."
+    },
+    {
+      "id": "N04",
+      "priority": "P1 conditional on team/wakeup use",
+      "title": "Đường wakeup và team.run không dùng cùng lifecycle ownership",
+      "kind": "source-confirmed architectural divergence",
+      "sources": [
+        "packages/core/src/composition/team/runtime.ts#createRuntimeAgentTeam",
+        "packages/core/src/composition/team/runtime.ts#RuntimeTeamValue.run",
+        "packages/core/src/agent/team/team.ts#runWakeLoop",
+        "packages/core/src/composition/agent/session.ts#RuntimeAgentSessionValue.stream"
+      ],
+      "mechanism": null,
+      "trigger": "Local wakeup gọi raw session.runPending; direct team.run không ghép team lifecycle signal vào run lease.",
+      "impact": "Wakerun không đi qua wrapper stream nơi đăng ký agent-run lease/active và public final-report checkpoint. team.close không tự truyền cancellation cho direct team.run. Raw ledger vẫn có thể ghi log; không kết luận mất toàn bộ telemetry.",
+      "fix": "Adapter TeamSessionPort phải đi qua admission/ownership primitive thống nhất; xác định rõ borrowed session vs team-owned work; direct runs nhận team cancellation hoặc được drain theo contract.",
+      "acceptance": "Chạy cùng fixture bằng generate, session.run, stream, team.run và wakeup: tracking, policy, report, idle, close nhất quán. Giữ session reference rồi close team để kiểm tra quyền sử dụng sau close."
+    },
+    {
+      "id": "N05",
+      "priority": "P1 conditional on persistent store adapters",
+      "title": "Memory load/commit await callback nhưng không bound settlement khi abort",
+      "kind": "source-confirmed host-callback availability gap",
+      "sources": [
+        "packages/core/src/composition/memory/run.ts#loadMemory",
+        "packages/core/src/composition/memory/run.ts#commitMemory",
+        "packages/core/src/agent/define/session/runtime-memory.ts",
+        "packages/core/src/agent/define/session.ts#createRunHandle"
+      ],
+      "mechanism": "M03",
+      "trigger": "Store/DB driver bị treo hoặc không hỗ trợ AbortSignal; caller hủy run.",
+      "impact": "Abort checks trước/sau await không làm Promise đang chờ tự reject. Public run có thể tiếp tục bị giữ ở preparation/commit.",
+      "fix": "Callback deadline + prompt cancellation settlement + quarantine/ownership cho công việc chưa settle. Với commit bị mất acknowledgment, phân biệt outcome unknown; không tự retry side effect.",
+      "acceptance": "Store never resolves, aborted before/after dispatch, commit success rồi mất reply, revision conflict, late completion: state và report không được ghi đè sai."
+    },
+    {
+      "id": "N06",
+      "priority": "P2; raise if multi-agent latency is critical",
+      "title": "wait_agents cho phép self-wait và chưa chặn wait cycles",
+      "kind": "source-confirmed liveness gap",
+      "sources": [
+        "packages/core/src/agent/team/team.ts#toolsFor",
+        "packages/core/src/agent/team/team.ts#whenIdle",
+        "packages/core/src/agent/team/common.ts#parseWaitTool"
+      ],
+      "mechanism": "M06",
+      "trigger": "Agent A gọi wait_agents targets=[A]; hoặc A chờ B và B chờ A.",
+      "impact": "Run chờ chính điều kiện hoàn tất của nó cho tới timeout/cancellation. Không gọi đây là deadlock vô hạn vì SDK có bounds.",
+      "fix": "Reject self-wait trước dispatch; cân nhắc wait-for graph để phát hiện cycle; trả lỗi điều phối ổn định và cho phép fork/join hợp lệ.",
+      "acceptance": "Self-wait, 2/3-node cycle, peer timeout, remote cycle, duplicate targets, fork/join hợp lệ."
+    },
+    {
+      "id": "N07",
+      "priority": "P2",
+      "title": "Public tool-result status làm phẳng denied/aborted thành failed",
+      "kind": "source-confirmed API/observability semantics gap",
+      "sources": [
+        "packages/core/src/composition/agent/types.ts#RuntimeAgentRunEvent",
+        "packages/core/src/composition/agent/session.ts#projectEvent"
+      ],
+      "mechanism": "M04",
+      "trigger": "Tool bị deny, bị abort, hoặc execution failed.",
+      "impact": "Status union có rejected/aborted nhưng projection chỉ chọn failed/completed. Nested error vẫn giữ thông tin; consumer chỉ dùng status dễ hiển thị hoặc retry sai.",
+      "fix": "Một bảng mapping từ stable error code/disposition sang public status; phân biệt rejected, aborted, failed, completed. Test streaming và terminal report nhất quán.",
+      "acceptance": "Unknown tool, denial, approval deny, abort-before-dispatch, timeout, genuine execution error, success; assert status lẫn nested code."
+    }
+  ]
+}

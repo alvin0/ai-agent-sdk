@@ -102,29 +102,50 @@ export class McpOperationTimeoutError extends Error {
   }
 }
 
-export function withAbortTimeout<T>(
-  operation: (signal: AbortSignal) => Promise<T>,
+export function createAbortTimeoutScope(
   timeoutMs: number,
   message: string,
   callerSignal?: AbortSignal,
-): Promise<T> {
+): { readonly signal: AbortSignal; readonly dispose: () => void } {
   const controller = new AbortController()
   const timeout = new McpOperationTimeoutError(message)
   const timer = setTimeout(() => controller.abort(timeout), timeoutMs)
   const signal = callerSignal === undefined
     ? controller.signal
     : AbortSignal.any([callerSignal, controller.signal])
+  let active = true
+  const dispose = (): void => {
+    if (!active) return
+    active = false
+    clearTimeout(timer)
+    signal.removeEventListener('abort', dispose)
+  }
+  signal.addEventListener('abort', dispose, { once: true })
+  if (signal.aborted) dispose()
+  return Object.freeze({ signal, dispose })
+}
+
+export function withAbortTimeout<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  message: string,
+  callerSignal?: AbortSignal,
+): Promise<T> {
+  const scope = createAbortTimeoutScope(timeoutMs, message, callerSignal)
   let pending: Promise<T>
   try {
-    signal.throwIfAborted()
-    pending = Promise.resolve(operation(signal))
+    scope.signal.throwIfAborted()
+    pending = Promise.resolve(operation(scope.signal))
   }
-  catch (error: unknown) { clearTimeout(timer); return Promise.reject(error) }
-  return raceAbort(pending, signal).finally(() => clearTimeout(timer))
+  catch (error: unknown) { scope.dispose(); return Promise.reject(error) }
+  return raceAbort(pending, scope.signal).finally(scope.dispose)
 }
 
 export function raceAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(signal.reason ?? new Error('MCP operation aborted'))
+  if (signal.aborted) {
+    void promise.catch(() => undefined)
+    return Promise.reject(signal.reason ?? new Error('MCP operation aborted'))
+  }
   return new Promise<T>((resolve, reject) => {
     const abort = () => {
       signal.removeEventListener('abort', abort)

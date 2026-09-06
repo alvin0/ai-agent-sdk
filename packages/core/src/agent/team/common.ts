@@ -2,6 +2,7 @@ import { systemRandomId } from '../../platform/adapter.ts'
 import type { ContentBlock } from '../../message/index.ts'
 import type { JsonValue } from '../../primitives/index.ts'
 import { deepFreeze as freezeDeep } from '../../primitives/index.ts'
+import { AgentSdkError } from '../../errors/index.ts'
 
 export const MEMBER_NAME = /^[a-zA-Z][a-zA-Z0-9_-]*$/
 export const MAX_MEMBER_NAME_LENGTH = 128
@@ -137,9 +138,14 @@ export function combineSignals(...signals: readonly (AbortSignal | undefined)[])
   return AbortSignal.any(active)
 }
 
-export function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+export function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+  code = 'TEAM_OPERATION_TIMEOUT',
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(message)), timeoutMs)
+    const timer = setTimeout(() => reject(new AgentSdkError(message, code)), timeoutMs)
     promise.then(resolve, reject).finally(() => clearTimeout(timer))
   })
 }

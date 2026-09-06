@@ -123,6 +123,7 @@ export class AgentSession {
     this.compactor = this.createCompactor()
     attachRuntimeSession(this, (input, invocation, additionalInstructions) =>
       this.createRunHandle(input, invocation, additionalInstructions), invocation =>
+      this.createRunHandle(undefined, invocation), invocation =>
       this.compactForRuntime(invocation), () => {
       this.compactor = this.createCompactor()
     })

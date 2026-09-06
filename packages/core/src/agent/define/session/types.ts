@@ -41,6 +41,8 @@ export interface AgentRuntimeLimits {
   readonly maxTotalTokens?: number
   readonly hookTimeoutMs?: number
   readonly hookTeardownTimeoutMs?: number
+  /** Maximum settlement time for each host memory-store load or commit callback. */
+  readonly memoryOperationTimeoutMs?: number
   /** Maximum time granted to each invocation event observer. Defaults to 30 seconds. */
   readonly observerTimeoutMs?: number
 }

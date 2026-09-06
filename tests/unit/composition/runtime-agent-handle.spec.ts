@@ -7,6 +7,7 @@ import { ToolCallId } from '../../../packages/core/src/primitives/brand.ts'
 import { defineTool } from '../../../packages/core/src/agent/tool/definition.ts'
 import type { ComposableModelProviderPlugin } from '../../../packages/core/src/composition/provider/types.ts'
 import { createRuntimeCompositionOwner } from '../../../packages/core/src/composition/runtime/owner.ts'
+import type { ObservationExporterPlugin } from '../../../packages/core/src/composition/exporter/types.ts'
 
 class BlockingAdapter extends ModelAdapter {
   readonly entered: Promise<void>
@@ -119,6 +120,76 @@ function provider(adapter: ModelAdapter): ComposableModelProviderPlugin {
 }
 
 describe('runtime agent run handle', () => {
+  it('keeps one generation active through terminal observation checkpointing', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(resolve => { release = resolve })
+    let terminalEntered!: () => void
+    const terminalStarted = new Promise<void>(resolve => { terminalEntered = resolve })
+    const sink: ObservationExporterPlugin = {
+      kind: 'observation-exporter', apiVersion: 1, id: 'park-terminal',
+      supportedBoundaries: ['local-durable'],
+      export: async batch => {
+        if (batch.runRecords.length > 0) { terminalEntered(); await gate }
+        return { batchId: batch.id, acceptedEventIds: batch.events.map(event => event.eventId),
+          acceptedRunIds: batch.runRecords.map(record => record.runId) }
+      },
+    }
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(new CompleteAdapter())],
+      observability: { mode: 'reliable', exporters: [{
+        exporter: sink, ownership: 'borrowed', requirement: 'required', boundary: 'local-durable',
+      }] } })
+    const session = runtime.agent({ id: 'generation-guard', instructions: 'Complete', compaction: false }).createSession()
+    const first = session.stream('first')
+    await terminalStarted
+    expect(session.isRunning).toBe(true)
+    expect(() => session.stream('second')).toThrow(/runtime session is active/)
+    expect(() => session.compact()).toThrow(/runtime session is active/)
+    let idle = false
+    const waiting = session.whenIdle().then(() => { idle = true })
+    await Promise.resolve()
+    expect(idle).toBe(false)
+    release()
+    await expect(first.result).resolves.toMatchObject({ text: 'complete' })
+    await waiting
+    expect(session.isRunning).toBe(false)
+    await expect(session.run('second')).resolves.toMatchObject({ text: 'complete' })
+    await runtime.close()
+  })
+
+  it('exposes manual compaction as an active session operation through its terminal checkpoint', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(resolve => { release = resolve })
+    let terminalEntered!: () => void
+    const terminalStarted = new Promise<void>(resolve => { terminalEntered = resolve })
+    const sink: ObservationExporterPlugin = {
+      kind: 'observation-exporter', apiVersion: 1, id: 'park-compaction-terminal',
+      supportedBoundaries: ['local-durable'],
+      export: async batch => {
+        if (batch.runRecords.length > 0) { terminalEntered(); await gate }
+        return { batchId: batch.id, acceptedEventIds: batch.events.map(event => event.eventId),
+          acceptedRunIds: batch.runRecords.map(record => record.runId) }
+      },
+    }
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(new CompleteAdapter())],
+      observability: { mode: 'reliable', exporters: [{
+        exporter: sink, ownership: 'borrowed', requirement: 'required', boundary: 'local-durable',
+      }] } })
+    const session = runtime.agent({ id: 'compaction-guard', instructions: 'Complete', compaction: false }).createSession()
+    const compacting = session.compact()
+    await terminalStarted
+    expect(session.isRunning).toBe(true)
+    expect(() => session.stream('during compaction')).toThrow(/runtime session is active/)
+    let idle = false
+    const waiting = session.whenIdle().then(() => { idle = true })
+    await Promise.resolve()
+    expect(idle).toBe(false)
+    release()
+    await expect(compacting).resolves.toBeNull()
+    await waiting
+    expect(session.isRunning).toBe(false)
+    await runtime.close()
+  })
+
   it('settles public run artifacts when close seals an uncooperative generation', async () => {
     const adapter = new UncooperativeAdapter()
     const runtime = await createRuntimeCompositionOwner({ closeTimeoutMs: 5, providers: [provider(adapter)] })

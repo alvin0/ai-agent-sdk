@@ -42,6 +42,7 @@ export interface RuntimeAgentTeam {
   sendMessage(request: SendAgentMessageRequest): Promise<SendAgentMessageResult>
   session(name: string): RuntimeAgentSession
   run(name: string, input: string, options?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse>
+  /** Cancels owned work and waits up to 30 seconds. Aborting the wait does not stop cleanup. */
   close(options?: { readonly signal?: AbortSignal }): Promise<void>
 }
 

@@ -33,8 +33,8 @@ The `tool-result` run event carries a status:
 | --- | --- | --- |
 | `completed` | `execute` returned | The rendered value |
 | `failed` | `execute` threw | The failure, phrased for the model |
-| `rejected` | An approval broker denied the call | A denial it can react to |
-| `aborted` | The run was cancelled during the call | An abort notice |
+| `rejected` | Policy, catalog, arguments, or budget rejected the call | A rejection it can react to |
+| `aborted` | The run was cancelled before or during the call | An abort notice |
 
 ```ts
 for await (const event of agent.stream(input)) {

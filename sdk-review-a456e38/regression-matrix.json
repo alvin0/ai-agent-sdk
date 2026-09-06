@@ -1,0 +1,391 @@
+{
+  "repository": "dinh-ai-system-exe-com-vn/ai-agent-sdk",
+  "sha": "a456e38b3de62d114163ec77ef45433ee7cf20e4",
+  "case_count": 48,
+  "cases": [
+    {
+      "id": "T01-01",
+      "lens": "State machine / model-based",
+      "related": "N02",
+      "scenario": "A raw-done, report pending, start B",
+      "oracle": "B bị từ chối/queue hoặc có generation độc lập, không stale cleanup",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T01-02",
+      "lens": "State machine / model-based",
+      "related": "N02",
+      "scenario": "compact đồng thời inject/reset/run",
+      "oracle": "Contract busy/idle nhất quán; không mutate context giữa compaction trái policy",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T01-03",
+      "lens": "State machine / model-based",
+      "related": "N02",
+      "scenario": "abort rồi reset/resume trước late completion",
+      "oracle": "Late completion không sửa session mới",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T01-04",
+      "lens": "State machine / model-based",
+      "related": "N02",
+      "scenario": "stream không iterate, iterate hai lần, dừng sớm",
+      "oracle": "Một consumer, bounded buffer, ownership và kết quả cuối rõ ràng",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T02-01",
+      "lens": "Shutdown / structured concurrency",
+      "related": "N03, N04",
+      "scenario": "team.run rồi team.close",
+      "oracle": "Run được cancel/drain hoặc được công bố rõ là borrowed work",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T02-02",
+      "lens": "Shutdown / structured concurrency",
+      "related": "N03, N04",
+      "scenario": "wakeup đang chạy rồi runtime.close",
+      "oracle": "Có tracking run, shared deadline và report unsettled đúng",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T02-03",
+      "lens": "Shutdown / structured concurrency",
+      "related": "N03, N04",
+      "scenario": "dispose callback reject/never resolve",
+      "oracle": "Không báo clean success khi chưa settle",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T02-04",
+      "lens": "Shutdown / structured concurrency",
+      "related": "N03, N04",
+      "scenario": "close concurrent/idempotent và signal đã abort",
+      "oracle": "Không đọc thay options lần sau; signal đầu tiên được thực thi theo contract",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T03-01",
+      "lens": "Async callback fault injection",
+      "related": "N01, N05",
+      "scenario": "Endpoint validator never resolves/rejects",
+      "oracle": "Không chờ vượt callback/run deadline",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T03-02",
+      "lens": "Async callback fault injection",
+      "related": "N01, N05",
+      "scenario": "Memory load/commit never resolves",
+      "oracle": "Abort kết thúc public wait; late work được theo dõi",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T03-03",
+      "lens": "Async callback fault injection",
+      "related": "N01, N05",
+      "scenario": "Hook/approval/exporter never resolves",
+      "oracle": "Mọi extension point cùng chính sách settlement",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T03-04",
+      "lens": "Async callback fault injection",
+      "related": "N01, N05",
+      "scenario": "Callback throw đồng bộ và reject bất đồng bộ",
+      "oracle": "Cùng taxonomy; không unhandled rejection",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T04-01",
+      "lens": "Scheduler / failure interleavings",
+      "related": "R03 follow-up",
+      "scenario": "A reject nhanh, B chờ approval",
+      "oracle": "Rejection của A được observe ngay",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T04-02",
+      "lens": "Scheduler / failure interleavings",
+      "related": "R03 follow-up",
+      "scenario": "C admission throw sau khi A/B đã chạy",
+      "oracle": "Cancel siblings và bounded ordered commit/drain",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T04-03",
+      "lens": "Scheduler / failure interleavings",
+      "related": "R03 follow-up",
+      "scenario": "Nhiều siblings phớt lờ abort",
+      "oracle": "Đo tổng cleanup deadline, không chỉ timeout mỗi slot",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T04-04",
+      "lens": "Scheduler / failure interleavings",
+      "related": "R03 follow-up",
+      "scenario": "Fatal, deny, concludeTurn trong một batch",
+      "oracle": "Không mất result hoặc commit sai thứ tự",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T05-01",
+      "lens": "Multi-agent wait graph",
+      "related": "N06",
+      "scenario": "Self-wait",
+      "oracle": "Reject ngay với lỗi ổn định",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T05-02",
+      "lens": "Multi-agent wait graph",
+      "related": "N06",
+      "scenario": "A->B->A; A->B->C->A",
+      "oracle": "Detect cycle hoặc bounded failure có chẩn đoán",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T05-03",
+      "lens": "Multi-agent wait graph",
+      "related": "N06",
+      "scenario": "Fork/join không cycle",
+      "oracle": "Không báo false positive deadlock",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T05-04",
+      "lens": "Multi-agent wait graph",
+      "related": "N06",
+      "scenario": "Remote peer restart/timeout và local wake coalescing",
+      "oracle": "Không mất wake hoặc lặp chạy cùng receipt vô hạn",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T06-01",
+      "lens": "Security / trust boundary",
+      "related": "R04, R05",
+      "scenario": "Public hostname resolve về private IPv4/IPv6",
+      "oracle": "Egress policy chặn endpoint không được phép",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T06-02",
+      "lens": "Security / trust boundary",
+      "related": "R04, R05",
+      "scenario": "DNS thay đổi sau validation; proxy; redirect",
+      "oracle": "IP thực sự kết nối thuộc policy, không chỉ hostname",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T06-03",
+      "lens": "Security / trust boundary",
+      "related": "R04, R05",
+      "scenario": "Secret sentinel trong value/content/meta/error/additionalContext",
+      "oracle": "Không xuất hiện trong các sinks thuộc sanitizer contract",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T06-04",
+      "lens": "Security / trust boundary",
+      "related": "R04, R05",
+      "scenario": "Tool/schema/skill từ nguồn không tin cậy",
+      "oracle": "Không tự nâng quyền; approval gắn đúng action/resource/tenant",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T07-01",
+      "lens": "Durability / consistency",
+      "related": "N05 + host boundary",
+      "scenario": "2 workers cùng expectedRevision",
+      "oracle": "Một CAS thắng, conflict còn lại rõ ràng",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T07-02",
+      "lens": "Durability / consistency",
+      "related": "N05 + host boundary",
+      "scenario": "DB commit thành công rồi disconnect trước reply",
+      "oracle": "Outcome unknown, không giả định rollback",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T07-03",
+      "lens": "Durability / consistency",
+      "related": "N05 + host boundary",
+      "scenario": "Tool effect thành công trước history/report failure",
+      "oracle": "Không retry effect thiếu idempotency",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T07-04",
+      "lens": "Durability / consistency",
+      "related": "N05 + host boundary",
+      "scenario": "Crash ở trước dispatch/sau effect/trước checkpoint",
+      "oracle": "Resume có receipt và policy duplicate rõ ràng",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T08-01",
+      "lens": "Tenant isolation / privacy",
+      "related": "Host integration risk",
+      "scenario": "Tenant A/B trùng conversationId và agentId",
+      "oracle": "Namespace/authorization vẫn tách biệt",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T08-02",
+      "lens": "Tenant isolation / privacy",
+      "related": "Host integration risk",
+      "scenario": "Resume snapshot từ tenant khác",
+      "oracle": "Server từ chối dù shape JSON hợp lệ",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T08-03",
+      "lens": "Tenant isolation / privacy",
+      "related": "Host integration risk",
+      "scenario": "Shared fixed memory scope",
+      "oracle": "Chỉ shared theo policy chủ động, không vô tình",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T08-04",
+      "lens": "Tenant isolation / privacy",
+      "related": "Host integration risk",
+      "scenario": "Logs/snapshots/support bundles có canary secrets",
+      "oracle": "Redaction và access control bao phủ từng sink",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T09-01",
+      "lens": "Property-based / parser / stream",
+      "related": "R07 + protocol acceptance",
+      "scenario": "UTF-8 split tại từng byte, CRLF boundaries",
+      "oracle": "Nội dung và tool arguments không thay đổi",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T09-02",
+      "lens": "Property-based / parser / stream",
+      "related": "R07 + protocol acceptance",
+      "scenario": "Duplicate/out-of-order/terminal-missing chunks",
+      "oracle": "Protocol violation báo lỗi xác định, không partial success giả",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T09-03",
+      "lens": "Property-based / parser / stream",
+      "related": "R07 + protocol acceptance",
+      "scenario": "YAML quoted key/comments/duplicate/alias/depth",
+      "oracle": "Parser fail closed đúng contract và bounded resources",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T09-04",
+      "lens": "Property-based / parser / stream",
+      "related": "R07 + protocol acceptance",
+      "scenario": "Snapshot round-trip + random invalid event order",
+      "oracle": "Bảo toàn identity/projection hoặc reject rõ ràng",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T10-01",
+      "lens": "Resource economics / performance",
+      "related": "R02, R06",
+      "scenario": "10k create/run/close teams trên cùng runtime",
+      "oracle": "Live registrations và retaining paths không tăng tuyến tính",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T10-02",
+      "lens": "Resource economics / performance",
+      "related": "R02, R06",
+      "scenario": "Slow/no event consumer + slow exporter",
+      "oracle": "Backlog bounded; phân biệt failure và telemetry drop",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T10-03",
+      "lens": "Resource economics / performance",
+      "related": "R02, R06",
+      "scenario": "Many sessions gần giới hạn; large tool result",
+      "oracle": "Đo RSS, heap, external, arrayBuffers và event-loop delay",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T10-04",
+      "lens": "Resource economics / performance",
+      "related": "R02, R06",
+      "scenario": "Long history + frequent snapshot/compaction",
+      "oracle": "Đo clone/serialize cost; không đánh đồng token compaction với RAM release",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T11-01",
+      "lens": "Cost budget / retry semantics",
+      "related": "Production policy",
+      "scenario": "maxSteps 1/2 với finalizer và structured output",
+      "oracle": "Documented extra request được tính ngân sách",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T11-02",
+      "lens": "Cost budget / retry semantics",
+      "related": "Production policy",
+      "scenario": "Missing usage/estimated usage + retries",
+      "oracle": "Không coi unknown usage bằng zero",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T11-03",
+      "lens": "Cost budget / retry semantics",
+      "related": "Production policy",
+      "scenario": "Compaction/native tools/team sub-runs",
+      "oracle": "Accounting bao phủ chi phí theo đúng phạm vi quy định",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T11-04",
+      "lens": "Cost budget / retry semantics",
+      "related": "Production policy",
+      "scenario": "429/Retry-After/caller abort/retry burst",
+      "oracle": "Budget/deadline toàn run và fairness không bị vượt vô thức",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T12-01",
+      "lens": "Compatibility / release / mutation testing",
+      "related": "G01, N07",
+      "scenario": "Consumer cũ dùng localhost HTTP và redirect",
+      "oracle": "Migration explicit cho defaults bảo mật mới",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T12-02",
+      "lens": "Compatibility / release / mutation testing",
+      "related": "G01, N07",
+      "scenario": "Consumer đọc result.value sau replace",
+      "oracle": "Không phụ thuộc semantics sanitizer cũ",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T12-03",
+      "lens": "Compatibility / release / mutation testing",
+      "related": "G01, N07",
+      "scenario": "Tarball sạch trong project ngoài workspace",
+      "oracle": "Exports/runtime dependencies đúng; không dùng nhầm source aliases",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    },
+    {
+      "id": "T12-04",
+      "lens": "Compatibility / release / mutation testing",
+      "related": "G01, N07",
+      "scenario": "Mutation bỏ abort/guard/redaction/generation check",
+      "oracle": "Test phải đỏ; nếu vẫn xanh thì invariant chưa được bảo vệ",
+      "execution_status": "PROPOSED_NOT_RUN_AGAINST_SDK"
+    }
+  ]
+}

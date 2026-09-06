@@ -8,6 +8,7 @@ import type { ComposableModelProviderPlugin } from '../../../packages/core/src/c
 import { createRuntimeCompositionOwner } from '../../../packages/core/src/composition/runtime/owner.ts'
 import { defineMemoryStore } from '../../../packages/core/src/composition/memory/definition.ts'
 import { memoryStoreKey } from '../../../packages/core/src/composition/memory/key.ts'
+import { createRuntimeMemoryPersistence } from '../../../packages/core/src/composition/memory/run.ts'
 import type {
   MemoryBinding, MemoryCommitInput, MemoryLoadResult, MemoryStore, MemoryStoreOptions,
 } from '../../../packages/core/src/composition/memory/types.ts'
@@ -44,6 +45,38 @@ function persistentSnapshot(content = 'persisted fact') {
 }
 
 describe('runtime memory store authoring and binding', () => {
+  it.each(['load', 'commit'] as const)('observes queued %s rejection when logging cancels before the race is installed', async stage => {
+    const load = vi.fn(async () => undefined)
+    const commit = vi.fn(async () => ({ revision: 'r1' }))
+    const persistence = createRuntimeMemoryPersistence(binding(defineMemoryStore({ id: 'cancel-logging', load, commit })), 'agent')
+    const caller = new AbortController()
+    const logger = { ...options().logger, info: (message: string) => {
+      if (message === `Memory ${stage} started`) caller.abort()
+    } }
+    const pending = stage === 'load'
+      ? persistence.load('conversation', caller.signal, logger)
+      : persistence.commit('conversation', persistentSnapshot(), null, caller.signal, logger)
+    await expect(pending).rejects.toMatchObject({ code: 'RUNTIME_OPERATION_ABORTED' })
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(load).not.toHaveBeenCalled()
+    expect(commit).not.toHaveBeenCalled()
+  })
+
+  it.each(['load', 'commit'] as const)('does not dispatch %s after cancellation before its queued callback', async stage => {
+    const load = vi.fn(async () => undefined)
+    const commit = vi.fn(async () => ({ revision: 'r1' }))
+    const persistence = createRuntimeMemoryPersistence(binding(defineMemoryStore({ id: 'cancel-queued', load, commit })), 'agent')
+    const caller = new AbortController()
+    const logger = options().logger
+    const pending = stage === 'load'
+      ? persistence.load('conversation', caller.signal, logger)
+      : persistence.commit('conversation', persistentSnapshot(), null, caller.signal, logger)
+    caller.abort()
+    await expect(pending).rejects.toMatchObject({ code: 'RUNTIME_OPERATION_ABORTED' })
+    expect(load).not.toHaveBeenCalled()
+    expect(commit).not.toHaveBeenCalled()
+  })
+
   it('captures methods once with their receiver without I/O or freezing caller state', async () => {
     const calls: string[] = []
     const originalLoad = vi.fn(function (this: { state: string }) {
@@ -368,6 +401,69 @@ describe('runtime memory persistence', () => {
     const serialized = JSON.stringify(await handle.report)
     expect(serialized).not.toContain('PRIVATE_STORE_ABORT/REASON~SENTINEL%')
     expect(serialized).not.toContain('PRIVATE_CALLER_ABORT/REASON~SENTINEL%')
+    await runtime.close()
+  })
+
+  it('bounds uncooperative load and reports an unacknowledged commit as outcome unknown', async () => {
+    const loadAdapter = new MemoryAdapter()
+    let finishLoad!: (value: undefined) => void
+    const load = vi.fn(() => new Promise<undefined>(resolve => { finishLoad = resolve }))
+    const neverLoad = defineMemoryStore({ id: 'never-load', load,
+      commit: async () => ({ revision: 'unused' }) })
+    const loadRuntime = await createRuntimeCompositionOwner({ providers: [provider(loadAdapter)] })
+    const loadSession = loadRuntime.agent({ id: 'load-timeout', instructions: 'Memory', compaction: false,
+      memory: binding(neverLoad) }).createSession({ runtimeLimits: { memoryOperationTimeoutMs: 10 } })
+    const loadHandle = loadSession.stream('wait')
+    await expect(loadHandle.result).rejects.toMatchObject({ code: 'MEMORY_LOAD_TIMEOUT' })
+    const loadReport = JSON.stringify(await loadHandle.report)
+    finishLoad(undefined)
+    await Promise.resolve()
+    expect(loadAdapter.requests).toHaveLength(0)
+    expect(load).toHaveBeenCalledOnce()
+    expect(JSON.stringify(await loadHandle.report)).toBe(loadReport)
+    await loadRuntime.close()
+
+    const commitAdapter = new MemoryAdapter()
+    let commitEntered!: () => void
+    let finishCommit!: (value: { revision: string }) => void
+    const entered = new Promise<void>(resolve => { commitEntered = resolve })
+    const neverCommit = defineMemoryStore({ id: 'never-commit', load: async () => undefined,
+      commit: () => { commitEntered(); return new Promise(resolve => { finishCommit = resolve }) } })
+    const commitRuntime = await createRuntimeCompositionOwner({ providers: [provider(commitAdapter)] })
+    const commitSession = commitRuntime.agent({ id: 'commit-timeout', instructions: 'Memory', compaction: false,
+      memory: binding(neverCommit) }).createSession({ runtimeLimits: { memoryOperationTimeoutMs: 10 } })
+    const commitHandle = commitSession.stream('wait')
+    await entered
+    await expect(commitHandle.result).rejects.toMatchObject({ code: 'MEMORY_COMMIT_OUTCOME_UNKNOWN' })
+    const commitReport = JSON.stringify(await commitHandle.report)
+    finishCommit({ revision: 'late-r1' })
+    await Promise.resolve()
+    expect(commitAdapter.requests).toHaveLength(1)
+    expect(JSON.stringify(await commitHandle.report)).toBe(commitReport)
+    await commitRuntime.close()
+  })
+
+  it('settles promptly when an uncooperative commit is aborted after dispatch', async () => {
+    const adapter = new MemoryAdapter(), commit = vi.fn()
+    let entered!: () => void, finish!: (value: { revision: string }) => void
+    const started = new Promise<void>(resolve => { entered = resolve })
+    commit.mockImplementation(() => {
+      entered()
+      return new Promise(resolve => { finish = resolve })
+    })
+    const store = defineMemoryStore({ id: 'abort-after-dispatch', load: async () => undefined, commit })
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const session = runtime.agent({ id: 'abort-commit', instructions: 'Memory', compaction: false,
+      memory: binding(store) }).createSession()
+    const handle = session.stream('wait')
+    await started
+    handle.abort()
+    await expect(handle.result).rejects.toMatchObject({ code: 'MEMORY_COMMIT_OUTCOME_UNKNOWN' })
+    const report = JSON.stringify(await handle.report)
+    finish({ revision: 'late-r1' })
+    await Promise.resolve()
+    expect(commit).toHaveBeenCalledOnce()
+    expect(JSON.stringify(await handle.report)).toBe(report)
     await runtime.close()
   })
 })

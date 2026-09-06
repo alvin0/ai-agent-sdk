@@ -1,0 +1,81 @@
+{
+  "scope": "REDUCED_MECHANISM_MODELS_NOT_FULL_SDK_TESTS",
+  "sha": "a456e38b3de62d114163ec77ef45433ee7cf20e4",
+  "node": "v22.16.0",
+  "executedAt": "2026-09-06T03:36:35.169Z",
+  "reproducedCount": 6,
+  "total": 6,
+  "results": [
+    {
+      "id": "M01",
+      "name": "Endpoint validator waits before the timeout is created",
+      "reproduced": true,
+      "actual": {
+        "state": "pending",
+        "deadlineCreatedAtObservation": false,
+        "fetchCallsAtObservation": 0
+      },
+      "control": {
+        "state": "rejected",
+        "error": "TimeoutError: The operation was aborted due to timeout"
+      }
+    },
+    {
+      "id": "M02",
+      "name": "Earlier finalization clears the active marker of a newer run",
+      "reproduced": true,
+      "actual": {
+        "publicIdleWhileBPending": true,
+        "markerBWasOverwritten": true
+      },
+      "control": {
+        "generationGuardPreservesB": true
+      }
+    },
+    {
+      "id": "M03",
+      "name": "Checking abort only before/after a store await does not bound the wait",
+      "reproduced": true,
+      "actual": {
+        "state": "pending"
+      },
+      "control": {
+        "state": "rejected",
+        "error": "Error: request cancelled"
+      }
+    },
+    {
+      "id": "M04",
+      "name": "Public tool status loses the difference between denial and cancellation",
+      "reproduced": true,
+      "actual": [
+        "failed",
+        "failed",
+        "failed"
+      ],
+      "note": "The nested error still carries its code. This is a top-level event contract issue, not loss of all error evidence."
+    },
+    {
+      "id": "M05",
+      "name": "Cancelled controller causes a teardown timeout to be swallowed",
+      "reproduced": true,
+      "actual": {
+        "cancelResolved": true,
+        "workStillPendingWhenCancelResolved": true
+      },
+      "note": "Reproduces the local cancel catch only; the full outer dispose/runtime deadline race was not executed."
+    },
+    {
+      "id": "M06",
+      "name": "Waiting for the caller session to become idle creates a self-wait cycle",
+      "reproduced": true,
+      "actual": {
+        "selfWaitRequiresExternalBreak": true
+      },
+      "control": {
+        "aSenderAwareGuardCanRejectBeforeWaiting": true
+      },
+      "note": "The SDK has timeouts. This is a progress/liveness gap, not a claim of an infinite production hang."
+    }
+  ]
+}

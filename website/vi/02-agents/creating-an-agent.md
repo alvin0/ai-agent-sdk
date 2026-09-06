@@ -156,7 +156,11 @@ const session = agent.createSession({
   historyLimits: { maxEntries: 5_000, maxBytes: 32 * 1024 * 1024 },
   ledgerLimits: { maxSerializedBytes: 8 * 1024 * 1024 },
   eventBufferLimits: { maxEvents: 2_000, maxBytes: 4 * 1024 * 1024 },
-  runtimeLimits: { maxTotalTokens: 250_000, maxToolResultBytes: 1_048_576 },
+  runtimeLimits: {
+    maxTotalTokens: 250_000,
+    maxToolResultBytes: 1_048_576,
+    memoryOperationTimeoutMs: 30_000,
+  },
   compaction: { thresholdRatio: 0.75 },
 })
 ```
@@ -164,6 +168,9 @@ const session = agent.createSession({
 `tools` ở mức session được **gộp** với tool do định nghĩa sở hữu, không thay thế.
 `compaction` và `runtimeLimits` ở mức session thì ghi đè định nghĩa. Các giới hạn
 history, ledger và event buffer chặn working set được giữ lại của từng session.
+`memoryOperationTimeoutMs` giới hạn từng callback memory-store của host; commit
+mất phản hồi xác nhận được báo là `MEMORY_COMMIT_OUTCOME_UNKNOWN` và không tự động
+retry.
 
 ## Đọc tiếp
 

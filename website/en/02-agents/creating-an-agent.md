@@ -156,7 +156,11 @@ const session = agent.createSession({
   historyLimits: { maxEntries: 5_000, maxBytes: 32 * 1024 * 1024 },
   ledgerLimits: { maxSerializedBytes: 8 * 1024 * 1024 },
   eventBufferLimits: { maxEvents: 2_000, maxBytes: 4 * 1024 * 1024 },
-  runtimeLimits: { maxTotalTokens: 250_000, maxToolResultBytes: 1_048_576 },
+  runtimeLimits: {
+    maxTotalTokens: 250_000,
+    maxToolResultBytes: 1_048_576,
+    memoryOperationTimeoutMs: 30_000,
+  },
   compaction: { thresholdRatio: 0.75 },
 })
 ```
@@ -164,6 +168,9 @@ const session = agent.createSession({
 Session-level `tools` are **combined** with definition-owned tools, not replaced.
 Session-level `compaction` and `runtimeLimits` override the definition. History,
 ledger, and event-buffer limits bound each session's retained working set.
+`memoryOperationTimeoutMs` bounds each host memory-store callback; a commit that
+loses its acknowledgement is reported as `MEMORY_COMMIT_OUTCOME_UNKNOWN` and is
+not retried automatically.
 
 ## Read next
 
