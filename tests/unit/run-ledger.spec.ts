@@ -94,7 +94,7 @@ describe('canonical agent run ledger', () => {
     expect(decision.report.estimated).toEqual({ inputTokens: 7, totalTokens: 10 })
     expect(decision.report.coverage).toBe('partial')
     const report = await state.finalize('success', true)
-    expect(report.usage.reported).toEqual({ outputTokens: 3, totalTokens: 3 })
+    expect(report.usage.reported).toEqual({ outputTokens: 3 })
     expect(report.usage.estimated).toEqual({ inputTokens: 7, totalTokens: 10 })
     expect(report.usage.authoritative).toBe(false)
   })

@@ -139,14 +139,15 @@ Rules that matter in practice:
 interface RunUsageReport {
   reported: Partial<TokenUsage>
   estimated?: Partial<TokenUsage>
+  budgetTokens?: number
   coverage: {
     logicalCalls: number
-    physicalAttempts: number
-    completeCalls: number
-    partialCalls: number
-    estimatedCalls: number
-    missingCalls: number
-    notApplicableCalls: number
+    attempts: number
+    complete: number
+    partial: number
+    estimated: number
+    missing: number
+    notApplicable: number
     possiblyBilledAttemptsWithoutUsage: number
   }
   authoritative: boolean
@@ -160,6 +161,25 @@ Each physical attempt records `dispatchState: 'not-sent' | 'sent' | 'unknown'`.
 An interrupted call in `sent` or `unknown` state that returned no usage
 increments `possiblyBilledAttemptsWithoutUsage` — the honest answer when exact
 billing is unknowable from the response.
+
+### Budget contributions and partial attempts
+
+`budgetTokens` is an optional budget projection, not an invoice total. The SDK
+combines reported buckets with missing-bucket estimates within each logical call,
+then sums those contributions. A reported bucket from one call cannot hide an
+estimate from another. Known attempt contributions are retained when aggregate
+counters cannot represent them; call and attempt totals are not added twice.
+Missing usage is still unknown, not zero, and estimates remain non-authoritative.
+
+An aggregate omits `totalTokens` when contributing reports do not share total
+coverage. It does not manufacture an exact total from partial buckets at the
+next aggregation layer. Original attempt reports retain the underlying evidence;
+cross-scope counters that fail validation are omitted from the summary.
+
+Cancellation ends a public wait, not necessarily external work. HTTP transport
+retains cleanup ownership of late custom-fetch responses and bounds unread-body
+cleanup to 30 seconds. Active SSE piping receives the abort signal. A custom
+cancel callback that ignores cancellation still cannot be forcibly stopped.
 
 ### When usage is missing
 

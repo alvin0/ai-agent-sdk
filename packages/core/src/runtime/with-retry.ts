@@ -313,9 +313,9 @@ async function* resume(
   iterator: AsyncIterator<StreamChunk>,
   teardownTimeoutMs: number,
 ): AsyncGenerator<StreamChunk> {
-  yield first
   let exhausted = false
   try {
+    yield first
     while (true) {
       const next = await iterator.next()
       if (next.done === true) {

@@ -10,6 +10,9 @@ export type { UsageCoverageSummary } from '../../support-safe/error.ts'
 export interface RunUsageReport {
   readonly reported: UsageCounters
   readonly estimated?: UsageCounters
+  /** Per-call reported/estimated contributions, summed before provenance is lost.
+   * A budget estimate/known subtotal, never a billing total; missing usage remains unknown. */
+  readonly budgetTokens?: number
   readonly coverage: UsageCoverageSummary
   readonly authoritative: boolean
 }

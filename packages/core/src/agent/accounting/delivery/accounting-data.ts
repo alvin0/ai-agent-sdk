@@ -52,6 +52,7 @@ export function runUsage(value: unknown): RunUsageReport {
   return Object.freeze({
     reported: counters(ownData(source, 'reported')),
     ...optional(source, 'estimated', counters),
+    ...optional(source, 'budgetTokens', count),
     coverage: coverageSummary(ownData(source, 'coverage')),
     authoritative: flag(ownData(source, 'authoritative')),
   })

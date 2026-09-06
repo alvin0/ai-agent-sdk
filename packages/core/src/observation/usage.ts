@@ -108,6 +108,7 @@ export interface UsageAdditionResult {
 export function addUsageCounters(values: readonly UsageCounters[]): UsageAdditionResult {
   const output: Partial<Record<CounterKey, number>> = {}
   let overflow = false
+  let comparableTotal = true
   for (const value of values) {
     const validated = validateUsageCounters(value)
     if (validated.invalidFields.length > 0) {
@@ -116,6 +117,9 @@ export function addUsageCounters(values: readonly UsageCounters[]): UsageAdditio
     // Individually valid buckets remain known even when their disjoint total
     // exceeds safe integer precision. Keep them and report loss of authority.
     overflow ||= validated.overflow
+    if (hasUsageCounters(validated.reported) && validated.reported.totalTokens === undefined) {
+      comparableTotal = false
+    }
     for (const key of COUNTER_KEYS) {
       const addend = validated.reported[key]
       if (addend === undefined) continue
@@ -126,8 +130,12 @@ export function addUsageCounters(values: readonly UsageCounters[]): UsageAdditio
       } else output[key] = sum
     }
   }
-  overflow ||= validateUsageCounters(output).overflow
-  return Object.freeze({ counters: Object.freeze({ ...output }), overflow })
+  // A subset's total cannot describe buckets summed over a wider scope.
+  // Leaf reports retain the original evidence; do not invent missing buckets.
+  if (!comparableTotal) delete output.totalTokens
+  const validated = validateUsageCounters(output)
+  overflow ||= validated.overflow
+  return Object.freeze({ counters: validated.reported, overflow })
 }
 
 export function hasUsageCounters(value: UsageCounters | undefined): boolean {

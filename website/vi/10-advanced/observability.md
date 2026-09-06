@@ -141,14 +141,15 @@ Các quy tắc có ý nghĩa thực tế:
 interface RunUsageReport {
   reported: Partial<TokenUsage>
   estimated?: Partial<TokenUsage>
+  budgetTokens?: number
   coverage: {
     logicalCalls: number
-    physicalAttempts: number
-    completeCalls: number
-    partialCalls: number
-    estimatedCalls: number
-    missingCalls: number
-    notApplicableCalls: number
+    attempts: number
+    complete: number
+    partial: number
+    estimated: number
+    missing: number
+    notApplicable: number
     possiblyBilledAttemptsWithoutUsage: number
   }
   authoritative: boolean
@@ -162,6 +163,25 @@ Mỗi lượt thử vật lý ghi `dispatchState: 'not-sent' | 'sent' | 'unknown
 lời gọi bị gián đoạn ở trạng thái `sent` hoặc `unknown` mà không trả về usage sẽ
 làm tăng `possiblyBilledAttemptsWithoutUsage` — đây là câu trả lời trung thực khi
 không thể biết chính xác việc tính tiền từ phản hồi.
+
+### Contribution ngân sách và các attempt partial
+
+`budgetTokens` là phép chiếu tùy chọn để kiểm tra ngân sách, không phải tổng
+hóa đơn. SDK ghép bucket reported với estimate cho bucket thiếu trong từng
+logical call, rồi mới cộng các contribution. Bucket reported của call này
+không che estimate của call khác. Contribution đã biết từ attempt vẫn được
+giữ khi counters tổng hợp không biểu diễn được; không cộng đôi call và attempt.
+Usage thiếu vẫn là chưa biết, không phải zero; estimate không có tính authoritative.
+
+Aggregate bỏ `totalTokens` nếu các report đóng góp không có cùng độ phủ total.
+Tầng tổng hợp sau không tự tạo total chính xác từ bucket partial. Report attempt
+gốc giữ bằng chứng; counter có phạm vi không tương thích và không qua validation
+sẽ bị bỏ khỏi summary.
+
+Cancellation kết thúc việc chờ public, chưa chắc dừng công việc bên ngoài.
+HTTP transport giữ quyền cleanup response đến muộn từ custom fetch và chặn
+thời gian cleanup body chưa đọc ở 30 giây. SSE piping đang chạy nhận abort
+signal. SDK không thể cưỡng chế dừng callback cancel không hợp tác.
 
 ### Khi thiếu usage
 

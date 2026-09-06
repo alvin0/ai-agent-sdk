@@ -65,6 +65,33 @@ function sessionFor(registry: ModelRegistry, options: Parameters<ReturnType<type
 }
 
 describe('agent run handle and usage contract', () => {
+  it.each([329, 330, 331])('enforces mixed reported/estimated cumulative budget %s before tool dispatch', async maxTotalTokens => {
+    const first = toolRound()
+    first.splice(1, 0, { type: 'usage', usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 } })
+    const second: StreamChunk[] = [
+      { type: 'block-end', index: 0, block: {
+        type: 'tool-call', id: ToolCallId('lookup-2'), name: 'lookup', arguments: '{}',
+      } },
+      { type: 'finish', reason: { kind: 'tool-calls' } },
+    ]
+    const state = registryFor([first, second, textRound('done', { inputTokens: 1, outputTokens: 1, totalTokens: 2 })])
+    let executed = 0
+    const lookup = defineTool({ name: 'lookup', description: 'Lookup.', parameters: { type: 'object' },
+      execute: () => { executed++; return { ok: true } } })
+    const session = defineAgent({ id: 'mixed-budget', provider: 'test', model: 'scripted', effort: 'low',
+      instructions: 'Lookup.', tools: [lookup], compaction: false }).createSession({
+      registry: state.registry, runtimeLimits: { maxTotalTokens },
+      usagePolicy: { onMissing: 'estimate', estimator: { id: 'mixed',
+        estimate: () => ({ inputTokens: 200, outputTokens: 20, totalTokens: 220 }) } },
+    })
+    const handle = session.stream('go')
+    await handle.result
+    const report = await handle.report
+    expect(executed).toBe(maxTotalTokens <= 330 ? 1 : 2)
+    expect(report.usage.authoritative).toBe(false)
+    expect(report.usage.estimated?.totalTokens).toBe(220)
+  })
+
   it('returns one canonical report from both handle.result and AgentResponse', async () => {
     const state = registryFor([textRound('done', { inputTokens: 4, outputTokens: 2, totalTokens: 6 })])
     const handle = sessionFor(state.registry).stream('go')

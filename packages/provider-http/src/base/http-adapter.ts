@@ -55,6 +55,7 @@ import { httpErrorCode, parseErrorBody, requestIdFrom, retryAfterMs } from './ht
 import {
   abortError,
   boundedResponseBody,
+  cancelResponseBody,
   catalogModelInfo,
   endpointUrl,
   positiveFinite,
@@ -450,7 +451,9 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     )
 
     let admissionFailure: { readonly value: unknown } | undefined
+    let ownedResponse: Response | undefined
     try {
+      signal.throwIfAborted()
       const preparedBody = await (wireBodyCache.prepared ??= this.prepareWireBody(
         request,
         maxRequestBytes,
@@ -497,6 +500,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       let attemptUsage: UsageCounters | undefined
       let attemptError: SafeErrorRecord | undefined
       try {
+        signal.throwIfAborted()
         try {
           attempt = await context?.startProviderAttempt?.({
             provider: options.provider,
@@ -508,15 +512,24 @@ export abstract class HttpModelAdapter extends ModelAdapter {
           admissionFailure = { value: error }
           throw error
         }
+        signal.throwIfAborted()
         dispatchState = 'unknown'
         const fetchImplementation = connection.fetch ?? globalThis.fetch
-        const response = await raceWithSignal(fetchImplementation(url, {
+        const pendingResponse = fetchImplementation(url, {
           method: 'POST',
           headers,
           body,
           signal,
           redirect: 'manual',
-        }), signal)
+        })
+        // Retain cleanup ownership even if an injected fetch ignores abort.
+        void pendingResponse.then(response => {
+          if (signal.aborted) return cancelResponseBody(response)
+          return undefined
+        }, () => undefined)
+        const response = await raceWithSignal(pendingResponse, signal)
+        ownedResponse = response
+        signal.throwIfAborted()
         dispatchState = 'sent'
         httpStatus = response.status
         providerRequestId = requestIdFrom(response.headers)
@@ -555,6 +568,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
           maxResponseBytes,
           maxResponseChunks,
           this.displayName,
+          signal,
         ), idleDeadline.activity, 30_000, {
           maxEvents: maxSseEvents,
           maxEventChars: maxSseEventChars,
@@ -619,6 +633,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       throw normalizeHttpBoundaryError(error, `${this.displayName} stream failed`)
     } finally {
       consumer.abort(new Error(`${this.displayName} stream consumer stopped`))
+      if (ownedResponse !== undefined) await cancelResponseBody(ownedResponse)
     }
   }
 
@@ -627,6 +642,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     maxRequestBytes: number,
     signal: AbortSignal,
   ): Promise<PreparedWireBody> {
+    signal.throwIfAborted()
     const value = await raceWithSignal(Promise.resolve(this.buildBody(request)), signal)
     const encoded = JSON.stringify(value)
     const bytes = new TextEncoder().encode(encoded).byteLength

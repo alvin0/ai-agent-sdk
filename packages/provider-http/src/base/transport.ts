@@ -16,6 +16,7 @@ export function boundedResponseBody(
   maxBytes: number,
   maxChunks: number,
   displayName: string,
+  signal?: AbortSignal,
 ): ReadableStream<Uint8Array> {
   let bytes = 0
   let chunks = 0
@@ -37,7 +38,7 @@ export function boundedResponseBody(
       }
       controller.enqueue(chunk)
     },
-  }))
+  }), signal === undefined ? undefined : { signal })
 }
 
 export async function readBoundedText(
@@ -91,7 +92,10 @@ export async function rejectProviderRedirect(response: Response, requestedUrl: s
 }
 
 export async function raceWithSignal<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) throw signal.reason ?? new Error('operation aborted')
+  if (signal.aborted) {
+    void pending.catch(() => undefined)
+    throw signal.reason ?? new Error('operation aborted')
+  }
   return await new Promise<T>((resolve, reject) => {
     const onAbort = () => {
       signal.removeEventListener('abort', onAbort)
@@ -109,6 +113,16 @@ export async function raceWithSignal<T>(pending: Promise<T>, signal: AbortSignal
       },
     )
   })
+}
+
+/** HTTP-specific ownership cleanup; generic Promise races must not dispose values. */
+export async function cancelResponseBody(response: Response): Promise<void> {
+  try {
+    if (response.body === null || response.body.locked) return
+    await waitForSettlement(Promise.resolve().then(() => response.body!.cancel()), 30_000)
+  } catch {
+    // Cleanup rejection must not replace the original transport failure.
+  }
 }
 
 export async function* withAbortSignal<T>(

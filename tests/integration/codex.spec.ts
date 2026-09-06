@@ -10,7 +10,7 @@
  * actually right.
  */
 
-import { describe, expect, it, onTestFinished } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { BlockAssembler } from '@ai-agent-sdk/core'
@@ -18,6 +18,7 @@ import type { StreamChunk } from '@ai-agent-sdk/core'
 import { createTextMessage } from '@ai-agent-sdk/core'
 import { ReasoningEffortId } from '@ai-agent-sdk/core'
 import { ModelRegistry } from '@ai-agent-sdk/core'
+import { withRetry } from '@ai-agent-sdk/core'
 import { codexNodeAdapter as codexAdapter, fileCodexAuthStore } from '@ai-agent-sdk/auth-node/codex'
 import {
   MemoryObservationExporter,
@@ -80,6 +81,80 @@ function registry(observation?: Observability): ModelRegistry {
 }
 
 describe.skipIf(!signedIn)('codex provider (live)', () => {
+  it('finalizes an actual provider attempt when the consumer stops at its first text delta', async () => {
+    const instance = new ModelRegistry()
+    instance.registerAdapter([PROVIDER], withRetry(codexAdapter({
+      authStore: fileCodexAuthStore(undefined, { cwd: process.cwd(), env: process.env }),
+    }), { policy: { mode: 'normal', maxRetries: 0 } }))
+    const handle = instance.stream({ provider: PROVIDER, model: MODEL,
+      messages: [createTextMessage('Reply with the numbers one to ten in words.')],
+      signal: AbortSignal.timeout(30_000),
+    })
+    let stopped = false
+    for await (const chunk of handle) {
+      if (chunk.type === 'text-delta') { stopped = true; break }
+    }
+    expect(stopped).toBe(true)
+    const report = await handle.report
+    expect(report.status).toBe('aborted')
+    expect(report.attempts.length).toBeGreaterThan(0)
+    expect(report.attempts.every(attempt => typeof attempt.endedAt === 'string')).toBe(true)
+    expect(report.authoritative).toBe(false)
+  })
+
+  it('cancels a real provider response delivered late by an abort-ignoring custom fetch', async () => {
+    let ready!: (status: number) => void, release!: () => void
+    const headersReady = new Promise<number>(resolve => { ready = resolve })
+    const released = new Promise<void>(resolve => { release = resolve })
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+    let cancellations = 0
+    const caller = new AbortController()
+    const instance = new ModelRegistry()
+    instance.registerAdapter([PROVIDER], codexAdapter({
+      authStore: fileCodexAuthStore(undefined, { cwd: process.cwd(), env: process.env }),
+      models: [{ id: MODEL }],
+      fetch: async (input, init) => {
+        const response = await fetch(input, { ...init, signal: AbortSignal.timeout(30_000) })
+        if (response.body === null) throw new Error('live provider returned no body')
+        reader = response.body.getReader()
+        const body = new ReadableStream<Uint8Array>({
+          async pull(controller) {
+            const next = await reader!.read()
+            if (next.done) controller.close()
+            else controller.enqueue(next.value)
+          },
+          async cancel(reason) { cancellations++; await reader!.cancel(reason) },
+        })
+        ready(response.status)
+        await released
+        return new Response(body, { status: response.status, headers: response.headers })
+      },
+    }))
+    const handle = instance.stream({ provider: PROVIDER, model: MODEL,
+      messages: [createTextMessage(PROMPT)], signal: caller.signal })
+    const consuming = collect(handle)
+    void consuming.catch(() => undefined)
+    try {
+      const status = await Promise.race([
+        headersReady,
+        consuming.then(() => { throw new Error('live request ended before response headers') }),
+      ])
+      expect(status).toBe(200)
+      caller.abort(new Error('live ownership probe'))
+      await consuming
+      const report = await handle.report
+      expect(report.status).toBe('aborted')
+      expect(report.authoritative).toBe(false)
+      release()
+      await vi.waitFor(() => expect(cancellations).toBe(1), { timeout: 5_000 })
+    } finally {
+      caller.abort()
+      release()
+      await reader?.cancel().catch(() => undefined)
+      await consuming.catch(() => undefined)
+    }
+  })
+
   it('discovers the account model catalog', async () => {
     const models = await registry().listModels(PROVIDER)
     expect(models.length).toBeGreaterThan(0)
