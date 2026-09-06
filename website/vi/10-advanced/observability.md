@@ -166,6 +166,20 @@ không thể biết chính xác việc tính tiền từ phản hồi.
 
 ### Contribution ngân sách và các attempt partial
 
+`usagePolicy.estimateTimeoutMs` giới hạn estimator bất đồng bộ, độc lập với
+`modelTimeoutMs` (mặc định 30.000ms; số nguyên dương tối đa 2.147.483.647).
+Callback nhận `input.signal`, bị hủy khi caller abort, ledger đóng hoặc hết hạn.
+SDK lưu evidence provider/attempt trước khi gọi estimator. Timeout, rejection
+hoặc counters không hợp lệ chặn request tiếp theo bằng `USAGE_REQUIRED`; usage
+chưa biết không được đổi thành zero. Kết quả đến muộn không sửa report đã seal.
+SDK không thể cưỡng chế ngắt callback đồng bộ đang khóa JavaScript thread;
+estimator phải hợp tác và không được dùng busy loop.
+
+Mọi continuation—retry hook, structured finalizer và `onTurnEnd`—đều tuân thủ
+token cap đã biết và required-usage policy. Finalizer có thể được thêm một step,
+không được thêm token budget. Request đang chạy vẫn có thể vượt cap; guard chặn
+công việc tiếp theo, không thu hồi token provider đã sinh.
+
 `budgetTokens` là phép chiếu tùy chọn để kiểm tra ngân sách, không phải tổng
 hóa đơn. SDK ghép bucket reported với estimate cho bucket thiếu trong từng
 logical call, rồi mới cộng các contribution. Bucket reported của call này

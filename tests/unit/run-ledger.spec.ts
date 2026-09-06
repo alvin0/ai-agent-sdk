@@ -37,6 +37,62 @@ function ledger(overrides: Partial<ConstructorParameters<typeof RunLedger>[0]> =
 const request = { provider: 'fixture', model: 'model', messages: [] } as const
 
 describe('canonical agent run ledger', () => {
+  it('charges estimation projection overhead while preserving raw evidence at the ledger limit', async () => {
+    const raw = call({ coverage: 'partial', reported: { inputTokens: 7 }, authoritative: false })
+    const estimated = { outputTokens: 3, totalTokens: 10 }
+    const state = ledger({
+      limits: { maxSerializedBytes: new TextEncoder().encode(JSON.stringify(raw)).byteLength
+        + new TextEncoder().encode(JSON.stringify(estimated)).byteLength },
+      usagePolicy: { onMissing: 'estimate', estimator: { id: 'bounded', estimate: () => estimated } },
+    })
+    await expect(state.recordModelCall(raw, request)).rejects.toMatchObject({ code: 'LEDGER_LIMIT_EXCEEDED' })
+    const final = await state.finalize('error', false)
+    expect(final.modelCalls[0]?.reported).toEqual({ inputTokens: 7 })
+    expect(final.modelCalls[0]?.estimated).toBeUndefined()
+  })
+
+  it.each(['resolve', 'reject'] as const)('seal retains raw evidence and ignores late estimator %s', async action => {
+    let resolve!: (value: { totalTokens: number }) => void
+    let reject!: (error: Error) => void
+    const pending = new Promise<{ totalTokens: number }>((done, fail) => { resolve = done; reject = fail })
+    let entered!: () => void
+    const ready = new Promise<void>(done => { entered = done })
+    const state = ledger({ usagePolicy: { onMissing: 'estimate', estimator: {
+      id: 'late', estimate: () => { entered(); return pending },
+    } } })
+    const raw = call({ coverage: 'partial', reported: { inputTokens: 7 }, authoritative: false })
+    const recording = state.recordModelCall(raw, request)
+    await ready
+    const sealed = await state.finalize('aborted', false)
+    expect(sealed.modelCalls[0]?.reported).toEqual({ inputTokens: 7 })
+    expect(sealed.usage.authoritative).toBe(false)
+    expect(await recording).toMatchObject({ usageRequired: true })
+    const snapshot = JSON.stringify(sealed)
+    if (action === 'resolve') resolve({ totalTokens: 99 })
+    else reject(new Error('late failure must be observed'))
+    await new Promise(done => setTimeout(done, 0))
+    expect(JSON.stringify(await state.finalize('success', true))).toBe(snapshot)
+  })
+
+  it.each([
+    () => { throw new Error('sync') },
+    () => Promise.reject(new Error('async')),
+    () => ({ totalTokens: -1 }),
+    () => ({}),
+  ])('retains raw usage on invalid estimation %#', async estimate => {
+    const state = ledger({ usagePolicy: { onMissing: 'estimate', estimator: { id: 'bad', estimate } } })
+    const decision = await state.recordModelCall(call({ coverage: 'partial', reported: { inputTokens: 7 }, authoritative: false }), request)
+    expect(decision.usageRequired).toBe(true)
+    const final = await state.finalize('error', false)
+    expect(final.modelCalls[0]?.reported).toEqual({ inputTokens: 7 })
+    expect(final.modelCalls[0]?.estimated).toBeUndefined()
+    expect(final.errors).toContainEqual(expect.objectContaining({ code: 'USAGE_REQUIRED' }))
+  })
+
+  it.each([0, -1, Infinity, NaN, 0.5, 2_147_483_648])('rejects invalid estimation deadline %s', estimateTimeoutMs => {
+    expect(() => ledger({ usagePolicy: { estimateTimeoutMs } })).toThrow()
+  })
+
   it('aggregates complete usage without double-counting reasoning tokens', async () => {
     const state = ledger()
     await state.recordModelCall(call(), request)

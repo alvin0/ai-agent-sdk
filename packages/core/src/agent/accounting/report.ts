@@ -57,6 +57,8 @@ export interface LegacyRunReport {
 export interface UsagePolicy {
   readonly onMissing?: 'warn' | 'estimate' | 'fail'
   readonly estimator?: UsageEstimator
+  /** Separate post-response deadline, defaults to 30,000ms. Cancellation wins. */
+  readonly estimateTimeoutMs?: number
 }
 
 export interface UsageEstimator {
@@ -66,6 +68,8 @@ export interface UsageEstimator {
 
 /** Local-only estimator input. It is never retained in the ledger or exported. */
 export interface UsageEstimationInput {
+  /** Aborted on caller cancellation, ledger closure, or the estimation deadline. */
+  readonly signal: AbortSignal
   readonly runId: string
   readonly modelCallId: string
   readonly provider: string

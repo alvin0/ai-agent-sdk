@@ -314,6 +314,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
         throw runtimeFailure(undefined, final, final.errors.at(-1)?.code ?? 'AGENT_RUN_FAILED')
       }
       return Object.freeze({ runId: final.runId, traceId: final.traceId,
+        completed: response.outcome.completed, stopReason: response.outcome.reason.kind,
         text: response.text, usage: final.usage, report: final })
     } catch (error) {
       const final = await report

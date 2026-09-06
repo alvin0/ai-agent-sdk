@@ -217,7 +217,7 @@ export async function modelRound(
     const report = await handle.report
     const decision = options.accounting === undefined
       ? undefined
-      : await options.accounting.recordModelCall(report, requestBase)
+      : await options.accounting.recordModelCall(report, { ...requestBase, signal })
     modelCallReport = decision?.report ?? report
     usageRequired = decision?.usageRequired ?? false
     usageUnavailable = decision?.usageUnavailable ?? false

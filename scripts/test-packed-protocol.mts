@@ -102,16 +102,19 @@ async function testBrowser(consumer: string): Promise<void> {
 }
 
 async function testWorker(consumer: string): Promise<void> {
-  const port = await availablePort()
   const wrangler = join(workspaceRoot, 'node_modules', '.bin', 'wrangler')
   const child = spawn(wrangler, [
-    'dev', '--config', 'wrangler.jsonc', '--ip', '127.0.0.1', '--port', String(port),
-  ], { cwd: consumer, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
+    'dev', '--local', '--config', 'wrangler.jsonc', '--ip', '127.0.0.1', '--port', '0', '--inspector-port', '0',
+  ], { cwd: consumer, env: process.env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
   let output = ''
   child.stdout?.on('data', chunk => { output = `${output}${String(chunk)}`.slice(-16_384) })
   child.stderr?.on('data', chunk => { output = `${output}${String(chunk)}`.slice(-16_384) })
   try {
-    const response = await poll(`http://127.0.0.1:${port}`, child)
+    // Let the server retain its OS-assigned port. Read readiness from this child,
+    // never probe an unreserved port that may belong to another process.
+    const port = await readyPort(child)
+    const response = await fetch(`http://127.0.0.1:${port}`, { signal: AbortSignal.timeout(20_000) })
+    if (!response.ok) throw new Error(`Worker fixture returned HTTP ${response.status}`)
     assertFixture(await response.json(), 'worker')
   } catch (error) {
     throw new Error(`Worker packed fixture failed\n${output}`, { cause: error })
@@ -134,37 +137,45 @@ function assertFixture(value: unknown, runtime: string): void {
   }
 }
 
-async function availablePort(): Promise<number> {
-  const server = createServer()
-  await new Promise<void>((resolvePromise, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolvePromise)
+async function readyPort(child: ChildProcess): Promise<number> {
+  return await new Promise((resolvePromise, reject) => {
+    const finish = (error?: Error, port?: number) => {
+      clearTimeout(timer)
+      child.off('message', message)
+      child.off('error', failed)
+      child.off('exit', exited)
+      if (error) reject(error)
+      else resolvePromise(port!)
+    }
+    const failed = (error: Error) => finish(error)
+    const exited = () => finish(new Error('wrangler exited before readiness'))
+    const message = (raw: unknown) => {
+      let value: { event?: unknown; ip?: unknown; port?: unknown }
+      try { value = typeof raw === 'string' ? JSON.parse(raw) : raw as typeof value }
+      catch { return }
+      if (value?.event !== 'DEV_SERVER_READY') return
+      if (value.ip !== '127.0.0.1' || typeof value.port !== 'number'
+        || !Number.isInteger(value.port) || value.port < 1 || value.port > 65535) {
+        finish(new Error('wrangler sent invalid readiness evidence'))
+      } else finish(undefined, value.port)
+    }
+    const timer = setTimeout(() => finish(new Error('wrangler did not become ready within 20 seconds')), 20_000)
+    child.on('message', message)
+    child.once('error', failed)
+    child.once('exit', exited)
   })
-  const address = server.address()
-  if (!address || typeof address === 'string') throw new Error('could not allocate fixture port')
-  await new Promise<void>(resolvePromise => server.close(() => resolvePromise()))
-  return address.port
-}
-
-async function poll(url: string, child: ChildProcess): Promise<Response> {
-  const deadline = Date.now() + 20_000
-  while (Date.now() < deadline) {
-    if (child.exitCode !== null) throw new Error(`wrangler exited with ${child.exitCode}`)
-    try {
-      const response = await fetch(url)
-      if (response.ok) return response
-    } catch { /* server is still starting */ }
-    await new Promise(resolvePromise => setTimeout(resolvePromise, 100))
-  }
-  throw new Error('wrangler did not become ready within 20 seconds')
 }
 
 async function stop(child: ChildProcess): Promise<void> {
-  if (child.exitCode !== null) return
-  child.kill('SIGTERM')
-  await Promise.race([
-    new Promise<void>(resolvePromise => child.once('exit', () => resolvePromise())),
-    new Promise<void>(resolvePromise => setTimeout(resolvePromise, 5_000)),
-  ])
-  if (child.exitCode === null) child.kill('SIGKILL')
+  if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) return
+  await new Promise<void>((resolvePromise, reject) => {
+    const finish = () => { clearTimeout(kill); clearTimeout(deadline); resolvePromise() }
+    child.once('close', finish)
+    const kill = setTimeout(() => child.kill('SIGKILL'), 5_000)
+    const deadline = setTimeout(() => {
+      child.off('close', finish)
+      reject(new Error('wrangler did not close after SIGKILL'))
+    }, 10_000)
+    child.kill('SIGTERM')
+  })
 }

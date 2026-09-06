@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { overflowEvidence } from './shared/overflow.js'
+import { logicReviewEvidence } from './shared/logic-review.js'
 
 const savedBuffer = globalThis.Buffer
 const savedProcess = globalThis.process
@@ -11,6 +12,7 @@ try {
   assert.equal(typeof globalThis.process, 'undefined')
   assert.match(sdk.createTraceId(), /^[0-9a-f]{32}$/)
   assert.equal((await overflowEvidence(sdk)).settled, true)
+  assert.equal((await logicReviewEvidence(sdk)).cancellation, true)
   const span = sdk.createCoreSpan({
     name: 'sdk.model.call',
     runId: 'standards-run',

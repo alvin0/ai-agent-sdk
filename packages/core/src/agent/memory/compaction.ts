@@ -609,7 +609,10 @@ function modelTimeoutError(timeoutMs: number, cause: unknown): Error & { code: s
 }
 
 async function raceWithSignal<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) throw signal.reason ?? new Error('operation aborted')
+  if (signal.aborted) {
+    void pending.catch(() => undefined)
+    throw signal.reason ?? new Error('operation aborted')
+  }
   return await new Promise<T>((resolve, reject) => {
     const onAbort = () => {
       signal.removeEventListener('abort', onAbort)

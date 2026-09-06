@@ -59,6 +59,11 @@ export function captureUsagePolicy(value: unknown): UsagePolicy | undefined {
     throw new TypeError('Runtime usage policy is invalid')
   }
   const estimatorValue = ownData(source, 'estimator', false)
+  const estimateTimeoutMs = ownData(source, 'estimateTimeoutMs', false)
+  if (estimateTimeoutMs !== undefined && (typeof estimateTimeoutMs !== 'number'
+    || !Number.isSafeInteger(estimateTimeoutMs) || estimateTimeoutMs < 1 || estimateTimeoutMs > 2_147_483_647)) {
+    throw new TypeError('Runtime usage estimateTimeoutMs is invalid')
+  }
   let estimator: UsageEstimator | undefined
   if (estimatorValue !== undefined) {
     const estimatorSource = objectValue(estimatorValue)
@@ -69,6 +74,7 @@ export function captureUsagePolicy(value: unknown): UsagePolicy | undefined {
     estimator = Object.freeze({ id, estimate })
   }
   return Object.freeze({ ...(onMissing === undefined ? {} : { onMissing }),
+    ...(estimateTimeoutMs === undefined ? {} : { estimateTimeoutMs }),
     ...(estimator === undefined ? {} : { estimator }) }) as UsagePolicy
 }
 

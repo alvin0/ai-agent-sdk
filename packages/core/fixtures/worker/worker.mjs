@@ -1,4 +1,5 @@
 import { overflowEvidence } from './shared/overflow.js'
+import { logicReviewEvidence } from './shared/logic-review.js'
 import { providerTopologyEvidence } from './shared/provider-topology.js'
 
 export default {
@@ -26,6 +27,7 @@ export default {
       buffer: typeof globalThis.Buffer,
       process: typeof globalThis.process,
       overflow: await overflowEvidence({ ModelAdapter, ModelRegistry }),
+      logic: await logicReviewEvidence({ ModelAdapter, createAgentRuntime }),
       topology: await providerTopologyEvidence({ ModelAdapter, createAgentRuntime }),
     })
   },

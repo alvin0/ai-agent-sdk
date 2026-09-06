@@ -85,6 +85,17 @@ async function driveTurn(
     data: { turn, model: options.config.model },
   })
   let turnOperationEnded = false
+  let usageStop: TurnOutcome['reason'] | undefined
+  // Shared by retries, hook continuations, and both finalizer paths. Finalizers
+  // may have a separate step allowance, never a separate token allowance.
+  const admissionStop = (): TurnOutcome['reason'] | undefined => {
+    if (signal.aborted) return { kind: 'aborted' }
+    if (usageStop !== undefined) return usageStop
+    const tokens = budgetTokenTotal(summarizeModelCallUsage(modelCallReports))
+    return tokens !== undefined && tokens >= bounds.maxTotalTokens
+      ? { kind: 'budget-exhausted', budget: 'tokens', forcedFinalAnswer: false }
+      : undefined
+  }
 
   try {
   await emit({
@@ -105,6 +116,8 @@ async function driveTurn(
 
   turnLifecycle: while (true) {
   while (reason === undefined && steps < bounds.maxSteps && !signal.aborted) {
+    reason = admissionStop()
+    if (reason !== undefined) break
     const step = steps + 1
     const round = await modelRound(
       options, signal, emit, emitMaintenance, root, turn, step,
@@ -124,8 +137,22 @@ async function driveTurn(
       await emitAssistantContent(round, emit)
       text = textOf(round.message.content)
     }
-    if (round.finish.kind === 'aborted') { reason = { kind: 'aborted' }; break }
-    if (round.finish.kind === 'error') {
+    usageStop = round.usageRequired
+      ? { kind: 'error', failure: { message: 'provider usage is required by the configured run policy', code: 'USAGE_REQUIRED' } }
+      : round.usageUnavailable
+        ? { kind: 'usage-unavailable', modelCallId: round.report?.modelCallId ?? 'unknown' }
+        : undefined
+    if (signal.aborted || round.finish.kind === 'aborted') { reason = { kind: 'aborted' }; break }
+    // Pair emitted tool calls with declined results even when policy stops the
+    // run; never execute those calls or allow a retry hook to override policy.
+    if (round.finish.kind === 'error' && usageStop !== undefined) {
+      reason = { kind: 'error', failure: round.finish.failure }
+      break
+    }
+    if (round.usageRequired && (round.calls.length === 0 || options.tools === undefined)) { reason = usageStop; break }
+    if (round.finish.kind === 'error' && !round.usageRequired) {
+      reason = admissionStop()
+      if (reason !== undefined) break
       const decision = await runOptionalHook(options.hooks?.onRequestError, [{
         turn, step, failure: round.finish.failure, snapshot: options.history.snapshot(), signal,
         ...(options.logger === undefined ? {} : { logger: options.logger }),
@@ -135,19 +162,14 @@ async function driveTurn(
       reason = { kind: 'error', failure: round.finish.failure }
       break
     }
-    if (round.usageRequired) {
-      reason = { kind: 'error', failure: {
-        message: 'provider usage is required by the configured run policy',
-        code: 'USAGE_REQUIRED',
-      } }
-      break
-    }
-    if (round.finish.kind === 'max-tokens') { reason = { kind: 'max-tokens' }; break }
+    if (round.finish.kind === 'max-tokens' && !round.usageRequired) { reason = { kind: 'max-tokens' }; break }
     if (round.calls.length === 0 && round.usageUnavailable) {
       reason = { kind: 'usage-unavailable', modelCallId: round.report?.modelCallId ?? 'unknown' }
       break
     }
     if (round.calls.length === 0 && dedicatedFinalOutput) {
+      reason = admissionStop()
+      if (reason !== undefined) break
       options.history.append({ kind: 'user', message: createUserMessage({
         source: { kind: 'app', producer: 'structured-output-finalizer' },
         content: [{
@@ -203,7 +225,7 @@ async function driveTurn(
     const budgetTokens = budgetTokenTotal(currentUsage)
     const tokenLimitBeforeDispatch = budgetTokens !== undefined
       && budgetTokens >= bounds.maxTotalTokens
-    const guardDeclined = repeatedLimitBeforeDispatch || cycleLimitBeforeDispatch || tokenLimitBeforeDispatch
+    const guardDeclined = repeatedLimitBeforeDispatch || cycleLimitBeforeDispatch || tokenLimitBeforeDispatch || round.usageRequired
     const scheduled = await runToolCalls({
       calls: round.calls, catalog: options.tools, history: options.history,
       position: { turn, step }, signal, parentTrace: root,
@@ -266,6 +288,7 @@ async function driveTurn(
     }
     if (scheduled.concluded) { reason = { kind: 'concluded-by-tool', toolName: scheduled.concludedBy ?? 'unknown' }; break }
     if (signal.aborted) { reason = { kind: 'aborted' }; break }
+    if (round.usageRequired) { reason = usageStop; break }
     if (round.usageUnavailable) {
       reason = { kind: 'usage-unavailable', modelCallId: round.report?.modelCallId ?? 'unknown' }
       break
@@ -280,7 +303,7 @@ async function driveTurn(
     if (exhausted !== undefined) {
       const forced = exhausted !== 'tokens'
         && bounds.onExhausted === 'force-final-answer'
-        && !signal.aborted
+        && admissionStop() === undefined
       if (forced) {
         const final = await modelRound(
           options, signal, emit, emitMaintenance, root, turn, steps + 1, 'forced-final',
@@ -335,7 +358,7 @@ async function driveTurn(
   const entriesBeforeHook = options.history.entries().length
   const canContinue = reason.kind === 'completed'
     && steps < bounds.maxSteps
-    && !signal.aborted
+    && admissionStop() === undefined
   await runOptionalHook(options.hooks?.onTurnEnd, [{
     outcome: candidate,
     snapshot: options.history.snapshot(),

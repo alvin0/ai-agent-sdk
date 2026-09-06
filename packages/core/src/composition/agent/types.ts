@@ -104,6 +104,10 @@ export type RuntimeAgentRunEvent = RuntimeAgentRunEventContext & (
 )
 
 export interface RuntimeAgentResponse {
+  /** Objective completion, independent of report.status (execution status). */
+  readonly completed: boolean
+  /** Terminal control-flow reason; deep mode can stop without an accepted submission. */
+  readonly stopReason: import('../../agent/loop/types.ts').TurnEndReason['kind']
   readonly runId: string
   readonly traceId: string
   readonly text: string

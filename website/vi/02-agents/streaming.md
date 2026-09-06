@@ -1,5 +1,13 @@
 # Streaming
 
+`response.completed` cho biết mục tiêu đã hoàn tất; `response.stopReason` là lý
+do dừng (`completed`, `concluded-by-tool`, `budget-exhausted`, `max-tokens` hoặc
+`usage-unavailable` khi execution thành công). Không đánh dấu job nghiệp vụ done
+chỉ vì Promise resolve hoặc `report.status === 'success'`. Deep mode còn cần
+completion submission được chấp nhận nên riêng `stopReason === 'completed'`
+chưa đủ. Khi cancel hoặc execution lỗi, composition result reject; đọc terminal
+report từ error hoặc `handle.report`, không chờ một response thành công.
+
 Streaming là con đường duy nhất đi qua SDK. `generate()` rút cạn đúng luồng mà
 `stream()` phơi ra — không có lời gọi không-streaming riêng để có thể trôi lệch.
 

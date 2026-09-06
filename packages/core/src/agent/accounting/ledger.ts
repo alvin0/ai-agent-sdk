@@ -18,6 +18,7 @@ import type {
   LegacyRunReport, RunLedgerLimits, RunOperationCounts, TrackedOperationKind, UsagePolicy,
 } from './report.ts'
 import { aggregateUsage, missingCounters } from './usage.ts'
+import { estimateUsage } from './estimate.ts'
 import { accountingError } from './common.ts'
 import { OPERATION_KINDS } from './config.ts'
 import type { SdkLogger } from '../../logging/types.ts'
@@ -110,7 +111,8 @@ export class RunLedger implements RunAccountingPort {
   private readonly startedMonotonic = this.scope.monotonicMs()
   private readonly tracker: DeliveryTracker = { accepted: 0, rejected: 0, pending: 0, reached: 'none' }
   private readonly limits: ResolvedLimits
-  private readonly usagePolicy: Required<Pick<UsagePolicy, 'onMissing'>> & Pick<UsagePolicy, 'estimator'>
+  private readonly usagePolicy: Required<Pick<UsagePolicy, 'onMissing' | 'estimateTimeoutMs'>> & Pick<UsagePolicy, 'estimator'>
+  private readonly estimationClosed = new AbortController()
   private readonly cumulativeTokenBudget: boolean
   private readonly defectMode: 'production' | 'test'
   private readonly operations = new Map<string, MutableOperation>()
@@ -238,6 +240,13 @@ export class RunLedger implements RunAccountingPort {
       this.limit(`model call '${report.modelCallId}' exceeded ${this.limits.maxAttemptsPerCall} attempts`)
     }
 
+    // Reserve identity and retain provider evidence before calling user code.
+    this.charge(report)
+    this.modelCalls.set(report.modelCallId, report)
+    mergeDelivery(this.tracker, report.delivery)
+    const policyErrorIndex = this.errors.length
+    if (report.error !== undefined) this.errors.push(report.error)
+    for (const attempt of report.attempts) if (attempt.error !== undefined) this.errors.push(attempt.error)
     let accepted = report
     let usageRequired = false
     const incomplete = report.coverage === 'missing' || report.coverage === 'partial'
@@ -245,14 +254,15 @@ export class RunLedger implements RunAccountingPort {
       try {
         const estimator = this.usagePolicy.estimator
         if (estimator === undefined) throw new TypeError('estimate usage policy requires an estimator')
-        const raw = await estimator.estimate({
+        const raw = await estimateUsage(estimator, {
           runId: this.runId,
           modelCallId: report.modelCallId,
           provider: report.provider,
           model: report.model,
           request,
           report,
-        })
+        }, this.estimationClosed.signal, this.usagePolicy.estimateTimeoutMs)
+        if (this.closed) return { report, usageRequired: true, usageUnavailable: false }
         const validation = validateUsageCounters(raw)
         if (validation.invalidFields.length > 0 || validation.overflow || !hasUsageCounters(validation.reported)) {
           throw new TypeError('usage estimator returned invalid or empty counters')
@@ -266,8 +276,9 @@ export class RunLedger implements RunAccountingPort {
           authoritative: false,
         })
       } catch (estimatorError) {
+        if (this.closed) return { report, usageRequired: true, usageUnavailable: false }
         usageRequired = true
-        this.errors.push(accountingError(
+        this.errors.splice(policyErrorIndex, 0, accountingError(
           'usage estimation failed after a provider response',
           OBSERVATION_ERROR_CODES.USAGE_REQUIRED,
           estimatorError,
@@ -275,22 +286,23 @@ export class RunLedger implements RunAccountingPort {
       }
     } else if (incomplete && this.usagePolicy.onMissing === 'fail') {
       usageRequired = true
-      this.errors.push(accountingError(
+      this.errors.splice(policyErrorIndex, 0, accountingError(
         'provider usage is required by the configured run policy',
         OBSERVATION_ERROR_CODES.USAGE_REQUIRED,
       ))
     } else if (incomplete && report.error?.code !== OBSERVATION_ERROR_CODES.USAGE_MISSING) {
-      this.errors.push(accountingError(
+      this.errors.splice(policyErrorIndex, 0, accountingError(
         'model call completed without authoritative provider usage',
         OBSERVATION_ERROR_CODES.USAGE_MISSING,
       ))
     }
 
-    this.charge(accepted)
+    // Conservatively charge the added projection including its field names and
+    // changed coverage, not just the counter values inside `estimated`.
+    if (accepted !== report) this.charge({
+      estimated: accepted.estimated, coverage: accepted.coverage, authoritative: false,
+    })
     this.modelCalls.set(accepted.modelCallId, accepted)
-    mergeDelivery(this.tracker, accepted.delivery)
-    if (accepted.error !== undefined) this.errors.push(accepted.error)
-    for (const attempt of accepted.attempts) if (attempt.error !== undefined) this.errors.push(attempt.error)
     return Object.freeze({
       report: accepted,
       usageRequired,
@@ -315,6 +327,7 @@ export class RunLedger implements RunAccountingPort {
 
   private async finalizeOnce(status: OperationStatus, completed: boolean, error?: unknown): Promise<LegacyRunReport> {
     this.closed = true
+    this.estimationClosed.abort(new Error('run ledger closed'))
     if (error !== undefined) this.errors.push(safeErrorRecord(error))
     this.closeOpenOperations()
     const finalStatus: OperationStatus = this.integrityUnknown ? 'unknown' : status
@@ -487,7 +500,9 @@ function resolveUsagePolicy(input: UsagePolicy | undefined): RunLedger['usagePol
       throw new TypeError('estimate usage policy requires an estimator with a non-empty id')
     }
   }
-  return Object.freeze({ onMissing, ...(input?.estimator === undefined ? {} : { estimator: input.estimator }) })
+  const estimateTimeoutMs = positive(input?.estimateTimeoutMs ?? 30_000, 'estimateTimeoutMs')
+  if (estimateTimeoutMs > 2_147_483_647) throw new RangeError('estimateTimeoutMs exceeds the timer range')
+  return Object.freeze({ onMissing, estimateTimeoutMs, ...(input?.estimator === undefined ? {} : { estimator: input.estimator }) })
 }
 
 function observationMode(port: ObservationPort, tracker: DeliveryTracker): DeliveryMode {

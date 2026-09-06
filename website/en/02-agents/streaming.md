@@ -5,6 +5,15 @@ Streaming is the only path through the SDK. `generate()` drains the same stream
 
 ## The run handle
 
+`response.completed` indicates objective completion; `response.stopReason`
+exposes the terminal reason (`completed`, `concluded-by-tool`,
+`budget-exhausted`, `max-tokens`, or `usage-unavailable` for successful execution).
+Do not mark a business job done merely because the promise resolved or
+`report.status === 'success'`. Deep mode additionally requires an accepted
+completion submission, so `stopReason === 'completed'` alone is insufficient.
+Cancellation and execution errors reject the composition result; inspect the
+terminal report on the error or `handle.report` instead of expecting a response.
+
 ```ts
 const handle = agent.stream('Investigate the failure and summarise it.')
 

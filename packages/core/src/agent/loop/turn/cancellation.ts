@@ -10,7 +10,10 @@ export async function nextWithAbort<T>(
   pending: Promise<IteratorResult<T>>,
   signal: AbortSignal,
 ): Promise<IteratorResult<T>> {
-  if (signal.aborted) throw new StreamAbortError(signal.reason)
+  if (signal.aborted) {
+    void pending.catch(() => undefined)
+    throw new StreamAbortError(signal.reason)
+  }
   return await new Promise<IteratorResult<T>>((resolve, reject) => {
     const onAbort = () => {
       signal.removeEventListener('abort', onAbort)
@@ -36,7 +39,10 @@ export async function closeIterator<T>(iterator: AsyncIterator<T>, timeoutMs: nu
   return await waitForSettlement(closing, timeoutMs)
 }
 export async function nextValueWithAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) throw new StreamAbortError(signal.reason)
+  if (signal.aborted) {
+    void pending.catch(() => undefined)
+    throw new StreamAbortError(signal.reason)
+  }
   return await new Promise<T>((resolve, reject) => {
     const abort = () => {
       signal.removeEventListener('abort', abort)
