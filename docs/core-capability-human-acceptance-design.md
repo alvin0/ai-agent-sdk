@@ -330,7 +330,7 @@ pass.
 
 ## 6. Package selection gate
 
-[`../test-human/package-topology.json`](../test-human/package-topology.json)
+`../test-human/package-topology.json`
 records both the current direct import graph and target graph. The checker must:
 
 - derive current scoped imports from source rather than trusting documentation;

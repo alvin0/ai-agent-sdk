@@ -4,7 +4,8 @@
 
 | Mục tiêu | Yêu cầu |
 | --- | --- |
-| Công cụ workspace và package năng lực Node | Node **22.12** trở lên |
+| Công cụ workspace | Node **22.18** trở lên |
+| Package năng lực Node đã cài | Node **22.12** trở lên |
 | Package Universal | Bất kỳ runtime dạng Fetch: Edge/Worker, Deno, Bun, trình duyệt, Node |
 | Ngôn ngữ | TypeScript với `moduleResolution: "bundler"` hoặc `"nodenext"` |
 

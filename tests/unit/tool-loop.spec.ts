@@ -7,6 +7,8 @@ import { createApprovalBroker, fixedApprovalBroker } from '@ai-agent-sdk/core/ag
 import { defineTool } from '@ai-agent-sdk/core/agent'
 import { ToolError } from '@ai-agent-sdk/core/agent'
 import { ToolRegistry } from '@ai-agent-sdk/core/agent'
+import { runToolCalls } from '@ai-agent-sdk/core/agent'
+import { createSpanId, createTraceId } from '../../packages/core/src/agent/trace/trace.ts'
 import { buildTraceTree, type TraceEvent } from '@ai-agent-sdk/core/agent'
 import { ModelAdapter } from '@ai-agent-sdk/core'
 import type { GenerateOptions } from '@ai-agent-sdk/core'
@@ -115,6 +117,87 @@ async function setup(rounds: readonly (readonly StreamChunk[])[]) {
   }))
   return { adapter, registry, history, tools }
 }
+
+describe('runToolCalls ownership', () => {
+  it('observes a fatal sibling while another sibling is parked for approval', async () => {
+    const tools = new ToolRegistry()
+    tools.register(defineTool({
+      name: 'fatal', description: 'Reject fatally.', parameters: { type: 'object' },
+      isConcurrencySafe: () => true,
+      execute: () => { throw ToolError.fatal('FATAL_WHILE_PARKED', 'FATAL_WHILE_PARKED') },
+    }))
+    tools.register(defineTool({
+      name: 'parked', description: 'Wait for approval.', parameters: { type: 'object' },
+      isConcurrencySafe: () => true, execute: () => ({ ok: true }),
+    }))
+    const approvals = createApprovalBroker()
+    const parentTrace = {
+      traceId: createTraceId(), spanId: createSpanId(), parentSpanId: null,
+    } as unknown as Parameters<typeof runToolCalls>[0]['parentTrace']
+    const pending = runToolCalls({
+      calls: [
+        { callId: ToolCallId('fatal-call'), toolName: 'fatal', rawArguments: '{}' },
+        { callId: ToolCallId('parked-call'), toolName: 'parked', rawArguments: '{}' },
+      ],
+      catalog: tools, history: new History(), position: { turn: 1, step: 1 },
+      signal: new AbortController().signal, parentTrace, maxParallel: 2, approvals,
+      interceptors: [{ name: 'approval', before: async call =>
+        call.toolName === 'parked' ? { kind: 'ask' } : { kind: 'allow' } }],
+    })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(approvals.resolve(ToolCallId('parked-call'), 'allow')).toBe(true)
+    await expect(pending).rejects.toMatchObject({ code: 'FATAL_WHILE_PARKED' })
+  })
+
+  it('drains an already-dispatched sibling when later admission fails', async () => {
+    const tools = new ToolRegistry()
+    let release!: () => void
+    const gate = new Promise<void>(resolve => { release = resolve })
+    let started = false
+    let finished = false
+    tools.register(defineTool({
+      name: 'slow', description: 'Wait for the test gate.', parameters: { type: 'object' },
+      isConcurrencySafe: () => true,
+      execute: async () => { started = true; await gate; finished = true; return { ok: true } },
+    }))
+    tools.register(defineTool({
+      name: 'later', description: 'Fails during admission.', parameters: { type: 'object' },
+      isConcurrencySafe: () => true, execute: () => ({ ok: true }),
+    }))
+    const parentTrace = {
+      traceId: createTraceId(), spanId: createSpanId(), parentSpanId: null,
+    } as unknown as Parameters<typeof runToolCalls>[0]['parentTrace']
+    const pending = runToolCalls({
+      calls: [
+        { callId: ToolCallId('slow-call'), toolName: 'slow', rawArguments: '{}' },
+        { callId: ToolCallId('later-call'), toolName: 'later', rawArguments: '{}' },
+      ],
+      catalog: tools,
+      history: new History(),
+      position: { turn: 1, step: 1 },
+      signal: new AbortController().signal,
+      parentTrace,
+      maxParallel: 2,
+      teardownTimeoutMs: 500,
+      interceptors: [{
+        name: 'admission',
+        before: async call => {
+          if (call.toolName === 'later') throw new Error('LATER_ADMISSION_FAILED')
+          return { kind: 'allow' }
+        },
+      }],
+    })
+    let settled = false
+    void pending.finally(() => { settled = true }).catch(() => undefined)
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(started).toBe(true)
+    expect(finished).toBe(false)
+    expect(settled).toBe(false)
+    release()
+    await expect(pending).rejects.toThrow('LATER_ADMISSION_FAILED')
+    expect(finished).toBe(true)
+  })
+})
 
 describe('runTurn', () => {
   it('rejects a pending event consumer with the original producer failure', async () => {

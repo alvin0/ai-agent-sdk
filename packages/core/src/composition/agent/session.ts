@@ -264,6 +264,7 @@ function createRuntimeSession(
   if (snapshot !== undefined) validateMemoryResumeBinding(snapshot, memory)
   const toolSources = combineToolSources(definition.toolSources, options.toolSources ?? [])
   const limits = options.runtimeLimits
+  const { maxSteps: _maxSteps, maxToolCalls: _maxToolCalls, ...agentRuntimeLimits } = limits ?? {}
   const selected = limits?.maxSteps === undefined && limits?.maxToolCalls === undefined
     ? definition.legacy : definition.legacy.with({
       ...(limits.maxSteps === undefined ? {} : { maxTurns: limits.maxSteps }),
@@ -278,13 +279,12 @@ function createRuntimeSession(
     ...(options.interceptors === undefined ? {} : { interceptors: options.interceptors }),
     ...(options.hooks === undefined ? {} : { hooks: options.hooks }),
     ...(options.usagePolicy === undefined ? {} : { usagePolicy: options.usagePolicy }),
+    ...(options.historyLimits === undefined ? {} : { historyLimits: options.historyLimits }),
+    ...(options.ledgerLimits === undefined ? {} : { ledgerLimits: options.ledgerLimits }),
+    ...(options.eventBufferLimits === undefined ? {} : { eventBufferLimits: options.eventBufferLimits }),
     ...(options.compaction === undefined ? {} : { compaction: options.compaction }),
     ...(team === undefined ? {} : { team }),
-    ...(limits === undefined ? {} : { runtimeLimits: {
-      ...(limits.maxConsecutiveToolErrors === undefined ? {} : { maxConsecutiveToolErrors: limits.maxConsecutiveToolErrors }),
-      ...(limits.maxTotalTokens === undefined ? {} : { maxTotalTokens: limits.maxTotalTokens }),
-      ...(limits.observerTimeoutMs === undefined ? {} : { observerTimeoutMs: limits.observerTimeoutMs }),
-    } }),
+    ...(Object.keys(agentRuntimeLimits).length === 0 ? {} : { runtimeLimits: agentRuntimeLimits }),
   }
   const session = snapshot === undefined
     ? selected.createSession({ ...shared, ...(options.conversationId === undefined ? {} : { conversationId: options.conversationId }) })

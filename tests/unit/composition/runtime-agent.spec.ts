@@ -77,6 +77,57 @@ function provider(adapter: ModelAdapter): ComposableModelProviderPlugin {
 }
 
 describe('runtime-bound agent', () => {
+  it('removes blocked additional context from model requests and public events', async () => {
+    const sentinel = 'review/BLOCKED_PRIVATE_SENTINEL'
+    const adapter = new ToolAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const session = runtime.agent({ id: 'blocked-output', instructions: 'Use lookup', tools: [
+      defineTool({ name: 'lookup', description: 'Lookup', parameters: { type: 'object' },
+        execute: (_input, context) => { context.addContext(sentinel); return { private: sentinel } } }),
+    ], compaction: false }).createSession({ interceptors: [{
+      name: 'block-output', after: async () => ({
+        kind: 'block', feedback: [{ type: 'text', text: 'Blocked by policy' }],
+      }),
+    }] })
+    await session.run('go', { onEvent: event => { events.push(event) } })
+    expect(JSON.stringify(adapter.requests.slice(1).map(request => request.messages))).not.toContain(sentinel)
+    expect(JSON.stringify(events)).not.toContain(sentinel)
+    await runtime.close()
+  })
+
+  it('removes replaced raw values from public events', async () => {
+    const sentinel = 'review/REPLACED_PRIVATE_SENTINEL'
+    const adapter = new ToolAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const session = runtime.agent({ id: 'replaced-output', instructions: 'Use lookup', tools: [
+      defineTool({ name: 'lookup', description: 'Lookup', parameters: { type: 'object' },
+        execute: () => ({ private: sentinel }) }),
+    ], compaction: false }).createSession({ interceptors: [{
+      name: 'replace-output', after: async () => ({
+        kind: 'replace', content: [{ type: 'text', text: '[REDACTED]' }],
+      }),
+    }] })
+    await session.run('go', { onEvent: event => { events.push(event) } })
+    expect(JSON.stringify(events)).not.toContain(sentinel)
+    await runtime.close()
+  })
+
+  it('forwards public history and runtime resource limits into the low-level session', async () => {
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(new RuntimeAdapter())] })
+    const agent = runtime.agent({ id: 'bounded', instructions: 'Bounded', compaction: false })
+    const session = agent.createSession({
+      historyLimits: { maxEntries: 1, maxEntryBytes: 1_024, maxBytes: 1_024 },
+      runtimeLimits: { maxModelRequestBytes: 1_024, maxToolResultBytes: 512 },
+    })
+    session.inject('first')
+    expect(() => session.inject('second')).toThrow(/history reached its 1-entry limit/)
+    expect(() => agent.createSession({ runtimeLimits: { maxModelRequestBytes: 0 } }))
+      .toThrow(/maxModelRequestBytes/)
+    await runtime.close()
+  })
+
   it('resolves a configured per-route default and preserves omitted reasoning effort', async () => {
     const adapter = new RuntimeAdapter(), plugin = provider(adapter)
     const runtime = await createRuntimeCompositionOwner({ providers: [plugin] })

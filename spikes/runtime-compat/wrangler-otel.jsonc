@@ -1,6 +1,0 @@
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "ai-agent-sdk-otel-runtime-compat-spike",
-  "main": "worker-otel.mjs",
-  "compatibility_date": "2026-09-01"
-}

@@ -63,6 +63,9 @@ catalogs:
     wrangler:
       specifier: 4.127.1
       version: 4.127.1
+    yaml:
+      specifier: 2.9.0
+      version: 2.9.0
 
 importers:
 
@@ -767,6 +770,10 @@ importers:
         version: 4.127.1
 
   packages/skill-filesystem:
+    dependencies:
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.0
     devDependencies:
       '@ai-agent-sdk/core':
         specifier: workspace:^

@@ -131,10 +131,11 @@ your own UI; the connection then exposes `scope-authorization-required`.
 Bearer-only providers cannot perform OAuth step-up and produce that state
 directly.
 
-## Endpoint policy is host-selected
+## Endpoint policy is secure by default and host-refined
 
-The client is deployment-policy neutral. Choose constraints for **your** trust
-boundary:
+The client requires HTTPS, rejects private/local host literals, and rejects
+redirects by default. Add a trusted origin allowlist and deployment controls for
+**your** trust boundary:
 
 ```ts
 createMcpHttpClient({
@@ -149,7 +150,9 @@ createMcpHttpClient({
 ```
 
 HTTP clients can restrict origins, require HTTPS, reject private/local endpoint
-literals and redirects, and cap raw transport bytes.
+literals and redirects, and cap raw transport bytes. For tenant-controlled URLs,
+use the awaited `validateEndpoint` hook with DNS resolution and a custom fetch
+that pins the validated address, or enforce equivalent outbound network policy.
 
 ## Node stdio
 

@@ -44,7 +44,7 @@ export type { McpCloseReport }
 | `reconnect` | `{ maxAttempts }`, hoặc `false`. |
 | `transport.authProvider` | Một `OAuthClientProvider` của MCP SDK. |
 | `transport.onInsufficientScope` | `'throw'` để đưa việc xin đồng ý qua giao diện của bạn. |
-| `allowedOrigins`, `requireHttps`, `allowPrivateNetwork` | Chính sách endpoint. |
+| `allowedOrigins`, `requireHttps`, `allowPrivateNetwork`, `allowRedirects`, `validateEndpoint` | Chính sách endpoint; mặc định HTTPS/public/không redirect, kèm validator cuối được await. |
 | `closeTimeoutMs` | Chặn trên khi tắt tầng truyền tải. |
 | `logger` | Truyền `runtime.logger({ fields: … })`. |
 | `onStateChange` | Hook cho giao diện sức khoẻ/gỡ lỗi. |

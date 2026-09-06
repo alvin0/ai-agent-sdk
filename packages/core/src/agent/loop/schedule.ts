@@ -87,21 +87,34 @@ export async function runToolCalls(options: RunToolCallsOptions): Promise<ToolCa
     // A rolling parallel segment. Re-prepare each call immediately before start;
     // an updated registry can therefore turn the next call into a barrier.
     const segment: Slot[] = []
+    const segmentAbort = new AbortController()
+    const segmentOptions: RunToolCallsOptions = {
+      ...options,
+      signal: AbortSignal.any([options.signal, segmentAbort.signal]),
+    }
     let nextPrepared = prepared
-    while (index < calls.length && segment.length < maxParallel) {
-      const call = calls[index]
-      if (call === undefined) break
-      const candidate = nextPrepared
-      if (candidate.mode !== 'parallel') break
-      const slot = await start(options, candidate, dispatched < dispatchLimit, maxDurationMs, teardownTimeoutMs)
-      dispatched += slot.dispatched ? 1 : 0
-      segment.push(slot)
-      index++
-      const nextCall = calls[index]
-      if (nextCall !== undefined && segment.length < maxParallel) {
-        nextPrepared = prepare(options, nextCall)
-        if (nextPrepared.mode !== 'parallel') carried = nextPrepared
+    try {
+      while (index < calls.length && segment.length < maxParallel) {
+        const call = calls[index]
+        if (call === undefined) break
+        const candidate = nextPrepared
+        if (candidate.mode !== 'parallel') break
+        const slot = await start(segmentOptions, candidate, dispatched < dispatchLimit, maxDurationMs, teardownTimeoutMs)
+        dispatched += slot.dispatched ? 1 : 0
+        segment.push(slot)
+        index++
+        const nextCall = calls[index]
+        if (nextCall !== undefined && segment.length < maxParallel) {
+          nextPrepared = prepare(segmentOptions, nextCall)
+          if (nextPrepared.mode !== 'parallel') carried = nextPrepared
+        }
       }
+    } catch (error: unknown) {
+      // Admission of a later sibling failed after earlier bodies started.
+      // Cancel and drain everything already owned before propagating that error.
+      segmentAbort.abort(error)
+      await drainSegment(options, segment, maxResultBytes)
+      throw error
     }
     if (segment.length === 0) continue
     // Bodies have already started. Finalization and history publication remain ordered.
@@ -115,6 +128,7 @@ export async function runToolCalls(options: RunToolCallsOptions): Promise<ToolCa
       } catch (error: unknown) {
         if (!hasFatal) fatal = error
         hasFatal = true
+        segmentAbort.abort(error)
       }
     }
     // Every parallel body was already dispatched. Commit/drain all siblings so
@@ -221,10 +235,25 @@ async function start(
       pending: Promise.resolve(toolFailure(`history checkpoint failed: ${messageOf(error)}`, TOOL_ERROR_CODES.CHECKPOINT_FAILED)),
     }
   }
+  const pending = dispatchAuthorizedToolCall(authorization.call)
+  // Observe rejection in the same turn in which dispatch creates the promise.
+  // commit() still receives and propagates the original rejection in order.
+  void pending.catch(() => undefined)
   return {
     call, trace, signal, deadline, teardownTimeoutMs,
     authorized: authorization.call, dispatched: true,
-    pending: dispatchAuthorizedToolCall(authorization.call),
+    pending,
+  }
+}
+
+async function drainSegment(
+  options: RunToolCallsOptions,
+  segment: readonly Slot[],
+  maxResultBytes: number,
+): Promise<void> {
+  for (const slot of segment) {
+    try { await commit(options, slot, maxResultBytes) }
+    catch { /* The admission failure remains primary after every owned slot settles. */ }
   }
 }
 

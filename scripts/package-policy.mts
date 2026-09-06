@@ -64,7 +64,9 @@ export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {
     workspaceDependencies: [scoped('core'), scoped('provider-codex')],
     externalRuntimeDependencies: [],
   },
-  [scoped('skill-filesystem')]: { runtime: 'node', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: [] },
+  [scoped('skill-filesystem')]: {
+    runtime: 'node', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: ['yaml'],
+  },
   [scoped('mcp')]: {
     runtime: 'universal',
     workspaceDependencies: [scoped('core'), scoped('mcp-server')],

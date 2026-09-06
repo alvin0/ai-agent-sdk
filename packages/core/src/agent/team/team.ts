@@ -60,8 +60,8 @@ export class AgentTeam implements TeamPort {
   private readonly disposeTimeoutMs: number
   private readonly operationTimeoutMs: number
   private readonly observerTimeoutMs: number
-  private readonly onEvent: ((event: AgentTeamEvent) => void) | undefined
-  private readonly onAgentEvent: AgentTeamOptions['onAgentEvent']
+  private onEvent: ((event: AgentTeamEvent) => void) | undefined
+  private onAgentEvent: AgentTeamOptions['onAgentEvent']
   private readonly roster = new Map<string, LocalMemberRuntime>()
   private readonly links = new Map<string, RemoteMemberRuntime>()
   private readonly mailbox: AgentMessageRecord[] = []
@@ -311,6 +311,10 @@ export class AgentTeam implements TeamPort {
       this.roster.clear()
       this.links.clear()
       this.emit({ type: 'team-disposed', teamId: this.id })
+      this.mailbox.length = 0
+      this.mailboxBytes = 0
+      this.onEvent = undefined
+      this.onAgentEvent = undefined
       const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
       if (failure !== undefined) {
         throw new Error(

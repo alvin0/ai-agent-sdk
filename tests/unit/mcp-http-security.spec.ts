@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   createGuardedMcpFetch,
+  snapshotHttpSecurityOptions,
   type McpHttpSecurityOptions,
 } from '../../packages/mcp/src/client/http-security.ts'
 
@@ -17,6 +18,23 @@ function policy(overrides: Partial<McpHttpSecurityOptions> = {}): McpHttpSecurit
 }
 
 describe('MCP HTTP redirect boundary', () => {
+  it('uses server-safe defaults and awaits endpoint validation before fetch', async () => {
+    const defaults = snapshotHttpSecurityOptions({ serverName: 'safe', url: 'https://mcp.example.test' })
+    expect(defaults).toMatchObject({ requireHttps: true, allowPrivateNetwork: false, allowRedirects: false })
+
+    const order: string[] = []
+    const guarded = createGuardedMcpFetch(async () => {
+      order.push('fetch')
+      return new Response('{}')
+    }, policy({
+      validateEndpoint: async () => {
+        await Promise.resolve()
+        order.push('validate')
+      },
+    }))
+    await guarded('https://mcp.example.test/api')
+    expect(order).toEqual(['validate', 'fetch'])
+  })
   it('uses portable manual mode and rejects a redirect before an unallowed target is contacted', async () => {
     const calls: string[] = []
     const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {

@@ -6,7 +6,7 @@
 | --- | --- |
 | Version | `0.1.0` |
 | License | Apache-2.0 |
-| Node requirement | 22.12 or newer for workspace tooling and Node capability packages |
+| Node requirement | 22.18+ for workspace tooling; 22.12+ for installed Node capability packages |
 | Registry publication | **Intentionally deferred** |
 
 ## Registry publication
@@ -31,10 +31,10 @@ pnpm changeset          # describe a change
 pnpm version-packages   # apply version bumps
 ```
 
-The public API is protected by frozen ledgers under `design-contracts/`.
-Preservation is the default: **journey declarations cannot authorize deletion of
-an unmentioned symbol**, and every removal needs an approved decision plus a
-consumer migration path.
+The package graph is enforced by `PACKAGE_RULES` in `scripts/package-policy.mts`,
+checked by the CI graph and runtime-boundary gates. Preservation is the default:
+a removal from a public entrypoint is a breaking change and needs a changeset
+plus a consumer migration path.
 
 ## Public surface
 
@@ -45,12 +45,12 @@ internals will break without a major version.
 See [the package map](/en/01-introduction/getting-started) for every package's public
 entrypoints.
 
-## Architecture decision records
+## Where decisions are recorded
 
-| ADR | Subject |
+| Decision | Recorded in |
 | --- | --- |
-| `docs/adr/0001-eventsource-parser-ownership.md` | Why exact `eventsource-parser@4.1.0` is retained in `provider-http` |
-| `docs/adr/0002-core-capability-package-and-api-contract.md` | The capability package split and API contract |
+| Retaining exact `eventsource-parser@4.1.0` in `provider-http` | [Dependency policy](/en/14-project/dependency-policy) and `docs/dependency-policy.md` |
+| The capability package split and API contract | `docs/core-capability-composition-design.md` |
 
 ## In this section
 

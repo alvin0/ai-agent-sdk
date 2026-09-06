@@ -8,7 +8,8 @@ pnpm workspace:build
 pnpm build:cli
 ```
 
-Node **22.12** trở lên, pnpm **11.25.0**.
+Phát triển workspace cần Node **22.18** trở lên và pnpm **11.25.0**.
+Các package năng lực Node đã publish vẫn giữ runtime tối thiểu là Node **22.12**.
 
 ## Trước khi push
 
@@ -49,12 +50,12 @@ tuyên bố mức bền vững nó không có. Một ngân sách không đo đư
 ## Thêm một package năng lực
 
 1. Thêm package vào `packages/`.
-2. Đăng ký nó trong `design-contracts/core-capability-v1/topology.json` cùng tầng
-   runtime, vai trò, slot ghép nối, đối tượng dùng, và quy tắc vòng đời.
-3. Thêm bản đồ export vào `manifest-blueprints.json` — không tuyến wildcard,
-   không tuyến `require`, có `"./package.json"` tường minh.
+2. Thêm nó vào `PACKAGE_RULES` trong `scripts/package-policy.mts` cùng tầng
+   runtime, các phụ thuộc workspace, và các phụ thuộc runtime bên ngoài.
+3. Khai báo bản đồ export trong chính `package.json` của package — không tuyến
+   wildcard, không tuyến `require`, có `"./package.json"` tường minh.
 4. Thêm một fixture người dùng trong `consumers/` cho hành trình mà nó mở ra.
-5. Chạy `pnpm check:core-capability-contract`.
+5. Chạy `pnpm lint` và `pnpm check:docs`.
 6. Thêm README theo đúng khuôn hiện có: tầng runtime, lệnh cài, cách dùng, slot
    ghép nối, vòng đời.
 
@@ -118,5 +119,4 @@ sử gần đây của repository là tài liệu tham khảo phong cách tốt 
 ## Đọc tiếp
 
 - [Kiểm thử và nghiệm thu](/vi/14-project/testing)
-- [Design contract](/vi/11-internals/design-contracts)
 - [Chính sách phụ thuộc](/vi/14-project/dependency-policy)

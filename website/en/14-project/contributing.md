@@ -8,7 +8,8 @@ pnpm workspace:build
 pnpm build:cli
 ```
 
-Node **22.12** or newer, pnpm **11.25.0**.
+Workspace development requires Node **22.18** or newer and pnpm **11.25.0**.
+Published Node capability packages retain their Node **22.12** runtime floor.
 
 ## Before you push
 
@@ -50,12 +51,12 @@ lifecycle, and who closes it.
 ## Adding a capability package
 
 1. Add the package under `packages/`.
-2. Register it in `design-contracts/core-capability-v1/topology.json` with its
-   runtime tier, roles, composition slot, audience, and lifecycle rule.
-3. Add an export map to `manifest-blueprints.json` — no wildcard routes, no
-   `require` routes, explicit `"./package.json"`.
+2. Add it to `PACKAGE_RULES` in `scripts/package-policy.mts` with its runtime
+   tier, workspace dependencies, and external runtime dependencies.
+3. Declare the export map in the package's own `package.json` — no wildcard
+   routes, no `require` routes, explicit `"./package.json"`.
 4. Add a consumer fixture under `consumers/` for the journey it enables.
-5. Run `pnpm check:core-capability-contract`.
+5. Run `pnpm lint` and `pnpm check:docs`.
 6. Add a README following the existing pattern: runtime tier, install command,
    usage, composition slot, lifecycle.
 
@@ -118,5 +119,4 @@ The repository's recent history is the best style reference.
 ## Read next
 
 - [Testing and acceptance](/en/14-project/testing)
-- [Design contracts](/en/11-internals/design-contracts)
 - [Dependency policy](/en/14-project/dependency-policy)

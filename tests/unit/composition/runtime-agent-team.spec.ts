@@ -142,8 +142,30 @@ describe('runtime-owned Universal agent teams', () => {
     await first
     expect(() => team.session('lead')).toThrow(expect.objectContaining({ code: 'TEAM_CLOSED' }))
     expect(events.filter(event => (event as { type?: string }).type === 'team-closed')).toHaveLength(1)
+    const registrations = Reflect.get(runtime, 'teams') as readonly object[]
+    expect(registrations).toHaveLength(0)
+    expect(registrations.reduce((count, registration) => {
+      const sessions: unknown = Reflect.get(registration, 'sessions')
+      return count + (sessions instanceof Map ? sessions.size : 0)
+    }, 0)).toBe(0)
     const report = await runtime.close()
     expect(report.components).toContainEqual({ kind: 'agent-team', id: 'early-team', status: 'closed' })
+  })
+
+  it('bounds closed-team tombstones across repeated create-close churn', async () => {
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(new TeamAdapter())] })
+    const local = agents(runtime)
+    for (let index = 0; index < 1_030; index++) {
+      await runtime.team({ id: `churn-${index}`, members: [{ name: 'lead', agent: local.lead }] }).close()
+    }
+
+    expect(Reflect.get(runtime, 'teams')).toHaveLength(0)
+    expect(Reflect.get(runtime, 'closedTeams')).toHaveLength(1_024)
+    const report = await runtime.close()
+    const teamReports = report.components.filter(component => component.kind === 'agent-team')
+    expect(teamReports).toHaveLength(1_024)
+    expect(teamReports).not.toContainEqual({ kind: 'agent-team', id: 'churn-0', status: 'closed' })
+    expect(teamReports).toContainEqual({ kind: 'agent-team', id: 'churn-1029', status: 'closed' })
   })
 
   it('cancels an active linked send through team-operation before closing providers', async () => {

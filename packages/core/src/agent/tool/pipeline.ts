@@ -263,16 +263,32 @@ export async function finalizeToolCall(call: AuthorizedToolCall, executed: ToolE
     () => Promise.resolve({ kind: 'accept' } as const),
   )()
   if (verdict.kind === 'accept') return executed
-  if (verdict.kind === 'replace') return {
-    ...executed, content: verdict.content,
-    ...verdict.meta === undefined ? {} : { meta: verdict.meta },
-  } as ToolExecutionResult
+  if (verdict.kind === 'replace') {
+    // Replacement is a sanitization boundary, not a model-content-only edit.
+    // Rebuild the envelope so raw value, metadata, errors, and additional
+    // context cannot escape through public events, history, or telemetry.
+    if (executed.isError) {
+      const text = verdict.content.map(block => block.type === 'text' ? block.text : '').filter(Boolean).join('\n')
+      return {
+        isError: true,
+        error: { message: text || 'the tool result was replaced by policy', code: TOOL_ERROR_CODES.DENIED },
+        content: verdict.content,
+        ...verdict.meta === undefined ? {} : { meta: verdict.meta },
+      }
+    }
+    return {
+      isError: false,
+      value: undefined,
+      content: verdict.content,
+      ...verdict.meta === undefined ? {} : { meta: verdict.meta },
+      ...executed.concludesTurn === true ? { concludesTurn: true as const } : {},
+    }
+  }
   const text = verdict.feedback.map(block => block.type === 'text' ? block.text : '').filter(Boolean).join('\n')
   return {
     isError: true,
     error: { message: text || 'the result was blocked by policy', code: verdict.code ?? TOOL_ERROR_CODES.DENIED },
     content: verdict.feedback,
-    ...executed.additionalContext === undefined ? {} : { additionalContext: executed.additionalContext },
   }
 }
 

@@ -3,22 +3,23 @@
 The current topology is enforced by `scripts/package-policy.mts`, package
 manifests, and the graph/runtime-boundary gates on every change.
 
-## What the topology freezes
+## What is enforced
 
-The workspace records **20 target packages and 34 public specifiers**:
+`PACKAGE_RULES` in `scripts/package-policy.mts` is the normative graph. For every
+package it records the runtime tier, the workspace dependencies it may have, and
+the external runtime dependencies it directly owns.
 
-- each package's runtime tier and the exact host feature baseline it assumes;
-- the core-peer rule, normal workspace closure, and optional peers;
-- seven exact external runtime dependency/peer declarations;
-- one recommended named entrypoint, typed composition slot, audience, and
-  lifecycle/ownership rule per non-core package;
-- explicit conditional export maps for every package
-  (`manifest-blueprints.json`);
-- the resulting install closure for **25 compile journeys**
-  (`install-closures.json`).
+The CI gates check the real manifests and the real import graph against it:
 
-Packages not used by a current journey still receive a declaration ownership
-placeholder — nothing is silently unowned.
+| Gate | Rejects |
+| --- | --- |
+| `check-package-graph` | A manifest whose dependencies differ from the recorded rule |
+| `check-dependency-cruiser` | An import edge the graph does not allow |
+| `check-runtime-boundaries` | A Universal package reaching a Node builtin |
+| `check-agent-boundaries` | An agent-layer edge that would create a concrete team dependency |
+
+Adding a package means adding one entry to `PACKAGE_RULES`. There is no separate
+ledger to keep in sync.
 
 ## Runtime tiers and their baselines
 
@@ -112,11 +113,9 @@ Optional peers enter a closure **only when directly selected**.
 
 ## Install closures
 
-`install-closures.json` freezes the workspace, required-external, and effective
-runtime closure for all 25 compile journeys. It also probes **every one of the 17
-retained non-core packages when selected directly beside core**, so one large
-Node journey cannot mask an incorrect package-local runtime or a hidden
-dependency.
+`pnpm test:pack` packs every publishable package and installs the resulting
+tarballs into throwaway fixtures, so a package-local runtime error or a hidden
+dependency shows up as a failing install rather than at a user's first import.
 
 ## The install recipes
 
@@ -127,5 +126,4 @@ surface directly approachable.
 
 ## Read next
 
-- [Design contracts](/en/11-internals/design-contracts)
 - [Package map](/en/01-introduction/getting-started)

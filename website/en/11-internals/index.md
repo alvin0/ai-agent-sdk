@@ -7,7 +7,6 @@ user-facing docs do not explain.
 | --- | --- |
 | [Package topology](/en/11-internals/package-topology) | 20 target packages, 34 specifiers, runtime tiers, dependency rules |
 | [Adapter pipeline](/en/11-internals/adapter-pipeline) | What a provider supplies and what the base class owns |
-| [Design contracts](/en/11-internals/design-contracts) | The static gate that keeps the topology honest |
 
 ## The two structural rules
 
@@ -57,9 +56,7 @@ packages/protocol-*           reusable wire protocols
 packages/provider-*           explicit provider plugins
 packages/observability-*      runtime-specific exporters and bridges
 packages/auth-node, mcp-node  explicit Node elevation
-design-contracts/             the static compile gate and frozen API ledgers
 docs/                         design documents and implementation evidence
-spikes/                       historical evaluations — not production code
 test-human/                   interactive acceptance harnesses
 website/                      this documentation site
 ```
@@ -69,7 +66,8 @@ website/                      this documentation site
 `docs/` holds the reasoning behind these pages: `tool-loop-design.md`,
 `observability-and-usage-architecture.md`,
 `core-capability-composition-design.md`, `monorepo-package-architecture.md`, and
-the ADRs under `docs/adr/`.
+`dependency-policy.md`.
 
-This chapter summarizes them. When the two disagree, the design record and the
-frozen ledgers in `design-contracts/` are authoritative.
+This chapter summarizes them. When the two disagree, the source of truth is the
+code plus `scripts/package-policy.mts`, which the CI graph and runtime-boundary
+gates enforce on every change.

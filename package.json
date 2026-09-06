@@ -18,7 +18,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.18"
   },
   "scripts": {
     "build": "pnpm --filter @ai-agent-sdk/core build && pnpm --filter @ai-agent-sdk/testkit build && pnpm --filter @ai-agent-sdk/a2a build && pnpm --filter @ai-agent-sdk/mcp-server build && pnpm --filter @ai-agent-sdk/mcp build && pnpm --filter @ai-agent-sdk/mcp-node build && pnpm --filter @ai-agent-sdk/mcp-node-server build && pnpm --filter @ai-agent-sdk/skill-filesystem build && pnpm --filter @ai-agent-sdk/provider-http build && pnpm --filter @ai-agent-sdk/protocol-anthropic-messages build && pnpm --filter @ai-agent-sdk/protocol-responses build && pnpm --filter @ai-agent-sdk/protocol-gemini-interactions build && pnpm --filter @ai-agent-sdk/provider-anthropic build && pnpm --filter @ai-agent-sdk/provider-openai build && pnpm --filter @ai-agent-sdk/provider-codex build && pnpm --filter @ai-agent-sdk/provider-gemini build && pnpm --filter @ai-agent-sdk/auth-node build && pnpm --filter @ai-agent-sdk/observability-fetch build && pnpm --filter @ai-agent-sdk/observability-browser build && pnpm --filter @ai-agent-sdk/observability-node build && pnpm --filter @ai-agent-sdk/observability-otel build",
@@ -31,11 +31,8 @@
     "check:agent-boundaries": "node scripts/check-agent-boundaries.mts",
     "check:runtime-boundaries": "node scripts/check-runtime-boundaries.mts",
     "check:supply-chain": "node scripts/check-supply-chain.mts",
-    "check:runtime-dependencies": "node scripts/check-runtime-dependency-report.mts",
-    "check:installed-consumers": "node scripts/release/check-installed-consumers.mts",
-    "check:runtime-metadata": "node scripts/release/check-runtime-metadata.mts",
     "check:docs": "node scripts/check-release-docs.mts",
-    "check:human": "node scripts/check-human-coverage.mts && node scripts/check-human-topology.mts",
+    "check:human": "node scripts/check-human-coverage.mts",
     "check:boundary-fixtures": "node scripts/check-negative-fixtures.mts",
     "workspace:build": "turbo run build --filter='./packages/*'",
     "workspace:typecheck": "turbo run typecheck --filter='./packages/*'",

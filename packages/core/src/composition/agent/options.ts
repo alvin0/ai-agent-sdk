@@ -11,7 +11,8 @@ import { captureRuntimeSkillSources } from '../skill-provider/definition.ts'
 
 const KEYS = new Set(['signal', 'additionalInstructions', 'onEvent'])
 const SESSION_KEYS = new Set(['conversationId', 'tools', 'toolSources', 'skills', 'memory', 'skillCwd',
-  'userInput', 'approvals', 'interceptors', 'hooks', 'usagePolicy', 'runtimeLimits', 'compaction'])
+  'userInput', 'approvals', 'interceptors', 'hooks', 'usagePolicy', 'historyLimits', 'ledgerLimits',
+  'eventBufferLimits', 'runtimeLimits', 'compaction'])
 
 export interface CapturedInvocationOptions {
   readonly signal?: AbortSignal
@@ -50,6 +51,15 @@ export function captureRuntimeSessionOptions(input: unknown): RuntimeAgentSessio
     ...(interceptors === undefined ? {} : { interceptors }),
     ...(hooks === undefined ? {} : { hooks }),
     ...(usagePolicy === undefined ? {} : { usagePolicy }),
+    ...(value.historyLimits === undefined ? {} : {
+      historyLimits: value.historyLimits as NonNullable<RuntimeAgentSessionOptions['historyLimits']>,
+    }),
+    ...(value.ledgerLimits === undefined ? {} : {
+      ledgerLimits: value.ledgerLimits as NonNullable<RuntimeAgentSessionOptions['ledgerLimits']>,
+    }),
+    ...(value.eventBufferLimits === undefined ? {} : {
+      eventBufferLimits: value.eventBufferLimits as NonNullable<RuntimeAgentSessionOptions['eventBufferLimits']>,
+    }),
     ...(value.runtimeLimits === undefined ? {} : {
       runtimeLimits: value.runtimeLimits as NonNullable<RuntimeAgentSessionOptions['runtimeLimits']>,
     }),

@@ -152,7 +152,7 @@ export interface ToolDefinition<Args = unknown> extends ToolSchema {
 /** A tool call that succeeded. */
 export interface ToolSuccess {
   readonly isError: false
-  /** The raw value the body returned; kept for logs, tests, and UIs. */
+  /** The raw value the body returned; omitted when post-policy replaces the result. */
   readonly value: JsonValue | undefined
   /** What the model reads. */
   readonly content: readonly ContentBlock[]

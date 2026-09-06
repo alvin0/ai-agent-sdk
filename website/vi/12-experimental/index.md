@@ -66,25 +66,7 @@ Mọi lệnh `pnpm add @ai-agent-sdk/...` trong tài liệu này mô tả cấu 
 `@ai-agent-sdk/testkit` còn ở trạng thái **private** và được chạy qua cài đặt
 workspace cục bộ hoặc tarball; việc publish cố ý không được cấu hình cho nó.
 
-## 4. Spike là đánh giá, không phải tính năng
-
-`spikes/` chứa các đánh giá cố ý không phải production. Chúng là bằng chứng rằng
-một đường ghép là đủ — **không phải** hiện thực để bạn import.
-
-| Spike | Câu hỏi nó đã trả lời |
-| --- | --- |
-| `chat-completions-fit.ts` | Chat Completions có vừa với đường ghép giao thức wire hiện có không? |
-| `history-substrate.ts` | Nền lịch sử có đủ cho tác vụ dài không? |
-| `step-budget.ts` | Ngân sách bước nên hành xử thế nào khi cạn? |
-| `persistence-boundary.ts` | Ranh giới lưu trữ nên nằm ở đâu? |
-| `live-agent-modes.ts`, `live-native-capabilities.ts`, `live-tool-loop-trace.ts` | Kiểm tra hành vi provider thật |
-| `runtime-compat/` | Thăm dò tương thích runtime Worker |
-
-**Cần làm gì:** đọc chúng để hiểu lý do; đừng phụ thuộc vào chúng. Đặc biệt,
-`chat-completions-fit.ts` *không phải* một giao thức Chat Completions. Provider
-[Gemini](/vi/09-providers/gemini) đã phát hành dùng Interactions thay vào đó.
-
-## 5. Ước lượng token là một chỗ giữ có chủ ý
+## 4. Ước lượng token là một chỗ giữ có chủ ý
 
 SDK trung lập không thể đóng gói mọi tokenizer của nhà cung cấp, nên bộ đo mặc
 định là một **bộ ước lượng tất định, thiên về an toàn**, tính trên văn bản, schema
@@ -105,13 +87,11 @@ có thẩm quyền tính tiền. Ứng dụng cần tính giá chính xác có t
 - Các hợp đồng trung lập về message, stream, usage, và lỗi.
 - `createAgentRuntime()`, `defineAgent()`, `defineTool()`, và API session.
 - Các tầng runtime và cổng kiểm tra tĩnh cưỡng chế chúng.
-- Các sổ cái API công khai trong `design-contracts/` — 417 lượt xuất hiện export
-  đã đóng băng, khoá bằng hash. Giữ nguyên là mặc định; mọi lần xoá đều cần một
-  quyết định đã phê duyệt cộng với lộ trình di trú cho người dùng.
+- Đồ thị package trong `scripts/package-policy.mts`, được các cổng graph và
+  runtime-boundary trong CI cưỡng chế ở mọi thay đổi.
 
 ## Đọc tiếp
 
 - [A2A](/vi/08-a2a/) — ghi chú về việc nâng tầng Node, trong ngữ cảnh
 - [Connecting Servers](/vi/07-mcp/connecting-servers) — thương lượng truyền tải
-- [Design contract](/vi/11-internals/design-contracts) — "đóng băng" ở đây nghĩa là gì
 - [Thông tin dự án](/vi/14-project/) — đánh phiên bản và trạng thái phát hành

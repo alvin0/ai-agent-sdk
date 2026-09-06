@@ -78,7 +78,7 @@ The exact names are `eventsource-parser`, `@a2a-js/sdk`,
 dependencies. Optional/transitive installed packages are a separate lockfile
 closure and remain covered by the supply-chain check.
 
-`eventsource-parser` is not structurally mandatory. ADR 0001 already evaluated a
+`eventsource-parser` is not structurally mandatory. The retention decision already evaluated a
 local replacement: correctness, resource, differential, and fuzz gates passed,
 but all three mandatory throughput gates failed by 71.68%–83.13%. Therefore 0.x
 retains exact `4.1.0`, owned only by `provider-http`. Package splitting does not
@@ -119,11 +119,11 @@ certifies completion of the target migration. I0–I8 refer to the existing TODO
 | Dependency exposure is inspectable | Current 20 manifests and seven external names recounted; target 18-package graph and exact dependency roles frozen | I4/I5/I8: recount installed transitive closure, integrity and physical core identity after migration |
 | Bundle impact is bounded | Budgets specified; historical prototype size/heap measurements recorded | I8: measure migrated packed artifacts under the specified workloads; old measurements are not new-package results |
 
-Authoritative inventories: [`topology.json`](../design-contracts/core-capability-v1/topology.json),
-[`install-closures.json`](../design-contracts/core-capability-v1/install-closures.json),
-[`source-migration.json`](../design-contracts/core-capability-v1/source-migration.json),
-[`phase0-decisions.json`](../design-contracts/core-capability-v1/phase0-decisions.json),
-and [`human package topology`](../test-human/package-topology.json).
+Authoritative inventories: `topology.json`,
+`install-closures.json`,
+`source-migration.json`,
+`phase0-decisions.json`,
+and `human package topology`.
 
 ## 4. New findings from the second audit
 
@@ -1408,7 +1408,7 @@ runtime evidence policy.
 
 ### 4.77 SSE bounds did not cover activity, event fan-out, or terminal proof
 
-ADR 0001 correctly retained exact `eventsource-parser@4.1.0`, but auditing the
+The retention decision correctly kept exact `eventsource-parser@4.1.0`, but auditing the
 SDK wrapper found gaps outside the third-party parser. `parseSse()` reports raw
 reads and comments through `onActivity`, yet `HttpModelAdapter` does not pass that
 callback; its idle wrapper observes only yielded protocol events. A valid

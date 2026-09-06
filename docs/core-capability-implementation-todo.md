@@ -47,35 +47,32 @@ Current progress:
 - [x] I1: seven base-observability files moved into core, six self-imports
       rewritten, canonical subpath built, old owner reduced to a route-complete
       re-export-only bridge. Whole-workspace build and 632 unit tests pass.
-      See [I1 evidence](./implementation-evidence/I1-observability.md), including
-      the retained failed concurrent build/test attempt and its sequential fix.
+      The retained failed concurrent build/test attempt and its sequential fix
+      are recorded in the git history for this slice.
 - [x] I2: all 49 baseline agent files moved to core, with 20 domain-local helper
       modules; every moved/new agent file is at most 675 lines. Both legacy
       routes are re-export-only bridges. Build, type, API, graph, 639 unit tests
       and seven deterministic human-harness regression tests pass.
-      See [I2 evidence](./implementation-evidence/I2-agent.md).
 - [x] I3: public `createAgentRuntime()` composition, provider/model selection,
       transactional identity/method preflight, lifecycle ownership, accounting,
       delivery, logging, diagnostics, memory, skills, native tools, and runtime-
       bound agents are implemented. Provider/capability transport is lazy,
       bounded and verified from installed tarballs, including native no-follow
       behavior on Node, Deno, Chromium and workerd. See
-      [provider evidence](./implementation-evidence/I3-provider-foundation.md),
-      [platform/lifecycle evidence](./implementation-evidence/I3-platform-lifecycle.md)
-      [exporter/startup evidence](./implementation-evidence/I3-exporter-startup.md),
-      [delivery evidence](./implementation-evidence/I3-delivery.md), and
-      [runtime-agent evidence](./implementation-evidence/I3-runtime-agent.md), and
-      [portable no-follow evidence](./implementation-evidence/I3-portable-no-follow.md).
+      provider evidence,
+      platform/lifecycle evidence
+      exporter/startup evidence,
+      delivery evidence, and
+      runtime-agent evidence, and
+      portable no-follow evidence.
 - [x] I3 design reconciliation: added the owner-approved additive nested
       `observability.mode?: DeliveryMode` field. Omission is explicitly
       `operational`; exporter order and requirement flags never infer a mode.
 - [x] I4–I7: provider/capability closure, consumer migration, and facade removal
-      are complete. See [MCP capability evidence](./implementation-evidence/I5-mcp-capabilities.md),
-      [human-harness migration evidence](./implementation-evidence/I6-human-harness-migration.md),
-      and [facade-removal evidence](./implementation-evidence/I7-capability-facade-removal.md).
+      are complete.
 - [x] I8: final installed/live acceptance executed; release remains no-go only
-      because the approved basic-agent bundle budget is exceeded. See the final
-      gap matrix rather than treating task completion as a go decision.
+      because the approved basic-agent bundle budget is exceeded. Task completion is
+      not a go decision.
 
 These are mergeable source states after Phase 0 approval, not a second phase
 model. A slice may start only when all listed predecessors are green. Every
@@ -336,7 +333,8 @@ machine-checked by stable IDs.
       `private: true` until publication is configured separately.
 - [x] Consolidate all remaining owner choices into a 14-ID approval record and
       reject missing attribution or Markdown/JSON drift statically.
-- [x] Draft ADR 0002 for package selection and runtime compatibility.
+- [x] Record the approved package selection and runtime-compatibility decision
+      (superseded by `design-contracts/core-capability-v1/phase0-decisions.json`).
 
 Exit evidence: API fixture, package map, compatibility ADR, and owner approval.
 
@@ -772,7 +770,7 @@ Prerequisites: D3 and D8 entry evidence.
       compatibility-wire-logger header redaction and exact-body opt-in. Non-JSON
       upload contracts remain out of v1 rather than silently accepting `BodyInit`.
 - [x] Keep exact `eventsource-parser@4.1.0` capability-local to `provider-http`
-      under ADR 0001. Require `text/event-stream` (parameters allowed), preserve
+      under the reviewed retention rule. Require `text/event-stream` (parameters allowed), preserve
       WHATWG streaming UTF-8 behavior, and ignore SSE `retry` as reconnect policy.
 - [x] Add `maxSseEvents` (default 100,000) and `maxSseEventChars` (default
       1,048,576) beside total response-byte/raw-chunk limits. Replace callback
@@ -1015,9 +1013,9 @@ Exit evidence: recorded human-test reports under their existing artifact policy.
 - [x] Recount direct/transitive third-party runtime dependencies. The checked
       installed-tree report covers all 18 target packages and records 6 unique
       direct roots plus 20 unique installed third-party packages; run
-      `pnpm check:runtime-dependencies` to reject drift. See
-      [I8 dependency evidence](./implementation-evidence/I8-runtime-dependencies.md).
-- [x] Re-audit `eventsource-parser`: retain exact `4.1.0` under ADR 0001 because
+      `pnpm check:runtime-dependencies` to reject drift.
+- [x] Re-audit `eventsource-parser`: retain exact `4.1.0` under the reviewed retention rule in
+      `docs/dependency-policy.md` because
       the owned candidate failed all throughput gates; keep it out of core.
 - [x] Run package, type, lint, supply-chain, Edge, browser, Node, recovery, and
       human coverage gates; execute only deterministic gates automatically and
@@ -1025,7 +1023,6 @@ Exit evidence: recorded human-test reports under their existing artifact policy.
       `node scripts/check-supply-chain.mts --skip-audit`; the root
       `check:supply-chain` command includes an external registry advisory query
       and remains a manual network gate.
-      See [I8 deterministic release-gate evidence](./implementation-evidence/I8-release-gates.md).
 - [x] Inspect packed tarball contents and conditional exports.
 - [x] Compile installed ESM consumers without workspace `paths`: NodeNext with
       Node types, and Bundler Web consumers without Node types under `workerd`
@@ -1067,7 +1064,7 @@ Exit evidence: recorded human-test reports under their existing artifact policy.
 - [x] Confirm no publish step is configured or executed in this workstream.
 - [x] Produce the final gap matrix and explicit go/no-go decision. The current
       decision is no-go; see
-      [I8 final gap matrix](./implementation-evidence/I8-final-gap-matrix.md).
+      I8 final gap matrix.
 
 ## Decision log
 
@@ -1102,7 +1099,7 @@ Exit evidence: recorded human-test reports under their existing artifact policy.
 | 2026-09-02 | `usagePolicy: fail` masked the primary transport failure | primary error wins; missing usage remains correlated coverage evidence |
 | 2026-09-02 | Live research: 7 native searches, 28 URLs, 5 domains, 76,856 tokens | native events, not model self-report, are the acceptance source of truth |
 | 2026-09-02 | 20 manifests expose 7 unique external runtime/peer names | capability selection keeps those closures explicit; core alone remains zero-dependency |
-| 2026-09-02 | Owned SSE parser passed correctness/fuzz but was 71.68%–83.13% slower | retain exact eventsource-parser 4.1.0 for 0.x under ADR 0001 |
+| 2026-09-02 | Owned SSE parser passed correctness/fuzz but was 71.68%–83.13% slower | retain exact eventsource-parser 4.1.0 for 0.x per docs/dependency-policy.md |
 | 2026-09-02 | Regex import inspection missed minified `}from"pkg"` and let an incomplete bundle reach Wrangler | use one AST parser with syntax self-tests and per-request probe timeouts |
 | 2026-09-02 | Packed Universal/Node skill providers pass lazy loading, confinement, abort, and runtime elevation | typed capability composition is viable; target core-only peer/testkit remain open |
 | 2026-09-02 | Executable `SkillProvider` had no marker because it lacks `setup()` | version executable protocols by family and validate at their composition point |

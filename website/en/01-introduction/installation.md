@@ -4,7 +4,8 @@
 
 | Target | Requirement |
 | --- | --- |
-| Workspace tooling and Node capability packages | Node **22.12** or newer |
+| Workspace tooling | Node **22.18** or newer |
+| Installed Node capability packages | Node **22.12** or newer |
 | Universal packages | Any Fetch-shaped runtime: Edge/Worker, Deno, Bun, browser, Node |
 | Language | TypeScript with `moduleResolution: "bundler"` or `"nodenext"` |
 

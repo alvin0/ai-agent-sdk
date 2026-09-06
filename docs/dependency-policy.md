@@ -31,13 +31,22 @@ The checker reads the committed lockfile and installed manifests after the froze
 
 ### SSE parser retention
 
-[ADR 0001](./adr/0001-eventsource-parser-ownership.md) retains exact
-`eventsource-parser@4.1.0` in `@ai-agent-sdk/provider-http` after the owned candidate
+This workspace retains exact `eventsource-parser@4.1.0` in `@ai-agent-sdk/provider-http` after the owned candidate
 failed its predeclared performance gate. It has no lifecycle script. Its registry
 integrity, direct-owner isolation, license, frozen resolution, packed runtime
 behavior, and advisories remain release gates. A high or critical advisory suspends
 release rather than authorizing an automatic upgrade or an unqualified fallback.
 The 2026-09-01 production audit found zero advisories at every severity.
+
+### Skill metadata YAML parser
+
+`@ai-agent-sdk/skill-filesystem` owns exact `yaml@2.9.0` to parse bounded
+`agents/openai.yaml` metadata without comment-sensitive regular expressions.
+Aliases are disabled, duplicate or malformed keys are rejected, input is capped
+at 64 KiB, and the resulting tree is capped at 4,096 nodes and depth 16. The
+package has no lifecycle script; registry integrity, ISC license, malformed-input
+regressions, packed runtime behavior, and advisories are release gates. Review
+expiry: 2026-12-06. Owner: SDK maintainers.
 
 ## CI action provenance
 

@@ -9,7 +9,7 @@ export interface McpHttpSecurityOptions {
   readonly requireHttps: boolean
   readonly allowPrivateNetwork: boolean
   readonly allowRedirects: boolean
-  readonly validateEndpoint?: (url: URL) => void
+  readonly validateEndpoint?: (url: URL) => void | Promise<void>
   readonly maxTransportBytes: number
   readonly timeoutMs: number
   readonly teardownTimeoutMs: number
@@ -29,9 +29,9 @@ export function snapshotHttpSecurityOptions(options: McpHttpClientOptions): McpH
   })
   return Object.freeze({
     ...(allowedOrigins === undefined ? {} : { allowedOrigins: Object.freeze([...new Set(allowedOrigins)]) }),
-    requireHttps: options.requireHttps === true,
-    allowPrivateNetwork: options.allowPrivateNetwork !== false,
-    allowRedirects: options.allowRedirects !== false,
+    requireHttps: options.requireHttps !== false,
+    allowPrivateNetwork: options.allowPrivateNetwork === true,
+    allowRedirects: options.allowRedirects === true,
     ...(options.validateEndpoint === undefined ? {} : { validateEndpoint: options.validateEndpoint }),
     maxTransportBytes: positiveSafeInteger(
       options.maxTransportBytes ?? MCP_CLIENT_DEFAULTS.maxTransportBytes, 'maxTransportBytes',
@@ -53,16 +53,15 @@ export function validateHttpEndpoint(value: string | URL, options: McpHttpSecuri
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new TypeError('MCP HTTP endpoint URL must use http or https')
   }
+  if (!options.allowPrivateNetwork && isPrivateHostname(url.hostname)) {
+    throw new TypeError(`MCP HTTP endpoint host '${url.hostname}' is private or local`)
+  }
   if (options.requireHttps && url.protocol !== 'https:') {
     throw new TypeError('MCP HTTP endpoint URL must use https under the configured policy')
   }
   if (options.allowedOrigins !== undefined && !options.allowedOrigins.includes(url.origin)) {
     throw new TypeError(`MCP HTTP endpoint origin '${url.origin}' is not allowed`)
   }
-  if (!options.allowPrivateNetwork && isPrivateHostname(url.hostname)) {
-    throw new TypeError(`MCP HTTP endpoint host '${url.hostname}' is private or local`)
-  }
-  options.validateEndpoint?.(new URL(url))
   return url
 }
 
@@ -70,6 +69,7 @@ export function createGuardedMcpFetch(baseFetch: McpFetch, options: McpHttpSecur
   if (typeof baseFetch !== 'function') throw new TypeError('MCP HTTP transport requires fetch')
   return (async (input: string | URL, init?: RequestInit): Promise<Response> => {
     let currentUrl = validateHttpEndpoint(input, options)
+    await validateBeforeFetch(currentUrl, options)
     const timeout = AbortSignal.timeout(options.timeoutMs)
     const signal = init?.signal == null ? timeout : AbortSignal.any([init.signal, timeout])
     let requestInit: RequestInit = { ...init, signal, redirect: 'manual' }
@@ -96,6 +96,7 @@ export function createGuardedMcpFetch(baseFetch: McpFetch, options: McpHttpSecur
       }
       await cancelResponse(response, options.teardownTimeoutMs)
       const nextUrl = validateHttpEndpoint(new URL(location, currentUrl), options)
+      await validateBeforeFetch(nextUrl, options)
       const crossesOrigin = nextUrl.origin !== currentUrl.origin
       requestInit = redirectInit(requestInit, response.status, crossesOrigin)
       currentUrl = nextUrl
@@ -132,6 +133,10 @@ export function createGuardedMcpFetch(baseFetch: McpFetch, options: McpHttpSecur
       headers: response.headers,
     })
   }) as McpFetch
+}
+
+async function validateBeforeFetch(url: URL, options: McpHttpSecurityOptions): Promise<void> {
+  await options.validateEndpoint?.(new URL(url))
 }
 
 function redirectInit(previous: RequestInit, status: number, crossesOrigin: boolean): RequestInit {

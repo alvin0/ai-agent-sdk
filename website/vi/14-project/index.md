@@ -6,7 +6,7 @@
 | --- | --- |
 | Phiên bản | `0.1.0` |
 | Giấy phép | Apache-2.0 |
-| Yêu cầu Node | 22.12 trở lên cho công cụ workspace và các package năng lực Node |
+| Yêu cầu Node | 22.18+ cho công cụ workspace; 22.12+ cho package năng lực Node đã cài |
 | Publish lên registry | **Hoãn có chủ ý** |
 
 ## Publish lên registry
@@ -30,10 +30,10 @@ pnpm changeset          # mô tả một thay đổi
 pnpm version-packages   # áp dụng việc tăng phiên bản
 ```
 
-API công khai được bảo vệ bởi các sổ cái đã đóng băng trong `design-contracts/`.
-Giữ nguyên là mặc định: **khai báo theo hành trình không thể cho phép xoá một ký
-hiệu không được nhắc tới**, và mọi lần xoá đều cần một quyết định đã phê duyệt
-cộng với lộ trình di trú cho người dùng.
+Đồ thị package được cưỡng chế bởi `PACKAGE_RULES` trong
+`scripts/package-policy.mts`, kiểm bởi các cổng graph và runtime-boundary trong
+CI. Giữ nguyên là mặc định: xoá một export khỏi điểm vào công khai là thay đổi
+phá vỡ tương thích, cần một changeset cộng với lộ trình di trú cho người dùng.
 
 ## Bề mặt công khai
 
@@ -44,12 +44,12 @@ hay `src/` sẽ vỡ mà không cần đổi major version.
 Xem [bản đồ package](/vi/01-introduction/getting-started) để biết điểm vào công khai
 của từng package.
 
-## Bản ghi quyết định kiến trúc (ADR)
+## Quyết định được ghi ở đâu
 
-| ADR | Chủ đề |
+| Quyết định | Ghi trong |
 | --- | --- |
-| `docs/adr/0001-eventsource-parser-ownership.md` | Vì sao giữ đúng `eventsource-parser@4.1.0` trong `provider-http` |
-| `docs/adr/0002-core-capability-package-and-api-contract.md` | Việc tách package theo năng lực và hợp đồng API |
+| Giữ đúng `eventsource-parser@4.1.0` trong `provider-http` | [Chính sách phụ thuộc](/vi/14-project/dependency-policy) và `docs/dependency-policy.md` |
+| Việc tách package theo năng lực và hợp đồng API | `docs/core-capability-composition-design.md` |
 
 ## Trong mục này
 

@@ -19,4 +19,5 @@ author registers the adapter transactionally from its plugin setup callback.
 
 This package is the sole direct owner of exact `eventsource-parser@4.1.0`. The
 pre-1.0 owned-parser qualification retained that pin because the candidate failed
-the mandatory throughput gate; see [ADR 0001](../../docs/adr/0001-eventsource-parser-ownership.md).
+the mandatory throughput gate. The retention rule, its release gates, and the
+review expiry are recorded in the workspace dependency policy.

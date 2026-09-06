@@ -43,7 +43,7 @@ export type { McpCloseReport }
 | `reconnect` | `{ maxAttempts }`, or `false`. |
 | `transport.authProvider` | An MCP SDK `OAuthClientProvider`. |
 | `transport.onInsufficientScope` | `'throw'` to gate consent behind your UI. |
-| `allowedOrigins`, `requireHttps`, `allowPrivateNetwork` | Endpoint policy. |
+| `allowedOrigins`, `requireHttps`, `allowPrivateNetwork`, `allowRedirects`, `validateEndpoint` | Endpoint policy; HTTPS/public/no-redirect defaults, with an awaited final validator. |
 | `closeTimeoutMs` | Bound on transport shutdown. |
 | `logger` | Pass `runtime.logger({ fields: … })`. |
 | `onStateChange` | Health/debug UI hook. |

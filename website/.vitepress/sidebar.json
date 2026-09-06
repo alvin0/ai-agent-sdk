@@ -315,10 +315,6 @@
         {
           "text": "Adapter Pipeline",
           "link": "/en/11-internals/adapter-pipeline"
-        },
-        {
-          "text": "Design Contracts",
-          "link": "/en/11-internals/design-contracts"
         }
       ]
     },
@@ -711,10 +707,6 @@
         {
           "text": "Đường ống adapter",
           "link": "/vi/11-internals/adapter-pipeline"
-        },
-        {
-          "text": "Design contract",
-          "link": "/vi/11-internals/design-contracts"
         }
       ]
     },

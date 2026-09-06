@@ -31,7 +31,7 @@ the neutral vocabulary.
 scheduling, approvals, durability checkpoints, forced-final answers, and a
 backpressured event stream — not a `while` loop around a chat completion call.
 
-**Capability packages, not a monolith.** Nineteen packages, each with a declared
+**Capability packages, not a monolith.** Twenty-one packages, each with a declared
 runtime tier. An Edge worker installs three packages; a Node coding harness
 installs six. Importing a Node capability elevates only that application's
 reachable graph — it does not swap in a different harness implementation.

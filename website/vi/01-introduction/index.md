@@ -32,7 +32,7 @@ lập lịch song song có chặn trên, phê duyệt, checkpoint bền vững, 
 bắt buộc, và luồng sự kiện có backpressure — không phải một vòng `while` bọc
 quanh lời gọi chat completion.
 
-**Package theo năng lực, không phải khối nguyên.** Mười chín package, mỗi package
+**Package theo năng lực, không phải khối nguyên.** Hai mươi mốt package, mỗi package
 khai báo một tầng runtime. Một Edge worker cài ba package; một harness lập trình
 trên Node cài sáu. Import một năng lực Node chỉ nâng tầng đồ thị mà ứng dụng đó
 chạm tới — không đánh tráo sang một harness khác.

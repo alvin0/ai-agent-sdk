@@ -65,25 +65,7 @@ Every `pnpm add @ai-agent-sdk/...` command in this documentation describes the
 local workspace or tarball installs; publishing is intentionally not configured
 for it at all.
 
-## 4. Spikes are evaluations, not features
-
-`spikes/` holds deliberately non-production evaluations. They are evidence that a
-seam is adequate — **not** implementations you can import.
-
-| Spike | Question it answered |
-| --- | --- |
-| `chat-completions-fit.ts` | Can Chat Completions fit the existing wire-protocol seam? |
-| `history-substrate.ts` | Is the history substrate adequate for long tasks? |
-| `step-budget.ts` | How should step budgets behave at exhaustion? |
-| `persistence-boundary.ts` | Where should the persistence boundary sit? |
-| `live-agent-modes.ts`, `live-native-capabilities.ts`, `live-tool-loop-trace.ts` | Live provider behaviour checks |
-| `runtime-compat/` | Worker-runtime compatibility probes |
-
-**What to do:** read them for rationale; do not depend on them. In particular,
-`chat-completions-fit.ts` is *not* a Chat Completions protocol. The shipped
-[Gemini](/en/09-providers/gemini) provider instead implements Interactions.
-
-## 5. Token estimation is a deliberate placeholder
+## 4. Token estimation is a deliberate placeholder
 
 The neutral SDK cannot bundle every provider tokenizer, so the default meter is a
 **conservative deterministic estimator** over text, tool schemas, replay state,
@@ -104,13 +86,11 @@ Worth stating, because these are the parts people most often assume are unstable
 - The neutral message, stream, usage, and error contracts.
 - `createAgentRuntime()`, `defineAgent()`, `defineTool()`, and the session API.
 - Runtime tiers and the static gate that enforces them.
-- The public API ledgers in `design-contracts/` — 417 frozen export occurrences,
-  hash-locked. Preservation is the default; every removal needs an approved
-  decision plus a consumer migration path.
+- The package graph in `scripts/package-policy.mts`, enforced by the CI graph and
+  runtime-boundary gates on every change.
 
 ## Read next
 
 - [A2A](/en/08-a2a/) — the Node-elevation note in context
 - [Connecting Servers](/en/07-mcp/connecting-servers) — transport negotiation
-- [Design contracts](/en/11-internals/design-contracts) — what "frozen" means here
 - [Project Information](/en/14-project/) — versioning and release status

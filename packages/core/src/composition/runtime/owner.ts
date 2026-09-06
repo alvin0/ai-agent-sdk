@@ -32,6 +32,7 @@ export class RuntimeCompositionOwner implements RuntimeCompositionView {
   private closing: Promise<RuntimeCloseReport> | undefined
   private readonly catalogs: RuntimeModelCatalog
   private readonly teams: RuntimeTeamRegistration[] = []
+  private readonly closedTeams: RuntimeComponentCloseReport[] = []
 
   constructor(
     registry: ModelRegistry,
@@ -60,7 +61,7 @@ export class RuntimeCompositionOwner implements RuntimeCompositionView {
     return createRuntimeAgent(this, bindRuntimeAgentDefinition(input, this.selection))
   }
   team(input: RuntimeAgentTeamOptions): RuntimeAgentTeam {
-    const registration = createRuntimeAgentTeam(this, input)
+    const registration = createRuntimeAgentTeam(this, input, closed => this.retireTeam(closed))
     this.teams.push(registration)
     return registration.view
   }
@@ -88,7 +89,7 @@ export class RuntimeCompositionOwner implements RuntimeCompositionView {
   private async finishClose(quiescenceTask: Promise<QuiescenceReport>): Promise<RuntimeCloseReport> {
     const quiescence = await quiescenceTask
     const deadlineAt = this.operations.closeDeadlineAt()
-    const components: RuntimeComponentCloseReport[] = []
+    const components: RuntimeComponentCloseReport[] = [...this.closedTeams]
     for (const team of [...this.teams].reverse()) components.push(await team.closeForRuntime(deadlineAt))
     for (const [reverseIndex, registration] of [...this.providersOwned].reverse().entries()) {
       const originalIndex = this.providersOwned.length - reverseIndex - 1
@@ -102,6 +103,16 @@ export class RuntimeCompositionOwner implements RuntimeCompositionView {
     this.operations.finishClose()
     return Object.freeze({ state: 'closed', ...quiescence, components: Object.freeze(components),
       observationHealth: this.observation.health() })
+  }
+
+  private retireTeam(registration: RuntimeTeamRegistration): void {
+    const index = this.teams.indexOf(registration)
+    if (index < 0) return
+    this.teams.splice(index, 1)
+    this.closedTeams.push(Object.freeze({ kind: 'agent-team', id: registration.id, status: 'closed' }))
+    // Reporting metadata is intentionally bounded independently of heavyweight
+    // team state. Older tombstones can be omitted from a later runtime report.
+    if (this.closedTeams.length > 1_024) this.closedTeams.shift()
   }
 }
 

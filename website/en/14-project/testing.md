@@ -31,8 +31,6 @@ that mixing them in would discourage running the fast suite.
 | `pnpm lint` | Package graph, dependency-cruiser, agent boundaries, runtime boundaries |
 | `pnpm check:boundary-fixtures` | Proves invalid boundaries are actually **rejected** |
 | `pnpm check:supply-chain` | Lockfile integrity, exact pins, lifecycle scripts, licences, `pnpm audit --prod` |
-| `pnpm check:core-capability-contract` | The design-contract compile gate |
-| `pnpm check:runtime-dependencies` | Runtime dependency report vs topology |
 | `pnpm check:docs` | Documentation migration ledger |
 | `pnpm workspace:typecheck` | Typecheck all publishable packages in graph order |
 | `pnpm workspace:build` | Build all package-owned bundles and declarations |
@@ -53,7 +51,7 @@ pnpm test:packages
 pnpm test:pack
 ```
 
-Node 22.12.0, pnpm 11.25.0 installed with lifecycle scripts disabled, frozen
+Node 22.18.0, pnpm 11.25.0 installed with lifecycle scripts disabled, frozen
 lockfile, and official GitHub actions pinned to immutable signed release commits.
 
 ## Provider conformance
@@ -127,7 +125,6 @@ core, agent, base observability, protocols, observability capabilities, and MCP.
 
 | Gate | Proves | Does not prove |
 | --- | --- | --- |
-| `check:core-capability-contract` | Compile-time composition | Runtime behaviour, packed export maps, release readiness |
 | `test:unit` / `test:contract` | Deterministic logic and frozen contracts | Real provider behaviour |
 | `test:pack` | Packed tarballs install and run per runtime tier | Live provider behaviour |
 | `test:integration` | Live provider calls work | Nothing about other accounts or model versions |
@@ -135,6 +132,5 @@ core, agent, base observability, protocols, observability capabilities, and MCP.
 
 ## Read next
 
-- [Design contracts](/en/11-internals/design-contracts)
 - [`@ai-agent-sdk/testkit`](/en/14-project/testkit)
 - [Contributing](/en/14-project/contributing)

@@ -429,7 +429,7 @@ Commit: `build: complete pnpm monorepo cutover`
 ### E0 — Build an owned parser candidate as a non-production spike
 
 Dependencies: P0  
-Files: `spikes/sse-parser/**`, SSE conformance fixtures
+Files: SSE conformance fixtures
 
 - [x] Implement the WHATWG field/line state machine with non-fatal streaming UTF-8 `TextDecoder`; default bounds are 256 KiB pending line, 1 MiB assembled event data, and 1 MiB total undecoded/pending storage, with typed resource-limit failure.
 - [x] Cover start-only BOM, CR/LF/CRLF split boundaries, split/invalid UTF-8 replacement, comments/activity, multiline data, event/id/retry, NUL in ID, digit-only retry, unknown fields, empty values, EOF truncation, cancellation, and hostile long lines.
@@ -437,7 +437,7 @@ Files: `spikes/sse-parser/**`, SSE conformance fixtures
 - [x] Fuzz at least 1,000,000 deterministic seeds under memory/time bounds.
 - [x] Benchmark representative streams; candidate may not regress throughput or peak memory by more than 20% without a documented security/correctness reason.
 
-Exit evidence: `spikes/sse-parser/report.json` records the Node 26.8.1 Linux x64 run. Ten conformance groups, typed default-bound checks, cancellation, 100,000 partitions (`0x5eed2026`), and 1,000,000 fuzz seeds (`0xf0222026`, 4.31 seconds, 114.6 MB peak RSS under a 30-second/512-MiB gate) passed. Provider-visible differential semantics have zero differences. The 12,724 archived optional-diagnostic differences come from the reference's documented early discard of impossible unknown-field prefixes and do not change events/activity. The three isolated throughput workloads regressed 75.65%, 71.68%, and 83.13%; peak RSS regressed 2.72%. The candidate therefore fails the 20% performance gate and cannot replace production code.
+Exit evidence: the archived benchmark recorded the Node 26.8.1 Linux x64 run. Ten conformance groups, typed default-bound checks, cancellation, 100,000 partitions (`0x5eed2026`), and 1,000,000 fuzz seeds (`0xf0222026`, 4.31 seconds, 114.6 MB peak RSS under a 30-second/512-MiB gate) passed. Provider-visible differential semantics have zero differences. The 12,724 archived optional-diagnostic differences come from the reference's documented early discard of impossible unknown-field prefixes and do not change events/activity. The three isolated throughput workloads regressed 75.65%, 71.68%, and 83.13%; peak RSS regressed 2.72%. The candidate therefore fails the 20% performance gate and cannot replace production code.
 Commit: `spike(sse): evaluate owned event stream parser`
 
 ### E1 — Apply deterministic keep/replace rule
@@ -448,7 +448,7 @@ Dependencies: E0
 - [x] Otherwise keep exact-pinned `4.1.0`, archive the failing evidence, and retain all supply-chain controls. Do not merge an almost-compatible parser.
 - [x] If a high/critical advisory affects the pinned version before the candidate qualifies, suspend release; do not auto-upgrade or bypass the gate.
 
-Exit evidence: ADR 0001 applies the predeclared rule and retains exact `4.1.0` as the only direct SDK-owned parser dependency, isolated in `provider-http`; the owned candidate stays outside production. The archived E0 report shows every correctness/resource/cancellation gate green but all three throughput workloads 71.68%–83.13% slower than the exact pin. Package/supply-chain/runtime checks remain green. `pnpm audit --prod --json` on 2026-09-01 reports 19 production dependencies and zero advisories at every severity, so release suspension is not currently triggered. The ADR separately discloses upstream MCP's transitive `eventsource-parser@3.1.1` instead of conflating it with direct ownership.
+Exit evidence: the dependency policy applies the predeclared rule and retains exact `4.1.0` as the only direct SDK-owned parser dependency, isolated in `provider-http`; the owned candidate stays outside production. The archived E0 report shows every correctness/resource/cancellation gate green but all three throughput workloads 71.68%–83.13% slower than the exact pin. Package/supply-chain/runtime checks remain green. `pnpm audit --prod --json` on 2026-09-01 reports 19 production dependencies and zero advisories at every severity, so release suspension is not currently triggered. The policy separately discloses upstream MCP's transitive `eventsource-parser@3.1.1` instead of conflating it with direct ownership.
 Commit: `security(sse): finalize parser ownership decision`
 
 ## Phase R — Full verification and release

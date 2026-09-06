@@ -26,7 +26,7 @@ Where it deviates, it says why.
 | `src/agent/memory/` | done — pinned task facts, pressure compaction, overflow recovery |
 | `src/agent/trace/` | done — W3C ids, span lifecycle, immutable process-tree projection |
 
-The reproducible live mode gate is `node spikes/live-agent-modes.ts`; provider
+The live mode gate was reproduced by a `live-agent-modes` spike; provider
 requests are written to `.providers/codex/logs/YYYY-MM-DD.jsonl`.
 
 The tool layer already settles the hardest question — what happens when a tool
@@ -37,7 +37,8 @@ fails — so the loop can be written assuming every tool call yields a result.
 ## 1b. Spike results
 
 The decisions were settled by building spikes and running them, not by argument.
-All are reproducible under `spikes/`; only `step-budget.ts` needs a Codex login.
+The spikes were evaluations rather than maintained code and are no longer kept in
+the repository; the findings below are the retained record.
 
 ### Spike A — history substrate
 
@@ -106,7 +107,7 @@ what the measurement does **not** cover.
 
 ### Spike C — persistence boundary
 
-`node spikes/persistence-boundary.ts` tested the part the earlier history spike did
+The `persistence-boundary` spike tested the part the earlier history spike did
 not: crash safety around a mutating tool.
 
 ```
@@ -123,7 +124,7 @@ That is a control-flow seam, not an observational event.
 
 ### Spike D — Chat Completions protocol fit
 
-`node spikes/chat-completions-fit.ts` ran a representative tool loop through the
+The `chat-completions-fit` spike ran a representative tool loop through the
 existing `WireProtocol` and `BlockAssembler` contracts.
 
 ```
@@ -141,7 +142,7 @@ increment after the loop's live gate, not a loop blocker.
 
 ### Spike E — native capability live gate
 
-`node spikes/live-native-capabilities.ts` ran native web search through the real
+The `live-native-capabilities` spike ran native web search through the real
 Codex Responses route with `gpt-5.6-luna`, reasoning effort `medium`, and a forced
 native tool choice.
 
@@ -1008,5 +1009,5 @@ produced a measured bound, a disproof, a crash-safety boundary, and a protocol-f
 result. The subsequent `.temp` audit found two implementation blockers before code
 was written: pipeline staging and incomplete budget outcomes.
 
-`spikes/` is kept in the repository as the evidence for §14, not as code to maintain.
-No spike is imported by `src/`.
+The spikes were evidence for §14, not code to maintain. None was ever imported by
+`src/`, and they have since been removed; this section is the retained record.

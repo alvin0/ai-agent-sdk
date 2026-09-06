@@ -11,11 +11,13 @@ export class RunEventBuffer<T> {
   private closed = false
   private stopped = false
   private failure: unknown
+  private readonly maxEvents: number
+  private readonly maxBytes: number
 
-  constructor(
-    private readonly maxEvents = 100_000,
-    private readonly maxBytes = 16 * 1024 * 1024,
-  ) {}
+  constructor(maxEvents = 100_000, maxBytes = 16 * 1024 * 1024) {
+    this.maxEvents = positiveLimit(maxEvents, 'maxEvents')
+    this.maxBytes = positiveLimit(maxBytes, 'maxBytes')
+  }
 
   push(value: T): void {
     if (this.stopped) return
@@ -68,6 +70,11 @@ export class RunEventBuffer<T> {
     const waiters = this.waiters.splice(0)
     for (const resolve of waiters) resolve()
   }
+}
+
+function positiveLimit(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value < 1) throw new RangeError(`${name} must be a positive safe integer`)
+  return value
 }
 
 function serializedBytes(value: unknown): number {

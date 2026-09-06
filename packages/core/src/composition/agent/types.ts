@@ -15,6 +15,9 @@ import type { RuntimeRunReport } from '../observation/final-report.ts'
 import type { ToolSource } from '../tool-source/types.ts'
 import type { MemoryBinding } from '../memory/types.ts'
 import type { RuntimeSkillSource } from '../skill-provider/types.ts'
+import type { AgentRuntimeLimits, AgentRunEventBufferLimits } from '../../agent/define/session/types.ts'
+import type { HistoryLimits } from '../../agent/history/types.ts'
+import type { RunLedgerLimits } from '../../agent/accounting/report.ts'
 
 export interface RuntimeAgentDefinitionInput {
   readonly id: string
@@ -45,12 +48,9 @@ export interface RuntimeAgentBindingInput extends Omit<RuntimeAgentDefinitionInp
   readonly model?: { readonly provider: string; readonly id?: string }
 }
 
-export interface RuntimeAgentLimits {
+export interface RuntimeAgentLimits extends AgentRuntimeLimits {
   readonly maxSteps?: number
   readonly maxToolCalls?: number
-  readonly maxConsecutiveToolErrors?: number
-  readonly maxTotalTokens?: number
-  readonly observerTimeoutMs?: number
 }
 
 export interface RuntimeAgentSessionOptions {
@@ -65,6 +65,12 @@ export interface RuntimeAgentSessionOptions {
   readonly interceptors?: readonly ToolInterceptor[]
   readonly hooks?: TurnHooks
   readonly usagePolicy?: UsagePolicy
+  /** In-memory append-only conversation history limits. */
+  readonly historyLimits?: HistoryLimits
+  /** Canonical per-run accounting ledger limits. */
+  readonly ledgerLimits?: RunLedgerLimits
+  /** Public run-event queue limits for slow or paused consumers. */
+  readonly eventBufferLimits?: AgentRunEventBufferLimits
   readonly runtimeLimits?: RuntimeAgentLimits
   readonly compaction?: AgentCompactionOptions | false
 }

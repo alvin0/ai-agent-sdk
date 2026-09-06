@@ -21,7 +21,7 @@ Approval does not authorize npm publishing or automated spike/live-provider runs
 Last reviewed: **2026-09-04**
 
 Machine-readable source:
-[`../design-contracts/core-capability-v1/phase0-decisions.json`](../design-contracts/core-capability-v1/phase0-decisions.json)
+`../design-contracts/core-capability-v1/phase0-decisions.json`
 
 This is a small approval record, not another architecture design. It consolidates
 the product choices that were previously scattered through the package plan,
@@ -75,4 +75,4 @@ the record as a whole. The machine record then receives `status: "approved"`,
 static checker rejects an approval without that attribution or a Markdown/JSON ID
 drift. The owner explicitly approved all decisions in this thread on 2026-09-04, with
 P0-02 amended to permit configured provider defaults and independent per-agent
-model overrides. Phase 0 and ADR 0002 are Approved; this is not runtime acceptance.
+model overrides. Phase 0 is Approved; this is not runtime acceptance.

@@ -1,9 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "paths": {
-      "@ai-agent-sdk/core": ["../../packages/core/dist/index.d.ts"]
-    }
-  },
-  "include": ["consumers/core-message-api-compatibility.ts"]
-}

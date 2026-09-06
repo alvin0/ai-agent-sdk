@@ -130,10 +130,11 @@ có chặn trên**. Đặt `transport.onInsufficientScope: 'throw'` để đưa 
 Nhà cung cấp chỉ-bearer không thể nâng phạm vi qua OAuth và sinh thẳng trạng thái
 đó.
 
-## Chính sách endpoint do host chọn
+## Chính sách endpoint an toàn mặc định và do host tinh chỉnh
 
-Client trung lập với chính sách triển khai. Hãy chọn ràng buộc cho ranh giới tin
-cậy **của bạn**:
+Mặc định client bắt buộc HTTPS, từ chối host riêng/cục bộ dạng literal và từ
+chối redirect. Hãy thêm allowlist origin tin cậy cùng kiểm soát triển khai cho
+ranh giới tin cậy **của bạn**:
 
 ```ts
 createMcpHttpClient({
@@ -148,7 +149,9 @@ createMcpHttpClient({
 ```
 
 Client HTTP có thể giới hạn origin, bắt buộc HTTPS, từ chối endpoint riêng
-tư/cục bộ dạng literal và các redirect, và chặn số byte truyền tải thô.
+tư/cục bộ dạng literal và các redirect, và chặn số byte truyền tải thô. Với URL
+do tenant kiểm soát, dùng hook `validateEndpoint` được await để phân giải DNS và
+custom fetch ghim địa chỉ đã xác minh, hoặc áp chính sách outbound tương đương.
 
 ## stdio trên Node
 

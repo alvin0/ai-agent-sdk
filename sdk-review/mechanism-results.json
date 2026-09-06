@@ -1,0 +1,27 @@
+{
+  "node": "v22.16.0",
+  "snapshot": "80353b38da2411450a5c4e0c1e6ce7e4c5cdebf7",
+  "scope": "Isolated source mechanisms only; not SDK build/unit/integration/heap testing",
+  "observations": [
+    {
+      "id": "policy-block-context",
+      "observed": "Block retains additionalContext",
+      "reproduced": true
+    },
+    {
+      "id": "policy-replace-value",
+      "observed": "Replace retains original value and context",
+      "reproduced": true
+    },
+    {
+      "id": "skill-policy-inline-comment",
+      "observed": "Adding an inline comment changes false to default allow",
+      "reproduced": true
+    },
+    {
+      "id": "delayed-promise-observation",
+      "observed": "Delayed handler exits 1; immediate observation control exits 0",
+      "reproduced": true
+    }
+  ]
+}

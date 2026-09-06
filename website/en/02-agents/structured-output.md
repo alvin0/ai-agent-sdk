@@ -1,101 +1,189 @@
 # Structured Output
 
-Agents can request ordinary text or JSON constrained by a JSON Schema through
-the provider-neutral `outputFormat` field.
-
-## JSON Schema output
+`outputFormat` constrains the model's visible text. It is provider-neutral: the
+same declaration works on OpenAI Responses, Anthropic Messages, and Gemini
+Interactions.
 
 ```ts
-const reviewer = runtime.agent({
-  id: 'reviewer',
-  model: { provider: 'openai', id: 'gpt-5.6-sol' },
-  instructions: 'Review the change and return the verdict.',
+const agent = runtime.agent({
+  id: 'extractor',
+  model,
+  instructions: 'Extract the invoice fields from the attached document.',
   outputFormat: {
     type: 'json_schema',
-    name: 'review_result',
+    name: 'invoice',
     schema: {
       type: 'object',
       properties: {
-        verdict: { type: 'string', enum: ['ship', 'block'] },
-        summary: { type: 'string' },
-        blockers: { type: 'array', items: { type: 'string' } },
+        id: { type: 'string' },
+        total: { type: 'number' },
+        currency: { type: 'string' },
       },
-      required: ['verdict', 'summary', 'blockers'],
-      additionalProperties: false,
+      required: ['id', 'total', 'currency'],
     },
   },
 })
 
-const response = await reviewer.generate('Review the pending diff.')
-const result = JSON.parse(response.text) as {
-  verdict: 'ship' | 'block'
-  summary: string
-  blockers: string[]
+const response = await agent.generate(document)
+const invoice = JSON.parse(response.text)   // guaranteed to be JSON, or the run failed
+```
+
+## The contract
+
+```ts
+type ModelOutputFormat = TextOutputFormat | JsonSchemaOutputFormat
+
+interface TextOutputFormat {
+  readonly type: 'text'
+}
+
+interface JsonSchemaOutputFormat {
+  readonly type: 'json_schema'
+  /** Stable schema identifier. Required by providers such as OpenAI Responses. */
+  readonly name: string
+  /** Provider-supported JSON Schema. Provider-specific subsets still apply. */
+  readonly schema: Readonly<JsonObject>
 }
 ```
 
-The schema is validated as bounded lossless JSON, detached from the caller, and
-frozen when the agent is defined. Provider-specific JSON Schema subsets still
-apply; object schemas should normally declare all required properties and set
-`additionalProperties: false`.
+`outputFormat` is accepted on:
 
-The SDK keeps `response.text` as the canonical response. It does not pretend
-that a TypeScript cast validates untrusted data. Parse or validate it with zod,
-valibot, ajv, or your own validator when it crosses your application's trust
-boundary.
+| Level | Field |
+| --- | --- |
+| `runtime.agent({ … })` | `outputFormat` |
+| `defineAgent({ … })` | `outputFormat` |
+| `runAgent({ … })` | `outputFormat` |
+| `ModelRegistry.stream(call)` | `outputFormat` on `GenerateOptions` |
 
-## Tool-loop behavior
+Omitting it means ordinary unconstrained text.
 
-`outputFormat` describes the visible final answer, not every internal model
-step. When an agent can call tools and JSON Schema output is requested, the SDK
-uses one stable shape through the loop:
+## Validation happens at definition time
 
-1. Process rounds use `{ type: 'text' }` and may call tools normally.
-2. A prose-only process result is retained as commentary, not accepted as the
-   final answer.
-3. The SDK makes one dedicated, tool-disabled final request with the requested
-   JSON Schema. A budget-forced final request uses the schema directly too.
-
-This keeps long tool loops independent from the final schema while ensuring
-that `response.text` and the terminal outcome come from the schema-constrained
-round. The dedicated finalization may consume one additional model request
-beyond the normal process-step limit. The SDK also rejects a successful final
-response that is not syntactically valid JSON; schema conformance itself is
-enforced by the selected provider's structured-output implementation.
-
-## Plain text
-
-Text remains the default. It can also be selected explicitly:
+The schema is validated, **detached, bounded, and frozen** when the agent is
+defined — not on the first request.
 
 ```ts
-const writer = runtime.agent({
-  id: 'writer',
-  instructions: 'Write a concise answer.',
-  outputFormat: { type: 'text' },
+name: /^[A-Za-z0-9_-]{1,64}$/
+```
+
+| Bound | Limit |
+| --- | --- |
+| Schema bytes | 256 KiB |
+| Schema depth | 32 |
+| Schema nodes | 16,384 |
+| Object fields | 512 |
+| Array items | 1,024 |
+| Key bytes | 256 |
+
+An invalid shape throws immediately:
+
+```
+TypeError: agent outputFormat must be text or a bounded JSON Schema with a valid name
+```
+
+Only `type`, `name`, and `schema` are accepted — an extra key is rejected rather
+than silently ignored. The schema is snapshotted, so mutating your object
+afterwards cannot change what the agent sends.
+
+## Tools and JSON schema together
+
+This is the part worth understanding. When you combine a `json_schema` output
+format **with callable tools**, the loop splits the turn into two phases:
+
+```text
+┌─ process phase ────────────────────────────────────────────┐
+│  outputFormat forced to { type: 'text' }                   │
+│  tools available, toolChoice honoured                      │
+│  the model investigates, calls tools, reads results        │
+└────────────────────────────────────────────────────────────┘
+                            ↓
+┌─ final output phase ───────────────────────────────────────┐
+│  outputFormat = your json_schema                           │
+│  toolChoice forced to 'none'                               │
+│  the model emits the structured answer and nothing else    │
+└────────────────────────────────────────────────────────────┘
+```
+
+Why: a model cannot both emit tool calls and satisfy a strict output schema in
+the same response. Rather than making you choose, the SDK runs the tool loop
+unconstrained and then adds a **dedicated final step** under the schema.
+
+With **no** callable tools, there is no split — every step already runs under the
+schema.
+
+## Two failures you can rely on
+
+**Invalid JSON in the final phase.**
+
+```text
+MALFORMED_RESPONSE: model returned invalid JSON for the requested structured output
+```
+
+The loop parses the final text. If the provider claimed `stop` but the text is
+not JSON, the turn fails with a typed error rather than handing you a string that
+`JSON.parse` will throw on later.
+
+**A tool call during the final phase.**
+
+```text
+INVALID_TOOL_CALL: model emitted a host tool call during the final output phase
+```
+
+Tools are disabled in that phase, so a call there is a contract violation. The
+offending block is stripped and the turn ends with the error.
+
+Both mean the same thing for your code: if `generate()` resolved, the text
+satisfies the shape you asked for.
+
+## Provider support
+
+| Provider | Mapping |
+| --- | --- |
+| OpenAI Responses | `text.format` — gated on the dialect's `structuredOutputs` |
+| Anthropic Messages | `format: { type: 'json_schema', schema }` |
+| Gemini Interactions | `response_format` |
+
+All three are supported. Provider-specific JSON Schema subsets still apply — a
+schema feature one provider accepts may be rejected by another as
+`INVALID_REQUEST`.
+
+## When a tool is the better answer
+
+`outputFormat` constrains **the final text**. It does not help when you want the
+model to *hand you a value mid-run*, or to submit several results, or to trigger
+a side effect at the same time.
+
+For that, use a tool that is the answer:
+
+```ts
+const submitReview = defineTool({
+  name: 'submit_review',
+  description: 'Submit the final review verdict. Call this exactly once, last.',
+  parameters: { /* … */ },
+  parse: raw => ReviewResult.parse(raw),
+  execute: (args, ctx) => {
+    sink.value = args
+    ctx.concludeTurn()
+    return { accepted: true }
+  },
 })
 ```
 
-## Provider mapping
+| Use `outputFormat` when | Use a submit tool when |
+| --- | --- |
+| The answer *is* the response text | You need the value in your code, typed, mid-run |
+| One result per run | Several results, or a side effect on submit |
+| You want provider-level constraint | You want `parse` to reject and let the model retry |
 
-| Provider protocol | Wire field | Support |
-| --- | --- | --- |
-| OpenAI Responses | `text.format` with `type: 'json_schema'` and `strict: true` | Supported |
-| Anthropic Messages | `output_config.format` with `type: 'json_schema'` | Supported |
-| Codex ChatGPT endpoint | `text.format` with `type: 'json_schema'` and `strict: true` | Supported |
+**`parse` gives you a retry path that `outputFormat` does not.** A throw inside
+`parse` produces an `INVALID_ARGUMENTS` result the model reads and can correct on
+the next step. A malformed structured output ends the turn.
 
-The schema name may contain letters, numbers, `_`, and `-`, up to 64
-characters. It is sent to providers that require a stable schema identifier and
-ignored by protocols that do not use one.
-
-## When a submission tool is still better
-
-Use a final-answer tool instead when the provider does not support structured
-outputs, or when validation failures must be returned to the model so it can
-retry. A tool's `parse` hook remains the SDK's provider-independent validation
-and recovery boundary.
+The two compose: `mode: 'deep'` adds a structural completion self-check, so the
+turn cannot end until the model's own `submit_result` check is accepted.
 
 ## Read next
 
-- [Creating an Agent](/en/02-agents/creating-an-agent)
-- [Tool Parameters](/en/03-tools/tool-parameters)
-- [Providers](/en/09-providers/)
+- [Tool Parameters](/en/03-tools/tool-parameters) — `parse` as a trust boundary
+- [Creating an Agent](/en/02-agents/creating-an-agent) — where `outputFormat` sits
+- [Gemini](/en/09-providers/gemini) · [OpenAI](/en/09-providers/openai) · [Anthropic](/en/09-providers/anthropic)

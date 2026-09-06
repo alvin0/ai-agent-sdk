@@ -31,8 +31,6 @@ chung sẽ làm người ta ngại chạy bộ test nhanh.
 | `pnpm lint` | Đồ thị package, dependency-cruiser, ranh giới agent, ranh giới runtime |
 | `pnpm check:boundary-fixtures` | Chứng minh các ranh giới không hợp lệ thực sự **bị chặn** |
 | `pnpm check:supply-chain` | Toàn vẹn lockfile, ghim phiên bản chính xác, script vòng đời, giấy phép, `pnpm audit --prod` |
-| `pnpm check:core-capability-contract` | Cổng biên dịch của design contract |
-| `pnpm check:runtime-dependencies` | Báo cáo phụ thuộc runtime đối chiếu topology |
 | `pnpm check:docs` | Sổ cái di trú tài liệu |
 | `pnpm workspace:typecheck` | Kiểm tra kiểu mọi package sẽ phát hành, theo thứ tự đồ thị |
 | `pnpm workspace:build` | Build mọi bundle và khai báo do package sở hữu |
@@ -53,7 +51,7 @@ pnpm test:packages
 pnpm test:pack
 ```
 
-Node 22.12.0, pnpm 11.25.0 cài với script vòng đời bị tắt, lockfile đóng băng, và
+Node 22.18.0, pnpm 11.25.0 cài với script vòng đời bị tắt, lockfile đóng băng, và
 các GitHub action chính thức ghim vào commit phát hành bất biến, có ký.
 
 ## Conformance cho provider
@@ -129,7 +127,6 @@ observability, và MCP.
 
 | Cổng | Chứng minh | Không chứng minh |
 | --- | --- | --- |
-| `check:core-capability-contract` | Ghép nối lúc biên dịch | Hành vi runtime, bản đồ export lúc đóng gói, mức sẵn sàng phát hành |
 | `test:unit` / `test:contract` | Logic tất định và các hợp đồng đã đóng băng | Hành vi của provider thật |
 | `test:pack` | Tarball đã đóng gói cài và chạy được theo từng tầng runtime | Hành vi của provider thật |
 | `test:integration` | Lời gọi provider thật hoạt động | Không nói gì về tài khoản khác hay phiên bản model khác |
@@ -137,6 +134,5 @@ observability, và MCP.
 
 ## Đọc tiếp
 
-- [Design contract](/vi/11-internals/design-contracts)
 - [`@ai-agent-sdk/testkit`](/vi/14-project/testkit)
 - [Đóng góp](/vi/14-project/contributing)

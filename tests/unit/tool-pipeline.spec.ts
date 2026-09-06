@@ -252,7 +252,8 @@ describe('dispatchToolCall: interceptors', () => {
     expect(seen).toBe(true)
   })
 
-  it('replaces what the model reads without losing the value', async () => {
+  it('replaces the complete result envelope without retaining the raw value', async () => {
+    const privateValue = 'review/raw-value-marker'
     const redact: ToolInterceptor = {
       name: 'redact',
       after: () => Promise.resolve({
@@ -260,13 +261,14 @@ describe('dispatchToolCall: interceptors', () => {
         content: [{ type: 'text', text: '[redacted]' }],
       }),
     }
-    const result = await run(registryWith(tool({ execute: () => 'secret' })), {
+    const result = await run(registryWith(tool({ execute: () => privateValue })), {
       interceptors: [redact],
     })
     expect(result.isError).toBe(false)
     if (result.isError) return
     expect(result.content).toEqual([{ type: 'text', text: '[redacted]' }])
-    expect(result.value).toBe('secret')
+    expect(result.value).toBeUndefined()
+    expect(JSON.stringify(result)).not.toContain(privateValue)
   })
 
   it('turns a blocked result into a failure carrying the feedback', async () => {

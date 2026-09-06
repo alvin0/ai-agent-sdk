@@ -3,22 +3,23 @@
 Topology hiện tại được thực thi bởi `scripts/package-policy.mts`, manifest của
 các package, và các cổng graph/runtime-boundary ở mọi thay đổi.
 
-## Topology đóng băng những gì
+## Những gì được cưỡng chế
 
-Workspace ghi lại **20 package đích và 34 định danh công khai**:
+`PACKAGE_RULES` trong `scripts/package-policy.mts` là đồ thị chuẩn. Với mỗi
+package, nó ghi tầng runtime, các phụ thuộc workspace được phép, và các phụ thuộc
+runtime bên ngoài mà package đó trực tiếp sở hữu.
 
-- tầng runtime của từng package và đúng baseline tính năng host mà nó giả định;
-- quy tắc core-peer, tập phụ thuộc workspace thông thường, và các peer tuỳ chọn;
-- bảy khai báo phụ thuộc/peer runtime bên ngoài với phiên bản chính xác;
-- một điểm vào có tên được khuyến nghị, một slot ghép nối có kiểu, đối tượng dùng,
-  và quy tắc vòng đời/quyền sở hữu cho mỗi package ngoài core;
-- bản đồ export điều kiện tường minh cho mọi package
-  (`manifest-blueprints.json`);
-- tập package cài ra thực tế cho **25 hành trình biên dịch**
-  (`install-closures.json`).
+Các cổng CI đối chiếu manifest thật và đồ thị import thật với nó:
 
-Package chưa được hành trình nào dùng vẫn nhận một chỗ giữ quyền sở hữu khai báo
-— không có gì bị bỏ vô chủ một cách âm thầm.
+| Cổng | Chặn |
+| --- | --- |
+| `check-package-graph` | Manifest có phụ thuộc khác với quy tắc đã ghi |
+| `check-dependency-cruiser` | Một cạnh import mà đồ thị không cho phép |
+| `check-runtime-boundaries` | Package Universal chạm tới builtin của Node |
+| `check-agent-boundaries` | Cạnh ở tầng agent tạo ra phụ thuộc team cụ thể |
+
+Thêm một package nghĩa là thêm một mục vào `PACKAGE_RULES`. Không có sổ cái riêng
+nào phải giữ đồng bộ.
 
 ## Tầng runtime và baseline của chúng
 
@@ -113,10 +114,10 @@ Peer tuỳ chọn chỉ vào tập cài đặt **khi được chọn trực ti�
 
 ## Tập cài đặt
 
-`install-closures.json` đóng băng tập workspace, tập bắt buộc bên ngoài, và tập
-runtime hiệu dụng cho cả 25 hành trình biên dịch. Nó còn thử **từng package trong
-17 package ngoài core khi được chọn trực tiếp cạnh core**, để một hành trình Node
-lớn không thể che giấu một runtime sai ở mức package hay một phụ thuộc ẩn.
+`pnpm test:pack` đóng gói mọi package sẽ phát hành rồi cài các tarball đó vào
+fixture dùng-một-lần, nên lỗi runtime ở mức package hay một phụ thuộc ẩn sẽ hiện
+ra thành một lần cài thất bại, thay vì hiện ra ở lần import đầu tiên của người
+dùng.
 
 ## Các công thức cài đặt
 
@@ -127,5 +128,4 @@ khi bề mặt mở rộng thì tiếp cận trực tiếp được.
 
 ## Đọc tiếp
 
-- [Design contract](/vi/11-internals/design-contracts)
 - [Bản đồ package](/vi/01-introduction/getting-started)

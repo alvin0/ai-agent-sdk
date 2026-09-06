@@ -76,12 +76,18 @@ export class AgentSession {
       : Object.freeze({ ...options.compaction })
     const trace = options.trace === undefined ? undefined : Object.freeze({ ...options.trace })
     const team = options.team === undefined ? undefined : Object.freeze({ ...options.team })
+    const ledgerLimits = options.ledgerLimits === undefined ? undefined : Object.freeze({ ...options.ledgerLimits })
+    const eventBufferLimits = options.eventBufferLimits === undefined
+      ? undefined
+      : Object.freeze({ ...options.eventBufferLimits })
     this.options = Object.freeze({
       ...options,
       ...(historyLimits === undefined ? {} : { historyLimits }),
       ...(compaction === undefined ? {} : { compaction }),
       ...(trace === undefined ? {} : { trace }),
       ...(team === undefined ? {} : { team }),
+      ...(ledgerLimits === undefined ? {} : { ledgerLimits }),
+      ...(eventBufferLimits === undefined ? {} : { eventBufferLimits }),
       ...(options.skills === undefined ? {} : { skills: Object.freeze([...options.skills]) }),
       ...(Array.isArray(options.tools) ? { tools: Object.freeze([...options.tools]) } : {}),
       ...(options.interceptors === undefined ? {} : { interceptors: Object.freeze([...options.interceptors]) }),
@@ -293,7 +299,10 @@ export class AgentSession {
     const signal = invocation.signal === undefined
       ? owned.signal
       : AbortSignal.any([invocation.signal, owned.signal])
-    const buffer = new RunEventBuffer<AgentRunEvent>()
+    const buffer = new RunEventBuffer<AgentRunEvent>(
+      this.options.eventBufferLimits?.maxEvents,
+      this.options.eventBufferLimits?.maxBytes,
+    )
     const reportDeferred = deferred<RunReport>()
     const resultDeferred = deferred<AgentResponse>()
     const toolSourcesDeferred = deferred<readonly ToolSourceRunReference[]>()

@@ -78,7 +78,8 @@ This closes two decisions:
 
 ## 4. Web Standards runtime spike
 
-The committed fixtures are under `spikes/runtime-compat/`. Both strict workers set `globalThis.Buffer` and `globalThis.process` to `undefined` before exercising the target runtime path.
+The Worker-compatibility fixtures were non-production spikes and are no longer
+kept in the repository. Both strict workers set `globalThis.Buffer` and `globalThis.process` to `undefined` before exercising the target runtime path.
 
 ### MCP HTTP
 
@@ -137,9 +138,9 @@ E0/E1 follow-up: the owned byte parser passed ten conformance groups, typed boun
 cancellation, 100,000 deterministic chunk partitions, and 1,000,000 deterministic
 fuzz seeds with zero provider-visible semantic differences. It failed the mandatory
 throughput ceiling by 71.68%–83.13% across all three workloads, so the deterministic
-rule retains exact `4.1.0`. The full evidence is in
-[`spikes/sse-parser/report.json`](../spikes/sse-parser/report.json), and
-[ADR 0001](./adr/0001-eventsource-parser-ownership.md) closes the pre-1.0 decision.
+rule retains exact `4.1.0`. The retention rule in [`dependency-policy.md`](./dependency-policy.md) closes the
+pre-1.0 decision. The benchmark harness that produced these numbers was a
+non-production spike and is no longer kept in the repository.
 The production audit on 2026-09-01 reported zero advisories at every severity.
 
 ## 6. Evidence limitations

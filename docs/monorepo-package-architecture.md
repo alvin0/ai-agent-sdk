@@ -562,8 +562,8 @@ The owned candidate and deterministic selection rule chose option 1:
 The candidate passed conformance, resource, cancellation, 100,000-partition
 differential, and 1,000,000-seed fuzz gates, but failed the three throughput gates
 by 71.68%–83.13% against a 20% ceiling. It therefore remains a non-production spike.
-See [ADR 0001](./adr/0001-eventsource-parser-ownership.md) and the
-[archived report](../spikes/sse-parser/REPORT.md). A transitive `3.1.1` copy belongs
+See the retention rule in [`dependency-policy.md`](./dependency-policy.md).
+A transitive `3.1.1` copy belongs
 to the optional upstream MCP client closure; it is not another direct SDK owner and
 remains covered by the lock/audit policy.
 
@@ -723,7 +723,7 @@ The architecture migration is complete only when:
 | Decision | Initial implementation choice | Release guard |
 | --- | --- | --- |
 | npm scope | Local and intended public names are `@ai-agent-sdk/*` | Keep scoped manifests private until authenticated ownership succeeds; do not infer ownership from a registry 404 |
-| SSE parser strategy | Retain exact `eventsource-parser@4.1.0` only as a direct dependency of `provider-http` | Candidate failed the predeclared throughput gate; keep lock, audit, script, license, graph, and packed-runtime controls from ADR 0001 |
+| SSE parser strategy | Retain exact `eventsource-parser@4.1.0` only as a direct dependency of `provider-http` | Candidate failed the predeclared throughput gate; keep lock, audit, script, license, graph, and packed-runtime controls per the dependency policy |
 | A2A runtime claim | Node | Promote only when packed strict-Worker text/data/URL/binary paths all pass without Node globals |
 | MCP runtime claim | HTTP client/server package Universal; stdio and Node HTTP adapters Node | Keep the committed Worker round-trip as a packed regression test |
 | Node package granularity | Granular capability packages plus one re-export-only `node` facade | No capability implementation may be copied into the facade |
@@ -736,7 +736,7 @@ The architecture migration is complete only when:
 | 2026-09-01 | Use a multi-package monorepo organized by runtime and capability boundaries | Accepted for implementation |
 | 2026-09-01 | Keep the harness engine universal and inject runtime-specific capabilities | Accepted for implementation |
 | 2026-09-01 | Derive the consumer runtime from its reachable capability graph; Universal plus Node becomes Node | Accepted for implementation |
-| 2026-09-01 | Retain exact `eventsource-parser@4.1.0`; owned candidate failed the mandatory throughput gate | Accepted in ADR 0001 |
+| 2026-09-01 | Retain exact `eventsource-parser@4.1.0`; owned candidate failed the mandatory throughput gate | Accepted; recorded in `docs/dependency-policy.md` |
 | 2026-09-01 | Treat all local file/path access as Node-only | Accepted for implementation |
 | 2026-09-01 | Keep the root export Universal and require explicit Node imports | Accepted for implementation |
 | 2026-09-01 | Keep observability contracts and the run ledger universal; isolate durable Node exporters | Accepted for implementation |

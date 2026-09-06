@@ -86,12 +86,29 @@ describe('filesystem skill discovery', () => {
       '---', 'name: manual-only', 'description: Use only when selected.', '---', 'Do the explicit workflow.',
     ].join('\n'))
     await writeFile(join(directory, 'agents', 'openai.yaml'), [
-      'policy:', '  allow_implicit_invocation: false', '',
+      'policy:', '  allow_implicit_invocation: false # explicit invocation only', '',
     ].join('\n'))
 
     const [candidate] = await fileSystemSkills({ roots: [root] }).list({})
 
     expect(candidate?.invocation).toEqual({ modelInvocable: false, userInvocable: true })
+  })
+
+  it.each([
+    ['string value', 'policy:\n  allow_implicit_invocation: "false"\n'],
+    ['duplicate value', 'policy:\n  allow_implicit_invocation: false\n  allow_implicit_invocation: true\n'],
+    ['wrong nesting', 'allow_implicit_invocation: false\n'],
+    ['malformed mapping', 'policy:\n  allow_implicit_invocation: [false\n'],
+  ])('fails closed for %s in Codex implicit policy', async (_label, metadata) => {
+    const root = await temporaryRoot()
+    const directory = join(root, 'invalid-policy')
+    await mkdir(join(directory, 'agents'), { recursive: true })
+    await writeFile(join(directory, 'SKILL.md'), [
+      '---', 'name: invalid-policy', 'description: Invalid policy fixture.', '---', 'Instructions.',
+    ].join('\n'))
+    await writeFile(join(directory, 'agents', 'openai.yaml'), metadata)
+
+    await expect(fileSystemSkills({ roots: [root] }).list({})).rejects.toThrow(/skill metadata/)
   })
 
   it('rediscovers added folders and resolves duplicate ids by ordered root precedence', async () => {

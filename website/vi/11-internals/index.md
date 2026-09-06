@@ -7,7 +7,6 @@ mà tài liệu hướng người dùng không giải thích.
 | --- | --- |
 | [Topology package](/vi/11-internals/package-topology) | 20 package đích, 34 định danh, tầng runtime, quy tắc phụ thuộc |
 | [Đường ống adapter](/vi/11-internals/adapter-pipeline) | Provider cung cấp gì và lớp cơ sở sở hữu gì |
-| [Design contract](/vi/11-internals/design-contracts) | Cổng kiểm tra tĩnh giữ cho topology trung thực |
 
 ## Hai quy tắc cấu trúc
 
@@ -58,9 +57,7 @@ packages/protocol-*           giao thức wire tái dùng
 packages/provider-*           plugin provider tường minh
 packages/observability-*      exporter và cầu nối theo từng runtime
 packages/auth-node, mcp-node  nâng tầng Node một cách tường minh
-design-contracts/             cổng biên dịch tĩnh và các sổ cái API đã đóng băng
 docs/                         tài liệu thiết kế và bằng chứng hiện thực
-spikes/                       các đánh giá lịch sử — không phải mã production
 test-human/                   harness nghiệm thu tương tác
 website/                      chính site tài liệu này
 ```
@@ -70,7 +67,8 @@ website/                      chính site tài liệu này
 `docs/` chứa phần lập luận đứng sau các trang này: `tool-loop-design.md`,
 `observability-and-usage-architecture.md`,
 `core-capability-composition-design.md`, `monorepo-package-architecture.md`, và
-các ADR trong `docs/adr/`.
+`dependency-policy.md`.
 
-Chương này tóm tắt chúng. Khi hai bên không khớp, bản ghi thiết kế và các sổ cái
-đã đóng băng trong `design-contracts/` mới là bản có thẩm quyền.
+Chương này tóm tắt chúng. Khi hai bên không khớp, nguồn chân lý là chính mã nguồn
+cộng với `scripts/package-policy.mts`, thứ mà các cổng graph và runtime-boundary
+trong CI cưỡng chế ở mọi thay đổi.

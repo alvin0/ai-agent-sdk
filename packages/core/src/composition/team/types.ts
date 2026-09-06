@@ -46,6 +46,7 @@ export interface RuntimeAgentTeam {
 }
 
 export interface RuntimeTeamRegistration {
+  readonly id: string
   readonly view: RuntimeAgentTeam
   closeForRuntime(deadlineAt: number): Promise<RuntimeComponentCloseReport>
 }

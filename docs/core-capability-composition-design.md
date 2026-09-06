@@ -1966,7 +1966,7 @@ bridges with mandatory deletion milestones, never alternate implementation
 owners or a reversal of the target package decision.
 
 The authoritative pre-move API inventory is
-[`../design-contracts/core-capability-v1/api-migration.json`](../design-contracts/core-capability-v1/api-migration.json).
+`../design-contracts/core-capability-v1/api-migration.json`.
 It freezes 417 current public API export occurrences and their declaration
 signature hashes: 184 core-root exports remain on `core`, 207 agent-root exports
 move to `core/agent`, 24 base-observability root exports move to
@@ -2115,10 +2115,10 @@ the core agent runtime again.
 No third broad architecture document is needed. The three review artifacts now
 exist at different approval levels:
 
-1. ADR 0002 records the approved package removals/retentions and the explicit
+1. `phase0-decisions.json` records the approved package removals/retentions and the explicit
    provider-default amendment; implementation remains staged, not completed;
 2. the original declaration fixture records the detailed shape, while
-   [`../design-contracts/core-capability-v1/`](../design-contracts/core-capability-v1/)
+   `../design-contracts/core-capability-v1/`
    compiles direct imports for minimal/extended Edge, minimal Node, Node env-auth,
    and full Node journeys plus negative contracts, stream/tool/usage projection,
    correlated safe errors, observation health, runtime elevation, facade

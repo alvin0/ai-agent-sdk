@@ -45,6 +45,11 @@ export interface AgentRuntimeLimits {
   readonly observerTimeoutMs?: number
 }
 
+export interface AgentRunEventBufferLimits {
+  readonly maxEvents?: number
+  readonly maxBytes?: number
+}
+
 export interface AgentSessionOptions {
   readonly registry: ModelRegistry
   /** Stable application-facing id; generated automatically when omitted. */
@@ -73,6 +78,8 @@ export interface AgentSessionOptions {
   readonly usagePolicy?: UsagePolicy
   /** Hard resource limits for the in-memory canonical run ledger. */
   readonly ledgerLimits?: RunLedgerLimits
+  /** Hard resource limits for public run events waiting on a consumer. */
+  readonly eventBufferLimits?: AgentRunEventBufferLimits
   /** Resume explicit task memory; otherwise definition seeds are used. */
   readonly memory?: AgentMemory | AgentMemorySnapshot
   /** Override the definition's compaction policy for this conversation. */

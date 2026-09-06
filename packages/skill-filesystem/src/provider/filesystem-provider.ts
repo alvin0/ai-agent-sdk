@@ -4,6 +4,7 @@ import type { Dirent } from 'node:fs'
 import { access, open, opendir, realpath, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { parseDocument } from 'yaml'
 import {
   MAX_SKILL_RESOURCE_CHARS,
   MAX_SKILL_INSTRUCTIONS_CHARS,
@@ -36,6 +37,8 @@ const IGNORED_RESOURCE_DIRECTORIES = new Set(['.git', 'node_modules'])
 const READ_CHUNK_BYTES = 8 * 1024
 const MAX_FRONT_MATTER_BYTES = 64 * 1024
 const MAX_OPENAI_METADATA_BYTES = 64 * 1024
+const MAX_OPENAI_METADATA_DEPTH = 16
+const MAX_OPENAI_METADATA_NODES = 4_096
 const MAX_SKILL_FILE_BYTES = MAX_FRONT_MATTER_BYTES + MAX_SKILL_INSTRUCTIONS_CHARS * 4
 const MAX_RESOURCE_FILE_BYTES = MAX_SKILL_RESOURCE_CHARS * 4
 
@@ -378,12 +381,68 @@ async function readImplicitPolicy(
       path, MAX_OPENAI_METADATA_BYTES, `skill metadata '${path}'`, signal,
       onIo, { phase, skillId },
     ))
-    const match = /^\s*allow_implicit_invocation\s*:\s*(true|false)\s*$/mi.exec(contents)
-    return match?.[1] === undefined ? undefined : match[1] === 'true'
+    const document = parseDocument(contents, { strict: true, uniqueKeys: true })
+    if (document.errors.length > 0) {
+      throw new TypeError(`skill metadata '${path}' is invalid YAML: ${document.errors[0]?.message ?? 'parse failed'}`)
+    }
+    let value: unknown
+    try { value = document.toJS({ maxAliasCount: 0 }) }
+    catch (error: unknown) {
+      throw new TypeError(`skill metadata '${path}' contains unsupported YAML aliases`, { cause: error })
+    }
+    assertMetadataBounds(value, path)
+    if (value === null || value === undefined) return undefined
+    if (!isStringRecord(value)) throw new TypeError(`skill metadata '${path}' must be a YAML mapping`)
+    const policy = value.policy
+    if (policy === undefined) {
+      if (containsImplicitPolicyKey(value)) {
+        throw new TypeError(`skill metadata '${path}' must place allow_implicit_invocation under policy`)
+      }
+      return undefined
+    }
+    if (!isStringRecord(policy)) throw new TypeError(`skill metadata '${path}' policy must be a YAML mapping`)
+    const allowImplicit = policy.allow_implicit_invocation
+    if (allowImplicit === undefined) {
+      if (containsImplicitPolicyKey(value)) {
+        throw new TypeError(`skill metadata '${path}' has an invalid allow_implicit_invocation policy`)
+      }
+      return undefined
+    }
+    if (typeof allowImplicit !== 'boolean') {
+      throw new TypeError(`skill metadata '${path}' policy.allow_implicit_invocation must be true or false`)
+    }
+    return allowImplicit
   } catch (error: unknown) {
     if (isMissing(error)) return undefined
     throw error
   }
+}
+
+function assertMetadataBounds(value: unknown, path: string): void {
+  let nodes = 0
+  const visit = (current: unknown, depth: number): void => {
+    nodes++
+    if (nodes > MAX_OPENAI_METADATA_NODES) {
+      throw new RangeError(`skill metadata '${path}' exceeds ${MAX_OPENAI_METADATA_NODES} YAML nodes`)
+    }
+    if (depth > MAX_OPENAI_METADATA_DEPTH) {
+      throw new RangeError(`skill metadata '${path}' exceeds YAML depth ${MAX_OPENAI_METADATA_DEPTH}`)
+    }
+    if (Array.isArray(current)) { for (const item of current) visit(item, depth + 1); return }
+    if (isStringRecord(current)) { for (const item of Object.values(current)) visit(item, depth + 1) }
+  }
+  visit(value, 0)
+}
+
+function containsImplicitPolicyKey(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsImplicitPolicyKey)
+  if (!isStringRecord(value)) return false
+  return Object.prototype.hasOwnProperty.call(value, 'allow_implicit_invocation')
+    || Object.values(value).some(containsImplicitPolicyKey)
+}
+
+function isStringRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 async function discoverResourceManifest(

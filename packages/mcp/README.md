@@ -36,8 +36,10 @@ The normal root and `/client` route contain no server, stdio, filesystem,
 `node:http`, or process lifecycle integration. Use `@ai-agent-sdk/mcp-node` for
 the Node stdio client, and a dedicated server package for hosting.
 
-HTTP endpoints are host-selected. Use `allowedOrigins`, `requireHttps`,
-`allowPrivateNetwork`, response/catalog/result bounds, and operation deadlines
+HTTP endpoints are host-selected. HTTPS, public-network-only access, and no
+redirects are the defaults; local development must opt out explicitly. Use
+`allowedOrigins`, the async `validateEndpoint` hook, a DNS-pinning custom fetch
+or network egress policy, response/catalog/result bounds, and operation deadlines
 according to the application's trust boundary. OAuth credential persistence and
 redirect handling remain caller-owned.
 

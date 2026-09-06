@@ -1,5 +1,8 @@
 # @ai-agent-sdk/skill-filesystem
 
+The package directly owns exact `yaml@2.9.0` for bounded, fail-closed parsing of
+`agents/openai.yaml` invocation policy. Aliases and duplicate keys are rejected.
+
 Runtime: **Node 22.12+**.
 
 ```sh

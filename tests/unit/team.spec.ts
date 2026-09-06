@@ -402,6 +402,7 @@ describe('local agent teams', () => {
     expect(events).toContain('member-run-cancelled')
     expect(events.at(-1)).toBe('team-disposed')
     expect(team.members()).toEqual([])
+    expect(team.messages()).toEqual([])
     await expect(team.sendMessage({ from: 'lead', target: 'worker', message: 'too late' }))
       .rejects.toThrow(/disposed/)
   })

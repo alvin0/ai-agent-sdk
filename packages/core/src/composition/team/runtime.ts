@@ -24,6 +24,7 @@ import type {
 import type { RuntimeAgentInvocationOptions } from '../agent/types.ts'
 
 class RuntimeTeamValue implements RuntimeTeamRegistration {
+  readonly id: string
   readonly view: RuntimeAgentTeam
   private closing: Promise<void> | undefined
   private closed = false
@@ -31,9 +32,11 @@ class RuntimeTeamValue implements RuntimeTeamRegistration {
   constructor(
     private readonly host: RuntimeAgentHost,
     private readonly team: AgentTeam,
-    private readonly sessions: ReadonlyMap<string, ReturnType<typeof createRuntimeTeamMemberSession>>,
+    private readonly sessions: Map<string, ReturnType<typeof createRuntimeTeamMemberSession>>,
     memberNames: readonly string[],
+    private readonly onClosed: (registration: RuntimeTeamRegistration) => void,
   ) {
+    this.id = team.id
     this.view = Object.freeze({
       id: team.id, memberNames,
       linkAgent: (options: LinkAgentOptions) => this.linkAgent(options),
@@ -90,7 +93,13 @@ class RuntimeTeamValue implements RuntimeTeamRegistration {
     captureCloseSignal(raw)
     if (this.closing !== undefined) return this.closing
     this.closed = true
-    this.closing = this.team.dispose(new Error('Runtime agent team is closing'))
+    this.closing = this.team.dispose(new Error('Runtime agent team is closing')).finally(() => {
+      // The runtime retains this lightweight registration for close reporting.
+      // Member sessions can contain full histories and must not remain reachable
+      // from a long-lived runtime after the team has settled.
+      this.sessions.clear()
+    })
+    void this.closing.then(() => this.onClosed(this), () => undefined)
     void this.closing.catch(() => undefined)
     return this.closing
   }
@@ -107,7 +116,11 @@ class RuntimeTeamValue implements RuntimeTeamRegistration {
   }
 }
 
-export function createRuntimeAgentTeam(host: RuntimeAgentHost, raw: unknown): RuntimeTeamRegistration {
+export function createRuntimeAgentTeam(
+  host: RuntimeAgentHost,
+  raw: unknown,
+  onClosed: (registration: RuntimeTeamRegistration) => void = () => undefined,
+): RuntimeTeamRegistration {
   host.operations.assertActive()
   const options = captureRuntimeTeamOptions(raw)
   for (const member of options.members) {
@@ -148,7 +161,7 @@ export function createRuntimeAgentTeam(host: RuntimeAgentHost, raw: unknown): Ru
   }
   emit = event => { options.onEvent?.(event) }
   for (const event of pendingEvents) emit(event)
-  return new RuntimeTeamValue(host, team, sessions, Object.freeze([...sessions.keys()]))
+  return new RuntimeTeamValue(host, team, sessions, Object.freeze([...sessions.keys()]), onClosed)
 }
 
 function captureMessage(raw: unknown): SendAgentMessageRequest {
