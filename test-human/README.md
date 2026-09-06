@@ -31,6 +31,8 @@ The implementation is intentionally split by control boundary:
   universal packages and Web Standards, with browser screenshots and SSE/tool-loop evidence.
 - `node-codex/` is the complementary explicit-capability Node coding harness
   with filesystem skills, scoped writes, MCP stdio, durable observations, and resume proof.
+- `structured-output/` calls authenticated Codex or Gemini to prove short and
+  long tool processes reserve JSON Schema for a separate final-answer round.
 
 ## Quick commands
 
@@ -84,6 +86,12 @@ pnpm human:edge-chat
 
 # Authenticated Internet research in workerd; automatic model fallback is bounded
 pnpm human:edge-chat:live -- --run-id live-edge --model gpt-5.3-codex-spark --fallback-model gpt-5.6-luna
+
+# Live Codex short + long tool processes with a JSON Schema final answer
+pnpm human:structured-output
+
+# Same provider-neutral flow through Gemini Interactions; .env is test-only convenience
+pnpm human:structured-output -- --provider gemini
 
 # Full Node facade coding CLI + filesystem skill/MCP/journal acceptance
 pnpm human:node-codex -- --repeat 4 --parallel 2

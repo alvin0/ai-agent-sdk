@@ -79,12 +79,15 @@ export async function emitAssistantContent(
   }
 }
 
-export function classifyTextPhases(blocks: readonly ContentBlock[]): ContentBlock[] {
+export function classifyTextPhases(
+  blocks: readonly ContentBlock[],
+  processOnly = false,
+): ContentBlock[] {
   const hasHostCalls = blocks.some(block => block.type === 'tool-call')
   const lastNative = blocks.findLastIndex(block => block.type === 'native-tool-call')
   return blocks.map((block, index) => {
     if (block.type !== 'text' || block.phase !== undefined) return block
-    const phase = hasHostCalls || (lastNative >= 0 && index < lastNative)
+    const phase = processOnly || hasHostCalls || (lastNative >= 0 && index < lastNative)
       ? 'commentary' as const
       : 'final-answer' as const
     return { ...block, phase }

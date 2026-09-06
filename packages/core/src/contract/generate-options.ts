@@ -7,6 +7,7 @@
 import type { Message } from '../message/message.ts'
 import type { ReasoningEffortId } from '../primitives/brand.ts'
 import type { ModelToolSchema, ToolChoice } from './tool.ts'
+import type { ModelOutputFormat } from './output-format.ts'
 
 /** One fully assembled model request. */
 export interface GenerateOptions {
@@ -30,6 +31,8 @@ export interface GenerateOptions {
   tools?: readonly ModelToolSchema[]
   /** Tool-selection constraint; omission means the provider's own default. */
   toolChoice?: ToolChoice
+  /** Visible response format; omission uses the provider's ordinary text default. */
+  outputFormat?: ModelOutputFormat
   temperature?: number
   topP?: number
   maxTokens?: number

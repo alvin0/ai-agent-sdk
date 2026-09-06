@@ -150,11 +150,9 @@ record is now `approved` following the owner's explicit approval and per-agent
 model-default amendment. Approval permits staged source migration; a passing
 static contract alone is still not runtime or release acceptance.
 
-Run the static gate:
-
-```sh
-pnpm check:core-capability-contract
-```
+The migration-only static gate was retired after implementation completed. The
+declarations and ledgers remain here as historical design evidence; maintained
+package, boundary, and packed-artifact tests now protect the shipped code.
 
 The contract currently records these owner-approved choices:
 

@@ -259,6 +259,106 @@ describe('runTurn', () => {
     expect(tree[0]?.children[1]?.attributes).toMatchObject({ 'gen_ai.tool.call.id': 'c1' })
   })
 
+  it('keeps long tool-loop rounds as text and applies JSON Schema only to the final answer', async () => {
+    const state = await setup([
+      toolRound([{ id: 'schema-loop-1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'schema-loop-2', name: 'echo', arguments: '{"value":2}' }]),
+      textRound('The process is complete.'),
+      textRound('{"answer":"done"}'),
+    ])
+    const events: AgentEvent[] = []
+    const outputFormat = {
+      type: 'json_schema' as const,
+      name: 'final_answer',
+      schema: {
+        type: 'object', properties: { answer: { type: 'string' } },
+        required: ['answer'], additionalProperties: false,
+      },
+    }
+
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' },
+      history: state.history, tools: state.tools, outputFormat,
+    })) events.push(event)
+
+    expect(state.adapter.requests).toHaveLength(4)
+    expect(state.adapter.requests.slice(0, 3).map(request => request.outputFormat)).toEqual([
+      { type: 'text' }, { type: 'text' }, { type: 'text' },
+    ])
+    expect(state.adapter.requests[3]).toMatchObject({
+      outputFormat,
+      toolChoice: 'none',
+    })
+    const visibleText = events.filter((event): event is Extract<AgentEvent, { type: 'assistant-text' }> =>
+      event.type === 'assistant-text')
+    expect(visibleText.map(event => ({ text: event.text, phase: event.phase }))).toEqual([
+      { text: 'The process is complete.', phase: 'commentary' },
+      { text: '{"answer":"done"}', phase: 'final-answer' },
+    ])
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn-end',
+      outcome: {
+        text: '{"answer":"done"}', steps: 4, toolCalls: 2,
+        reason: { kind: 'completed' },
+      },
+    })
+  })
+
+  it('applies JSON Schema to the reserved final answer after a process budget is exhausted', async () => {
+    const state = await setup([
+      toolRound([{ id: 'schema-budget-1', name: 'echo', arguments: '{"value":1}' }]),
+      textRound('{"answer":"best available"}'),
+    ])
+    const outputFormat = {
+      type: 'json_schema' as const,
+      name: 'budget_answer',
+      schema: {
+        type: 'object', properties: { answer: { type: 'string' } },
+        required: ['answer'], additionalProperties: false,
+      },
+    }
+    let terminal: Extract<AgentEvent, { type: 'turn-end' }> | undefined
+
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' },
+      history: state.history, tools: state.tools, outputFormat,
+      bounds: { maxSteps: 1 },
+    })) if (event.type === 'turn-end') terminal = event
+
+    expect(state.adapter.requests).toHaveLength(2)
+    expect(state.adapter.requests[0]?.outputFormat).toEqual({ type: 'text' })
+    expect(state.adapter.requests[1]).toMatchObject({ outputFormat, toolChoice: 'none' })
+    expect(terminal?.outcome).toMatchObject({
+      text: '{"answer":"best available"}', steps: 2, toolCalls: 1,
+      reason: { kind: 'budget-exhausted', budget: 'steps', forcedFinalAnswer: true },
+    })
+  })
+
+  it('fails closed when a final adapter response violates the requested JSON format', async () => {
+    const state = await setup([textRound('this is not JSON')])
+    let terminal: Extract<AgentEvent, { type: 'turn-end' }> | undefined
+
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' },
+      history: state.history,
+      outputFormat: {
+        type: 'json_schema', name: 'answer',
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+      },
+    })) if (event.type === 'turn-end') terminal = event
+
+    expect(state.adapter.requests[0]).toMatchObject({
+      outputFormat: { type: 'json_schema', name: 'answer' },
+    })
+    expect(terminal?.outcome.reason).toEqual({
+      kind: 'error',
+      failure: {
+        message: 'model returned invalid JSON for the requested structured output',
+        code: 'MALFORMED_RESPONSE',
+      },
+    })
+  })
+
   it('synthesizes declined results and reserves one no-tools forced-final request', async () => {
     const state = await setup([
       toolRound([

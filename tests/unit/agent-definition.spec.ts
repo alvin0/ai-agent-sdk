@@ -132,6 +132,35 @@ describe('declarative agent definitions', () => {
     expect(base).toMatchObject({ id: 'ada', mode: 'basic', maxTurns: 16 })
   })
 
+  it('captures, freezes, validates, and forwards the selected output format', async () => {
+    const state = model([textRound('{"answer":"yes"}')])
+    const schema = {
+      type: 'object', properties: { answer: { type: 'string' } },
+      required: ['answer'], additionalProperties: false,
+    }
+    const agent = defineAgent({
+      id: 'structured-agent', provider: 'test', model: 'scripted', instructions: 'Answer.',
+      outputFormat: { type: 'json_schema', name: 'answer', schema },
+    })
+    schema.properties.answer.type = 'number'
+
+    expect(agent.outputFormat).toEqual({
+      type: 'json_schema', name: 'answer',
+      schema: { type: 'object', properties: { answer: { type: 'string' } },
+        required: ['answer'], additionalProperties: false },
+    })
+    expect(Object.isFrozen(agent.outputFormat)).toBe(true)
+    expect(Object.isFrozen(agent.outputFormat?.type === 'json_schema'
+      ? agent.outputFormat.schema : undefined)).toBe(true)
+    await agent.createSession({ registry: state.registry }).run('Return JSON.')
+    expect(state.adapter.requests[0]?.outputFormat).toBe(agent.outputFormat)
+
+    expect(() => defineAgent({
+      id: 'bad-output', instructions: 'Answer.',
+      outputFormat: { type: 'json_schema', name: 'not valid', schema: {} },
+    })).toThrow(/outputFormat/)
+  })
+
   it('validates and freezes the definition-owned skill allowlist', () => {
     const agent = defineAgent({
       id: 'scoped-agent', instructions: 'Use only explicitly attached skills.',

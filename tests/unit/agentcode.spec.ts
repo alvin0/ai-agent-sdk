@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -905,7 +905,7 @@ describe('agentcode workspace tools', () => {
 })
 
 async function temporaryDirectory(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), 'ai-agent-sdk-agentcode-'))
+  const directory = await realpath(await mkdtemp(join(tmpdir(), 'ai-agent-sdk-agentcode-')))
   temporaryDirectories.push(directory)
   return directory
 }

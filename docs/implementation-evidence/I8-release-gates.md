@@ -1,5 +1,9 @@
 # I8 deterministic release-gate evidence
 
+> Historical evidence: the migration-only core-capability contract and benchmark
+> commands recorded below were retired after implementation completed. This file
+> preserves the reviewed 2026-09-05 result; it is not the current command runbook.
+
 ## Scope
 
 This record covers deterministic release-readiness checks for the 18-package

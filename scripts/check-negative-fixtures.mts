@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path'
 const workspaceRoot = resolve(process.cwd())
 const cases = [
   { script: 'check-package-graph.mts', fixture: 'graph-cycle', expected: 'workspace dependency cycle' },
+  { script: 'check-package-graph.mts', fixture: 'source-ownership-cycle', expected: 'source ownership cycle' },
   { script: 'check-package-graph.mts', fixture: 'graph-undeclared', expected: 'undeclared package import' },
   { script: 'check-package-graph.mts', fixture: 'graph-internal-import', expected: 'import bypasses' },
   { script: 'check-runtime-boundaries.mts', fixture: 'runtime-node-leak', expected: 'Node builtin import' },
@@ -93,13 +94,6 @@ try {
   rmSync(matrixRoot, { recursive: true, force: true })
 }
 
-const sourceCycleRoot = join(workspaceRoot, 'tests', 'negative-fixtures', 'source-ownership-cycle', 'src')
-const sourceCycle = spawnSync(process.execPath, [join(workspaceRoot, 'scripts', 'check-source-cycles.mts'), sourceCycleRoot], { encoding: 'utf8' })
-const sourceCycleOutput = `${sourceCycle.stdout ?? ''}${sourceCycle.stderr ?? ''}`
-if (sourceCycle.status === 0) failures.push('source-ownership-cycle: checker unexpectedly passed')
-else if (!sourceCycleOutput.includes('runtime -> stream -> runtime')) failures.push('source-ownership-cycle: missing expected type-only ownership cycle')
-else console.log('source-ownership-cycle: rejected as expected (runtime -> stream -> runtime)')
-
 if (failures.length > 0) {
   for (const failure of failures) console.error(`- ${failure}`)
   process.exitCode = 1
@@ -110,6 +104,6 @@ if (failures.length > 0) {
     process.stderr.write(`${safe.stdout ?? ''}${safe.stderr ?? ''}`)
     process.exitCode = 1
   } else {
-    console.log(`Boundary fixtures passed: ${cases.length + 1} invalid workspaces rejected and the safe lexical fixture accepted.`)
+    console.log(`Boundary fixtures passed: ${cases.length} invalid workspaces rejected and the safe lexical fixture accepted.`)
   }
 }

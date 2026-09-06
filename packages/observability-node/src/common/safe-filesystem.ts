@@ -22,15 +22,20 @@ export async function ensureSafeRoot(input: string): Promise<string> {
   if (typeof input !== 'string' || input.trim().length === 0) {
     throw new TypeError('observation journal rootDir must be explicit and non-empty')
   }
-  const root = resolve(input)
+  const requestedRoot = resolve(input)
   try {
-    await mkdir(root, { recursive: true, mode: 0o700 })
-    const info = await lstat(root)
-    if (!info.isDirectory() || info.isSymbolicLink()) throw new NodeObservationError(
+    await mkdir(requestedRoot, { recursive: true, mode: 0o700 })
+    const requestedInfo = await lstat(requestedRoot)
+    if (!requestedInfo.isDirectory() || requestedInfo.isSymbolicLink()) throw new NodeObservationError(
       NODE_OBSERVATION_ERROR_CODES.io, 'observation journal root must be a real directory',
     )
-    if (await realpath(root) !== root) throw new NodeObservationError(
-      NODE_OBSERVATION_ERROR_CODES.io, 'observation journal root must not traverse symbolic links',
+    // Host-configured roots may include an operating-system alias such as
+    // macOS /var -> /private/var. Canonicalize that trusted boundary once,
+    // while continuing to reject a symlink as the final root component.
+    const root = await realpath(requestedRoot)
+    const canonicalInfo = await lstat(root)
+    if (!canonicalInfo.isDirectory() || canonicalInfo.isSymbolicLink()) throw new NodeObservationError(
+      NODE_OBSERVATION_ERROR_CODES.io, 'observation journal root must resolve to a real directory',
     )
     await chmod(root, 0o700)
     return root

@@ -8,7 +8,7 @@ import type { ToolInterceptor } from '../../agent/tool/pipeline.ts'
 import type { TurnHooks } from '../../agent/loop/types.ts'
 import type { UserInputBroker, UserInputDecision, UserInputRequest } from '../../agent/mode/user-input.ts'
 import type { UsagePolicy } from '../../agent/accounting/report.ts'
-import type { NativeToolSchema, ToolChoice } from '../../contract/index.ts'
+import type { ModelOutputFormat, NativeToolSchema, ToolChoice } from '../../contract/index.ts'
 import type { JsonValue } from '../../primitives/index.ts'
 import type { ModelTarget } from '../provider/types.ts'
 import type { RuntimeRunReport } from '../observation/final-report.ts'
@@ -28,6 +28,7 @@ export interface RuntimeAgentDefinitionInput {
   readonly tools?: readonly ToolDefinition[]
   readonly nativeTools?: readonly NativeToolSchema[]
   readonly toolChoice?: ToolChoice
+  readonly outputFormat?: ModelOutputFormat
   readonly toolSources?: readonly ToolSource[]
   readonly skills?: readonly RuntimeSkillSource[]
   readonly allowedSkillIds?: readonly string[]

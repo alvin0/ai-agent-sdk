@@ -7,8 +7,9 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
 const packageName = process.argv[2]
-if (packageName !== 'protocol-anthropic-messages' && packageName !== 'protocol-responses') {
-  throw new Error('expected protocol-anthropic-messages or protocol-responses')
+if (packageName !== 'protocol-anthropic-messages' && packageName !== 'protocol-responses'
+  && packageName !== 'protocol-gemini-interactions') {
+  throw new Error('expected protocol-anthropic-messages, protocol-responses, or protocol-gemini-interactions')
 }
 const workspaceRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const packageRoot = join(workspaceRoot, 'packages', packageName)
@@ -123,7 +124,9 @@ function assertFixture(value: unknown, runtime: string): void {
   const result = value as Record<string, unknown>
   const expectedProtocol = packageName === 'protocol-anthropic-messages'
     ? 'anthropic-messages'
-    : 'openai-responses'
+    : packageName === 'protocol-gemini-interactions'
+      ? 'gemini-interactions'
+      : 'openai-responses'
   if (result.protocol !== expectedProtocol || result.model !== 'packed-model'
     || result.inputTokens !== 6 || result.outputTokens !== 2 || result.totalTokens !== 12
     || result.buffer !== 'undefined' || result.process !== 'undefined') {

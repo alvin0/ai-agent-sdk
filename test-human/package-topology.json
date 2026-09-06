@@ -53,6 +53,27 @@
         "@ai-agent-sdk/provider-codex"
       ],
       "status": "target-achieved"
+    },
+    {
+      "id": "structured-output-live",
+      "sourceRoots": ["test-human/structured-output"],
+      "currentDirectPackages": [
+        "@ai-agent-sdk/auth-node",
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/provider-gemini"
+      ],
+      "targetDirectPackages": [
+        "@ai-agent-sdk/auth-node",
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/provider-gemini"
+      ],
+      "liveCompanionPackages": [
+        "@ai-agent-sdk/auth-node",
+        "@ai-agent-sdk/core",
+        "@ai-agent-sdk/provider-codex",
+        "@ai-agent-sdk/provider-gemini"
+      ],
+      "status": "target-achieved"
     }
   ],
   "targetForbiddenPackages": [

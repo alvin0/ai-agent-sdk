@@ -17,7 +17,7 @@ import type { AgentCompactionConfig, AgentCompactionOptions } from '../../agent/
 import { assertAgentIdentitySnapshot } from '../identity/agent.ts'
 
 const KEYS = new Set(['id', 'name', 'description', 'model', 'instructions', 'effort', 'maxTokens', 'mode',
-  'tools', 'nativeTools', 'toolChoice', 'toolSources', 'skills', 'allowedSkillIds', 'memory', 'compaction',
+  'tools', 'nativeTools', 'toolChoice', 'outputFormat', 'toolSources', 'skills', 'allowedSkillIds', 'memory', 'compaction',
   'maxTurns', 'maxToolCalls', 'commentary'])
 
 export interface BoundRuntimeAgentDefinition {
@@ -45,6 +45,7 @@ export function defineRuntimeAgentDefinition(input: RuntimeAgentDefinitionInput)
     ...(bound.maxTokens === undefined ? {} : { maxTokens: bound.maxTokens }),
     mode: legacy.mode, tools: legacy.tools, nativeTools: legacy.nativeTools,
     ...(legacy.toolChoice === undefined ? {} : { toolChoice: legacy.toolChoice }),
+    ...(legacy.outputFormat === undefined ? {} : { outputFormat: legacy.outputFormat }),
     toolSources: bound.toolSources, skills: legacy.skills,
     ...(legacy.skillIds === undefined ? {} : { allowedSkillIds: legacy.skillIds }),
     ...(bound.memory === undefined ? {} : { memory: bound.memory }),
@@ -108,6 +109,9 @@ export function bindRuntimeAgentDefinition(
     ...(skills === undefined ? {} : { skills: skills as DefinedAgent['skills'] }),
     ...(values.allowedSkillIds === undefined ? {} : { skillIds: values.allowedSkillIds as readonly string[] }),
     ...(toolChoice === undefined ? {} : { toolChoice }),
+    ...(values.outputFormat === undefined ? {} : {
+      outputFormat: values.outputFormat as NonNullable<RuntimeAgentBindingInput['outputFormat']>,
+    }),
     ...(values.compaction === undefined ? {} : { compaction: values.compaction as NonNullable<RuntimeAgentBindingInput['compaction']> }),
     ...(values.maxTurns === undefined ? {} : { maxTurns: values.maxTurns as number }),
     ...(values.maxToolCalls === undefined ? {} : { maxToolCalls: values.maxToolCalls as number }),

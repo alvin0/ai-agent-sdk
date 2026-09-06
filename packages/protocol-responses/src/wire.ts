@@ -135,8 +135,18 @@ export interface WireReasoning {
 
 /** Output text controls. */
 export interface WireTextControls {
+  format?: WireTextFormat
   verbosity?: 'low' | 'medium' | 'high'
 }
+
+export type WireTextFormat =
+  | { type: 'text' }
+  | {
+    type: 'json_schema'
+    name: string
+    schema: Readonly<Record<string, unknown>>
+    strict: true
+  }
 
 /** The request body. */
 export interface WireRequest {
@@ -256,6 +266,8 @@ export interface ResponsesDialect {
   readonly sampling: boolean
   /** Whether `max_output_tokens` may be sent. */
   readonly maxOutputTokens: boolean
+  /** Whether the endpoint accepts `text.format` JSON Schema controls. */
+  readonly structuredOutputs: boolean
   /** Value for `store`. Codex always sends false. */
   readonly store: boolean
   /** Values for `include`. */

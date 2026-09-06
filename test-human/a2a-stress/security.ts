@@ -1,4 +1,5 @@
-import { resolve } from 'node:path'
+import { realpathSync } from 'node:fs'
+import { basename, dirname, resolve } from 'node:path'
 import {
   createAgentCodeToolRegistry,
   type AgentCodeCommandRequest,
@@ -37,8 +38,10 @@ export function resolveA2AStressCommand(
   actor: A2AStressActor,
   request: AgentCodeCommandRequest,
 ): AgentCodeResolvedCommand {
-  const root = resolve(request.workspaceRoot)
-  if (resolve(request.cwd) !== root) throw new Error('A2A stress commands must run at workspace root')
+  const root = canonicalPath(request.workspaceRoot)
+  if (canonicalPath(request.cwd) !== root) {
+    throw new Error('A2A stress commands must run at workspace root')
+  }
   const args = [...request.args]
   const base = [
     '--permission',
@@ -65,6 +68,23 @@ export function resolveA2AStressCommand(
     }
   }
   throw new Error(`A2A stress command is not allowlisted for ${actor}: npm ${args.join(' ')}`)
+}
+
+function canonicalPath(input: string): string {
+  let existing = resolve(input)
+  const missing: string[] = []
+  while (true) {
+    try {
+      return resolve(realpathSync.native(existing), ...missing)
+    } catch (error) {
+      const code = typeof error === 'object' && error !== null ? Reflect.get(error, 'code') : undefined
+      if (code !== 'ENOENT') throw error
+      const parent = dirname(existing)
+      if (parent === existing) throw error
+      missing.unshift(basename(existing))
+      existing = parent
+    }
+  }
 }
 
 export function a2aStressOwnedPaths(actor: A2AStressActor): readonly string[] {

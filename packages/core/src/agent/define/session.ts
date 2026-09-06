@@ -503,6 +503,7 @@ export class AgentSession {
       ...catalog === undefined ? {} : { tools: catalog },
       ...definition.nativeTools.length === 0 ? {} : { nativeTools: definition.nativeTools },
       ...definition.toolChoice === undefined ? {} : { toolChoice: definition.toolChoice },
+      ...definition.outputFormat === undefined ? {} : { outputFormat: definition.outputFormat },
       system: this.systemInstructions(this.activeAdditionalInstructions),
       maxTurns: definition.maxTurns,
       bounds: {

@@ -2934,8 +2934,8 @@ Additional executable evidence:
   five domains, a 22,071-character report, accepted deep completion, and two
   fully accounted HTTP-200 provider attempts totaling 76,856 tokens.
 
-The maintained benchmark is now under
-`scripts/benchmarks/core-capability/`. Its emitted-import gate uses AST parsing and a built-in minified-syntax
+The implementation-stage benchmark, since retired after its evidence was
+recorded, used AST parsing and a built-in minified-syntax
 self-test. After correcting the former regex blind spot, the contract and
 basic-agent benchmark bundles were regenerated and still report zero external
 imports/Node built-ins; the retained live Edge provider bundle was re-inspected

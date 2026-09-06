@@ -271,6 +271,7 @@ function legacyCodexAdapter(
   const dialect: Partial<ResponsesDialect> = {
     sampling: false,
     maxOutputTokens: false,
+    structuredOutputs: true,
     store: false,
     messagePhase: true,
     promptCacheKey,
@@ -361,6 +362,7 @@ function runtimeCodexAdapter(
   const dialect: Partial<ResponsesDialect> = {
     sampling: false,
     maxOutputTokens: false,
+    structuredOutputs: true,
     store: false,
     messagePhase: true,
     promptCacheKey,

@@ -9,8 +9,11 @@ class AuthorAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []
   async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     this.requests.push(options)
-    yield { type: 'text-delta', index: 0, text: options.model }
-    yield { type: 'block-end', index: 0, block: { type: 'text', text: options.model } }
+    const text = options.outputFormat?.type === 'json_schema'
+      ? JSON.stringify({ model: options.model })
+      : options.model
+    yield { type: 'text-delta', index: 0, text }
+    yield { type: 'block-end', index: 0, block: { type: 'text', text } }
     yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } }
     yield { type: 'finish', reason: { kind: 'stop' } }
   }
@@ -59,9 +62,18 @@ describe('public defineAgent overload', () => {
       id: 'author-provider', displayName: 'Author', routes: ['account'],
       setup(registrar: ModelProviderRegistrar) { registrar.registerAdapter(['account'], adapter) } }] })
     const definition = defineAgent({ id: 'runtime-use', model: { provider: 'account', id: 'chosen' },
-      instructions: 'Use chosen.', compaction: false })
-    await expect(runtime.agent(definition).generate('go')).resolves.toMatchObject({ text: 'chosen' })
-    expect(adapter.requests[0]).toMatchObject({ provider: 'account', model: 'chosen' })
+      instructions: 'Use chosen.', compaction: false,
+      outputFormat: { type: 'json_schema', name: 'chosen_model', schema: {
+        type: 'object', properties: { model: { type: 'string' } },
+        required: ['model'], additionalProperties: false,
+      } } })
+    await expect(runtime.agent(definition).generate('go')).resolves.toMatchObject({
+      text: '{"model":"chosen"}',
+    })
+    expect(adapter.requests[0]).toMatchObject({
+      provider: 'account', model: 'chosen',
+      outputFormat: { type: 'json_schema', name: 'chosen_model' },
+    })
     await runtime.close()
   })
 })

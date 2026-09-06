@@ -213,7 +213,13 @@ function captureCredential(input: unknown): string | ((
   context?: ModelInvocationContext,
 ) => string | Promise<string>) {
   if (typeof input === 'string') return input
-  const source = plainObject(input, 'credential source')
+  // auth-node's envCredential intentionally retains its historical callable
+  // surface while carrying the current credential-source capability fields.
+  // Capture those fields exactly like a plain source object; never invoke the
+  // callable compatibility view during provider construction.
+  const source = typeof input === 'function'
+    ? input
+    : plainObject(input, 'credential source')
   if (ownData(source, 'kind') !== 'credential-source'
     || ownData(source, 'apiVersion') !== CREDENTIAL_CAPABILITY_API_VERSION) {
     throw new AgentSdkError('Credential source is incompatible', 'CREDENTIAL_SOURCE_INVALID')

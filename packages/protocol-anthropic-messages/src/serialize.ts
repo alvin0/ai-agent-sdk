@@ -15,6 +15,7 @@
 
 import {
   isNativeToolSchema,
+  type ModelOutputFormat,
   type ModelToolSchema,
   type NativeWebSearchTool,
   type ToolChoice,
@@ -28,6 +29,7 @@ import type {
   WireImageSource,
   WireCitation,
   WireMessage,
+  WireOutputConfig,
   WireRequest,
   WireRequestBlock,
   WireThinking,
@@ -304,6 +306,11 @@ function thinkingOf(
   return capped < 1_024 ? { type: 'disabled' } : { type: 'enabled', budget_tokens: capped }
 }
 
+function outputConfig(format: ModelOutputFormat | undefined): WireOutputConfig | undefined {
+  if (format === undefined || format.type === 'text') return undefined
+  return { format: { type: 'json_schema', schema: format.schema } }
+}
+
 /**
  * Build the Messages request body.
  * @param request - the resolved request, model, and connection.
@@ -325,6 +332,7 @@ export function serializeAnthropicRequest(
     options.budgets,
   )
   const thinkingEnabled = thinking?.type === 'enabled'
+  const output = outputConfig(call.outputFormat)
 
   return {
     model: call.model,
@@ -344,6 +352,7 @@ export function serializeAnthropicRequest(
       ? {}
       : { stop_sequences: [...call.stop] },
     ...thinking === undefined ? {} : { thinking },
+    ...output === undefined ? {} : { output_config: output },
     stream: true,
   }
 }

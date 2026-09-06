@@ -45,6 +45,9 @@ catalogs:
     publint:
       specifier: 0.3.24
       version: 0.3.24
+    rolldown:
+      specifier: 1.2.6
+      version: 1.2.6
     tsdown:
       specifier: 0.22.14
       version: 0.22.14
@@ -104,6 +107,9 @@ importers:
       '@ai-agent-sdk/protocol-anthropic-messages':
         specifier: workspace:^
         version: link:packages/protocol-anthropic-messages
+      '@ai-agent-sdk/protocol-gemini-interactions':
+        specifier: workspace:^
+        version: link:packages/protocol-gemini-interactions
       '@ai-agent-sdk/protocol-responses':
         specifier: workspace:^
         version: link:packages/protocol-responses
@@ -113,6 +119,9 @@ importers:
       '@ai-agent-sdk/provider-codex':
         specifier: workspace:^
         version: link:packages/provider-codex
+      '@ai-agent-sdk/provider-gemini':
+        specifier: workspace:^
+        version: link:packages/provider-gemini
       '@ai-agent-sdk/provider-http':
         specifier: workspace:^
         version: link:packages/provider-http
@@ -161,6 +170,9 @@ importers:
       publint:
         specifier: 'catalog:'
         version: 0.3.24
+      rolldown:
+        specifier: 'catalog:'
+        version: 1.2.6
       tsdown:
         specifier: 'catalog:'
         version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.24)(typescript@7.0.2)
@@ -521,6 +533,33 @@ importers:
         specifier: 'catalog:'
         version: 4.127.1
 
+  packages/protocol-gemini-interactions:
+    devDependencies:
+      '@ai-agent-sdk/core':
+        specifier: workspace:^
+        version: link:../core
+      '@arethetypeswrong/cli':
+        specifier: 'catalog:'
+        version: 0.18.5
+      playwright:
+        specifier: 'catalog:'
+        version: 1.62.1
+      publint:
+        specifier: 'catalog:'
+        version: 0.3.24
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.24)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-playwright@4.1.11)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.1)(yaml@2.9.0))
+      wrangler:
+        specifier: 'catalog:'
+        version: 4.127.1
+
   packages/protocol-responses:
     devDependencies:
       '@ai-agent-sdk/core':
@@ -590,6 +629,43 @@ importers:
       '@ai-agent-sdk/protocol-responses':
         specifier: workspace:^
         version: link:../protocol-responses
+      '@ai-agent-sdk/provider-http':
+        specifier: workspace:^
+        version: link:../provider-http
+    devDependencies:
+      '@ai-agent-sdk/core':
+        specifier: workspace:^
+        version: link:../core
+      '@ai-agent-sdk/testkit':
+        specifier: workspace:^
+        version: link:../testkit
+      '@arethetypeswrong/cli':
+        specifier: 'catalog:'
+        version: 0.18.5
+      playwright:
+        specifier: 'catalog:'
+        version: 1.62.1
+      publint:
+        specifier: 'catalog:'
+        version: 0.3.24
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.24)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-playwright@4.1.11)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.1)(yaml@2.9.0))
+      wrangler:
+        specifier: 'catalog:'
+        version: 4.127.1
+
+  packages/provider-gemini:
+    dependencies:
+      '@ai-agent-sdk/protocol-gemini-interactions':
+        specifier: workspace:^
+        version: link:../protocol-gemini-interactions
       '@ai-agent-sdk/provider-http':
         specifier: workspace:^
         version: link:../provider-http

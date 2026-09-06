@@ -7,13 +7,10 @@ import { analyzeSourceOwnershipGraph } from './source-graph.mts'
 const args = process.argv.slice(2)
 const rootIndex = args.indexOf('--root')
 const workspaceRoot = resolve(rootIndex === -1 ? process.cwd() : required(args[rootIndex + 1], '--root'))
-const agentRoot = [
-  join(workspaceRoot, 'packages', 'core', 'src', 'agent'),
-  join(workspaceRoot, 'packages', 'agent', 'src'),
-  join(workspaceRoot, 'src', 'agent'),
-  workspaceRoot,
-].find(candidate => existsSync(join(candidate, 'define')) && existsSync(join(candidate, 'team')))
-if (agentRoot === undefined) throw new Error('agent source root with define/ and team/ was not found')
+const agentRoot = join(workspaceRoot, 'packages', 'core', 'src', 'agent')
+if (!existsSync(join(agentRoot, 'define')) || !existsSync(join(agentRoot, 'team'))) {
+  throw new Error('canonical core agent source root with define/ and team/ was not found')
+}
 
 const findings: string[] = []
 const defineRoot = join(agentRoot, 'define')

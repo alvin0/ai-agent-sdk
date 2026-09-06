@@ -1,6 +1,6 @@
 # Core + Capability Implementation Ledger
 
-Status: **Implementation complete — release NO-GO pending the basic-agent bundle budget**
+Status: **Implementation complete — publication remains unauthorized**
 
 Last updated: **2026-09-05**
 
@@ -17,9 +17,10 @@ The owner's latest implementation goal supersedes the earlier design-only
 restriction. Targeted provider/network/runtime acceptance is owner-authorized,
 including the existing signed-in Codex account. Investigate uncertain behavior
 with bounded tests or primary sources instead of assuming it works. Historical
-spike reports remain evidence, but their superseded executable source was removed
-after coverage moved into maintained contract, package, benchmark, and human
-tests. No publication is authorized.
+spike, contract, and benchmark reports remain evidence, but their superseded
+executable source was removed after implementation completed and coverage moved
+into maintained package, boundary, packed-artifact, and human tests. No
+publication is authorized.
 
 Integration tests stay excluded from broad default test commands so ordinary
 unit runs never unexpectedly spend provider usage. Invoke relevant live cases separately

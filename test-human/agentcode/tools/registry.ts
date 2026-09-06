@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { defineTool, ToolRegistry } from '@ai-agent-sdk/core/agent'
@@ -11,7 +12,7 @@ export function createAgentCodeToolRegistry(
   workspaceRoot: string,
   options: AgentCodeToolRegistryOptions = {},
 ): ToolRegistry {
-  const root = resolve(workspaceRoot)
+  const root = realpathSync.native(resolve(workspaceRoot))
   const tools = new ToolRegistry()
   const maxWriteBytes = boundedInteger(
     options.maxWriteBytes, DEFAULT_MAX_WRITE_BYTES, 1, 64 * 1024 * 1024, 'maxWriteBytes',

@@ -1,6 +1,6 @@
 /** Declarative, code-first agent definitions. */
 
-import type { ToolChoice, NativeToolSchema } from '../../contract/index.ts'
+import type { ModelOutputFormat, ToolChoice, NativeToolSchema } from '../../contract/index.ts'
 import { ReasoningEffortId, type ReasoningEffortId as ReasoningEffort } from '../../primitives/index.ts'
 import type { AgentMode } from '../mode/run-agent.ts'
 import type { ToolDefinition } from '../tool/definition.ts'
@@ -28,6 +28,7 @@ import {
   type AgentResumeSessionOptions,
   type AgentSessionOptions,
 } from './session.ts'
+import { captureOutputFormat } from './output-format.ts'
 
 export interface AgentDefinitionInput {
   /** Stable code-owned identity used by traces and catalogs. */
@@ -58,6 +59,8 @@ export interface AgentDefinitionInput {
   /** Progressive-disclosure catalog and resource limits. */
   readonly skillOptions?: AgentSkillOptions
   readonly toolChoice?: ToolChoice
+  /** Constrain visible model output to plain text or a named JSON Schema. */
+  readonly outputFormat?: ModelOutputFormat
   /** Maximum model iterations for one user turn; defaults to 16. */
   readonly maxTurns?: number
   /** Maximum host tool calls for one user turn; defaults to 64. */
@@ -86,6 +89,7 @@ export interface AgentDefinition {
   readonly skillIds: readonly string[] | undefined
   readonly skillOptions: ResolvedAgentSkillOptions
   readonly toolChoice: ToolChoice | undefined
+  readonly outputFormat: ModelOutputFormat | undefined
   readonly maxTurns: number
   readonly maxToolCalls: number
   readonly commentary: 'auto' | 'concise' | 'off'
@@ -124,6 +128,7 @@ class DefinedAgentValue implements DefinedAgent {
   readonly skillIds: readonly string[] | undefined
   readonly skillOptions: ResolvedAgentSkillOptions
   readonly toolChoice: ToolChoice | undefined
+  readonly outputFormat: ModelOutputFormat | undefined
   readonly maxTurns: number
   readonly maxToolCalls: number
   readonly commentary: 'auto' | 'concise' | 'off'
@@ -147,6 +152,7 @@ class DefinedAgentValue implements DefinedAgent {
     this.skillIds = input.skillIds === undefined ? undefined : Object.freeze([...input.skillIds])
     this.skillOptions = resolveSkillOptions(input.skillOptions)
     this.toolChoice = input.toolChoice
+    this.outputFormat = captureOutputFormat(input.outputFormat)
     this.maxTurns = input.maxTurns ?? 16
     this.maxToolCalls = input.maxToolCalls ?? 64
     this.commentary = input.commentary ?? 'concise'
@@ -184,6 +190,7 @@ function mergedInput(
 ): AgentDefinitionInput {
   const description = overrides.description ?? source.description
   const toolChoice = overrides.toolChoice ?? source.toolChoice
+  const outputFormat = overrides.outputFormat ?? source.outputFormat
   const skillIds = overrides.skillIds ?? source.skillIds
   const maxTokens = overrides.maxTokens ?? source.maxTokens
   return {
@@ -202,6 +209,7 @@ function mergedInput(
     ...(skillIds === undefined ? {} : { skillIds }),
     skillOptions: overrides.skillOptions ?? source.skillOptions,
     ...(toolChoice === undefined ? {} : { toolChoice }),
+    ...(outputFormat === undefined ? {} : { outputFormat }),
     maxTurns: overrides.maxTurns ?? source.maxTurns,
     maxToolCalls: overrides.maxToolCalls ?? source.maxToolCalls,
     commentary: overrides.commentary ?? source.commentary,

@@ -18,6 +18,7 @@ export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {
   [scoped('provider-http')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: ['eventsource-parser'] },
   [scoped('protocol-anthropic-messages')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: [] },
   [scoped('protocol-responses')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: [] },
+  [scoped('protocol-gemini-interactions')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: [] },
   [scoped('provider-anthropic')]: {
     runtime: 'universal',
     workspaceDependencies: [scoped('core'), scoped('provider-http'), scoped('protocol-anthropic-messages')],
@@ -31,6 +32,11 @@ export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {
   [scoped('provider-codex')]: {
     runtime: 'universal',
     workspaceDependencies: [scoped('core'), scoped('provider-http'), scoped('protocol-responses')],
+    externalRuntimeDependencies: [],
+  },
+  [scoped('provider-gemini')]: {
+    runtime: 'universal',
+    workspaceDependencies: [scoped('core'), scoped('provider-http'), scoped('protocol-gemini-interactions')],
     externalRuntimeDependencies: [],
   },
   [scoped('observability-fetch')]: {

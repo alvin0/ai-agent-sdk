@@ -33,6 +33,7 @@ export const OPENAI_RESPONSES_PROTOCOL_ID = 'openai-responses'
 const DEFAULT_DIALECT: ResponsesDialect = Object.freeze({
   sampling: true,
   maxOutputTokens: true,
+  structuredOutputs: true,
   store: false,
   include: Object.freeze(['reasoning.encrypted_content']),
   reasoningSummary: 'auto',

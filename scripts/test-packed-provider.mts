@@ -7,17 +7,20 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 import { assertSingleInstalledPackage } from './contracts/installed-tree.mts'
 
-type ProviderPackageName = 'provider-anthropic' | 'provider-openai' | 'provider-codex'
+type ProviderPackageName = 'provider-anthropic' | 'provider-openai' | 'provider-codex' | 'provider-gemini'
 
 const requestedPackage = process.argv[2]
 if (requestedPackage !== 'provider-anthropic'
   && requestedPackage !== 'provider-openai'
-  && requestedPackage !== 'provider-codex') {
-  throw new Error('expected provider-anthropic, provider-openai, or provider-codex')
+  && requestedPackage !== 'provider-codex'
+  && requestedPackage !== 'provider-gemini') {
+  throw new Error('expected provider-anthropic, provider-openai, provider-codex, or provider-gemini')
 }
 const packageName: ProviderPackageName = requestedPackage
 const protocolName = packageName === 'provider-anthropic'
   ? 'protocol-anthropic-messages'
+  : packageName === 'provider-gemini'
+    ? 'protocol-gemini-interactions'
   : 'protocol-responses'
 
 const workspaceRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))

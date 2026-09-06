@@ -58,7 +58,8 @@ before any dependent tests; no tests read `dist` during a clean build.
   filesystem-skill/MCP-stdio/journal/resume journey.
 - `pnpm check:graph`: 20 packages, 61 workspace edges; emitted dependency check
   68 modules/136 dependencies; agent boundary 12 groups/32 edges, zero findings.
-- `pnpm check:core-graph`: acyclic, 13 groups/48 edges.
+- Historical `pnpm check:core-graph`: acyclic, 13 groups/48 edges. The standalone
+  command was retired after migration; `pnpm check:graph` now owns this cycle gate.
 - `pnpm check:runtime-boundaries`: 13 Universal/Browser packages, 208 files, passed.
 - `pnpm check:core-capability-contract`: passed, including exact moved-source
   inventories, both route-complete bridges, API snapshots and compatibility fixtures.

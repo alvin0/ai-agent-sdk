@@ -8,6 +8,11 @@ export {
 } from './call-config.ts'
 export type { GenerateOptions } from './generate-options.ts'
 export type {
+  JsonSchemaOutputFormat,
+  ModelOutputFormat,
+  TextOutputFormat,
+} from './output-format.ts'
+export type {
   ModelContext,
   ModelCatalogOptions,
   ModelCatalogSnapshot,

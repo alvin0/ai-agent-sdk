@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import {
   appendFile,
   lstat,
+  mkdir,
   mkdtemp,
   open,
   readFile,
@@ -192,6 +193,22 @@ describe('Node observation journal', () => {
     })
     await expect(journal.ready()).rejects.toMatchObject({ code: 'OBSERVABILITY_JOURNAL_IO' })
     expect(await readdir(target)).toEqual([])
+  })
+
+  it('canonicalizes an ancestor directory alias while rejecting a final symlink root', async () => {
+    const parent = await temporaryRoot('ancestor-alias')
+    const target = join(parent, 'target')
+    const alias = join(parent, 'alias')
+    await mkdir(target)
+    await symlink(target, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    const journal = new JsonlObservationJournalExporter({
+      rootDir: join(alias, 'journal'), mode: 'reliable', segmentId: () => 'ancestor01',
+    })
+
+    await journal.stage(event(1))
+    await journal.shutdown(new AbortController().signal)
+
+    expect(await segmentNames(join(target, 'journal'))).toHaveLength(1)
   })
 
   it('persists an atomic cursor, deletes only rotated acknowledged segments, and preserves unacknowledged data', async () => {

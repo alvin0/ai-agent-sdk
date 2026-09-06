@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { PACKAGE_RULES } from './package-policy.mts'
 
 const workspaceRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const errors: string[] = []
@@ -13,16 +14,14 @@ const manifests = packageRoots.map(root => ({
   manifest: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as PackageManifest,
 }))
 const packageNames = new Set(manifests.map(entry => entry.manifest.name))
-const targetTopology = JSON.parse(readFileSync(
-  join(workspaceRoot, 'design-contracts', 'core-capability-v1', 'topology.json'),
-  'utf8',
-)) as { readonly packages: Readonly<Record<string, unknown>> }
 const documentationMigration = JSON.parse(readFileSync(
   join(workspaceRoot, 'design-contracts', 'core-capability-v1', 'documentation-migration.json'),
   'utf8',
 )) as DocumentationMigration
-const targetPackageNames = new Set(Object.keys(targetTopology.packages))
 const developmentPackageNames = new Set(['@ai-agent-sdk/testkit'])
+const targetPackageNames = new Set(
+  Object.keys(PACKAGE_RULES).filter(name => !developmentPackageNames.has(name)),
+)
 const migrationPackageNames = documentationMigration.state === 'complete'
   ? new Set<string>()
   : new Set(Object.keys(documentationMigration.removedPackages))

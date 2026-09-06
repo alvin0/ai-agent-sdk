@@ -17,6 +17,7 @@ import type { ContentBlock, ImageBlock, TextBlock } from '@ai-agent-sdk/core'
 import type { Message } from '@ai-agent-sdk/core'
 import {
   isNativeToolSchema,
+  type ModelOutputFormat,
   type ModelToolSchema,
   type NativeImageGenerationTool,
   type NativeWebSearchTool,
@@ -30,6 +31,7 @@ import type {
   WireRequest,
   WireTool,
   WireToolChoice,
+  WireTextControls,
 } from './wire.ts'
 
 /**
@@ -282,6 +284,30 @@ function toolOf(tool: ModelToolSchema): WireTool {
   return imageGenerationTool(tool)
 }
 
+function textControls(
+  format: ModelOutputFormat | undefined,
+  dialect: ResponsesDialect,
+): WireTextControls | undefined {
+  if (format === undefined) return undefined
+  if (format.type === 'text') {
+    return dialect.structuredOutputs ? { format: { type: 'text' } } : undefined
+  }
+  if (!dialect.structuredOutputs) {
+    throw new ModelError(
+      'This Responses endpoint does not support JSON Schema output',
+      MODEL_ERROR_CODES.INVALID_REQUEST,
+    )
+  }
+  return {
+    format: {
+      type: 'json_schema',
+      name: format.name,
+      schema: format.schema,
+      strict: true,
+    },
+  }
+}
+
 function nativeReplayItem(value: unknown): WireInputItem | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const item = value as Record<string, unknown>
@@ -325,6 +351,7 @@ export function serializeResponsesRequest(
   const tools = options.tools === undefined || options.tools.length === 0
     ? undefined
     : options.tools.map(toolOf)
+  const text = textControls(options.outputFormat, dialect)
 
   return {
     model: options.model,
@@ -345,6 +372,7 @@ export function serializeResponsesRequest(
             : { summary: dialect.reasoningSummary },
         },
       },
+    ...text === undefined ? {} : { text },
     store: dialect.store,
     stream: true,
     ...dialect.include.length === 0 ? {} : { include: [...dialect.include] },

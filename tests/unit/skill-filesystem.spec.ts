@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -254,7 +254,7 @@ function bytesReadFrom(path: string): number {
 }
 
 async function temporaryRoot(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'ai-agent-sdk-skills-'))
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'ai-agent-sdk-skills-')))
   cleanup.push(root)
   return root
 }

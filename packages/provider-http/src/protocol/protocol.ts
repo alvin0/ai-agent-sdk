@@ -3,7 +3,7 @@
  *
  * This split is what makes adding a provider cheap. "Which JSON shapes and SSE
  * events" is a PROTOCOL concern; "which URL, which credential, which models" is an
- * ENDPOINT concern. Dozens of endpoints speak the two protocols this package
+ * ENDPOINT concern. Dozens of endpoints speak the protocols this package
  * implements, so an endpoint that speaks one should be expressible as data rather
  * than as another adapter class.
  *

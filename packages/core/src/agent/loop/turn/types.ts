@@ -1,5 +1,5 @@
 import type { CallConfig } from '../../../contract/index.ts'
-import type { NativeToolSchema, ToolChoice } from '../../../contract/index.ts'
+import type { ModelOutputFormat, NativeToolSchema, ToolChoice } from '../../../contract/index.ts'
 import { type Message } from '../../../message/index.ts'
 import type { FinishReason, TokenUsage } from '../../../stream/index.ts'
 import type { ToolCallId } from '../../../primitives/index.ts'
@@ -23,6 +23,8 @@ export interface RunTurnOptions {
   readonly nativeTools?: readonly NativeToolSchema[]
   /** Optional provider-neutral selection constraint for host or native tools. */
   readonly toolChoice?: ToolChoice
+  /** Visible response format applied only when the loop produces its final answer. */
+  readonly outputFormat?: ModelOutputFormat
   readonly system?: string
   readonly interceptors?: readonly ToolInterceptor[]
   readonly approvals?: ApprovalBroker
@@ -57,6 +59,9 @@ export interface RunTurnOptions {
   /** Internal canonical accounting surface supplied by AgentSession. */
   readonly accounting?: RunAccountingPort
 }
+
+/** Internal request phase: structured process rounds defer the caller's final format. */
+export type ModelRoundPhase = 'standard' | 'process' | 'final' | 'forced-final'
 
 export interface RoundResult {
   readonly trace: TraceRef

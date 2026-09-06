@@ -101,6 +101,13 @@ export type WireThinking =
   | { type: 'enabled'; budget_tokens: number }
   | { type: 'disabled' }
 
+export interface WireOutputConfig {
+  format: {
+    type: 'json_schema'
+    schema: Readonly<Record<string, unknown>>
+  }
+}
+
 /** The request body. */
 export interface WireRequest {
   model: string
@@ -114,6 +121,7 @@ export interface WireRequest {
   top_p?: number
   stop_sequences?: string[]
   thinking?: WireThinking
+  output_config?: WireOutputConfig
   stream?: boolean
 }
 

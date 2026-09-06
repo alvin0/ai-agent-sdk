@@ -15,6 +15,11 @@ import { maintenanceEmitter, emitAssistantContent, textOf } from './turn/content
 import { repeatKey, toolActionPattern, repeatedSuffixCycle } from './turn/repetition.ts'
 import { modelRound } from './turn/model-round.ts'
 
+function hasCallableTools(options: RunTurnOptions): boolean {
+  if (options.toolChoice === 'none') return false
+  return (options.tools?.names().length ?? 0) > 0 || (options.nativeTools?.length ?? 0) > 0
+}
+
 /** Run one bounded turn as a backpressured event stream. */
 export function runTurn(options: RunTurnOptions): AsyncIterable<AgentEvent> {
   return {
@@ -74,6 +79,8 @@ async function driveTurn(
   const emitMaintenance = maintenanceEmitter(emit, root)
   let rootStarted = false
   let rootEnded = false
+  const callableTools = hasCallableTools(options)
+  const dedicatedFinalOutput = options.outputFormat?.type === 'json_schema' && callableTools
   const turnOperationId = options.accounting?.startOperation('turn', {
     data: { turn, model: options.config.model },
   })
@@ -99,7 +106,12 @@ async function driveTurn(
   turnLifecycle: while (true) {
   while (reason === undefined && steps < bounds.maxSteps && !signal.aborted) {
     const step = steps + 1
-    const round = await modelRound(options, signal, emit, emitMaintenance, root, turn, step, false)
+    const round = await modelRound(
+      options, signal, emit, emitMaintenance, root, turn, step,
+      dedicatedFinalOutput
+        ? 'process'
+        : options.outputFormat?.type === 'json_schema' ? 'final' : 'standard',
+    )
     steps++
     if (round.report !== undefined) modelCallReports.push(round.report)
     if (round.message !== undefined) {
@@ -133,6 +145,40 @@ async function driveTurn(
     if (round.finish.kind === 'max-tokens') { reason = { kind: 'max-tokens' }; break }
     if (round.calls.length === 0 && round.usageUnavailable) {
       reason = { kind: 'usage-unavailable', modelCallId: round.report?.modelCallId ?? 'unknown' }
+      break
+    }
+    if (round.calls.length === 0 && dedicatedFinalOutput) {
+      options.history.append({ kind: 'user', message: createUserMessage({
+        source: { kind: 'app', producer: 'structured-output-finalizer' },
+        content: [{
+          type: 'text',
+          text: 'The process phase is complete. Return the final answer now in the requested output format. Do not call tools.',
+        }],
+      }) })
+      const final = await modelRound(
+        options, signal, emit, emitMaintenance, root, turn, steps + 1, 'final',
+      )
+      steps++
+      if (final.report !== undefined) modelCallReports.push(final.report)
+      if (final.message !== undefined) {
+        options.history.append({
+          kind: 'assistant', message: final.message,
+          ...final.usage === undefined ? {} : { usage: final.usage },
+        })
+        await emit({ type: 'assistant-message', message: final.message, trace: final.trace })
+        await emitAssistantContent(final, emit)
+        text = textOf(final.message.content)
+      }
+      if (final.finish.kind === 'aborted') reason = { kind: 'aborted' }
+      else if (final.finish.kind === 'error') reason = { kind: 'error', failure: final.finish.failure }
+      else if (final.finish.kind === 'max-tokens') reason = { kind: 'max-tokens' }
+      else if (final.usageRequired) reason = { kind: 'error', failure: {
+        message: 'provider usage is required by the configured run policy',
+        code: 'USAGE_REQUIRED',
+      } }
+      else if (final.usageUnavailable) {
+        reason = { kind: 'usage-unavailable', modelCallId: final.report?.modelCallId ?? 'unknown' }
+      } else reason = { kind: 'completed' }
       break
     }
     if (round.calls.length === 0 || options.tools === undefined) { reason = { kind: 'completed' }; break }
@@ -236,7 +282,9 @@ async function driveTurn(
         && bounds.onExhausted === 'force-final-answer'
         && !signal.aborted
       if (forced) {
-        const final = await modelRound(options, signal, emit, emitMaintenance, root, turn, steps + 1, true)
+        const final = await modelRound(
+          options, signal, emit, emitMaintenance, root, turn, steps + 1, 'forced-final',
+        )
         steps++
         if (final.report !== undefined) modelCallReports.push(final.report)
         if (final.message !== undefined) {

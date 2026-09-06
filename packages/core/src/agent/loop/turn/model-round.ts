@@ -1,5 +1,5 @@
 import type { GenerateOptions } from '../../../contract/index.ts'
-import type { ModelFailure } from '../../../errors/index.ts'
+import { MODEL_ERROR_CODES, type ModelFailure } from '../../../errors/index.ts'
 import type { ContentBlock, ToolCallBlock } from '../../../message/index.ts'
 import { BlockAssembler } from '../../../stream/index.ts'
 import type { FinishReason } from '../../../stream/index.ts'
@@ -7,7 +7,7 @@ import type { ModelCallReport } from '../../../observation/index.ts'
 import { normalizeToolPairing } from '../../history/normalize.ts'
 import { createSpanId, type TraceRef } from '../../trace/trace.ts'
 import type { AgentEvent, AgentMaintenanceEvent } from '../types.ts'
-import { type RunTurnOptions, type RoundResult } from './types.ts'
+import { type ModelRoundPhase, type RunTurnOptions, type RoundResult } from './types.ts'
 import { positiveFinite, positiveSafeInteger } from './config.ts'
 import { serializedBytes, modelFailureFinish, modelAbortedFinish, messageOf, now } from './common.ts'
 import { validateStreamChunk } from './validation.ts'
@@ -26,8 +26,10 @@ export async function modelRound(
   root: TraceRef,
   turn: number,
   step: number,
-  forcedFinal: boolean,
+  phase: ModelRoundPhase,
 ): Promise<RoundResult> {
+  const forcedFinal = phase === 'forced-final'
+  const finalOutput = phase === 'final' || forcedFinal
   const trace: TraceRef = { traceId: root.traceId, spanId: createSpanId(), parentSpanId: root.spanId }
   let messages = normalizeToolPairing(options.history.messages())
   const afterToolCallIds = recentToolResultIds(options.history)
@@ -54,18 +56,23 @@ export async function modelRound(
   }
   if (decision?.prepend !== undefined) messages = Object.freeze([...decision.prepend, ...messages])
   const system = systemText(options, forcedFinal)
-  const tools = [
+  const availableTools = [
     ...options.tools?.schemas() ?? [],
     ...options.nativeTools ?? [],
   ]
+  const tools = availableTools
+  const outputFormat = !finalOutput && options.outputFormat?.type === 'json_schema'
+    ? { type: 'text' as const }
+    : options.outputFormat
   const requestBase: GenerateOptions = {
     ...options.config,
     messages,
     ...system.length === 0 ? {} : { system },
     ...tools.length === 0 ? {} : { tools },
-    ...forcedFinal
+    ...finalOutput && tools.length > 0
       ? { toolChoice: 'none' as const }
       : options.toolChoice === undefined ? {} : { toolChoice: options.toolChoice },
+    ...outputFormat === undefined ? {} : { outputFormat },
   }
   const checkpointRequest: GenerateOptions = { ...requestBase, signal }
   try {
@@ -83,7 +90,7 @@ export async function modelRound(
   }
   await emit({ type: 'span-start', trace, at: now(), name: `chat ${options.config.model}`, kind: 'chat', attributes: {
     'gen_ai.operation.name': 'chat', 'gen_ai.request.model': options.config.model,
-    turn, step, forcedFinal,
+    turn, step, forcedFinal, phase,
   } })
   await emit({ type: 'step-start', turn, step, trace, ...forcedFinal ? { forcedFinal: true as const } : {} })
   const assembler = new BlockAssembler()
@@ -229,8 +236,22 @@ export async function modelRound(
     }
     rawBlocks = []
   }
-  const classified = classifyTextPhases(rawBlocks)
-  const invalidCall = invalidHostToolCall(classified, options.history)
+  const classified = classifyTextPhases(rawBlocks, phase === 'process')
+  const structuredOutputFailure = finalOutput
+    && options.outputFormat?.type === 'json_schema'
+    && providerFinish.kind === 'stop'
+    && !isJsonText(textOf(classified))
+    ? {
+      message: 'model returned invalid JSON for the requested structured output',
+      code: MODEL_ERROR_CODES.MALFORMED_RESPONSE,
+    }
+    : undefined
+  const disabledCall = finalOutput && classified.some(block => block.type === 'tool-call')
+    ? { message: 'model emitted a host tool call during the final output phase', code: 'INVALID_TOOL_CALL' }
+    : undefined
+  const invalidCall = disabledCall
+    ?? structuredOutputFailure
+    ?? invalidHostToolCall(classified, options.history)
   const blocks = invalidCall === undefined
     ? classified
     : classified.filter(block => block.type !== 'tool-call')
@@ -258,7 +279,7 @@ export async function modelRound(
       ? { error: { type: 'ModelError', message: finish.failure.message, code: finish.failure.code } }
       : {},
   })
-  if (calls.length === 0 || forcedFinal) await emit({ type: 'step-end', turn, step, trace })
+  if (calls.length === 0 || finalOutput) await emit({ type: 'step-end', turn, step, trace })
   return {
     trace, ...message === undefined ? {} : { message }, finish,
     ...assembler.usage === undefined ? {} : { usage: assembler.usage },
@@ -266,5 +287,14 @@ export async function modelRound(
     ...usageRequired ? { usageRequired: true as const } : {},
     ...usageUnavailable ? { usageUnavailable: true as const } : {},
     calls, afterToolCallIds, timing,
+  }
+}
+
+function isJsonText(value: string): boolean {
+  try {
+    JSON.parse(value)
+    return true
+  } catch {
+    return false
   }
 }

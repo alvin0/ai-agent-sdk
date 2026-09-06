@@ -446,6 +446,67 @@ describe('Universal Codex provider plugin', () => {
     expect(authorization).toMatch(/^Bearer /)
   })
 
+  it('serializes JSON Schema output for both Codex credential-store generations', async () => {
+    const file: CodexAuthFile = {
+      tokens: {
+        id_token: jwt({}),
+        access_token: jwt({ exp: Math.floor(Date.now() / 1_000) + 3_600 }),
+        refresh_token: 'refresh',
+      },
+    }
+    const schema = {
+      type: 'object',
+      properties: { answer: { type: 'string' } },
+      required: ['answer'],
+      additionalProperties: false,
+    } as const
+    const bodies: Record<string, unknown>[] = []
+    const fetch = vi.fn((_input: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
+      return Promise.resolve(sseResponse([
+        'data: {"type":"response.created","response":{"id":"r1"}}',
+        'data: {"type":"response.output_item.added","item":{"id":"i1","type":"message"}}',
+        'data: {"type":"response.output_text.delta","item_id":"i1","delta":"{\\"answer\\":\\"ok\\"}"}',
+        'data: {"type":"response.output_item.done","item":{"id":"i1","type":"message","content":[{"type":"output_text","text":"{\\"answer\\":\\"ok\\"}"}]}}',
+        'data: {"type":"response.completed","response":{"id":"r1","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}',
+      ]))
+    })
+    const request = {
+      provider: 'codex',
+      model: 'gpt-test',
+      messages: [createTextMessage('hello')],
+      outputFormat: { type: 'json_schema' as const, name: 'answer', schema },
+    }
+
+    const legacy = codexAdapter({
+      authStore: memoryCodexAuthStore(file), models: [], fetch,
+    })
+    await drain(legacy.stream(request))
+
+    const runtime = await createAgentRuntime({ providers: [codexPlugin({
+      authStore: memoryCodexCredentialStore(file), models: [], fetch,
+    })] })
+    try {
+      const agent = runtime.agent({
+        id: 'structured-codex',
+        instructions: 'Return the requested object.',
+        model: { provider: 'codex', id: 'gpt-test' },
+        outputFormat: request.outputFormat,
+        compaction: false,
+      })
+      await agent.generate('hello')
+    } finally {
+      await runtime.close()
+    }
+
+    expect(bodies).toHaveLength(2)
+    for (const body of bodies) expect(body).toMatchObject({
+      text: {
+        format: { type: 'json_schema', name: 'answer', schema, strict: true },
+      },
+    })
+  })
+
   it('contains the official endpoint missing-media-type compatibility exception', async () => {
     const store = memoryCodexCredentialStore({
       tokens: {
