@@ -1,0 +1,32 @@
+{
+  "name": "@chat-agents/backend",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Hono backend for the chat-agents sample: owns the agent run loop and the UI wire protocol",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./wire": "./src/wire.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@ai-agent-sdk/auth-node": "workspace:*",
+    "@ai-agent-sdk/core": "workspace:*",
+    "@ai-agent-sdk/mcp": "workspace:*",
+    "@ai-agent-sdk/mcp-node": "workspace:*",
+    "@ai-agent-sdk/provider-anthropic": "workspace:*",
+    "@ai-agent-sdk/provider-gemini": "workspace:*",
+    "@ai-agent-sdk/provider-openai": "workspace:*",
+    "@ai-agent-sdk/skill-filesystem": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "hono": "catalog:"
+  },
+  "devDependencies": {
+    "drizzle-kit": "catalog:"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1788716614903,
+      "tag": "0000_mixed_gabe_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788726850788,
+      "tag": "0001_simple_nova",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788746495657,
+      "tag": "0002_sturdy_polaris",
+      "breakpoints": true
+    }
+  ]
+}

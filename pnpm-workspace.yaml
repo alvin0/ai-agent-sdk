@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - samples/*/*
   - tests/fixtures/*
 
 catalog:
@@ -11,12 +12,38 @@ catalog:
   '@modelcontextprotocol/server': 2.0.0
   '@opentelemetry/api': 1.9.1
   '@opentelemetry/api-logs': 0.221.0
+  '@shikijs/langs': 4.4.3
+  '@types/mdast': 4.0.4
   '@types/node': 26.4.0
+  '@types/react': 19.2.18
+  '@types/react-dom': 19.2.7
   '@vitest/browser-playwright': 4.1.11
+  anser: 2.3.5
+  clsx: 2.1.1
   dependency-cruiser: 18.2.0
+  drizzle-kit: 0.31.10
+  drizzle-orm: 0.45.2
+  hono: 4.13.7
+  katex: 0.18.5
+  mdast-util-from-markdown: 2.0.3
+  mdast-util-gfm: 3.1.0
+  mdast-util-math: 3.0.0
+  micromark-core-commonmark: 2.0.3
+  micromark-extension-gfm: 3.0.0
+  micromark-extension-math: 3.1.0
+  micromark-factory-space: 2.0.1
+  micromark-util-character: 2.1.1
+  micromark-util-classify-character: 2.0.1
+  micromark-util-sanitize-uri: 2.0.1
+  micromark-util-symbol: 2.0.1
+  micromark-util-types: 2.0.2
+  next: 16.3.4
   playwright: 1.62.1
   publint: 0.3.24
+  react: 19.2.8
+  react-dom: 19.2.8
   rolldown: 1.2.6
+  shiki: 4.4.3
   tsdown: 0.22.14
   turbo: 2.10.12
   typescript: 7.0.2
@@ -38,5 +65,8 @@ trustLockfile: false
 blockExoticSubdeps: true
 strictDepBuilds: true
 allowBuilds:
+  # drizzle-orm lists better-sqlite3 as an optional peer; this sample uses the
+  # built-in node:sqlite driver instead, so its native build stays off.
+  better-sqlite3: false
   esbuild: true
   workerd: true
