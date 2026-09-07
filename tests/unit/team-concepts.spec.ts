@@ -29,12 +29,14 @@ class DelegatingAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []
   activeWorkers = 0
   maxActiveWorkers = 0
+  leadRounds = 0
 
   async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     this.requests.push(options)
     const toolNames = options.tools?.map(tool => tool.name) ?? []
     const hasSpawn = toolNames.includes('spawn_agent')
     const hasToolResult = options.messages.some(message => message.source.kind === 'tool')
+    if (hasSpawn) this.leadRounds++
     if (hasSpawn && !hasToolResult) {
       yield {
         type: 'block-end', index: 0,
@@ -62,6 +64,19 @@ class DelegatingAdapter extends ModelAdapter {
       const text = task?.type === 'text' ? `Result for ${task.text}` : 'Worker result'
       this.activeWorkers--
       yield * textRound(text)
+      return
+    }
+    if (this.leadRounds === 2) {
+      // spawn_agent no longer returns a result, so a lead that wants one
+      // has to ask. This is the loop the redesign expects.
+      yield {
+        type: 'block-end', index: 0,
+        block: {
+          type: 'tool-call', id: ToolCallId('wait-1'), name: 'wait_agents',
+          arguments: JSON.stringify({ targets: ['worker_a', 'worker_b'] }),
+        },
+      }
+      yield { type: 'finish', reason: { kind: 'tool-calls' } }
       return
     }
     yield * textRound('Lead synthesized both worker results.')
@@ -161,6 +176,10 @@ describe('two agent-team concepts', () => {
     expect(adapter.requests.find(request =>
       request.tools?.every(tool => tool.name !== 'spawn_agent'))?.system)
       .toContain('dynamically created worker')
+    // Awaited explicitly: the lead is free to finish before its workers do,
+    // so the harness is the thing that knows when they are done.
+    await harness.awaitWorker('worker_a')
+    await harness.awaitWorker('worker_b')
     expect(harness.workers()).toMatchObject([
       {
         name: 'worker_a', agentId: 'worker_a', task: 'Analyze A',
@@ -176,14 +195,24 @@ describe('two agent-team concepts', () => {
     expect(harness.team.members().map(member => member.name)).toEqual([
       'lead', 'worker_a', 'worker_b',
     ])
-    expect(harness.team.messages()).toHaveLength(2)
+    // Two task deliveries, plus one completion notification per worker.
+    expect(harness.team.messages().length).toBeGreaterThanOrEqual(2)
     expect(harness.team.messages()[0]).toMatchObject({
       sender: 'lead', target: 'worker_a', delivery: 'quiet',
     })
+    expect(harness.team.messages().some(message =>
+      message.target === 'lead' && JSON.stringify(message.content).includes('Result for Analyze A')))
+      .toBe(true)
     const finalLeadRequest = adapter.requests.at(-1)
     const toolResults = finalLeadRequest?.messages.filter(message => message.source.kind === 'tool') ?? []
+    // The spawn result now names the worker without carrying its answer.
     expect(JSON.stringify(toolResults)).toContain('worker_a')
-    expect(JSON.stringify(toolResults)).toContain('Result for Analyze B')
+    // The answer reaches the lead as an attributed message instead. Only the
+    // first worker's is here: `wait_agents` returns as soon as ONE target
+    // settles, which is what keeps a coordinator in the loop rather than
+    // parked until the slowest one finishes.
+    expect(JSON.stringify(finalLeadRequest?.messages)).toContain('Result for Analyze A')
+    expect(JSON.stringify(finalLeadRequest?.messages)).toContain("Worker 'worker_a' finished")
     await expect(harness.spawn({ task: 'One more task' })).rejects.toThrow(/2-worker limit/)
   })
 
@@ -193,10 +222,11 @@ describe('two agent-team concepts', () => {
       registry: registryWith(adapter), lead: agent('lead'), maxWorkers: 1,
     })
 
-    const result = await harness.spawn({ task: 'Inspect logs', specialty: 'operations' })
-    expect(result).toMatchObject({ worker: 'worker_1', agentId: 'worker_1', text: 'done' })
+    const started = await harness.spawn({ task: 'Inspect logs', specialty: 'operations' })
+    expect(started).toMatchObject({ name: 'worker_1', agentId: 'worker_1', status: 'running' })
     expect(harness.team.members().some(member => member.name === 'worker_1')).toBe(true)
 
+    expect(await harness.awaitWorker('worker_1')).toMatchObject({ text: 'done' })
     harness.removeWorker('worker_1')
     expect(harness.workers()).toEqual([])
     expect(harness.team.members().some(member => member.name === 'worker_1')).toBe(false)

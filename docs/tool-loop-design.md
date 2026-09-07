@@ -710,7 +710,11 @@ gap where the document added `maxToolCalls` but could only report `max-steps`.
 
 When an assistant batch would exceed `maxToolCalls`, dispatch only the remaining
 allowance in model order and synthesize `TOOL_BUDGET_EXHAUSTED` results for every
-later call. Requested-but-declined calls do not increment `TurnOutcome.toolCalls`.
+later call. That synthesized failure states the remedy — do not retry, answer now
+from what you have, and say what is unverified — because a model given only the
+fact reaches for its usual recovery, which is to try again with calls that no
+longer exist. Requested-but-declined calls do not increment
+`TurnOutcome.toolCalls`.
 History is therefore valid before either exhaustion policy runs.
 
 With `onExhausted: 'force-final-answer'`:

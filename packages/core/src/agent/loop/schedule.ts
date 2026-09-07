@@ -179,7 +179,17 @@ async function start(
   await emitEvent(options, { type: 'tool-call', call, trace })
   if (!hasBudget) return {
     call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
-    pending: Promise.resolve(toolFailure('the turn has no remaining tool-call budget', TOOL_ERROR_CODES.BUDGET_EXHAUSTED)),
+    // Says what to DO, not just what happened. A model handed "no remaining
+    // budget" has no move it can make with that: it reads as a broken tool and
+    // its usual recovery — try again, try a smaller version — spends calls that
+    // no longer exist. The one useful action is to stop and answer, so the
+    // failure says so.
+    pending: Promise.resolve(toolFailure(
+      'the turn has no remaining tool-call budget, so this call was not run and no further'
+      + ' call will be. Do not retry it. Answer now from what you already have, and say'
+      + ' plainly what is unverified or unfinished.',
+      TOOL_ERROR_CODES.BUDGET_EXHAUSTED,
+    )),
   }
   if (options.signal.aborted) return {
     call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,

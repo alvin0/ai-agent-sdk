@@ -17,9 +17,17 @@ import { credentialViews, saveCredential } from './credentials'
 import { createGroup, deleteGroup, getGroup, listGroups, updateGroup } from './groups'
 import { groupToolSurface } from './runtime-tools'
 import { listModels, listProviders } from './registry'
-import { abortRun, answer, forgetSession, runPrompt, session } from './session'
+import {
+  abortRun, answer, approve, forgetSession, pendingApprovals, runPrompt, session, steer,
+} from './session'
+import { grantPermission, listPermissions, revokePermission } from './approvals'
 import { browseDirectory, currentWorkspace, defaultWorkspace, setWorkspace } from './workspace'
-import type { AnswerRequestBody, ChatRequestBody, WireEvent } from './wire'
+import type {
+  AnswerRequestBody, ApproveRequestBody, ChatRequestBody, SteerRequestBody, WireApprovalScope,
+  WireEvent,
+} from './wire'
+
+const APPROVAL_SCOPES: readonly WireApprovalScope[] = ['once', 'session', 'workspace']
 
 function sse(event: WireEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`
@@ -70,9 +78,70 @@ export function createChatApp(basePath = '/api') {
     })
   })
 
+  /**
+   * Add a message to the run in flight.
+   *
+   * Answers "the agent is going the wrong way and I do not want to stop it":
+   * the message lands in the agent's history now, so the turn already running
+   * reads it. `steered: false` means no run was there to receive it, and the
+   * client should send it as an ordinary prompt instead.
+   */
+  app.post('/steer', async (c) => {
+    const body = await c.req.json<SteerRequestBody>()
+    if (typeof body.sessionId !== 'string' || typeof body.prompt !== 'string') {
+      return c.json({ error: 'sessionId and prompt are required' }, 400)
+    }
+    return c.json({ steered: await steer(body.sessionId, body.prompt) })
+  })
+
   app.post('/answer', async (c) => {
     const body = await c.req.json<AnswerRequestBody>()
     return c.json({ resolved: await answer(body.sessionId, body.requestId, body.answers) })
+  })
+
+  /**
+   * Answer a parked permission prompt.
+   *
+   * `scope` decides how long the answer lasts: this call, the whole
+   * conversation, or every conversation in the project's directory.
+   */
+  app.post('/approve', async (c) => {
+    const body = await c.req.json<ApproveRequestBody>()
+    if (typeof body.sessionId !== 'string' || typeof body.callId !== 'string') {
+      return c.json({ error: 'sessionId and callId are required' }, 400)
+    }
+    if (!['allow', 'deny', 'abort'].includes(body.decision)) {
+      return c.json({ error: 'decision must be allow, deny, or abort' }, 400)
+    }
+    const scope = body.scope ?? 'once'
+    if (!APPROVAL_SCOPES.includes(scope)) {
+      return c.json({ error: `scope must be one of ${APPROVAL_SCOPES.join(', ')}` }, 400)
+    }
+    return c.json({ resolved: await approve(body.sessionId, body.callId, body.decision, scope) })
+  })
+
+  // ---- standing permissions ----------------------------------------------
+
+  /** The workspace-wide grants for one project, so the user can review them. */
+  app.get('/groups/:id/permissions', async (c) => {
+    const group = await getGroup(c.req.param('id'))
+    return c.json({ permissions: await listPermissions(group.workspaceRoot) })
+  })
+
+  app.post('/groups/:id/permissions', async (c) => {
+    const body = await c.req.json<{ ruleKey: string }>()
+    if (typeof body.ruleKey !== 'string' || body.ruleKey === '') {
+      return c.json({ error: 'ruleKey is required' }, 400)
+    }
+    const group = await getGroup(c.req.param('id'))
+    await grantPermission(group.workspaceRoot, body.ruleKey)
+    return c.json({ permissions: await listPermissions(group.workspaceRoot) })
+  })
+
+  app.delete('/groups/:id/permissions/:ruleKey', async (c) => {
+    const group = await getGroup(c.req.param('id'))
+    await revokePermission(group.workspaceRoot, decodeURIComponent(c.req.param('ruleKey')))
+    return c.json({ permissions: await listPermissions(group.workspaceRoot) })
   })
 
   app.post('/abort', async (c) => {
@@ -94,19 +163,34 @@ export function createChatApp(basePath = '/api') {
   app.get('/conversations/:id', async (c) => {
     const id = c.req.param('id')
     const conversation = await getConversation(id)
-    if (conversation === undefined) return c.json({ conversation: null, messages: [], pendingQuestions: 0 })
+    if (conversation === undefined) {
+      return c.json({ conversation: null, messages: [], pendingQuestions: 0, pendingApprovals: [] })
+    }
     const live = await session(id)
     return c.json({
       conversation,
       messages: await readMessages(id),
       pendingQuestions: live.broker.pending().length,
+      // A prompt still waiting is not in the transcript, so a reload has to be
+      // handed the live ones to re-render.
+      pendingApprovals: await pendingApprovals(id),
     })
   })
 
-  /** Patch a conversation: title, provider/model, loop mode, or workspace. */
+  /**
+   * Patch a conversation: title, provider/model, loop mode, or workspace.
+   *
+   * `groupId` names the project the conversation belongs to and is NOT applied
+   * as an update — it exists because this route can be the first thing that
+   * touches a brand-new conversation (picking a model before typing a prompt),
+   * and whichever request creates the row decides its group and therefore the
+   * directory its tools will write to. Sending it does not move an existing
+   * conversation: an implicit reassignment is exactly how a conversation ends
+   * up running against the wrong folder.
+   */
   app.patch('/conversations/:id', async (c) => {
     const id = c.req.param('id')
-    const body = await c.req.json<{
+    const { groupId, ...patch } = await c.req.json<{
       title?: string
       provider?: string | null
       model?: string | null
@@ -117,11 +201,11 @@ export function createChatApp(basePath = '/api') {
       reasoningEffort?: string | null
     }>()
     const MODES = ['basic', 'deep', 'deep-human-in-loop', 'team', 'team-dynamic']
-    if (body.mode !== undefined && !MODES.includes(body.mode)) {
+    if (patch.mode !== undefined && !MODES.includes(patch.mode)) {
       return c.json({ error: `mode must be one of ${MODES.join(', ')}` }, 400)
     }
-    await session(id)
-    await updateConversation(id, body)
+    await session(id, groupId)
+    await updateConversation(id, patch)
     return c.json({ conversation: await getConversation(id) })
   })
 

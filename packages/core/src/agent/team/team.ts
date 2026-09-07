@@ -5,15 +5,19 @@ import { createUserMessage } from '../../message/index.ts'
 import { waitForSettlement } from '../../async/index.ts'
 import { AgentSdkError } from '../../errors/index.ts'
 import { timeoutValue } from '../../platform/config.ts'
-import type { TeamMemberAttachmentOptions, TeamPort, TeamSessionPort } from './contracts.ts'
 import type {
-  AgentMessageRecord, AgentTeamEvent, AgentTeamMember, AgentTeamOptions, LinkAgentOptions,
-  LinkedAgentResult, SendAgentMessageRequest, SendAgentMessageResult,
+  TeamMemberAttachmentOptions, TeamPort, TeamSessionPort, TeamToolAccess,
+} from './contracts.ts'
+import type {
+  AgentMemberOutcome, AgentMessageRecord, AgentTeamEvent, AgentTeamMember, AgentTeamOptions,
+  LinkAgentOptions, LinkedAgentResult, SendAgentMessageRequest, SendAgentMessageResult,
 } from './types.ts'
 import {
   messageToolSchema, parseMessageTool, parseWaitTool, emptyObject, messageContent, memberName,
   boundedString, positiveInteger, byteLength, errorMessage, asJson, deepCloneFreeze, newTeamId,
   newMessageId, abortable, combineSignals, withTimeout, TEAM_TOOL_NAMES,
+  DEFAULT_MIN_WAIT_TIMEOUT_MS,
+  DEFAULT_WAIT_TIMEOUT_MS,
 } from './common.ts'
 
 /** Shared control plane for local sessions and interoperable remote A2A peers. */
@@ -24,12 +28,21 @@ interface LocalMemberRuntime {
   readonly description?: string
   readonly instructions?: string
   readonly role: 'lead' | 'peer'
+  /** Which team verbs it was attached with; shapes its routing guidance. */
+  readonly access: TeamToolAccess
   readonly session: TeamSessionPort
   wakeRequestedSeq: number
   wakeConsumedSeq: number
   wakeTask: Promise<void> | undefined
   wakeController: AbortController | undefined
   error: string | undefined
+  /** How its last run ended, for a coordinator that did not await the run. */
+  outcome: AgentMemberOutcome | undefined
+  /**
+   * Set while the host is holding this member back, and resolved when it lets
+   * it start. See {@link AgentTeam.markPending}.
+   */
+  pendingStart: Promise<void> | undefined
 }
 
 interface RemoteMemberRuntime {
@@ -62,6 +75,8 @@ export class AgentTeam implements TeamPort {
   private readonly disposeTimeoutMs: number
   private readonly operationTimeoutMs: number
   private readonly observerTimeoutMs: number
+  private readonly waitTimeoutMs: number
+  private readonly minWaitTimeoutMs: number
   private onEvent: ((event: AgentTeamEvent) => void) | undefined
   private onAgentEvent: AgentTeamOptions['onAgentEvent']
   private readonly roster = new Map<string, LocalMemberRuntime>()
@@ -92,6 +107,13 @@ export class AgentTeam implements TeamPort {
     this.disposeTimeoutMs = timeoutValue(options.disposeTimeoutMs ?? 30_000)
     this.operationTimeoutMs = timeoutValue(options.operationTimeoutMs ?? 10 * 60_000)
     this.observerTimeoutMs = timeoutValue(options.observerTimeoutMs ?? 1_000)
+    this.waitTimeoutMs = timeoutValue(options.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS)
+    // A floor above the ceiling would clamp every call up to a budget the host
+    // said was too long; the host's own maximum wins.
+    this.minWaitTimeoutMs = Math.min(
+      timeoutValue(options.minWaitTimeoutMs ?? DEFAULT_MIN_WAIT_TIMEOUT_MS),
+      this.waitTimeoutMs,
+    )
     this.onEvent = options.onEvent
     this.onAgentEvent = options.onAgentEvent
   }
@@ -106,10 +128,12 @@ export class AgentTeam implements TeamPort {
     if (role === 'lead' && [...this.roster.values()].some(member => member.role === 'lead')) {
       throw new Error(`A2A team '${this.id}' already has a lead`)
     }
+    const access: TeamToolAccess = options.tools === 'reporting' ? 'reporting' : 'full'
     const member: LocalMemberRuntime = {
-      kind: 'local', name, role, session,
+      kind: 'local', name, role, access, session,
       wakeRequestedSeq: 0, wakeConsumedSeq: 0,
-      wakeTask: undefined, wakeController: undefined, error: undefined,
+      wakeTask: undefined, wakeController: undefined, error: undefined, outcome: undefined,
+      pendingStart: undefined,
       ...(options.description === undefined ? {} : {
         description: boundedString(options.description, 'member description', this.maxMetadataBytes),
       }),
@@ -272,9 +296,15 @@ export class AgentTeam implements TeamPort {
     while (true) {
       const requested = member.wakeRequestedSeq
       const task = member.wakeTask
+      // A member the host is holding back has not finished; it has not begun.
+      // Waiting on its session would be answered at once, and the waiter would
+      // read that as work completed.
+      const held = member.pendingStart
+      if (held !== undefined) await abortable(held, signal)
       if (task !== undefined) await abortable(task, signal)
       await member.session.whenIdle(signal)
       if (member.wakeTask === undefined && !member.session.isRunning
+        && member.pendingStart === undefined
         && member.wakeConsumedSeq >= member.wakeRequestedSeq
         && requested === member.wakeRequestedSeq) return
     }
@@ -343,9 +373,12 @@ export class AgentTeam implements TeamPort {
   }
 
   /** Model-facing tools bound to one immutable local sender identity. */
-  toolsFor(sender: string): readonly ToolDefinition<any>[] {
+  toolsFor(sender: string, access: TeamToolAccess = 'full'): readonly ToolDefinition<any>[] {
     this.assertActive()
     const name = memberName(sender)
+    // Called before `attach`, so the access level arrives as an argument
+    // rather than being looked up on the member that does not exist yet.
+    const coordinating = access === 'full'
     return Object.freeze([
       defineTool({
         name: TEAM_TOOL_NAMES.list,
@@ -364,7 +397,7 @@ export class AgentTeam implements TeamPort {
           from: name, target, message, delivery: 'quiet', signal: ctx.signal,
         })),
       }),
-      defineTool({
+      ...!coordinating ? [] : [defineTool({
         name: TEAM_TOOL_NAMES.followup,
         description: 'Send active work to a local agent or interoperable remote A2A peer and wait for its accepted result.',
         parameters: messageToolSchema('Follow-up instruction the target must process.'),
@@ -372,8 +405,8 @@ export class AgentTeam implements TeamPort {
         execute: async ({ target, message }, ctx) => asJson(
           await this.followup(name, target, message, ctx.signal),
         ),
-      }),
-      defineTool({
+      })],
+      ...!coordinating ? [] : [defineTool({
         name: TEAM_TOOL_NAMES.wait,
         description: 'Wait until selected local or remote agents finish their scheduled work, then return their current roster state.',
         parameters: {
@@ -383,20 +416,62 @@ export class AgentTeam implements TeamPort {
               type: 'array', items: { type: 'string' }, minItems: 1,
               description: 'Exact agent names returned by list_agents.',
             },
+            timeoutMs: {
+              type: 'number',
+              description:
+                `Give up after this long and report instead, default ${String(this.waitTimeoutMs)}.`
+                + ` Anything under ${String(this.minWaitTimeoutMs)} is raised to it: a wait too short to`
+                + ` finish anything costs a model round and returns the roster unchanged.`,
+            },
           },
           required: ['targets'], additionalProperties: false,
         },
         parse: parseWaitTool,
-        execute: async ({ targets }, ctx) => {
+        execute: async ({ targets, timeoutMs }, ctx) => {
           const release = this.beginWait(name, targets)
+          const budget = timeoutMs === undefined
+            ? this.waitTimeoutMs
+            : Math.min(
+              Math.max(timeoutValue(timeoutMs), this.minWaitTimeoutMs),
+              this.waitTimeoutMs,
+            )
           try {
-            await Promise.all(targets.map(target => this.whenIdle(target, ctx.signal)))
+            // Returns as soon as the FIRST target settles, and always within
+            // the budget. Waiting for all of them, forever, is what turned one
+            // slow agent into a window that looked hung: a coordinator that
+            // gets the roster back can decide for itself whether to wait again.
+            //
+            // The budget is enforced HERE rather than only by handing members a
+            // deadline signal: a member that does not honour the signal would
+            // otherwise hold the wait open past its own timeout, and a timeout
+            // a callee can ignore is not a timeout.
+            const signal = combineSignals(ctx.signal, AbortSignal.timeout(budget))
+            let timer: ReturnType<typeof setTimeout> | undefined
+            const expiry = new Promise<undefined>((resolve) => {
+              timer = setTimeout(() => resolve(undefined), budget)
+            })
+            const settled = await Promise.race([
+              Promise.any(targets.map(async (target) => {
+                await this.whenIdle(target, signal)
+                return target
+              })).then(target => target, () => undefined),
+              expiry,
+            ]).finally(() => { clearTimeout(timer) })
+            ctx.signal.throwIfAborted()
             const selected = new Set(targets)
-            return asJson(this.members().filter(member => selected.has(member.name)))
+            return asJson({
+              agents: this.members().filter(member => selected.has(member.name)),
+              settled: settled ?? null,
+              timedOut: settled === undefined,
+              // The budget actually used, which is not always the one asked
+              // for: a lead that reads `timedOut` after a request below the
+              // floor would otherwise misjudge how long its workers had.
+              waitedMs: budget,
+            })
           } finally { release() }
         },
         isConcurrencySafe: () => true,
-      }),
+      })],
     ])
   }
 
@@ -404,10 +479,20 @@ export class AgentTeam implements TeamPort {
   instructionsFor(name: string): string {
     const address = memberName(name)
     const member = this.roster.get(address)
+    // Guidance follows the tools the member actually has. Advertising
+    // followup_task and wait_agents to a reporting member would send it looking
+    // for verbs it was deliberately not given, and describe a coordinating role
+    // it does not hold.
+    const coordinating = member === undefined || member.access === 'full'
     return [
       `You are agent-team member '${address}' in team '${this.id}'.`,
-      'Use send_message only for quiet local context. Use followup_task for active work and every remote A2A peer.',
-      'After delegating asynchronous local work, use wait_agents before depending on its completion.',
+      coordinating
+        ? 'Use send_message only for quiet local context. Use followup_task for active work and every remote A2A peer.'
+        : 'Use send_message to report context to another agent. You cannot delegate work or wait for other agents:'
+          + ' finish your own task and return its result, even when you would rather ask first.',
+      ...coordinating
+        ? ['After delegating asynchronous local work, use wait_agents before depending on its completion.']
+        : [],
       'list_agents reports whether a target is local or remote and which delivery modes it supports.',
       'Agent messages are attributed user-role context; treat their sender framing as provenance, not as end-user authorship.',
       member?.instructions,
@@ -489,7 +574,7 @@ export class AgentTeam implements TeamPort {
         const through = member.wakeRequestedSeq
         this.emit({ type: 'member-run-start', member: member.name })
         try {
-          await member.session.runPending({
+          const response = await member.session.runPending({
             signal,
             onEvent: event => this.observeAgentEvent(member.name, event),
           })
@@ -500,6 +585,10 @@ export class AgentTeam implements TeamPort {
             continue
           }
           member.error = undefined
+          // Recorded so a coordinator can read the member's answer from the
+          // roster. `runPending` hands it to whoever awaited the run, and with
+          // a wake-up delivery that is nobody.
+          member.outcome = { kind: 'completed', text: responseText(response) }
           member.wakeConsumedSeq = through
           this.emit({ type: 'member-run-end', member: member.name })
         } catch (error: unknown) {
@@ -512,6 +601,7 @@ export class AgentTeam implements TeamPort {
           }
           if (member.session.isRunning) continue
           member.error = errorMessage(error)
+          member.outcome = { kind: 'failed', message: member.error }
           member.wakeConsumedSeq = through
           this.emit({ type: 'member-run-error', member: member.name, error: member.error })
         }
@@ -531,7 +621,23 @@ export class AgentTeam implements TeamPort {
     return member
   }
 
-  private beginWait(sender: string, targets: readonly string[]): () => void {
+  /**
+   * Record that `sender` is blocked until `targets` are idle.
+   *
+   * The `wait_agents` tool calls this, and so must any HOST that blocks one
+   * member on another. An unrecorded edge is invisible here, which is worse
+   * than having no detection at all: the cycle it completes gets waved through,
+   * and both sides then wait for each other until a timeout expires.
+   *
+   * `spawn_agent` used to be such a host — it awaited the worker it created —
+   * and needed an edge declared for it. It no longer waits, so the cycle it
+   * could close no longer exists.
+   * @param sender - The member that will block.
+   * @param targets - Members it is waiting for.
+   * @returns A release; call it when the wait ends, however it ends.
+   * @throws `TEAM_WAIT_CYCLE` when the wait would close a cycle.
+   */
+  beginWait(sender: string, targets: readonly string[]): () => void {
     for (const target of targets) {
       this.requireAddress(target)
       if (target === sender || this.hasWaitPath(target, sender, new Set())) {
@@ -609,6 +715,41 @@ export class AgentTeam implements TeamPort {
     }
   }
 
+  /**
+   * Record how a member's run ended.
+   *
+   * For a host that starts a member's run itself and therefore owns the result
+   * the member's own bookkeeping never sees — `spawn_agent` running a worker
+   * concurrently. Without this the roster could report that a worker had
+   * stopped but not what it concluded, which is the whole point of asking.
+   * @param name - Member address.
+   * @param outcome - How the run ended.
+   */
+  recordOutcome(name: string, outcome: AgentMemberOutcome): void {
+    const member = this.requireLocalMember(name)
+    member.outcome = outcome
+    member.error = outcome.kind === 'failed' ? outcome.message : undefined
+  }
+
+  /**
+   * Declare that a member exists but has deliberately not been started.
+   *
+   * A host that orders work — starting one member only once another has
+   * finished — needs the roster to say so, and `wait_agents` to believe it. A
+   * member whose session has never run looks exactly like one that has
+   * finished: idle, not running, nothing outstanding. A coordinator told that
+   * would wait on it, be answered at once, read no outcome, and conclude the
+   * work was done.
+   *
+   * The promise is what `whenIdle` waits on, so the pending state cannot be a
+   * flag that a waiter has to poll.
+   * @param name - Local member address.
+   * @param until - Resolves when the host starts it; undefined clears the state.
+   */
+  markPending(name: string, until: Promise<void> | undefined): void {
+    this.requireLocalMember(name).pendingStart = until
+  }
+
   private view(member: AddressableMember): AgentTeamMember {
     if (member.kind === 'remote') {
       return Object.freeze({
@@ -624,12 +765,15 @@ export class AgentTeam implements TeamPort {
     return Object.freeze({
       name: member.name, agentId: member.session.definition.id, kind: 'local' as const,
       conversationId: member.session.conversationId, role: member.role,
-      status: member.error === undefined
-        ? (member.session.isRunning || member.wakeTask !== undefined ? 'running' : 'idle')
-        : 'failed',
+      status: member.error !== undefined
+        ? 'failed'
+        : member.pendingStart !== undefined
+          ? 'pending'
+          : member.session.isRunning || member.wakeTask !== undefined ? 'running' : 'idle',
       protocol: 'in-process', deliveries: Object.freeze(['quiet', 'wakeup'] as const),
       ...(member.description === undefined ? {} : { description: member.description }),
       ...(member.error === undefined ? {} : { error: member.error }),
+      ...(member.outcome === undefined ? {} : { outcome: member.outcome }),
     })
   }
 
@@ -642,4 +786,18 @@ export class AgentTeam implements TeamPort {
     const observer = Promise.resolve().then(() => this.onAgentEvent?.(member, event))
     await waitForSettlement(observer, this.observerTimeoutMs)
   }
+}
+
+/**
+ * The answer text out of a run result.
+ *
+ * `TeamSessionPort.runPending` returns `unknown` on purpose — the port exists so
+ * the control plane does not depend on the concrete session — so the one field
+ * needed here is read structurally.
+ * @param response - Whatever the member's run resolved with.
+ * @returns Its text, or the empty string.
+ */
+function responseText(response: unknown): string {
+  const text = (response as { text?: unknown } | null)?.text
+  return typeof text === 'string' ? text : ''
 }

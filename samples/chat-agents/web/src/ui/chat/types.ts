@@ -1,4 +1,4 @@
-import type { ToolCard, WireQuestion } from '@chat-agents/backend'
+import type { ToolCard, WireApproval, WireApprovalScope, WireQuestion } from '@chat-agents/backend'
 
 /** One rendered row of the transcript, in arrival order. */
 export type ChatNode =
@@ -20,6 +20,14 @@ export type ChatNode =
       readonly args: string
       readonly state: 'running' | 'ok' | 'error'
       readonly output?: string
+      /**
+       * Output streamed while the call is still running.
+       *
+       * Separate from `output`, which is the settled result: this exists only
+       * between the call and its result, and is what makes a two-minute
+       * command something you can watch instead of wait for.
+       */
+      readonly liveOutput?: string
       readonly card?: ToolCard
       readonly errorMessage?: string
       readonly member?: string
@@ -30,6 +38,24 @@ export type ChatNode =
       readonly requestId: string
       readonly questions: readonly WireQuestion[]
       readonly answered: boolean
+    }
+  /**
+   * A tool call waiting for permission, and afterwards the record of what was
+   * decided. `decision` absent means the call is still parked.
+   */
+  | (WireApproval & {
+      readonly kind: 'approval'
+      readonly id: string
+      readonly decision?: 'allow' | 'deny' | 'abort'
+      readonly scope?: WireApprovalScope
+      readonly member?: string
+    })
+  /** A retry or other in-flight notice; not output, not a failure. */
+  | {
+      readonly kind: 'notice'
+      readonly id: string
+      readonly level: 'info' | 'warn'
+      readonly message: string
     }
   | { readonly kind: 'error'; readonly id: string; readonly message: string }
 
@@ -44,6 +70,8 @@ export interface ChatState {
   readonly nodes: readonly ChatNode[]
   readonly running: boolean
   readonly usage: { readonly inputTokens: number; readonly outputTokens: number }
+  /** What a quiet run is waiting on, or null when it is producing. */
+  readonly progress: string | null
   /** Roster for the current run; empty outside team modes. */
   readonly members: readonly MemberState[]
 }

@@ -110,9 +110,10 @@ export class AgentSession {
       definition.skillOptions,
       () => this.skillLookup(),
     )
+    const teamAccess = options.team?.tools === 'reporting' ? 'reporting' as const : 'full' as const
     const teamTools = options.team?.tools === false
       ? []
-      : options.team?.team.toolsFor(options.team.name ?? definition.id) ?? []
+      : options.team?.team.toolsFor(options.team.name ?? definition.id, teamAccess) ?? []
     this.catalog = toolCatalog(definition.tools, options.tools, [...skillTools, ...teamTools])
     this.currentMemory = options.memory instanceof AgentMemory
       ? options.memory

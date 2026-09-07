@@ -52,11 +52,89 @@ console.log(answer.text, harness.workers())
 ```
 
 One `spawn_agent` call creates a real `DefinedAgent` clone and `AgentSession`,
-attaches it as a peer, delivers the initial task with lead provenance, waits for
-its result, and returns that result to the lead's tool loop. Multiple calls in
-the same model step are concurrency-safe, so independent workers run in parallel.
-Completed workers stay addressable through `list_agents`, `send_message`, and
-`followup_task` until removed with `removeWorker()`.
+attaches it as a peer, delivers the initial task with lead provenance, starts the
+worker, and returns — **without** waiting for it. The lead keeps working while
+its workers do, which is the point: a lead parked inside its own tool call could
+not read a worker's messages, spawn anything else, or notice that one had gone
+quiet.
+
+#### Dividing the work, not just the agents
+
+Splitting an objective badly is not a mechanism failure, and no mechanism
+detects it. A lead asked for "a todo app built by three agents" once spawned a
+UI worker, a logic worker and an auditor in one step, into an empty directory:
+the auditor had nothing to review, and the other two each discovered the empty
+directory separately and each decided to scaffold it, one of them announcing it
+would write the very file the other had been given.
+
+Neither reference implementation solves this with a task graph — Codex's
+`spawn_agent` has no `depends_on` field, and neither does the DeepSeek
+harness's. Both state the discipline instead, and so does the lead's generated
+instruction here: plan and name the critical path before delegating; keep the
+blocking next step local; give each worker a **disjoint set of files to write**;
+and do not delegate review of something that does not exist yet.
+
+Four things back that up mechanically, so a lead that ignores the guidance
+produces a worse plan rather than a broken one.
+
+**Order is declared, not remembered.** `spawn_agent` takes
+`dependsOn: string[]`, naming workers that must finish first. The worker is
+created immediately and **held** — `status: 'pending'`, and `pending` on the
+roster too, so `list_agents` and `wait_agents` do not report a worker that has
+never run as one that has finished. When its dependencies settle it starts, and
+is handed what they produced. Dependents are released on **settlement**, not on
+success: requiring success would let one failed worker strand every step
+planned after it. A dependency can only name a worker that already exists, so
+the graph cannot contain a cycle by construction.
+
+**Ownership is enforced.** `writes: string[]` declares the files and
+directories a worker may write, compared by path component so `app` covers
+`app/page.tsx`. A spawn whose scopes overlap a worker that could run at the
+same time is refused, and the refusal names the fix: depend on that worker, or
+narrow the scope. A worker this one already depends on is not a conflict —
+ordered, they never write at once. `writeScopePolicy: 'warn' | 'off'` relaxes
+this.
+
+**Roles are declared by the host.** `roles: [{ name, description, whenToUse,
+instructions }]` turns free-text `specialty` into an enum, and puts each role's
+purpose and precondition in the spawn schema — the one place the lead reads
+while it is choosing. This is Codex's `agent_type` and its role registry. Left
+unset, `specialty` behaves as before.
+
+**Context is inherited on request.** `context: 'fresh' | 'fork'` — `fresh`
+starts the worker from its task alone, `fork` also gives it the lead's
+conversation so far, so it does not re-derive what the lead already
+established. The default is `'fresh'`, because a fork is paid for in input
+tokens on every round the worker runs; a host whose workers always operate on
+the lead's own workspace should set `defaultSpawnContext: 'fork'` rather than
+hope the lead asks each time. The fork is cut at the last point where no tool
+call was outstanding: the lead is inside the turn that called `spawn_agent`, so
+copying its history verbatim would hand the worker a conversation ending in an
+unanswered call.
+
+And `wait_agents` clamps a below-floor budget, so "wait one second immediately
+after spawning" costs a round it cannot spend usefully.
+
+A worker reports back three ways. It sends the lead a quiet completion message
+when it finishes, so a lead that is still working reads it on its next model
+round. Its answer is recorded on the roster as `outcome`, which `list_agents`
+returns. And `wait_agents` reports it directly. A finished worker keeps its
+`maxWorkers` slot until `close_agent` releases it, so a lead that never closes
+runs out of workers rather than accumulating them silently.
+
+The lead still owns the ending. Its turn does not end while a worker of its is
+unfinished: `onTurnEnd` says so, and `runTurn` re-runs a turn whose hook appended
+history, so the lead is sent round again to wait, read, and synthesize. This is
+Codex's shape reached from the other side — there the parent stays inside its
+turn looping on its wait tool. Without it a lead concludes from nothing, and once
+the turn is over the reports arriving afterwards have no turn left to be read in,
+so the work stops with no synthesis at all. An aborted or budget-exhausted turn
+is still free to end.
+
+Hosts have the same shape: `spawn()` returns the running worker, `awaitWorker()`
+waits for one within a budget, `closeWorker()` stops one, and `dispose()` stops
+them all — which is what a host must call, since a worker deliberately outlives
+the run that started it.
 
 For full control over generated definitions, provide
 `workerFactory({ name, task, specialty })`. Hosts can also call `harness.spawn()`
@@ -245,10 +323,21 @@ Joining a team exposes four sender-bound tools by default:
 - `send_message` injects quiet context into another local session;
 - `followup_task` starts serialized work on a local or remote target and returns
   the remote task/message result when applicable;
-- `wait_agents` blocks until selected scheduled work is idle, preventing a
-  coordinator from synthesizing before local workers finish.
+- `wait_agents` waits for selected work, returning as soon as the **first**
+  target settles and always within `timeoutMs` (default 30 s, floor 5 s, both
+  configurable as `waitTimeoutMs` / `minWaitTimeoutMs`). A timeout is a normal
+  result carrying the current roster, not a failure: a coordinator that never
+  regains control cannot tell a slow agent from a stuck one. A request under
+  the floor is raised to it rather than rejected, and the result reports the
+  budget actually used as `waitedMs` — a lead that asks for one second gets the
+  roster back unchanged and has spent a model round learning nothing.
 
-The managed lead additionally receives `spawn_agent`. Pre-defined composed-team
+A member attached with `tools: 'reporting'` gets `list_agents` and
+`send_message` only. Generated workers are attached that way, because the verbs
+that block or delegate take away the stopping point an agent created for one
+bounded task needs.
+
+The managed lead additionally receives `spawn_agent` and `close_agent`. Pre-defined composed-team
 members do not receive it, so choosing the composed concept cannot silently
 change the declared topology.
 

@@ -17,22 +17,89 @@ import {
   runAgent,
 } from '@ai-agent-sdk/core/agent'
 import type {
-  AgentResponse, AgentRunEvent, DefinedAgent, ToolDefinition,
+  AgentResponse, AgentRunEvent, ApprovalBroker, DefinedAgent, ManagedAgentTeam,
+  ToolDefinition, ToolInterceptor,
 } from '@ai-agent-sdk/core/agent'
 import { ReasoningEffortId, createTextMessage } from '@ai-agent-sdk/core'
 import type { ModelRegistry, SkillSource, UserInputBroker } from '@ai-agent-sdk/core'
 import { fileSystemSkills } from '@ai-agent-sdk/skill-filesystem'
+import { MODEL_TIMEOUT_MS, retryHooks } from './resilience'
+import type { RetryNotice } from './resilience'
 import { listAgents, listSkills, mcpTools } from './agents'
 import type { AgentRow } from './agents'
+
+/**
+ * Tool-using steps one ordinary agent gets for a prompt.
+ *
+ * The SDK spends this on steps, not on conversational turns, so it is a budget
+ * for actions: reading files, editing, running a command.
+ */
+const TURN_BUDGET = 8
+
+/**
+ * The same budget for a lead that delegates, which needs several times more.
+ *
+ * A delegating lead spends steps on three things at once and eight covered
+ * only the first: it explores the workspace, spawns its workers, does the
+ * critical-path work it kept for itself — and then has to still be alive to
+ * read the results and write the synthesis. Measured on a real run against
+ * this app, exploring and spawning three workers alone reached the old cap:
+ * the run ended `budget-exhausted` while every worker was still going, so the
+ * answer the lead exists to write was never written. Holding the turn open
+ * while a worker is unfinished costs a step each time round, too.
+ */
+const LEAD_TURN_BUDGET = 24
+
+/**
+ * The kinds of worker a lead here may create.
+ *
+ * Declared rather than left to `specialty`, because a role the lead invents at
+ * the moment it spawns tells the harness nothing: an `audit-agent` whose only
+ * definition is the sentence that created it cannot be recognised as work that
+ * needs code to exist first. Naming the kinds up front puts each one's
+ * precondition in the spawn schema, where the lead reads it while choosing —
+ * and `reviewer` says the thing that went wrong in practice out loud.
+ */
+const WORKER_ROLES = [
+  {
+    name: 'implementer',
+    description: 'Writes and edits source files in a scope of its own.',
+    whenToUse: 'the files it owns are named in its task and no other worker writes them',
+    instructions: 'Write only the files your task assigns you. If you need a change'
+      + ' in a file owned by someone else, say so in your result instead of making it.',
+  },
+  {
+    name: 'investigator',
+    description: 'Reads the workspace and answers a specific question. Writes nothing.',
+    whenToUse: 'a decision depends on something nobody has established yet',
+    instructions: 'Answer the question you were given from evidence in the workspace.'
+      + ' Do not modify any file.',
+  },
+  {
+    name: 'reviewer',
+    description: 'Reviews or audits work another worker produced. Writes nothing.',
+    whenToUse: 'the code already exists, or this worker dependsOn whoever is writing it;'
+      + ' a reviewer started over an empty workspace can only invent a checklist',
+    instructions: 'Review what exists. Report concrete findings with file and line'
+      + ' references, and do not modify any file.',
+  },
+] as const
 
 /** Loop policy, extended with the two team shapes. */
 export type RunMode = 'basic' | 'deep' | 'deep-human-in-loop' | 'team' | 'team-dynamic'
 
-export const DEFAULT_INSTRUCTIONS = `You are a coding assistant inspecting a workspace directory.
-Prefer the provided tools over guessing. Use write_todos to publish a plan before
-multi-step work, and request_user_input whenever a decision is genuinely the
-user's to make. Answer in GitHub-flavored Markdown; use fenced code blocks with a
-language tag.`
+export const DEFAULT_INSTRUCTIONS = `You are a coding assistant working in a workspace directory.
+Prefer the provided tools over guessing. Read before you write, and make changes
+with edit_file where an exact replacement is possible, reserving write_file for
+new files or a full rewrite. Use run_command for builds, tests, and version
+control. Use write_todos to publish a plan before multi-step work, and
+request_user_input whenever a decision is genuinely the user's to make.
+
+Writing, deleting, moving, and running commands need the user's permission: the
+call pauses until they answer, and a refusal comes back as a denied tool result.
+Treat a refusal as an answer — explain or offer an alternative rather than
+retrying the same call. Answer in GitHub-flavored Markdown; use fenced code
+blocks with a language tag.`
 
 /** Everything a run needs that is decided outside the SDK. */
 export interface RunContext {
@@ -46,6 +113,27 @@ export interface RunContext {
   /** Workspace tools (read, search, diff, todos, fetch). */
   readonly workspaceTools: ToolRegistry
   readonly userInput: UserInputBroker
+  /**
+   * Reports a model call being retried after a transient failure.
+   *
+   * Supplying it is what turns the SDK's "fail on the first blip" default into
+   * a bounded retry: `runTurn` asks a hook whether to retry, and without one
+   * the answer is always no.
+   */
+  readonly onRetry?: (notice: RetryNotice) => void
+  /** Where a call that needs permission parks until the user answers. */
+  readonly approvals?: ApprovalBroker
+  /** Pre-call policy; this is what decides a call needs permission at all. */
+  readonly interceptors?: readonly ToolInterceptor[]
+  /** A harness kept from an earlier prompt in the same conversation. */
+  readonly managedTeam?: ManagedAgentTeam
+  /**
+   * Where a worker's events go, for every run of this conversation.
+   *
+   * Stable across runs on purpose: the harness captures this once, so a
+   * per-run callback would keep delivering to a finished run.
+   */
+  readonly onWorkerEvent?: (member: string, event: AgentRunEvent) => void
   /** The preset driving the run; the lead in a team. */
   readonly agent: AgentRow | undefined
   readonly history: History
@@ -64,6 +152,24 @@ export interface RunHandles {
   readonly result?: Promise<AgentResponse>
   /** Names of every other agent that may report during the run. */
   readonly members: readonly string[]
+  /**
+   * The harness this run used, when the shape has one.
+   *
+   * Handed back so the caller can keep it for the next prompt: its workers
+   * outlive this run, so the run cannot be what owns it.
+   */
+  readonly managedTeam?: ManagedAgentTeam
+  /**
+   * Add a user message to the run in flight.
+   *
+   * Steering, not a new prompt: the loop rebuilds its request from history on
+   * every model round, so an appended message is read by the next one instead
+   * of waiting for the run to finish. It reaches the agent the user is talking
+   * to; a team member is redirected by its lead, not from here.
+   * @param text - What the user typed while the agent was working.
+   * @returns Whether the message was accepted.
+   */
+  steer(text: string): boolean
   /** Release sessions and worker processes owned by this run. */
   close(): Promise<void>
 }
@@ -125,7 +231,11 @@ function sdkMode(mode: RunMode): 'basic' | 'deep' | 'deep-human-in-loop' {
 function definitionFor(
   row: AgentRow | undefined,
   context: RunContext,
-  overrides: { id: string; mode?: 'basic' | 'deep' | 'deep-human-in-loop' },
+  overrides: {
+    id: string
+    mode?: 'basic' | 'deep' | 'deep-human-in-loop'
+    maxTurns?: number
+  },
   tools: readonly ToolDefinition[],
   skills: readonly SkillSource[],
 ): DefinedAgent {
@@ -144,8 +254,23 @@ function definitionFor(
     tools,
     skills,
     commentary: 'concise',
-    maxTurns: 8,
+    maxTurns: overrides.maxTurns ?? TURN_BUDGET,
   })
+}
+
+/**
+ * Hand a running session a user message.
+ *
+ * `inject` appends attributed context without scheduling a turn, which is
+ * exactly what steering needs: the run already has a turn in progress, and the
+ * next model round of that turn rebuilds its request from history.
+ * @param session - The session the user is talking to.
+ * @param text - The message.
+ * @returns Whether it was accepted.
+ */
+function steerSession(session: { inject: (input: string) => number }, text: string): boolean {
+  session.inject(text)
+  return true
 }
 
 /**
@@ -162,10 +287,17 @@ export async function startRun(
   onMemberEvent: (member: string, event: AgentRunEvent) => void,
 ): Promise<RunHandles> {
   const { tools, skills } = await surfaceFor(context)
+  // Every session in a team shares the gate, so a member's `rm -rf` is asked
+  // about exactly like the lead's — and shares the retry policy and the stream
+  // deadline, so a member cannot stall the lead for ten silent minutes.
   const sessionOptions = {
     registry: context.registry,
     userInput: context.userInput,
     skillCwd: context.workspaceRoot,
+    runtimeLimits: { modelTimeoutMs: MODEL_TIMEOUT_MS },
+    ...context.onRetry === undefined ? {} : { hooks: retryHooks(context.onRetry) },
+    ...context.approvals === undefined ? {} : { approvals: context.approvals },
+    ...context.interceptors === undefined ? {} : { interceptors: context.interceptors },
   }
 
   if (context.mode === 'team') {
@@ -204,6 +336,9 @@ export async function startRun(
       events: leadHandle,
       result: leadHandle.result,
       members: members.map(row => row.name),
+      // `inject` is the SDK's own primitive for attributed context that does
+      // not start a turn — the same one A2A quiet delivery uses.
+      steer: text => steerSession(lead, text),
       close: async () => { await team.dispose() },
     }
   }
@@ -211,20 +346,51 @@ export async function startRun(
   if (context.mode === 'team-dynamic') {
     // One lead that creates its own workers with spawn_agent; each worker is a
     // real session, so its raw events are observable exactly like the lead's.
-    const managed = createManagedAgentTeam({
+    //
+    // The harness is reused across the conversation's prompts, because a
+    // worker now outlives the run that started it: building a new one per run
+    // would strand the workers of the previous one. `onWorkerEvent` therefore
+    // routes through the caller's stable sink rather than through this run's
+    // callback, which would be the wrong one by the next prompt.
+    const report = context.onWorkerEvent ?? onMemberEvent
+    const managed = context.managedTeam ?? createManagedAgentTeam({
       registry: context.registry,
-      lead: definitionFor(context.agent, context, { id: 'lead' }, tools, skills),
+      lead: definitionFor(
+        context.agent,
+        context,
+        { id: 'lead', maxTurns: LEAD_TURN_BUDGET },
+        tools,
+        skills,
+      ),
       leadName: 'lead',
       leadSessionOptions: sessionOptions,
       workerSessionOptions: sessionOptions,
-      onWorkerEvent: onMemberEvent,
+      onWorkerEvent: report,
+      // Every worker here runs on the lead's own workspace, so a fresh worker
+      // starts by rediscovering what the lead has already established. Three
+      // workers spawned into an empty project each listed the directory and
+      // each decided, separately, to scaffold it. Forking by default costs the
+      // lead's transcript in input tokens and saves a round of rediscovery per
+      // worker; the lead can still ask for 'fresh' when a task stands alone.
+      defaultSpawnContext: 'fork',
+      roles: WORKER_ROLES,
+      // The lead's own woken turns come through the TEAM's observer, not
+      // through the stream this run iterates: a worker reporting after the
+      // lead had answered schedules a follow-up turn, and without this the
+      // synthesis it exists to produce would be invisible.
+      team: { onAgentEvent: report },
     })
     const leadHandle = managed.lead.stream(prompt, { signal: context.signal })
     return {
       events: leadHandle,
       result: leadHandle.result,
       members: [],
-      close: async () => { await managed.team.dispose() },
+      managedTeam: managed,
+      steer: text => steerSession(managed.lead, text),
+      // Deliberately NOT disposed: its workers are meant to keep running
+      // past the end of this run. The conversation owns the harness now, and
+      // drops it when the conversation goes.
+      close: async () => undefined,
     }
   }
 
@@ -235,6 +401,12 @@ export async function startRun(
   for (const tool of tools) registry.register(tool)
   context.history.append({ kind: 'user', message: createTextMessage(prompt) })
   return {
+    // The bounded loop owns no session, so the history object IS the seam —
+    // the same one `AgentSession.inject` appends to underneath.
+    steer: (text) => {
+      context.history.append({ kind: 'user', message: createTextMessage(text) })
+      return true
+    },
     events: runAgent({
       mode: sdkMode(context.mode),
       registry: context.registry,
@@ -247,8 +419,12 @@ export async function startRun(
       history: context.history,
       tools: registry,
       userInput: context.userInput,
+      modelTimeoutMs: MODEL_TIMEOUT_MS,
+      ...context.onRetry === undefined ? {} : { hooks: retryHooks(context.onRetry) },
+      ...context.approvals === undefined ? {} : { approvals: context.approvals },
+      ...context.interceptors === undefined ? {} : { interceptors: context.interceptors },
       commentary: 'concise',
-      maxTurns: 8,
+      maxTurns: TURN_BUDGET,
       signal: context.signal,
       trace: { agentId: 'chat-agents', agentName: 'Chat Agent' },
     }),

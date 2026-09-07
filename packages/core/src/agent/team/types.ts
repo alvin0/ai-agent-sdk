@@ -11,6 +11,17 @@ export type { AgentTeamMemberOptions } from '../define/session.ts'
 /** A quiet delivery adds context; a wakeup delivery also schedules a turn. */
 export type AgentMessageDelivery = 'quiet' | 'wakeup'
 
+/**
+ * How a member's last run ended.
+ *
+ * Carries the member's own answer, which is what a coordinator needs once it no
+ * longer receives that answer as a tool return value: an agent started
+ * concurrently reports here instead.
+ */
+export type AgentMemberOutcome =
+  | { readonly kind: 'completed'; readonly text: string }
+  | { readonly kind: 'failed'; readonly message: string }
+
 /** Detached runtime view of one addressable member. */
 export interface AgentTeamMember {
   readonly name: string
@@ -18,11 +29,18 @@ export interface AgentTeamMember {
   readonly kind: 'local' | 'remote'
   readonly conversationId?: string
   readonly role: 'lead' | 'peer'
-  readonly status: 'running' | 'idle' | 'failed'
+  /**
+   * `pending` is a member the host has created but deliberately not started
+   * yet — it is waiting on another member. Reporting it as `idle` would tell a
+   * coordinator its work was over before it had begun.
+   */
+  readonly status: 'pending' | 'running' | 'idle' | 'failed'
   readonly protocol?: string
   readonly deliveries: readonly AgentMessageDelivery[]
   readonly description?: string
   readonly error?: string
+  /** Absent until the member has finished a run at least once. */
+  readonly outcome?: AgentMemberOutcome
 }
 
 /** Transport-neutral result returned by an externally linked agent. */
@@ -121,6 +139,22 @@ export interface AgentTeamOptions {
   readonly operationTimeoutMs?: number
   /** Maximum wait per asynchronous agent-event observer. Defaults to 1 second. */
   readonly observerTimeoutMs?: number
+  /**
+   * How long `wait_agents` waits before reporting back. Defaults to 30 seconds.
+   *
+   * The tool call can ask for less. It cannot wait forever, because a
+   * coordinator that never regains control cannot tell a slow agent from a
+   * stuck one, and neither can the person watching it.
+   */
+  readonly waitTimeoutMs?: number
+  /**
+   * Shortest wait one `wait_agents` call may ask for. Defaults to 5 seconds.
+   *
+   * A lead that asks for a second gets the roster back unchanged and has spent
+   * a model round learning nothing. A request below the floor is raised to it,
+   * not rejected, and the response reports the budget actually used.
+   */
+  readonly minWaitTimeoutMs?: number
   readonly onEvent?: (event: AgentTeamEvent) => void
   /** Observe model/tool/compaction events from local wake-up runs. */
   readonly onAgentEvent?: (member: string, event: AgentRunEvent) => void | Promise<void>

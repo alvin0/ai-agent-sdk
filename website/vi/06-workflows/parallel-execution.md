@@ -98,7 +98,15 @@ console.log(harness.workers())
 
 Một lời gọi `spawn_agent` tạo ra một bản sao `DefinedAgent` thật và một
 `AgentSession`, gắn nó làm peer, giao nhiệm vụ ban đầu kèm xuất xứ từ agent dẫn
-dắt, chờ kết quả, rồi trả kết quả đó về vòng lặp tool của agent dẫn dắt.
+dắt, khởi chạy worker, rồi trả về — **không** chờ nó. Agent dẫn dắt tiếp tục
+làm việc trong lúc worker chạy; một agent dẫn dắt bị treo trong tool call của
+chính nó thì không đọc được tin nhắn của worker, không spawn thêm được, và
+không nhận ra khi một worker tắt tiếng.
+
+Worker báo cáo lại theo ba đường: một tin nhắn hoàn thành lặng lẽ chèn vào
+history của agent dẫn dắt, một `outcome` ghi trên roster và trả về qua
+`list_agents`, và `wait_agents`. Worker đã xong vẫn giữ slot `maxWorkers` cho
+tới khi `close_agent` giải phóng.
 
 Worker đã hoàn thành vẫn địa chỉ hoá được qua `list_agents`, `send_message`, và
 `followup_task` cho tới khi bị gỡ bằng `removeWorker()`.
@@ -129,8 +137,9 @@ Số worker, dung lượng team, tính duy nhất của địa chỉ, việc hu�
 ## Điểm hợp: `wait_agents`
 
 Một agent điều phối tổng hợp kết quả trước khi các worker xong việc sẽ cho ra thứ
-vô nghĩa nhưng đầy tự tin. `wait_agents` chặn cho tới khi các công việc đã lên
-lịch được chọn trở nên rảnh.
+vô nghĩa nhưng đầy tự tin. `wait_agents` chờ các công việc được chọn, trả về ngay khi target **đầu tiên**
+kết thúc và luôn trong `timeoutMs` (mặc định 30 giây). Hết thời gian là một kết
+quả bình thường mang theo roster hiện tại, không phải lỗi.
 
 ```ts
 // Từ vòng lặp tool của chính agent dẫn dắt, model gọi wait_agents.

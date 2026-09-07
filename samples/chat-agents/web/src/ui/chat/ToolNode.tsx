@@ -8,30 +8,44 @@
  * (terminal, read, diff, search, web, todo) or the raw IN/OUT pair.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
-import type { ToolCard } from '@chat-agents/backend'
 import {
-  CodeBlock, DiffBlock, DisclosureRow, ReadBlock, SearchBlock, StateDot, TerminalBlock, WebBlock,
-  IconChecklistOutline14, IconCodeOutline16, IconGlobeOutline14, IconSearchOutline16,
+  CodeBlock, DisclosureRow, StateDot,
+  IconChecklistOutline14, IconCodeOutline16, IconEditOutline16, IconFolderClose16,
+  IconGlobeOutline14, IconPlayOutline16, IconSearchOutline16, IconTrashOutline16,
 } from '../primitives'
-import type { DiffHunk, SearchFileGroup } from '../primitives'
-import { diffLabels, markdownLabels, readLabels, searchLabels, terminalLabels, webLabels } from '../labels'
+import { markdownLabels } from '../labels'
+import { ToolCardBody } from './ToolCardBody'
+import { opensByDefault, showsLiveOutput } from './toolDisplay'
 import type { ChatNode } from './types'
 import css from './ToolRow.module.css'
 
-const TITLES: Readonly<Record<string, string>> = {
+/** Display names, including the mutating tools the user has to permit. */
+export const TITLES: Readonly<Record<string, string>> = {
   read_file: 'Read',
   list_directory: 'List',
   search_files: 'Search',
-  propose_edit: 'Edit',
+  propose_edit: 'Preview edit',
+  write_file: 'Write',
+  edit_file: 'Edit',
+  delete_path: 'Delete',
+  create_directory: 'New folder',
+  move_path: 'Move',
+  run_command: 'Run',
   write_todos: 'Todos',
   fetch_url: 'Fetch',
   request_user_input: 'Ask',
+  close_agent: 'Close agent',
   submit_result: 'Self-check',
 }
 
-function iconFor(name: string) {
+/**
+ * The icon for one tool.
+ * @param name - Tool name.
+ * @returns The icon element.
+ */
+export function iconFor(name: string) {
   switch (name) {
     case 'search_files':
     case 'list_directory':
@@ -40,6 +54,16 @@ function iconFor(name: string) {
       return <IconGlobeOutline14 />
     case 'write_todos':
       return <IconChecklistOutline14 />
+    case 'write_file':
+    case 'edit_file':
+      return <IconEditOutline16 />
+    case 'delete_path':
+      return <IconTrashOutline16 />
+    case 'create_directory':
+    case 'move_path':
+      return <IconFolderClose16 />
+    case 'run_command':
+      return <IconPlayOutline16 />
     default:
       return <IconCodeOutline16 />
   }
@@ -61,6 +85,11 @@ function summaryOf(name: string, args: string): string {
     if (typeof first?.question === 'string') return first.question
   }
   if (name === 'submit_result' && typeof parsed.summary === 'string') return parsed.summary
+  // The command line IS the summary of a shell call; its path arguments are not.
+  if (name === 'run_command' && typeof parsed.command === 'string') return parsed.command
+  if (name === 'move_path' && typeof parsed.from === 'string' && typeof parsed.to === 'string') {
+    return `${parsed.from} → ${parsed.to}`
+  }
 
   // The workspace root reads better than the literal "." the model sends.
   if (typeof parsed.path === 'string' && (parsed.path === '.' || parsed.path === './')) {
@@ -81,101 +110,30 @@ function prettyJson(text: string): string {
   }
 }
 
-/** Rebuild the two sides of a diff card so `DiffBlock` can render it. */
-function diffHunk(card: Extract<ToolCard, { kind: 'diff' }>): DiffHunk {
-  const oldText = card.lines.filter(line => line.kind !== 'add').map(line => line.text).join('\n')
-  const newText = card.lines.filter(line => line.kind !== 'del').map(line => line.text).join('\n')
-  return { path: card.path, oldText: oldText === '' ? null : oldText, newText }
-}
-
-function searchGroups(card: Extract<ToolCard, { kind: 'search' }>): SearchFileGroup[] {
-  const groups = new Map<string, SearchFileGroup>()
-  for (const match of card.matches) {
-    const existing = groups.get(match.path) ?? { path: match.path, matches: [] }
-    existing.matches.push({ lineNumber: match.line, line: match.text })
-    groups.set(match.path, existing)
-  }
-  return [...groups.values()]
-}
-
-function TodoCard({ card }: { card: Extract<ToolCard, { kind: 'todo' }> }) {
+/**
+ * Output from a command that has not finished.
+ *
+ * Not `TerminalBlock`: that primitive is a verbatim port and deliberately shows
+ * the prompt line alone while `running`, so it cannot show a build in progress.
+ * Passing it a settled shape instead would draw a green "Done" dot over a
+ * command that is still going.
+ */
+function LiveOutput({ command, text }: { command: string; text: string }) {
+  const tail = useRef<HTMLDivElement | null>(null)
+  // Follow the output, which is the entire reason for showing it live.
+  useEffect(() => { tail.current?.scrollIntoView({ block: 'end' }) }, [text])
   return (
-    <ul className={css.todoList}>
-      {card.items.map((item, index) => (
-        <li className={css.todoItem} key={`${item.text}-${String(index)}`} data-status={item.status}>
-          <StateDot state={item.status === 'done' ? 'done' : item.status === 'active' ? 'ongoing' : 'warning'} />
-          <span>{item.text}</span>
-        </li>
-      ))}
-    </ul>
+    <div className={css.live}>
+      <div className={css.livePrompt}>
+        <span className={css.liveDot} />
+        {`$ ${command}`}
+      </div>
+      <pre className={css.liveBody}>
+        {text}
+        <div ref={tail} />
+      </pre>
+    </div>
   )
-}
-
-function CardBody({ card }: { card: ToolCard }) {
-  switch (card.kind) {
-    case 'terminal':
-      return (
-        <TerminalBlock
-          command={card.command}
-          output={card.output}
-          exitCode={card.exitCode}
-          maxLines={Infinity}
-          labels={terminalLabels}
-          className={css.terminalBody}
-        />
-      )
-    case 'read':
-      return (
-        <ReadBlock
-          label={card.path}
-          lines={card.lines.map((text, index) => ({ number: card.firstLine + index, text }))}
-          totalLines={card.firstLine + card.lines.length - 1 + (card.truncated ? 1 : 0)}
-          labels={readLabels}
-          className={css.readBody}
-        />
-      )
-    case 'diff':
-      return <DiffBlock diffs={[diffHunk(card)]} labels={diffLabels} className={css.diffBody} />
-    case 'search': {
-      const groups = searchGroups(card)
-      const total = card.matches.length
-      return groups.every(group => group.matches.every(match => match.lineNumber === 0))
-        ? (
-          <SearchBlock
-            kind="paths"
-            paths={groups.map(group => group.path)}
-            total={groups.length}
-            truncated={false}
-            labels={searchLabels}
-            className={css.searchBody}
-          />
-        )
-        : (
-          <SearchBlock
-            kind="matches"
-            files={groups}
-            total={total}
-            truncated={false}
-            labels={searchLabels}
-            className={css.searchBody}
-          />
-        )
-    }
-    case 'web':
-      return (
-        <WebBlock
-          kind="search"
-          sources={[{ url: card.url, title: card.title, snippet: card.snippet }]}
-          truncated={false}
-          labels={webLabels}
-          className={css.webBody}
-        />
-      )
-    case 'todo':
-      return <TodoCard card={card} />
-    default:
-      return null
-  }
 }
 
 /**
@@ -184,11 +142,27 @@ function CardBody({ card }: { card: ToolCard }) {
  * @returns The collapsible tool row.
  */
 export function ToolNode({ node }: { node: Extract<ChatNode, { kind: 'tool' }> }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(opensByDefault(node.name))
   const summary = useMemo(() => summaryOf(node.name, node.args), [node.name, node.args])
   const rowState = node.state === 'running' ? 'running' : node.state === 'error' ? 'error' : 'ok'
   const failure = node.state === 'error' ? node.errorMessage ?? 'failed' : null
   const argsBody = useMemo(() => prettyJson(node.args), [node.args])
+  // A command that is printing gets opened for you: being asked to click to
+  // find out what a two-minute install is doing defeats streaming it.
+  const streaming = showsLiveOutput(node)
+  // Once a row has opened itself to stream, it STAYS open. Without this the
+  // row springs shut the instant the result lands, because `streaming` goes
+  // false while `open` was never set — so the output a user was reading
+  // vanishes at the exact moment it became complete.
+  useEffect(() => { if (streaming) setOpen(true) }, [streaming])
+  const command = useMemo(() => {
+    try {
+      const parsed = JSON.parse(node.args) as { command?: unknown }
+      return typeof parsed.command === 'string' ? parsed.command : node.name
+    } catch {
+      return node.name
+    }
+  }, [node.args, node.name])
 
   return (
     <div className={css.root} data-tool={node.name} data-state={rowState}>
@@ -199,7 +173,7 @@ export function ToolNode({ node }: { node: Extract<ChatNode, { kind: 'tool' }> }
         chevronClassName={css.chevron}
         icon={node.state === 'error' ? <StateDot state="error" /> : iconFor(node.name)}
         title={TITLES[node.name] ?? node.name}
-        open={open}
+        open={open || streaming}
         expandable
         expandOnRowClick
         keepContentWhenOpen
@@ -215,8 +189,10 @@ export function ToolNode({ node }: { node: Extract<ChatNode, { kind: 'tool' }> }
       >
         <div className={css.bodyWrap}>
           {node.card !== undefined
-            ? <CardBody card={node.card} />
-            : (
+            ? <ToolCardBody card={node.card} />
+            : streaming
+              ? <LiveOutput command={command} text={node.liveOutput ?? ''} />
+              : (
               <>
                 <div className={css.bodyScroll}>
                   <CodeBlock

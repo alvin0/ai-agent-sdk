@@ -98,7 +98,7 @@ export interface AgentSessionOptions {
 
 export interface AgentSessionTeamPort {
   attach(session: AgentSession, options?: AgentSessionTeamAttachmentOptions): void
-  toolsFor(sender: string): readonly ToolDefinition<any>[]
+  toolsFor(sender: string, access?: 'full' | 'reporting'): readonly ToolDefinition<any>[]
   instructionsFor(name: string): string
 }
 
@@ -107,7 +107,16 @@ export interface AgentSessionTeamAttachmentOptions {
   readonly description?: string
   readonly instructions?: string
   readonly role?: 'lead' | 'peer'
-  readonly tools?: boolean
+  /**
+   * `false` attaches no team tools; `'reporting'` withholds the blocking verbs
+   * (`wait_agents`, `followup_task`), which is what an agent created for one
+   * bounded task needs in order to have a stopping point.
+   *
+   * Spelled out rather than imported as `TeamToolAccess`: definition/session
+   * ownership must not point back out at the team control plane, and the
+   * repository's agent-boundary check enforces that.
+   */
+  readonly tools?: boolean | 'full' | 'reporting'
 }
 
 /** Attach a session to one shared local/remote agent control plane. */

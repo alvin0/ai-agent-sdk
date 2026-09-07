@@ -4,6 +4,10 @@ import { type RunTurnOptions } from './types.ts'
 export const DEFAULT_BOUNDS: TurnBounds = Object.freeze({
   maxSteps: 16,
   maxToolCalls: 64,
+  // Halfway, a quarter left, and nearly gone. Three notices, spaced so the
+  // first is still early enough to change the plan and the last is impossible
+  // to ignore.
+  toolBudgetRemindAt: Object.freeze([32, 16, 6]),
   onExhausted: 'force-final-answer',
   maxConsecutiveToolErrors: 8,
   repeatToolWarningAt: 3,
@@ -30,6 +34,13 @@ export function resolveBounds(input: Partial<TurnBounds> | undefined): TurnBound
   if (bounds.repeatToolLimit < bounds.repeatToolWarningAt) throw new RangeError('repeatToolLimit must be >= repeatToolWarningAt')
   if (bounds.toolCycleLimit < bounds.toolCycleWarningAt) {
     throw new RangeError('toolCycleLimit must be >= toolCycleWarningAt')
+  }
+  if (!Array.isArray(bounds.toolBudgetRemindAt)
+    || bounds.toolBudgetRemindAt.some(value => !Number.isSafeInteger(value) || value < 1)) {
+    // Out-of-range thresholds are dropped rather than rejected, but a
+    // fractional or negative one is a mistake worth naming: silently ignoring
+    // `0.25` would leave a host believing it had asked for a reminder.
+    throw new RangeError('toolBudgetRemindAt must contain only positive safe integers')
   }
   return Object.freeze(bounds)
 }

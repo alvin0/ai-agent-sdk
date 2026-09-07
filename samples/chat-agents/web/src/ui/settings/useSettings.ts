@@ -78,11 +78,23 @@ export interface SettingsController {
   deleteGroup: () => Promise<void>
 }
 
-async function patchConversation(id: string, body: unknown): Promise<void> {
+/**
+ * Patch one conversation.
+ *
+ * `groupId` is always sent, because this request may be the first thing that
+ * touches a new conversation — choosing a model before typing a prompt creates
+ * the row — and the row's group decides which folder its tools write to. Omit
+ * it and the conversation is created in the default project, so the agent
+ * writes into the sample's sandbox while the sidebar shows another project.
+ * @param id - Conversation id.
+ * @param groupId - The project the user has open.
+ * @param patch - Fields to change.
+ */
+async function patchConversation(id: string, groupId: string, patch: object): Promise<void> {
   await fetch(`/api/conversations/${id}`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...patch, groupId }),
   })
 }
 
@@ -161,6 +173,7 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
   // The conversation row is authoritative for model and mode: the badge must
   // report what the next run will actually use, never a client-side guess.
   useEffect(() => {
+    // No group guard: this only READS, and the route does not create a row.
     if (conversationId === '') return
     void (async () => {
       const response = await fetch(`/api/conversations/${conversationId}`)
@@ -194,22 +207,25 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
   }, [modelsFor])
 
   const choose = useCallback(async (next: ModelChoice) => {
-    if (conversationId === '') return
+    // An unresolved project would create the row in the default one.
+    if (conversationId === '' || groupId === '') return
     setChoice(next)
-    await patchConversation(conversationId, { provider: next.provider, model: next.model })
-  }, [conversationId])
+    await patchConversation(conversationId, groupId, { provider: next.provider, model: next.model })
+  }, [conversationId, groupId])
 
   const setMode = useCallback(async (next: RunMode) => {
-    if (conversationId === '') return
+    // An unresolved project would create the row in the default one.
+    if (conversationId === '' || groupId === '') return
     setModeState(next)
-    await patchConversation(conversationId, { mode: next })
-  }, [conversationId])
+    await patchConversation(conversationId, groupId, { mode: next })
+  }, [conversationId, groupId])
 
   const setEffort = useCallback(async (next: Effort) => {
-    if (conversationId === '') return
+    // An unresolved project would create the row in the default one.
+    if (conversationId === '' || groupId === '') return
     setEffortState(next)
-    await patchConversation(conversationId, { reasoningEffort: next })
-  }, [conversationId])
+    await patchConversation(conversationId, groupId, { reasoningEffort: next })
+  }, [conversationId, groupId])
 
   const saveCredential = useCallback(async (
     provider: string,
@@ -253,16 +269,17 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
     setWorkspace(body.group.workspaceRoot)
     setGroup(body.group)
     if (conversationId !== '') {
-      await patchConversation(conversationId, { workspaceRoot: body.group.workspaceRoot })
+      await patchConversation(conversationId, groupId, { workspaceRoot: body.group.workspaceRoot })
     }
     return body.group.workspaceRoot
   }, [conversationId, groupId])
 
   const chooseAgent = useCallback(async (next: string | null) => {
-    if (conversationId === '') return
+    // An unresolved project would create the row in the default one.
+    if (conversationId === '' || groupId === '') return
     setAgentId(next ?? undefined)
-    await patchConversation(conversationId, { agentId: next })
-  }, [conversationId])
+    await patchConversation(conversationId, groupId, { agentId: next })
+  }, [conversationId, groupId])
 
   const createAgent = useCallback(async (input: Record<string, unknown>) => {
     await fetch(`/api/groups/${groupId}/agents`, {

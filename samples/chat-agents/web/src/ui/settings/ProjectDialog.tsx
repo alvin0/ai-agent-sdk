@@ -8,11 +8,13 @@
  * The browser runs server-side because a web page cannot hand over a real path.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { DirectoryListing, GroupRow } from '@chat-agents/backend'
 import {
-  Button, IconCheckOutline16, IconFolderClose16, IconFolderOpen16, IconTrashOutline16, Modal,
+  Button, IconCheckOutline16, IconChevronRightOutline14, IconChevronUpOutline14,
+  IconEditOutline16, IconFolderClose16, IconFolderOpen16, IconSearchOutline16,
+  IconTrashOutline16, Modal,
 } from '../primitives'
 import css from './ProjectDialog.module.css'
 
@@ -48,10 +50,25 @@ export function ProjectDialog({
 }: ProjectDialogProps) {
   const [listing, setListing] = useState<DirectoryListing | undefined>(undefined)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | undefined>(undefined)
+  /** Substring filter over the listed names; reset on every navigation. */
+  const [filter, setFilter] = useState('')
+  const [showHidden, setShowHidden] = useState(false)
+  /** The typed path, or undefined while the breadcrumb is showing. */
+  const [typed, setTyped] = useState<string | undefined>(undefined)
+  const crumbs = useRef<HTMLDivElement | null>(null)
 
   const load = async (path?: string) => {
     setBusy(true)
-    setListing(await browse(path))
+    const next = await browse(path)
+    // A path that cannot be read leaves the current listing in place: dropping
+    // to an empty picker would lose the user's position for a typo.
+    setError(next === undefined ? `Cannot open ${path ?? 'that folder'}` : undefined)
+    if (next !== undefined) {
+      setListing(next)
+      setFilter('')
+      setTyped(undefined)
+    }
     setBusy(false)
   }
 
@@ -63,9 +80,22 @@ export function ProjectDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
+  // The breadcrumb scrolls horizontally and the interesting end is the right
+  // one, so a deep path opens showing the folder you are actually in.
+  useEffect(() => {
+    const element = crumbs.current
+    if (element !== null) element.scrollLeft = element.scrollWidth
+  }, [listing?.path])
+
   const current = projects.find(project => project.id === currentId)
   const alreadyAProject = listing !== undefined
     && projects.some(project => project.workspaceRoot === listing.path)
+
+  const needle = filter.trim().toLowerCase()
+  const visible = (listing?.entries ?? []).filter(entry =>
+    (showHidden || !entry.hidden)
+    && (needle === '' || entry.name.toLowerCase().includes(needle)))
+  const hiddenCount = (listing?.entries ?? []).filter(entry => entry.hidden).length
 
   return (
     <Modal
@@ -117,26 +147,119 @@ export function ProjectDialog({
           <span className={css.label}>Choose a folder</span>
           <div className={css.browser}>
             <div className={css.browserHead}>
-              <code className={css.path}>{listing?.path ?? '…'}</code>
-              <div className={css.browserActions}>
-                <Button variant="ghost" onClick={() => { void load(undefined) }}>Home</Button>
-                <Button
-                  variant="ghost"
-                  disabled={listing?.parent === undefined}
-                  onClick={() => { void load(listing?.parent) }}
-                >
-                  Up
-                </Button>
-              </div>
+              <button
+                type="button"
+                className={css.headButton}
+                aria-label="Up one level"
+                disabled={listing?.parent === undefined}
+                onClick={() => { void load(listing?.parent) }}
+              >
+                <IconChevronUpOutline14 />
+              </button>
+              {typed === undefined
+                ? (
+                  <div className={css.crumbs} ref={crumbs}>
+                    {(listing?.segments ?? []).map((segment, index) => (
+                      <span className={css.crumbSlot} key={segment.path}>
+                        {index > 0 && <span className={css.crumbSep}>{'›'}</span>}
+                        <button
+                          type="button"
+                          className={clsx(
+                            css.crumb,
+                            segment.path === listing?.path && css.crumbCurrent,
+                          )}
+                          onClick={() => { void load(segment.path) }}
+                        >
+                          {segment.name}
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )
+                : (
+                  <input
+                    className={css.pathInput}
+                    // eslint-disable-next-line jsx-a11y/no-autofocus
+                    autoFocus
+                    spellCheck={false}
+                    aria-label="Folder path"
+                    placeholder="Paste or type a folder path"
+                    value={typed}
+                    onChange={(event) => { setTyped(event.target.value) }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && typed.trim() !== '') void load(typed.trim())
+                      if (event.key === 'Escape') setTyped(undefined)
+                    }}
+                  />
+                )}
+              <button
+                type="button"
+                className={clsx(css.headButton, typed !== undefined && css.headButtonActive)}
+                aria-label={typed === undefined ? 'Type a path' : 'Back to the breadcrumb'}
+                title="Type or paste a path"
+                onClick={() => { setTyped(shown => (shown === undefined ? listing?.path ?? '' : undefined)) }}
+              >
+                <IconEditOutline16 />
+              </button>
             </div>
+
+            <div className={css.browserTools}>
+              <span className={css.filterField}>
+                <IconSearchOutline16 />
+                <input
+                  className={css.filterInput}
+                  aria-label="Filter folders"
+                  placeholder="Filter this folder…"
+                  value={filter}
+                  onChange={(event) => { setFilter(event.target.value) }}
+                />
+              </span>
+              {(listing?.roots ?? []).length > 1 && (listing?.roots ?? []).map(root => (
+                <button
+                  type="button"
+                  key={root.path}
+                  className={clsx(css.chip, listing?.path.startsWith(root.path) && css.chipActive)}
+                  onClick={() => { void load(root.path) }}
+                >
+                  {root.name.replace(/[\\/]+$/, '')}
+                </button>
+              ))}
+              <button type="button" className={css.chip} onClick={() => { void load(undefined) }}>
+                Home
+              </button>
+              {hiddenCount > 0 && (
+                <label className={css.toggle}>
+                  <input
+                    type="checkbox"
+                    checked={showHidden}
+                    onChange={(event) => { setShowHidden(event.target.checked) }}
+                  />
+                  {`Hidden (${String(hiddenCount)})`}
+                </label>
+              )}
+            </div>
+
+            {error !== undefined && <p className={css.error}>{error}</p>}
+
             <ul className={css.dirList}>
               {busy && <li className={css.muted}>Loading…</li>}
-              {!busy && listing?.entries.length === 0 && <li className={css.muted}>No subfolders</li>}
-              {!busy && listing?.entries.map(entry => (
+              {!busy && visible.length === 0 && (
+                <li className={css.muted}>
+                  {needle !== ''
+                    ? 'No folder matches that filter.'
+                    : 'No subfolders here — pick this folder, or go up.'}
+                </li>
+              )}
+              {!busy && visible.map(entry => (
                 <li key={entry.path}>
-                  <button type="button" className={css.dirItem} onClick={() => { void load(entry.path) }}>
+                  <button
+                    type="button"
+                    className={clsx(css.dirItem, entry.hidden && css.dirItemHidden)}
+                    onClick={() => { void load(entry.path) }}
+                  >
                     <IconFolderClose16 />
-                    {entry.name}
+                    <span className={css.dirName}>{entry.name}</span>
+                    <IconChevronRightOutline14 className={css.dirChevron} />
                   </button>
                 </li>
               ))}

@@ -12,12 +12,17 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ConversationRow, GroupRow, WireEvent } from '@chat-agents/backend'
+import type {
+  ConversationRow, GroupRow, WireApproval, WireApprovalScope, WireEvent,
+} from '@chat-agents/backend'
 import { deleteTranscript, readTranscript, writeTranscript } from './idb'
 import type { ChatNode, ChatState, MemberState } from './types'
 
 const CURRENT_KEY = 'chat-agents.conversation'
 const GROUP_KEY = 'chat-agents.group'
+
+/** Longest tail of live command output kept on screen, in characters. */
+const LIVE_OUTPUT_CAP = 20_000
 
 function newConversationId(): string {
   return `c_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
@@ -79,6 +84,17 @@ function reduce(nodes: readonly ChatNode[], event: WireEvent): readonly ChatNode
         state: 'running',
         ...event.member === undefined ? {} : { member: event.member },
       }]
+    case 'tool-output': {
+      const index = nodes.findIndex(node => node.kind === 'tool' && node.id === event.id)
+      if (index === -1) return nodes
+      const current = nodes[index] as Extract<ChatNode, { kind: 'tool' }>
+      const next = [...nodes]
+      // Capped from the front: a long build's tail is what a watcher needs,
+      // and the settled result carries the server's own capped copy anyway.
+      const grown = (current.liveOutput ?? '') + event.chunk
+      next[index] = { ...current, liveOutput: grown.slice(-LIVE_OUTPUT_CAP) }
+      return next
+    }
     case 'tool-result': {
       const index = nodes.findIndex(node => node.kind === 'tool' && node.id === event.id)
       if (index === -1) return nodes
@@ -108,6 +124,41 @@ function reduce(nodes: readonly ChatNode[], event: WireEvent): readonly ChatNode
       next[index] = { ...(nodes[index] as Extract<ChatNode, { kind: 'question' }>), answered: true }
       return next
     }
+    case 'approval': {
+      const { t, member, ...approval } = event
+      void t
+      // A reload re-renders the same pending prompt from the live broker, so
+      // an id already on screen is refreshed rather than duplicated.
+      const index = nodes.findIndex(node => node.kind === 'approval' && node.callId === event.callId)
+      const node = {
+        kind: 'approval' as const,
+        id: event.callId,
+        ...approval,
+        ...member === undefined ? {} : { member },
+      }
+      if (index === -1) return [...nodes, node]
+      const next = [...nodes]
+      next[index] = node
+      return next
+    }
+    case 'approval-resolved': {
+      const index = nodes.findIndex(node => node.kind === 'approval' && node.callId === event.callId)
+      if (index === -1) return nodes
+      const next = [...nodes]
+      next[index] = {
+        ...(nodes[index] as Extract<ChatNode, { kind: 'approval' }>),
+        decision: event.decision,
+        scope: event.scope,
+      }
+      return next
+    }
+    case 'notice':
+      return [...nodes, {
+        kind: 'notice',
+        id: `n_${String(nodes.length)}`,
+        level: event.level,
+        message: event.message,
+      }]
     case 'error':
       return [...nodes, { kind: 'error', id: `e_${String(nodes.length)}`, message: event.message }]
     default:
@@ -155,6 +206,10 @@ export interface ChatController extends ChatState {
   refreshGroups: () => Promise<void>
   send: (prompt: string) => Promise<void>
   answer: (requestId: string, answers: Record<string, string>) => Promise<void>
+  /** Add a message to the run in flight, instead of waiting for it to end. */
+  steer: (prompt: string) => Promise<void>
+  /** Answer a parked permission prompt; `scope` decides how long it lasts. */
+  approve: (callId: string, decision: 'allow' | 'deny', scope: WireApprovalScope) => Promise<void>
   stop: () => void
   newConversation: () => void
   openConversation: (id: string) => void
@@ -176,9 +231,18 @@ export function useChat(): ChatController {
     nodes: [],
     running: false,
     usage: { inputTokens: 0, outputTokens: 0 },
+    progress: null,
     members: [],
   })
   const aborter = useRef<AbortController | null>(null)
+  /**
+   * Calls already answered.
+   *
+   * A permission prompt is answerable exactly once: the second answer would be
+   * refused by the broker, and treating that refusal as a failure would put
+   * the prompt back on screen for a call that is already running.
+   */
+  const answered = useRef(new Set<string>())
 
   const refreshConversations = useCallback(async () => {
     if (groupId === '') return
@@ -225,9 +289,20 @@ export function useChat(): ChatController {
       }
       const response = await fetch(`/api/conversations/${sessionId}`)
       if (!response.ok || cancelled) return
-      const body = await response.json() as { messages: ChatNode[] }
-      if (body.messages.length === 0 && cached !== undefined) return
-      setState(previous => ({ ...previous, nodes: body.messages }))
+      const body = await response.json() as {
+        messages: ChatNode[]
+        pendingApprovals?: readonly WireApproval[]
+      }
+      // A prompt still waiting for an answer is not in the transcript — it
+      // lives in the run's broker — so it is appended rather than replayed,
+      // and deliberately kept out of the local cache.
+      const parked: ChatNode[] = (body.pendingApprovals ?? [])
+        .map(approval => ({ kind: 'approval' as const, id: approval.callId, ...approval }))
+      if (body.messages.length === 0 && cached !== undefined) {
+        if (parked.length > 0) setState(previous => ({ ...previous, nodes: [...cached, ...parked] }))
+        return
+      }
+      setState(previous => ({ ...previous, nodes: [...body.messages, ...parked] }))
       await writeTranscript(sessionId, body.messages)
     })()
     return () => { cancelled = true }
@@ -240,7 +315,10 @@ export function useChat(): ChatController {
   }, [sessionId, state.nodes, state.running])
 
   const send = useCallback(async (prompt: string) => {
-    if (sessionId === '' || prompt.trim() === '') return
+    // The group has to be resolved: a run started without one creates the
+    // conversation in the default project, and the agent then writes into the
+    // sample's own sandbox instead of the folder on screen.
+    if (sessionId === '' || groupId === '' || prompt.trim() === '') return
     const controller = new AbortController()
     aborter.current = controller
     setState(previous => ({
@@ -278,6 +356,9 @@ export function useChat(): ChatController {
             ...previous,
             nodes: reduce(previous.nodes, event),
             members: reduceMembers(previous.members, event),
+            // Live status, deliberately not a transcript node: it is true only
+            // while it is on screen.
+            progress: event.t === 'progress' ? event.message : previous.progress,
             usage: event.t === 'usage'
               ? {
                   inputTokens: previous.usage.inputTokens + event.inputTokens,
@@ -297,7 +378,8 @@ export function useChat(): ChatController {
       }
     } finally {
       aborter.current = null
-      setState(previous => ({ ...previous, running: false }))
+      // The run is over, so whatever it was waiting on is no longer true.
+      setState(previous => ({ ...previous, running: false, progress: null }))
       void refreshConversations()
     }
   }, [sessionId, groupId, refreshConversations])
@@ -309,6 +391,81 @@ export function useChat(): ChatController {
       body: JSON.stringify({ sessionId, requestId, answers }),
     })
   }, [sessionId])
+
+  const approve = useCallback(async (
+    callId: string,
+    decision: 'allow' | 'deny',
+    scope: WireApprovalScope,
+  ) => {
+    if (answered.current.has(callId)) return
+    answered.current.add(callId)
+
+    // Settle the node here, not on the server's confirmation. The released
+    // call reports back through the run's own stream, which does not emit
+    // again until the tool FINISHES — an `npm install` would leave the prompt
+    // on screen for a minute after it was answered.
+    const settle = (answer: { decision: 'allow' | 'deny'; scope: WireApprovalScope } | undefined) => {
+      setState((previous) => {
+        const index = previous.nodes.findIndex(
+          node => node.kind === 'approval' && node.callId === callId,
+        )
+        if (index === -1) return previous
+        const nodes = [...previous.nodes]
+        const { decision: _was, scope: _reach, ...pending }
+          = nodes[index] as Extract<ChatNode, { kind: 'approval' }>
+        nodes[index] = answer === undefined ? pending : { ...pending, ...answer }
+        return { ...previous, nodes }
+      })
+    }
+
+    settle({ decision, scope })
+    try {
+      const response = await fetch('/api/approve', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId, callId, decision, scope }),
+      })
+      const body = await response.json() as { resolved?: boolean }
+      // Nothing was released — the run ended or the server restarted while the
+      // card was open. Put the prompt back rather than leaving a decision on
+      // screen that never reached the call.
+      if (!response.ok || body.resolved !== true) {
+        answered.current.delete(callId)
+        settle(undefined)
+      }
+    } catch {
+      answered.current.delete(callId)
+      settle(undefined)
+    }
+  }, [sessionId])
+
+  const steer = useCallback(async (prompt: string) => {
+    const text = prompt.trim()
+    if (sessionId === '' || text === '') return
+    // Shown immediately: the message is already in the agent's history, and
+    // the run's own stream carries no echo of it.
+    setState(previous => ({
+      ...previous,
+      nodes: [...previous.nodes, { kind: 'user', id: `u_${String(Date.now())}_steer`, text }],
+    }))
+    const response = await fetch('/api/steer', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId, prompt: text }),
+    })
+    const body = await response.json().catch(() => ({})) as { steered?: boolean }
+    // The run ended between the keystroke and the request. The message would
+    // otherwise be silently dropped, so send it as an ordinary prompt — minus
+    // the user node just added, which `send` appends again.
+    if (body.steered !== true) {
+      setState(previous => ({
+        ...previous,
+        nodes: previous.nodes.filter(node => !(node.kind === 'user' && node.text === text
+          && node.id.endsWith('_steer'))),
+      }))
+      await send(text)
+    }
+  }, [sessionId, send])
 
   const stop = useCallback(() => {
     void fetch('/api/abort', {
@@ -323,7 +480,10 @@ export function useChat(): ChatController {
     aborter.current?.abort()
     window.localStorage.setItem(CURRENT_KEY, id)
     setSessionId(id)
-    setState({ nodes: [], running: false, usage: { inputTokens: 0, outputTokens: 0 }, members: [] })
+    setState({
+      nodes: [], running: false, usage: { inputTokens: 0, outputTokens: 0 },
+      progress: null, members: [],
+    })
   }, [])
 
   const newConversation = useCallback(() => {
@@ -353,7 +513,10 @@ export function useChat(): ChatController {
     const fresh = newConversationId()
     window.localStorage.setItem(CURRENT_KEY, fresh)
     setSessionId(fresh)
-    setState({ nodes: [], running: false, usage: { inputTokens: 0, outputTokens: 0 }, members: [] })
+    setState({
+      nodes: [], running: false, usage: { inputTokens: 0, outputTokens: 0 },
+      progress: null, members: [],
+    })
   }, [])
 
   const createGroup = useCallback(async (workspaceRoot: string) => {
@@ -388,6 +551,8 @@ export function useChat(): ChatController {
     refreshGroups,
     send,
     answer,
+    steer,
+    approve,
     stop,
     newConversation,
     openConversation,

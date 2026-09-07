@@ -230,9 +230,13 @@ describe('local agent teams', () => {
     expect(settled).toBe(false)
     adapter.unblock()
 
-    await expect(waiting).resolves.toEqual([
-      expect.objectContaining({ name: 'worker', status: 'idle' }),
-    ])
+    // The roster now comes back inside a report that also says whether the
+    // wait was satisfied or merely ran out of time.
+    await expect(waiting).resolves.toMatchObject({
+      agents: [expect.objectContaining({ name: 'worker', status: 'idle' })],
+      settled: 'worker',
+      timedOut: false,
+    })
     expect(events).toContain('worker:agent-start')
     expect(events).toContain('worker:agent-end')
   })
@@ -267,8 +271,12 @@ describe('local agent teams', () => {
     await expect(waitC.execute(waitC.parse?.({ targets: ['a'] }), context('c-a')))
       .rejects.toMatchObject({ code: 'TEAM_WAIT_CYCLE' })
     releaseIdle()
-    await expect(aWaitsForB).resolves.toEqual([expect.objectContaining({ name: 'b' })])
-    await expect(bWaitsForC).resolves.toEqual([expect.objectContaining({ name: 'c' })])
+    await expect(aWaitsForB).resolves.toMatchObject({
+      agents: [expect.objectContaining({ name: 'b' })], settled: 'b', timedOut: false,
+    })
+    await expect(bWaitsForC).resolves.toMatchObject({
+      agents: [expect.objectContaining({ name: 'c' })], settled: 'c', timedOut: false,
+    })
   })
 
   it('rejects ambiguous addressing, self messages, and oversized content', async () => {

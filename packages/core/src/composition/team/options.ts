@@ -42,7 +42,10 @@ export function captureRuntimeTeamOptions(value: unknown): CapturedRuntimeTeamOp
     const description = optionalBounded(member, 'description')
     const instructions = optionalBounded(member, 'instructions')
     const tools = ownData(member, 'tools', false)
-    if (tools !== undefined && typeof tools !== 'boolean') throw new TypeError('Runtime team tools flag is invalid')
+    if (tools !== undefined && typeof tools !== 'boolean'
+      && tools !== 'full' && tools !== 'reporting') {
+      throw new TypeError('Runtime team tools flag is invalid')
+    }
     return Object.freeze({ name, agent: ownData(member, 'agent') as AgentTeamMemberInput['agent'], role,
       session: captureRuntimeSessionOptions(ownData(member, 'session', false)),
       ...(description === undefined ? {} : { description }),

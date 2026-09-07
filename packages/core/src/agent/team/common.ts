@@ -31,9 +31,35 @@ export function parseMessageTool(raw: unknown): { target: string; message: strin
   return { target: memberName(value.target), message: nonEmpty(value.message, 'message') }
 }
 
-export function parseWaitTool(raw: unknown): { targets: readonly string[] } {
+/**
+ * How long `wait_agents` waits before reporting back instead.
+ *
+ * A bounded wait is what keeps a coordinator informed: it gets the roster
+ * back and decides whether to wait again, message the agent, or close it. An
+ * unbounded one made a slow agent indistinguishable from a hung one.
+ */
+export const DEFAULT_WAIT_TIMEOUT_MS = 30_000
+
+/**
+ * Shortest wait a `wait_agents` call can ask for.
+ *
+ * A tool call may ask for less than the default but not for a wait too short
+ * to be one. A lead that asks for a second gets the roster back unchanged, has
+ * learned nothing, and has spent a model round to learn it — observed in this
+ * project as `wait_agents({ timeoutMs: 1000 })` issued immediately after three
+ * spawns. Codex clamps the same argument for the same reason
+ * (`multi_agents_common.rs`, `MIN_WAIT_TIMEOUT_MS`).
+ *
+ * Asking for less is not an error: a lead should not need to know the floor to
+ * write a valid call, so the request is raised to it rather than rejected.
+ */
+export const DEFAULT_MIN_WAIT_TIMEOUT_MS = 5_000
+
+export function parseWaitTool(
+  raw: unknown,
+): { targets: readonly string[]; timeoutMs?: number } {
   const value = object(raw, 'wait_agents arguments')
-  if (Object.keys(value).some(key => key !== 'targets')) {
+  if (Object.keys(value).some(key => key !== 'targets' && key !== 'timeoutMs')) {
     throw new TypeError('wait_agents arguments contain unknown fields')
   }
   if (!Array.isArray(value.targets) || value.targets.length === 0) {
@@ -43,7 +69,14 @@ export function parseWaitTool(raw: unknown): { targets: readonly string[] } {
   if (new Set(targets).size !== targets.length) {
     throw new TypeError('wait_agents targets must be unique')
   }
-  return { targets: Object.freeze(targets) }
+  const timeoutMs = value.timeoutMs
+  if (timeoutMs !== undefined && typeof timeoutMs !== 'number') {
+    throw new TypeError('wait_agents timeoutMs must be a number')
+  }
+  return {
+    targets: Object.freeze(targets),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+  }
 }
 
 export function emptyObject(raw: unknown, label: string): Record<string, never> {

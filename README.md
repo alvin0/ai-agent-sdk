@@ -291,9 +291,11 @@ with a structured handoff checkpoint near the model's context limit. See
 Long-lived agents can exchange attributed messages through an `AgentTeam`.
 Quiet local messages add context without waking an idle agent; wake-up messages
 are queued behind an active turn and guaranteed a follow-up turn.
-`createManagedAgentTeam()` gives a lead a parallel-safe `spawn_agent` tool for
-Codex-style dynamic delegation, while `createDefinedAgentTeam()` connects stable
-pre-defined agents and sessions. Both expose the same roster, which can link
+`createManagedAgentTeam()` gives a lead `spawn_agent` and `close_agent` for
+Codex-style dynamic delegation: spawning starts a worker and returns without
+waiting, the worker reports its result back to the lead, and `wait_agents`
+pauses for one within a bounded timeout. `createDefinedAgentTeam()` connects
+stable pre-defined agents and sessions. Both expose the same roster, which can link
 remote peers using the official
 [`@a2a-js/sdk`](https://github.com/a2aproject/a2a-js), with Agent Card discovery,
 JSON-RPC/HTTP+JSON, streaming task results, and retained A2A contexts. A

@@ -113,6 +113,23 @@ export const providerCredentials = sqliteTable('provider_credentials', {
   updatedAt: integer('updated_at').notNull().default(sql`(unixepoch())`),
 })
 
+/**
+ * A standing permission for a mutating tool, granted by the user.
+ *
+ * Only the "whole workspace" scope reaches this table: a one-off answer is
+ * consumed by the parked call, and a session-wide answer lives with the live
+ * conversation and dies with it. The key identifies a family of calls, not one
+ * call — the tool name, or `run_command:<executable>` for one command.
+ */
+export const toolPermissions = sqliteTable('tool_permissions', {
+  /** `<workspaceRoot>::<ruleKey>`, so re-granting is idempotent. */
+  id: text('id').primaryKey(),
+  /** Absolute directory the grant is confined to. */
+  workspaceRoot: text('workspace_root').notNull(),
+  ruleKey: text('rule_key').notNull(),
+  createdAt: integer('created_at').notNull().default(sql`(unixepoch())`),
+}, table => [index('tool_permissions_root').on(table.workspaceRoot)])
+
 export const appSettings = sqliteTable('app_settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),

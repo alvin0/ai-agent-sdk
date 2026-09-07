@@ -128,7 +128,7 @@ Tham gia một team mặc định phơi ra:
 | `list_agents` | Đích cục bộ và từ xa, giao thức, chế độ giao nhận, trạng thái |
 | `send_message` | Tiêm ngữ cảnh im lặng vào một session **cục bộ** khác |
 | `followup_task` | Công việc tuần tự trên đích cục bộ **hoặc từ xa**, trả về kết quả |
-| `wait_agents` | Chặn cho tới khi các công việc đã lên lịch được chọn trở nên rảnh |
+| `wait_agents` | Chờ trong `timeoutMs`; hết thời gian thì trả roster |
 
 Agent dẫn dắt trong team quản lý còn nhận thêm `spawn_agent`. Đặt
 `team: { team, tools: false }` khi chỉ host được phép giao tiếp.

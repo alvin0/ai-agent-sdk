@@ -3,6 +3,7 @@ import type { RuntimeAgent, RuntimeAgentInvocationOptions, RuntimeAgentResponse,
 import type {
   LinkAgentOptions, SendAgentMessageRequest, SendAgentMessageResult,
 } from '../../agent/team/types.ts'
+import type { TeamToolAccess } from '../../agent/team/contracts.ts'
 import type { SupportSafeError } from '../../support-safe/error.ts'
 import type { RuntimeComponentCloseReport } from '../common/errors.ts'
 
@@ -12,7 +13,7 @@ export interface AgentTeamMemberInput {
   readonly description?: string
   readonly instructions?: string
   readonly role?: 'lead' | 'peer'
-  readonly tools?: boolean
+  readonly tools?: boolean | TeamToolAccess
   readonly session?: RuntimeAgentSessionOptions
 }
 

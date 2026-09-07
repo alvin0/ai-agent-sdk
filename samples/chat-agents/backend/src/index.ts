@@ -1,8 +1,15 @@
 /** Public surface consumed by the Next.js host. */
 
 export { createChatApp } from './app'
-export { abortRun, answer, forgetSession, runPrompt, session } from './session'
-export type { ChatSession } from './session'
+export {
+  abortRun, answer, approve, forgetSession, pendingApprovals, runPrompt, session, steer,
+} from './session'
+export { createDoorbell, createMemberFeed, followWorkers, runSteps } from './session'
+export type { ChatSession, Doorbell, MemberFeed, RunStep } from './session'
+export {
+  createApprovalPolicy, grantPermission, listPermissions, revokePermission,
+} from './approvals'
+export type { ApprovalPolicy, ApprovalPolicyOptions, ToolPermissionRow } from './approvals'
 export {
   appendMessage, deleteConversation, ensureConversation, getConversation, listConversations,
   loadHistory, readMessages, saveHistory, updateConversation,
@@ -23,11 +30,20 @@ export {
 export type { AgentRow, McpServerRow, McpStatus, SkillRow } from './agents'
 export { groupToolSurface, mergeTools } from './runtime-tools'
 export { startRun, DEFAULT_INSTRUCTIONS } from './agent-runtime'
+export {
+  backoffMs, createIdleWatch, isTransient, retryHooks,
+  MAX_MODEL_ATTEMPTS, MODEL_TIMEOUT_MS, PROGRESS_REPORT_MS,
+} from './resilience'
+export type { IdleVerdict, IdleWatch, RetryNotice } from './resilience'
 export type { RunContext, RunHandles, RunMode } from './agent-runtime'
 export { EventProjector } from './event-projection'
-export type { StoredNode } from './event-projection'
-export type { DirectoryEntry, DirectoryListing } from './workspace'
-export { createSampleTools, diffLines } from './tools'
+export type { EventProjectorOptions, StoredNode } from './event-projection'
+export type { DirectoryEntry, DirectoryListing, PathSegment } from './workspace'
+export {
+  commandExecutable, createSampleTools, describeMutation, diffLines, onCommandOutput,
+  MUTATING_TOOLS, TOOL_LABELS,
+} from './tools'
+export type { CommandOutputListener, MutationDescription } from './tools'
 export { buildRegistry, listModels, listProviders, resolveModel } from './registry'
 export type { ModelOption, ModelSelection, ProviderInfoView } from './registry'
 export { cancelCodexLogin, codexAccount, codexLoginState, codexSignedIn, startCodexLogin } from './auth'

@@ -127,7 +127,7 @@ Joining a team exposes these by default:
 | `list_agents` | Local and remote targets, protocol, delivery modes, status |
 | `send_message` | Quiet context into another **local** session |
 | `followup_task` | Serialized work on a local **or remote** target, returns the result |
-| `wait_agents` | Blocks until selected scheduled work is idle |
+| `wait_agents` | Waits within `timeoutMs`; a timeout returns the roster |
 
 The managed lead additionally receives `spawn_agent`. Set
 `team: { team, tools: false }` when only the host may communicate.

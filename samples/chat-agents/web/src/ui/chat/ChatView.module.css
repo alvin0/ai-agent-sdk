@@ -186,13 +186,23 @@
   border: none;
   border-radius: 50%;
   background: var(--dsw-alias-button-primary-fill);
-  color: var(--dsw-alias-brand-primary-invert);
+  /* `brand-primary-invert` is NOT the inverse of `brand-primary` in this token
+     set — both resolve to the same value in each theme, so using it as the
+     glyph colour on a `brand-primary` fill drew a white arrow on white in the
+     dark theme and black on black in the light one. Only the disabled state,
+     which changes the fill, happened to stay legible. This is the pairing the
+     source harness's own primary button uses. */
+  color: var(--dsw-alias-label-primary-foreground);
   cursor: pointer;
   transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .send:disabled {
   background: var(--dsw-alias-button-primary-dimmed);
+  /* The dimmed fill runs the OPPOSITE way to the primary one — light in the
+     light theme, dark in the dark theme — so it needs an ordinary label colour,
+     not the foreground that pairs with the primary fill. */
+  color: var(--dsw-alias-label-tertiary);
   cursor: default;
 }
 
@@ -200,18 +210,72 @@
   background: var(--dsw-alias-button-primary-hover);
 }
 
+/* The contrast fill needs the inverted label with it, which is the pairing the
+   source harness uses everywhere it uses this fill. Inheriting `.send`'s
+   `brand-primary-invert` instead made the glyph invisible: in the dark theme
+   both that and `button-contrast-fill` resolve to the same near-white, so the
+   stop button rendered as a blank white circle. */
 .stop {
   background: var(--dsw-alias-button-contrast-fill);
+  color: var(--dsw-alias-label-primary-inverted);
 }
 
+/* The run's own last line, at the end of the stream where the next row will
+   appear — not centred chrome under the input box.
+
+   It has to look alive. A static glyph beside a number that only moves when the
+   server speaks reads as a stalled app, which is the thing this line exists to
+   rule out. */
 .runningHint {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 8px;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0 4px;
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
+}
+
+.runningSpinner {
+  align-self: center;
+  flex: none;
+  /* Stated rather than relied on: browsers have not always defaulted an SVG's
+     transform-origin to its centre, and an arc pivoting on its top-left corner
+     orbits instead of spinning. */
+  transform-origin: 50% 50%;
+  animation: runningSpin 900ms linear infinite;
+}
+
+@keyframes runningSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Slowed for reduced motion, NOT stopped.
+   This used to be `animation: none`, and it was wrong: a spinner is a status
+   indicator, not decoration. Stopped, it becomes a static broken circle that
+   says nothing — and on Windows, where "Animation effects" is a switch people
+   turn off for performance rather than for vestibular reasons, that is what
+   most users saw. The concern behind the query is large-area and parallax
+   motion; a 16px arc turning slowly is the standard accommodation, and it
+   keeps the one thing the line exists to say: this is still going. */
+@media (prefers-reduced-motion: reduce) {
+  .runningSpinner { animation-duration: 2.4s; }
+}
+
+.runningLabel {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.runningElapsed {
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pushed to the end and dimmed: it is an instruction, not a status, and it
+   must not compete with the part that changes. */
+.runningAside {
+  margin-left: auto;
+  color: var(--dsw-alias-label-quaternary, var(--dsw-alias-label-tertiary));
+  opacity: 0.75;
 }
 
 /* Column header: conversation title plus the two settings that decide what a
@@ -271,20 +335,72 @@
 }
 
 /* Team run: who wrote a row, and the roster strip above the composer. */
-.memberBadge {
-  display: inline-block;
-  align-self: flex-start;
-  margin-bottom: 2px;
-  padding: 1px 8px;
+/* A subagent's stretch of the transcript, drawn as one named panel.
+
+   A per-row badge was not enough: a member's rows sat at the lead's level and
+   the transcript read as one agent talking to itself. The rule and the indent
+   are what say "this part is not the orchestrator". */
+.memberBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 2px 0;
+  padding: 8px 0 8px 12px;
+  border-left: 2px solid var(--dsw-alias-border-l3);
+  border-radius: 0 12px 12px 0;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.memberHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.memberName {
+  color: var(--dsw-alias-label-secondary);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+}
+
+.memberRole {
+  padding: 1px 6px;
   border-radius: 999px;
   background: var(--dsw-alias-bg-module-platform);
   color: var(--dsw-alias-label-tertiary);
-  font-family: var(--ds-font-family-code);
-  font-size: 11px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.memberRows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
 }
 
 .composerInner {
   width: 100%;
   max-width: 768px;
   margin: 0 auto;
+}
+
+/* An in-flight notice: a retry, not a failure. Dim and inline, so it reads as
+   the run telling you what it is doing rather than as an outcome. */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.notice[data-level='warn'] {
+  color: var(--dsw-alias-state-warn-primary);
+  background: var(--dsw-alias-state-warn-tertiary);
 }

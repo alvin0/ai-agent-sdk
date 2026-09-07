@@ -571,6 +571,11 @@ describe('runTurn', () => {
     expect({ parses, classifications }).toEqual({ parses: 3, classifications: 3 })
   })
 
+  /** Every text block in the Nth model request, joined. */
+  const requestText = (state: Awaited<ReturnType<typeof setup>>, index: number): string =>
+    state.adapter.requests[index]?.messages.flatMap(message => message.content)
+      .flatMap(block => block.type === 'text' ? [block.text] : []).join('\n') ?? ''
+
   it('warns the model before the tool-call budget is exhausted', async () => {
     const state = await setup([
       toolRound([{ id: 'budget-1', name: 'echo', arguments: '{"value":1}' }]),
@@ -581,14 +586,96 @@ describe('runTurn', () => {
 
     for await (const _event of runTurn({
       registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
-      tools: state.tools, bounds: { maxToolCalls: 4 },
+      tools: state.tools, bounds: { maxToolCalls: 4, toolBudgetRemindAt: [1] },
     })) { /* drain */ }
 
-    const finalRequest = state.adapter.requests[3]
-    const text = finalRequest?.messages.flatMap(message => message.content)
-      .flatMap(block => block.type === 'text' ? [block.text] : []).join('\n') ?? ''
-    expect(text).toContain('Tool budget warning: 1 of 4 calls remain')
+    const text = requestText(state, 3)
+    expect(text).toContain('Tool budget: 1 of 4 calls remain')
     expect(text).toContain('reserve calls for verification')
+  })
+
+  it('warns again at every threshold it crosses, not once per turn', async () => {
+    // This was a single boolean: told once at a quarter left, a model still
+    // exploring at two calls had heard nothing since, and hit the wall with no
+    // notice. Codex counts crossed thresholds instead of remembering a flag.
+    const state = await setup([
+      toolRound([{ id: 'b1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'b2', name: 'echo', arguments: '{"value":2}' }]),
+      toolRound([{ id: 'b3', name: 'echo', arguments: '{"value":3}' }]),
+      toolRound([{ id: 'b4', name: 'echo', arguments: '{"value":4}' }]),
+      textRound('Done.'),
+    ])
+
+    for await (const _event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools, bounds: { maxToolCalls: 6, toolBudgetRemindAt: [4, 2] },
+    })) { /* drain */ }
+
+    // After two calls four remain (first threshold); after four calls two do.
+    expect(requestText(state, 2)).toContain('4 of 6 calls remain')
+    expect(requestText(state, 4)).toContain('2 of 6 calls remain')
+  })
+
+  it('collapses several thresholds crossed at once into the lowest', async () => {
+    const state = await setup([
+      // One round spending four calls jumps past both thresholds together.
+      toolRound([
+        { id: 'p1', name: 'echo', arguments: '{"value":1}' },
+        { id: 'p2', name: 'echo', arguments: '{"value":2}' },
+        { id: 'p3', name: 'echo', arguments: '{"value":3}' },
+        { id: 'p4', name: 'echo', arguments: '{"value":4}' },
+      ]),
+      textRound('Done.'),
+    ])
+
+    for await (const _event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools, bounds: { maxToolCalls: 6, toolBudgetRemindAt: [4, 2] },
+    })) { /* drain */ }
+
+    const text = requestText(state, 1)
+    // Two notices saying different numbers about the same moment would be
+    // worse than one saying the true one.
+    expect(text).toContain('2 of 6 calls remain')
+    expect(text).not.toContain('4 of 6 calls remain')
+  })
+
+  it('ignores thresholds that do not fit the budget', async () => {
+    // A list written for a bigger budget stays usable rather than throwing or
+    // firing a reminder before the first call.
+    const state = await setup([
+      toolRound([{ id: 'f1', name: 'echo', arguments: '{"value":1}' }]),
+      textRound('Done.'),
+    ])
+
+    for await (const _event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools, bounds: { maxToolCalls: 2, toolBudgetRemindAt: [32, 16] },
+    })) { /* drain */ }
+
+    expect(requestText(state, 1)).not.toContain('calls remain')
+  })
+
+  it('tells a model that ran out what to do instead of only what happened', async () => {
+    const state = await setup([
+      toolRound([
+        { id: 'o1', name: 'echo', arguments: '{"value":1}' },
+        { id: 'o2', name: 'echo', arguments: '{"value":2}' },
+      ]),
+      textRound('Answered from what I had.'),
+    ])
+
+    for await (const _event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools, bounds: { maxToolCalls: 1 },
+    })) { /* drain */ }
+
+    // "No remaining budget" alone is not something a model can act on: its
+    // usual recovery is to retry, and a retry spends calls that do not exist.
+    // Read from the whole request: this arrives as a tool result, not as text.
+    const text = JSON.stringify(state.adapter.requests[1])
+    expect(text).toContain('Do not retry it')
+    expect(text).toContain('Answer now from what you already have')
   })
 
   it('detects a repeating multi-step tool cycle before dispatching the final cycle call', async () => {

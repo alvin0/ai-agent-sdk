@@ -4,13 +4,27 @@ import type { UserMessage } from '../../message/index.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
 import type { ToolDefinition } from '../tool/definition.ts'
 
+/**
+ * How much of the team tool set one member may use.
+ *
+ * `full` is every verb. `reporting` withholds the two that BLOCK or DELEGATE —
+ * `wait_agents` and `followup_task` — leaving `list_agents` and `send_message`.
+ *
+ * The distinction exists because an agent created to carry out one bounded task
+ * needs a stopping point, and the coordination verbs take it away: given them,
+ * a worker that wants guidance messages a peer and then waits, so its run ends
+ * only when something cancels it. Whoever is orchestrating keeps those verbs.
+ */
+export type TeamToolAccess = 'full' | 'reporting'
+
 /** Team-owned metadata applied while attaching one local session. */
 export interface TeamMemberAttachmentOptions {
   readonly name?: string
   readonly description?: string
   readonly instructions?: string
   readonly role?: 'lead' | 'peer'
-  readonly tools?: boolean
+  /** `false` attaches no team tools; a {@link TeamToolAccess} narrows them. */
+  readonly tools?: boolean | TeamToolAccess
 }
 
 /**
@@ -35,6 +49,6 @@ export interface TeamSessionPort {
 /** Session-facing surface of a team control plane. */
 export interface TeamPort {
   attach(session: TeamSessionPort, options?: TeamMemberAttachmentOptions): void
-  toolsFor(sender: string): readonly ToolDefinition<any>[]
+  toolsFor(sender: string, access?: TeamToolAccess): readonly ToolDefinition<any>[]
   instructionsFor(name: string): string
 }

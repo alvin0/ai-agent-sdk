@@ -7,7 +7,7 @@
  */
 
 import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
-import type { ToolCard, WireEvent, WireQuestion } from './wire'
+import type { ToolCard, WireApproval, WireApprovalScope, WireEvent, WireQuestion } from './wire'
 
 /** A settled transcript node, in the shape the frontend renders. */
 export type StoredNode =
@@ -19,6 +19,18 @@ export type StoredNode =
       state: 'ok' | 'error'; output?: string; card?: ToolCard; errorMessage?: string; member?: string
     }
   | { kind: 'question'; id: string; requestId: string; questions: readonly WireQuestion[]; answered: boolean }
+  /**
+   * A settled permission decision. Only stored once answered: a prompt still
+   * waiting is replayed from the live broker, not from the transcript.
+   */
+  | (WireApproval & {
+      kind: 'approval'
+      id: string
+      decision: 'allow' | 'deny' | 'abort'
+      scope: WireApprovalScope
+      member?: string
+    })
+  | { kind: 'notice'; id: string; level: 'info' | 'warn'; message: string }
   | { kind: 'error'; id: string; message: string }
 
 function textOf(content: readonly { readonly type: string }[]): string {
@@ -45,14 +57,30 @@ interface Cursor {
   step: number
 }
 
+export interface EventProjectorOptions {
+  /**
+   * The prompt text for a parked call.
+   *
+   * The SDK's `approval-request` carries the raw arguments; the human-readable
+   * title, summary, and preview are the approval policy's, so the projector
+   * looks them up rather than re-deriving them.
+   */
+  readonly approval?: (callId: string) => WireApproval | undefined
+}
+
 export class EventProjector {
   /** True when the run's outcome comes from a run handle instead of an event. */
   private handleOwnsOutcome = false
+  private readonly options: EventProjectorOptions
   private readonly cursors = new Map<string, Cursor>()
   private readonly openText = new Map<string, OpenText>()
   private readonly openReasoning = new Map<string, OpenText>()
   private readonly openTools = new Map<string, { name: string; args: string; member?: string }>()
   private readonly pending: StoredNode[] = []
+
+  constructor(options: EventProjectorOptions = {}) {
+    this.options = options
+  }
 
   /**
    * Project one event from the agent the user is talking to.
@@ -251,6 +279,25 @@ export class EventProjector {
       }
       case 'user-input-response':
         return [{ t: 'question-answered', requestId: event.request.requestId }]
+      case 'approval-request': {
+        const prompt = this.options.approval?.(event.request.callId)
+        // No prompt means an interceptor other than the sample's policy asked.
+        // Its `reason` is written for the model, not for a card, so the
+        // fallback names the tool instead of quoting it — but the call is still
+        // surfaced, because parking one invisibly would hang the run.
+        return [{
+          t: 'approval',
+          ...prompt ?? {
+            callId: event.request.callId,
+            toolName: event.request.toolName,
+            title: event.request.toolName,
+            summary: 'This call needs your permission.',
+            ruleKey: event.request.toolName,
+            ruleLabel: `every ${event.request.toolName} call`,
+          },
+          ...tag,
+        }]
+      }
       case 'agent-end': {
         // A member's own outcome is not the run's outcome: only the agent the
         // user is talking to ends the run.

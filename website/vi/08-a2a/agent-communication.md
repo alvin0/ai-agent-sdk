@@ -9,7 +9,7 @@ Tham gia một team mặc định phơi những tool sau cho model:
 | `list_agents` | — | Đích cục bộ và từ xa, giao thức, chế độ giao nhận, trạng thái |
 | `send_message` | **Chỉ cục bộ** | Tiêm ngữ cảnh im lặng vào một session khác |
 | `followup_task` | Cục bộ **hoặc từ xa** | Khởi động công việc tuần tự, trả về kết quả |
-| `wait_agents` | Cục bộ | Chặn cho tới khi các công việc đã lên lịch được chọn trở nên rảnh |
+| `wait_agents` | Cục bộ | Chờ công việc được chọn trong `timeoutMs`; hết thời gian thì trả roster |
 
 Agent dẫn dắt trong team quản lý còn nhận thêm `spawn_agent`.
 
@@ -104,8 +104,16 @@ const harness = createManagedAgentTeam({
 ```
 
 Một lời gọi `spawn_agent` tạo ra một bản sao `DefinedAgent` thật và một
-`AgentSession`, gắn nó làm peer, giao nhiệm vụ ban đầu **kèm xuất xứ từ agent dẫn
-dắt**, chờ kết quả, rồi trả kết quả đó về vòng lặp tool của agent dẫn dắt.
+`AgentSession`, gắn nó làm peer, giao nhiệm vụ ban đầu kèm xuất xứ từ agent dẫn
+dắt, khởi chạy worker, rồi trả về — **không** chờ nó. Agent dẫn dắt tiếp tục
+làm việc trong lúc worker chạy; một agent dẫn dắt bị treo trong tool call của
+chính nó thì không đọc được tin nhắn của worker, không spawn thêm được, và
+không nhận ra khi một worker tắt tiếng.
+
+Worker báo cáo lại theo ba đường: một tin nhắn hoàn thành lặng lẽ chèn vào
+history của agent dẫn dắt, một `outcome` ghi trên roster và trả về qua
+`list_agents`, và `wait_agents`. Worker đã xong vẫn giữ slot `maxWorkers` cho
+tới khi `close_agent` giải phóng.
 
 **Nhiều lời gọi `spawn_agent` trong cùng một bước model là an toàn khi chạy đồng
 thời**, nên các worker độc lập chạy song song. Worker đã hoàn thành vẫn địa chỉ

@@ -376,10 +376,19 @@ broker.onRequest(async request => {
 })
 ```
 
-When a turn reaches 75% of `maxToolCalls`, the loop injects one app-authored
-budget warning before the next model step. This gives long coding agents a chance
-to stop broad exploration and reserve calls for edits and verification instead of
-discovering the limit only after the last tool dispatch.
+As a turn spends its `maxToolCalls`, the loop injects an app-authored budget
+notice before the next model step — once for each threshold in
+`toolBudgetRemindAt` that the remaining allowance drops past, defaulting to
+`[32, 16, 6]`. This gives long coding agents a chance to stop broad exploration
+and reserve calls for edits and verification instead of discovering the limit
+only after the last tool dispatch.
+
+One notice is not enough, which is what this used to send: a model told at a
+quarter remaining and still exploring at two calls has heard nothing since, and
+meets the wall with no warning. Reminding at each crossed threshold is the shape
+Codex uses for its token budget. Several thresholds crossed in one round
+collapse into the lowest, so the number the model reads is the true one, and
+thresholds that do not fit the budget are ignored rather than rejected.
 
 ## One-shot result or live events
 

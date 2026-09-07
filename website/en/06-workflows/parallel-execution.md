@@ -97,8 +97,15 @@ console.log(harness.workers())
 ```
 
 One `spawn_agent` call creates a real `DefinedAgent` clone and `AgentSession`,
-attaches it as a peer, delivers the initial task with lead provenance, waits for
-its result, and returns that result to the lead's tool loop.
+attaches it as a peer, delivers the initial task with lead provenance, starts
+the worker, and returns — **without** waiting for it. The lead keeps working
+while its workers do; a lead parked inside its own tool call could not read a
+worker's messages, spawn anything else, or notice one going quiet.
+
+A worker reports back three ways: a quiet completion message injected into the
+lead's history, an `outcome` recorded on the roster and returned by
+`list_agents`, and `wait_agents`. A finished worker keeps its `maxWorkers` slot
+until `close_agent` releases it.
 
 Completed workers stay addressable through `list_agents`, `send_message`, and
 `followup_task` until removed with `removeWorker()`.
@@ -129,7 +136,9 @@ enforced by the harness.
 ## Joining: `wait_agents`
 
 A coordinator that synthesizes before its workers finish produces confident
-nonsense. `wait_agents` blocks until selected scheduled work is idle.
+nonsense. `wait_agents` waits for selected work, returning as soon as the **first** target
+settles and always within `timeoutMs` (default 30 s). A timeout is a normal
+result carrying the current roster, not a failure.
 
 ```ts
 // From the lead's own tool loop, the model calls wait_agents.

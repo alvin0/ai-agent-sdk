@@ -73,7 +73,7 @@ class AgentTeam {
 | `list_agents` | — | Danh bạ: loại, giao thức, chế độ giao nhận, trạng thái |
 | `send_message` | chỉ cục bộ | Tiêm ngữ cảnh im lặng |
 | `followup_task` | cục bộ hoặc từ xa | Công việc tuần tự, trả về kết quả |
-| `wait_agents` | cục bộ | Chặn cho tới khi công việc đã lên lịch trở nên rảnh |
+| `wait_agents` | cục bộ | Chờ trong `timeoutMs`; hết thời gian thì trả roster |
 | `spawn_agent` | chỉ agent dẫn dắt trong team quản lý | Tạo một bản sao worker và session |
 
 Đặt `team: { team, tools: false }` khi chỉ host được phép giao tiếp. Danh tính

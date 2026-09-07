@@ -69,7 +69,11 @@ async function driveTurn(
   const startedAt = now()
   let steps = 0
   let toolCalls = 0
-  let toolBudgetWarned = false
+  // Descending, so "how many are below the remainder" counts the crossings.
+  const budgetReminders = [...bounds.toolBudgetRemindAt]
+    .filter(threshold => threshold > 0 && threshold < bounds.maxToolCalls)
+    .sort((left, right) => right - left)
+  let budgetRemindersSent = 0
   let consecutiveErrors = 0
   let text = ''
   const modelCallReports: ModelCallReport[] = []
@@ -251,14 +255,29 @@ async function driveTurn(
     })
     toolCalls += scheduled.dispatched
     const remainingAfterDispatch = Math.max(0, bounds.maxToolCalls - toolCalls)
-    const warningAt = Math.max(1, Math.floor(bounds.maxToolCalls * 0.25))
-    if (!toolBudgetWarned && remainingAfterDispatch > 0 && remainingAfterDispatch <= warningAt) {
-      toolBudgetWarned = true
+    // One reminder per threshold crossed, not one per turn.
+    //
+    // This was a single boolean: the model was told once, at 25% remaining,
+    // and then never again however close it came to the end. A model warned at
+    // sixteen calls left and still exploring at four has been told nothing
+    // since, and runs into the wall with no notice — which is what produces a
+    // red "no remaining tool-call budget" where an answer should have been.
+    //
+    // Codex counts thresholds rather than remembering a flag
+    // (`rollout_budget.rs`, `reminder_index`): every threshold now below the
+    // remaining budget that has not been reported yet gets reported. Crossing
+    // several at once collapses into the one that matters, the lowest.
+    const crossed = budgetReminders.filter(threshold => remainingAfterDispatch <= threshold).length
+    if (crossed > budgetRemindersSent && remainingAfterDispatch > 0) {
+      budgetRemindersSent = crossed
       options.history.append({ kind: 'user', message: createUserMessage({
         source: { kind: 'app', producer: 'tool-loop-budget-guard' },
         content: [{
           type: 'text',
-          text: `Tool budget warning: ${remainingAfterDispatch} of ${bounds.maxToolCalls} calls remain. Stop broad exploration, make the necessary edits, and reserve calls for verification.`,
+          text: `Tool budget: ${remainingAfterDispatch} of ${bounds.maxToolCalls} calls remain in this turn.`
+            + ' Stop broad exploration, make the necessary edits, and reserve calls for'
+            + ' verification. When the budget runs out no further call will run, so finish'
+            + ' with what you can still verify.',
         }],
       }) })
     }
