@@ -15,7 +15,9 @@ export function sessionCallConfig(
   return {
     provider: definition.provider,
     model: definition.model,
-    reasoningEffort: definition.effort,
+    // Omitted when the author expressed no preference: a value the SDK invented
+    // is rejected outright by a model that declares no ladder.
+    ...(definition.effort === undefined ? {} : { reasoningEffort: definition.effort }),
     ...(definition.maxTokens === undefined ? {} : { maxTokens: definition.maxTokens }),
   }
 }

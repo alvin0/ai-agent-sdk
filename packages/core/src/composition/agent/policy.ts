@@ -4,6 +4,7 @@ import type { UserInputBroker, UserInputDecision, UserInputRequest } from '../..
 import type { ApprovalBroker, ApprovalDecision, ApprovalRequest } from '../../agent/tool/approval.ts'
 import type { ToolExecutionResult } from '../../agent/tool/definition.ts'
 import type { PostToolDecision, PreToolDecision, ToolCallContext, ToolInterceptor } from '../../agent/tool/pipeline.ts'
+import type { SpillRecord, SpillSlice, SpillStore } from '../../agent/tool/output-budget.ts'
 import type { UsageCounters } from '../../observation/usage.ts'
 import { arrayData, boundedText, objectValue, ownData } from '../common/data.ts'
 
@@ -21,6 +22,21 @@ export function captureUserInputBroker(value: unknown): UserInputBroker | undefi
   const source = objectValue(value)
   const request = captureMethod<[UserInputRequest, AbortSignal?], Promise<UserInputDecision>>(source, 'request', true)!
   return Object.freeze({ request })
+}
+
+export function captureSpillStore(value: unknown): SpillStore | undefined {
+  if (value === undefined) return undefined
+  const source = objectValue(value)
+  const save = captureMethod<
+    [string, { toolName: string; callId: string }], Promise<SpillRecord> | SpillRecord
+  >(source, 'save', true)!
+  const read = captureMethod<
+    [string, { offset: number; limit: number }], Promise<SpillSlice | undefined> | SpillSlice | undefined
+  >(source, 'read', true)!
+  const search = captureMethod<
+    [string, string, number], Promise<readonly string[] | undefined> | readonly string[] | undefined
+  >(source, 'search', true)!
+  return Object.freeze({ save, read, search })
 }
 
 export function captureInterceptors(value: unknown): readonly ToolInterceptor[] | undefined {

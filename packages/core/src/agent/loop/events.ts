@@ -21,6 +21,15 @@ export type ExhaustedBudget =
   | 'repeated-tool-call'
   | 'tool-call-cycle'
   | 'tokens'
+/**
+ * Why a call the model asked for was not run.
+ *
+ * A declined call is not a failed call: nothing broke, the loop simply refused
+ * to spend more on exploration. The distinction matters to the model, which
+ * answers a failure by retrying and a refusal by finishing.
+ */
+export type ToolDeclineReason = ExhaustedBudget | 'usage-required'
+
 export type TurnEndReason =
   | { readonly kind: 'completed' }
   | { readonly kind: 'concluded-by-tool'; readonly toolName: string }

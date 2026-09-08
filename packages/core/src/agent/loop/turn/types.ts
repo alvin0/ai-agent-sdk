@@ -10,6 +10,7 @@ import { History } from '../../history/history.ts'
 import type { ApprovalBroker } from '../../tool/approval.ts'
 import type { ToolInterceptor, ToolCallRequest } from '../../tool/pipeline.ts'
 import type { ToolCatalog } from '../../tool/registry.ts'
+import type { SpillStore } from '../../tool/output-budget.ts'
 import { type SpanId, type TraceId, type TraceRef } from '../../trace/trace.ts'
 import type { AssistantContentTiming, TurnBounds, TurnHooks } from '../types.ts'
 import type { SdkLogger } from '../../../logging/types.ts'
@@ -58,6 +59,14 @@ export interface RunTurnOptions {
   }
   /** Internal canonical accounting surface supplied by AgentSession. */
   readonly accounting?: RunAccountingPort
+  /**
+   * Where oversized tool output is saved instead of being cut.
+   *
+   * Mounting one switches the default `auto` policy from truncating to
+   * spilling, so nothing the model asked for is lost — it reads a preview and
+   * retrieves the rest.
+   */
+  readonly spillStore?: SpillStore
 }
 
 /** Internal request phase: structured process rounds defer the caller's final format. */
@@ -72,6 +81,14 @@ export interface RoundResult {
   readonly usageRequired?: boolean
   readonly usageUnavailable?: boolean
   readonly calls: readonly ToolCallRequest[]
+  /**
+   * Tool-call ids the provider repeated, which were dropped rather than run.
+   *
+   * Two calls cannot share one id — a result pairs to exactly one — so the
+   * repeat goes and the first one stands. Reported so the model can be told
+   * what happened instead of silently receiving one result for two calls.
+   */
+  readonly droppedDuplicateCalls?: readonly string[]
   readonly afterToolCallIds: readonly ToolCallId[]
   readonly timing: AssistantContentTiming
 }

@@ -11,7 +11,7 @@
 /** Just enough of a tool node to decide how it is displayed. */
 export interface ToolDisplayState {
   readonly name: string
-  readonly state: 'running' | 'ok' | 'error'
+  readonly state: 'running' | 'ok' | 'error' | 'declined'
   readonly liveOutput?: string
 }
 

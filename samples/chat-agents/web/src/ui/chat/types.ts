@@ -18,7 +18,9 @@ export type ChatNode =
       readonly id: string
       readonly name: string
       readonly args: string
-      readonly state: 'running' | 'ok' | 'error'
+      readonly state: 'running' | 'ok' | 'error' | 'declined'
+      /** The loop shortened the result so it could not spend the context window. */
+      readonly shortened?: 'truncated' | 'spilled'
       readonly output?: string
       /**
        * Output streamed while the call is still running.

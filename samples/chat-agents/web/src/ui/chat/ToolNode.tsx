@@ -24,6 +24,7 @@ import css from './ToolRow.module.css'
 /** Display names, including the mutating tools the user has to permit. */
 export const TITLES: Readonly<Record<string, string>> = {
   read_file: 'Read',
+  read_tool_output: 'Saved output',
   list_directory: 'List',
   search_files: 'Search',
   propose_edit: 'Preview edit',
@@ -64,6 +65,8 @@ export function iconFor(name: string) {
       return <IconFolderClose16 />
     case 'run_command':
       return <IconPlayOutline16 />
+    case 'read_tool_output':
+      return <IconSearchOutline16 />
     default:
       return <IconCodeOutline16 />
   }
@@ -144,7 +147,13 @@ function LiveOutput({ command, text }: { command: string; text: string }) {
 export function ToolNode({ node }: { node: Extract<ChatNode, { kind: 'tool' }> }) {
   const [open, setOpen] = useState(opensByDefault(node.name))
   const summary = useMemo(() => summaryOf(node.name, node.args), [node.name, node.args])
-  const rowState = node.state === 'running' ? 'running' : node.state === 'error' ? 'error' : 'ok'
+  // Declined is its own row state: nothing broke and nothing ran, so it is
+  // neither a green result nor a red failure.
+  const rowState = node.state === 'running'
+    ? 'running'
+    : node.state === 'error'
+      ? 'error'
+      : node.state === 'declined' ? 'declined' : 'ok'
   const failure = node.state === 'error' ? node.errorMessage ?? 'failed' : null
   const argsBody = useMemo(() => prettyJson(node.args), [node.args])
   // A command that is printing gets opened for you: being asked to click to
@@ -184,6 +193,13 @@ export function ToolNode({ node }: { node: Extract<ChatNode, { kind: 'tool' }> }
             <span className={clsx(css.summary, failure !== null && css.errorSummary)}>
               {failure ?? summary}
             </span>
+            {/* A shortened result is a fragment. Saying so in the collapsed row
+                stops it from being read as the whole output. */}
+            {node.shortened !== undefined && (
+              <span className={css.notice}>
+                {node.shortened === 'spilled' ? 'output saved' : 'output shortened'}
+              </span>
+            )}
           </>
         )}
       >

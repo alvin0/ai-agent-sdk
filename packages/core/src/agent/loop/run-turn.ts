@@ -4,7 +4,7 @@ import type { ModelCallReport } from '../../observation/index.ts'
 import { waitForSettlement } from '../../async/index.ts'
 import { authoritativeTokenUsage, budgetTokenTotal, summarizeModelCallUsage } from '../accounting/ledger.ts'
 import { createSpanId, createTraceId, type TraceRef } from '../trace/trace.ts'
-import type { AgentEvent, ExhaustedBudget, TurnHooks, TurnOutcome } from './types.ts'
+import type { AgentEvent, ExhaustedBudget, ToolDeclineReason, TurnHooks, TurnOutcome } from './types.ts'
 import { AwaitedEventQueue } from './queue.ts'
 import { runToolCalls } from './schedule.ts'
 import { type RunTurnOptions } from './turn/types.ts'
@@ -74,6 +74,10 @@ async function driveTurn(
     .filter(threshold => threshold > 0 && threshold < bounds.maxToolCalls)
     .sort((left, right) => right - left)
   let budgetRemindersSent = 0
+  /** How many full budgets an unwalled turn has spent and been told about. */
+  let overBudgetNoticesSent = 0
+  /** Sequence of the budget notice currently on the surface, if any. */
+  let budgetNoticeSeq: number | undefined
   let consecutiveErrors = 0
   let text = ''
   const modelCallReports: ModelCallReport[] = []
@@ -82,6 +86,38 @@ async function driveTurn(
   const repeats = new Map<string, number>()
   const actionSteps: string[] = []
   const emitMaintenance = maintenanceEmitter(emit, root)
+  /**
+   * Put the current budget notice on the surface, replacing the previous one.
+   *
+   * One live notice, never a pile of them. Appending each new remainder leaves
+   * "16 calls remain" and "6 calls remain" both readable, and a model that
+   * plans against the older number plans against a budget it no longer has.
+   * Codex keeps exactly one `<rollout_budget>` fragment for the same reason
+   * (`context/rollout_budget.rs`), replacing it as the number moves.
+   * @param text - What the model should read now.
+   */
+  const appendBudgetNotice = (text: string): void => {
+    const message = createUserMessage({
+      source: { kind: 'app', producer: 'tool-loop-budget-guard' },
+      content: [{ type: 'text', text }],
+    })
+    const previous = budgetNoticeSeq
+    // Replacing is best-effort. Compaction can shadow the earlier notice
+    // between steps, and a replace whose target is no longer on the surface is
+    // rejected — which must cost the model a reminder, never the turn.
+    if (previous !== undefined) {
+      try {
+        budgetNoticeSeq = options.history.append(
+          { kind: 'user', message },
+          { op: 'replace', from: previous, to: previous, targets: [previous] },
+        ).seq
+        return
+      } catch {
+        budgetNoticeSeq = undefined
+      }
+    }
+    budgetNoticeSeq = options.history.append({ kind: 'user', message }).seq
+  }
   let rootStarted = false
   let rootEnded = false
   const callableTools = hasCallableTools(options)
@@ -212,8 +248,28 @@ async function driveTurn(
       } else reason = { kind: 'completed' }
       break
     }
+    // A provider that repeated an id had the repeat dropped. Saying so is what
+    // keeps the model from reading one result for two calls as a tool that
+    // silently ignored it.
+    if (round.droppedDuplicateCalls !== undefined) {
+      options.history.append({ kind: 'user', message: createUserMessage({
+        source: { kind: 'app', producer: 'tool-loop-duplicate-guard' },
+        content: [{
+          type: 'text',
+          text: `You reused the tool-call id ${round.droppedDuplicateCalls.map(id => `'${id}'`).join(', ')}.`
+            + ' A result pairs to exactly one call, so the repeat was not run and only the first'
+            + ' call of that id has a result. Give every call its own id, and call again if you'
+            + ' still need what the dropped one would have done.',
+        }],
+      }) })
+    }
     if (round.calls.length === 0 || options.tools === undefined) { reason = { kind: 'completed' }; break }
 
+    // Calls the budget does not govern: submitting, asking, delegating. They
+    // are dispatched even when the budget is spent, so the model always has a
+    // legal way to finish. See `ToolDefinition.budgetExempt`.
+    const budgetedCalls = round.calls
+      .filter(call => options.tools?.get(call.toolName)?.budgetExempt !== true).length
     const remaining = Math.max(0, bounds.maxToolCalls - toolCalls)
     const repeatProjection = new Map(repeats)
     const projectedRepeats = round.calls.map(call => {
@@ -235,11 +291,32 @@ async function driveTurn(
     const tokenLimitBeforeDispatch = budgetTokens !== undefined
       && budgetTokens >= bounds.maxTotalTokens
     const guardDeclined = repeatedLimitBeforeDispatch || cycleLimitBeforeDispatch || tokenLimitBeforeDispatch || round.usageRequired
+    // Name the limit that actually declined the call. Reporting a repeat guard
+    // as an empty budget teaches the model the wrong lesson, and it repeats the
+    // call on the next turn with the budget it was told it lacked.
+    const declineReason: ToolDeclineReason = tokenLimitBeforeDispatch
+      ? 'tokens'
+      : cycleLimitBeforeDispatch
+        ? 'tool-call-cycle'
+        : repeatedLimitBeforeDispatch
+          ? 'repeated-tool-call'
+          : round.usageRequired
+            ? 'usage-required'
+            : 'tool-calls'
+    // `continue` takes the wall down: the budget becomes a notice and the turn
+    // is bounded by steps, tokens, and the run-level ledger instead. Guards
+    // that mean "this is not working" still decline, whatever the setting.
+    const budgetIsAWall = bounds.onExhausted !== 'continue'
     const scheduled = await runToolCalls({
       calls: round.calls, catalog: options.tools, history: options.history,
       position: { turn, step }, signal, parentTrace: root,
-      maxParallel: bounds.maxParallel, dispatchLimit: guardDeclined ? 0 : remaining,
+      maxParallel: bounds.maxParallel,
+      dispatchLimit: guardDeclined ? 0 : budgetIsAWall ? remaining : round.calls.length,
+      declineReason,
       maxResultBytes: bounds.maxToolResultBytes,
+      maxResultTokens: bounds.maxToolResultTokens,
+      resultOverflow: bounds.toolResultOverflow,
+      ...options.spillStore === undefined ? {} : { spillStore: options.spillStore },
       maxDurationMs: bounds.maxToolDurationMs,
       teardownTimeoutMs: bounds.toolTeardownTimeoutMs,
       ...(options.logger === undefined ? {} : { logger: options.logger }),
@@ -253,7 +330,7 @@ async function driveTurn(
         ),
       },
     })
-    toolCalls += scheduled.dispatched
+    toolCalls += scheduled.budgeted
     const remainingAfterDispatch = Math.max(0, bounds.maxToolCalls - toolCalls)
     // One reminder per threshold crossed, not one per turn.
     //
@@ -270,16 +347,31 @@ async function driveTurn(
     const crossed = budgetReminders.filter(threshold => remainingAfterDispatch <= threshold).length
     if (crossed > budgetRemindersSent && remainingAfterDispatch > 0) {
       budgetRemindersSent = crossed
-      options.history.append({ kind: 'user', message: createUserMessage({
-        source: { kind: 'app', producer: 'tool-loop-budget-guard' },
-        content: [{
-          type: 'text',
-          text: `Tool budget: ${remainingAfterDispatch} of ${bounds.maxToolCalls} calls remain in this turn.`
-            + ' Stop broad exploration, make the necessary edits, and reserve calls for'
-            + ' verification. When the budget runs out no further call will run, so finish'
-            + ' with what you can still verify.',
-        }],
-      }) })
+      appendBudgetNotice(
+        `Tool budget: ${remainingAfterDispatch} of ${bounds.maxToolCalls} calls remain in this turn.`
+        + ' Stop broad exploration, make the necessary edits, and reserve calls for'
+        + (budgetIsAWall
+          ? ' verification. When the budget runs out no further work call will run, so'
+            + ' finish with what you can still verify.'
+          : ' verification. Past the budget you are expected to be wrapping up, not'
+            + ' opening new lines of work.'),
+      )
+    }
+    // Past the budget with the wall down. The turn is not stopped — the model
+    // keeps its tools — but it is told, once per further budget spent, that it
+    // is now expected to be finishing. This is the shape of Codex's
+    // `budget_limit` goal prompt: no new substantive work, wrap up, name what
+    // is left.
+    if (!budgetIsAWall && remainingAfterDispatch === 0) {
+      const windows = Math.floor(toolCalls / bounds.maxToolCalls)
+      if (windows > overBudgetNoticesSent) {
+        overBudgetNoticesSent = windows
+        appendBudgetNotice(
+          `Tool budget spent: ${toolCalls} calls made against a budget of ${bounds.maxToolCalls}.`
+          + ' Do not start new substantive work. Finish what is in flight, verify what you'
+          + ' can, and answer — stating plainly what is unverified or unfinished.',
+        )
+      }
     }
     await emit({ type: 'step-end', turn, step, trace: round.trace })
 
@@ -320,7 +412,7 @@ async function driveTurn(
     let exhausted: ExhaustedBudget | undefined
     if (tokenLimitBeforeDispatch) exhausted = 'tokens'
     else if (cycleLimitBeforeDispatch) exhausted = 'tool-call-cycle'
-    else if (round.calls.length > remaining) exhausted = 'tool-calls'
+    else if (budgetIsAWall && budgetedCalls > remaining) exhausted = 'tool-calls'
     else if (consecutiveErrors >= bounds.maxConsecutiveToolErrors) exhausted = 'consecutive-tool-errors'
     else if (repeatedLimit) exhausted = 'repeated-tool-call'
     else if (steps >= bounds.maxSteps) exhausted = 'steps'

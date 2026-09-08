@@ -50,3 +50,18 @@ export {
   type ToolInterceptor,
   type PreparedToolCall,
 } from './pipeline.ts'
+export {
+  createMemorySpillStore,
+  estimateTextBlockTokens,
+  estimateTextTokens,
+  previewForSpill,
+  readSpillTool,
+  truncateMiddleToTokens,
+  SPILL_TOOL_NAME,
+  type MemorySpillStoreLimits,
+  type SpillRecord,
+  type SpillSlice,
+  type SpillStore,
+  type ToolOutputOverflowPolicy,
+  type TruncatedText,
+} from './output-budget.ts'

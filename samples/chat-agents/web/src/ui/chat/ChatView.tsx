@@ -111,8 +111,11 @@ function BlockView({
   status: MemberState['status'] | undefined
   onAnswer: (requestId: string, answers: Record<string, string>) => void
 }) {
-  const rows = block.nodes.map(node => (
-    <div className={css.row} key={`${node.kind}-${node.id}`}>
+  // The index disambiguates the key: a transcript stored before ids were
+  // scoped per author can hold two nodes sharing one id, and the thread is
+  // append-only, so position is a stable identity.
+  const rows = block.nodes.map((node, index) => (
+    <div className={css.row} key={`${node.kind}-${node.id}-${String(index)}`}>
       <NodeView node={node} onAnswer={onAnswer} />
     </div>
   ))
@@ -219,7 +222,14 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
     const text = draft.trim()
     if (text === '') return
     setDraft('')
-    void (chat.running ? chat.steer(text) : chat.send(text))
+    // The pickers may be showing a remembered model that the conversation row
+    // does not carry yet — a new chat has no row until something writes one.
+    // Persisting first is what makes the first prompt run on the model on
+    // screen instead of failing with "pick a model before sending a message".
+    void (async () => {
+      await settings.persistPending()
+      await (chat.running ? chat.steer(text) : chat.send(text))
+    })()
   }
 
   const blocks = blocksOf(chat.nodes.filter(node => focusedMember === null
@@ -256,9 +266,9 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
               </p>
             </div>
           )}
-          {blocks.map(block => (
+          {blocks.map((block, index) => (
             <BlockView
-              key={`${block.member ?? 'lead'}-${block.nodes[0]?.kind ?? ''}-${block.nodes[0]?.id ?? ''}`}
+              key={`${String(index)}-${block.member ?? 'lead'}-${block.nodes[0]?.id ?? ''}`}
               block={block}
               status={block.member === undefined
                 ? undefined

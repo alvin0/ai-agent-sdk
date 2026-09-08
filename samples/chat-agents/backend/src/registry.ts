@@ -9,6 +9,7 @@
  */
 
 import { ModelRegistry } from '@ai-agent-sdk/core'
+import { MOCK_MODELS, MOCK_PROVIDER, mockAdapter, mockEnabled } from './mock-provider'
 import type { CallConfig, ModelInfo, ResolvedModelInfo } from '@ai-agent-sdk/core'
 import { codexNodeAdapter } from '@ai-agent-sdk/auth-node/codex'
 import { geminiAdapter } from '@ai-agent-sdk/provider-gemini'
@@ -108,6 +109,19 @@ export async function listProviders(): Promise<readonly ProviderInfoView[]> {
     fromEnv: view.fromEnv,
   }))
   return [
+    ...mockEnabled() ? [{
+      id: MOCK_PROVIDER,
+      label: 'Offline (no model)',
+      ready: true,
+      hint: 'Answers from a script; nothing leaves this machine',
+      models: MOCK_MODELS,
+      discoverable: false,
+      auth: 'api-key' as const,
+      hasKey: true,
+      keyHint: undefined,
+      baseUrl: undefined,
+      fromEnv: true,
+    }] : [],
     {
       id: 'codex',
       label: LABELS.codex ?? 'Codex',
@@ -132,6 +146,13 @@ export async function listProviders(): Promise<readonly ProviderInfoView[]> {
 export async function buildRegistry(): Promise<{ registry: ModelRegistry; routed: readonly string[] }> {
   const registry = new ModelRegistry()
   const routed: string[] = []
+
+  // Offline first, and only when asked for: a deployment with real credentials
+  // must never find a conversation answered by a machine that makes things up.
+  if (mockEnabled()) {
+    registry.registerAdapter([MOCK_PROVIDER], mockAdapter())
+    routed.push(MOCK_PROVIDER)
+  }
 
   if (await apiKeyFor('gemini') !== undefined) {
     const baseUrl = await baseUrlFor('gemini')
@@ -162,6 +183,39 @@ export async function buildRegistry(): Promise<{ registry: ModelRegistry; routed
     routed.push('codex')
   }
   return { registry, routed }
+}
+
+/**
+ * The effort a run may actually send, given the model it ended up on.
+ *
+ * A conversation remembers its effort, and the model it runs on can change
+ * underneath that memory — pick `high` on a Codex route, switch the
+ * conversation to Gemini, and the next prompt fails outright with "does not
+ * offer reasoning effort high". The stored value is a preference, not a
+ * promise: a model that cannot honour it should be sent none rather than sent
+ * something it rejects.
+ * @param registry - The registry the run will use.
+ * @param config - The provider and model the run resolved to.
+ * @param effort - What the conversation remembers, if anything.
+ * @returns The effort to send, or undefined when this model has no such level.
+ */
+export async function supportedEffort(
+  registry: ModelRegistry,
+  config: CallConfig,
+  effort: string | undefined,
+): Promise<string | undefined> {
+  if (effort === undefined || effort === '') return undefined
+  try {
+    const info = await registry.resolveModelInfo(config.provider, config.model)
+    const efforts = info.reasoning?.efforts.map(entry => String(entry.id)) ?? []
+    // A model that discloses no ladder is not the same as one that refuses
+    // every value: adapters that never resolve efforts still accept them.
+    if (efforts.length === 0) return info.reasoning === undefined ? undefined : effort
+    return efforts.includes(effort) ? effort : undefined
+  } catch {
+    // A route that cannot be resolved is not a reason to lose the prompt.
+    return undefined
+  }
 }
 
 /** A provider/model pair chosen in the UI. */

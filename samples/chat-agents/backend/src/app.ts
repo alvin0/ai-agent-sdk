@@ -18,10 +18,13 @@ import { createGroup, deleteGroup, getGroup, listGroups, updateGroup } from './g
 import { groupToolSurface } from './runtime-tools'
 import { listModels, listProviders } from './registry'
 import {
-  abortRun, answer, approve, forgetSession, pendingApprovals, runPrompt, session, steer,
+  abortRun, answer, approve, forgetSession, pendingApprovals, pendingQuestions, runPrompt, session,
+  steer,
 } from './session'
 import { grantPermission, listPermissions, revokePermission } from './approvals'
 import { browseDirectory, currentWorkspace, defaultWorkspace, setWorkspace } from './workspace'
+import { clearUsage, usageSummary } from './usage'
+import { sweepSpill } from './spill'
 import type {
   AnswerRequestBody, ApproveRequestBody, ChatRequestBody, SteerRequestBody, WireApprovalScope,
   WireEvent,
@@ -44,6 +47,16 @@ function failed(error: unknown): string {
  */
 export function createChatApp(basePath = '/api') {
   const app = new Hono().basePath(basePath)
+
+  // Spilled tool output outlives the run that produced it, so something has to
+  // remove it. Startup rather than a timer: the files only matter while their
+  // conversation is being read, and a sweep here cannot interrupt a run.
+  try {
+    sweepSpill()
+  } catch {
+    // A store that cannot be swept still works; failing to boot over it would
+    // be a worse trade.
+  }
 
   app.get('/health', c => c.json({ ok: true }))
 
@@ -164,13 +177,14 @@ export function createChatApp(basePath = '/api') {
     const id = c.req.param('id')
     const conversation = await getConversation(id)
     if (conversation === undefined) {
-      return c.json({ conversation: null, messages: [], pendingQuestions: 0, pendingApprovals: [] })
+      return c.json({ conversation: null, messages: [], pendingQuestions: [], pendingApprovals: [] })
     }
-    const live = await session(id)
     return c.json({
       conversation,
       messages: await readMessages(id),
-      pendingQuestions: live.broker.pending().length,
+      // The open questions themselves, not a count: a reload has to be able to
+      // re-render the card, and a number cannot be rendered into one.
+      pendingQuestions: await pendingQuestions(id),
       // A prompt still waiting is not in the transcript, so a reload has to be
       // handed the live ones to re-render.
       pendingApprovals: await pendingApprovals(id),
@@ -382,6 +396,16 @@ export function createChatApp(basePath = '/api') {
   })
 
   app.post('/auth/codex/cancel', c => c.json({ cancelled: cancelCodexLogin() }))
+
+  // ---- usage --------------------------------------------------------------
+
+  /** Token spend per provider / model / effort; `groupId` narrows it to one project. */
+  app.get('/usage', async c => c.json(await usageSummary(c.req.query('groupId'))))
+
+  app.delete('/usage', async (c) => {
+    await clearUsage(c.req.query('groupId'))
+    return c.json({ cleared: true })
+  })
 
   // ---- workspace ----------------------------------------------------------
 

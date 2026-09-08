@@ -21,6 +21,8 @@ interface ToolDefinition<Args = unknown> extends ToolSchema {
   meta?:              (value: JsonValue | undefined, args: Args) => JsonObject | undefined
   timeoutMs?:         number
   isConcurrencySafe?: (args: Args) => boolean
+  maxOutputTokens?:   number
+  budgetExempt?:      true
 }
 ```
 
@@ -35,6 +37,8 @@ interface ToolDefinition<Args = unknown> extends ToolSchema {
 | `meta` | — | UI metadata; the model **never** sees it |
 | `timeoutMs` | — | Never sent to the model. Asserts `execute` forwards `ctx.signal` |
 | `isConcurrencySafe` | — | **Fail-closed**: only exact `true` opts into parallel |
+| `maxOutputTokens` | — | Estimated tokens of text this tool's result may show the model. Never sent to the model; the stricter of this and the turn budget wins |
+| `budgetExempt` | — | Exempt from the turn's tool-call budget and loop guards. For calls that END work — submitting, asking, delegating. Only exact `true`; run-level ledger limits still apply |
 
 ## `ToolRunContext`
 

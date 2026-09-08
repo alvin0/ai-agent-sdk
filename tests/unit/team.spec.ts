@@ -173,6 +173,18 @@ describe('local agent teams', () => {
     expect(state.adapter.requests).toHaveLength(2)
   })
 
+  it('exempts every coordination tool from the turn budget', async () => {
+    // A lead that spent its budget researching still has to hand the work over
+    // and collect it. Blocking these strands a team run with finished members
+    // and no report — the reported failure this exemption exists for.
+    const team = new AgentTeam({ id: 'exempt-team' })
+    const tools = team.toolsFor('lead')
+    expect(tools.map(tool => tool.name)).toEqual([
+      'list_agents', 'send_message', 'followup_task', 'wait_agents',
+    ])
+    expect(tools.every(tool => tool.budgetExempt === true)).toBe(true)
+  })
+
   it('queues wakeup behind an active turn and guarantees a later request sees it', async () => {
     const adapter = new BlockingAdapter([textRound('Initial turn done.'), textRound('Follow-up done.')])
     const registry = new ModelRegistry()

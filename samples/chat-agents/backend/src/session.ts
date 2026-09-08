@@ -16,9 +16,9 @@ import {
   appendMessage, ensureConversation, getConversation, loadHistory, nextSeq, saveHistory,
   updateConversation,
 } from './conversations'
-import { resolveModel } from './registry'
+import { resolveModel, supportedEffort } from './registry'
 import type { ModelSelection } from './registry'
-import { getAgent } from './agents'
+import { getAgent, listAgents } from './agents'
 import { startRun } from './agent-runtime'
 import type { RunMode } from './agent-runtime'
 import { getGroup } from './groups'
@@ -27,9 +27,11 @@ import { createApprovalPolicy } from './approvals'
 import { createIdleWatch } from './resilience'
 import type { ApprovalPolicy } from './approvals'
 import type { ManagedAgentTeam } from '@ai-agent-sdk/core/agent'
+import { addToTally, recordUsage, turnShortfall, usageOf } from './usage'
+import type { UsageTally } from './usage'
 import { EventProjector } from './event-projection'
 import type { StoredNode } from './event-projection'
-import type { WireApproval, WireApprovalScope, WireEvent } from './wire'
+import type { WireApproval, WireApprovalScope, WireEvent, WireQuestion } from './wire'
 
 /**
  * Something that happened outside the run's own event stream and still belongs
@@ -74,6 +76,13 @@ export interface ChatSession {
   workerSink: ((member: string, event: AgentRunEvent) => void) | undefined
   /** Hands the run in flight a message; absent when nothing is running. */
   steerRun: ((text: string) => boolean) | undefined
+  /**
+   * Set when the user steered, cleared when a model round starts.
+   *
+   * Still set once the run has ended means the message arrived after the last
+   * round: nothing read it, and nothing ever will unless the run is continued.
+   */
+  steerUnread: boolean
   /** Wakes the run generator after another request adds to `outbox`. */
   notify: (() => void) | undefined
   abort: AbortController | undefined
@@ -232,7 +241,21 @@ export async function* followWorkers(
     // stream while the queued half of the plan was still to come.
     const busy = managed.team.members()
       .filter(member => member.status === 'running' || member.status === 'pending')
-    if (busy.length === 0) break
+    if (busy.length === 0) {
+      // Everyone LOOKS idle — but a worker's last event fires before its run
+      // resolves, and the report that wakes the lead is delivered after that.
+      // Believing the roster in that gap is what closed the stream one instant
+      // before the synthesis, leaving the conversation ending on a worker.
+      try {
+        await managed.whenQuiet(controller.signal)
+      } catch {
+        // Aborted, or a harness without the wait: fall through and stop.
+      }
+      const stillBusy = managed.team.members()
+        .some(member => member.status === 'running' || member.status === 'pending')
+      if (!stillBusy) break
+      continue
+    }
     reported = true
     // Only when it CHANGES. The doorbell rings on every worker event, and three
     // busy workers ring it many times a second; re-sending the same line each
@@ -373,6 +396,7 @@ export async function session(id: string, groupId?: string): Promise<ChatSession
     managed: undefined,
     workerSink: undefined,
     steerRun: undefined,
+    steerUnread: false,
     notify: undefined,
     abort: undefined,
     seq: await nextSeq(id),
@@ -464,6 +488,7 @@ export async function steer(id: string, text: string): Promise<boolean> {
   const trimmed = text.trim()
   if (live.steerRun === undefined || trimmed === '') return false
   if (!live.steerRun(trimmed)) return false
+  live.steerUnread = true
   live.outbox.push({ node: { kind: 'user', id: `u_${String(live.seq)}_steer`, text: trimmed } })
   live.notify?.()
   return true
@@ -480,6 +505,35 @@ export async function steer(id: string, text: string): Promise<boolean> {
 export async function pendingApprovals(id: string): Promise<readonly WireApproval[]> {
   const live = await session(id)
   return live.approvals?.pending() ?? []
+}
+
+/**
+ * The questions this conversation is still waiting on.
+ *
+ * The same reason as {@link pendingApprovals}: a question is written to the
+ * transcript only once it has been answered, so a reload while one is open
+ * would find no card — and the run stays parked on an answer the user has no
+ * way to give. A count was not enough; the card needs the questions.
+ * @param id - Conversation id.
+ * @returns The open questions, shaped as the client renders them.
+ */
+export async function pendingQuestions(id: string): Promise<readonly {
+  readonly requestId: string
+  readonly questions: readonly WireQuestion[]
+}[]> {
+  const live = await session(id)
+  return live.broker.pending().map(request => ({
+    requestId: String(request.requestId),
+    questions: request.questions.map(question => ({
+      id: question.id,
+      header: question.header,
+      question: question.question,
+      options: question.options.map(option => ({
+        label: option.label,
+        description: option.description,
+      })),
+    })),
+  }))
 }
 
 /**
@@ -529,8 +583,13 @@ export async function* runPrompt(
       : agent?.provider != null && agent.model != null
         ? { provider: agent.provider, model: agent.model }
         : undefined
-  const effort = conversation?.reasoningEffort ?? agent?.reasoningEffort ?? undefined
+  const rememberedEffort = conversation?.reasoningEffort ?? agent?.reasoningEffort ?? undefined
 
+  // A second prompt takes the conversation over rather than running beside the
+  // first. Two runs on one conversation share its history and its transcript
+  // counter, so leaving both alive splices two dialogues into one and neither
+  // is readable afterwards — and the session shapes refuse the second outright.
+  live.abort?.abort(new Error('a newer prompt took the conversation over'))
   const controller = new AbortController()
   live.abort = controller
   const runId = `run_${Date.now().toString(36)}`
@@ -541,8 +600,13 @@ export async function* runPrompt(
   }
 
   let model
+  let effort: string | undefined
   try {
     model = await resolveModel(selection)
+    // The conversation's remembered effort against the model it actually ran
+    // on. Switching a conversation to a model with a different ladder — or
+    // none — otherwise fails every later prompt with a provider rejection.
+    effort = await supportedEffort(model.registry, model.config, rememberedEffort ?? undefined)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     await persist({ kind: 'error', id: `e_${String(live.seq)}`, message })
@@ -555,6 +619,22 @@ export async function* runPrompt(
   if (conversation?.title === 'New chat') {
     await updateConversation(id, { title: prompt.slice(0, 60) })
   }
+
+  /**
+   * What this run has already recorded, per member.
+   *
+   * Two sources report the same tokens — the per-call events and the turn's own
+   * report — so the second only records what the first did not.
+   */
+  const tally: UsageTally = new Map()
+
+  /**
+   * Each team member's route, by member name.
+   *
+   * Filled once the roster is known — after `startRun` — which is before any
+   * member can report usage, so a lookup here is never premature.
+   */
+  const memberRoutes = new Map<string, { provider: string; model: string; effort?: string }>()
 
   // Member events arrive through a callback rather than the lead's stream, so
   // they are queued here and drained into the same wire order.
@@ -570,6 +650,29 @@ export async function* runPrompt(
 
   const feed = createMemberFeed(project, (event) => { queued.push(event) })
   const onMemberEvent = (member: string, event: AgentRunEvent): void => {
+    // A member's spend is the user's spend, and it is attributed to the route
+    // the member actually ran on: a preset may override the conversation's
+    // model, so charging its tokens to the lead's model would be a lie.
+    const route = memberRoutes.get(member)
+    const memberContext = {
+      conversationId: id,
+      groupId: group.id,
+      runId,
+      provider: route?.provider ?? model.config.provider,
+      model: route?.model ?? model.config.model,
+      effort: route?.effort ?? effort ?? undefined,
+      // A turn the lead was woken for is still the lead, not a worker.
+      ...member === LEAD_NAME ? {} : { member },
+    }
+    // The lead keeps ONE tally whichever path its events arrive on: a woken
+    // turn counted under a second key would reconcile against an empty one.
+    const tallyKey = member === LEAD_NAME ? undefined : member
+    const streamed = usageOf(event)
+    if (streamed !== undefined) {
+      addToTally(tally, tallyKey, streamed)
+      void recordUsage(streamed, memberContext)
+    }
+    void recordUsage(turnShortfall(event, tally, tallyKey), memberContext)
     if (member === LEAD_NAME) {
       // The agent the user is talking to, reporting a turn it was woken for
       // after a worker finished. Projected as the lead so its synthesis reads
@@ -630,6 +733,18 @@ export async function* runPrompt(
   live.notify = () => { wake.ring() }
   if (handles.managedTeam !== undefined) live.managed = handles.managedTeam
   live.workerSink = onMemberEvent
+  // Now the roster exists, so a member's tokens can be charged to its own
+  // route rather than to the conversation's.
+  if (handles.members.length > 0) {
+    for (const row of await listAgents(group.id)) {
+      if (!handles.members.includes(row.name)) continue
+      memberRoutes.set(row.name, {
+        provider: row.provider ?? model.config.provider,
+        model: row.model ?? model.config.model,
+        ...row.reasoningEffort == null ? {} : { effort: row.reasoningEffort },
+      })
+    }
+  }
   yield { t: 'run-start', runId, members: handles.members }
 
   // A permission answer arrives on its own HTTP request while this generator
@@ -701,6 +816,27 @@ export async function* runPrompt(
       }
       yield* drainOutbox()
       if ('lead' in step) {
+        // The round about to run rebuilds its request from history, so whatever
+        // was steered before now is about to be read.
+        if (step.lead.type === 'step-start') live.steerUnread = false
+        // Per model call while the provider streams counters, and whatever the
+        // turn's own report says is still unaccounted for when it ends. A route
+        // that reports only on completion emits no per-call event at all, and
+        // counting just those left this at zero through entire runs.
+        const leadContext = {
+          conversationId: id,
+          groupId: group.id,
+          runId,
+          provider: model.config.provider,
+          model: model.config.model,
+          effort,
+        }
+        const streamed = usageOf(step.lead)
+        if (streamed !== undefined) {
+          addToTally(tally, undefined, streamed)
+          void recordUsage(streamed, leadContext)
+        }
+        void recordUsage(turnShortfall(step.lead, tally), leadContext)
         for (const wire of project.forLead(step.lead)) {
           if (wire.t === 'tool-call') inFlight.set(wire.id, wire.name)
           if (wire.t === 'tool-result') inFlight.delete(wire.id)
@@ -718,6 +854,18 @@ export async function* runPrompt(
       }
     }
     if (reporting) yield { t: 'progress', message: null }
+    // A correction typed after the last model round has nobody left to read it.
+    // One more turn is what the user asked for by typing it.
+    if (live.steerUnread && handles.continuePending !== undefined && !controller.signal.aborted) {
+      live.steerUnread = false
+      for await (const event of handles.continuePending()) {
+        for (const wire of project.forLead(event)) {
+          if (wire.t === 'tool-call') inFlight.set(wire.id, wire.name)
+          if (wire.t === 'tool-result') inFlight.delete(wire.id)
+          yield wire
+        }
+      }
+    }
     while (queued.length > 0) {
       const pending = queued.shift() as WireEvent
       yield pending
@@ -751,8 +899,15 @@ export async function* runPrompt(
     feed.open.clear()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    await persist({ kind: 'error', id: `e_${String(live.seq)}`, message })
-    yield { t: 'error', message }
+    // A run the NEXT prompt ended is not a failure. Painting it red tells the
+    // user something went wrong with a run they themselves replaced.
+    if (live.abort !== controller) {
+      await persist({ kind: 'notice', id: `n_${String(live.seq)}`, level: 'warn', message })
+      yield { t: 'notice', level: 'warn', message }
+    } else {
+      await persist({ kind: 'error', id: `e_${String(live.seq)}`, message })
+      yield { t: 'error', message }
+    }
   } finally {
     clearInterval(heartbeat)
     unwatchOutput()
@@ -772,9 +927,21 @@ export async function* runPrompt(
     // written to the transcript so a reload shows it; it is deliberately not
     // queued for the next stream, where it would arrive out of order among
     // that run's own events.
+    // ONE projector, not one per event: a projector accumulates deltas into a
+    // settled node, and a fresh one per event turns a streamed answer into a
+    // scatter of fragments.
+    //
+    // And the lead is projected AS THE LEAD. Routing everything through
+    // `forMember` filed the lead's own woken turn — the synthesis — under a
+    // subagent, which is what put a finished report inside a worker's panel
+    // and made the run look abandoned.
+    const closing = new EventProjector()
     live.workerSink = (member, event) => {
-      const closing = new EventProjector()
-      void closing.forMember(member, event)
+      if (member === LEAD_NAME) {
+        for (const _wire of closing.forLead(event)) { /* nobody is listening */ }
+      } else {
+        void closing.forMember(member, event)
+      }
       for (const node of closing.flush()) void persist(node)
     }
     if (live.abort === controller) live.abort = undefined

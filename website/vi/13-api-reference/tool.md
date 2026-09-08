@@ -21,6 +21,8 @@ interface ToolDefinition<Args = unknown> extends ToolSchema {
   meta?:              (value: JsonValue | undefined, args: Args) => JsonObject | undefined
   timeoutMs?:         number
   isConcurrencySafe?: (args: Args) => boolean
+  maxOutputTokens?:   number
+  budgetExempt?:      true
 }
 ```
 
@@ -35,6 +37,8 @@ interface ToolDefinition<Args = unknown> extends ToolSchema {
 | `meta` | — | Metadata giao diện; model **không bao giờ** thấy |
 | `timeoutMs` | — | Không bao giờ gửi cho model. Cam kết rằng `execute` chuyển tiếp `ctx.signal` |
 | `isConcurrencySafe` | — | **Fail-closed**: chỉ đúng `true` mới cho chạy song song |
+| `maxOutputTokens` | — | Số token text ước lượng mà kết quả của tool này được đưa cho model. Không gửi cho model; bên nào chặt hơn giữa nó và ngân sách turn thì thắng |
+| `budgetExempt` | — | Miễn ngân sách tool-call của turn và các guard vòng lặp. Dành cho call KẾT THÚC việc — submit, hỏi người dùng, giao việc. Chỉ đúng `true`; giới hạn mức run của ledger vẫn áp dụng |
 
 ## `ToolRunContext`
 

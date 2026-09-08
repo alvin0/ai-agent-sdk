@@ -7,7 +7,21 @@ import { createWindowsCommandProcessCleanup } from '../process-cleanup.ts'
 import { DEFAULT_MAX_DIRECTORIES, DEFAULT_MAX_ENTRIES, DEFAULT_MAX_WRITE_BYTES, MAX_COMMAND_OUTPUT_CHARS, MAX_GREP_CHARS, MAX_READ_CHARS, SEARCH_EXCLUDES, type AgentCodeResolvedCommand, type AgentCodeToolRegistryOptions } from './types.ts'
 import { boundedInteger, countOccurrences, npmInvocation, optionalBoolean, optionalString, record, requiredString, shouldTrackDetachedNpmDescendants, stringValue, validateResolvedCommand } from './validation.ts'
 import { portableGrepMatch, portableRelative, streamLineRange, takeBoundedLines, walk } from './filesystem.ts'
+import { fallbackSearch } from './search.ts'
 import { runProcess } from './process.ts'
+/**
+ * Whether a spawn failed because the executable is not installed.
+ *
+ * Only that: a `rg` that exists and exits non-zero is a real search failure and
+ * must keep surfacing, or a broken pattern would silently become a slow scan.
+ * @param error - The rejection from a spawn attempt.
+ * @returns True when the binary itself is missing.
+ */
+function isMissingExecutable(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code
+  return code === 'ENOENT' || code === 'EACCES'
+}
+
 export function createAgentCodeToolRegistry(
   workspaceRoot: string,
   options: AgentCodeToolRegistryOptions = {},
@@ -206,16 +220,35 @@ export function createAgentCodeToolRegistry(
       for (const excluded of SEARCH_EXCLUDES) args.push('--glob', excluded)
       if (glob !== undefined) args.push('--glob', glob)
       args.push('--', pattern, relative(cwd, target) || '.')
-      const result = await runProcess('rg', args, cwd, 30_000, context.signal, MAX_GREP_CHARS)
-      if (result.exitCode !== 0 && result.exitCode !== 1) {
-        throw new Error(`ripgrep failed (${result.exitCode}): ${result.stderr || result.stdout}`)
+      // ripgrep when it is installed, an in-process walk when it is not. `rg`
+      // is not part of Node, and a missing optional binary used to surface as
+      // `spawn rg ENOENT` — a message the model cannot act on, for a search
+      // that Node can perform perfectly well itself.
+      let lines: string[]
+      let outputTruncated = false
+      try {
+        const result = await runProcess('rg', args, cwd, 30_000, context.signal, MAX_GREP_CHARS)
+        if (result.exitCode !== 0 && result.exitCode !== 1) {
+          throw new Error(`ripgrep failed (${result.exitCode}): ${result.stderr || result.stdout}`)
+        }
+        lines = result.stdout.split(/\r?\n/).filter(Boolean)
+        outputTruncated = result.outputTruncated
+      } catch (error: unknown) {
+        if (!isMissingExecutable(error)) throw error
+        lines = await fallbackSearch({
+          root: cwd, target, pattern, excludes: SEARCH_EXCLUDES,
+          ...(glob === undefined ? {} : { glob }),
+          // One extra, so `truncated` can still tell the model there was more.
+          maxMatches: maxResults + 1,
+          signal: context.signal,
+        })
       }
-      const all = result.stdout.split(/\r?\n/).filter(Boolean).map(portableGrepMatch)
+      const all = lines.map(portableGrepMatch)
       const matches = takeBoundedLines(all, maxResults, MAX_GREP_CHARS)
       return {
         pattern,
         matches,
-        truncated: result.outputTruncated || matches.length < all.length,
+        truncated: outputTruncated || matches.length < all.length,
         omittedMatches: Math.max(0, all.length - matches.length),
       }
     },

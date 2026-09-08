@@ -365,6 +365,7 @@ function createRuntimeSession(
     ...(options.skillCwd === undefined ? {} : { skillCwd: options.skillCwd }),
     ...(options.userInput === undefined ? {} : { userInput: options.userInput }),
     ...(options.approvals === undefined ? {} : { approvals: options.approvals }),
+    ...(options.spillStore === undefined ? {} : { spillStore: options.spillStore }),
     ...(options.interceptors === undefined ? {} : { interceptors: options.interceptors }),
     ...(options.hooks === undefined ? {} : { hooks: options.hooks }),
     ...(options.usagePolicy === undefined ? {} : { usagePolicy: options.usagePolicy }),
@@ -488,8 +489,11 @@ function projectEvent(event: AgentRunEvent, nativeProvider: string): ProjectedEv
 
 function toolResultStatus(
   result: ToolExecutionResult,
-): 'completed' | 'failed' | 'aborted' | 'rejected' {
-  if (!result.isError) return 'completed'
+): 'completed' | 'failed' | 'aborted' | 'rejected' | 'declined' {
+  // A call the loop refused to run is neither success nor failure: nothing
+  // broke, and nothing was done. Reporting it as either misleads a UI — and a
+  // red row for a budget decision is what makes a finished run look crashed.
+  if (!result.isError) return result.meta?.['declined'] === true ? 'declined' : 'completed'
   if (result.error.code === TOOL_ERROR_CODES.ABORTED
     || result.error.code === TOOL_ERROR_CODES.ABORTED_BEFORE_DISPATCH) return 'aborted'
   if (result.error.code === TOOL_ERROR_CODES.UNKNOWN_TOOL

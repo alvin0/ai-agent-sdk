@@ -14,18 +14,17 @@
 
 import {
   AgentTeam, History, ToolRegistry, createDefinedAgentTeam, createManagedAgentTeam, defineAgent,
-  runAgent,
 } from '@ai-agent-sdk/core/agent'
 import type {
   AgentResponse, AgentRunEvent, ApprovalBroker, DefinedAgent, ManagedAgentTeam,
   ToolDefinition, ToolInterceptor,
 } from '@ai-agent-sdk/core/agent'
-import { ReasoningEffortId, createTextMessage } from '@ai-agent-sdk/core'
 import type { ModelRegistry, SkillSource, UserInputBroker } from '@ai-agent-sdk/core'
 import { fileSystemSkills } from '@ai-agent-sdk/skill-filesystem'
 import { MODEL_TIMEOUT_MS, retryHooks } from './resilience'
 import type { RetryNotice } from './resilience'
 import { listAgents, listSkills, mcpTools } from './agents'
+import { createFileSpillStore } from './spill'
 import type { AgentRow } from './agents'
 
 /**
@@ -153,6 +152,15 @@ export interface RunHandles {
   /** Names of every other agent that may report during the run. */
   readonly members: readonly string[]
   /**
+   * Run one more turn over context that arrived too late to be read.
+   *
+   * Steering appends to history and schedules nothing: the next model round
+   * picks it up, and if the run ends before there is a next round, nobody
+   * ever does. The caller checks for that and continues the run here rather
+   * than leaving a user's correction unanswered in the transcript.
+   */
+  readonly continuePending?: () => AsyncIterable<AgentRunEvent>
+  /**
    * The harness this run used, when the shape has one.
    *
    * Handed back so the caller can keep it for the next prompt: its workers
@@ -200,26 +208,6 @@ async function surfaceFor(context: RunContext): Promise<{
       ...roots.length === 0 ? [] : [fileSystemSkills({ id: 'global', roots })],
     ],
   }
-}
-
-/** The effort in force: the preset's, else the conversation's, else none. */
-function effortOf(context: RunContext): string | undefined {
-  const value = context.agent?.reasoningEffort ?? context.effort
-  return value == null || value === '' ? undefined : value
-}
-
-/**
- * System prompt for the single-agent loop.
- *
- * `runAgent` has no skill plumbing, so skills are only available in the
- * session-based shapes; the prompt says nothing about them here.
- * @param row - The preset in play, if any.
- * @param skills - Declared skill sources (unused by this shape).
- * @returns The instructions to send.
- */
-function instructionsFor(row: AgentRow | undefined, skills: readonly SkillSource[]): string {
-  void skills
-  return row?.systemPrompt ?? DEFAULT_INSTRUCTIONS
 }
 
 /** Loop policy passed to the SDK; the team modes run their members in `deep`. */
@@ -281,6 +269,18 @@ function steerSession(session: { inject: (input: string) => number }, text: stri
  * @param onMemberEvent - Raw events from every non-lead agent, tagged by name.
  * @returns The lead's event handle plus the member roster.
  */
+/**
+ * One store for the process.
+ *
+ * Memoised because the directory is created on first use and every session
+ * shares the same files; a per-run store would re-create it on every prompt.
+ */
+let sharedSpillStore: ReturnType<typeof createFileSpillStore> | undefined
+function spillStore(): ReturnType<typeof createFileSpillStore> {
+  sharedSpillStore ??= createFileSpillStore()
+  return sharedSpillStore
+}
+
 export async function startRun(
   prompt: string,
   context: RunContext,
@@ -294,7 +294,16 @@ export async function startRun(
     registry: context.registry,
     userInput: context.userInput,
     skillCwd: context.workspaceRoot,
-    runtimeLimits: { modelTimeoutMs: MODEL_TIMEOUT_MS },
+    // The tool budget paces the run; it does not end it. A research or team
+    // turn spends its calls long before the work is done, and a wall there
+    // declines the very call that would have finished — the handover, the
+    // submission. The turn stays bounded by steps, tokens, and the run ledger.
+    runtimeLimits: { modelTimeoutMs: MODEL_TIMEOUT_MS, onExhausted: 'continue' as const },
+    // With a store mounted the default `auto` overflow policy spills instead of
+    // truncating, so a `cat` of a large file costs the model a preview and a
+    // locator rather than the rest of its context — and nothing is lost, since
+    // `read_tool_output` reads the file back.
+    spillStore: spillStore(),
     ...context.onRetry === undefined ? {} : { hooks: retryHooks(context.onRetry) },
     ...context.approvals === undefined ? {} : { approvals: context.approvals },
     ...context.interceptors === undefined ? {} : { interceptors: context.interceptors },
@@ -386,7 +395,10 @@ export async function startRun(
       result: leadHandle.result,
       members: [],
       managedTeam: managed,
-      steer: text => steerSession(managed.lead, text),
+      // The harness's own steering, not the bare session's: a message typed
+      // while the lead is idle and its workers are still running has to be
+      // read by something, and an injection schedules nothing.
+      steer: text => managed.steer(text),
       // Deliberately NOT disposed: its workers are meant to keep running
       // past the end of this run. The conversation owns the harness now, and
       // drops it when the conversation goes.
@@ -394,40 +406,26 @@ export async function startRun(
     }
   }
 
-  // Single agent: the bounded loop, not a session. It accepts an OMITTED
-  // reasoning effort, while a DefinedAgent always sends one — and a provider
-  // that declares no efforts (Gemini today) rejects any value.
-  const registry = new ToolRegistry()
-  for (const tool of tools) registry.register(tool)
-  context.history.append({ kind: 'user', message: createTextMessage(prompt) })
+  // Single agent, on a SESSION rather than the bare loop.
+  //
+  // The bounded loop was chosen because it accepts an omitted reasoning effort
+  // while a DefinedAgent always sends one, and a provider that declares no
+  // efforts rejects any value. That reason is gone: the run now validates the
+  // conversation's remembered effort against the model it resolved to, so an
+  // unsupported one never reaches here.
+  //
+  // What the loop could not do is COMPACT. A session carries the SDK's
+  // compactor, so a long conversation is condensed as it approaches the model's
+  // context window instead of growing until the provider refuses it — which is
+  // what both reference harnesses do, and what a chat that lasts all day needs.
+  const session = definitionFor(context.agent, context, { id: 'agent' }, tools, skills)
+    .createSession({ ...sessionOptions, history: context.history })
+  const handle = session.stream(prompt, { signal: context.signal })
   return {
-    // The bounded loop owns no session, so the history object IS the seam —
-    // the same one `AgentSession.inject` appends to underneath.
-    steer: (text) => {
-      context.history.append({ kind: 'user', message: createTextMessage(text) })
-      return true
-    },
-    events: runAgent({
-      mode: sdkMode(context.mode),
-      registry: context.registry,
-      config: {
-        provider: context.agent?.provider ?? context.provider,
-        model: context.agent?.model ?? context.model,
-        ...effortOf(context) === undefined ? {} : { reasoningEffort: ReasoningEffortId(effortOf(context) as string) },
-      },
-      system: instructionsFor(context.agent, skills),
-      history: context.history,
-      tools: registry,
-      userInput: context.userInput,
-      modelTimeoutMs: MODEL_TIMEOUT_MS,
-      ...context.onRetry === undefined ? {} : { hooks: retryHooks(context.onRetry) },
-      ...context.approvals === undefined ? {} : { approvals: context.approvals },
-      ...context.interceptors === undefined ? {} : { interceptors: context.interceptors },
-      commentary: 'concise',
-      maxTurns: TURN_BUDGET,
-      signal: context.signal,
-      trace: { agentId: 'chat-agents', agentName: 'Chat Agent' },
-    }),
+    steer: text => steerSession(session, text),
+    events: handle,
+    result: handle.result,
+    continuePending: () => session.streamPending({ signal: context.signal }),
     members: [],
     close: async () => undefined,
   }

@@ -644,7 +644,7 @@ export interface TurnBounds {
    */
   maxToolCalls: number
   /** What to do when a budget runs out. Default 'force-final-answer'. */
-  onExhausted: 'force-final-answer' | 'stop'
+  onExhausted: 'force-final-answer' | 'stop' | 'continue'
   /** Consecutive failing tool calls before the turn gives up. Default 8. */
   maxConsecutiveToolErrors: number
   /** Identical (name, args) repeats before a reminder is injected. Default 3. */
@@ -663,6 +663,10 @@ export interface TurnBounds {
   maxParallel: number
   /** Maximum retained result size per tool. Default 4 MiB. */
   maxToolResultBytes: number
+  /** Estimated tokens of text one result may show the model. Default 10,000. */
+  maxToolResultTokens: number
+  /** What happens above that budget. Default 'auto'. */
+  toolResultOverflow: 'auto' | 'truncate' | 'spill'
   /** End-to-end deadline per tool call. Default 10 minutes. */
   maxToolDurationMs: number
   /** Cancellation settlement allowance. Default 30 seconds. */
@@ -709,13 +713,25 @@ All four guards use the one structural outcome:
 gap where the document added `maxToolCalls` but could only report `max-steps`.
 
 When an assistant batch would exceed `maxToolCalls`, dispatch only the remaining
-allowance in model order and synthesize `TOOL_BUDGET_EXHAUSTED` results for every
-later call. That synthesized failure states the remedy — do not retry, answer now
-from what you have, and say what is unverified — because a model given only the
-fact reaches for its usual recovery, which is to try again with calls that no
-longer exist. Requested-but-declined calls do not increment
-`TurnOutcome.toolCalls`.
+allowance in model order and synthesize a **declined** result for every later
+call. A declined result is a `ToolSuccess` carrying the instruction and
+`meta: { declined: true, reason }` — not a failure. Neither reference
+implementation fails a call to enforce a budget: Codex ends the turn with
+`TurnAbortReason::BudgetLimited` and the DeepSeek harness has no tool-call
+budget at all. Reporting a limit as a broken tool invites the model's usual
+recovery, which is to retry with calls that no longer exist, and it inflates
+`maxConsecutiveToolErrors` on top. The `reason` names the limit that actually
+declined the call — a repeat guard reported as an empty budget teaches the model
+to ask for fewer calls, which changes nothing. Requested-but-declined calls do
+not increment `TurnOutcome.toolCalls`.
 History is therefore valid before either exhaustion policy runs.
+
+Calls to a tool declaring `budgetExempt: true` are never declined and never
+spend budget. That covers the calls that END work rather than do it —
+`submit_result`, `request_user_input`, and the team coordination tools. A budget
+exists to stop exploration; one that also blocks the only remaining useful
+action leaves the model with no legal move, and the run dies mid-plan instead of
+finishing. Exempt calls still count against the run-level ledger limits.
 
 With `onExhausted: 'force-final-answer'`:
 
@@ -729,8 +745,59 @@ With `onExhausted: 'stop'`, emit the same outcome with
 `forcedFinalAnswer: false`; exhaustion is expected control flow, not a thrown or
 generic model error.
 
+With `onExhausted: 'continue'`, the tool-call budget stops being a wall at all:
+no call is declined for it, and the turn stays bounded by `maxSteps`,
+`maxTotalTokens`, and the run-level ledger. Each further budget spent injects
+one notice — no new substantive work, wrap up, name what is left — which is the
+shape of Codex's `budget_limit` goal prompt. Long research and team leads want
+this, because for them the useful call is usually the last one. The guards that
+mean "this is not working" — repeats, cycles, consecutive errors — still decline
+under every setting.
+
+Budget notices replace each other rather than accumulating. Two notices stating
+different remainders are both readable, and a model planning against the older
+one plans against a budget it no longer has; Codex keeps exactly one
+`<rollout_budget>` fragment for the same reason.
+
 This is the prototype's `runForcedFinalRound`, and it matters because the
 alternative — throwing — discards every tool result already paid for.
+
+### Oversized tool output
+
+`maxToolResultBytes` is a storage bound measured in megabytes. It is not a
+context bound: one `cat` of a generated bundle passes it easily and still spends
+the whole window, after which the provider rejects the next request and every
+tool result already paid for is lost. The context bound is
+`maxToolResultTokens`, applied at the RESULT boundary — before the text ever
+reaches history — because by the time the request is assembled the window is
+already gone. Both reference harnesses cut here.
+
+They differ only in where the removed text goes, and both shapes are offered:
+
+- **`truncate`** — Codex's shape (`truncate_middle_with_token_budget`). Keep the
+  two ends, drop the middle, say how much went. Needs no storage and works in
+  any runtime; the model recovers by re-running a narrower command.
+- **`spill`** — the DeepSeek harness's shape (`dsh-spill-policy`). Save the full
+  text through a `SpillStore`, show a bounded preview plus a locator, and give
+  the model `read_tool_output` to read or search the rest. Nothing is lost, but
+  it needs somewhere to put the text.
+
+**`auto` is the default**: spill when a store is mounted, truncate when none is.
+The cheap path therefore works everywhere with no configuration, and the
+lossless one turns itself on the moment a host mounts a store. `spill` also
+falls back to truncating when the store is missing or fails — losing a result
+entirely is a worse answer to a full disk than showing most of it.
+
+A tool may declare `maxOutputTokens` for its own results. The STRICTER of that
+and the turn budget wins, exactly as Codex resolves a model-requested
+`max_output_tokens` against its deployment policy, so a file reader can ask for
+room a status check has no use for without any tool exceeding what the host
+allows.
+
+Only text is shortened, in place. An image block passes through untouched —
+cutting one produces a corrupt image rather than a smaller one — and the result's
+`value` is never rewritten, so a host's log still records what the tool actually
+returned.
 
 ### Repeat detection
 

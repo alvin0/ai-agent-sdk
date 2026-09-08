@@ -43,6 +43,17 @@ interface LocalMemberRuntime {
    * it start. See {@link AgentTeam.markPending}.
    */
   pendingStart: Promise<void> | undefined
+  /**
+   * Aborted when the user steers something into this member mid-turn.
+   *
+   * A member parked in `wait_agents` is not listening to its own conversation:
+   * the wait is bounded by its own budget, so a correction typed while it waits
+   * sits unread for as long as that budget lasts. Codex's `wait_agent` "ends
+   * early when new user input is steered into the active turn" for the same
+   * reason. Replaced after each notification, so one interruption ends one
+   * wait.
+   */
+  steerController: AbortController | undefined
 }
 
 interface RemoteMemberRuntime {
@@ -133,7 +144,7 @@ export class AgentTeam implements TeamPort {
       kind: 'local', name, role, access, session,
       wakeRequestedSeq: 0, wakeConsumedSeq: 0,
       wakeTask: undefined, wakeController: undefined, error: undefined, outcome: undefined,
-      pendingStart: undefined,
+      pendingStart: undefined, steerController: undefined,
       ...(options.description === undefined ? {} : {
         description: boundedString(options.description, 'member description', this.maxMetadataBytes),
       }),
@@ -310,6 +321,37 @@ export class AgentTeam implements TeamPort {
     }
   }
 
+  /**
+   * Report that the user steered something into a local member mid-turn.
+   *
+   * Ends whatever that member is currently waiting on. A member parked in
+   * `wait_agents` would otherwise finish its budget before reading a correction
+   * that has been sitting in its history the whole time; Codex ends its
+   * `wait_agent` early on steered input for the same reason.
+   * @param name - Local member address.
+   */
+  notifySteer(name: string): void {
+    const member = this.requireLocalMember(name)
+    const controller = member.steerController
+    member.steerController = undefined
+    controller?.abort(new Error('user input steered into the active turn'))
+  }
+
+  /**
+   * Schedule one turn for a local member over context it already has.
+   *
+   * A wake-up delivery carries a message; this carries nothing. It exists for
+   * the case where the context arrived earlier and quietly — appended to a
+   * member that was mid-turn, on the assumption its next model round would read
+   * it — and that round never came. Without this the message sits in history
+   * with nothing left to read it.
+   * @param name - Local member address.
+   */
+  wake(name: string): void {
+    const member = this.requireLocalMember(name)
+    this.scheduleWake(member, member.wakeRequestedSeq + 1)
+  }
+
   /** Cancel team-owned scheduled work for one member without mutating its history. */
   async cancel(name: string, reason: unknown = new Error('A2A member work cancelled')): Promise<void> {
     const member = this.requireAddress(name)
@@ -379,9 +421,13 @@ export class AgentTeam implements TeamPort {
     // Called before `attach`, so the access level arrives as an argument
     // rather than being looked up on the member that does not exist yet.
     const coordinating = access === 'full'
+    // Coordination is not exploration. A lead that has spent its tool budget
+    // still has to be able to hand the work over and collect it; blocking
+    // these is what strands a team run with finished members and no report.
     return Object.freeze([
       defineTool({
         name: TEAM_TOOL_NAMES.list,
+        budgetExempt: true,
         description: 'List local and remote addressable agents, their protocols, supported delivery modes, and status.',
         parameters: { type: 'object', properties: {}, additionalProperties: false },
         parse: raw => emptyObject(raw, 'list_agents'),
@@ -390,7 +436,11 @@ export class AgentTeam implements TeamPort {
       }),
       defineTool({
         name: TEAM_TOOL_NAMES.send,
-        description: 'Inject quiet context into another local agent without starting it. Remote A2A peers require followup_task.',
+        budgetExempt: true,
+        description: 'Inject quiet context into ANOTHER local agent without starting it.'
+          + ' Name a target from list_agents other than yourself; your own result already'
+          + ' goes back to whoever started you, so reporting does not need this tool.'
+          + ' Remote A2A peers require followup_task.',
         parameters: messageToolSchema('Message to add to the target context.'),
         parse: parseMessageTool,
         execute: async ({ target, message }, ctx) => asJson(await this.sendMessage({
@@ -399,6 +449,7 @@ export class AgentTeam implements TeamPort {
       }),
       ...!coordinating ? [] : [defineTool({
         name: TEAM_TOOL_NAMES.followup,
+        budgetExempt: true,
         description: 'Send active work to a local agent or interoperable remote A2A peer and wait for its accepted result.',
         parameters: messageToolSchema('Follow-up instruction the target must process.'),
         parse: parseMessageTool,
@@ -408,7 +459,10 @@ export class AgentTeam implements TeamPort {
       })],
       ...!coordinating ? [] : [defineTool({
         name: TEAM_TOOL_NAMES.wait,
-        description: 'Wait until selected local or remote agents finish their scheduled work, then return their current roster state.',
+        budgetExempt: true,
+        description: 'Wait until one of the selected local or remote agents finishes its scheduled'
+          + ' work, then return their current roster state. Returns early with interrupted=true when'
+          + ' the user sends you something while you wait, so read that before waiting again.',
         parameters: {
           type: 'object',
           properties: {
@@ -445,10 +499,19 @@ export class AgentTeam implements TeamPort {
             // deadline signal: a member that does not honour the signal would
             // otherwise hold the wait open past its own timeout, and a timeout
             // a callee can ignore is not a timeout.
-            const signal = combineSignals(ctx.signal, AbortSignal.timeout(budget))
+            // A wait that cannot be interrupted is a wait the user cannot
+            // correct: the caller is parked here, so its own new input has
+            // nothing else to end it before the budget runs out.
+            const steer = new AbortController()
+            const caller = this.roster.get(memberName(sender))
+            if (caller !== undefined) caller.steerController = steer
+            const signal = combineSignals(ctx.signal, AbortSignal.timeout(budget), steer.signal)
             let timer: ReturnType<typeof setTimeout> | undefined
             const expiry = new Promise<undefined>((resolve) => {
               timer = setTimeout(() => resolve(undefined), budget)
+            })
+            const interrupted = new Promise<undefined>((resolve) => {
+              steer.signal.addEventListener('abort', () => { resolve(undefined) }, { once: true })
             })
             const settled = await Promise.race([
               Promise.any(targets.map(async (target) => {
@@ -456,8 +519,22 @@ export class AgentTeam implements TeamPort {
                 return target
               })).then(target => target, () => undefined),
               expiry,
-            ]).finally(() => { clearTimeout(timer) })
+              interrupted,
+            ]).finally(() => {
+              clearTimeout(timer)
+              if (caller?.steerController === steer) caller.steerController = undefined
+            })
+            // The caller's own cancellation still wins; a steer does not.
             ctx.signal.throwIfAborted()
+            if (steer.signal.aborted) {
+              return asJson({
+                agents: this.members().filter(member => new Set(targets).has(member.name)),
+                settled: null,
+                timedOut: false,
+                interrupted: true,
+                waitedMs: budget,
+              })
+            }
             const selected = new Set(targets)
             return asJson({
               agents: this.members().filter(member => selected.has(member.name)),

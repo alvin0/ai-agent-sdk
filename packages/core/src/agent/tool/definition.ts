@@ -147,6 +147,35 @@ export interface ToolDefinition<Args = unknown> extends ToolSchema {
    * qualifies, "probably fine" does not.
    */
   readonly isConcurrencySafe?: ReadonlyToolBehavior<[args: Args], boolean>
+
+  /**
+   * Exempt this tool from the turn's tool-call budget and its loop guards.
+   *
+   * For the calls that END work rather than do it: submitting a final result,
+   * asking the user a blocking question, handing a task to another agent. A
+   * budget exists to stop exploration, and a spent budget that also blocks the
+   * only remaining useful action leaves the model with no legal move — the run
+   * then dies mid-plan instead of finishing. Both reference harnesses avoid
+   * that by never failing a call for a limit at all; this flag is the narrow
+   * version of the same rule.
+   *
+   * Exempt calls still count toward the RUN-level ledger limits, so this
+   * cannot be used to escape accounting — only to reach a terminal action.
+   */
+  readonly budgetExempt?: true
+
+  /**
+   * Estimated tokens of text this tool's result may put in front of the model.
+   *
+   * For a tool that knows its own shape: a file reader can ask for room a
+   * one-line status check has no use for. The turn's budget still applies, and
+   * the STRICTER of the two wins — Codex resolves a model-requested
+   * `max_output_tokens` against its deployment policy the same way — so this
+   * can lower a tool's share but never raise it past what the host allows.
+   *
+   * Never sent to the model.
+   */
+  readonly maxOutputTokens?: number
 }
 
 /** A tool call that succeeded. */

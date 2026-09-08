@@ -40,7 +40,14 @@ export interface AgentDefinitionInput {
   readonly provider?: string
   /** Provider model id; defaults to `gpt-5.6-luna`. */
   readonly model?: string
-  /** Provider reasoning effort; defaults to `medium`. */
+  /**
+   * Provider reasoning effort. Omitted means no preference.
+   *
+   * An agent that never asked for a level should not be given one: the value
+   * is validated against the model's own ladder, so an invented default makes
+   * the agent unrunnable on every provider that declares no efforts — and
+   * silently overrides the provider's own default everywhere else.
+   */
   readonly effort?: string
   /** Requested output budget; omission uses the selected model's declared default/cap. */
   readonly maxTokens?: number
@@ -79,7 +86,7 @@ export interface AgentDefinition {
   readonly description: string | undefined
   readonly provider: string
   readonly model: string
-  readonly effort: ReasoningEffort
+  readonly effort: ReasoningEffort | undefined
   readonly maxTokens: number | undefined
   readonly instructions: string
   readonly mode: AgentMode
@@ -118,7 +125,7 @@ class DefinedAgentValue implements DefinedAgent {
   readonly description: string | undefined
   readonly provider: string
   readonly model: string
-  readonly effort: ReasoningEffort
+  readonly effort: ReasoningEffort | undefined
   readonly maxTokens: number | undefined
   readonly instructions: string
   readonly mode: AgentMode
@@ -142,7 +149,7 @@ class DefinedAgentValue implements DefinedAgent {
     this.description = input.description
     this.provider = input.provider ?? 'codex'
     this.model = input.model ?? 'gpt-5.6-luna'
-    this.effort = ReasoningEffortId(input.effort ?? 'medium')
+    this.effort = input.effort === undefined ? undefined : ReasoningEffortId(input.effort)
     this.maxTokens = input.maxTokens
     this.instructions = input.instructions
     this.mode = input.mode ?? 'basic'
@@ -199,7 +206,9 @@ function mergedInput(
     ...(description === undefined ? {} : { description }),
     provider: overrides.provider ?? source.provider,
     model: overrides.model ?? source.model,
-    effort: overrides.effort ?? source.effort,
+    ...(overrides.effort ?? source.effort) === undefined
+      ? {}
+      : { effort: (overrides.effort ?? source.effort) as string },
     ...(maxTokens === undefined ? {} : { maxTokens }),
     instructions: overrides.instructions ?? source.instructions,
     mode: overrides.mode ?? source.mode,

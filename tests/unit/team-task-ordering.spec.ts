@@ -88,6 +88,7 @@ function teamOf(
   registry.registerAdapter(['test'], adapter)
   return createManagedAgentTeam({
     registry,
+    holdWaitMs: 20,
     lead: defineAgent({
       id: 'lead',
       provider: 'test',
@@ -276,6 +277,34 @@ describe('who is allowed to write what', () => {
       dependsOn: ['ui'],
     })
     expect(polish.status).toBe('pending')
+    await team.dispose()
+  }, 20_000)
+
+  it('lets several read-only workers run together when none declares a scope', async () => {
+    // The real failure this guards: a lead spawned four researchers, each
+    // declaring the same placeholder scope because it read `writes` as
+    // mandatory, and three were refused for colliding over a file none of them
+    // would ever write. A reader declares nothing.
+    const adapter = new Workers()
+    const team = teamOf(adapter)
+    for (const name of ['banks', 'property', 'tech', 'industrial']) {
+      await team.spawn({ name, task: `research ${name}` })
+    }
+    expect(team.workers().map(worker => worker.status))
+      .toEqual(['running', 'running', 'running', 'running'])
+    await team.dispose()
+  }, 20_000)
+
+  it('points a colliding reader at dropping the scope, not at a better fake path', async () => {
+    const adapter = new Workers()
+    const team = teamOf(adapter)
+    await team.spawn({ name: 'first', task: 'research banks', writes: ['/tmp/no-write'] })
+    await adapter.runningOf('first')
+
+    // Offering only dependsOn and narrowing sent a worker that writes nothing
+    // looking for a different placeholder, which collides just the same.
+    await expect(team.spawn({ name: 'second', task: 'research property', writes: ['/tmp/no-write'] }))
+      .rejects.toThrow(/omit writes entirely if this worker only reads/)
     await team.dispose()
   }, 20_000)
 

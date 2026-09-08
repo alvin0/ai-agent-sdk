@@ -103,7 +103,7 @@ Các kiểu context: `BeforeStepContext`, `RequestErrorContext`, `CheckpointCont
 interface TurnBounds {
   readonly maxSteps: number
   readonly maxToolCalls: number
-  readonly onExhausted: 'force-final-answer' | 'stop'
+  readonly onExhausted: 'force-final-answer' | 'stop' | 'continue'
   readonly maxConsecutiveToolErrors: number
   readonly repeatToolWarningAt: number
   readonly repeatToolLimit: number
@@ -113,10 +113,24 @@ interface TurnBounds {
   readonly maxTotalTokens: number
   readonly maxParallel: number
   readonly maxToolResultBytes: number
+  readonly maxToolResultTokens: number
+  readonly toolResultOverflow: 'auto' | 'truncate' | 'spill'
   readonly maxToolDurationMs: number
   readonly toolTeardownTimeoutMs: number
 }
 ```
+
+`maxToolResultTokens` chặn lượng text MỘT kết quả tool được đưa cho model (mặc định 10.000,
+đúng mức Codex cấp cho một lần gọi shell), áp ngay lúc kết quả sinh ra chứ không đợi dựng
+request. `toolResultOverflow` chọn cách xử lý khi vượt: `truncate` cắt giữa, không cần gì
+thêm; `spill` lưu toàn văn qua `SpillStore` đã mount và cho model tool `read_tool_output`
+để đọc phần còn lại; `auto` (mặc định) spill khi có store, cắt khi không. Tool có thể tự hạ
+phần của mình bằng `ToolDefinition.maxOutputTokens`; bên nào chặt hơn thì thắng.
+
+`'continue'` biến ngân sách tool-call thành lời nhắc thay vì bức tường: không call nào
+bị từ chối vì nó, và turn vẫn bị chặn bởi `maxSteps`, `maxTotalTokens`, cùng các giới hạn
+mức run của ledger. Tool khai báo `budgetExempt: true` không bao giờ bị từ chối vì ngân sách
+ở bất kỳ chế độ nào, nên submit, hỏi người dùng và giao việc luôn còn dùng được.
 
 ## Điểm vào vòng lặp tầng thấp
 

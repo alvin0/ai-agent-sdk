@@ -9,7 +9,8 @@ export function resolveRuntimeLimits(input: AgentRuntimeLimits | undefined): Rea
     'maxModelResponseBytes', 'maxModelStreamEvents', 'maxToolResultBytes',
     'maxToolDurationMs', 'toolTeardownTimeoutMs', 'maxParallelToolCalls',
     'maxConsecutiveToolErrors', 'repeatToolWarningAt', 'repeatToolLimit',
-    'toolCycleWarningAt', 'toolCycleLimit', 'maxToolCycleLength', 'maxTotalTokens',
+    'toolCycleWarningAt', 'toolCycleLimit', 'maxToolCycleLength', 'maxToolResultTokens',
+    'maxTotalTokens',
     'hookTimeoutMs', 'hookTeardownTimeoutMs', 'memoryOperationTimeoutMs',
     'observerTimeoutMs',
   ] as const) {
@@ -18,6 +19,18 @@ export function resolveRuntimeLimits(input: AgentRuntimeLimits | undefined): Rea
     if (value !== undefined && (!Number.isSafeInteger(value) || value < 1)) {
       throw new RangeError(`agent runtimeLimits.${key} must be a positive safe integer`)
     }
+  }
+  if (values.toolResultOverflow !== undefined
+    && !['auto', 'truncate', 'spill'].includes(values.toolResultOverflow)) {
+    throw new RangeError(
+      "agent runtimeLimits.toolResultOverflow must be 'auto', 'truncate', or 'spill'",
+    )
+  }
+  if (values.onExhausted !== undefined
+    && !['force-final-answer', 'stop', 'continue'].includes(values.onExhausted)) {
+    throw new RangeError(
+      "agent runtimeLimits.onExhausted must be 'force-final-answer', 'stop', or 'continue'",
+    )
   }
   if ((values.repeatToolLimit ?? 6) < (values.repeatToolWarningAt ?? 3)) {
     throw new RangeError('agent runtimeLimits.repeatToolLimit must be >= repeatToolWarningAt')

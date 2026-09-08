@@ -1,9 +1,15 @@
 import { createToolResultMessage, createUserMessage } from '../../message/index.ts'
+import type { ContentBlock } from '../../message/index.ts'
 import { detachedFrozen } from '../../primitives/index.ts'
+import type { JsonObject } from '../../primitives/index.ts'
 import { waitForSettlement } from '../../async/index.ts'
 import type { History } from '../history/history.ts'
 import type { ApprovalBroker } from '../tool/approval.ts'
 import type { ToolCallPosition, ToolExecutionResult } from '../tool/definition.ts'
+import {
+  estimateTextBlockTokens, previewForSpill, truncateMiddleToTokens,
+  type SpillStore, type ToolOutputOverflowPolicy,
+} from '../tool/output-budget.ts'
 import { TOOL_ERROR_CODES, ToolError, toolErrorDisposition } from '../tool/errors.ts'
 import {
   authorizeToolCall, dispatchAuthorizedToolCall, finalizeToolCall, prepareToolCall, toolFailure,
@@ -11,7 +17,7 @@ import {
 } from '../tool/pipeline.ts'
 import type { ToolCatalog } from '../tool/registry.ts'
 import { createSpanId, type TraceRef } from '../trace/trace.ts'
-import type { AgentEvent, TurnHooks } from './events.ts'
+import type { AgentEvent, ToolDeclineReason, TurnHooks } from './events.ts'
 import type { RunAccountingPort } from '../accounting/contracts.ts'
 import type { SdkLogger } from '../../logging/types.ts'
 
@@ -24,7 +30,21 @@ export interface RunToolCallsOptions {
   readonly logger?: SdkLogger
   readonly parentTrace: TraceRef
   readonly maxParallel?: number
+  /**
+   * How many BUDGETED calls may still be dispatched this step.
+   *
+   * Calls to a `budgetExempt` tool are not counted against it, so a spent
+   * budget never blocks the model from submitting, asking, or delegating.
+   */
   readonly dispatchLimit?: number
+  /** Why calls past `dispatchLimit` are not run; shown to the model verbatim. */
+  readonly declineReason?: ToolDeclineReason
+  /** Estimated tokens of text one result may put in front of the model. */
+  readonly maxResultTokens?: number
+  /** What happens to output over that budget. Defaults to `auto`. */
+  readonly resultOverflow?: ToolOutputOverflowPolicy
+  /** Where spilled output goes; `auto` spills only when this is mounted. */
+  readonly spillStore?: SpillStore
   /** Maximum serialized bytes retained for one finalized result. Defaults to 4 MiB. */
   readonly maxResultBytes?: number
   /** End-to-end wall-clock allowance for one call. Defaults to 10 minutes. */
@@ -42,6 +62,10 @@ export interface ToolCallsOutcome {
   readonly concluded: boolean
   readonly concludedBy?: string
   readonly dispatched: number
+  /** Dispatched calls that spent budget; exempt tools are excluded. */
+  readonly budgeted: number
+  /** Calls the loop refused to run, for the reason in `declineReason`. */
+  readonly declined: number
 }
 
 interface Slot {
@@ -50,6 +74,10 @@ interface Slot {
   readonly authorized?: AuthorizedToolCall
   readonly pending: Promise<ToolExecutionResult>
   readonly dispatched: boolean
+  /** Whether this dispatch spent turn budget; exempt tools never do. */
+  readonly budgeted?: boolean
+  /** Set when the loop refused to run the call. */
+  readonly declined?: boolean
   readonly signal: AbortSignal
   readonly deadline: AbortSignal
   readonly teardownTimeoutMs: number
@@ -65,6 +93,8 @@ export async function runToolCalls(options: RunToolCallsOptions): Promise<ToolCa
   const dispatchLimit = Math.max(0, options.dispatchLimit ?? calls.length)
   const results: ToolExecutionResult[] = []
   let dispatched = 0
+  let budgeted = 0
+  let declined = 0
   let concludedBy: string | undefined
   let index = 0
   let carried: ReturnType<typeof prepareToolCall> | undefined
@@ -75,8 +105,10 @@ export async function runToolCalls(options: RunToolCallsOptions): Promise<ToolCa
     const prepared = carried ?? prepare(options, first)
     carried = undefined
     if (prepared.mode === 'exclusive') {
-      const slot = await start(options, prepared, dispatched < dispatchLimit, maxDurationMs, teardownTimeoutMs)
+      const slot = await start(options, prepared, budgeted < dispatchLimit, maxDurationMs, teardownTimeoutMs)
       dispatched += slot.dispatched ? 1 : 0
+      budgeted += slot.budgeted === true ? 1 : 0
+      declined += slot.declined === true ? 1 : 0
       const result = await commit(options, slot, maxResultBytes)
       results.push(result)
       if (concludedBy === undefined && !result.isError && result.concludesTurn) concludedBy = first.toolName
@@ -99,8 +131,10 @@ export async function runToolCalls(options: RunToolCallsOptions): Promise<ToolCa
         if (call === undefined) break
         const candidate = nextPrepared
         if (candidate.mode !== 'parallel') break
-        const slot = await start(segmentOptions, candidate, dispatched < dispatchLimit, maxDurationMs, teardownTimeoutMs)
+        const slot = await start(segmentOptions, candidate, budgeted < dispatchLimit, maxDurationMs, teardownTimeoutMs)
         dispatched += slot.dispatched ? 1 : 0
+        budgeted += slot.budgeted === true ? 1 : 0
+        declined += slot.declined === true ? 1 : 0
         segment.push(slot)
         index++
         const nextCall = calls[index]
@@ -140,6 +174,8 @@ export async function runToolCalls(options: RunToolCallsOptions): Promise<ToolCa
     concluded: concludedBy !== undefined,
     ...concludedBy === undefined ? {} : { concludedBy },
     dispatched,
+    budgeted,
+    declined,
   }
 }
 
@@ -177,19 +213,12 @@ async function start(
     'gen_ai.operation.name': 'execute_tool', 'gen_ai.tool.name': call.toolName, 'gen_ai.tool.call.id': call.callId,
   } })
   await emitEvent(options, { type: 'tool-call', call, trace })
-  if (!hasBudget) return {
-    call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
-    // Says what to DO, not just what happened. A model handed "no remaining
-    // budget" has no move it can make with that: it reads as a broken tool and
-    // its usual recovery — try again, try a smaller version — spends calls that
-    // no longer exist. The one useful action is to stop and answer, so the
-    // failure says so.
-    pending: Promise.resolve(toolFailure(
-      'the turn has no remaining tool-call budget, so this call was not run and no further'
-      + ' call will be. Do not retry it. Answer now from what you already have, and say'
-      + ' plainly what is unverified or unfinished.',
-      TOOL_ERROR_CODES.BUDGET_EXHAUSTED,
-    )),
+  // A tool the model may always reach: submitting, asking, delegating. Letting
+  // a budget block these is what turns a spent budget into a dead run.
+  const exempt = options.catalog.get(call.toolName)?.budgetExempt === true
+  if (!hasBudget && !exempt) return {
+    call, trace, signal, deadline, teardownTimeoutMs, dispatched: false, declined: true,
+    pending: Promise.resolve(declinedResult(options.declineReason ?? 'tool-calls')),
   }
   if (options.signal.aborted) return {
     call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
@@ -251,8 +280,67 @@ async function start(
   void pending.catch(() => undefined)
   return {
     call, trace, signal, deadline, teardownTimeoutMs,
-    authorized: authorization.call, dispatched: true,
+    authorized: authorization.call, dispatched: true, budgeted: !exempt,
     pending,
+  }
+}
+
+/**
+ * What the model reads when the loop refuses to run a call.
+ *
+ * Not a failure. A failure is something that went wrong, and a model answers
+ * one by retrying — with a smaller argument, a different path — which spends
+ * exactly what is no longer there. This says what happened and what to do
+ * instead, in the plainest terms available, and nothing about it reads as
+ * broken tooling.
+ * @param reason - Which limit refused the call.
+ * @returns A successful result carrying the instruction.
+ */
+function declinedResult(reason: ToolDeclineReason): ToolExecutionResult {
+  return {
+    isError: false,
+    value: undefined,
+    content: [{ type: 'text', text: declineText(reason) }],
+    // Never shown to the model; lets a UI render this as declined rather than
+    // as work that succeeded.
+    meta: { declined: true, reason },
+  }
+}
+
+/**
+ * The instruction for one decline reason.
+ *
+ * Each limit gets its own wording: a model told "no remaining tool-call
+ * budget" when it actually tripped the repeat guard learns the wrong lesson
+ * and repeats the call in the next turn.
+ * @param reason - Which limit refused the call.
+ * @returns The sentence the model reads.
+ */
+function declineText(reason: ToolDeclineReason): string {
+  const finish = ' Answer now from what you already have, and say plainly what is'
+    + ' unverified or unfinished.'
+  switch (reason) {
+    case 'tool-calls':
+      return 'This call was not run: the turn has spent its tool-call budget.'
+        + ' Further work calls will not run either, so do not retry it.' + finish
+    case 'repeated-tool-call':
+      return 'This call was not run: it repeats a call already made with the same'
+        + ' arguments, and repeating it cannot produce a new result. Change'
+        + ' approach or finish.' + finish
+    case 'tool-call-cycle':
+      return 'This call was not run: the same sequence of calls has repeated'
+        + ' several times without progress. Break the cycle rather than'
+        + ' re-entering it.' + finish
+    case 'tokens':
+      return 'This call was not run: the turn has spent its token budget.' + finish
+    case 'consecutive-tool-errors':
+      return 'This call was not run: too many calls in a row have failed.'
+        + ' Something in the approach is wrong, not the individual call.' + finish
+    case 'steps':
+      return 'This call was not run: the turn has no model steps left.' + finish
+    case 'usage-required':
+      return 'This call was not run: the run policy requires provider usage'
+        + ' reporting that the last model call did not supply.' + finish
   }
 }
 
@@ -297,7 +385,7 @@ async function commit(
         finalized = cancelledResult(slot.deadline)
       }
     }
-    result = immutableResult(finalized, maxResultBytes)
+    result = immutableResult(await boundOutput(options, slot, finalized), maxResultBytes)
   } catch (error: unknown) {
     hasFatal = toolErrorDisposition(error) === 'fatal'
     fatal = error
@@ -319,6 +407,100 @@ async function commit(
   }
   if (hasFatal) throw fatal
   return result
+}
+
+/**
+ * Keep one tool result inside its share of the context window.
+ *
+ * This runs at the RESULT boundary rather than when the request is assembled,
+ * which is the whole point: by the time an oversized result reaches the model
+ * the window is already gone, and the turn's only remaining move is to lose
+ * everything it has paid for. Both reference harnesses cut here.
+ *
+ * The budget is the stricter of the turn's and the tool's own declaration, so
+ * a tool that knows it returns a lot can ask for room without any tool being
+ * able to exceed what the host allows.
+ * @param options - The scheduling options carrying budget and store.
+ * @param slot - The call this result belongs to.
+ * @param result - The finalized result.
+ * @returns The result the model will read.
+ */
+async function boundOutput(
+  options: RunToolCallsOptions,
+  slot: Slot,
+  result: ToolExecutionResult,
+): Promise<ToolExecutionResult> {
+  const turnBudget = options.maxResultTokens
+  const toolBudget = options.catalog.get(slot.call.toolName)?.maxOutputTokens
+  const budget = turnBudget === undefined
+    ? toolBudget
+    : toolBudget === undefined ? turnBudget : Math.min(turnBudget, toolBudget)
+  if (budget === undefined) return result
+  const tokens = estimateTextBlockTokens(result.content)
+  if (tokens <= budget) return result
+
+  // Only text is shortened. Cutting an image block produces a corrupt image
+  // rather than a smaller one, so those pass through and are counted by the
+  // byte cap instead.
+  const texts = result.content.filter(block => block.type === 'text')
+  if (texts.length === 0) return result
+  const full = texts.map(block => block.text).join('\n')
+  const policy = options.resultOverflow ?? 'auto'
+  const store = options.spillStore
+
+  if (policy !== 'truncate' && store !== undefined) {
+    try {
+      // Reserve room for the notice inside the budget, so the replacement is
+      // never bigger than what it replaced.
+      const record = await store.save(full, {
+        toolName: slot.call.toolName, callId: String(slot.call.callId),
+      })
+      const preview = previewForSpill(full, Math.max(1, Math.floor(budget * 0.75)))
+      return replaceText(result, `${preview}\n\n[Output exceeded this call's budget of `
+        + `${String(budget)} estimated tokens. The full ${String(record.bytes)} bytes are saved. `
+        + `${record.retrieval}]`, {
+        outputSpilled: { locator: record.locator, bytes: record.bytes, estimatedTokens: tokens },
+      })
+    } catch {
+      // Best-effort, deliberately: a store that is full or unreachable must not
+      // cost the model a result it can still read most of.
+    }
+  }
+
+  const truncated = truncateMiddleToTokens(full, budget)
+  return replaceText(result, truncated.text
+    + `\n\n[Output was ${String(truncated.originalTokens)} estimated tokens, over this call's `
+    + `budget of ${String(budget)}. Re-run more narrowly if you need the omitted part.]`, {
+    outputTruncated: { estimatedTokens: truncated.originalTokens, budget },
+  })
+}
+
+/**
+ * Swap a result's text for one shortened block, keeping everything else.
+ * @param result - The original result.
+ * @param text - The replacement text.
+ * @param meta - What a UI should know about the replacement.
+ * @returns The rewritten result.
+ */
+function replaceText(
+  result: ToolExecutionResult,
+  text: string,
+  meta: JsonObject,
+): ToolExecutionResult {
+  // The replacement takes the FIRST text block's position and the other text
+  // blocks drop out. Appending it after the non-text blocks instead would
+  // reorder a result whose image came after its caption.
+  let placed = false
+  const content: ContentBlock[] = []
+  for (const block of result.content) {
+    if (block.type !== 'text') { content.push(block); continue }
+    if (placed) continue
+    placed = true
+    content.push({ type: 'text', text })
+  }
+  // `value` is deliberately untouched: it is what a host logs and replays, and
+  // shortening it would make the record disagree with what the tool returned.
+  return { ...result, content, meta: { ...result.meta, ...meta } }
 }
 
 function immutableCall(call: ToolCallRequest): ToolCallRequest {

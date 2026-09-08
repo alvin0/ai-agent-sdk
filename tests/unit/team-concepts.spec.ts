@@ -173,9 +173,24 @@ describe('two agent-team concepts', () => {
     expect(response.text).toBe('Lead synthesized both worker results.')
     expect(adapter.maxActiveWorkers).toBe(2)
     expect(adapter.requests[0]?.system).toContain('managed dynamic team')
-    expect(adapter.requests.find(request =>
-      request.tools?.every(tool => tool.name !== 'spawn_agent'))?.system)
-      .toContain('dynamically created worker')
+    const workerSystem = adapter.requests.find(request =>
+      request.tools?.every(tool => tool.name !== 'spawn_agent'))?.system
+    expect(workerSystem).toContain('dynamically created worker')
+    // A worker read send_message as the way to report and called it on its own
+    // name, which is refused. Finishing is what reports.
+    expect(workerSystem).toContain('do not use send_message to report it')
+    expect(workerSystem).toContain('never to yourself')
+
+    // A reader that declares a placeholder scope collides with every other
+    // reader using the same stand-in, so the lead is told to declare nothing.
+    expect(adapter.requests[0]?.system).toContain('A WORKER THAT ONLY READS DECLARES NOTHING')
+    expect(JSON.stringify(adapter.requests[0]?.tools))
+      .toContain('OMIT this entirely for a worker that only reads')
+    const workerTools = adapter.requests
+      .find(request => request.tools?.every(tool => tool.name !== 'spawn_agent'))
+      ?.tools
+    expect(JSON.stringify(workerTools?.filter(tool => tool.name === 'send_message')))
+      .toContain('other than yourself')
     // Awaited explicitly: the lead is free to finish before its workers do,
     // so the harness is the thing that knows when they are done.
     await harness.awaitWorker('worker_a')

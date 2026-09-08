@@ -39,6 +39,8 @@ function teamOf(adapter: ModelAdapter, options: { maxWorkers?: number } = {}) {
   registry.registerAdapter(['test'], adapter)
   return createManagedAgentTeam({
     registry,
+    // Tests are not paced by a production-sized wait for worker news.
+    holdWaitMs: 20,
     lead: defineAgent({
       id: 'lead',
       provider: 'test',
@@ -113,6 +115,90 @@ describe('spawn_agent no longer waits', () => {
     const seen = JSON.stringify(adapter.leadRequests.at(-1))
     expect(seen).toContain('worker answer')
     expect(seen).toContain('finished')
+    await managed.dispose()
+  }, 20_000)
+
+  it('wakes an idle lead so the worker it spawned still gets synthesized', async () => {
+    // The reported failure: the lead spawned a worker, finished its own turn
+    // before the worker did, and the conversation ENDED on the worker's own
+    // output. The report landed in a history nothing would read again, so the
+    // synthesis the lead exists to write never happened.
+    class LeadSpawnsThenFinishes extends StubAdapter {
+      readonly leadRequests: GenerateOptions[] = []
+      private spawned = false
+      release: (() => void) | undefined
+      private readonly held = new Promise<void>((resolve) => { this.release = resolve })
+
+      async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+        if (isLead(options)) {
+          this.leadRequests.push(options)
+          if (!this.spawned) {
+            this.spawned = true
+            yield* toolCall('s1', 'spawn_agent', { name: 'w', task: 'research it' })
+            return
+          }
+          yield* text(`synthesis ${String(this.leadRequests.length)}`)
+          return
+        }
+        // Outlives the lead's turn, which is the whole point.
+        await this.held
+        yield* text('worker answer')
+      }
+    }
+
+    const adapter = new LeadSpawnsThenFinishes()
+    const managed = teamOf(adapter)
+    const first = await managed.run('research and synthesize')
+    expect(first.text).toContain('synthesis')
+    expect(managed.lead.isRunning).toBe(false)
+
+    const beforeReport = adapter.leadRequests.length
+    adapter.release?.()
+    await managed.awaitWorker('w')
+    // The wake-up runs on the team's own schedule, after the lead goes idle.
+    for (let attempt = 0; attempt < 200 && adapter.leadRequests.length === beforeReport; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+
+    // A further lead turn happened, and it can see what the worker reported.
+    expect(adapter.leadRequests.length).toBeGreaterThan(beforeReport)
+    expect(JSON.stringify(adapter.leadRequests.at(-1))).toContain('worker answer')
+    await managed.dispose()
+  }, 20_000)
+
+  it('counts a dependency-queued worker as unfinished when holding the turn open', async () => {
+    // A worker held behind `dependsOn` has not started, but it will run and
+    // report. Counting only the running ones let a lead conclude while its
+    // whole dependency chain was still queued.
+    const adapter = new HeldWorker()
+    const managed = teamOf(adapter)
+    await managed.spawn({ name: 'first', task: 'gather' })
+    await adapter.workerRunning
+    await managed.spawn({ name: 'second', task: 'review', dependsOn: ['first'] })
+    expect(managed.workers().map(worker => worker.status)).toEqual(['running', 'pending'])
+
+    const leadRun = await managed.lead.run('are we done?', {})
+    expect(leadRun.outcome.reason.kind).toBe('completed')
+    const held = JSON.stringify(adapter.leadRequests.at(-1))
+    expect(held).toContain('Not finished')
+    expect(held).toContain('second')
+
+    adapter.release?.()
+    await managed.dispose()
+  }, 20_000)
+
+  it('leaves a host-driven lead alone when the host spawned the worker', async () => {
+    // `spawn` called by the HOST belongs to the host: it drives the lead
+    // itself, and a wake-up would start a turn it never asked for.
+    const adapter = new HeldWorker()
+    const managed = teamOf(adapter)
+    await managed.spawn({ name: 'w', task: 'do it' })
+    adapter.release?.()
+    await managed.awaitWorker('w')
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    expect(adapter.leadRequests).toHaveLength(0)
+    expect(managed.lead.isRunning).toBe(false)
     await managed.dispose()
   }, 20_000)
 
@@ -258,6 +344,36 @@ describe('awaitWorker is bounded', () => {
   }, 20_000)
 })
 
+describe('waiting for workers', () => {
+  it('ends the wait as soon as the user says something', async () => {
+    // A lead parked in wait_agents is not listening to its own conversation.
+    // Codex ends its wait_agent early on steered input; without that, a
+    // correction typed while the lead waits sits unread for the whole budget.
+    const adapter = new HeldWorker()
+    const managed = teamOf(adapter)
+    await managed.spawn({ name: 'w', task: 'do it' })
+    await adapter.workerRunning
+
+    const wait = managed.team.toolsFor('lead').find(tool => tool.name === 'wait_agents')!
+    const args = wait.parse?.({ targets: ['w'], timeoutMs: 30_000 })
+    const started = Date.now()
+    const pending = Promise.resolve(wait.execute(args, {
+      turn: 1, step: 1, callId: ToolCallId('wait-1'), toolName: 'wait_agents',
+      signal: new AbortController().signal,
+      concludeTurn: () => undefined, addContext: () => undefined,
+    } as never))
+
+    await new Promise(resolve => setTimeout(resolve, 20))
+    managed.steer('Actually, only large caps.')
+    const result = await pending
+
+    expect(Date.now() - started).toBeLessThan(5_000)
+    expect(JSON.stringify(result)).toContain('"interrupted":true')
+    adapter.release?.()
+    await managed.dispose()
+  }, 20_000)
+})
+
 describe('close_agent is the stopping point', () => {
   it('stops a running worker and frees its slot', async () => {
     const adapter = new HeldWorker()
@@ -276,6 +392,83 @@ describe('close_agent is the stopping point', () => {
     adapter.release?.()
     const second = await managed.spawn({ name: 'x', task: 'other' })
     expect(second.status).toBe('running')
+    await managed.dispose()
+  }, 20_000)
+
+  it('stops a worker the lead reached with followup_task, not just the run it started', async () => {
+    // The reported failure. `close_agent` aborted the harness controller, which
+    // governs the run the HARNESS started — and the worker was running under
+    // the team's own scheduler because the lead had sent it a follow-up. It
+    // kept calling the model for another fourteen seconds and submitted its
+    // result after the lead had answered, so the conversation ended on the
+    // worker's output and nothing ever synthesized it.
+    class SecondRunHangs extends StubAdapter {
+      workerRuns = 0
+      private announceSecond: (() => void) | undefined
+      readonly secondRunStarted = new Promise<void>((resolve) => { this.announceSecond = resolve })
+      finishedAfterClose = false
+
+      async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+        if (isLead(options)) {
+          yield* text('lead done')
+          return
+        }
+        this.workerRuns++
+        if (this.workerRuns === 1) {
+          yield* text('first answer')
+          return
+        }
+        this.announceSecond?.()
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(() => { this.finishedAfterClose = true; resolve() }, 3_000)
+          options.signal?.addEventListener('abort', () => { clearTimeout(timer); resolve() }, { once: true })
+        })
+        options.signal?.throwIfAborted()
+        this.finishedAfterClose = true
+        yield* text('late answer nobody asked for')
+      }
+    }
+
+    const adapter = new SecondRunHangs()
+    const managed = teamOf(adapter)
+    await managed.spawn({ name: 'w', task: 'do it' })
+    await managed.awaitWorker('w')
+
+    // A follow-up runs the worker again, this time under the TEAM's scheduler.
+    const followup = managed.team.sendMessage({
+      from: 'lead', target: 'w', message: 'one more thing', delivery: 'wakeup',
+    })
+    await adapter.secondRunStarted
+
+    await managed.closeWorker('w')
+    expect(managed.workers()).toEqual([])
+    // Closed means stopped: the second run was cancelled rather than left to
+    // finish and speak after everyone else had.
+    expect(adapter.finishedAfterClose).toBe(false)
+    expect(managed.team.members().some(entry => entry.name === 'w')).toBe(false)
+    await followup
+    await managed.dispose()
+  }, 20_000)
+
+  it('does not report a worker the lead closed as one that failed', async () => {
+    // Aborting a running worker rejects its run. Reported as a failure, that
+    // tells the lead its own decision went wrong — and now that a report can
+    // wake an idle lead, it would start a whole turn about a worker the lead
+    // deliberately abandoned.
+    const adapter = new HeldWorker()
+    const managed = teamOf(adapter)
+    await managed.spawn({ name: 'w', task: 'do it' })
+    await adapter.workerRunning
+    const before = managed.team.messages().length
+
+    await managed.closeWorker('w')
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    const reports = managed.team.messages().slice(before)
+      .filter(message => JSON.stringify(message.content).includes("Worker 'w'"))
+    expect(reports).toEqual([])
+    expect(adapter.leadRequests).toHaveLength(0)
+    adapter.release?.()
     await managed.dispose()
   }, 20_000)
 

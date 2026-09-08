@@ -18,6 +18,10 @@ export const DEFAULT_BOUNDS: TurnBounds = Object.freeze({
   maxTotalTokens: 500_000,
   maxParallel: 8,
   maxToolResultBytes: 4 * 1024 * 1024,
+  // Codex's own default for a shell call. Large enough for a real build log,
+  // small enough that a handful of them cannot spend a context window.
+  maxToolResultTokens: 10_000,
+  toolResultOverflow: 'auto',
   maxToolDurationMs: 10 * 60_000,
   toolTeardownTimeoutMs: 30_000,
 })
@@ -26,10 +30,17 @@ export function resolveBounds(input: Partial<TurnBounds> | undefined): TurnBound
   for (const key of [
     'maxSteps', 'maxToolCalls', 'maxConsecutiveToolErrors', 'repeatToolWarningAt',
     'repeatToolLimit', 'toolCycleWarningAt', 'toolCycleLimit', 'maxToolCycleLength',
-    'maxTotalTokens', 'maxParallel', 'maxToolResultBytes', 'maxToolDurationMs',
+    'maxTotalTokens', 'maxParallel', 'maxToolResultBytes', 'maxToolResultTokens',
+    'maxToolDurationMs',
     'toolTeardownTimeoutMs',
   ] as const) {
     if (!Number.isSafeInteger(bounds[key]) || bounds[key] < 1) throw new RangeError(`${key} must be a positive safe integer`)
+  }
+  if (!['auto', 'truncate', 'spill'].includes(bounds.toolResultOverflow)) {
+    throw new RangeError("toolResultOverflow must be 'auto', 'truncate', or 'spill'")
+  }
+  if (!['force-final-answer', 'stop', 'continue'].includes(bounds.onExhausted)) {
+    throw new RangeError("onExhausted must be 'force-final-answer', 'stop', or 'continue'")
   }
   if (bounds.repeatToolLimit < bounds.repeatToolWarningAt) throw new RangeError('repeatToolLimit must be >= repeatToolWarningAt')
   if (bounds.toolCycleLimit < bounds.toolCycleWarningAt) {

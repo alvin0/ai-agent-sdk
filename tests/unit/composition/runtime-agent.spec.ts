@@ -117,6 +117,27 @@ describe('runtime-bound agent', () => {
     await runtime.close()
   })
 
+  it('projects a call the loop refused as declined, not as a failure', async () => {
+    // A budget decision painting a finished run red is what made a working
+    // limit look like a crash in the reported case.
+    const adapter = new ToolAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const session = runtime.agent({
+      id: 'declined-status', instructions: 'Use lookup', compaction: false,
+      tools: [defineTool({
+        name: 'lookup', description: 'Lookup', parameters: { type: 'object' }, execute: () => 'ok',
+      })],
+    }).createSession({ runtimeLimits: { maxTotalTokens: 1 } })
+    await session.run('go', { onEvent: event => { events.push(event) } })
+
+    expect(events.find(event => event.type === 'tool-result')).toMatchObject({
+      type: 'tool-result', status: 'declined',
+      output: { isError: false, meta: { declined: true, reason: 'tokens' } },
+    })
+    await runtime.close()
+  })
+
   it('projects an approval denial as rejected without running the tool', async () => {
     const adapter = new ToolAdapter(), execute = vi.fn(() => 'ran')
     const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })

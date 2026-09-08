@@ -96,15 +96,8 @@ export function classifyTextPhases(
 
 export function invalidHostToolCall(
   blocks: readonly ContentBlock[],
-  history: History,
+  _history: History,
 ): ModelFailure | undefined {
-  const seen = new Set<string>()
-  for (const entry of history.entries()) {
-    if (entry.event.kind !== 'assistant') continue
-    for (const block of entry.event.message.content) {
-      if (block.type === 'tool-call') seen.add(block.id)
-    }
-  }
   for (const block of blocks) {
     if (block.type !== 'tool-call') continue
     if (typeof block.id !== 'string' || block.id.trim().length === 0
@@ -115,15 +108,45 @@ export function invalidHostToolCall(
         code: 'INVALID_TOOL_CALL',
       }
     }
-    if (seen.has(block.id)) {
-      return {
-        message: `provider emitted duplicate host tool call id '${block.id}'`,
-        code: 'INVALID_TOOL_CALL',
-      }
-    }
-    seen.add(block.id)
   }
   return undefined
+}
+
+/**
+ * Drop a repeated tool-call id instead of failing the round over it.
+ *
+ * Results are paired to calls by id, so two calls sharing one id cannot both be
+ * answered — but the FIRST of them is perfectly good work, and killing the turn
+ * throws it away along with everything the model had done to get there. Codex
+ * treats a duplicate as something to reconcile rather than to abort on. The
+ * repeat is removed, the original stands, and the model is told which id it
+ * reused so its next round does not repeat the mistake.
+ * @param blocks - The assistant content as the provider sent it.
+ * @param history - The turn so far; ids already used are duplicates too.
+ * @returns The content to keep, and the ids that were dropped.
+ */
+export function dropDuplicateToolCalls(
+  blocks: readonly ContentBlock[],
+  history: History,
+): { readonly blocks: readonly ContentBlock[]; readonly dropped: readonly string[] } {
+  const seen = new Set<string>()
+  for (const entry of history.entries()) {
+    if (entry.event.kind !== 'assistant') continue
+    for (const block of entry.event.message.content) {
+      if (block.type === 'tool-call') seen.add(block.id)
+    }
+  }
+  const dropped: string[] = []
+  const kept = blocks.filter((block) => {
+    if (block.type !== 'tool-call' || typeof block.id !== 'string') return true
+    if (seen.has(block.id)) {
+      dropped.push(block.id)
+      return false
+    }
+    seen.add(block.id)
+    return true
+  })
+  return dropped.length === 0 ? { blocks, dropped } : { blocks: kept, dropped }
 }
 
 export function contentTiming(hasToolCalls: boolean, followsToolResults: boolean): AssistantContentTiming {

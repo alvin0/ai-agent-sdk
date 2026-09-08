@@ -74,6 +74,56 @@ async function collect(options: Parameters<typeof runAgent>[0]): Promise<AgentRu
 }
 
 describe('agent modes', () => {
+  it('lets a deep run submit after the tool budget is spent', async () => {
+    // A budget that can block submit_result leaves a deep run with no legal way
+    // to finish: it has done the work and cannot say so.
+    const state = setup([
+      toolRound('work-1', 'echo', { value: 'a' }),
+      toolRound('submit-1', 'submit_result', {
+        summary: 'Objective met.', evidence: ['echo returned a'],
+      }),
+      textRound('Here is the final answer.'),
+    ])
+
+    const events = await collect({
+      mode: 'deep', registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, maxTurns: 6, bounds: { maxToolCalls: 1 },
+    })
+
+    const end = events.at(-1)
+    expect(end?.type === 'agent-end' && end.outcome.completed).toBe(true)
+    expect(end?.type === 'agent-end' && end.outcome.completion).toMatchObject({
+      summary: 'Objective met.',
+    })
+    // The submission spent none of the budget either: one work call did.
+    expect(end?.type === 'agent-end' && end.outcome.toolCalls).toBe(1)
+  })
+
+  it('lets a blocked run ask the user after the tool budget is spent', async () => {
+    const broker = createUserInputBroker()
+    const state = setup([
+      toolRound('work-1', 'echo', { value: 'a' }),
+      toolRound('ask-1', 'request_user_input', {
+        questions: [{
+          id: 'q1', header: 'Which', question: 'Which one?',
+          options: [{ label: 'A', description: 'first' }, { label: 'B', description: 'second' }],
+        }],
+      }),
+      textRound('Understood.'),
+    ])
+    broker.onRequest((request) => {
+      broker.resolve(request.requestId, { answers: { q1: { answers: ['A'] } } })
+    })
+
+    const events = await collect({
+      mode: 'deep-human-in-loop', registry: state.registry, history: state.history,
+      tools: state.tools, userInput: broker, config: { provider: 'test', model: 'm' },
+      maxTurns: 6, bounds: { maxToolCalls: 1 },
+    })
+
+    expect(events.some(event => event.type === 'user-input-response')).toBe(true)
+  })
+
   it('uses the caller-selected model without adding an implicit provider or effort', async () => {
     const adapter = new ScriptedAdapter([textRound('default response')])
     const registry = new ModelRegistry()

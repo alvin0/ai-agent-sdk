@@ -29,12 +29,21 @@ export function captureToolDefinition<Args>(input: ToolDefinition<Args>): ToolDe
     const isConcurrencySafe = method<[Args], boolean>(receiver, 'isConcurrencySafe', false)
     const timeoutMs = optionalOwnData(receiver, 'timeoutMs')
     if (timeoutMs !== undefined && (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs) || timeoutMs <= 0)) invalid()
+    // Fail-closed like every other flag here: only an exact `true` exempts a
+    // tool from the turn budget, so a truthy accident cannot quietly widen it.
+    const budgetExempt = optionalOwnData(receiver, 'budgetExempt')
+    if (budgetExempt !== undefined && budgetExempt !== true) invalid()
+    const maxOutputTokens = optionalOwnData(receiver, 'maxOutputTokens')
+    if (maxOutputTokens !== undefined
+      && (!Number.isSafeInteger(maxOutputTokens) || Number(maxOutputTokens) < 1)) invalid()
     return Object.freeze({ name, description, parameters,
       ...(parse === undefined ? {} : { parse }), execute,
       ...(render === undefined ? {} : { render }),
       ...(meta === undefined ? {} : { meta }),
       ...(timeoutMs === undefined ? {} : { timeoutMs: Number(timeoutMs) }),
       ...(isConcurrencySafe === undefined ? {} : { isConcurrencySafe }),
+      ...(budgetExempt === undefined ? {} : { budgetExempt: true as const }),
+      ...(maxOutputTokens === undefined ? {} : { maxOutputTokens: Number(maxOutputTokens) }),
     })
   } catch (error) {
     if (error instanceof AgentSdkError && error.code === TOOL_REGISTRY_ERROR_CODES.INVALID_TOOL) throw error

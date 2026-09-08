@@ -2,7 +2,8 @@ import { objectValue, optionalAbortSignal, ownData } from '../common/data.ts'
 import { captureAdditionalInstructions } from './instructions.ts'
 import { captureToolDefinitions } from '../../agent/tool/capture.ts'
 import {
-  captureApprovalBroker, captureInterceptors, captureTurnHooks, captureUsagePolicy, captureUserInputBroker,
+  captureApprovalBroker, captureInterceptors, captureSpillStore, captureTurnHooks, captureUsagePolicy,
+  captureUserInputBroker,
 } from './policy.ts'
 import type { RuntimeAgentInvocationOptions, RuntimeAgentSessionOptions } from './types.ts'
 import { captureToolSources } from '../tool-source/definition.ts'
@@ -11,7 +12,8 @@ import { captureRuntimeSkillSources } from '../skill-provider/definition.ts'
 
 const KEYS = new Set(['signal', 'additionalInstructions', 'onEvent'])
 const SESSION_KEYS = new Set(['conversationId', 'tools', 'toolSources', 'skills', 'memory', 'skillCwd',
-  'userInput', 'approvals', 'interceptors', 'hooks', 'usagePolicy', 'historyLimits', 'ledgerLimits',
+  'userInput', 'approvals', 'spillStore', 'interceptors', 'hooks', 'usagePolicy', 'historyLimits',
+  'ledgerLimits',
   'eventBufferLimits', 'runtimeLimits', 'compaction'])
 
 export interface CapturedInvocationOptions {
@@ -31,6 +33,7 @@ export function captureRuntimeSessionOptions(input: unknown): RuntimeAgentSessio
   const tools = value.tools === undefined ? undefined : captureToolDefinitions(value.tools)
   const toolSources = value.toolSources === undefined ? undefined : captureToolSources(value.toolSources)
   const approvals = captureApprovalBroker(value.approvals)
+  const spillStore = captureSpillStore(value.spillStore)
   const userInput = captureUserInputBroker(value.userInput)
   const interceptors = captureInterceptors(value.interceptors)
   const hooks = captureTurnHooks(value.hooks)
@@ -48,6 +51,7 @@ export function captureRuntimeSessionOptions(input: unknown): RuntimeAgentSessio
     ...(value.skillCwd === undefined ? {} : { skillCwd: value.skillCwd as string }),
     ...(userInput === undefined ? {} : { userInput }),
     ...(approvals === undefined ? {} : { approvals }),
+    ...(spillStore === undefined ? {} : { spillStore }),
     ...(interceptors === undefined ? {} : { interceptors }),
     ...(hooks === undefined ? {} : { hooks }),
     ...(usagePolicy === undefined ? {} : { usagePolicy }),

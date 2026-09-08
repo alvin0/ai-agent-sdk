@@ -93,6 +93,14 @@ export type WireEvent =
       readonly t: 'tool-result'
       readonly id: string
       readonly ok: boolean
+      /** The loop refused to run this call — a spent budget, a loop guard. */
+      readonly declined?: true
+      /**
+       * The loop shortened this result so it could not spend the context
+       * window: `truncated` cut the middle out, `spilled` saved the full text
+       * and left the model a locator to read it back.
+       */
+      readonly shortened?: 'truncated' | 'spilled'
       readonly output: string
       readonly card?: ToolCard
       readonly errorMessage?: string

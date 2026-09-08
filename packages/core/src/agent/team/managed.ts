@@ -37,6 +37,17 @@ export const DEFAULT_SPAWN_SETUP_TIMEOUT_MS = 30_000
 export const DEFAULT_WORKER_CLOSE_TIMEOUT_MS = 30_000
 
 /**
+ * Default bound on holding the lead's turn open for news from a worker; see
+ * {@link ManagedAgentTeamOptions.holdWaitMs}.
+ *
+ * Long enough that a lead is not re-prompted about work that has visibly just
+ * started, short enough that it keeps control of its own run: at the deadline
+ * the turn comes back and the lead decides whether to wait again, close a
+ * worker, or answer with what it has.
+ */
+export const DEFAULT_HOLD_WAIT_MS = 15_000
+
+/**
  * What the lead is told about delegating.
  *
  * This used to say little more than "delegate when it helps", and the result
@@ -69,6 +80,7 @@ const LEAD_INSTRUCTIONS = [
   'Do the blocking step yourself. If your very next action depends on a result, producing it locally is faster than delegating it and waiting for it.',
   'Delegate work that runs alongside your own: concrete, bounded, self-contained, and worth a whole worker.',
   'GIVE EACH WORKER A DISJOINT SET OF FILES TO WRITE. Declare them in `writes`, and say which in its task. Two workers building different features of one file will each write that file, and the later write erases the earlier one; a spawn that would do this is refused.',
+  'A WORKER THAT ONLY READS DECLARES NOTHING: leave `writes` out. Do not invent a placeholder such as "none" or "/tmp/no-write" — that claims a real scope, and several readers sharing one stand-in are refused for colliding over a file none of them writes.',
   'EXPRESS ORDER WITH `dependsOn`, NOT BY SPAWNING LATE. A worker that reviews, integrates, or builds on another names it there: it is created now, held until that work settles, and then given what it produced. Spawn the whole plan in one step and let the order be enforced rather than remembered.',
   'Do not delegate review, audit or verification against nothing. Either the thing to be reviewed already exists, or the reviewer `dependsOn` whoever is producing it. A reviewer started over an empty workspace produces a checklist, not a review.',
   'When the work does not exist yet, the first step is yours: establish its shape — scaffold, layout, shared types — and then delegate the independent pieces of it.',
@@ -275,6 +287,16 @@ export interface ManagedAgentTeamOptions {
    */
   readonly closeTimeoutMs?: number
   /**
+   * How long the lead's turn is held open waiting for a worker to report,
+   * before the lead is asked again. Defaults to {@link DEFAULT_HOLD_WAIT_MS}.
+   *
+   * Zero-length would be a spin: the lead answers, is told its workers are
+   * still running, answers again, and burns its budget before any result
+   * arrives. Codex blocks the parent inside its `wait_agent` tool for the same
+   * reason.
+   */
+  readonly holdWaitMs?: number
+  /**
    * How long `spawn_agent` may take to get a worker running.
    * Defaults to {@link DEFAULT_SPAWN_SETUP_TIMEOUT_MS}.
    *
@@ -307,6 +329,16 @@ interface WorkerRuntime {
   readonly session: AgentSession
   status: ManagedAgentWorkerStatus
   /**
+   * Whether the lead's own turn created this worker.
+   *
+   * It decides who is owed the completion report. A worker the MODEL spawned
+   * belongs to a conversation that is waiting for a synthesis, so its report
+   * wakes an idle lead. A worker the HOST spawned belongs to the host, which is
+   * driving the lead itself; waking it there would start a turn the caller did
+   * not ask for.
+   */
+  readonly leadDriven: boolean
+  /**
    * Cancels this worker's run.
    *
    * Owned here rather than by the team: `AgentTeam.cancel` only aborts a
@@ -314,6 +346,24 @@ interface WorkerRuntime {
    * detached worker would survive both `close_agent` and `dispose`.
    */
   readonly controller: AbortController
+  /**
+   * Set the moment a close begins, before anything is aborted.
+   *
+   * `status` cannot carry this: it only becomes `'closed'` after the run has
+   * settled, so the abort's own rejection arrives while the worker still looks
+   * like a running one — and gets reported to the lead as a FAILURE it did not
+   * cause and cannot act on.
+   */
+  closing: boolean
+  /**
+   * This worker's own deadline, so a run that ended can say WHY.
+   *
+   * An expired deadline surfaces as an ordinary abort — indistinguishable from
+   * a close, or from a cancelled parent — unless the signal that expired is
+   * kept and asked. Codex reports a status the parent can branch on; this is
+   * what makes one reportable here.
+   */
+  deadline: AbortSignal | undefined
   /** Resolves when the run has ended and been recorded. Never rejects. */
   settled: Promise<void>
   /**
@@ -352,6 +402,7 @@ export class ManagedAgentTeam {
   private readonly workerTimeoutMs: number
   private readonly observerTimeoutMs: number
   private readonly closeTimeoutMs: number
+  private readonly holdWaitMs: number
   private readonly spawnTimeoutMs: number
   private readonly workerRuntimes = new Map<string, WorkerRuntime>()
   private readonly reservedNames = new Set<string>()
@@ -367,6 +418,7 @@ export class ManagedAgentTeam {
     this.workerTimeoutMs = timeoutValue(options.workerTimeoutMs ?? 10 * 60_000)
     this.observerTimeoutMs = timeoutValue(options.observerTimeoutMs ?? 1_000)
     this.closeTimeoutMs = timeoutValue(options.closeTimeoutMs ?? DEFAULT_WORKER_CLOSE_TIMEOUT_MS)
+    this.holdWaitMs = timeoutValue(options.holdWaitMs ?? DEFAULT_HOLD_WAIT_MS)
     this.spawnTimeoutMs = timeoutValue(options.spawnTimeoutMs ?? DEFAULT_SPAWN_SETUP_TIMEOUT_MS)
     this.maxDependencyReportBytes = positiveInteger(
       options.maxDependencyReportBytes ?? 8 * 1024,
@@ -418,13 +470,53 @@ export class ManagedAgentTeam {
   private leadHooks(host: TurnHooks | undefined): TurnHooks {
     return {
       ...host,
+      beforeStep: async (context) => {
+        // The request for this round is rebuilt from history, so anything
+        // delivered quietly before now is about to be read.
+        this.unreadReports = false
+        return await host?.beforeStep?.(context) ?? { kind: 'proceed' as const }
+      },
       onTurnEnd: async (context) => {
         await host?.onTurnEnd?.(context)
-        if (!context.canContinue) return
+        if (!context.canContinue) {
+          // The turn is over and cannot be extended — a spent step budget, an
+          // error, a stop. A report that arrived during it has no round left to
+          // be read in, and the run would end with the synthesis unwritten, so
+          // one more turn is scheduled for when the lead goes idle.
+          if (this.unreadReports) {
+            this.unreadReports = false
+            try { this.team.wake(this.leadName) } catch { /* team disposed */ }
+          }
+          return
+        }
+        // Pending counts as busy. A worker held behind `dependsOn` has not
+        // started, but it WILL run and report, and a lead that concluded while
+        // its dependency chain was still queued answers from work that never
+        // reached it.
+        const outstanding = [...this.workerRuntimes.values()]
+          .filter(runtime => runtime.status === 'running' || runtime.status === 'pending')
+        if (outstanding.length === 0) return
+        // WAIT for news before spending another model call.
+        //
+        // Re-prompting immediately is a spin: measured on a real run, a lead
+        // with slow researchers answered "still waiting" twelve times in half a
+        // second and had no budget left when the results finally arrived. Codex
+        // has the parent block inside `wait_agent` until a mailbox update
+        // arrives or a deadline passes; the DeepSeek harness starts the next
+        // round only when there is something to start it for. This is the same
+        // shape from inside the hook: the turn stays open, costing nothing,
+        // until a worker reports or the wait expires.
+        await this.awaitWorkerNews(outstanding)
         const busy = [...this.workerRuntimes.values()]
-          .filter(runtime => runtime.status === 'running')
+          .filter(runtime => runtime.status === 'running' || runtime.status === 'pending')
           .map(runtime => runtime.request.name)
-        if (busy.length === 0) return
+        if (busy.length === 0) {
+          this.lead.inject(
+            'Every worker has reported. Read their results and write the answer you owe the'
+            + ' user; do not delegate again unless something is genuinely missing.',
+          )
+          return
+        }
         this.lead.inject(
           `Not finished: ${busy.join(', ')} ${busy.length === 1 ? 'is' : 'are'} still running. `
           + 'Use wait_agents to wait for them and read their results, or close_agent to '
@@ -438,6 +530,29 @@ export class ManagedAgentTeam {
   /** Run the lead. It decides whether and how many workers to create. */
   run(input: AgentInput, invocation: AgentInvocationOptions = {}): Promise<AgentResponse> {
     return this.lead.run(input, invocation)
+  }
+
+  /**
+   * Add a message to the lead's context, and make sure something reads it.
+   *
+   * Injection alone is enough only while the lead is mid-turn: its next model
+   * round rebuilds the request from history and picks the message up. Once the
+   * lead has answered and is only waiting on its workers, an injected message
+   * sits in history with nothing scheduled to read it — which is what happened
+   * to a user who typed a correction while the researchers were still running
+   * and never got an answer to it. Idle, the lead is scheduled one turn.
+   * @param text - What the user said.
+   * @returns True; the message is always accepted.
+   */
+  steer(text: string): boolean {
+    this.lead.inject(text)
+    // Ends a wait the lead is parked in, so the correction is read now rather
+    // than after its wait budget expires.
+    try { this.team.notifySteer(this.leadName) } catch { /* team disposed */ }
+    if (!this.lead.isRunning) {
+      try { this.team.wake(this.leadName) } catch { /* team disposed */ }
+    }
+    return true
   }
 
   /** Host-side equivalent of the model's spawn_agent tool. */
@@ -504,6 +619,10 @@ export class ManagedAgentTeam {
             `You are a dynamically created worker reporting to '${this.leadName}'.`,
             'Complete the delegated task independently and return a concise evidence-backed result.',
             'Do not broaden the task or attempt to become team lead.',
+            // Observed in a real run: a worker called send_message on its own
+            // name, which is refused, because it read the tool as the way to
+            // report. Reporting is what finishing already does.
+            `Your result is delivered to '${this.leadName}' when you finish, so do not use send_message to report it; that tool is only for passing context to a DIFFERENT worker, never to yourself.`,
             'If you lack information, state what is missing in your result rather than waiting for an answer.',
           ].join(' '),
           ...(resolved.specialty === undefined ? {} : { description: resolved.specialty }),
@@ -515,6 +634,9 @@ export class ManagedAgentTeam {
         request: resolved,
         session,
         status: 'pending',
+        leadDriven: this.lead.isRunning,
+        closing: false,
+        deadline: undefined,
         controller,
         settled: new Promise<void>((resolve) => { markSettled = resolve }),
         markSettled,
@@ -590,8 +712,10 @@ export class ManagedAgentTeam {
     // Every worker event is lost with it — including the approval requests a
     // worker parks on, which leaves it waiting for an answer nobody was ever
     // shown, and the run hangs.
+    const deadline = AbortSignal.timeout(this.workerTimeoutMs)
+    runtime.deadline = deadline
     const running = runtime.session.runPending({
-      signal: combineSignals(runtime.controller.signal, AbortSignal.timeout(this.workerTimeoutMs)),
+      signal: combineSignals(runtime.controller.signal, deadline),
       ...(this.options.onWorkerEvent === undefined
         ? {}
         : { onEvent: (event: AgentRunEvent) => this.observeWorkerEvent(name, event) }),
@@ -681,12 +805,68 @@ export class ManagedAgentTeam {
       if (policy === 'reject') {
         throw new Error(
           `worker '${request.name}' would write files another running worker writes: ${detail}.`
-          + ` Add '${other.request.name}' to dependsOn so it runs after, or narrow the scopes.`,
+          + ` Add '${other.request.name}' to dependsOn so it runs after, or narrow the scopes`
+          // Observed in a real run: four read-only researchers each declared the
+          // same placeholder scope and collided over a file none of them would
+          // ever write. The refusal used to offer only dependsOn and narrowing,
+          // which sends a worker that writes nothing looking for a better fake
+          // path instead of dropping the field.
+          + ' — or omit writes entirely if this worker only reads.',
         )
       }
       found.push(detail)
     }
     return found
+  }
+
+  /**
+   * Say what actually happened to a worker, in words the lead can act on.
+   *
+   * A raw abort reads "The operation was aborted due to timeout", which tells
+   * the lead nothing about WHOSE timeout or whether re-delegating would help.
+   * Codex reports a status the parent can branch on; the DeepSeek harness
+   * records a blocker code with an explanation. This is the same idea at the
+   * size this harness needs.
+   * @param error - Whatever ended the run.
+   * @returns The explanation to record and report.
+   */
+  private describeWorkerFailure(error: unknown, runtime: WorkerRuntime | undefined): string {
+    if (runtime?.deadline?.aborted === true) return this.deadlineFailure()
+    const name = (error as { name?: unknown } | null)?.name
+    if (name === 'TimeoutError') return this.deadlineFailure()
+    if (name === 'AbortError') return 'its work was cancelled before it finished'
+    return errorMessage(error)
+  }
+
+  /** The one explanation an expired worker deadline deserves. */
+  private deadlineFailure(): string {
+    return `it ran past its ${String(this.workerTimeoutMs)}ms deadline without finishing.`
+      + ' Narrow the task, or split it, before delegating it again'
+  }
+
+  /**
+   * Block until a worker reports, or the hold deadline passes.
+   *
+   * Bounded on purpose. An unbounded wait would hand the whole run's liveness to
+   * the slowest worker and, since this runs inside a turn hook, would be cut off
+   * by the hook timeout rather than by anything that understands the work. When
+   * it expires the lead gets its turn back and decides for itself — wait again
+   * with `wait_agents`, close one, or answer with what it has.
+   * @param outstanding - Workers that have not settled.
+   */
+  private async awaitWorkerNews(outstanding: readonly WorkerRuntime[]): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const deadline = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, this.holdWaitMs)
+      // A timer must never be the reason a process stays alive. Node exposes
+      // `unref`; a browser timer has no such handle and needs none.
+      ;(timer as unknown as { unref?: () => void }).unref?.()
+    })
+    try {
+      await Promise.race([...outstanding.map(runtime => runtime.settled), deadline])
+    } finally {
+      if (timer !== undefined) clearTimeout(timer)
+    }
   }
 
   /** Every worker reachable through `dependsOn`, transitively. */
@@ -773,22 +953,40 @@ export class ManagedAgentTeam {
     const name = runtime.request.name
     try {
       const response = await running
-      if (runtime.status !== 'closed') {
-        runtime.status = 'completed'
-        runtime.result = Object.freeze({
-          worker: name,
-          agentId: runtime.session.definition.id,
-          conversationId: runtime.session.conversationId,
-          text: response.text,
-          succeeded: response.outcome.completed,
-        })
-        this.team.recordOutcome(name, { kind: 'completed', text: response.text })
-        await this.notifyLead(name, `finished: ${response.text}`)
+      if (runtime.status !== 'closed' && !runtime.closing) {
+        // A run that RESOLVES has not necessarily succeeded: a model call that
+        // failed ends the turn with an error reason and an empty answer. Read
+        // as a success it became "Worker 'x' finished:" with nothing after the
+        // colon — the lead told a sector was done by a worker that never got
+        // an answer out of the model, which is worse than being told nothing.
+        const failure = runtime.deadline?.aborted === true
+          ? this.deadlineFailure()
+          : failureOf(response)
+        if (failure !== undefined) {
+          runtime.status = 'failed'
+          runtime.error = failure
+          this.team.recordOutcome(name, { kind: 'failed', message: failure })
+          await this.notifyLead(name, `failed: ${failure}`)
+        } else {
+          runtime.status = 'completed'
+          runtime.result = Object.freeze({
+            worker: name,
+            agentId: runtime.session.definition.id,
+            conversationId: runtime.session.conversationId,
+            text: response.text,
+            succeeded: response.outcome.completed,
+          })
+          this.team.recordOutcome(name, { kind: 'completed', text: response.text })
+          await this.notifyLead(name, `finished: ${response.text}`)
+        }
       }
     } catch (error: unknown) {
-      if (runtime.status !== 'closed') {
+      // A close is not a failure. Reporting the abort it caused would tell the
+      // lead its own decision went wrong, and — once a report can wake an idle
+      // lead — would start a turn about a worker it deliberately abandoned.
+      if (runtime.status !== 'closed' && !runtime.closing) {
         runtime.status = 'failed'
-        runtime.error = errorMessage(error)
+        runtime.error = this.describeWorkerFailure(error, runtime)
         this.team.recordOutcome(name, { kind: 'failed', message: runtime.error })
         await this.notifyLead(name, `failed: ${runtime.error}`)
       }
@@ -803,23 +1001,78 @@ export class ManagedAgentTeam {
   /**
    * Tell the lead what one of its workers did.
    *
-   * Quiet: it appends to the lead's history without scheduling anything, and
-   * the loop rebuilds its request from history every model round, so a lead
-   * still inside its turn reads this on the next one. Holding that turn open
-   * is {@link leadHooks}'s job, not this one's — waking a lead that had
-   * already concluded would have it answer twice instead.
+   * Quiet WHILE THE LEAD IS STILL IN ITS TURN: the report appends to history
+   * and the next model round rebuilds its request from history, so the lead
+   * reads it without an extra turn being scheduled. Holding that turn open is
+   * {@link leadHooks}'s job.
+   *
+   * A wake-up once the lead has gone idle, because then nothing else will ever
+   * read the report. The hold cannot cover every case — a turn that ended on
+   * its step budget, or on an error, is not eligible to continue, and a worker
+   * that outlives the run reports into a conversation with no turn left. That
+   * is the failure this exists for: the transcript ends on a worker's own
+   * output, and the synthesis the lead was there to write never happens. One
+   * more turn is the point, not a duplicate answer.
    */
   private async notifyLead(worker: string, summary: string): Promise<void> {
+    const delivery = this.deliveryFor(worker)
+    // A quiet report is a bet that the lead's next model round will read it.
+    // Cleared by `beforeStep`, which is that round; still set at the end of a
+    // turn that cannot continue, it means the bet lost and nobody ever will.
+    if (delivery === 'quiet') this.unreadReports = true
     try {
       await this.team.sendMessage({
         from: worker,
         target: this.leadName,
         message: `Worker '${worker}' ${summary}`,
-        delivery: 'quiet',
+        delivery,
       })
     } catch {
       // The lead may already be gone, or the team disposed. A worker's report
       // is not worth failing anything else over; `workers()` still has it.
+    }
+  }
+
+  /**
+   * Quiet into an open turn, a wake-up into an idle conversation.
+   * @param worker - The worker whose report is being delivered.
+   * @returns The delivery the report needs to actually be read.
+   */
+  private deliveryFor(worker: string): 'quiet' | 'wakeup' {
+    // Mid-turn: the next model round rebuilds its request from history, so the
+    // report is read without scheduling anything.
+    if (this.lead.isRunning) return 'quiet'
+    // Idle, and the host is driving: waking would start a turn it did not ask
+    // for, and it can read the result from `workers()` whenever it likes.
+    if (this.workerRuntimes.get(worker)?.leadDriven !== true) return 'quiet'
+    return 'wakeup'
+  }
+
+  /** Set when a worker report was delivered quietly and no round has read it. */
+  private unreadReports = false
+
+  /**
+   * Wait until no worker is outstanding and the lead has nothing left to do.
+   *
+   * The roster cannot answer this on its own. A worker's last event fires
+   * before its run resolves, and its completion report — the thing that wakes
+   * the lead — is delivered after that. For the moment in between, every member
+   * looks idle: a caller watching the roster sees a finished team and stops
+   * listening, exactly as the synthesis is about to be written. Waiting here
+   * covers that gap, because a worker's `settled` resolves only once its report
+   * has been delivered.
+   * @param signal - Gives up waiting; the work itself is not cancelled.
+   */
+  async whenQuiet(signal?: AbortSignal): Promise<void> {
+    for (;;) {
+      signal?.throwIfAborted()
+      const outstanding = [...this.workerRuntimes.values()]
+        .filter(runtime => runtime.status === 'pending' || runtime.status === 'running')
+      if (outstanding.length > 0) await Promise.all(outstanding.map(runtime => runtime.settled))
+      await this.team.whenIdle(this.leadName, signal)
+      const busy = [...this.workerRuntimes.values()]
+        .some(runtime => runtime.status === 'pending' || runtime.status === 'running')
+      if (!busy) return
     }
   }
 
@@ -895,7 +1148,21 @@ export class ManagedAgentTeam {
     const runtime = this.workerRuntimes.get(address)
     if (runtime === undefined) throw new Error(`unknown managed worker '${address}'`)
     const previous = runtime.status
+    runtime.closing = true
     runtime.controller.abort(reason)
+    // The controller only governs the run THIS harness started. A worker the
+    // lead reached with followup_task, or any wake-up delivery, is running
+    // under the team's own scheduler, and aborting the harness controller does
+    // nothing to it: observed in a real run, a closed worker kept calling the
+    // model for another fourteen seconds and submitted its result after the
+    // lead had already answered, so the conversation ended on the worker's
+    // output instead of the lead's synthesis.
+    try {
+      await this.team.cancel(address, reason)
+    } catch {
+      // A cancellation that times out must not wedge the close: the slot is
+      // freed either way, exactly as it is for a run that ignores its signal.
+    }
     if (previous === 'pending') {
       // Never started, so there is no run to wait for — and `settled` would
       // never resolve on its own, because nothing is going to end.
@@ -997,7 +1264,11 @@ export class ManagedAgentTeam {
               description: 'Files and directories this worker may write, workspace-relative.'
                 + ' A spawn that would write what another worker running at the same time'
                 + ' writes is refused, because both would write it and the later write wins.'
-                + ' Declare them and the conflict is caught before any work is lost.',
+                + ' Declare them and the conflict is caught before any work is lost.'
+                + ' OMIT this entirely for a worker that only reads — a stand-in path such'
+                + ' as "none" or "/tmp/no-write" claims a real scope, and several readers'
+                + ' sharing that stand-in collide with each other over a file none of them'
+                + ' will ever write.',
             },
             ...this.roleSchema(),
           },
@@ -1272,6 +1543,25 @@ const SETTLED_WORKER_STATUS: ReadonlySet<ManagedAgentWorkerStatus> =
  * have to arrive spelled the same way: `./app/`, `app`, and `app\` all name
  * `app`, and a worker writing `app/page.tsx` conflicts with one writing `app`.
  */
+/**
+ * Why a worker's run did not produce an answer, if it did not.
+ *
+ * A rejected run is obvious; a run that ends on an error reason is not, because
+ * it resolves like any other. Both leave the lead with nothing to read, so both
+ * are failures as far as the report is concerned.
+ * @param response - What the worker's run returned.
+ * @returns The failure to report, or undefined when the worker actually answered.
+ */
+function failureOf(response: AgentResponse): string | undefined {
+  const reason = response.outcome.reason
+  if (reason.kind === 'error') return reason.failure.message
+  if (reason.kind === 'max-tokens') return 'the model stopped at its output limit'
+  if (reason.kind === 'usage-unavailable') return 'the provider reported no usage for a billed call'
+  // An empty answer from an otherwise clean run is still nothing to synthesize.
+  if (response.text.trim() === '') return 'it produced no answer'
+  return undefined
+}
+
 function normalizeWriteScope(value: unknown): string {
   const text = nonEmpty(value, 'worker write scope').trim().split('\\').join('/')
   const trimmed = text.replace(/^\.?\/+/, '').replace(/\/+$/, '')

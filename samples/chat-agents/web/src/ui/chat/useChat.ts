@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
-  ConversationRow, GroupRow, WireApproval, WireApprovalScope, WireEvent,
+  ConversationRow, GroupRow, WireApproval, WireApprovalScope, WireEvent, WireQuestion,
 } from '@chat-agents/backend'
 import { deleteTranscript, readTranscript, writeTranscript } from './idb'
 import type { ChatNode, ChatState, MemberState } from './types'
@@ -26,6 +26,39 @@ const LIVE_OUTPUT_CAP = 20_000
 
 function newConversationId(): string {
   return `c_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
+}
+
+/** Query keys that mirror the open conversation and project into the URL. */
+const CONVERSATION_PARAM = 'c'
+const GROUP_PARAM = 'g'
+
+function urlParam(key: string): string | null {
+  if (typeof window === 'undefined') return null
+  const value = new URLSearchParams(window.location.search).get(key)
+  return value === null || value === '' ? null : value
+}
+
+/**
+ * Mirror the open conversation and project into the address bar.
+ *
+ * `history` is written directly rather than through the router so switching
+ * conversations stays a client-side state change with no navigation.
+ */
+function writeUrl(
+  ids: { readonly sessionId?: string, readonly groupId?: string },
+  mode: 'push' | 'replace',
+): void {
+  if (typeof window === 'undefined') return
+  const url = new URL(window.location.href)
+  if (ids.sessionId !== undefined && ids.sessionId !== '') {
+    url.searchParams.set(CONVERSATION_PARAM, ids.sessionId)
+  }
+  if (ids.groupId !== undefined && ids.groupId !== '') {
+    url.searchParams.set(GROUP_PARAM, ids.groupId)
+  }
+  if (url.href === window.location.href) return
+  if (mode === 'push') window.history.pushState(null, '', url)
+  else window.history.replaceState(null, '', url)
 }
 
 function reduce(nodes: readonly ChatNode[], event: WireEvent): readonly ChatNode[] {
@@ -102,7 +135,8 @@ function reduce(nodes: readonly ChatNode[], event: WireEvent): readonly ChatNode
       const next = [...nodes]
       next[index] = {
         ...current,
-        state: event.ok ? 'ok' : 'error',
+        state: event.ok ? (event.declined === true ? 'declined' : 'ok') : 'error',
+        ...event.shortened === undefined ? {} : { shortened: event.shortened },
         output: event.output,
         ...event.card === undefined ? {} : { card: event.card },
         ...event.errorMessage === undefined ? {} : { errorMessage: event.errorMessage },
@@ -260,23 +294,32 @@ export function useChat(): ChatController {
     // Resolve the stored group only against groups that still exist.
     setGroupId((current) => {
       if (current !== '' && body.groups.some(group => group.id === current)) return current
-      const stored = window.localStorage.getItem(GROUP_KEY)
-      const resolved = stored !== null && body.groups.some(group => group.id === stored)
-        ? stored
+      // The URL wins over the stored group so a pasted link opens its project.
+      const requested = urlParam(GROUP_PARAM) ?? window.localStorage.getItem(GROUP_KEY)
+      const resolved = requested !== null && body.groups.some(group => group.id === requested)
+        ? requested
         : body.groups[0]?.id ?? ''
       return resolved
     })
   }, [])
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(CURRENT_KEY)
-    const id = stored ?? newConversationId()
-    if (stored === null) window.localStorage.setItem(CURRENT_KEY, id)
+    // A conversation id in the URL wins, so a pasted link reopens that chat.
+    const requested = urlParam(CONVERSATION_PARAM) ?? window.localStorage.getItem(CURRENT_KEY)
+    const id = requested ?? newConversationId()
+    window.localStorage.setItem(CURRENT_KEY, id)
     setSessionId(id)
+    writeUrl({ sessionId: id }, 'replace')
     void refreshGroups()
   }, [refreshGroups])
 
   useEffect(() => { void refreshConversations() }, [refreshConversations])
+
+  // Keep the project id visible once it resolves, without adding history.
+  useEffect(() => {
+    if (groupId === '') return
+    writeUrl({ groupId }, 'replace')
+  }, [groupId])
 
   // Paint the cached transcript first, then reconcile with the server copy.
   useEffect(() => {
@@ -292,12 +335,24 @@ export function useChat(): ChatController {
       const body = await response.json() as {
         messages: ChatNode[]
         pendingApprovals?: readonly WireApproval[]
+        pendingQuestions?: readonly { requestId: string; questions: readonly WireQuestion[] }[]
       }
-      // A prompt still waiting for an answer is not in the transcript — it
-      // lives in the run's broker — so it is appended rather than replayed,
-      // and deliberately kept out of the local cache.
-      const parked: ChatNode[] = (body.pendingApprovals ?? [])
-        .map(approval => ({ kind: 'approval' as const, id: approval.callId, ...approval }))
+      // Neither a waiting permission prompt nor an open question is in the
+      // transcript — both live in the run — so they are appended rather than
+      // replayed, and deliberately kept out of the local cache. Without the
+      // questions a reload left the run parked on an answer the user could no
+      // longer give, because the card it needed was gone.
+      const parked: ChatNode[] = [
+        ...(body.pendingApprovals ?? [])
+          .map(approval => ({ kind: 'approval' as const, id: approval.callId, ...approval })),
+        ...(body.pendingQuestions ?? []).map(open => ({
+          kind: 'question' as const,
+          id: open.requestId,
+          requestId: open.requestId,
+          questions: open.questions,
+          answered: false,
+        })),
+      ]
       if (body.messages.length === 0 && cached !== undefined) {
         if (parked.length > 0) setState(previous => ({ ...previous, nodes: [...cached, ...parked] }))
         return
@@ -476,7 +531,8 @@ export function useChat(): ChatController {
     aborter.current?.abort()
   }, [sessionId])
 
-  const openConversation = useCallback((id: string) => {
+  /** Switch the open conversation without touching history. */
+  const applyConversation = useCallback((id: string) => {
     aborter.current?.abort()
     window.localStorage.setItem(CURRENT_KEY, id)
     setSessionId(id)
@@ -485,6 +541,22 @@ export function useChat(): ChatController {
       progress: null, members: [],
     })
   }, [])
+
+  const openConversation = useCallback((id: string) => {
+    applyConversation(id)
+    writeUrl({ sessionId: id }, 'push')
+  }, [applyConversation])
+
+  // Back and forward move between the conversations already visited.
+  useEffect(() => {
+    const onPop = (): void => {
+      const id = urlParam(CONVERSATION_PARAM)
+      if (id === null || id === sessionId) return
+      applyConversation(id)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => { window.removeEventListener('popstate', onPop) }
+  }, [applyConversation, sessionId])
 
   const newConversation = useCallback(() => {
     openConversation(newConversationId())
@@ -517,6 +589,7 @@ export function useChat(): ChatController {
       nodes: [], running: false, usage: { inputTokens: 0, outputTokens: 0 },
       progress: null, members: [],
     })
+    writeUrl({ sessionId: fresh, groupId: id }, 'push')
   }, [])
 
   const createGroup = useCallback(async (workspaceRoot: string) => {

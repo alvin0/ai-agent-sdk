@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { History } from '@ai-agent-sdk/core/agent'
 import { AwaitedEventQueue } from '../../packages/core/src/agent/loop/queue.ts'
+import { resolveBounds } from '../../packages/core/src/agent/loop/turn/config.ts'
+import { resolveRuntimeLimits } from '../../packages/core/src/agent/define/session/config.ts'
 import { runTurn } from '@ai-agent-sdk/core/agent'
 import type { AgentEvent } from '@ai-agent-sdk/core/agent'
 import { createApprovalBroker, fixedApprovalBroker } from '@ai-agent-sdk/core/agent'
@@ -462,8 +464,11 @@ describe('runTurn', () => {
     expect(state.adapter.requests[1]?.toolChoice).toBe('none')
     const results = state.history.entries().filter(entry => entry.event.kind === 'tool-result')
     expect(results).toHaveLength(2)
+    // A declined call is not a failed call. Reporting it as a failure is what
+    // sends a model back for a retry it cannot afford, and paints a finished
+    // run red in the UI.
     expect(results[1]?.event.kind === 'tool-result' && results[1].event.result).toMatchObject({
-      isError: true, error: { code: 'TOOL_BUDGET_EXHAUSTED' },
+      isError: false, meta: { declined: true, reason: 'tool-calls' },
     })
   })
 
@@ -640,6 +645,210 @@ describe('runTurn', () => {
     expect(text).not.toContain('4 of 6 calls remain')
   })
 
+  it('keeps one live budget notice instead of a pile of stale ones', async () => {
+    // Two notices saying different remainders are both readable, and a model
+    // planning against the older one plans against a budget it no longer has.
+    // Codex keeps exactly one `<rollout_budget>` fragment for this reason.
+    const state = await setup([
+      toolRound([{ id: 'r1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'r2', name: 'echo', arguments: '{"value":2}' }]),
+      toolRound([{ id: 'r3', name: 'echo', arguments: '{"value":3}' }]),
+      toolRound([{ id: 'r4', name: 'echo', arguments: '{"value":4}' }]),
+      textRound('Done.'),
+    ])
+
+    for await (const _event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools, bounds: { maxToolCalls: 6, toolBudgetRemindAt: [4, 2] },
+    })) { /* drain */ }
+
+    const last = requestText(state, 4)
+    expect(last).toContain('2 of 6 calls remain')
+    expect(last).not.toContain('4 of 6 calls remain')
+    const notices = state.history.messages()
+      .flatMap(message => message.content)
+      .filter(block => block.type === 'text' && block.text.startsWith('Tool budget'))
+    expect(notices).toHaveLength(1)
+  })
+
+  it('survives a compaction that shadows the notice it was going to replace', async () => {
+    // Compaction runs between steps and can shadow the earlier notice. A
+    // replace whose target has left the surface is rejected, and that must cost
+    // a reminder at most — never the turn.
+    const state = await setup([
+      toolRound([{ id: 'x1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'x2', name: 'echo', arguments: '{"value":2}' }]),
+      toolRound([{ id: 'x3', name: 'echo', arguments: '{"value":3}' }]),
+      toolRound([{ id: 'x4', name: 'echo', arguments: '{"value":4}' }]),
+      textRound('Done.'),
+    ])
+    let shadowed = false
+    let terminal: Extract<AgentEvent, { type: 'turn-end' }> | undefined
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools, bounds: { maxToolCalls: 6, toolBudgetRemindAt: [4, 2] },
+      hooks: {
+        beforeStep: () => {
+          // Stand in for compaction: shadow everything up to the first notice.
+          if (shadowed) return { kind: 'proceed' as const }
+          const notice = state.history.entries().find(entry => entry.event.kind === 'user'
+            && entry.event.message.source.kind === 'app'
+            && entry.event.message.source.producer === 'tool-loop-budget-guard')
+          if (notice === undefined) return { kind: 'proceed' as const }
+          shadowed = true
+          state.history.append(
+            { kind: 'user', message: createTextMessage('summary of earlier context') },
+            { op: 'replace', from: notice.seq, to: notice.seq, targets: [notice.seq] },
+          )
+          return { kind: 'proceed' as const }
+        },
+      },
+    })) if (event.type === 'turn-end') terminal = event
+
+    expect(shadowed).toBe(true)
+    expect(terminal?.outcome.reason).toEqual({ kind: 'completed' })
+    // The later reminder still reached the model, as a fresh append.
+    expect(requestText(state, 4)).toContain('2 of 6 calls remain')
+  })
+
+  it('names the guard that declined the call rather than blaming the budget', async () => {
+    // A model told "no remaining tool-call budget" when it actually tripped the
+    // repeat guard learns to ask for fewer calls, and repeats the same call in
+    // the next turn with a budget it was told it lacked.
+    const state = await setup([
+      toolRound([{ id: 'rep-1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'rep-2', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'rep-3', name: 'echo', arguments: '{"value":1}' }]),
+      textRound('Changed approach.'),
+    ])
+
+    for await (const _event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools,
+      // The cycle guard would otherwise trip first on a single repeated call,
+      // and this test is about the repeat guard naming itself.
+      bounds: {
+        repeatToolWarningAt: 2, repeatToolLimit: 3,
+        toolCycleWarningAt: 8, toolCycleLimit: 9,
+      },
+    })) { /* drain */ }
+
+    const declined = state.history.entries()
+      .filter(entry => entry.event.kind === 'tool-result')
+      .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
+      .find(result => result?.isError === false && result.meta?.['declined'] === true)
+    expect(declined).toMatchObject({ meta: { reason: 'repeated-tool-call' } })
+    expect(JSON.stringify(declined)).toContain('repeats a call already made')
+  })
+
+  it('runs a budget-exempt tool after the budget is spent', async () => {
+    // The screenshot case: a lead spends its budget researching, then cannot
+    // hand the work over or submit, because the budget blocks the only calls
+    // that could end the run.
+    const state = await setup([
+      toolRound([{ id: 'work-1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'hand-1', name: 'handoff', arguments: '{}' }]),
+      textRound('Handed over.'),
+    ])
+    let handoffs = 0
+    state.tools.register(defineTool({
+      name: 'handoff', description: 'Give the work to someone who can finish it.',
+      parameters: { type: 'object' }, budgetExempt: true,
+      execute: () => { handoffs++; return { ok: true } },
+    }))
+    let terminal: Extract<AgentEvent, { type: 'turn-end' }> | undefined
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools, bounds: { maxToolCalls: 1 },
+    })) if (event.type === 'turn-end') terminal = event
+
+    expect(handoffs).toBe(1)
+    // The exempt call also spends none of the budget, so the count stays at the
+    // one work call that did.
+    expect(terminal?.outcome).toMatchObject({ toolCalls: 1, reason: { kind: 'completed' } })
+    const declined = state.history.entries()
+      .filter(entry => entry.event.kind === 'tool-result')
+      .some(entry => entry.event.kind === 'tool-result'
+        && entry.event.result.isError === false
+        && entry.event.result.meta?.['declined'] === true)
+    expect(declined).toBe(false)
+  })
+
+  it('still runs an exempt tool while a loop guard is declining everything else', async () => {
+    const state = await setup([
+      toolRound([{ id: 'cyc-1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'cyc-2', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([
+        { id: 'cyc-3', name: 'echo', arguments: '{"value":1}' },
+        { id: 'submit-1', name: 'handoff', arguments: '{}' },
+      ]),
+      textRound('Stopped repeating.'),
+    ])
+    let handoffs = 0
+    state.tools.register(defineTool({
+      name: 'handoff', description: 'Give the work to someone who can finish it.',
+      parameters: { type: 'object' }, budgetExempt: true,
+      execute: () => { handoffs++; return { ok: true } },
+    }))
+    for await (const _event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools,
+      bounds: {
+        repeatToolWarningAt: 2, repeatToolLimit: 3,
+        toolCycleWarningAt: 8, toolCycleLimit: 9,
+      },
+    })) { /* drain */ }
+
+    expect(handoffs).toBe(1)
+  })
+
+  it('continues past a spent budget when the wall is turned off', async () => {
+    // Neither reference harness fails a call to enforce a budget: Codex ends
+    // the turn on a token budget, and the DeepSeek harness has no tool-call
+    // budget at all. `continue` is that shape — a notice, not a wall.
+    const state = await setup([
+      toolRound([{ id: 'c-1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'c-2', name: 'echo', arguments: '{"value":2}' }]),
+      toolRound([{ id: 'c-3', name: 'echo', arguments: '{"value":3}' }]),
+      textRound('Wrapped up.'),
+    ])
+    let terminal: Extract<AgentEvent, { type: 'turn-end' }> | undefined
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools, bounds: { maxToolCalls: 1, onExhausted: 'continue', toolBudgetRemindAt: [] },
+    })) if (event.type === 'turn-end') terminal = event
+
+    // Every call ran, and the turn ended on the model's own answer.
+    expect(terminal?.outcome).toMatchObject({
+      text: 'Wrapped up.', toolCalls: 3, reason: { kind: 'completed' },
+    })
+    const declined = state.history.entries()
+      .filter(entry => entry.event.kind === 'tool-result')
+      .some(entry => entry.event.kind === 'tool-result'
+        && entry.event.result.isError === false
+        && entry.event.result.meta?.['declined'] === true)
+    expect(declined).toBe(false)
+    // Told once per further budget spent, in the shape of Codex's budget_limit
+    // prompt: no new work, wrap up, say what is left.
+    expect(requestText(state, 3)).toContain('Do not start new substantive work')
+  })
+
+  it('still bounds an unwalled turn by steps', async () => {
+    const state = await setup([
+      toolRound([{ id: 's-1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 's-2', name: 'echo', arguments: '{"value":2}' }]),
+      textRound('Forced answer.'),
+    ])
+    let terminal: Extract<AgentEvent, { type: 'turn-end' }> | undefined
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools,
+      bounds: { maxToolCalls: 1, maxSteps: 2, onExhausted: 'continue', toolBudgetRemindAt: [] },
+    })) if (event.type === 'turn-end') terminal = event
+
+    expect(terminal?.outcome.reason).toMatchObject({ kind: 'budget-exhausted', budget: 'steps' })
+  })
+
   it('ignores thresholds that do not fit the budget', async () => {
     // A list written for a bigger budget stays usable rather than throwing or
     // firing a reminder before the first call.
@@ -674,7 +883,8 @@ describe('runTurn', () => {
     // usual recovery is to retry, and a retry spends calls that do not exist.
     // Read from the whole request: this arrives as a tool result, not as text.
     const text = JSON.stringify(state.adapter.requests[1])
-    expect(text).toContain('Do not retry it')
+    expect(text).toContain('the turn has spent its tool-call budget')
+    expect(text).toContain('do not retry it')
     expect(text).toContain('Answer now from what you already have')
   })
 
@@ -728,9 +938,13 @@ describe('runTurn', () => {
     })
     expect(state.adapter.requests).toHaveLength(1)
     const result = state.history.entries().find(entry => entry.event.kind === 'tool-result')
+    // Declined for the TOKEN budget, and it says so: a model told its call
+    // limit ran out learns to ask for fewer calls, which changes nothing here.
     expect(result?.event.kind === 'tool-result' && result.event.result).toMatchObject({
-      isError: true, error: { code: 'TOOL_BUDGET_EXHAUSTED' },
+      isError: false, meta: { declined: true, reason: 'tokens' },
     })
+    const declined = JSON.stringify(result?.event.kind === 'tool-result' && result.event.result)
+    expect(declined).toContain('spent its token budget')
   })
 
   it('lets onTurnEnd append context to request another bounded step', async () => {
@@ -904,21 +1118,31 @@ describe('runTurn', () => {
     expect(outcome?.reason).toEqual({ kind: 'completed' })
   })
 
-  it('rejects duplicate provider tool-call ids without corrupting the snapshot', async () => {
+  it('drops a repeated provider tool-call id and runs the first one', async () => {
+    // A result pairs to exactly one call, so two calls sharing an id cannot both
+    // be answered — but the FIRST is real work, and failing the turn threw it
+    // away along with everything the model had done to get there.
     const state = await setup([
       toolRound([
         { id: 'duplicate-live', name: 'echo', arguments: '{"value":1}' },
         { id: 'duplicate-live', name: 'echo', arguments: '{"value":2}' },
       ]),
+      textRound('carried on'),
     ])
     let outcome: Extract<AgentEvent, { type: 'turn-end' }>['outcome'] | undefined
     for await (const event of runTurn({
       registry: state.registry, config: { provider: 'test', model: 'm' },
       history: state.history, tools: state.tools,
     })) if (event.type === 'turn-end') outcome = event.outcome
-    expect(outcome?.reason).toMatchObject({ kind: 'error', failure: { code: 'INVALID_TOOL_CALL' } })
+
+    expect(outcome?.reason).toEqual({ kind: 'completed' })
+    expect(outcome?.toolCalls).toBe(1)
     expect(() => History.fromSnapshot(state.history.snapshot())).not.toThrow()
-    expect(state.history.entries().some(entry => entry.event.kind === 'tool-call')).toBe(false)
+    const calls = state.history.entries().filter(entry => entry.event.kind === 'tool-call')
+    expect(calls).toHaveLength(1)
+    // Told, rather than left to read one result for two calls as a tool that
+    // ignored it.
+    expect(requestText(state, 1)).toContain('reused the tool-call id')
   })
 
   it('bounds consumer teardown when an active adapter ignores cancellation', async () => {
@@ -1077,5 +1301,18 @@ describe('runTurn', () => {
       })) { /* drain */ }
     }).rejects.toMatchObject({ code: 'HOOK_TEARDOWN_TIMEOUT' })
     expect(Date.now() - started).toBeLessThan(250)
+  })
+})
+
+describe('exhaustion policy configuration', () => {
+  it('accepts the three policies and rejects anything else', () => {
+    for (const onExhausted of ['force-final-answer', 'stop', 'continue'] as const) {
+      expect(resolveBounds({ onExhausted }).onExhausted).toBe(onExhausted)
+      expect(resolveRuntimeLimits({ onExhausted }).onExhausted).toBe(onExhausted)
+    }
+    // A typo here would silently keep the wall up, which is the behaviour the
+    // caller was trying to turn off.
+    expect(() => resolveBounds({ onExhausted: 'carry-on' as never })).toThrow(RangeError)
+    expect(() => resolveRuntimeLimits({ onExhausted: 'carry-on' as never })).toThrow(RangeError)
   })
 })

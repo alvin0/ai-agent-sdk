@@ -134,3 +134,35 @@ export const appSettings = sqliteTable('app_settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
 })
+
+/**
+ * One model call's token usage, recorded when a run reports it.
+ *
+ * A row per MODEL CALL rather than per run: a deep run and a team run both
+ * spend tokens across several calls and several routes, and the settings page
+ * has to answer "what did gpt-5.6-luna at high effort cost me", which a
+ * per-run total cannot. Cached input is kept apart from fresh input because
+ * the two are not billed the same.
+ */
+export const usageEvents = sqliteTable('usage_events', {
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id').notNull(),
+  groupId: text('group_id'),
+  runId: text('run_id').notNull(),
+  /** Team member that spent this, or null for the agent the user talks to. */
+  member: text('member'),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  /** Reasoning effort in force for the run, when the route has one. */
+  effort: text('effort'),
+  /** Fresh (uncached) input tokens. */
+  inputTokens: integer('input_tokens').notNull().default(0),
+  outputTokens: integer('output_tokens').notNull().default(0),
+  cacheReadTokens: integer('cache_read_tokens').notNull().default(0),
+  cacheWriteTokens: integer('cache_write_tokens').notNull().default(0),
+  reasoningTokens: integer('reasoning_tokens').notNull().default(0),
+  createdAt: integer('created_at').notNull().default(sql`(unixepoch())`),
+}, table => [
+  index('usage_events_model').on(table.provider, table.model, table.effort),
+  index('usage_events_conversation').on(table.conversationId),
+])

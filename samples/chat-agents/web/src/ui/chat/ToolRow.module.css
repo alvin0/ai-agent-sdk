@@ -475,3 +475,19 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* A shortened or declined result is not a normal one: the row says which, in
+   the tertiary tier, so a fragment is never read as the whole output and a
+   call the loop refused is never read as work that ran. */
+.notice {
+  flex-shrink: 0;
+  margin-left: 8px;
+  font-size: var(--dsh-content-font-size-secondary, 12px);
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+}
+
+.root[data-state='declined'] .title,
+.root[data-state='declined'] .summary {
+  color: var(--dsw-alias-label-tertiary);
+}

@@ -537,6 +537,15 @@ export class AgentSession {
         ...this.runtimeLimits.toolCycleLimit === undefined
           ? {}
           : { toolCycleLimit: this.runtimeLimits.toolCycleLimit },
+        ...this.runtimeLimits.onExhausted === undefined
+          ? {}
+          : { onExhausted: this.runtimeLimits.onExhausted },
+        ...this.runtimeLimits.maxToolResultTokens === undefined
+          ? {}
+          : { maxToolResultTokens: this.runtimeLimits.maxToolResultTokens },
+        ...this.runtimeLimits.toolResultOverflow === undefined
+          ? {}
+          : { toolResultOverflow: this.runtimeLimits.toolResultOverflow },
         ...this.runtimeLimits.maxToolCycleLength === undefined
           ? {}
           : { maxToolCycleLength: this.runtimeLimits.maxToolCycleLength },
@@ -562,6 +571,7 @@ export class AgentSession {
       ...this.runtimeLimits.hookTimeoutMs === undefined ? {} : { hookTimeoutMs: this.runtimeLimits.hookTimeoutMs },
       ...this.runtimeLimits.hookTeardownTimeoutMs === undefined ? {} : { hookTeardownTimeoutMs: this.runtimeLimits.hookTeardownTimeoutMs },
       ...this.options.approvals === undefined ? {} : { approvals: this.options.approvals },
+      ...this.options.spillStore === undefined ? {} : { spillStore: this.options.spillStore },
       ...this.options.interceptors === undefined ? {} : { interceptors: this.options.interceptors },
       ...hooks === undefined ? {} : { hooks },
       ...invocation.signal === undefined ? {} : { signal: invocation.signal },

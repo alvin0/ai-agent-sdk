@@ -16,7 +16,10 @@ export type StoredNode =
   | { kind: 'reasoning'; id: string; text: string; member?: string }
   | {
       kind: 'tool'; id: string; name: string; args: string
-      state: 'ok' | 'error'; output?: string; card?: ToolCard; errorMessage?: string; member?: string
+      state: 'ok' | 'error' | 'declined'; output?: string; card?: ToolCard; errorMessage?: string
+      /** Set when the loop shortened the result to fit the model's context. */
+      shortened?: 'truncated' | 'spilled'
+      member?: string
     }
   | { kind: 'question'; id: string; requestId: string; questions: readonly WireQuestion[]; answered: boolean }
   /**
@@ -159,13 +162,24 @@ export class EventProjector {
 
   private key(source: string, kind: 't' | 'r', index: number): string {
     const cursor = this.cursor(source)
-    return `${source}${String(cursor.turn)}.${String(cursor.step)}.${kind}${String(index)}`
+    // The separator keeps a member's ids from colliding with the lead's, whose
+    // source is the empty string.
+    return `${source}:${String(cursor.turn)}.${String(cursor.step)}.${kind}${String(index)}`
   }
 
-  private closeText(source: string): WireEvent[] {
+  /**
+   * Settle the blocks one author has open.
+   *
+   * The author is matched on the recorded member rather than on the id's
+   * prefix: the lead's source is the empty string, which every member's id
+   * starts with, so a prefix test closed a member's open block on the lead's
+   * step boundary and the member's next delta reopened the same id — two
+   * transcript nodes sharing one id.
+   */
+  private closeText(member: string | undefined): WireEvent[] {
     const events: WireEvent[] = []
     for (const [id, entry] of [...this.openText]) {
-      if (!id.startsWith(source)) continue
+      if (entry.member !== member) continue
       this.openText.delete(id)
       this.pending.push({
         kind: 'text', id, text: entry.text, phase: entry.phase, streaming: false,
@@ -174,7 +188,7 @@ export class EventProjector {
       events.push({ t: 'text-end', id })
     }
     for (const [id, entry] of [...this.openReasoning]) {
-      if (!id.startsWith(source)) continue
+      if (entry.member !== member) continue
       this.openReasoning.delete(id)
       this.pending.push({
         kind: 'reasoning', id, text: entry.text,
@@ -211,7 +225,7 @@ export class EventProjector {
         return [{ t: 'reasoning-delta', id, text: event.text, ...tag }]
       }
       case 'step-end':
-        return this.closeText(source)
+        return this.closeText(member)
       case 'tool-call':
         this.openTools.set(event.call.callId, {
           name: event.call.toolName,
@@ -227,6 +241,17 @@ export class EventProjector {
         }]
       case 'tool-result': {
         const result = event.result
+        // A call the loop refused to run — a spent budget, a repeat guard. It
+        // neither failed nor did anything, and painting it red is what made a
+        // working limit look like a crash.
+        const declined = !result.isError && result.meta?.['declined'] === true
+        // The loop keeps one result from spending the whole context window: it
+        // either cut the middle out or saved the full text and left a locator.
+        // Either way the row should say so rather than presenting a fragment
+        // as the whole output.
+        const shortened = result.meta?.['outputSpilled'] !== undefined
+          ? 'spilled' as const
+          : result.meta?.['outputTruncated'] !== undefined ? 'truncated' as const : undefined
         const card = cardOf(result.meta)
         const call = this.openTools.get(event.call.callId)
         this.openTools.delete(event.call.callId)
@@ -236,7 +261,8 @@ export class EventProjector {
           id: event.call.callId,
           name: call?.name ?? event.call.toolName,
           args: call?.args ?? event.call.rawArguments,
-          state: result.isError ? 'error' : 'ok',
+          state: result.isError ? 'error' : declined ? 'declined' : 'ok',
+          ...shortened === undefined ? {} : { shortened },
           output,
           ...card === undefined ? {} : { card },
           ...result.isError ? { errorMessage: result.error.message } : {},
@@ -246,6 +272,8 @@ export class EventProjector {
           t: 'tool-result',
           id: event.call.callId,
           ok: !result.isError,
+          ...declined ? { declined: true as const } : {},
+          ...shortened === undefined ? {} : { shortened },
           output,
           ...card === undefined ? {} : { card },
           ...result.isError ? { errorMessage: result.error.message } : {},

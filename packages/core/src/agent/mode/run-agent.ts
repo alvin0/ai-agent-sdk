@@ -8,6 +8,7 @@ import { runTurn, type RunTurnOptions } from '../loop/run-turn.ts'
 import { AwaitedEventQueue } from '../loop/queue.ts'
 import type { AgentEvent, TurnBounds, TurnHooks, TurnOutcome } from '../loop/types.ts'
 import { defineTool, type ToolDefinition, type ToolExecutionMode } from '../tool/definition.ts'
+import { readSpillTool } from '../tool/output-budget.ts'
 import type { ToolInterceptor } from '../tool/pipeline.ts'
 import type { ToolCatalog } from '../tool/registry.ts'
 import { waitForSettlement } from '../../async/index.ts'
@@ -93,9 +94,28 @@ export type AgentRunEvent = AgentEvent
 interface DeepState {
   completion: CompletionSubmission | undefined
   userAborted: boolean
+  /**
+   * The last answer the self-check gate sent back, and how often it has come
+   * back unchanged.
+   *
+   * The gate re-prompts until the model submits. A model that will not submit
+   * answers the same words every time — measured at nineteen identical answers
+   * for one prompt, each a paid call and each written to the transcript. Asking
+   * again is only worth a model call while the answer is still moving.
+   */
+  lastAnswer: string | undefined
+  repeats: number
 }
 
 const DEFAULT_MAX_TURNS = 16
+
+/**
+ * Identical answers the self-check gate tolerates before it stops asking.
+ *
+ * One repeat can be a fluke of sampling; two is a model that is not going to
+ * change its mind, and every further round costs a call to be told so again.
+ */
+const REPEATED_ANSWER_LIMIT = 2
 
 /**
  * Run an agent in basic, self-checking deep, or deep human-in-loop mode.
@@ -163,12 +183,19 @@ async function driveAgent(
   if (!Number.isInteger(maxTurns) || maxTurns < 1) throw new RangeError('maxTurns must be a positive integer')
   await emit({ type: 'agent-start', mode, maxTurns })
 
-  const state: DeepState = { completion: undefined, userAborted: false }
+  const state: DeepState = {
+    completion: undefined, userAborted: false, lastAnswer: undefined, repeats: 0,
+  }
   const deep = mode !== 'basic'
   const broker = options.mode === 'deep' || options.mode === 'deep-human-in-loop'
     ? configuredUserInput
     : undefined
   const internalTools: ToolDefinition[] = []
+  // Spilling without a way to read the spill back would be worse than cutting
+  // the output: the model would be told the rest exists and given no way in.
+  if (options.spillStore !== undefined) {
+    internalTools.push(readSpillTool(options.spillStore) as ToolDefinition)
+  }
   if (deep) internalTools.push(completionTool())
   if (broker !== undefined && mode !== 'basic') {
     internalTools.push(userInputTool(mode, broker, state, emit, options.accounting))
@@ -200,6 +227,7 @@ async function driveAgent(
     ...options.hookTeardownTimeoutMs === undefined ? {} : { hookTeardownTimeoutMs: options.hookTeardownTimeoutMs },
     ...options.trace === undefined ? {} : { trace: options.trace },
     ...options.accounting === undefined ? {} : { accounting: options.accounting },
+    ...options.spillStore === undefined ? {} : { spillStore: options.spillStore },
   }
 
   let terminal: TurnOutcome | undefined
@@ -246,6 +274,9 @@ function completionTool(): ToolDefinition<CompletionSubmission> {
   return defineTool({
     name: AGENT_CONTROL_TOOLS.complete,
     description: 'Submit the self-check only when the user objective and constraints are fully satisfied. After acceptance, give the user the final answer.',
+    // The one call that ENDS a deep run. A budget that can block it can leave
+    // the run with no way to complete at all.
+    budgetExempt: true,
     parameters: {
       type: 'object',
       properties: {
@@ -277,6 +308,9 @@ function userInputTool(
 ): ToolDefinition<{ readonly questions: readonly UserInputQuestion[] }> {
   return defineTool({
     name: AGENT_CONTROL_TOOLS.requestUserInput,
+    // Asking the user is how a blocked run gets unblocked; a spent budget must
+    // not be the reason the question is never asked.
+    budgetExempt: true,
     description: mode === 'deep-human-in-loop'
       ? 'Ask the user one to three short questions when a material choice or missing fact requires human input, then wait for the response. Provide 2-3 mutually exclusive suggestions; free-form input is added by the client.'
       : 'Ask the user one to three short clarification questions only when blocked, then wait for the response. Provide suggested choices; free-form input is added by the client.',
@@ -332,6 +366,15 @@ function deepHooks(
         || context.outcome.steps >= maxTurns
         || state.completion !== undefined
         || state.userAborted) return
+      // Word for word what it said last time: the gate is not being read, and
+      // the next round will produce the same answer at the same price.
+      if (context.outcome.text === state.lastAnswer) {
+        state.repeats++
+        if (state.repeats >= REPEATED_ANSWER_LIMIT) return
+      } else {
+        state.lastAnswer = context.outcome.text
+        state.repeats = 0
+      }
       history.append({ kind: 'user', message: createUserMessage({
         source: { kind: 'app', producer: 'deep-mode-self-check' },
         content: [{

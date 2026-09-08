@@ -9,7 +9,7 @@
  * backend and only its four-character hint comes back.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   AgentRow, CodexLoginState, ConversationRow, DirectoryListing, GroupRow, McpServerRow, McpStatus,
   ModelOption, ProviderInfoView, SkillRow,
@@ -34,6 +34,8 @@ export type Effort = string
 export const GENERIC_EFFORTS: readonly string[] = ['minimal', 'low', 'medium', 'high']
 
 export interface SettingsController {
+  /** The open project; panes that read project-scoped data need it. */
+  readonly groupId: string
   readonly providers: readonly ProviderInfoView[]
   readonly models: Readonly<Record<string, readonly ModelOption[]>>
   readonly codex: CodexLoginState
@@ -58,6 +60,12 @@ export interface SettingsController {
   choose: (choice: ModelChoice) => Promise<void>
   setMode: (mode: RunMode) => Promise<void>
   setEffort: (effort: Effort) => Promise<void>
+  /**
+   * Write anything chosen while the conversation row did not exist yet.
+   * Called just before a run starts, so the first prompt of a new chat runs on
+   * the model shown on the composer instead of failing with "pick a model".
+   */
+  persistPending: () => Promise<void>
   saveCredential: (provider: string, input: { apiKey?: string | null; baseUrl?: string | null }) => Promise<void>
   startCodexLogin: () => Promise<void>
   cancelCodexLogin: () => Promise<void>
@@ -76,6 +84,56 @@ export interface SettingsController {
   deleteSkill: (skillId: string) => Promise<void>
   renameGroup: (name: string) => Promise<void>
   deleteGroup: () => Promise<void>
+}
+
+/**
+ * The last model, effort, and loop mode the user picked, kept in the browser.
+ *
+ * Those three live on the conversation row, which is authoritative — but a new
+ * chat has no row, and neither does a reload that lands on an id that was never
+ * sent to. Without a client-side memory the composer would fall back to "Auto
+ * model" every time, and the run would fail with "pick a model before sending
+ * a message". These defaults seed the pickers; the row still wins when it has
+ * a value of its own.
+ */
+const DEFAULTS_KEY = 'chat-agents.defaults'
+
+interface StoredDefaults {
+  provider?: string
+  model?: string
+  /** `undefined` clears the remembered effort; the field is dropped on write. */
+  effort?: string | undefined
+  mode?: RunMode
+}
+
+/**
+ * Read the remembered pickers.
+ * @returns The stored defaults, or an empty set when nothing is stored.
+ */
+function readDefaults(): StoredDefaults {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(DEFAULTS_KEY)
+    return raw === null ? {} : JSON.parse(raw) as StoredDefaults
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Merge one field into the remembered pickers.
+ * @param patch - The fields to remember.
+ */
+function writeDefaults(patch: StoredDefaults): void {
+  if (typeof window === 'undefined') return
+  try {
+    const merged: StoredDefaults = { ...readDefaults(), ...patch }
+    // `JSON.stringify` drops an undefined field, which is exactly how a cleared
+    // effort stops being remembered.
+    window.localStorage.setItem(DEFAULTS_KEY, JSON.stringify(merged))
+  } catch {
+    // A browser with storage denied still works, it just forgets.
+  }
 }
 
 /**
@@ -118,6 +176,17 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
   const [mcpStatuses, setMcpStatuses] = useState<readonly McpStatus[]>([])
   const [skills, setSkills] = useState<readonly SkillRow[]>([])
   const [agentId, setAgentId] = useState<string | undefined>(undefined)
+  /**
+   * Fields the pickers show that the conversation row does not carry yet.
+   *
+   * A patch creates the row, so seeded defaults are NOT written on sight — that
+   * would put an untouched "New chat" in the sidebar the moment it is opened.
+   * They are flushed by `persistPending`, which the composer calls on send, and
+   * by an explicit pick once the conversation and project are both resolved.
+   */
+  const pending = useRef<Record<string, unknown>>({})
+  /** The conversation whose pickers the user has already touched by hand. */
+  const touched = useRef('')
 
   // The group's configuration: its workspace, agents, MCP servers, and skills.
   const refreshGroupConfig = useCallback(async () => {
@@ -179,15 +248,36 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
       const response = await fetch(`/api/conversations/${conversationId}`)
       if (!response.ok) return
       const body = await response.json() as { conversation: ConversationRow | null }
-      // A blank chat has no row yet: keep the defaults rather than reading null.
+      // A pick made while this request was in flight is the newer truth.
+      if (touched.current === conversationId) return
+      // A blank chat has no row yet, and a row written before these pickers
+      // existed may carry nulls: the remembered defaults fill the gaps so the
+      // composer shows what the next run will actually use.
       const row = body.conversation
-      if (row === null) return
-      setModeState((row.mode as RunMode | undefined) ?? 'basic')
-      setEffortState((row.reasoningEffort as Effort | null) ?? undefined)
-      setAgentId(row.agentId ?? undefined)
-      setChoice(row.provider != null && row.model != null
+      const defaults = readDefaults()
+      const rowChoice = row?.provider != null && row.model != null
         ? { provider: row.provider, model: row.model }
-        : undefined)
+        : undefined
+      const seededChoice = defaults.provider !== undefined && defaults.model !== undefined
+        ? { provider: defaults.provider, model: defaults.model }
+        : undefined
+      const mode = (row?.mode as RunMode | null | undefined) ?? defaults.mode ?? 'basic'
+      const effort = (row?.reasoningEffort as Effort | null | undefined) ?? defaults.effort ?? undefined
+
+      setModeState(mode)
+      setEffortState(effort)
+      setAgentId(row?.agentId ?? undefined)
+      setChoice(rowChoice ?? seededChoice)
+
+      // Whatever the row is missing is owed to it before the next run.
+      const owed: Record<string, unknown> = {}
+      if (rowChoice === undefined && seededChoice !== undefined) {
+        owed.provider = seededChoice.provider
+        owed.model = seededChoice.model
+      }
+      if (row?.mode == null) owed.mode = mode
+      if (row?.reasoningEffort == null && effort !== undefined) owed.reasoningEffort = effort
+      pending.current = owed
     })()
   }, [conversationId])
 
@@ -206,26 +296,64 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
     return found === undefined || found.efforts.length === 0 ? GENERIC_EFFORTS : found.efforts
   }, [modelsFor])
 
-  const choose = useCallback(async (next: ModelChoice) => {
-    // An unresolved project would create the row in the default one.
-    if (conversationId === '' || groupId === '') return
-    setChoice(next)
-    await patchConversation(conversationId, groupId, { provider: next.provider, model: next.model })
+  /**
+   * Write a picker to the conversation row, or park it until that is possible.
+   *
+   * An unresolved project would create the row in the DEFAULT project, so the
+   * patch waits rather than landing in the wrong place — and the pick stays on
+   * screen either way.
+   * @param patch - The fields to store on the row.
+   */
+  const queue = useCallback(async (patch: Record<string, unknown>) => {
+    touched.current = conversationId
+    if (conversationId === '' || groupId === '') {
+      pending.current = { ...pending.current, ...patch }
+      return
+    }
+    const merged = { ...pending.current, ...patch }
+    pending.current = {}
+    await patchConversation(conversationId, groupId, merged)
   }, [conversationId, groupId])
+
+  const persistPending = useCallback(async () => {
+    if (conversationId === '' || groupId === '') return
+    const owed = pending.current
+    if (Object.keys(owed).length === 0) return
+    pending.current = {}
+    await patchConversation(conversationId, groupId, owed)
+  }, [conversationId, groupId])
+
+  const choose = useCallback(async (next: ModelChoice) => {
+    setChoice(next)
+    writeDefaults({ provider: next.provider, model: next.model })
+    // An effort belongs to a MODEL's ladder, not to the conversation. Carrying
+    // `high` onto a model that has no such level used to fail the next prompt
+    // outright — the backend now drops it, and the composer should stop showing
+    // a level this model will never run at.
+    const allowed = effortsFor(next.provider, next.model)
+    const keep = effort !== undefined && allowed.includes(effort)
+    if (!keep && effort !== undefined) {
+      setEffortState(undefined)
+      writeDefaults({ effort: undefined })
+    }
+    await queue({
+      provider: next.provider,
+      model: next.model,
+      ...keep ? {} : { reasoningEffort: null },
+    })
+  }, [queue, effort, effortsFor])
 
   const setMode = useCallback(async (next: RunMode) => {
-    // An unresolved project would create the row in the default one.
-    if (conversationId === '' || groupId === '') return
     setModeState(next)
-    await patchConversation(conversationId, groupId, { mode: next })
-  }, [conversationId, groupId])
+    writeDefaults({ mode: next })
+    await queue({ mode: next })
+  }, [queue])
 
   const setEffort = useCallback(async (next: Effort) => {
-    // An unresolved project would create the row in the default one.
-    if (conversationId === '' || groupId === '') return
     setEffortState(next)
-    await patchConversation(conversationId, groupId, { reasoningEffort: next })
-  }, [conversationId, groupId])
+    writeDefaults({ effort: next })
+    await queue({ reasoningEffort: next })
+  }, [queue])
 
   const saveCredential = useCallback(async (
     provider: string,
@@ -372,6 +500,7 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
   }, [codex.status, refresh, loadModels])
 
   return {
+    groupId,
     providers,
     models,
     codex,
@@ -394,6 +523,7 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
     choose,
     setMode,
     setEffort,
+    persistPending,
     saveCredential,
     startCodexLogin,
     cancelCodexLogin,

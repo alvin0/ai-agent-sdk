@@ -75,8 +75,12 @@ describe('declarative agent definitions', () => {
 
     expect(agent).toMatchObject({
       id: 'ada', name: 'ada', provider: 'codex', model: 'gpt-5.6-luna',
-      effort: 'medium', mode: 'basic', maxTurns: 16, maxToolCalls: 64, commentary: 'concise',
+      mode: 'basic', maxTurns: 16, maxToolCalls: 64, commentary: 'concise',
     })
+    // No effort unless the author asked for one. An invented default is
+    // rejected outright by a model that declares no ladder, and silently
+    // overrides the provider's own default everywhere else.
+    expect(agent.effort).toBeUndefined()
     expect(agent.tools).toEqual([])
     expect(agent.nativeTools).toEqual([])
     expect(agent.memory).toMatchObject({ autoCaptureObjective: true, maxInjectedChars: 12_000 })

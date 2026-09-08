@@ -117,6 +117,22 @@ describe('ToolRegistry', () => {
       .toThrow(/execute/)
   })
 
+  it('keeps a budget exemption through capture and refuses a truthy one', () => {
+    // Captured definitions are rebuilt field by field, so a flag the capture
+    // does not know about is silently dropped — which would leave the exemption
+    // declared and not honoured.
+    const exempt = defineTool({
+      name: 'submit', description: 'Finish.', parameters: { type: 'object' },
+      budgetExempt: true, execute: () => null,
+    })
+    expect(exempt.budgetExempt).toBe(true)
+    // Fail-closed: only an exact `true`.
+    expect(() => defineTool({
+      name: 'sneaky', description: 'Finish.', parameters: { type: 'object' },
+      budgetExempt: 1 as never, execute: () => null,
+    })).toThrow(/invalid/)
+  })
+
   it('removes exactly its own registration', () => {
     const registry = new ToolRegistry()
     const first = tool({ name: 'x' })

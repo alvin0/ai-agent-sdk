@@ -16,6 +16,7 @@ import {
   IconFollowsystemOutline16, IconLightOutline16, IconRightUpOutline16, Input, Modal, writeClipboard,
 } from '../primitives'
 import { AgentsPane, McpPane, SkillsPane } from './GroupPanels'
+import { UsagePane } from './UsagePane'
 import type { SettingsController, RunMode } from './useSettings'
 import type { ThemeController, ThemePreference } from './theme'
 import css from './SettingsDialog.module.css'
@@ -25,13 +26,14 @@ import css from './SettingsDialog.module.css'
  * folders apply to every project. A project is only its folder, so it is
  * created and switched from the project dialog instead.
  */
-type Tab = 'providers' | 'agents' | 'mcp' | 'skills' | 'appearance'
+type Tab = 'providers' | 'agents' | 'mcp' | 'skills' | 'usage' | 'appearance'
 
 const TABS: readonly { id: Tab; label: string }[] = [
   { id: 'providers', label: 'Providers' },
   { id: 'agents', label: 'Agents' },
   { id: 'mcp', label: 'MCP' },
   { id: 'skills', label: 'Skills' },
+  { id: 'usage', label: 'Usage' },
   { id: 'appearance', label: 'Appearance' },
 ]
 
@@ -339,6 +341,7 @@ export function SettingsDialog({
       {tab === 'agents' && <AgentsPane settings={settings} />}
       {tab === 'mcp' && <McpPane settings={settings} />}
       {tab === 'skills' && <SkillsPane settings={settings} />}
+      {tab === 'usage' && <UsagePane groupId={settings.groupId} />}
 
       {tab === 'appearance' && (
         <div className={css.pane}>

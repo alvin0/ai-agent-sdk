@@ -2,7 +2,8 @@
 
 export { createChatApp } from './app'
 export {
-  abortRun, answer, approve, forgetSession, pendingApprovals, runPrompt, session, steer,
+  abortRun, answer, approve, forgetSession, pendingApprovals, pendingQuestions, runPrompt, session,
+  steer,
 } from './session'
 export { createDoorbell, createMemberFeed, followWorkers, runSteps } from './session'
 export type { ChatSession, Doorbell, MemberFeed, RunStep } from './session'
@@ -48,5 +49,8 @@ export { buildRegistry, listModels, listProviders, resolveModel } from './regist
 export type { ModelOption, ModelSelection, ProviderInfoView } from './registry'
 export { cancelCodexLogin, codexAccount, codexLoginState, codexSignedIn, startCodexLogin } from './auth'
 export type { CodexAccount, CodexLoginState } from './auth'
+export { clearUsage, recordUsage, usageSummary } from './usage'
+export { createFileSpillStore, spillRoot, sweepSpill } from './spill'
+export type { UsageRow, UsageSummary, UsageTotals } from './usage'
 export { database, databaseFile, schema } from './db/client'
 export type * from './wire'

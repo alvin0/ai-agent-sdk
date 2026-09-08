@@ -103,7 +103,7 @@ Context types: `BeforeStepContext`, `RequestErrorContext`, `CheckpointContext`,
 interface TurnBounds {
   readonly maxSteps: number
   readonly maxToolCalls: number
-  readonly onExhausted: 'force-final-answer' | 'stop'
+  readonly onExhausted: 'force-final-answer' | 'stop' | 'continue'
   readonly maxConsecutiveToolErrors: number
   readonly repeatToolWarningAt: number
   readonly repeatToolLimit: number
@@ -113,10 +113,25 @@ interface TurnBounds {
   readonly maxTotalTokens: number
   readonly maxParallel: number
   readonly maxToolResultBytes: number
+  readonly maxToolResultTokens: number
+  readonly toolResultOverflow: 'auto' | 'truncate' | 'spill'
   readonly maxToolDurationMs: number
   readonly toolTeardownTimeoutMs: number
 }
 ```
+
+`maxToolResultTokens` caps the text ONE tool result may show the model (default 10,000,
+Codex's own allowance for a shell call), applied when the result is produced rather than
+when the request is assembled. `toolResultOverflow` picks what happens above it: `truncate`
+cuts the middle and needs nothing; `spill` saves the full text through a mounted
+`SpillStore` and gives the model `read_tool_output` to read the rest; `auto` (default)
+spills when a store is mounted and truncates when none is. A tool may lower its own share
+with `ToolDefinition.maxOutputTokens`; the stricter of the two wins.
+
+`'continue'` turns the tool-call budget into a notice instead of a wall: no call is
+declined for it, and the turn stays bounded by `maxSteps`, `maxTotalTokens`, and the
+run-level ledger. A tool declaring `budgetExempt: true` is never declined for a budget
+under any setting, so submitting, asking, and delegating always remain available.
 
 ## Low-level loop entry points
 

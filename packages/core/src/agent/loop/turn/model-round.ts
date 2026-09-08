@@ -15,7 +15,8 @@ import { StreamAbortError, nextWithAbort, closeIterator } from './cancellation.t
 import { runOptionalHook } from './hooks.ts'
 import { accountingUsageStop } from './usage-stop.ts'
 import {
-  classifyTextPhases, invalidHostToolCall, contentTiming, recentToolResultIds, systemText,
+  classifyTextPhases, dropDuplicateToolCalls, invalidHostToolCall, contentTiming,
+  recentToolResultIds, systemText,
   createAssistant, textOf,
 } from './content.ts'
 
@@ -255,7 +256,10 @@ export async function modelRound(
     }
     rawBlocks = []
   }
-  const classified = classifyTextPhases(rawBlocks, phase === 'process')
+  const classifiedRaw = classifyTextPhases(rawBlocks, phase === 'process')
+  // A repeated id costs the model that one call, not its whole turn.
+  const deduped = dropDuplicateToolCalls(classifiedRaw, options.history)
+  const classified = deduped.blocks
   const structuredOutputFailure = finalOutput
     && options.outputFormat?.type === 'json_schema'
     && providerFinish.kind === 'stop'
@@ -306,6 +310,7 @@ export async function modelRound(
     ...usageRequired ? { usageRequired: true as const } : {},
     ...usageUnavailable ? { usageUnavailable: true as const } : {},
     calls, afterToolCallIds, timing,
+    ...deduped.dropped.length === 0 ? {} : { droppedDuplicateCalls: deduped.dropped },
   }
 }
 

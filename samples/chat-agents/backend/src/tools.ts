@@ -911,4 +911,5 @@ export const TOOL_LABELS: Readonly<Record<string, string>> = {
   spawn_agent: 'starting another agent',
   close_agent: 'closing another agent',
   load_skill: 'loading a skill',
+  read_tool_output: 'reading saved output',
 }

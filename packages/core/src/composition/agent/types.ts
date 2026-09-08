@@ -13,6 +13,7 @@ import type { JsonValue } from '../../primitives/index.ts'
 import type { ModelTarget } from '../provider/types.ts'
 import type { RuntimeRunReport } from '../observation/final-report.ts'
 import type { ToolSource } from '../tool-source/types.ts'
+import type { SpillStore } from '../../agent/tool/output-budget.ts'
 import type { MemoryBinding } from '../memory/types.ts'
 import type { RuntimeSkillSource } from '../skill-provider/types.ts'
 import type { AgentRuntimeLimits, AgentRunEventBufferLimits } from '../../agent/define/session/types.ts'
@@ -62,6 +63,13 @@ export interface RuntimeAgentSessionOptions {
   readonly skillCwd?: string
   readonly userInput?: UserInputBroker
   readonly approvals?: ApprovalBroker
+  /**
+   * Where oversized tool output is saved instead of being cut.
+   *
+   * Mounting one makes the default `auto` overflow policy spill rather than
+   * truncate, and gives the model `read_tool_output` to read the rest back.
+   */
+  readonly spillStore?: SpillStore
   readonly interceptors?: readonly ToolInterceptor[]
   readonly hooks?: TurnHooks
   readonly usagePolicy?: UsagePolicy
@@ -92,7 +100,8 @@ export type RuntimeAgentRunEvent = RuntimeAgentRunEventContext & (
   | { readonly type: 'assistant-delta'; readonly text: string }
   | { readonly type: 'tool-call'; readonly callId: string; readonly name: string; readonly input: unknown }
   | { readonly type: 'tool-result'; readonly callId: string; readonly name: string;
-      readonly status: 'completed' | 'failed' | 'aborted' | 'rejected'; readonly output: unknown }
+      readonly status: 'completed' | 'failed' | 'aborted' | 'rejected' | 'declined';
+      readonly output: unknown }
   | { readonly type: 'assistant-native-tool'; readonly callId: string; readonly provider: string;
       readonly name: string; readonly status: 'started' | 'completed' | 'failed' | 'unknown';
       readonly input?: JsonValue; readonly output?: JsonValue }

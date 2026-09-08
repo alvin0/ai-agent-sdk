@@ -137,6 +137,14 @@ next prompt. The stream gives up that watch the moment a new prompt claims the
 conversation, since two streams draining the same outbox and numbering the same
 transcript would interleave.
 
+The roster alone is not enough to decide when to stop. A worker's last event
+fires before its run resolves, and the completion report that wakes the lead is
+delivered after that — so for a moment every member looks idle, and a stream
+that believed it would close one instant before the synthesis, leaving the
+conversation ending on a worker's own output. `ManagedAgentTeam.whenQuiet()`
+covers that gap: a worker settles only once its report has been delivered, so
+the wait resolves with the lead already woken.
+
 Settled workers are then closed. The SDK keeps a finished worker addressable —
 and occupying one of `maxWorkers` — until something closes it, which is what
 makes `close_agent` worth calling; but this app holds one harness for a whole
@@ -172,7 +180,8 @@ any other folder as a new project.
 
 **Changing the machine asks first.** The tool set splits in two.
 `read_file`, `list_directory`, `search_files`, `propose_edit`, `write_todos`,
-and `fetch_url` run unattended. `write_file`, `edit_file`, `delete_path`,
+`fetch_url`, and the SDK's own `read_tool_output` (which reads back output that
+was spilled — see below) run unattended. `write_file`, `edit_file`, `delete_path`,
 `create_directory`, `move_path`, and `run_command` are listed in
 `MUTATING_TOOLS`, and `backend/src/approvals.ts` turns each of them into a
 question before it runs — using the SDK's own seam, not a wrapper around the
@@ -287,6 +296,31 @@ frontend sees: text deltas, reasoning deltas, tool calls, tool results carrying
 a typed `ToolCard`, questions, permission prompts, retry notices, usage, and run lifecycle. The frontend never
 imports the SDK's own event union, so the loop can change without touching the
 UI.
+
+**Token spend is counted from two sources.** `backend/src/usage.ts` records one
+row per model call, grouped in Settings → Usage by provider, model and reasoning
+effort, with cached input kept apart from fresh input. A provider that streams
+its counters is counted per call; one that reports only when a turn ends is
+counted from the turn's own accounting, and the second source records just the
+difference so neither is double counted. A provider that reports nothing at all
+stays at zero — the SDK flags its estimates as estimates, and showing a guess as
+a measurement would be worse than an empty table.
+
+**Oversized tool output is spilled, not cut.** `backend/src/spill.ts` implements
+the SDK's `SpillStore` over files next to the database, and mounts it on every
+session. A result above the turn's token budget therefore leaves the model a
+preview plus a locator instead of spending the context window, and
+`read_tool_output` reads or greps the rest — nothing is lost. The files live
+under `.data/spill`, never in the workspace: the agent's own file tools are
+confined to the workspace, and spill inside it would let one run read or delete
+another conversation's output through the ordinary read and write tools. A
+locator travels through the model, so it is matched against a strict shape
+before it is ever joined to a path, and a startup sweep removes files older than
+seven days.
+
+Without a store mounted the SDK truncates the middle instead, which needs no
+storage; the sample mounts one because it keeps conversations across restarts
+and a locator that stops resolving is worse than an honest cut.
 
 **Tool cards come from the tool.** Each tool in `backend/src/tools.ts` returns
 `meta.card`, the SDK's UI-metadata channel that the model never sees. That is

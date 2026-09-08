@@ -1,6 +1,7 @@
 import type { ApprovalBroker } from '../../tool/approval.ts'
 import type { ToolDefinition } from '../../tool/definition.ts'
 import type { ToolInterceptor } from '../../tool/pipeline.ts'
+import type { SpillStore, ToolOutputOverflowPolicy } from '../../tool/output-budget.ts'
 import { type ToolCatalog } from '../../tool/registry.ts'
 import { History, type HistoryLimits, type HistorySnapshot } from '../../history/history.ts'
 import type { TurnHooks } from '../../loop/types.ts'
@@ -37,6 +38,28 @@ export interface AgentRuntimeLimits {
   readonly toolCycleWarningAt?: number
   readonly toolCycleLimit?: number
   readonly maxToolCycleLength?: number
+  /**
+   * Estimated tokens of text one tool result may put in front of the model;
+   * defaults to 10,000.
+   */
+  readonly maxToolResultTokens?: number
+  /**
+   * What happens to a result over that budget; defaults to `auto`.
+   *
+   * `auto` spills when a spill store is mounted on the session and truncates
+   * when none is. `truncate` never needs a store; `spill` falls back to
+   * truncating rather than losing the result.
+   */
+  readonly toolResultOverflow?: ToolOutputOverflowPolicy
+  /**
+   * What a spent tool-call budget does to the turn; defaults to
+   * `force-final-answer`.
+   *
+   * `continue` turns the budget into a notice rather than a wall, leaving the
+   * turn bounded by steps, tokens, and the run-level ledger. Long research and
+   * team leads want it: for them the useful call is usually the last one.
+   */
+  readonly onExhausted?: 'force-final-answer' | 'stop' | 'continue'
   /** Hard stop for normal rounds (including retries/finalizers), excluding compaction.
    * Summary calls use compaction limits; run reports still include their usage.
    * Mandatory usage policy applies to every call in the invocation. */
@@ -72,6 +95,14 @@ export interface AgentSessionOptions {
   readonly skillCwd?: string
   readonly userInput?: UserInputBroker
   readonly approvals?: ApprovalBroker
+  /**
+   * Where oversized tool output is saved instead of being cut.
+   *
+   * Mounting one switches the `auto` overflow policy from truncating to
+   * spilling, and registers the `read_tool_output` tool so the model can read
+   * back what was taken out of its context.
+   */
+  readonly spillStore?: SpillStore
   readonly interceptors?: readonly ToolInterceptor[]
   readonly hooks?: TurnHooks
   /** Pluggable delivery backend for canonical run/model/tool observations. */
