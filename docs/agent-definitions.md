@@ -22,6 +22,50 @@ const result = await session.run('Review this API shape.')
 console.log(result.text)
 ```
 
+## Choosing the turn limit
+
+`maxTurns` accepts a positive safe integer or `'auto'`. A number caps normal
+model steps per prompt (default: 16); the exhaustion policy may allow one final
+tools-disabled report. `'auto'` removes that step ceiling and continues until
+the agent finishes or another stopping condition applies.
+
+```ts
+const researcher = ada.with({ mode: 'deep', maxTurns: 'auto' })
+const session = researcher.createSession({
+  registry,
+  runtimeLimits: { onExhausted: 'continue' },
+})
+const result = await session.run('Investigate the problem and verify the result.')
+
+// A host can still choose a fixed execution budget.
+const bounded = researcher.with({ maxTurns: 24 })
+```
+
+Auto does not disable token, tool-call, repetition, error, timeout or ledger
+limits. `onExhausted: 'continue'` separately makes tool-call counts advisory;
+explicit numeric and resource limits retain their meaning. Deep mode still
+requires an accepted self-check and a final report. Cancellation and hard
+resource stops do not grant an extra reporting call.
+
+Aggregate token usage defaults to `runtimeLimits.maxTotalTokens: 'auto'`:
+the SDK still records usage but does not stop a task at a cumulative token count.
+Use a positive safe integer to opt into a hard ceiling, for example
+`runtimeLimits: { maxTotalTokens: 500_000, finalReportReserveTokens: 100_000 }`.
+This is independent of `maxTurns`, context compaction and model output limits.
+
+For runs with a numeric token ceiling, set `runtimeLimits.finalReportReserveTokens` to
+reserve part of `maxTotalTokens` for a final report (default: zero). After a
+tool step reaches `maxTotalTokens - finalReportReserveTokens`, the loop uses
+one tools-disabled reporting round if admission still allows it. This is part
+of the same token budget, not an extension. A sudden usage jump reaching the
+hard limit, cancellation, or `onExhausted: 'stop'` still prevents that call.
+The reserve must be a non-negative safe integer below a numeric `maxTotalTokens`.
+It is ignored when `maxTotalTokens` is omitted or `'auto'`.
+
+The runtime composition API also accepts `maxTurns: 'auto'`; its session
+override uses `runtimeLimits: { maxSteps: 'auto' }`. Configuration and start
+events preserve the string `'auto'` through JSON serialization.
+
 ## Definition and session have different lifetimes
 
 An agent definition is validated, normalized, and frozen. It is safe to export

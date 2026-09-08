@@ -33,7 +33,9 @@ export type ToolDeclineReason = ExhaustedBudget | 'usage-required'
 export type TurnEndReason =
   | { readonly kind: 'completed' }
   | { readonly kind: 'concluded-by-tool'; readonly toolName: string }
-  | { readonly kind: 'budget-exhausted'; readonly budget: ExhaustedBudget; readonly forcedFinalAnswer: boolean }
+  | { readonly kind: 'budget-exhausted'; readonly budget: ExhaustedBudget; readonly forcedFinalAnswer: boolean;
+      /** Exploration stopped at the reporting reserve, before the hard token ceiling. */
+      readonly trigger?: 'report-reserve' }
   | { readonly kind: 'max-tokens' }
   | { readonly kind: 'usage-unavailable'; readonly modelCallId: string }
   | { readonly kind: 'aborted' }
@@ -83,6 +85,10 @@ export type AgentEvent = TraceEvent
   | ({ readonly type: 'turn-start'; readonly turn: number } & Traced)
   | ({ readonly type: 'step-start'; readonly turn: number; readonly step: number; readonly forcedFinal?: true } & Traced)
   | ({ readonly type: 'text-delta'; readonly index: number; readonly text: string; readonly phase: StreamedAssistantTextPhase } & Traced)
+  /** Authoritative text and phase for a model-round block, before step-end.
+   * A final-answer block is local to this agent/round, not whole-team completion.
+   * incomplete marks output retained from an error, abort or output-token limit. */
+  | ({ readonly type: 'text-end'; readonly index: number; readonly text: string; readonly phase: AssistantTextPhase; readonly incomplete?: true } & Traced)
   | ({ readonly type: 'reasoning-delta'; readonly index: number; readonly text: string } & Traced)
   | ({
     readonly type: 'image-delta'

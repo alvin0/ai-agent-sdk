@@ -63,6 +63,63 @@ function model(rounds: readonly (readonly StreamChunk[])[]) {
 }
 
 describe('declarative agent definitions', () => {
+  it.each([undefined, 'auto', 500_000] as const)('applies session total-token policy %s', async maxTotalTokens => {
+    const state = model([[
+      ...toolRound('inspect', 'read', { page: 1 }).slice(0, -1),
+      { type: 'usage', usage: { inputTokens: 600_000, outputTokens: 10, totalTokens: 600_010 } },
+      { type: 'finish', reason: { kind: 'tool-calls' } },
+    ], textRound('Verified report.')])
+    const executed = vi.fn(() => 'evidence')
+    const agent = defineAgent({ id: 'tokens', provider: 'test', model: 'm', instructions: 'Inspect.', maxTurns: 'auto',
+      tools: [defineTool({ name: 'read', description: 'Read.', parameters: { type: 'object' }, execute: executed })] })
+    const response = await agent.createSession({ registry: state.registry, compaction: false,
+      ...(maxTotalTokens === undefined ? {} : { runtimeLimits: { maxTotalTokens } }),
+    }).run('Inspect and report.')
+    expect(state.adapter.requests).toHaveLength(maxTotalTokens === 500_000 ? 1 : 2)
+    expect(executed).toHaveBeenCalledTimes(maxTotalTokens === 500_000 ? 0 : 1)
+    expect(response.outcome.reason.kind).toBe(maxTotalTokens === 500_000 ? 'budget-exhausted' : 'completed')
+  })
+
+  it('requests a current self-check when a follow-up refers to an earlier accepted submission', async () => {
+    const state = model([
+      toolRound('submit-first', 'submit_result', { summary: 'First task done.', evidence: ['first checked'] }),
+      textRound('First report.'),
+      textRound('My previous self-check was already accepted.'),
+      toolRound('submit-followup', 'submit_result', { summary: 'Follow-up checked.', evidence: ['scope rechecked'] }),
+      textRound('Follow-up report.'),
+    ])
+    const session = defineAgent({ id: 'followup', provider: 'test', model: 'm', instructions: 'Report findings.',
+      mode: 'deep', maxTurns: 'auto', compaction: false }).createSession({ registry: state.registry })
+    await session.run('First task.')
+    const result = await session.run('Recheck the scope and report.')
+    expect(result.text).toBe('Follow-up report.')
+    expect(result.outcome.completed).toBe(true)
+    const correction = JSON.stringify(state.adapter.requests[3]?.messages)
+    expect(correction).toContain('this run has no accepted current self-check')
+    expect(correction).toContain('an earlier instruction not to resubmit applied only to that earlier run')
+    expect(state.adapter.requests).toHaveLength(5)
+  })
+
+  it('preserves auto through cloning, sessions and run accounting', async () => {
+    const state = model([
+      ...Array.from({ length: 20 }, (_, i) => toolRound(`read-${i}`, 'read', { page: i })),
+      textRound('All pages reviewed.'),
+    ])
+    const base = defineAgent({ id: 'auto', provider: 'test', model: 'm', instructions: 'Review.', maxTurns: 'auto',
+      tools: [defineTool({ name: 'read', description: 'Read a page.', parameters: { type: 'object' }, execute: () => 'evidence' })] })
+    expect(base.with({ instructions: 'Review carefully.' }).maxTurns).toBe('auto')
+    expect(base.with({ maxTurns: 3 }).maxTurns).toBe(3)
+    expect(base.maxTurns).toBe('auto')
+    const session = base.createSession({ registry: state.registry, compaction: false })
+    const response = await session.run('Review all pages.')
+    expect(response.text).toBe('All pages reviewed.')
+    expect(state.adapter.requests).toHaveLength(21)
+  })
+
+  it.each([0, -1, 1.5, Infinity, NaN, Number.MAX_SAFE_INTEGER + 1, 'AUTO', '32'])('rejects invalid maxTurns %s', maxTurns => {
+    expect(() => defineAgent({ id: 'invalid', instructions: 'Test.', maxTurns: maxTurns as number })).toThrow(/maxTurns/)
+  })
+
   it('keeps every legacy runtime export identical to its canonical core owner', () => {
     expect(Object.keys(legacyAgent).sort()).toEqual(Object.keys(canonicalAgent).sort())
     for (const name of Object.keys(legacyAgent) as (keyof typeof legacyAgent)[]) {

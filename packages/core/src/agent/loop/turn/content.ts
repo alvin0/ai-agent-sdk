@@ -82,11 +82,15 @@ export async function emitAssistantContent(
 export function classifyTextPhases(
   blocks: readonly ContentBlock[],
   processOnly = false,
+  hasHostCalls = blocks.some(block => block.type === 'tool-call'),
 ): ContentBlock[] {
-  const hasHostCalls = blocks.some(block => block.type === 'tool-call')
   const lastNative = blocks.findLastIndex(block => block.type === 'native-tool-call')
   return blocks.map((block, index) => {
-    if (block.type !== 'text' || block.phase !== undefined) return block
+    if (block.type !== 'text') return block
+    // The host's dedicated process phase is authoritative even when the
+    // provider calls this individual generation a final answer.
+    if (processOnly) return { ...block, phase: 'commentary' as const }
+    if (block.phase !== undefined) return block
     const phase = processOnly || hasHostCalls || (lastNative >= 0 && index < lastNative)
       ? 'commentary' as const
       : 'final-answer' as const
@@ -178,7 +182,7 @@ export function systemText(options: RunTurnOptions, forcedFinal: boolean): strin
     parts.push('Do not emit progress commentary around tool calls; call tools directly and provide only the final answer.')
   }
   if (forcedFinal) parts.push(
-    'Tool use is now disabled. Answer from the information already gathered and state plainly what remains unknown.',
+    'Tool use is now disabled. Write the final report from the information already gathered: findings or changes, supporting evidence and verification, and what remains unknown or unfinished. Reconcile any task list in the report without claiming unfinished items are done. Do not call a submission or planning tool; this report is the final response.',
   )
   return parts.filter((part): part is string => part !== undefined && part.length > 0).join('\n\n')
 }

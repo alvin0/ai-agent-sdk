@@ -8,6 +8,31 @@
  * and a rule nobody can test is a rule that quietly regresses.
  */
 
+/**
+ * Shortest run of settled tool calls worth folding into one row.
+ *
+ * Two rows are not a wall; they are two rows, and hiding them behind a summary
+ * costs a click to learn less than the rows already said.
+ */
+export const TOOL_GROUP_MIN = 3
+
+/**
+ * The one line a folded run of tool calls shows.
+ *
+ * Names the tools rather than counting anonymous "steps": "Fetch, Run · 9
+ * steps" tells the reader whether the run is worth opening, which is the only
+ * question a folded row has to answer.
+ * @param titles - Display titles of the calls, in order.
+ * @returns The summary line.
+ */
+export function toolGroupSummary(titles: readonly string[]): string {
+  const distinct = [...new Set(titles)]
+  const shown = distinct.slice(0, 3).join(', ')
+  const rest = distinct.length - 3
+  const names = rest > 0 ? `${shown} +${String(rest)} more` : shown
+  return `${names} · ${String(titles.length)} steps`
+}
+
 /** Just enough of a tool node to decide how it is displayed. */
 export interface ToolDisplayState {
   readonly name: string

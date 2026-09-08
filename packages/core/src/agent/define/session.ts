@@ -549,6 +549,9 @@ export class AgentSession {
         ...this.runtimeLimits.maxToolCycleLength === undefined
           ? {}
           : { maxToolCycleLength: this.runtimeLimits.maxToolCycleLength },
+        ...this.runtimeLimits.finalReportReserveTokens === undefined ? {} : {
+          finalReportReserveTokens: this.runtimeLimits.finalReportReserveTokens,
+        },
         ...this.runtimeLimits.maxTotalTokens === undefined
           ? {}
           : { maxTotalTokens: this.runtimeLimits.maxTotalTokens },

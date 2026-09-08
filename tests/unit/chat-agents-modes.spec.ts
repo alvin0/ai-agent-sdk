@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ToolRegistry, createUserInputBroker, defineTool, runAgent } from '@ai-agent-sdk/core/agent'
 import type { AgentRunEvent, SpillStore } from '@ai-agent-sdk/core/agent'
 import { History } from '@ai-agent-sdk/core/agent'
@@ -18,6 +18,77 @@ const { createFileSpillStore } = await import('../../samples/chat-agents/backend
 const { startRun } = await import('../../samples/chat-agents/backend/src/agent-runtime.ts')
 const { createApprovalPolicy } = await import('../../samples/chat-agents/backend/src/approvals.ts')
 const { createSampleTools } = await import('../../samples/chat-agents/backend/src/tools.ts')
+
+describe('research web sources', () => {
+  it('delivers source links to the model using the redirected page as their base', async () => {
+    const response = new Response('<title>Research</title><a href="../report?year=2026&amp;month=9">Dated report</a>')
+    Object.defineProperty(response, 'url', { value: 'https://source.test/news/latest/' })
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response)
+    try {
+      const result = await run({ tools: createSampleTools(join(home, 'sandbox')), rounds: [
+        call('fetch-links', 'fetch_url', { url: 'https://source.test/start' }), text('Source link available.'),
+      ] })
+      const tool = result.nodes.find(node => node.kind === 'tool')
+      expect(JSON.parse(tool!.output!)).toMatchObject({ links: [
+        { url: 'https://source.test/news/report?year=2026&month=9', text: 'Dated report' },
+      ] })
+      expect(JSON.stringify(result.requests[1]?.messages)).toContain('https://source.test/news/report?year=2026&month=9')
+      expect(fetchMock).toHaveBeenCalledOnce()
+    } finally { fetchMock.mockRestore() }
+  })
+
+  it('Stop aborts a pending fetch without making a finalization request', async () => {
+    const controller = new AbortController()
+    let fetchAborted = false
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((_url, options) => new Promise((_resolve, reject) => {
+      options?.signal?.addEventListener('abort', () => { fetchAborted = true; reject(options.signal?.reason) }, { once: true })
+      queueMicrotask(() => controller.abort(new Error('Stopped by user')))
+    }))
+    try {
+      const result = await run({ signal: controller.signal, tools: createSampleTools(join(home, 'sandbox')), rounds: [
+        call('fetch', 'fetch_url', { url: 'https://example.test/slow' }), text('Must not be called.'),
+      ] })
+      expect(fetchAborted).toBe(true)
+      expect(result.requests).toHaveLength(1)
+      expect(result.events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { reason: { kind: 'aborted' } } })
+    } finally { fetchMock.mockRestore() }
+  })
+
+  it('marks HTTP error pages as failed sources rather than successful evidence', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('Access denied', { status: 403 }))
+    try {
+      const result = await run({ tools: createSampleTools(join(home, 'sandbox')), rounds: [
+        call('fetch', 'fetch_url', { url: 'https://example.test/prices' }), text('Source unavailable; price unverified.'),
+      ] })
+      expect(result.nodes.find(node => node.kind === 'tool')).toMatchObject({ state: 'error' })
+      expect(JSON.stringify(result.requests[1]?.messages)).toContain('HTTP 403')
+      expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal)
+    } finally { fetchMock.mockRestore() }
+  })
+
+  it('cancels oversized source bodies and tells the model the text is truncated', async () => {
+    const cancel = vi.fn()
+    let pulls = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) { pulls++; controller.enqueue(new TextEncoder().encode('evidence '.repeat(30_000))) }, cancel,
+    })
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(body))
+    try {
+      const startedAt = Date.now()
+      const result = await run({ tools: createSampleTools(join(home, 'sandbox')), rounds: [
+        call('fetch', 'fetch_url', { url: 'https://example.test/report' }), text('Partial source inspected.'),
+      ] })
+      expect(cancel).toHaveBeenCalledOnce()
+      expect(pulls).toBeLessThanOrEqual(2)
+      const node = result.nodes.find(node => node.kind === 'tool')
+      expect(node).toMatchObject({ state: 'ok' })
+      const fetched = JSON.parse(node!.output!) as { fetchedAt: string; truncated: boolean }
+      expect(fetched.truncated).toBe(true)
+      expect(Date.parse(fetched.fetchedAt)).toBeGreaterThanOrEqual(startedAt)
+      expect(Date.parse(fetched.fetchedAt)).toBeLessThanOrEqual(Date.now())
+    } finally { fetchMock.mockRestore() }
+  })
+})
 
 /**
  * The modes a conversation actually runs in, not just the team ones.
@@ -96,6 +167,7 @@ async function run(options: {
   readonly bounds?: Record<string, unknown>
   readonly userInput?: ReturnType<typeof createUserInputBroker>
   readonly maxTurns?: number
+  readonly signal?: AbortSignal
   readonly approvals?: { broker: unknown; interceptor: unknown }
   readonly interceptors?: readonly unknown[]
   readonly onRound?: (index: number, history: History) => void
@@ -114,6 +186,7 @@ async function run(options: {
     registry,
     config: { provider: 'test', model: 'scripted' },
     history,
+    ...options.signal === undefined ? {} : { signal: options.signal },
     ...options.tools === undefined ? {} : { tools: options.tools },
     ...options.spillStore === undefined ? {} : { spillStore: options.spillStore },
     ...options.bounds === undefined ? {} : { bounds: options.bounds as never },
@@ -218,6 +291,21 @@ describe('basic mode', () => {
 })
 
 describe('deep mode', () => {
+  it('does not reopen completion when the sample publishes its final todo state', async () => {
+    const result = await run({
+      mode: 'deep', maxTurns: 8,
+      tools: createSampleTools(join(home, 'sandbox')) as unknown as ToolRegistry,
+      rounds: [
+        call('submit', 'submit_result', { summary: 'Reconciled.', evidence: ['340 USD verified'] }),
+        call('final-plan', 'write_todos', { items: [{ text: 'Reconcile revenue', status: 'done' }] }),
+        text('The total is 340 USD. The plan is complete.'),
+      ],
+    })
+    const end = result.events.find(e => e.type === 'agent-end')
+    expect(end?.type === 'agent-end' && end.outcome.completed).toBe(true)
+    expect(result.requests).toHaveLength(3)
+  })
+
   it('can still submit after the tool budget is spent', async () => {
     const result = await run({
       mode: 'deep',
@@ -349,6 +437,42 @@ describe('human-in-the-loop mode', () => {
 })
 
 describe('what the app actually configures for a single agent', () => {
+  it.each(['lead', 'worker'] as const)('Team-auto lets its %s finish past the old step ceiling', async actor => {
+    const work = [
+      ...Array.from({ length: 55 }, (_, i) => call(`page-${i}`, 'read_file', { path: `source-${i}.md` })),
+      call('done', 'submit_result', { summary: 'Reviewed.', evidence: ['55 sources checked'] }),
+      text('Final report: 55 sources checked.'),
+    ]
+    const adapter = new Scripted(actor === 'lead' ? work : [
+      call('lead-done', 'submit_result', { summary: 'Ready.', evidence: ['request reviewed'] }), text('Ready.'), ...work,
+    ])
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['test'], adapter)
+    const workerEvents: AgentRunEvent[] = []
+    const handles = await startRun('Review the sources.', {
+      registry, provider: 'test', model: 'scripted', effort: undefined, mode: 'team-dynamic',
+      workspaceRoot: join(home, 'sandbox'), groupId: 'default', history: new History(),
+      workspaceTools: toolsWith(defineTool({ name: 'read_file', description: 'Read evidence.',
+        parameters: { type: 'object' }, execute: () => 'source evidence' })),
+      userInput: createUserInputBroker(), agent: undefined, signal: new AbortController().signal,
+    } as never, (_member, event) => { workerEvents.push(event) })
+    try {
+      const events: AgentRunEvent[] = []
+      for await (const event of handles.events) events.push(event as AgentRunEvent)
+      if (actor === 'worker') {
+        await handles.managedTeam!.spawn({ name: 'researcher', task: 'Review all 55 sources.' })
+        expect(await handles.managedTeam!.awaitWorker('researcher')).toMatchObject({
+          text: 'Final report: 55 sources checked.', succeeded: true,
+        })
+      }
+      const own = actor === 'lead' ? events : workerEvents
+      expect(own.find(event => event.type === 'agent-start')).toMatchObject({ maxTurns: 'auto' })
+      expect(own.find(event => event.type === 'agent-end')).toMatchObject({ outcome: {
+        completed: true, steps: 57, text: 'Final report: 55 sources checked.',
+      } })
+    } finally { await handles.managedTeam?.dispose() }
+  })
+
   /**
    * Run one prompt through the sample's own `startRun`, so the assertions are
    * about the app's wiring rather than about options a test chose.
@@ -402,6 +526,21 @@ describe('what the app actually configures for a single agent', () => {
     expect(second).toContain('read_tool_output')
     // Spilled, not merely cut: the model is told where the rest is.
     expect(second).not.toContain('Re-run more narrowly')
+  })
+
+  it('keeps a final report after the sample consumes all work steps', async () => {
+    const { requests, events } = await appRun([
+      ...Array.from({ length: 32 }, (_, index) => call(`read-${index}`, 'read_file', { path: `source-${index}.md` })),
+      text('Report: sources compared; pending items remain unverified.'),
+    ], defineTool({
+      name: 'read_file', description: 'Read evidence.', parameters: { type: 'object' },
+      execute: () => 'source evidence',
+    }))
+    const end = events.find(event => event.type === 'agent-end')
+    expect(end?.type === 'agent-end' && end.outcome.text).toContain('Report: sources compared')
+    expect(requests).toHaveLength(33)
+    expect(requests.at(-1)?.toolChoice).toBe('none')
+    expect(requests[0]?.system).toContain('reconcile the plan')
   })
 
   it('does not wall a single agent at its tool budget either', async () => {
@@ -665,5 +804,98 @@ describe('providers do not all behave alike', () => {
     expect(kinds).toContain('reasoning')
     const said = result.nodes.filter(node => node.kind === 'text').map(node => node.text)
     expect(said).toEqual(['Checking that now.', 'Here is the answer.'])
+  })
+
+  it.each([undefined, 'researcher'])('settles late block phases for %s without duplicating text', async member => {
+    const adapter = new Scripted([[
+      { type: 'text-delta', index: 17, text: 'Checking.' },
+      { type: 'block-end', index: 17, block: { type: 'text', text: 'Checking.', phase: 'commentary' } },
+      // Sparse, non-monotonic index and no deltas: the block is authoritative.
+      { type: 'block-end', index: 3, block: { type: 'text', text: 'Verified report.', phase: 'final-answer' } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ]])
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['test'], adapter)
+    const project = new EventProjector()
+    const wire = []
+    for await (const event of runAgent({
+      mode: 'basic', registry, history: new History(), config: { provider: 'test', model: 'scripted' },
+    })) wire.push(...(member === undefined ? project.forLead(event) : project.forMember(member, event)))
+    const texts = [...project.flush(), ...project.settled()].filter(n => n.kind === 'text')
+    expect(texts).toMatchObject([
+      { text: 'Checking.', phase: 'commentary' }, { text: 'Verified report.', phase: 'final-answer' },
+    ])
+    expect(texts.every(n => n.member === member)).toBe(true)
+    expect(wire.some(e => e.t === 'text-end' && e.phase === 'final-answer' && e.text === 'Verified report.')).toBe(true)
+  })
+
+  it.each(['error', 'aborted', 'max-tokens'] as const)('keeps block-only partial reports on %s for lead and workers', async kind => {
+    const finish: StreamChunk = kind === 'max-tokens'
+      ? { type: 'finish', reason: { kind } }
+      : { type: 'finish', reason: { kind, failure: { code: 'INTERRUPTED', message: 'stream interrupted' } } }
+    for (const member of [undefined, 'researcher']) {
+      const adapter = new Scripted([[
+        ...(kind === 'aborted' ? [{ type: 'block-start', index: 2, blockType: 'text' } as StreamChunk] : []),
+        { type: 'block-end', index: 9, block: { type: 'text', text: 'Evidence gathered; verification pending.', phase: 'final-answer' } },
+        finish,
+      ]])
+      const registry = new ModelRegistry()
+      registry.registerAdapter(['test'], adapter)
+      const project = new EventProjector()
+      const wire = []
+      for await (const event of runAgent({ mode: 'basic', registry, history: new History(),
+        config: { provider: 'test', model: 'scripted' },
+      })) wire.push(...(member === undefined ? project.forLead(event) : project.forMember(member, event)))
+      const settled = [...project.flush(), ...project.settled()]
+      const texts = settled.filter(n => n.kind === 'text')
+      expect(texts).toHaveLength(1)
+      expect(texts[0]).toMatchObject({ text: 'Evidence gathered; verification pending.', incomplete: true })
+      expect(texts[0]?.id).toMatch(/\.t9$/)
+      expect(texts[0]?.member).toBe(member)
+      expect(wire.some(e => e.t === 'text-end' && e.incomplete === true)).toBe(true)
+      if (member !== undefined) {
+        expect(wire).toContainEqual(expect.objectContaining({ t: 'notice', level: 'warn', member,
+          message: expect.stringContaining("Worker 'researcher' did not complete its task"),
+        }))
+        expect(settled).toContainEqual(expect.objectContaining({ kind: 'notice', member, level: 'warn' }))
+        expect(wire.some(e => e.t === 'run-end')).toBe(false)
+      }
+    }
+  })
+
+  it.each(['reserve', 'hard-limit'] as const)('explains the actual worker token stop (%s)', async kind => {
+    const adapter = new Scripted([[
+      ...call('read', 'read_file', { path: 'source.md' }).slice(0, -1),
+      { type: 'usage', usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 } },
+      { type: 'finish', reason: { kind: 'tool-calls' } },
+    ], text('Partial findings; verification remains pending.')])
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['test'], adapter)
+    const project = new EventProjector()
+    const wire = []
+    for await (const event of runAgent({ mode: 'basic', registry, history: new History(),
+      config: { provider: 'test', model: 'scripted' }, maxTurns: 'auto',
+      tools: toolsWith(defineTool({ name: 'read_file', description: 'Read.', parameters: { type: 'object' }, execute: () => 'evidence' })),
+      bounds: { maxTotalTokens: kind === 'reserve' ? 20 : 12, finalReportReserveTokens: 10, onExhausted: 'continue' },
+    })) wire.push(...project.forMember('banking', event))
+    const message = kind === 'reserve' ? 'research stopped to reserve token capacity' : 'hard cumulative token limit reached'
+    expect(wire).toContainEqual(expect.objectContaining({ t: 'notice', member: 'banking', message: expect.stringContaining(message) }))
+    expect([...project.flush(), ...project.settled()]).toContainEqual(expect.objectContaining({
+      kind: 'notice', member: 'banking', message: expect.stringContaining(message),
+    }))
+  })
+
+  it('does not stream text stragglers or shift canonical block indexes', async () => {
+    const result = await run({ rounds: [[
+      { type: 'block-end', index: 7, block: { type: 'reasoning', text: 'Checked evidence' } },
+      { type: 'text-delta', index: 7, text: 'ignored straggler' },
+      { type: 'text-delta', index: 21, text: 'Draft' },
+      { type: 'block-end', index: 21, block: { type: 'text', text: 'Canonical answer', phase: 'final-answer' } },
+      { type: 'text-delta', index: 21, text: 'ignored suffix' },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ]] })
+    expect(result.nodes.filter(n => n.kind === 'text')).toMatchObject([{ text: 'Canonical answer' }])
+    expect(result.events.filter(e => e.type === 'text-delta')).toMatchObject([{ index: 21, text: 'Draft' }])
+    expect(result.events.filter(e => e.type === 'text-end')).toMatchObject([{ index: 21, text: 'Canonical answer' }])
   })
 })

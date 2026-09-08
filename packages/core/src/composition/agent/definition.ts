@@ -113,7 +113,7 @@ export function bindRuntimeAgentDefinition(
       outputFormat: values.outputFormat as NonNullable<RuntimeAgentBindingInput['outputFormat']>,
     }),
     ...(values.compaction === undefined ? {} : { compaction: values.compaction as NonNullable<RuntimeAgentBindingInput['compaction']> }),
-    ...(values.maxTurns === undefined ? {} : { maxTurns: values.maxTurns as number }),
+    ...(values.maxTurns === undefined ? {} : { maxTurns: values.maxTurns as number | 'auto' }),
     ...(values.maxToolCalls === undefined ? {} : { maxToolCalls: values.maxToolCalls as number }),
     ...(values.commentary === undefined ? {} : { commentary: values.commentary as NonNullable<RuntimeAgentBindingInput['commentary']> }),
   })

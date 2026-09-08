@@ -58,12 +58,17 @@ export interface AgentRuntimeLimits {
    * `continue` turns the budget into a notice rather than a wall, leaving the
    * turn bounded by steps, tokens, and the run-level ledger. Long research and
    * team leads want it: for them the useful call is usually the last one.
+   * Step/loop-guard exhaustion allows one tools-disabled final report, subject
+   * to token/run limits and cancellation.
    */
   readonly onExhausted?: 'force-final-answer' | 'stop' | 'continue'
-  /** Hard stop for normal rounds (including retries/finalizers), excluding compaction.
+  /** Default 'auto': no aggregate token ceiling. A number sets a hard stop for
+   * normal rounds (including retries/finalizers), excluding compaction.
    * Summary calls use compaction limits; run reports still include their usage.
    * Mandatory usage policy applies to every call in the invocation. */
-  readonly maxTotalTokens?: number
+  readonly maxTotalTokens?: number | 'auto'
+  /** Token headroom for one tools-disabled final report; ignored with auto total tokens. Default zero. */
+  readonly finalReportReserveTokens?: number
   readonly hookTimeoutMs?: number
   readonly hookTeardownTimeoutMs?: number
   /** Maximum settlement time for each host memory-store load or commit callback. */

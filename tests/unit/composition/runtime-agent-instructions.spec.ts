@@ -134,6 +134,22 @@ function fixture() {
 }
 
 describe('run-scoped additional instructions', () => {
+  it.each(['definition', 'session'] as const)('supports auto through runtime %s configuration', async via => {
+    const adapter = new ScriptedOverlayAdapter([toolRound(), textRound('Verified.')])
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    try {
+      const agent = runtime.agent({ id: 'auto', instructions: 'Work.', compaction: false,
+        maxTurns: via === 'definition' ? 'auto' : 1,
+        tools: [defineTool({ name: 'work', description: 'Work.', parameters: { type: 'object' }, execute: () => 'evidence' })],
+      })
+      const session = agent.createSession(via === 'session' ? { runtimeLimits: { maxSteps: 'auto' } } : {})
+      const result = await session.run('Work and report.')
+      expect(result.text).toBe('Verified.')
+      expect(adapter.requests).toHaveLength(2)
+      expect(adapter.requests[1]?.toolChoice).not.toBe('none')
+    } finally { await runtime.close() }
+  })
+
   it('accepts the exact byte boundary without trimming and rejects every invalid shape', () => {
     const exact = ` ${'a'.repeat(RUN_ADDITIONAL_INSTRUCTIONS_MAX_BYTES - 2)} `
     expect(captureAdditionalInstructions(exact)).toBe(exact)

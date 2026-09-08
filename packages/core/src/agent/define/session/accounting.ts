@@ -22,7 +22,7 @@ export function createSessionLedger(input: SessionLedgerInput): RunLedger {
     mode: definition.mode,
     maxTurns: definition.maxTurns,
     ...options.usagePolicy === undefined ? {} : { usagePolicy: options.usagePolicy },
-    cumulativeTokenBudget: runtimeLimits.maxTotalTokens !== undefined,
+    cumulativeTokenBudget: typeof runtimeLimits.maxTotalTokens === 'number',
     ...(runtime?.logger === undefined ? {} : { logger: runtime.logger }),
     ...options.ledgerLimits === undefined ? {} : { limits: options.ledgerLimits },
   })

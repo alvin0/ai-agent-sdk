@@ -319,6 +319,14 @@ describe('runTurn', () => {
       events.findIndex(event => event.type === 'tool-call'),
     )
     expect(state.adapter.requests[0]?.system).toContain('user-visible progress update')
+    const settledText = events.filter(event => event.type === 'text-end')
+    expect(settledText).toMatchObject([
+      { index: 1, phase: 'commentary' }, { index: 0, phase: 'final-answer' },
+    ])
+    for (const event of settledText) {
+      expect(events.findIndex(next => next.type === 'step-end' && next.trace.spanId === event.trace.spanId))
+        .toBeGreaterThan(events.indexOf(event))
+    }
     const assistant = state.history.entries().find(entry => entry.event.kind === 'assistant')
     expect(assistant?.event.kind === 'assistant' ? assistant.event.message.content : []).toContainEqual({
       type: 'text', text: 'I’ll check that now.', phase: 'commentary',
@@ -348,7 +356,9 @@ describe('runTurn', () => {
     const state = await setup([
       toolRound([{ id: 'schema-loop-1', name: 'echo', arguments: '{"value":1}' }]),
       toolRound([{ id: 'schema-loop-2', name: 'echo', arguments: '{"value":2}' }]),
-      textRound('The process is complete.'),
+      textRound('The process is complete.').map(chunk => chunk.type === 'block-end' && chunk.block.type === 'text'
+        ? { ...chunk, block: { ...chunk.block, phase: 'final-answer' as const } }
+        : chunk.type === 'text-delta' ? { ...chunk, phase: 'final-answer' as const } : chunk),
       textRound('{"answer":"done"}'),
     ])
     const events: AgentEvent[] = []
@@ -367,6 +377,10 @@ describe('runTurn', () => {
     })) events.push(event)
 
     expect(state.adapter.requests).toHaveLength(4)
+    expect(events.filter(event => (event.type === 'text-delta' || event.type === 'text-end')
+      && event.text === 'The process is complete.')).toMatchObject([
+      { type: 'text-delta', phase: 'commentary' }, { type: 'text-end', phase: 'commentary' },
+    ])
     expect(state.adapter.requests.slice(0, 3).map(request => request.outputFormat)).toEqual([
       { type: 'text' }, { type: 'text' }, { type: 'text' },
     ])
@@ -711,6 +725,92 @@ describe('runTurn', () => {
     expect(requestText(state, 4)).toContain('2 of 6 calls remain')
   })
 
+  it.each([undefined, 'auto'] as const)('continues beyond the former token ceiling (%s)', async maxTotalTokens => {
+    const state = await setup([[
+      ...toolRound([{ id: 'large', name: 'echo', arguments: '{"value":1}' }]).slice(0, -2),
+      { type: 'usage', usage: { inputTokens: 600_000, outputTokens: 10, totalTokens: 600_010 } },
+      { type: 'finish', reason: { kind: 'tool-calls' } },
+    ], textRound('Verified report after large cumulative usage.')])
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({ registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, bounds: { maxSteps: 'auto', finalReportReserveTokens: 100_000,
+        ...(maxTotalTokens === undefined ? {} : { maxTotalTokens }) },
+    })) events.push(event)
+    expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
+      reason: { kind: 'completed' }, toolCalls: 1, text: 'Verified report after large cumulative usage.',
+    } })
+    expect(state.adapter.requests).toHaveLength(2)
+    expect(state.adapter.requests[1]?.toolChoice).not.toBe('none')
+    expect(JSON.stringify(state.adapter.requests[1]?.messages)).not.toContain('Token budget:')
+  })
+
+  it.each([0, -1, NaN, Infinity, 1.5, 'AUTO', '500000'])('rejects invalid total token policy %s', value => {
+    expect(() => resolveBounds({ maxTotalTokens: value as number })).toThrow(/maxTotalTokens/)
+    expect(() => resolveRuntimeLimits({ maxTotalTokens: value as number })).toThrow(/maxTotalTokens/)
+  })
+
+  it.each(['report', 'hard-stop', 'explicit-stop'] as const)('reserves a final report without overriding %s', async kind => {
+    const state = await setup([
+      toolRound([{ id: 'source', name: 'echo', arguments: '{"value":1}' }]),
+      textRound('Partial findings: one source inspected; other checks pending.'),
+    ])
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({ registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, bounds: { maxSteps: 'auto',
+        maxTotalTokens: kind === 'hard-stop' ? 12 : 20, finalReportReserveTokens: 10,
+        onExhausted: kind === 'explicit-stop' ? 'stop' : 'continue' },
+    })) events.push(event)
+    expect(state.adapter.requests).toHaveLength(kind === 'report' ? 2 : 1)
+    expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
+      reason: { kind: 'budget-exhausted', budget: 'tokens', forcedFinalAnswer: kind === 'report' },
+    } })
+    if (kind === 'report') {
+      expect(events.at(-1)).toMatchObject({ outcome: { reason: { trigger: 'report-reserve' } } })
+      expect(state.adapter.requests.at(-1)?.toolChoice).toBe('none')
+      expect(events.at(-1)).toMatchObject({ outcome: { text: expect.stringContaining('Partial findings:') } })
+    }
+    if (kind === 'hard-stop') {
+      const terminal = events.at(-1)
+      expect(terminal?.type === 'turn-end' && terminal.outcome.reason).not.toHaveProperty('trigger')
+    }
+  })
+
+  it('warns an auto run before the hard token limit so it can report', async () => {
+    const state = await setup([
+      toolRound([{ id: 'source-1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'source-2', name: 'echo', arguments: '{"value":2}' }]),
+      textRound('Report: verified sources and remaining gaps.'),
+    ])
+    for await (const _event of runTurn({ registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, bounds: { maxSteps: 'auto', maxTotalTokens: 40 },
+    })) { /* drain */ }
+    // Each fixture tool round reports 12 tokens; after two, 16 remain.
+    expect(JSON.stringify(state.adapter.requests[1]?.messages)).not.toContain('Token budget:')
+    expect(JSON.stringify(state.adapter.requests[2]?.messages)).toContain('Token budget: 16 of 40')
+    expect(state.adapter.requests).toHaveLength(3)
+  })
+
+  it('allows rechecking the same evidence between distinct work steps in auto mode', async () => {
+    const state = await setup([
+      toolRound([{ id: 'check-1', name: 'echo', arguments: '{"value":"verify"}' }]),
+      toolRound([{ id: 'edit-1', name: 'echo', arguments: '{"value":"fix pagination"}' }]),
+      toolRound([{ id: 'check-2', name: 'echo', arguments: '{"value":"verify"}' }]),
+      toolRound([{ id: 'edit-2', name: 'echo', arguments: '{"value":"fix empty input"}' }]),
+      toolRound([{ id: 'check-3', name: 'echo', arguments: '{"value":"verify"}' }]),
+      textRound('Verified both fixes. Final report.'),
+    ])
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({ registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, bounds: {
+        maxSteps: 'auto', onExhausted: 'continue', repeatToolWarningAt: 2, repeatToolLimit: 3,
+      },
+    })) events.push(event)
+    expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
+      reason: { kind: 'completed' }, text: 'Verified both fixes. Final report.', toolCalls: 5,
+    } })
+    expect(state.adapter.requests.at(-1)?.toolChoice).not.toBe('none')
+  })
+
   it('names the guard that declined the call rather than blaming the budget', async () => {
     // A model told "no remaining tool-call budget" when it actually tripped the
     // repeat guard learns to ask for fewer calls, and repeats the same call in
@@ -846,7 +946,76 @@ describe('runTurn', () => {
       bounds: { maxToolCalls: 1, maxSteps: 2, onExhausted: 'continue', toolBudgetRemindAt: [] },
     })) if (event.type === 'turn-end') terminal = event
 
-    expect(terminal?.outcome.reason).toMatchObject({ kind: 'budget-exhausted', budget: 'steps' })
+    expect(terminal?.outcome).toMatchObject({
+      text: 'Forced answer.', steps: 3, toolCalls: 2,
+      reason: { kind: 'budget-exhausted', budget: 'steps', forcedFinalAnswer: true },
+    })
+    expect(state.adapter.requests).toHaveLength(3)
+    expect(state.adapter.requests.at(-1)?.toolChoice).toBe('none')
+    expect(requestText(state, 1)).toContain('1 work steps remain')
+  })
+
+  it.each(['max-tokens', 'aborted'] as const)('keeps narration as process when %s drops an unfinished tool call', async kind => {
+    const state = await setup([[
+      { type: 'text-delta', index: 8, text: 'I will inspect the evidence.' },
+      { type: 'tool-call-delta', index: 19, id: ToolCallId('unfinished'), name: 'echo', argumentsDelta: '{"value":' },
+      kind === 'max-tokens'
+        ? { type: 'finish', reason: { kind } }
+        : { type: 'finish', reason: { kind, failure: { code: 'ABORTED', message: 'Stopped' } } },
+    ]])
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' },
+      history: state.history, tools: state.tools,
+    })) events.push(event)
+    expect(events.filter(e => e.type === 'text-end')).toMatchObject([
+      { index: 8, text: 'I will inspect the evidence.', phase: 'commentary', incomplete: true },
+    ])
+    expect(events.filter(e => e.type === 'tool-call')).toEqual([])
+    const last = events.at(-1)
+    expect(last?.type === 'turn-end' && last.outcome.text).toBe('')
+  })
+
+  it.each(['aborted', 'broken-extension'] as const)('preserves native research phases after %s', async kind => {
+    const state = await setup([[
+      { type: 'text-delta', index: 18, text: 'I will search the sources.' },
+      { type: 'block-end', index: 2, block: {
+        type: 'native-tool-call', id: 'search', name: 'web-search', status: 'completed', content: [],
+      } },
+      { type: 'text-delta', index: 9, text: 'The source reports 120 USD.' },
+      ...(kind === 'broken-extension' ? [{ type: 'block-start', index: 25, blockType: 'extension' } as unknown as StreamChunk] : []),
+      kind === 'aborted'
+        ? { type: 'finish', reason: { kind: 'aborted', failure: { code: 'ABORTED', message: 'Stopped' } } }
+        : { type: 'finish', reason: { kind: 'stop' } },
+    ]])
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+    })) events.push(event)
+    expect(events.filter(e => e.type === 'text-end')).toMatchObject([
+      { index: 18, phase: 'commentary', incomplete: true },
+      { index: 9, phase: 'final-answer', incomplete: true },
+    ])
+    const last = events.at(-1)
+    expect(last?.type === 'turn-end' && last.outcome.text).toBe('The source reports 120 USD.')
+  })
+
+  it.each(['stop', 'tokens', 'abort'] as const)('does not finalize across %s', async (limit) => {
+    const state = await setup([
+      toolRound([{ id: 'last', name: 'echo', arguments: '{"value":1}' }]),
+      textRound('Must not be requested.'),
+    ])
+    const controller = new AbortController()
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools, signal: controller.signal,
+      bounds: { maxSteps: 1, onExhausted: limit === 'stop' ? 'stop' : 'continue',
+        ...(limit === 'tokens' ? { maxTotalTokens: 12 } : {}),
+      },
+    })) {
+      if (limit === 'abort' && event.type === 'tool-result') controller.abort()
+    }
+    expect(state.adapter.requests).toHaveLength(1)
   })
 
   it('ignores thresholds that do not fit the budget', async () => {
@@ -1247,6 +1416,26 @@ describe('runTurn', () => {
     expect(terminal?.outcome.reason).toMatchObject({
       kind: 'error', failure: { code: 'INVALID_MODEL_STREAM' },
     })
+  })
+
+  it.each(['stop', 'aborted'] as const)('preserves partial text beside an unfinished extension (%s)', async kind => {
+    const state = await setup([[
+      { type: 'text-delta', index: 17, text: '   ' },
+      { type: 'text-delta', index: 3, text: 'Verified evidence before interruption.' },
+      { type: 'block-start', index: 29, blockType: 'extension' } as unknown as StreamChunk,
+      kind === 'stop' ? { type: 'finish', reason: { kind } }
+        : { type: 'finish', reason: { kind, failure: { code: 'ABORTED', message: 'Stopped' } } },
+    ]])
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+    })) events.push(event)
+    expect(events.filter(event => event.type === 'text-end')).toMatchObject([
+      { index: 3, text: 'Verified evidence before interruption.', incomplete: true },
+    ])
+    const terminal = events.at(-1)
+    expect(terminal?.type === 'turn-end' && terminal.outcome.reason.kind).toBe(kind === 'stop' ? 'error' : 'aborted')
+    expect(terminal?.type === 'turn-end' && terminal.outcome.text).toBe('Verified evidence before interruption.')
   })
 
   it('turns an oversized tool result into a bounded model-visible failure', async () => {

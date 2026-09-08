@@ -86,7 +86,7 @@ export type WireEvent =
   | { readonly t: 'member-end'; readonly member: string }
   /** Assistant markdown, streamed. `phase` separates progress narration from the answer. */
   | ({ readonly t: 'text-delta'; readonly id: string; readonly text: string; readonly phase: 'commentary' | 'final-answer' | 'unknown' } & WireMember)
-  | { readonly t: 'text-end'; readonly id: string }
+  | { readonly t: 'text-end'; readonly id: string; readonly text?: string; readonly phase?: 'commentary' | 'final-answer'; readonly member?: string; readonly incomplete?: true }
   | ({ readonly t: 'reasoning-delta'; readonly id: string; readonly text: string } & WireMember)
   | ({ readonly t: 'tool-call'; readonly id: string; readonly name: string; readonly args: string } & WireMember)
   | ({
@@ -120,7 +120,7 @@ export type WireEvent =
    * say. Kept in the transcript because a silent recovery is how a stalled run
    * gets mistaken for a working one.
    */
-  | { readonly t: 'notice'; readonly level: 'info' | 'warn'; readonly message: string }
+  | { readonly t: 'notice'; readonly level: 'info' | 'warn'; readonly message: string; readonly member?: string }
   /**
    * Output from a tool call that has NOT finished yet.
    *

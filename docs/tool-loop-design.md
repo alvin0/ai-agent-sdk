@@ -214,7 +214,9 @@ broker.resolve(requestId, {
 })
 ```
 
-`maxTurns` counts normal model iterations. With the default
+Numeric `maxTurns` counts normal model iterations; `'auto'` removes the fixed
+iteration ceiling while retaining completion, cancellation and resource guards.
+The lower-level `runTurn` equivalent is `bounds.maxSteps: 'auto'`. With the default
 `force-final-answer` policy, exhaustion may use one additional request with tools
 disabled so the evidence already gathered still produces a user-facing result.
 
@@ -657,8 +659,8 @@ export interface TurnBounds {
   toolCycleLimit: number
   /** Longest repeated step sequence inspected. Default 4. */
   maxToolCycleLength: number
-  /** Aggregate model usage reported for one turn. Default 500,000 tokens. */
-  maxTotalTokens: number
+  /** Aggregate model usage ceiling. Default 'auto' imposes no total-token cap. */
+  maxTotalTokens: number | 'auto'
   /** Maximum overlapping concurrency-safe tool bodies. Default 8. */
   maxParallel: number
   /** Maximum retained result size per tool. Default 4 MiB. */

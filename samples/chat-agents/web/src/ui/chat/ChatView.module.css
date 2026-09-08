@@ -69,6 +69,42 @@
   line-height: 1.7;
 }
 
+.assignment {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-module-platform);
+  border: 1px solid var(--dsw-alias-border-l3);
+}
+
+.assignmentLabel {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.assignmentText {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--dsw-alias-label-primary);
+}
+
+.answerBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dsw-alias-border-l3);
+}
+
+.answerLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+
 /* Progress narration reads as chrome, not as the answer. */
 .commentary {
   color: var(--dsw-alias-label-tertiary);
@@ -278,6 +314,77 @@
   opacity: 0.75;
 }
 
+/* A finished turn's work, folded behind one line.
+
+   The answer is what the reader came for; the tool calls are how it was
+   reached. Both used to sit at the same level, so finding the answer meant
+   scrolling past everything else. This row is deliberately quiet — tertiary
+   label, no fill, no border — because it is a way back INTO the work, not a
+   thing to read on the way to the answer. */
+.trail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trailToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 3px 8px 3px 4px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.trailToggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.trailLabel {
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The step count trails the duration and never competes with it: it is context
+   for the fold, not a second heading. */
+.trailSteps {
+  color: var(--dsw-alias-label-quaternary, var(--dsw-alias-label-tertiary));
+  opacity: 0.8;
+}
+
+.trailSteps::before {
+  content: '·';
+  margin-right: 6px;
+}
+
+/* Opened, the work is indented under its own rule, so it reads as what sits
+   BEHIND the summary rather than as more of the thread. */
+.trailBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--dsw-alias-border-l3);
+}
+
+/* Filtered to a member that has produced nothing yet. Says which member, so
+   the empty column reads as an answer rather than as a filter that broke. */
+.focusEmpty {
+  padding: 12px 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+}
+
 /* Column header: conversation title plus the two settings that decide what a
    run can see — the workspace and the model. */
 .header {
@@ -351,10 +458,34 @@
   background: var(--dsw-alias-bg-layer-2);
 }
 
+/* The header is the fold control: a member's rows are the bulk of a team turn,
+   and a panel you cannot close is a wall with a name on it. Everything after
+   the name is context for the closed state — how much work is behind it. */
 .memberHeader {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
+  padding: 2px 8px 2px 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.memberHeader:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.memberMeta {
+  margin-left: auto;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .memberName {

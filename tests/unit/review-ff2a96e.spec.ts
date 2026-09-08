@@ -246,8 +246,10 @@ describe('composition completion and estimator ownership', () => {
   })
 
   it('pre-aborted loop promise helpers observe rejection in a real Node process', () => {
-    execFileSync(process.execPath, ['--experimental-transform-types', '--input-type=module', '-e', `
-      import { nextWithAbort, nextValueWithAbort } from './packages/core/src/agent/loop/turn/cancellation.ts';
+    // Exercise emitted JavaScript; Node 26 removed transform-types and native
+    // strip-only mode cannot load the source's parameter properties.
+    execFileSync(process.execPath, ['--input-type=module', '-e', `
+      import { nextWithAbort, nextValueWithAbort } from './packages/core/dist/agent/loop/turn/cancellation.js';
       const signal = AbortSignal.abort();
       await nextWithAbort(Promise.reject(new Error('iterator late rejection')), signal).catch(() => {});
       await nextValueWithAbort(Promise.reject(new Error('hook late rejection')), signal).catch(() => {});

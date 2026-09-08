@@ -44,7 +44,10 @@ describe('human test artifacts', () => {
     expect(saved.config).toEqual({ token: '<redacted>' })
     expect(saved.artifact).toMatchObject({ records: 2, droppedRecords: 1 })
     expect(saved.artifact.sha256).toBe(createHash('sha256').update(events).digest('hex'))
-    expect((await stat(recorder.summaryPath)).mode & 0o777).toBe(0o600)
+    // Windows exposes synthesized mode bits; it does not implement POSIX 0600.
+    if (process.platform !== 'win32') {
+      expect((await stat(recorder.summaryPath)).mode & 0o777).toBe(0o600)
+    }
   })
 
   it('never lets cyclic or hostile values break artifact completion', async () => {

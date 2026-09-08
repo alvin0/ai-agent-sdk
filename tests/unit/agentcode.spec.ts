@@ -334,7 +334,8 @@ describe('agentcode workspace tools', () => {
     expect(cleanupInputs[0]).toMatchObject({ workspaceRoot: resolve(root) })
     expect(cleanupInputs[0]?.rootPid).toBeGreaterThan(0)
     expect(cleanupInputs[0]?.startedAtMs).toBeLessThanOrEqual(Date.now())
-  })
+  // The command itself allows 20 seconds; the test must also allow cleanup.
+  }, 25_000)
 
   it('enables live lineage tracking only for long-lived dev or e2e npm invocations', async () => {
     const root = await temporaryDirectory()
@@ -364,7 +365,10 @@ describe('agentcode workspace tools', () => {
     })
 
     expect(trackingFlags).toEqual([false, true])
-  })
+    // Two real npm processes each have a 20s deadline. The default 5s test
+    // timeout can interrupt either on a busy Windows runner and race teardown
+    // against npm's still-open workspace, producing a secondary EBUSY error.
+  }, 45_000)
 
   it('aborts post-exit cleanup when its independent deadline expires', async () => {
     const root = await temporaryDirectory()

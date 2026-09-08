@@ -186,6 +186,31 @@ export class BlockAssembler {
     return this.assembled().blocks
   }
 
+  /** Whether the canonical stream contains host tool calls, including calls
+   * dropped from blocks() on truncation. No incomplete arguments are parsed. */
+  get hasToolCalls(): boolean {
+    return this.order.some(index => {
+      const partial = this.mustGet(index)
+      return (partial.block?.type ?? partial.blockType) === 'tool-call'
+    })
+  }
+
+  /** Canonical text blocks with their original stream indexes, in first-seen
+   * order. Shares first-close-wins semantics with blocks(), including ignored
+   * straggler deltas and authoritative block-end replacements. */
+  textBlocks(): { index: number; block: Extract<ContentBlock, { type: 'text' }>; beforeNativeCall: boolean }[] {
+    const lastNative = this.order.findLastIndex(index => {
+      const partial = this.mustGet(index)
+      return (partial.block?.type ?? partial.blockType) === 'native-tool-call'
+    })
+    return this.order.flatMap((index, position) => {
+      const partial = this.mustGet(index)
+      if ((partial.block?.type ?? partial.blockType) !== 'text') return []
+      const block = this.assemble(partial, index)
+      return block.type === 'text' ? [{ index, block, beforeNativeCall: position < lastNative }] : []
+    })
+  }
+
   /**
    * Assemble the prefix an INTERRUPTED stream can safely finalize: closed and
    * open text/reasoning blocks carrying non-whitespace content.

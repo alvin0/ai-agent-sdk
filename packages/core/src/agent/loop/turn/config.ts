@@ -15,7 +15,8 @@ export const DEFAULT_BOUNDS: TurnBounds = Object.freeze({
   toolCycleWarningAt: 2,
   toolCycleLimit: 3,
   maxToolCycleLength: 4,
-  maxTotalTokens: 500_000,
+  maxTotalTokens: 'auto',
+  finalReportReserveTokens: 0,
   maxParallel: 8,
   maxToolResultBytes: 4 * 1024 * 1024,
   // Codex's own default for a shell call. Large enough for a real build log,
@@ -27,10 +28,20 @@ export const DEFAULT_BOUNDS: TurnBounds = Object.freeze({
 })
 export function resolveBounds(input: Partial<TurnBounds> | undefined): TurnBounds {
   const bounds = { ...DEFAULT_BOUNDS, ...input }
+  if (bounds.maxTotalTokens !== 'auto' && (!Number.isSafeInteger(bounds.maxTotalTokens) || bounds.maxTotalTokens < 1)) {
+    throw new RangeError("maxTotalTokens must be a positive safe integer or 'auto'")
+  }
+  if (!Number.isSafeInteger(bounds.finalReportReserveTokens) || bounds.finalReportReserveTokens < 0
+    || (bounds.maxTotalTokens !== 'auto' && bounds.finalReportReserveTokens >= bounds.maxTotalTokens)) {
+    throw new RangeError('finalReportReserveTokens must be a non-negative safe integer below maxTotalTokens')
+  }
+  if (bounds.maxSteps !== 'auto' && (!Number.isSafeInteger(bounds.maxSteps) || bounds.maxSteps < 1)) {
+    throw new RangeError("maxSteps must be a positive safe integer or 'auto'")
+  }
   for (const key of [
-    'maxSteps', 'maxToolCalls', 'maxConsecutiveToolErrors', 'repeatToolWarningAt',
+    'maxToolCalls', 'maxConsecutiveToolErrors', 'repeatToolWarningAt',
     'repeatToolLimit', 'toolCycleWarningAt', 'toolCycleLimit', 'maxToolCycleLength',
-    'maxTotalTokens', 'maxParallel', 'maxToolResultBytes', 'maxToolResultTokens',
+    'maxParallel', 'maxToolResultBytes', 'maxToolResultTokens',
     'maxToolDurationMs',
     'toolTeardownTimeoutMs',
   ] as const) {

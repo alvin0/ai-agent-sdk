@@ -237,11 +237,19 @@
 }
 
 .conversationTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
   color: var(--dsw-alias-label-primary);
+}
+
+/* Marks a conversation that is working while you are somewhere else. */
+.conversationDot {
+  flex: none;
 }
 
 .conversationMeta {

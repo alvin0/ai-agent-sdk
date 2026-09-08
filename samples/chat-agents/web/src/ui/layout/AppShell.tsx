@@ -15,7 +15,7 @@ import type { ConversationRow, GroupRow } from '@chat-agents/backend'
 import {
   IconChevronDownOutline14, IconDarkOutline16, IconFolderOpen16, IconLightOutline16,
   IconNewChatOutline16, IconPanelLeftOutline16, IconPlusOutline16, IconSettingsOutline16,
-  IconTrashOutline16, Menu, relativeTime,
+  IconTrashOutline16, Menu, relativeTime, StateDot,
 } from '../primitives'
 import css from './AppShell.module.css'
 
@@ -46,6 +46,8 @@ export interface AppShellProps {
   /** Open the project dialog: switch project, or pick a folder to add one. */
   onManageProjects: () => void
   currentId: string
+  /** Conversations with a run in flight, including ones not on screen. */
+  runningIds: readonly string[]
   onNewChat: () => void
   onOpenConversation: (id: string) => void
   onDeleteConversation: (id: string) => void
@@ -66,6 +68,7 @@ export function AppShell({
   conversations,
   groups,
   groupId,
+  runningIds,
   onOpenGroup,
   onManageProjects,
   currentId,
@@ -166,9 +169,21 @@ export function AppShell({
                       className={css.conversationOpen}
                       onClick={() => { onOpenConversation(conversation.id) }}
                     >
-                      <span className={css.conversationTitle}>{conversation.title}</span>
+                      <span className={css.conversationTitle}>
+                        {/*
+                          A run outlives the view of it, so the list is where
+                          you find out that a conversation you walked away from
+                          is still working.
+                        */}
+                        {runningIds.includes(conversation.id) && (
+                          <StateDot state="ongoing" className={css.conversationDot} />
+                        )}
+                        {conversation.title}
+                      </span>
                       <span className={css.conversationMeta}>
-                        {when(conversation.updatedAt)}
+                        {runningIds.includes(conversation.id)
+                          ? 'Working…'
+                          : when(conversation.updatedAt)}
                         {conversation.model === null ? '' : ` · ${conversation.model}`}
                       </span>
                     </button>

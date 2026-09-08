@@ -38,7 +38,8 @@ export interface RuntimeAgentDefinitionInput {
   readonly allowedSkillIds?: readonly string[]
   readonly memory?: MemoryBinding
   readonly compaction?: AgentCompactionOptions | false
-  readonly maxTurns?: number
+  /** Model steps per prompt; 'auto' removes the step ceiling, not resource limits. */
+  readonly maxTurns?: number | 'auto'
   readonly maxToolCalls?: number
   readonly commentary?: 'auto' | 'concise' | 'off'
 }
@@ -50,7 +51,7 @@ export interface RuntimeAgentBindingInput extends Omit<RuntimeAgentDefinitionInp
 }
 
 export interface RuntimeAgentLimits extends AgentRuntimeLimits {
-  readonly maxSteps?: number
+  readonly maxSteps?: number | 'auto'
   readonly maxToolCalls?: number
 }
 

@@ -12,7 +12,7 @@ import type { ToolCard, WireApproval, WireApprovalScope, WireEvent, WireQuestion
 /** A settled transcript node, in the shape the frontend renders. */
 export type StoredNode =
   | { kind: 'user'; id: string; text: string }
-  | { kind: 'text'; id: string; text: string; phase: string; streaming: false; member?: string }
+  | { kind: 'text'; id: string; text: string; phase: string; streaming: false; member?: string; incomplete?: true }
   | { kind: 'reasoning'; id: string; text: string; member?: string }
   | {
       kind: 'tool'; id: string; name: string; args: string
@@ -33,7 +33,7 @@ export type StoredNode =
       scope: WireApprovalScope
       member?: string
     })
-  | { kind: 'notice'; id: string; level: 'info' | 'warn'; message: string }
+  | { kind: 'notice'; id: string; level: 'info' | 'warn'; message: string; member?: string }
   | { kind: 'error'; id: string; message: string }
 
 function textOf(content: readonly { readonly type: string }[]): string {
@@ -52,6 +52,7 @@ interface OpenText {
   text: string
   phase: string
   member: string | undefined
+  incomplete?: true
 }
 
 /** Per-source position, so ids stay stable while two agents interleave. */
@@ -123,6 +124,7 @@ export class EventProjector {
     for (const [id, entry] of this.openText) {
       nodes.push({
         kind: 'text', id, text: entry.text, phase: entry.phase, streaming: false,
+        ...entry.incomplete ? { incomplete: true as const } : {},
         ...entry.member === undefined ? {} : { member: entry.member },
       })
     }
@@ -183,6 +185,7 @@ export class EventProjector {
       this.openText.delete(id)
       this.pending.push({
         kind: 'text', id, text: entry.text, phase: entry.phase, streaming: false,
+        ...entry.incomplete ? { incomplete: true as const } : {},
         ...entry.member === undefined ? {} : { member: entry.member },
       })
       events.push({ t: 'text-end', id })
@@ -217,6 +220,12 @@ export class EventProjector {
           : current?.phase ?? 'unknown'
         this.openText.set(id, { text: (current?.text ?? '') + event.text, phase, member })
         return [{ t: 'text-delta', id, text: event.text, phase: phase as 'commentary' | 'final-answer' | 'unknown', ...tag }]
+      }
+      case 'text-end': {
+        const id = this.key(source, 't', event.index)
+        const partial = event.incomplete ? { incomplete: true as const } : {}
+        this.openText.set(id, { text: event.text, phase: event.phase, member, ...partial })
+        return [{ t: 'text-end', id, text: event.text, phase: event.phase, ...tag, ...partial }]
       }
       case 'reasoning-delta': {
         const id = this.key(source, 'r', event.index)
@@ -329,7 +338,18 @@ export class EventProjector {
       case 'agent-end': {
         // A member's own outcome is not the run's outcome: only the agent the
         // user is talking to ends the run.
-        if (member !== undefined) return []
+        if (member !== undefined) {
+          if (event.outcome.completed) return []
+          const reason = event.outcome.reason
+          const detail = reason.kind === 'error' ? reason.failure.message
+            : reason.kind === 'budget-exhausted' ? reason.trigger === 'report-reserve'
+              ? 'research stopped to reserve token capacity for the final report'
+              : reason.budget === 'tokens' ? 'hard cumulative token limit reached' : `${reason.budget} limit`
+              : reason.kind === 'completed' ? 'self-check was not accepted for this run' : reason.kind
+          const message = `Worker '${member}' did not complete its task (${detail}). Treat any available findings as partial.`
+          this.pending.push({ kind: 'notice', id: `${source}:incomplete:${String(Date.now())}`, level: 'warn', message, member })
+          return [{ t: 'notice', level: 'warn', message, member }]
+        }
         if (this.handleOwnsOutcome) return []
         // The session shapes report their outcome through the run handle, so
         // this only fires for the single-agent loop.

@@ -33,21 +33,10 @@ import type { AgentRow } from './agents'
  * The SDK spends this on steps, not on conversational turns, so it is a budget
  * for actions: reading files, editing, running a command.
  */
-const TURN_BUDGET = 8
+const TURN_BUDGET = 32
 
-/**
- * The same budget for a lead that delegates, which needs several times more.
- *
- * A delegating lead spends steps on three things at once and eight covered
- * only the first: it explores the workspace, spawns its workers, does the
- * critical-path work it kept for itself — and then has to still be alive to
- * read the results and write the synthesis. Measured on a real run against
- * this app, exploring and spawning three workers alone reached the old cap:
- * the run ended `budget-exhausted` while every worker was still going, so the
- * answer the lead exists to write was never written. Holding the turn open
- * while a worker is unfinished costs a step each time round, too.
- */
-const LEAD_TURN_BUDGET = 24
+/** Team leads and workers finish by completion, with resource/loop guards intact. */
+const TEAM_TURN_BUDGET = 'auto' as const
 
 /**
  * The kinds of worker a lead here may create.
@@ -60,6 +49,20 @@ const LEAD_TURN_BUDGET = 24
  * and `reviewer` says the thing that went wrong in practice out loud.
  */
 const WORKER_ROLES = [
+  {
+    name: 'researcher',
+    description: 'Researches a bounded topic using available web and document tools.',
+    whenToUse: 'independent sectors or questions can be researched separately',
+    instructions: 'Report evidence with source URLs and dates. Distinguish observations'
+      + ' from forecasts, and state unavailable data. Do not modify workspace files.',
+  },
+  {
+    name: 'analyst',
+    description: 'Analyzes supplied data and reconciles competing findings.',
+    whenToUse: 'the data already exists, or dependsOn names the workers collecting it',
+    instructions: 'Check units, dates, missing values and assumptions. Explain the'
+      + ' calculation and its limitations. Do not invent missing measurements.',
+  },
   {
     name: 'implementer',
     description: 'Writes and edits source files in a scope of its own.',
@@ -87,7 +90,7 @@ const WORKER_ROLES = [
 /** Loop policy, extended with the two team shapes. */
 export type RunMode = 'basic' | 'deep' | 'deep-human-in-loop' | 'team' | 'team-dynamic'
 
-export const DEFAULT_INSTRUCTIONS = `You are a coding assistant working in a workspace directory.
+export const DEFAULT_INSTRUCTIONS = `You are an assistant for research, coding, and analysis working in a workspace directory.
 Prefer the provided tools over guessing. Read before you write, and make changes
 with edit_file where an exact replacement is possible, reserving write_file for
 new files or a full rewrite. Use run_command for builds, tests, and version
@@ -99,6 +102,16 @@ call pauses until they answer, and a refusal comes back as a denied tool result.
 Treat a refusal as an answer — explain or offer an alternative rather than
 retrying the same call. Answer in GitHub-flavored Markdown; use fenced code
 blocks with a language tag.`
+
+const REPORTING_INSTRUCTIONS = `For multi-step work, publish a plan with write_todos and keep it updated as work progresses.
+Before your final answer, reconcile the plan: mark only verified work done and explain pending items or blockers.
+Always finish with a substantive report of findings or changes, evidence or sources, checks performed, and remaining uncertainty.
+A self-check submission is not the final report. After it is accepted, write the answer for the user.
+For research, include source links and observation dates; distinguish observed facts from forecasts and unavailable future data.
+Respect the user's source and retry limits, including during team follow-ups. If permitted sources fail or cannot verify the requested date, finish with an unavailable-data finding and explain what could not be verified. Do not keep searching merely to obtain a number or mark a todo done. A report of unavailable evidence can complete the investigation; it does not verify the missing fact.
+Use fetch_url.fetchedAt only as the retrieval timestamp. Never invent an observation date or treat a current quote as a historical quote without a source timestamp.
+If quote tables require JavaScript, check an independent credible source or documented public data endpoint. If still unavailable, report that gap instead of repeatedly fetching similar empty quote pages. Follow-ups should request specific new evidence or resolve a concrete discrepancy, not restart the same unavailable-data search.
+When leading a team, collect worker results and synthesize one answer covering the original request, including failed or incomplete contributions.`
 
 /** Everything a run needs that is decided outside the SDK. */
 export interface RunContext {
@@ -222,7 +235,7 @@ function definitionFor(
   overrides: {
     id: string
     mode?: 'basic' | 'deep' | 'deep-human-in-loop'
-    maxTurns?: number
+    maxTurns?: number | 'auto'
   },
   tools: readonly ToolDefinition[],
   skills: readonly SkillSource[],
@@ -237,12 +250,13 @@ function definitionFor(
       || (row?.reasoningEffort ?? context.effort) === null
       ? {}
       : { effort: (row?.reasoningEffort ?? context.effort) as string }),
-    instructions: row?.systemPrompt ?? DEFAULT_INSTRUCTIONS,
+    instructions: [row?.systemPrompt ?? DEFAULT_INSTRUCTIONS, REPORTING_INSTRUCTIONS].join('\n\n'),
     mode: overrides.mode ?? sdkMode(context.mode),
     tools,
     skills,
     commentary: 'concise',
-    maxTurns: overrides.maxTurns ?? TURN_BUDGET,
+    maxTurns: overrides.maxTurns
+      ?? (context.mode === 'team' || context.mode === 'team-dynamic' ? TEAM_TURN_BUDGET : TURN_BUDGET),
   })
 }
 
@@ -298,7 +312,8 @@ export async function startRun(
     // turn spends its calls long before the work is done, and a wall there
     // declines the very call that would have finished — the handover, the
     // submission. The turn stays bounded by steps, tokens, and the run ledger.
-    runtimeLimits: { modelTimeoutMs: MODEL_TIMEOUT_MS, onExhausted: 'continue' as const },
+    runtimeLimits: { modelTimeoutMs: MODEL_TIMEOUT_MS, onExhausted: 'continue' as const,
+      maxTotalTokens: 'auto' as const },
     // With a store mounted the default `auto` overflow policy spills instead of
     // truncating, so a `cat` of a large file costs the model a preview and a
     // locator rather than the rest of its context — and nothing is lost, since
@@ -323,7 +338,7 @@ export async function startRun(
       members: [
         {
           name: 'lead',
-          agent: definitionFor(leadRow, context, { id: 'lead' }, tools, skills),
+          agent: definitionFor(leadRow, context, { id: 'lead', maxTurns: TEAM_TURN_BUDGET }, tools, skills),
           role: 'lead' as const,
           description: leadRow?.description ?? 'Coordinates the team and owns the final answer.',
           // Only the lead resumes the conversation's history: a member keeps
@@ -364,14 +379,16 @@ export async function startRun(
     const report = context.onWorkerEvent ?? onMemberEvent
     const managed = context.managedTeam ?? createManagedAgentTeam({
       registry: context.registry,
+      allowModelWorkerCancellation: false,
       lead: definitionFor(
         context.agent,
         context,
-        { id: 'lead', maxTurns: LEAD_TURN_BUDGET },
+        { id: 'lead', maxTurns: TEAM_TURN_BUDGET },
         tools,
         skills,
       ),
       leadName: 'lead',
+      workerTemplate: definitionFor(context.agent, context, { id: 'worker' }, tools, skills),
       leadSessionOptions: sessionOptions,
       workerSessionOptions: sessionOptions,
       onWorkerEvent: report,

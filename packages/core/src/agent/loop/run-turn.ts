@@ -62,6 +62,10 @@ async function driveTurn(
   emit: (event: AgentEvent) => Promise<void>,
 ): Promise<void> {
   const bounds = resolveBounds(options.bounds)
+  const maxTotalTokens = bounds.maxTotalTokens === 'auto' ? Infinity : bounds.maxTotalTokens
+  // Infinity is local control flow only. Public configuration/events retain
+  // the serializable 'auto' value, and all other admission guards still apply.
+  const maxSteps = bounds.maxSteps === 'auto' ? Infinity : bounds.maxSteps
   const traceId = options.trace?.traceId ?? createTraceId()
   const root: TraceRef = { traceId, spanId: createSpanId(), parentSpanId: options.trace?.parentSpanId ?? null }
   const turn = Math.max(1, options.history.entries().filter(entry =>
@@ -78,12 +82,14 @@ async function driveTurn(
   let overBudgetNoticesSent = 0
   /** Sequence of the budget notice currently on the surface, if any. */
   let budgetNoticeSeq: number | undefined
+  let stepReminderSent = false
+  let tokenRemindersSent = 0
   let consecutiveErrors = 0
   let text = ''
   const modelCallReports: ModelCallReport[] = []
   let reason: TurnOutcome['reason'] | undefined
   let outcome: TurnOutcome
-  const repeats = new Map<string, number>()
+  let lastRepeat: { key: string; count: number } | undefined
   const actionSteps: string[] = []
   const emitMaintenance = maintenanceEmitter(emit, root)
   /**
@@ -135,7 +141,7 @@ async function driveTurn(
     if (mandatoryStop !== undefined) return mandatoryStop
     if (usageStop !== undefined) return usageStop
     const tokens = budgetTokenTotal(summarizeModelCallUsage(modelCallReports))
-    return tokens !== undefined && tokens >= bounds.maxTotalTokens
+    return tokens !== undefined && tokens >= maxTotalTokens
       ? { kind: 'budget-exhausted', budget: 'tokens', forcedFinalAnswer: false }
       : undefined
   }
@@ -158,9 +164,37 @@ async function driveTurn(
   await emit({ type: 'turn-start', turn, trace: root })
 
   turnLifecycle: while (true) {
-  while (reason === undefined && steps < bounds.maxSteps && !signal.aborted) {
+  while (reason === undefined && steps < maxSteps && !signal.aborted) {
     reason = admissionStop()
     if (reason !== undefined) break
+    // Auto has no step countdown. Warn from the same usage total as admission,
+    // before a hard token stop can leave the agent without a reporting call.
+    const usedTokens = budgetTokenTotal(summarizeModelCallUsage(modelCallReports))
+    if (bounds.maxTotalTokens !== 'auto' && usedTokens !== undefined) {
+      const crossed = [0.5, 0.75, 0.9].filter(ratio => usedTokens >= maxTotalTokens * ratio).length
+      if (crossed > tokenRemindersSent) {
+        tokenRemindersSent = crossed
+        const remaining = Math.max(0, maxTotalTokens - usedTokens)
+        options.history.append({ kind: 'user', message: createUserMessage({
+          source: { kind: 'app', producer: 'tool-loop-token-guard' },
+          content: [{ type: 'text', text: `Token budget: ${remaining} of ${bounds.maxTotalTokens} aggregate tokens remain. Each request also spends input tokens on the accumulated context. `
+            + (crossed >= 2 ? 'Stop broad exploration. ' : 'Prioritize outstanding verification and reporting. ')
+            + 'Reserve capacity for the required self-check, honest todo reconciliation and substantive final report. State unavailable evidence and unfinished work; do not claim it is verified. No extra model call is allowed after the hard token limit.',
+          }],
+        }) })
+      }
+    }
+    // Leave time to reconcile a plan and submit a result before the final
+    // tools-disabled summary. Tool-call reminders do not cover step limits.
+    if (!stepReminderSent && steps > 0 && maxSteps - steps <= 2) {
+      stepReminderSent = true
+      options.history.append({ kind: 'user', message: createUserMessage({
+        source: { kind: 'app', producer: 'tool-loop-step-guard' },
+        content: [{ type: 'text', text:
+          `${maxSteps - steps} work steps remain. Finish essential verification, update any task list honestly, and submit the result if required. Summarize findings, evidence, and unfinished work; do not start new exploration.`,
+        }],
+      }) })
+    }
     const step = steps + 1
     const round = await modelRound(
       options, signal, emit, emitMaintenance, root, turn, step,
@@ -203,7 +237,7 @@ async function driveTurn(
       }], options, signal, 'onRequestError')
       const maintenanceStop = accountingUsageStop(options.accounting)
       if (maintenanceStop !== undefined) { reason = signal.aborted ? { kind: 'aborted' } : maintenanceStop; break }
-      if (decision === 'retry' && steps < bounds.maxSteps) continue
+      if (decision === 'retry' && steps < maxSteps) continue
       reason = { kind: 'error', failure: round.finish.failure }
       break
     }
@@ -271,11 +305,14 @@ async function driveTurn(
     const budgetedCalls = round.calls
       .filter(call => options.tools?.get(call.toolName)?.budgetExempt !== true).length
     const remaining = Math.max(0, bounds.maxToolCalls - toolCalls)
-    const repeatProjection = new Map(repeats)
+    let repeatProjection = lastRepeat
     const projectedRepeats = round.calls.map(call => {
       const key = repeatKey(call)
-      const count = (repeatProjection.get(key) ?? 0) + 1
-      repeatProjection.set(key, count)
+      // Count consecutive calls, not lifetime visits to a source or test command.
+      // Distinct intervening work may change its result. Alternating loops are
+      // handled separately by the step-cycle guard below.
+      const count = repeatProjection?.key === key ? repeatProjection.count + 1 : 1
+      repeatProjection = { key, count }
       return count
     })
     const repeatedLimitBeforeDispatch = projectedRepeats.some(count => count >= bounds.repeatToolLimit)
@@ -289,7 +326,7 @@ async function driveTurn(
     const currentUsage = summarizeModelCallUsage(modelCallReports)
     const budgetTokens = budgetTokenTotal(currentUsage)
     const tokenLimitBeforeDispatch = budgetTokens !== undefined
-      && budgetTokens >= bounds.maxTotalTokens
+      && budgetTokens >= maxTotalTokens
     const guardDeclined = repeatedLimitBeforeDispatch || cycleLimitBeforeDispatch || tokenLimitBeforeDispatch || round.usageRequired
     // Name the limit that actually declined the call. Reporting a repeat guard
     // as an empty budget teaches the model the wrong lesson, and it repeats the
@@ -383,12 +420,12 @@ async function driveTurn(
       if (call === undefined || result === undefined) continue
       consecutiveErrors = result.isError ? consecutiveErrors + 1 : 0
       const key = repeatKey(call)
-      const count = (repeats.get(key) ?? 0) + 1
-      repeats.set(key, count)
+      const count = lastRepeat?.key === key ? lastRepeat.count + 1 : 1
+      lastRepeat = { key, count }
       if (count === bounds.repeatToolWarningAt) {
         options.history.append({ kind: 'user', message: createUserMessage({
           source: { kind: 'app', producer: 'tool-loop-repeat-guard' },
-          content: [{ type: 'text', text: `You have called ${call.toolName} with the same arguments ${count} times. Reassess before repeating it.` }],
+          content: [{ type: 'text', text: `You have called ${call.toolName} with the same arguments ${count} consecutive times. Reassess before repeating it.` }],
         }) })
       }
       if (count >= bounds.repeatToolLimit) repeatedLimit = true
@@ -410,15 +447,19 @@ async function driveTurn(
       break
     }
     let exhausted: ExhaustedBudget | undefined
+    const reportReserveReached = bounds.maxTotalTokens !== 'auto'
+      && bounds.finalReportReserveTokens > 0 && budgetTokens !== undefined
+      && budgetTokens >= maxTotalTokens - bounds.finalReportReserveTokens
     if (tokenLimitBeforeDispatch) exhausted = 'tokens'
+    else if (reportReserveReached) exhausted = 'tokens'
     else if (cycleLimitBeforeDispatch) exhausted = 'tool-call-cycle'
     else if (budgetIsAWall && budgetedCalls > remaining) exhausted = 'tool-calls'
     else if (consecutiveErrors >= bounds.maxConsecutiveToolErrors) exhausted = 'consecutive-tool-errors'
     else if (repeatedLimit) exhausted = 'repeated-tool-call'
-    else if (steps >= bounds.maxSteps) exhausted = 'steps'
+    else if (steps >= maxSteps) exhausted = 'steps'
     if (exhausted !== undefined) {
-      const forced = exhausted !== 'tokens'
-        && bounds.onExhausted === 'force-final-answer'
+      const forced = (exhausted !== 'tokens' || (reportReserveReached && !tokenLimitBeforeDispatch))
+        && bounds.onExhausted !== 'stop'
         && admissionStop() === undefined
       if (forced) {
         const final = await modelRound(
@@ -456,7 +497,10 @@ async function driveTurn(
           break
         }
       }
-      reason = { kind: 'budget-exhausted', budget: exhausted, forcedFinalAnswer: forced }
+      reason = { kind: 'budget-exhausted', budget: exhausted, forcedFinalAnswer: forced,
+        ...(exhausted === 'tokens' && reportReserveReached && !tokenLimitBeforeDispatch
+          ? { trigger: 'report-reserve' as const } : {}),
+      }
     }
   }
 
@@ -473,7 +517,7 @@ async function driveTurn(
   }
   const entriesBeforeHook = options.history.entries().length
   const canContinue = reason.kind === 'completed'
-    && steps < bounds.maxSteps
+    && steps < maxSteps
     && admissionStop() === undefined
   await runOptionalHook(options.hooks?.onTurnEnd, [{
     outcome: candidate,

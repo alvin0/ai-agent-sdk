@@ -114,6 +114,7 @@ export async function modelRound(
   } })
   await emit({ type: 'step-start', turn, step, trace, ...forcedFinal ? { forcedFinal: true as const } : {} })
   const assembler = new BlockAssembler()
+  const closedBlockIndexes = new Set<number>()
   const modelTimeoutMs = positiveFinite(options.modelTimeoutMs ?? 10 * 60_000, 'modelTimeoutMs')
   const maxRequestBytes = positiveSafeInteger(options.maxModelRequestBytes ?? 32 * 1024 * 1024, 'maxModelRequestBytes')
   const maxResponseBytes = positiveSafeInteger(options.maxModelResponseBytes ?? 32 * 1024 * 1024, 'maxModelResponseBytes')
@@ -200,10 +201,15 @@ export async function modelRound(
           break
         }
         assembler.push(chunk)
+        // The assembler ignores deltas after the first close. The visible
+        // stream must do the same or UI text can disagree with stored history.
+        if ((chunk.type === 'text-delta' || chunk.type === 'reasoning-delta' || chunk.type === 'tool-call-delta')
+          && closedBlockIndexes.has(chunk.index)) continue
+        if (chunk.type === 'block-end') closedBlockIndexes.add(chunk.index)
         if (chunk.type === 'finish') sawFinish = true
         if (chunk.type === 'text-delta') await emit({
           type: 'text-delta', index: chunk.index, text: chunk.text,
-          phase: chunk.phase ?? 'unknown', trace,
+          phase: phase === 'process' ? 'commentary' : chunk.phase ?? 'unknown', trace,
         })
         else if (chunk.type === 'reasoning-delta') await emit({
           type: 'reasoning-delta', index: chunk.index, text: chunk.text, trace,
@@ -243,6 +249,7 @@ export async function modelRound(
     usageUnavailable = decision?.usageUnavailable ?? false
   }
   let providerFinish = assembler.finish
+  let retainedPrefix = providerFinish.kind === 'aborted'
   let rawBlocks: ContentBlock[]
   try {
     rawBlocks = providerFinish.kind === 'aborted' ? assembler.interruptedBlocks() : assembler.blocks()
@@ -254,9 +261,24 @@ export async function modelRound(
         code: 'INVALID_MODEL_STREAM',
       },
     }
-    rawBlocks = []
+    // A broken extension must not discard text already delivered to the user.
+    // This prefix deliberately excludes tools and unassembled extension data.
+    retainedPrefix = true
+    rawBlocks = assembler.interruptedBlocks()
   }
-  const classifiedRaw = classifyTextPhases(rawBlocks, phase === 'process')
+  // Interrupted/truncated assembly drops unfinished calls, but the text that
+  // introduced those calls is still process narration, not a final answer.
+  const canonicalTexts = assembler.textBlocks()
+    .filter(({ block }) => !retainedPrefix || block.text.trim() !== '')
+  let textPosition = 0
+  const classifiedRaw = classifyTextPhases(rawBlocks.map(block => {
+    if (block.type !== 'text') return block
+    const canonical = canonicalTexts[textPosition++]
+    // Safe-prefix recovery removes native calls too. Retain their position so
+    // search narration cannot become an answer merely because a call was removed.
+    return block.phase === undefined && canonical?.beforeNativeCall
+      ? { ...block, phase: 'commentary' as const } : block
+  }), phase === 'process', assembler.hasToolCalls)
   // A repeated id costs the model that one call, not its whole turn.
   const deduped = dropDuplicateToolCalls(classifiedRaw, options.history)
   const classified = deduped.blocks
@@ -283,11 +305,28 @@ export async function modelRound(
     : { kind: 'error', failure: invalidCall }
   const message = blocks.length === 0 && (finish.kind === 'error' || finish.kind === 'aborted')
     ? undefined
-    : createAssistant(options, blocks, assembler.replayState)
+    : createAssistant(options, blocks, retainedPrefix ? undefined : assembler.replayState)
   const calls = message?.content
     .filter((block): block is ToolCallBlock => block.type === 'tool-call')
     .map(block => ({ callId: block.id, toolName: block.name, rawArguments: block.arguments })) ?? []
   const timing = contentTiming(calls.length > 0, afterToolCallIds.length > 0)
+  // Deltas may have no phase, or block-end may correct it. Publish the
+  // canonical snapshot before consumers close this step, including providers
+  // that only emit block-end. Keep provider indexes (which may be sparse).
+  if (blocks.some(block => block.type === 'text')) {
+    const indexes = canonicalTexts.map(({ index }) => index)
+    const incomplete = finish.kind === 'error' || finish.kind === 'aborted' || finish.kind === 'max-tokens'
+    let position = 0
+    for (const block of blocks) {
+      if (block.type !== 'text') continue
+      const index = indexes[position++]
+      if (index !== undefined) await emit({
+        type: 'text-end', index, text: block.text,
+        phase: block.phase ?? 'final-answer', trace,
+        ...incomplete ? { incomplete: true as const } : {},
+      })
+    }
+  }
   await emit({
     type: 'span-end', trace, at: now(),
     status: finish.kind === 'error' ? 'error' : finish.kind === 'aborted' ? 'aborted' : 'success',

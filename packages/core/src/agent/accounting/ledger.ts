@@ -86,7 +86,7 @@ export interface RunLedgerOptions {
   readonly sessionId?: string
   readonly agentId: string
   readonly mode: string
-  readonly maxTurns: number
+  readonly maxTurns: number | 'auto'
   readonly usagePolicy?: UsagePolicy
   readonly cumulativeTokenBudget?: boolean
   readonly limits?: RunLedgerLimits
@@ -131,8 +131,8 @@ export class RunLedger implements RunAccountingPort {
     if (typeof options.agentId !== 'string' || options.agentId.trim().length === 0) {
       throw new TypeError('run ledger agentId must be non-empty')
     }
-    if (!Number.isSafeInteger(options.maxTurns) || options.maxTurns < 1) {
-      throw new RangeError('run ledger maxTurns must be a positive safe integer')
+    if (options.maxTurns !== 'auto' && (!Number.isSafeInteger(options.maxTurns) || options.maxTurns < 1)) {
+      throw new RangeError("run ledger maxTurns must be a positive safe integer or 'auto'")
     }
     this.runId = options.runId ?? createOperationId()
     if (this.runId.length === 0) throw new TypeError('run ledger runId must be non-empty')

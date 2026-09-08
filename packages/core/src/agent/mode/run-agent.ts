@@ -30,7 +30,8 @@ interface AgentRunCommon extends Omit<RunTurnOptions, 'bounds' | 'commentary' | 
   readonly tools?: ToolCatalog
   readonly system?: string
   /** Maximum normal model iterations. A forced final answer may use one extra request. */
-  readonly maxTurns?: number
+  /** Model steps per prompt; 'auto' keeps completion and resource guards only. */
+  readonly maxTurns?: number | 'auto'
   readonly bounds?: Omit<Partial<TurnBounds>, 'maxSteps'>
   readonly commentary?: RunTurnOptions['commentary']
   readonly hooks?: TurnHooks
@@ -69,7 +70,7 @@ export interface AgentRunOutcome extends TurnOutcome {
 interface AgentModeStartEvent {
   readonly type: 'agent-start'
   readonly mode: AgentMode
-  readonly maxTurns: number
+  readonly maxTurns: number | 'auto'
 }
 interface UserInputRequestEvent {
   readonly type: 'user-input-request'
@@ -94,28 +95,15 @@ export type AgentRunEvent = AgentEvent
 interface DeepState {
   completion: CompletionSubmission | undefined
   userAborted: boolean
-  /**
-   * The last answer the self-check gate sent back, and how often it has come
-   * back unchanged.
-   *
-   * The gate re-prompts until the model submits. A model that will not submit
-   * answers the same words every time — measured at nineteen identical answers
-   * for one prompt, each a paid call and each written to the transcript. Asking
-   * again is only worth a model call while the answer is still moving.
-   */
-  lastAnswer: string | undefined
-  repeats: number
+  /** Answers without intervening substantive tool work or an accepted check. */
+  unverifiedAnswers: number
+  completionInvalidated: boolean
 }
 
 const DEFAULT_MAX_TURNS = 16
 
-/**
- * Identical answers the self-check gate tolerates before it stops asking.
- *
- * One repeat can be a fluke of sampling; two is a model that is not going to
- * change its mind, and every further round costs a call to be told so again.
- */
-const REPEATED_ANSWER_LIMIT = 2
+/** Changing the wording of an unsubmitted conclusion is not execution progress. */
+const UNVERIFIED_ANSWER_LIMIT = 3
 
 /**
  * Run an agent in basic, self-checking deep, or deep human-in-loop mode.
@@ -180,11 +168,13 @@ async function driveAgent(
     throw new TypeError('deep-human-in-loop mode requires a UserInputBroker')
   }
   const maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS
-  if (!Number.isInteger(maxTurns) || maxTurns < 1) throw new RangeError('maxTurns must be a positive integer')
+  if (maxTurns !== 'auto' && (!Number.isSafeInteger(maxTurns) || maxTurns < 1)) {
+    throw new RangeError("maxTurns must be a positive safe integer or 'auto'")
+  }
   await emit({ type: 'agent-start', mode, maxTurns })
 
   const state: DeepState = {
-    completion: undefined, userAborted: false, lastAnswer: undefined, repeats: 0,
+    completion: undefined, userAborted: false, unverifiedAnswers: 0, completionInvalidated: false,
   }
   const deep = mode !== 'basic'
   const broker = options.mode === 'deep' || options.mode === 'deep-human-in-loop'
@@ -241,18 +231,24 @@ async function driveAgent(
       stepCalls.push(event.call.toolName)
       // Work performed after an accepted submission invalidates that submission;
       // the new result has not yet passed the completion gate.
-      if (event.call.toolName !== AGENT_CONTROL_TOOLS.complete) state.completion = undefined
+      if (event.call.toolName !== AGENT_CONTROL_TOOLS.complete
+        && tools?.get(event.call.toolName)?.completionExempt !== true) {
+        if (state.completion !== undefined) state.completionInvalidated = true
+        state.completion = undefined
+        state.unverifiedAnswers = 0
+      }
     } else if (event.type === 'tool-result'
       && event.call.toolName === AGENT_CONTROL_TOOLS.complete
       && !event.result.isError) {
       completionCandidate = completionFromResult(event.result.value)
     } else if (event.type === 'step-end'
       && completionCandidate !== undefined
-      && stepCalls.length === 1
-      && stepCalls[0] === AGENT_CONTROL_TOOLS.complete) {
+      && stepCalls.filter(name => name === AGENT_CONTROL_TOOLS.complete).length === 1
+      && stepCalls.every(name => name === AGENT_CONTROL_TOOLS.complete || tools?.get(name)?.completionExempt === true)) {
       // A completion submission cannot share a batch with work whose results the
       // model had not seen when it claimed success.
       state.completion = completionCandidate
+      state.completionInvalidated = false
     }
     if (event.type === 'turn-end') terminal = event.outcome
     await emit(event)
@@ -261,6 +257,10 @@ async function driveAgent(
   const completed = mode === 'basic'
     ? terminal.reason.kind === 'completed' || terminal.reason.kind === 'concluded-by-tool'
     : state.completion !== undefined && !state.userAborted
+      && (terminal.reason.kind === 'completed'
+        || terminal.reason.kind === 'concluded-by-tool'
+        || (terminal.reason.kind === 'budget-exhausted' && terminal.reason.forcedFinalAnswer))
+      && terminal.text.trim() !== ''
   const outcome: AgentRunOutcome = {
     ...terminal,
     mode,
@@ -294,7 +294,7 @@ function completionTool(): ToolDefinition<CompletionSubmission> {
       accepted: true,
       summary: submission.summary,
       evidence: [...submission.evidence],
-      instruction: 'Now provide the final answer to the user without calling submit_result again.',
+      instruction: 'This self-check is accepted for the current run. Now provide the substantive final report itself: findings or changes, evidence or sources, checks performed, and remaining limitations. Do not merely say the self-check passed or refer to an earlier message. Do not call submit_result again in this run unless you perform new substantive tool work that invalidates this submission. A later user request or worker follow-up starts a new run and needs its own self-check.',
     }),
   })
 }
@@ -356,30 +356,28 @@ function deepHooks(
   userHooks: TurnHooks | undefined,
   history: RunAgentOptions['history'],
   state: DeepState,
-  maxTurns: number,
+  maxTurns: number | 'auto',
 ): TurnHooks {
   return {
     ...userHooks,
     onTurnEnd: async context => {
       await userHooks?.onTurnEnd?.(context)
       if (context.outcome.reason.kind !== 'completed'
-        || context.outcome.steps >= maxTurns
+        || (maxTurns !== 'auto' && context.outcome.steps >= maxTurns)
         || state.completion !== undefined
         || state.userAborted) return
-      // Word for word what it said last time: the gate is not being read, and
-      // the next round will produce the same answer at the same price.
-      if (context.outcome.text === state.lastAnswer) {
-        state.repeats++
-        if (state.repeats >= REPEATED_ANSWER_LIMIT) return
-      } else {
-        state.lastAnswer = context.outcome.text
-        state.repeats = 0
-      }
+      // Auto must not pay indefinitely for paraphrases of "already checked".
+      // Substantive tool work resets this allowance; progress-only updates do not.
+      state.unverifiedAnswers++
+      if (state.unverifiedAnswers >= UNVERIFIED_ANSWER_LIMIT) return
       history.append({ kind: 'user', message: createUserMessage({
         source: { kind: 'app', producer: 'deep-mode-self-check' },
         content: [{
           type: 'text',
-          text: `Self-check required: compare the current result against the user's objective and every constraint. If anything is missing, continue with tools. If blocked and request_user_input is available, ask the user. Only when the work is actually complete, call ${AGENT_CONTROL_TOOLS.complete}.`,
+          text: (state.completionInvalidated
+            ? `Your previously accepted submission is no longer current because you called another substantive tool afterwards. Review the later tool results and call ${AGENT_CONTROL_TOOLS.complete} again when complete; the old instruction not to resubmit no longer applies. `
+            : '')
+            + `Self-check required: this run has no accepted current self-check. Acceptance recorded in an earlier run does not complete this request or follow-up; an earlier instruction not to resubmit applied only to that earlier run. Compare the current result against the user's objective and every constraint. If anything is missing, continue with tools. If blocked and request_user_input is available, ask the user. Only when the work is actually complete, call ${AGENT_CONTROL_TOOLS.complete}. Rephrasing a completion claim without submitting does not satisfy this gate.`,
         }],
       }) })
     },

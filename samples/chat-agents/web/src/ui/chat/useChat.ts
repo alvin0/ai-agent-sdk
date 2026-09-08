@@ -61,19 +61,31 @@ function writeUrl(
   else window.history.replaceState(null, '', url)
 }
 
+/**
+ * Stamp a row with the moment it appeared or settled.
+ *
+ * The transcript carries no clock of its own, and the collapsed turn summary
+ * needs one to say "worked for 2m 41s". Written here rather than on the wire
+ * because the browser's clock is the one the elapsed counter already uses, so
+ * the two never disagree by the server's skew.
+ */
+function stamped<T extends ChatNode>(node: T): T {
+  return { ...node, at: Date.now() }
+}
+
 function reduce(nodes: readonly ChatNode[], event: WireEvent): readonly ChatNode[] {
   switch (event.t) {
     case 'text-delta': {
       const index = nodes.findIndex(node => node.kind === 'text' && node.id === event.id)
       if (index === -1) {
-        return [...nodes, {
-          kind: 'text',
+        return [...nodes, stamped({
+          kind: 'text' as const,
           id: event.id,
           text: event.text,
           phase: event.phase,
           streaming: true,
           ...event.member === undefined ? {} : { member: event.member },
-        }]
+        })]
       }
       const current = nodes[index] as Extract<ChatNode, { kind: 'text' }>
       const next = [...nodes]
@@ -88,20 +100,32 @@ function reduce(nodes: readonly ChatNode[], event: WireEvent): readonly ChatNode
     }
     case 'text-end': {
       const index = nodes.findIndex(node => node.kind === 'text' && node.id === event.id)
-      if (index === -1) return nodes
+      if (index === -1) return event.text === undefined ? nodes : [...nodes, stamped({
+        kind: 'text', id: event.id, text: event.text, phase: event.phase ?? 'unknown', streaming: false,
+        ...event.incomplete ? { incomplete: true as const } : {},
+        ...event.member === undefined ? {} : { member: event.member },
+      })]
       const next = [...nodes]
-      next[index] = { ...(nodes[index] as Extract<ChatNode, { kind: 'text' }>), streaming: false }
+      // Re-stamped as it closes: a turn ends when its last block finishes
+      // streaming, not when its first delta arrived.
+      next[index] = stamped({
+        ...(nodes[index] as Extract<ChatNode, { kind: 'text' }>),
+        ...event.text === undefined ? {} : { text: event.text },
+        ...event.phase === undefined ? {} : { phase: event.phase },
+        ...event.incomplete ? { incomplete: true as const } : {},
+        streaming: false,
+      })
       return next
     }
     case 'reasoning-delta': {
       const index = nodes.findIndex(node => node.kind === 'reasoning' && node.id === event.id)
       if (index === -1) {
-        return [...nodes, {
-          kind: 'reasoning',
+        return [...nodes, stamped({
+          kind: 'reasoning' as const,
           id: event.id,
           text: event.text,
           ...event.member === undefined ? {} : { member: event.member },
-        }]
+        })]
       }
       const current = nodes[index] as Extract<ChatNode, { kind: 'reasoning' }>
       const next = [...nodes]
@@ -109,14 +133,14 @@ function reduce(nodes: readonly ChatNode[], event: WireEvent): readonly ChatNode
       return next
     }
     case 'tool-call':
-      return [...nodes, {
-        kind: 'tool',
+      return [...nodes, stamped({
+        kind: 'tool' as const,
         id: event.id,
         name: event.name,
         args: event.args,
-        state: 'running',
+        state: 'running' as const,
         ...event.member === undefined ? {} : { member: event.member },
-      }]
+      })]
     case 'tool-output': {
       const index = nodes.findIndex(node => node.kind === 'tool' && node.id === event.id)
       if (index === -1) return nodes
@@ -134,7 +158,7 @@ function reduce(nodes: readonly ChatNode[], event: WireEvent): readonly ChatNode
       const current = nodes[index] as Extract<ChatNode, { kind: 'tool' }>
       const next = [...nodes]
       next[index] = {
-        ...current,
+        ...stamped(current),
         state: event.ok ? (event.declined === true ? 'declined' : 'ok') : 'error',
         ...event.shortened === undefined ? {} : { shortened: event.shortened },
         output: event.output,
@@ -144,13 +168,13 @@ function reduce(nodes: readonly ChatNode[], event: WireEvent): readonly ChatNode
       return next
     }
     case 'question':
-      return [...nodes, {
-        kind: 'question',
+      return [...nodes, stamped({
+        kind: 'question' as const,
         id: event.requestId,
         requestId: event.requestId,
         questions: event.questions,
         answered: false,
-      }]
+      })]
     case 'question-answered': {
       const index = nodes.findIndex(node => node.kind === 'question' && node.requestId === event.requestId)
       if (index === -1) return nodes
@@ -164,12 +188,12 @@ function reduce(nodes: readonly ChatNode[], event: WireEvent): readonly ChatNode
       // A reload re-renders the same pending prompt from the live broker, so
       // an id already on screen is refreshed rather than duplicated.
       const index = nodes.findIndex(node => node.kind === 'approval' && node.callId === event.callId)
-      const node = {
+      const node = stamped({
         kind: 'approval' as const,
         id: event.callId,
         ...approval,
         ...member === undefined ? {} : { member },
-      }
+      })
       if (index === -1) return [...nodes, node]
       const next = [...nodes]
       next[index] = node
@@ -187,14 +211,19 @@ function reduce(nodes: readonly ChatNode[], event: WireEvent): readonly ChatNode
       return next
     }
     case 'notice':
-      return [...nodes, {
-        kind: 'notice',
+      return [...nodes, stamped({
+        kind: 'notice' as const,
         id: `n_${String(nodes.length)}`,
         level: event.level,
         message: event.message,
-      }]
+        ...(event.member === undefined ? {} : { member: event.member }),
+      })]
     case 'error':
-      return [...nodes, { kind: 'error', id: `e_${String(nodes.length)}`, message: event.message }]
+      return [...nodes, stamped({
+        kind: 'error' as const,
+        id: `e_${String(nodes.length)}`,
+        message: event.message,
+      })]
     default:
       return nodes
   }
@@ -226,9 +255,20 @@ function reduceMembers(members: readonly MemberState[], event: WireEvent): reado
   }
 }
 
+/** One run in flight, and everything it has produced so far. */
+interface LiveRun {
+  readonly controller: AbortController
+  nodes: readonly ChatNode[]
+  members: readonly MemberState[]
+  usage: { inputTokens: number, outputTokens: number }
+  progress: string | null
+}
+
 export interface ChatController extends ChatState {
   /** The open conversation; empty until the first client render resolves it. */
   readonly sessionId: string
+  /** Conversations with a run in flight, this one or any other. */
+  readonly runningIds: readonly string[]
   readonly conversations: readonly ConversationRow[]
   readonly groups: readonly GroupRow[]
   /** The open group; conversations and tools are scoped to it. */
@@ -268,7 +308,31 @@ export function useChat(): ChatController {
     progress: null,
     members: [],
   })
-  const aborter = useRef<AbortController | null>(null)
+  /**
+   * Runs in flight, keyed by conversation.
+   *
+   * A run used to belong to the VIEW of it: switching conversations aborted
+   * the reader, and the backend treats a dropped reader as cancellation — so
+   * looking at another chat killed the work you were waiting for. A run now
+   * outlives the view, accumulating into its own buffer; the screen mirrors
+   * whichever one is open.
+   */
+  const runs = useRef(new Map<string, LiveRun>())
+  /**
+   * The conversation on screen.
+   *
+   * A ref, not state: a background run's events arrive inside a closure that
+   * has to know what is showing NOW, and state read there would be whatever
+   * it was when the run started.
+   */
+  const shown = useRef('')
+  /**
+   * Which conversations are working, as state rather than as the ref above.
+   *
+   * The sidebar has to repaint when a run it is not showing starts or ends,
+   * and a ref read during render cannot cause that.
+   */
+  const [runningIds, setRunningIds] = useState<readonly string[]>([])
   /**
    * Calls already answered.
    *
@@ -308,6 +372,7 @@ export function useChat(): ChatController {
     const requested = urlParam(CONVERSATION_PARAM) ?? window.localStorage.getItem(CURRENT_KEY)
     const id = requested ?? newConversationId()
     window.localStorage.setItem(CURRENT_KEY, id)
+    shown.current = id
     setSessionId(id)
     writeUrl({ sessionId: id }, 'replace')
     void refreshGroups()
@@ -324,6 +389,10 @@ export function useChat(): ChatController {
   // Paint the cached transcript first, then reconcile with the server copy.
   useEffect(() => {
     if (sessionId === '') return
+    // A conversation still running is already on screen from its own buffer,
+    // which is ahead of both the cache and the server's settled copy. Reading
+    // either one here would rewind it.
+    if (runs.current.has(sessionId)) return
     let cancelled = false
     void (async () => {
       const cached = await readTranscript(sessionId)
@@ -374,20 +443,47 @@ export function useChat(): ChatController {
     // conversation in the default project, and the agent then writes into the
     // sample's own sandbox instead of the folder on screen.
     if (sessionId === '' || groupId === '' || prompt.trim() === '') return
+    // Captured now: every update below belongs to THIS conversation, whatever
+    // the user is looking at by the time the event arrives.
+    const id = sessionId
     const controller = new AbortController()
-    aborter.current = controller
-    setState(previous => ({
-      ...previous,
-      running: true,
+    const run: LiveRun = {
+      controller,
+      nodes: [...state.nodes, {
+        kind: 'user',
+        id: `u_${String(Date.now())}`,
+        text: prompt,
+        at: Date.now(),
+      }],
       members: [],
-      nodes: [...previous.nodes, { kind: 'user', id: `u_${String(Date.now())}`, text: prompt }],
-    }))
+      usage: state.usage,
+      progress: null,
+    }
+    runs.current.set(id, run)
+    setRunningIds([...runs.current.keys()])
+    /** Mirror the run onto the screen, but only while it is the one open. */
+    const show = (): void => {
+      if (shown.current !== id) return
+      setState({
+        nodes: run.nodes,
+        running: true,
+        members: run.members,
+        usage: run.usage,
+        progress: run.progress,
+      })
+    }
+    show()
+    // The row exists the moment the run does — the server creates it before
+    // its first event — but the sidebar only ever refreshed at the END of a
+    // run, so a conversation started and left to work was invisible for as
+    // long as it took.
+    void refreshConversations()
 
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sessionId, prompt, groupId }),
+        body: JSON.stringify({ sessionId: id, prompt, groupId }),
         signal: controller.signal,
       })
       if (response.body === null) throw new Error('the server returned no stream')
@@ -407,37 +503,65 @@ export function useChat(): ChatController {
           const payload = frame.startsWith('data: ') ? frame.slice(6) : ''
           if (payload === '') continue
           const event = JSON.parse(payload) as WireEvent
-          setState(previous => ({
-            ...previous,
-            nodes: reduce(previous.nodes, event),
-            members: reduceMembers(previous.members, event),
-            // Live status, deliberately not a transcript node: it is true only
-            // while it is on screen.
-            progress: event.t === 'progress' ? event.message : previous.progress,
-            usage: event.t === 'usage'
-              ? {
-                  inputTokens: previous.usage.inputTokens + event.inputTokens,
-                  outputTokens: previous.usage.outputTokens + event.outputTokens,
-                }
-              : previous.usage,
-          }))
+          run.nodes = reduce(run.nodes, event)
+          run.members = reduceMembers(run.members, event)
+          // Live status, deliberately not a transcript node: it is true only
+          // while it is on screen.
+          if (event.t === 'progress') run.progress = event.message
+          if (event.t === 'usage') {
+            run.usage = {
+              inputTokens: run.usage.inputTokens + event.inputTokens,
+              outputTokens: run.usage.outputTokens + event.outputTokens,
+            }
+          }
+          show()
         }
       }
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
         const message = error instanceof Error ? error.message : String(error)
-        setState(previous => ({
-          ...previous,
-          nodes: [...previous.nodes, { kind: 'error', id: `e_${String(Date.now())}`, message }],
-        }))
+        run.nodes = [...run.nodes, {
+          kind: 'error',
+          id: `e_${String(Date.now())}`,
+          message,
+          at: Date.now(),
+        }]
+        show()
       }
     } finally {
-      aborter.current = null
+      const settled = run.nodes
+      runs.current.delete(id)
+      setRunningIds([...runs.current.keys()])
       // The run is over, so whatever it was waiting on is no longer true.
-      setState(previous => ({ ...previous, running: false, progress: null }))
+      if (shown.current === id) {
+        setState(previous => ({ ...previous, nodes: settled, running: false, progress: null }))
+      } else {
+        // Nobody was watching, so nothing wrote the cache: do it here, or
+        // coming back would show the transcript as it was before the run.
+        void writeTranscript(id, settled)
+      }
       void refreshConversations()
     }
-  }, [sessionId, groupId, refreshConversations])
+  }, [sessionId, groupId, state.nodes, state.usage, refreshConversations])
+
+  /**
+   * Edit one conversation's rows, in the live buffer and on screen alike.
+   *
+   * A run's buffer is the authority while it lasts — every event repaints the
+   * screen from it — so an edit written only to the screen (an answered
+   * permission prompt, a steering message) is erased by the next event.
+   * @param id - The conversation to edit.
+   * @param edit - Receives the current rows, returns the new ones.
+   */
+  const editNodes = useCallback((
+    id: string,
+    edit: (nodes: readonly ChatNode[]) => readonly ChatNode[],
+  ) => {
+    const live = runs.current.get(id)
+    if (live !== undefined) live.nodes = edit(live.nodes)
+    if (shown.current !== id) return
+    setState(previous => ({ ...previous, nodes: live === undefined ? edit(previous.nodes) : live.nodes }))
+  }, [])
 
   const answer = useCallback(async (requestId: string, answers: Record<string, string>) => {
     await fetch('/api/answer', {
@@ -460,16 +584,16 @@ export function useChat(): ChatController {
     // again until the tool FINISHES — an `npm install` would leave the prompt
     // on screen for a minute after it was answered.
     const settle = (answer: { decision: 'allow' | 'deny'; scope: WireApprovalScope } | undefined) => {
-      setState((previous) => {
-        const index = previous.nodes.findIndex(
+      editNodes(sessionId, (previous) => {
+        const index = previous.findIndex(
           node => node.kind === 'approval' && node.callId === callId,
         )
         if (index === -1) return previous
-        const nodes = [...previous.nodes]
+        const nodes = [...previous]
         const { decision: _was, scope: _reach, ...pending }
           = nodes[index] as Extract<ChatNode, { kind: 'approval' }>
         nodes[index] = answer === undefined ? pending : { ...pending, ...answer }
-        return { ...previous, nodes }
+        return nodes
       })
     }
 
@@ -492,17 +616,19 @@ export function useChat(): ChatController {
       answered.current.delete(callId)
       settle(undefined)
     }
-  }, [sessionId])
+  }, [sessionId, editNodes])
 
   const steer = useCallback(async (prompt: string) => {
     const text = prompt.trim()
     if (sessionId === '' || text === '') return
     // Shown immediately: the message is already in the agent's history, and
     // the run's own stream carries no echo of it.
-    setState(previous => ({
-      ...previous,
-      nodes: [...previous.nodes, { kind: 'user', id: `u_${String(Date.now())}_steer`, text }],
-    }))
+    editNodes(sessionId, previous => [...previous, {
+      kind: 'user',
+      id: `u_${String(Date.now())}_steer`,
+      text,
+      at: Date.now(),
+    }])
     const response = await fetch('/api/steer', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -513,14 +639,12 @@ export function useChat(): ChatController {
     // otherwise be silently dropped, so send it as an ordinary prompt — minus
     // the user node just added, which `send` appends again.
     if (body.steered !== true) {
-      setState(previous => ({
-        ...previous,
-        nodes: previous.nodes.filter(node => !(node.kind === 'user' && node.text === text
-          && node.id.endsWith('_steer'))),
-      }))
+      editNodes(sessionId, previous => previous.filter(
+        node => !(node.kind === 'user' && node.text === text && node.id.endsWith('_steer')),
+      ))
       await send(text)
     }
-  }, [sessionId, send])
+  }, [sessionId, send, editNodes])
 
   const stop = useCallback(() => {
     void fetch('/api/abort', {
@@ -528,18 +652,30 @@ export function useChat(): ChatController {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId }),
     })
-    aborter.current?.abort()
+    runs.current.get(sessionId)?.controller.abort()
   }, [sessionId])
 
-  /** Switch the open conversation without touching history. */
+  /**
+   * Switch the open conversation without touching history.
+   *
+   * Deliberately does NOT abort: a run belongs to its conversation, not to the
+   * window on it. Switching back to a conversation still working shows it
+   * still working, from the buffer the run has been filling all along.
+   */
   const applyConversation = useCallback((id: string) => {
-    aborter.current?.abort()
     window.localStorage.setItem(CURRENT_KEY, id)
+    shown.current = id
     setSessionId(id)
-    setState({
-      nodes: [], running: false, usage: { inputTokens: 0, outputTokens: 0 },
-      progress: null, members: [],
-    })
+    const live = runs.current.get(id)
+    setState(live === undefined
+      ? {
+          nodes: [], running: false, usage: { inputTokens: 0, outputTokens: 0 },
+          progress: null, members: [],
+        }
+      : {
+          nodes: live.nodes, running: true, usage: live.usage,
+          progress: live.progress, members: live.members,
+        })
   }, [])
 
   const openConversation = useCallback((id: string) => {
@@ -563,6 +699,14 @@ export function useChat(): ChatController {
   }, [openConversation])
 
   const removeConversation = useCallback(async (id: string) => {
+    // The one case where a run really is over: its conversation is gone, so
+    // nothing is left for it to write into.
+    runs.current.get(id)?.controller.abort()
+    await fetch('/api/abort', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: id }),
+    })
     await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
     await deleteTranscript(id)
     await refreshConversations()
@@ -584,6 +728,7 @@ export function useChat(): ChatController {
     // A conversation belongs to one group, so switching group starts a new one.
     const fresh = newConversationId()
     window.localStorage.setItem(CURRENT_KEY, fresh)
+    shown.current = fresh
     setSessionId(fresh)
     setState({
       nodes: [], running: false, usage: { inputTokens: 0, outputTokens: 0 },
@@ -615,6 +760,7 @@ export function useChat(): ChatController {
   return {
     ...state,
     sessionId,
+    runningIds,
     conversations,
     groups,
     groupId,

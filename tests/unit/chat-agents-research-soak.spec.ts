@@ -149,9 +149,8 @@ async function research(seed: number): Promise<readonly Node[]> {
 }
 
 describe('the research prompt, run over and over', () => {
-  it('ends on the lead every time, whatever the timing', async () => {
+  it.each(Array.from({ length: 60 }, (_, index) => index + 1))('ends on the lead with timing seed %i', async (seed) => {
     const failures: string[] = []
-    for (let seed = 1; seed <= 20; seed++) {
       const nodes = await research(seed)
       resetMock()
 
@@ -192,7 +191,6 @@ describe('the research prompt, run over and over', () => {
       if (asked.length !== 1) {
         failures.push(`seed ${String(seed)}: prompt appears ${String(asked.length)} times`)
       }
-    }
     expect(failures).toEqual([])
   }, 180_000)
 })

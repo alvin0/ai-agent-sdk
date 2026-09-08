@@ -1,14 +1,25 @@
 import type { ToolCard, WireApproval, WireApprovalScope, WireQuestion } from '@chat-agents/backend'
 
+/**
+ * Wall-clock stamp every row carries.
+ *
+ * The transcript is the only record of when a turn's work happened, so the
+ * collapsed summary reads its duration from these. Optional because a
+ * transcript stored before this existed replays without one.
+ */
+type Timed<T> = T extends unknown ? T & { readonly at?: number } : never
+
 /** One rendered row of the transcript, in arrival order. */
-export type ChatNode =
+export type ChatNode = Timed<
   | { readonly kind: 'user'; readonly id: string; readonly text: string }
+  | { readonly kind: 'assignment'; readonly id: string; readonly text: string; readonly member: string; readonly from: string; readonly followup: boolean }
   | {
       readonly kind: 'text'
       readonly id: string
       readonly text: string
       readonly phase: 'commentary' | 'final-answer' | 'unknown'
       readonly streaming: boolean
+      readonly incomplete?: true
       /** Team member that produced it; absent means the agent you talk to. */
       readonly member?: string
     }
@@ -58,8 +69,10 @@ export type ChatNode =
       readonly id: string
       readonly level: 'info' | 'warn'
       readonly message: string
+      readonly member?: string
     }
   | { readonly kind: 'error'; readonly id: string; readonly message: string }
+>
 
 /** One team member's live state during a run. */
 export interface MemberState {

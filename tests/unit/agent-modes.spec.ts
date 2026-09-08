@@ -20,6 +20,12 @@ class ScriptedAdapter extends ModelAdapter {
     for (const chunk of this.rounds[this.requests.length - 1] ?? []) yield chunk
   }
   override resolveModel(provider: string, model: string): Promise<ResolvedModelInfo> {
+    if (model === 'effort-model') {
+      return Promise.resolve({ provider, id: model, name: model, reasoning: {
+        efforts: ['medium', 'high', 'max'].map(id => ({ id: ReasoningEffortId(id), name: id })),
+        defaultEffort: ReasoningEffortId('medium'),
+      } })
+    }
     if (provider === 'codex' && model === 'gpt-5.6-luna') {
       const medium = ReasoningEffortId('medium')
       return Promise.resolve({
@@ -74,6 +80,175 @@ async function collect(options: Parameters<typeof runAgent>[0]): Promise<AgentRu
 }
 
 describe('agent modes', () => {
+  it('bounds differently worded self-check claims after a submission was invalidated', async () => {
+    const state = setup([
+      toolRound('submit', 'submit_result', { summary: 'Done.', evidence: ['sources inspected'] }),
+      toolRound('later', 'echo', { message: 'Report delivered after submission.' }),
+      textRound('The self-check was already accepted.'),
+      textRound('All checks passed previously.'),
+      textRound('There is nothing else to verify.'),
+      textRound('This unnecessary paid round must not run.'),
+    ])
+    const events = await collect({ mode: 'deep', registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, maxTurns: 'auto' })
+    expect(state.adapter.requests).toHaveLength(5)
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { completed: false } })
+  })
+
+  it('explains invalidated submissions and lets the model resubmit after reviewing later work', async () => {
+    const state = setup([
+      toolRound('submit', 'submit_result', { summary: 'Done.', evidence: ['sources inspected'] }),
+      toolRound('later', 'echo', { message: 'New evidence.' }),
+      textRound('I already submitted.'),
+      toolRound('resubmit', 'submit_result', { summary: 'Reviewed again.', evidence: ['new evidence reviewed'] }),
+      textRound('Final verified report.'),
+    ])
+    const events = await collect({ mode: 'deep', registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, maxTurns: 'auto' })
+    expect(JSON.stringify(state.adapter.requests[3]?.messages)).toContain('previously accepted submission is no longer current')
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { completed: true, text: 'Final verified report.' } })
+  })
+
+  it.each(['basic', 'deep'] as const)('auto completes %s work beyond the old lead ceiling', async mode => {
+    const state = setup([
+      ...Array.from({ length: 70 }, (_, i) => toolRound(`inspect-${i}`, 'echo', { page: i })),
+      ...(mode === 'deep' ? [
+        textRound('Preliminary findings; verification still required.'),
+        toolRound('submit', 'submit_result', { summary: 'Reviewed all pages.', evidence: ['70 pages inspected'] }),
+      ] : []),
+      textRound('Final report: all 70 pages reviewed.'),
+    ])
+    const events = await collect({ mode, registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, maxTurns: 'auto', bounds: { onExhausted: 'continue' } })
+    expect(events[0]).toMatchObject({ type: 'agent-start', maxTurns: 'auto' })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: {
+      completed: true, reason: { kind: 'completed' }, text: 'Final report: all 70 pages reviewed.',
+      steps: mode === 'deep' ? 73 : 71,
+    } })
+    expect(state.adapter.requests.every(request => request.toolChoice !== 'none')).toBe(true)
+    expect(JSON.stringify(state.history.messages())).not.toContain('work steps remain')
+    expect(JSON.parse(JSON.stringify(events[0]))).toMatchObject({ maxTurns: 'auto' })
+  })
+
+  it('auto retains loop detection instead of repeating tools forever', async () => {
+    const state = setup([
+      ...Array.from({ length: 3 }, (_, i) => toolRound(`repeat-${i}`, 'echo', { page: 1 })),
+      textRound('Blocked: repeated source returns no new evidence.'),
+    ])
+    const events = await collect({ mode: 'deep', registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, maxTurns: 'auto',
+      bounds: { onExhausted: 'continue', repeatToolWarningAt: 2, repeatToolLimit: 3, toolCycleLimit: 10 } })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: {
+      completed: false, reason: { kind: 'budget-exhausted', budget: 'repeated-tool-call', forcedFinalAnswer: true },
+    } })
+    expect(state.adapter.requests).toHaveLength(4)
+  })
+
+  it('auto still honors an explicit tool-call wall and returns a bounded report', async () => {
+    const state = setup([toolRound('a', 'echo', { n: 1 }), toolRound('b', 'echo', { n: 2 }), textRound('Partial report.')])
+    const events = await collect({ mode: 'basic', registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, maxTurns: 'auto', bounds: { maxToolCalls: 1 } })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: {
+      reason: { kind: 'budget-exhausted', budget: 'tool-calls', forcedFinalAnswer: true }, text: 'Partial report.',
+    } })
+    expect(state.adapter.requests).toHaveLength(3)
+    expect(state.adapter.requests.at(-1)?.toolChoice).toBe('none')
+  })
+
+  it.each(['tokens', 'abort'] as const)('auto stops without another call on %s', async limit => {
+    const state = setup([[
+      ...toolRound('inspect', 'echo', { page: 1 }).slice(0, -1),
+      { type: 'usage', usage: { inputTokens: 8, outputTokens: 2, totalTokens: 10 } },
+      { type: 'finish', reason: { kind: 'tool-calls' } },
+    ], textRound('Must not be called.')])
+    const controller = new AbortController()
+    if (limit === 'abort') {
+      state.tools = new ToolRegistry()
+      state.tools.register(defineTool({ name: 'echo', description: 'Stop.',
+        parameters: { type: 'object' }, execute: () => { controller.abort(); return {} } }))
+    }
+    const events = await collect({ mode: 'basic', registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, maxTurns: 'auto', signal: controller.signal,
+      bounds: { onExhausted: 'continue', ...(limit === 'tokens' ? { maxTotalTokens: 10 } : {}) } })
+    expect(state.adapter.requests).toHaveLength(1)
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: {
+      completed: false, reason: limit === 'tokens' ? { kind: 'budget-exhausted', budget: 'tokens' } : { kind: 'aborted' },
+    } })
+  })
+
+  it.each([false, true])('keeps an accepted submission across a progress-only update (same batch=%s)', async sameBatch => {
+    const submit = { id: 'submit', name: 'submit_result', args: { summary: 'Reconciled.', evidence: ['340 USD verified'] } }
+    const progress = { id: 'plan', name: 'report_progress', args: { done: true } }
+    const state = setup([
+      ...(sameBatch ? [toolBatch([submit, progress])] : [toolBatch([submit]), toolBatch([progress])]),
+      textRound('Verified total: 340 USD. Plan reconciled.'),
+    ])
+    state.tools.register(defineTool({
+      name: 'report_progress', description: 'Publish progress only.', parameters: { type: 'object' },
+      completionExempt: true, execute: () => ({ published: true }),
+    }))
+    const events = await collect({
+      mode: 'deep', registry: state.registry, config: { provider: 'test', model: 'm' },
+      history: state.history, tools: state.tools, maxTurns: 8,
+    })
+    const end = events.at(-1)
+    expect(end?.type === 'agent-end' && end.outcome.completed).toBe(true)
+    expect(state.adapter.requests).toHaveLength(sameBatch ? 2 : 3)
+    expect(end?.type === 'agent-end' && end.outcome.text).toContain('340 USD')
+  })
+
+  it('still invalidates completion for new work even when the tool is budget-exempt', async () => {
+    const state = setup([
+      toolRound('submit', 'submit_result', { summary: 'Done.', evidence: ['checked'] }),
+      toolRound('work', 'new_evidence', {}),
+      textRound('Unverified new result.'),
+    ])
+    state.tools.register(defineTool({
+      name: 'new_evidence', description: 'Read new evidence.', parameters: { type: 'object' },
+      budgetExempt: true, execute: () => ({ changed: true }),
+    }))
+    const events = await collect({
+      mode: 'deep', registry: state.registry, config: { provider: 'test', model: 'm' },
+      history: state.history, tools: state.tools, maxTurns: 3,
+    })
+    const end = events.at(-1)
+    expect(end?.type === 'agent-end' && end.outcome.completed).toBe(false)
+  })
+
+  it('does not claim completion when the final report fails after an accepted submission', async () => {
+    const state = setup([
+      toolRound('submit', 'submit_result', { summary: 'Checks passed.', evidence: ['test output'] }),
+      [{ type: 'finish', reason: { kind: 'error', failure: { code: 'UNAVAILABLE', message: 'report failed' } } }],
+    ])
+    const events = await collect({
+      mode: 'deep', registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, maxTurns: 1, bounds: { onExhausted: 'continue' },
+    })
+    const end = events.at(-1)
+    expect(end?.type === 'agent-end' && end.outcome.completed).toBe(false)
+    expect(end?.type === 'agent-end' && end.outcome.reason.kind).toBe('error')
+  })
+
+  it.each(['medium', 'high', 'max'])('writes a report after submission on the last step (%s)', async (effort) => {
+    const state = setup([
+      toolRound('submit-last', 'submit_result', {
+        summary: 'Analysis checked.', evidence: ['Reconciled source totals'],
+      }),
+      textRound('Final report: totals reconcile; future figures are unavailable.'),
+    ])
+    const events = await collect({
+      mode: 'deep', registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'effort-model', reasoningEffort: ReasoningEffortId(effort) },
+      maxTurns: 1, bounds: { onExhausted: 'continue' },
+    })
+    const end = events.at(-1)
+    expect(end?.type === 'agent-end' && end.outcome.text).toContain('Final report:')
+    expect(end?.type === 'agent-end' && end.outcome.completed).toBe(true)
+    expect(state.adapter.requests).toHaveLength(2)
+    expect(state.adapter.requests[1]?.reasoningEffort).toBe(effort)
+    expect(state.adapter.requests[1]?.toolChoice).toBe('none')
+  })
+
   it('lets a deep run submit after the tool budget is spent', async () => {
     // A budget that can block submit_result leaves a deep run with no legal way
     // to finish: it has done the work and cannot say so.

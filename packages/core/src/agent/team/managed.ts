@@ -90,6 +90,7 @@ const LEAD_INSTRUCTIONS = [
   'After delegating, do useful non-overlapping work. Do not wait by reflex, and do not redo what you delegated.',
   'Use wait_agents only when you need a result to continue. It returns within its timeout whether or not anyone finished, so read the reported status and decide again.',
   'Read a finished worker result from list_agents, then call close_agent to release its slot.',
+  'A send_message update or accepted self-check is not the worker final report. Wait for its completed/failed status before normal closure. Use cancelRunning only when deliberately abandoning its unfinished work.',
   'Never answer as if a worker had reported when it has not; say what is still outstanding instead.',
   'Synthesize worker results yourself and remain responsible for the final answer.',
 ].join(' ')
@@ -296,6 +297,9 @@ export interface ManagedAgentTeamOptions {
    * reason.
    */
   readonly holdWaitMs?: number
+  /** Allow model-invoked close_agent to cancel unfinished work (default true).
+   * Host closeWorker, disposal and user cancellation are always available. */
+  readonly allowModelWorkerCancellation?: boolean
   /**
    * How long `spawn_agent` may take to get a worker running.
    * Defaults to {@link DEFAULT_SPAWN_SETUP_TIMEOUT_MS}.
@@ -519,7 +523,7 @@ export class ManagedAgentTeam {
         }
         this.lead.inject(
           `Not finished: ${busy.join(', ')} ${busy.length === 1 ? 'is' : 'are'} still running. `
-          + 'Use wait_agents to wait for them and read their results, or close_agent to '
+          + 'Use wait_agents to wait for them and read their results, or close_agent with cancelRunning: true to '
           + 'give up on one. Do not present a conclusion that depends on work they have '
           + 'not reported yet.',
         )
@@ -927,7 +931,11 @@ export class ManagedAgentTeam {
     const lines = names.map((name) => {
       const runtime = this.workerRuntimes.get(name)
       if (runtime === undefined) return `- ${name}: closed before reporting.`
-      if (runtime.error !== undefined) return `- ${name} FAILED: ${runtime.error}`
+      if (runtime.error !== undefined) {
+        const partial = runtime.result?.text
+        return `- ${name} FAILED: ${runtime.error}`
+          + (partial ? `\nPartial findings (not a completed task): ${truncate(partial, this.maxDependencyReportBytes)}` : '')
+      }
       const text = runtime.result?.text ?? ''
       return `- ${name} finished: ${truncate(text, this.maxDependencyReportBytes)}`
     })
@@ -965,8 +973,20 @@ export class ManagedAgentTeam {
         if (failure !== undefined) {
           runtime.status = 'failed'
           runtime.error = failure
+          // A failed final request must not erase evidence already returned.
+          // Preserve partial output, but never report it as successful work.
+          if (response.text.trim() !== '') {
+            runtime.result = Object.freeze({
+              worker: name,
+              agentId: runtime.session.definition.id,
+              conversationId: runtime.session.conversationId,
+              text: response.text,
+              succeeded: false,
+            })
+          }
           this.team.recordOutcome(name, { kind: 'failed', message: failure })
-          await this.notifyLead(name, `failed: ${failure}`)
+          await this.notifyLead(name, `failed: ${failure}`
+            + (runtime.result === undefined ? '' : `\nPartial findings (not a completed task): ${runtime.result.text}`))
         } else {
           runtime.status = 'completed'
           runtime.result = Object.freeze({
@@ -1285,25 +1305,40 @@ export class ManagedAgentTeam {
       }),
       defineTool({
         name: 'close_agent',
+        budgetExempt: true,
         description: [
           'Close a worker you no longer need and free its slot.',
           'A finished worker still occupies one until closed, so close it once you have read its result.',
-          'Closing a worker that is still running cancels its work.',
+          'A running or pending worker is kept alive by default so it can finish its final report.',
+          this.options.allowModelWorkerCancellation === false
+            ? 'The host requires worker reports: you cannot cancel unfinished workers. Wait for their result.'
+            : 'Set cancelRunning: true only to deliberately abandon unfinished work and cancel it.',
           'Returns the status it held before closing.',
         ].join(' '),
         parameters: {
           type: 'object',
           properties: {
             name: { type: 'string', description: 'Worker address returned by spawn_agent.' },
+            cancelRunning: { type: 'boolean', description: 'Explicitly cancel an unfinished worker. Defaults to false.' },
           },
           required: ['name'],
           additionalProperties: false,
         },
         parse: parseCloseTool,
-        execute: async ({ name }) => asJson({
-          worker: name,
-          previousStatus: await this.closeWorker(name),
-        }),
+        execute: async ({ name, cancelRunning }) => {
+          const runtime = this.workerRuntimes.get(name)
+          if (runtime !== undefined && (!cancelRunning || this.options.allowModelWorkerCancellation === false)
+            && (runtime.status === 'pending' || runtime.status === 'running' || runtime.session.isRunning)) {
+            return asJson({
+              worker: name, closed: false,
+              status: runtime.status === 'pending' ? 'pending' : 'running',
+              instruction: 'The worker has not finished its final report. Use wait_agents and read its completed result before closing.'
+                + (this.options.allowModelWorkerCancellation === false ? ' Model cancellation is disabled by the host.'
+                  : ' To deliberately abandon this work, call close_agent with cancelRunning: true.'),
+            })
+          }
+          return asJson({ worker: name, closed: true, previousStatus: await this.closeWorker(name) })
+        },
         timeoutMs: this.workerTimeoutMs,
       }),
     ])
@@ -1378,12 +1413,15 @@ function mergeTools(
   return registry
 }
 
-function parseCloseTool(value: unknown): { name: string } {
+function parseCloseTool(value: unknown): { name: string; cancelRunning: boolean } {
   const input = object(value, 'close_agent arguments')
-  if (Object.keys(input).some(key => key !== 'name')) {
+  if (Object.keys(input).some(key => key !== 'name' && key !== 'cancelRunning')) {
     throw new TypeError('close_agent arguments contain unknown fields')
   }
-  return { name: memberName(input.name) }
+  if (input.cancelRunning !== undefined && typeof input.cancelRunning !== 'boolean') {
+    throw new TypeError('close_agent cancelRunning must be a boolean')
+  }
+  return { name: memberName(input.name), cancelRunning: input.cancelRunning === true }
 }
 
 function parseSpawnTool(value: unknown): ManagedAgentSpawnRequest {
@@ -1557,6 +1595,10 @@ function failureOf(response: AgentResponse): string | undefined {
   if (reason.kind === 'error') return reason.failure.message
   if (reason.kind === 'max-tokens') return 'the model stopped at its output limit'
   if (reason.kind === 'usage-unavailable') return 'the provider reported no usage for a billed call'
+  if (reason.kind === 'aborted') return 'the run was aborted'
+  if (reason.kind === 'budget-exhausted' && !response.outcome.completed) {
+    return `the run stopped at its ${reason.budget} limit before completing the task`
+  }
   // An empty answer from an otherwise clean run is still nothing to synthesize.
   if (response.text.trim() === '') return 'it produced no answer'
   return undefined

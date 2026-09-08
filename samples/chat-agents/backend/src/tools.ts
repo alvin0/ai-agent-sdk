@@ -19,6 +19,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { defineTool, ToolRegistry } from '@ai-agent-sdk/core/agent'
 import type { JsonObject, JsonValue } from '@ai-agent-sdk/core'
 import type { DiffLine, SearchMatch, TodoItem, ToolCard } from './wire'
+import { webLinks } from './web-links'
 
 const MAX_READ_LINES = 400
 const MAX_MATCHES = 60
@@ -26,6 +27,29 @@ const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.next', '.turbo', 'c
 /** Cap on captured command output, so one chatty build cannot flood the UI. */
 const MAX_COMMAND_OUTPUT = 20_000
 const DEFAULT_COMMAND_TIMEOUT_MS = 120_000
+
+/** Read only a bounded prefix; cancel the network body instead of buffering it all. */
+async function webPrefix(response: Response, signal: AbortSignal): Promise<{ html: string; truncated: boolean }> {
+  const reader = response.body?.getReader()
+  if (reader === undefined) return { html: '', truncated: false }
+  const decoder = new TextDecoder()
+  let remaining = 200_000
+  let html = ''
+  try {
+    while (remaining > 0) {
+      signal.throwIfAborted()
+      const { done, value } = await reader.read()
+      if (done) return { html: html + decoder.decode(), truncated: false }
+      const kept = value.subarray(0, remaining)
+      html += decoder.decode(kept, { stream: true })
+      remaining -= kept.byteLength
+    }
+    return { html: html + decoder.decode(), truncated: true }
+  } finally {
+    await reader.cancel().catch(() => undefined)
+    reader.releaseLock()
+  }
+}
 
 /** Cast a structurally-JSON result to the SDK's `JsonValue`. */
 function json<T>(value: T): JsonValue {
@@ -653,6 +677,8 @@ export function createSampleTools(root: string): ToolRegistry {
 
   tools.register(defineTool({
     name: 'write_todos',
+    budgetExempt: true,
+    completionExempt: true,
     description: 'Publish the current task list so the user can follow along.',
     parameters: {
       type: 'object',
@@ -697,7 +723,8 @@ export function createSampleTools(root: string): ToolRegistry {
 
   tools.register(defineTool({
     name: 'fetch_url',
-    description: 'Fetch an https page and return its readable text.',
+    description: 'Fetch an https page and return its readable text and up to 40 source links. Follow relevant returned links instead of guessing endpoint paths. fetchedAt is the retrieval time, not the publication date or market-price timestamp; those must be verified from the source.',
+    timeoutMs: 30_000,
     parameters: {
       type: 'object',
       properties: { url: { type: 'string', description: 'Absolute https URL.' } },
@@ -710,18 +737,25 @@ export function createSampleTools(root: string): ToolRegistry {
       return { url: url.toString() }
     },
     isConcurrencySafe: () => true,
-    execute: async ({ url }) => {
-      const response = await fetch(url, { redirect: 'follow' })
-      const html = (await response.text()).slice(0, 200_000)
+    execute: async ({ url }, context) => {
+      const response = await fetch(url, { redirect: 'follow', signal: context.signal })
+      const fetchedAt = new Date().toISOString()
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined)
+        throw new Error(`Source unavailable: HTTP ${response.status} for ${url}. Do not treat the error page as research evidence.`)
+      }
+      const { html, truncated } = await webPrefix(response, context.signal)
       const title = /<title[^>]*>([^<]*)<\/title>/i.exec(html)?.[1]?.trim() ?? url
-      const text = html
+      const readable = html
         .replace(/<script[\s\S]*?<\/script>/gi, ' ')
         .replace(/<style[\s\S]*?<\/style>/gi, ' ')
         .replace(/<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
-        .slice(0, 8_000)
-      return { url, title, status: response.status, text }
+      const text = readable.slice(0, 8_000)
+      return { url: response.url || url, title, status: response.status, text,
+        links: webLinks(html, response.url || url),
+        fetchedAt, truncated: truncated || readable.length > text.length }
     },
     meta: value => {
       const record = value as { url: string; title: string; text: string } | undefined

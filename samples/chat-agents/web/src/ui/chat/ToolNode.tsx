@@ -39,6 +39,14 @@ export const TITLES: Readonly<Record<string, string>> = {
   request_user_input: 'Ask',
   close_agent: 'Close agent',
   submit_result: 'Self-check',
+  // The team tools. Untitled they printed as raw names, which was tolerable on
+  // a row of its own and is not on a folded run's summary line, where the tool
+  // names ARE the summary: "send_message, Fetch · 3 steps".
+  spawn_agent: 'Spawn',
+  send_message: 'Message',
+  wait_agents: 'Wait',
+  list_agents: 'Agents',
+  followup_task: 'Follow-up',
 }
 
 /**

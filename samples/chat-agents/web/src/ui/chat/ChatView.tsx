@@ -5,20 +5,24 @@
  * the composer under it.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  IconFolderOpen16, IconLoadingOutline16, IconSendOutline16, IconStopFill16,
-  IconThinkOutline14, IconWarningOutline16, MarkdownText, projectUserText, StateDot,
+  IconChevronDownOutline14, IconChevronRightOutline14, IconFolderOpen16, IconLoadingOutline16,
+  IconSendOutline16, IconStopFill16, IconThinkOutline14, IconWarningOutline16, MarkdownText,
+  projectUserText, StateDot,
 } from '../primitives'
 import { markdownLabels } from '../labels'
 import { ApprovalCard, ApprovalRecord } from './ApprovalCard'
 import { QuestionCard } from './QuestionCard'
 import { TeamRoster } from './TeamRoster'
 import { ToolNode } from './ToolNode'
+import { ToolGroup } from './ToolGroup'
 import { ComposerControls } from './ComposerControls'
 import type { SettingsController } from '../settings/useSettings'
 import type { ChatController } from './useChat'
+import { blocksOf, formatSpan, rosterOf, segmentsOf, turnsOf, withDelegationPrompts } from './turns'
+import type { Block, Turn } from './turns'
 import type { ChatNode, MemberState } from './types'
 import css from './ChatView.module.css'
 
@@ -65,69 +69,82 @@ function RunningHint({ label }: { label: string | null }) {
   )
 }
 
-/** One run of consecutive rows from the same author. */
-interface Block {
-  /** The team member who produced them; absent means the agent you talk to. */
-  readonly member: string | undefined
-  readonly nodes: readonly ChatNode[]
-}
-
-/**
- * Split the transcript into consecutive same-author blocks.
- *
- * A per-row badge was not enough to read a team run: a member's work appeared
- * at the same level as the lead's, so the transcript looked like one agent
- * talking to itself. Grouping lets a member's stretch be drawn as one labelled,
- * indented block — the shape that says "this part is not the lead".
- * @param nodes - The transcript, in order.
- * @returns Blocks in the same order.
- */
-function blocksOf(nodes: readonly ChatNode[]): readonly Block[] {
-  const blocks: Block[] = []
-  for (const node of nodes) {
-    const member = 'member' in node ? node.member : undefined
-    const last = blocks[blocks.length - 1]
-    if (last !== undefined && last.member === member) (last.nodes as ChatNode[]).push(node)
-    else blocks.push({ member, nodes: [node] })
-  }
-  return blocks
-}
-
 /**
  * Render one block of rows.
  *
- * A member's block is drawn as a named, indented panel; the lead's rows are
- * drawn plainly, so the transcript's top level always reads as the agent the
- * user is talking to.
+ * A member's block is drawn as a named, indented panel that folds; the lead's
+ * rows are drawn plainly, so the transcript's top level always reads as the
+ * agent the user is talking to. Folding matters most here: a team run puts
+ * four agents' hundred-odd rows into one turn, and expanded they bury both the
+ * lead's own thread and each other.
  * @param props - The block, the member's live status, and the answer callback.
  * @returns The rows, wrapped for a member.
  */
 function BlockView({
   block,
   status,
+  startOpen = false,
   onAnswer,
 }: {
   block: Block
   status: MemberState['status'] | undefined
+  /** Start expanded whatever the member's status: the view IS its work. */
+  startOpen?: boolean
   onAnswer: (requestId: string, answers: Record<string, string>) => void
 }) {
+  // Open while the member is working, folded once it is done — the same rule
+  // the turn itself follows, and `null` is what lets it change on its own
+  // until somebody clicks.
+  const [open, setOpen] = useState<boolean | null>(null)
+  const expanded = open ?? (startOpen || status === 'running')
+
   // The index disambiguates the key: a transcript stored before ids were
   // scoped per author can hold two nodes sharing one id, and the thread is
   // append-only, so position is a stable identity.
-  const rows = block.nodes.map((node, index) => (
-    <div className={css.row} key={`${node.kind}-${node.id}-${String(index)}`}>
-      <NodeView node={node} onAnswer={onAnswer} />
+  const rows = segmentsOf(block.nodes).map((segment, index) => (
+    <div
+      className={css.row}
+      key={segment.kind === 'tools'
+        ? `tools-${segment.nodes[0]?.id ?? ''}-${String(index)}`
+        : `${segment.node.kind}-${segment.node.id}-${String(index)}`}
+    >
+      {segment.kind === 'tools'
+        ? <ToolGroup nodes={segment.nodes} />
+        : <NodeView node={segment.node} onAnswer={onAnswer} />}
     </div>
   ))
   if (block.member === undefined) return <>{rows}</>
+
+  // Steps, and deliberately NOT a duration. A member's rows are handed over in
+  // bursts, when the lead next wakes — so their stamps measure when the run
+  // delivered the work, not how long the member spent on it, and a panel that
+  // said "1s" over forty-two tool calls would be a confident lie.
+  const steps = block.nodes.filter(node => node.kind === 'tool').length
   return (
     <section className={css.memberBlock} aria-label={`${block.member}'s work`}>
-      <header className={css.memberHeader}>
-        <StateDot state={status === 'running' ? 'ongoing' : status === 'done' ? 'done' : 'warning'} />
+      <button
+        type="button"
+        className={css.memberHeader}
+        aria-expanded={expanded}
+        onClick={() => { setOpen(!expanded) }}
+      >
+        {expanded ? <IconChevronDownOutline14 /> : <IconChevronRightOutline14 />}
+        {/*
+          A member with no live status is one whose run is over — a reloaded
+          transcript has no roster — so it is finished, not in trouble. Amber
+          used to be the fallback, which painted every agent in every stored
+          team run as though something had gone wrong with it.
+        */}
+        <StateDot state={status === 'running' ? 'ongoing' : status === 'idle' ? 'warning' : 'done'} />
         <span className={css.memberName}>{block.member}</span>
         <span className={css.memberRole}>subagent</span>
-      </header>
-      <div className={css.memberRows}>{rows}</div>
+        {steps > 0 && (
+          <span className={css.memberMeta}>
+            {steps === 1 ? '1 step' : `${String(steps)} steps`}
+          </span>
+        )}
+      </button>
+      {expanded && <div className={css.memberRows}>{rows}</div>}
     </section>
   )
 }
@@ -142,6 +159,13 @@ function NodeView({
   switch (node.kind) {
     case 'user':
       return <div className={css.userMessage}>{projectUserText(node.text, [])}</div>
+    case 'assignment':
+      return (
+        <div className={css.assignment}>
+          <div className={css.assignmentLabel}>{node.followup ? 'Follow-up task' : 'Task'} from {node.from}</div>
+          <div className={css.assignmentText}>{node.text}</div>
+        </div>
+      )
     case 'text':
       return (
         <div className={clsx(css.assistant, node.phase === 'commentary' && css.commentary)}>
@@ -174,6 +198,119 @@ function NodeView({
   }
 }
 
+/** Rows of one turn, drawn as author blocks. */
+function BlockList({
+  nodes,
+  statusOf,
+  startOpen = false,
+  onAnswer,
+}: {
+  nodes: readonly ChatNode[]
+  statusOf: (member: string) => MemberState['status'] | undefined
+  /** Open every member panel on sight, for a view that is only one member. */
+  startOpen?: boolean
+  onAnswer: (requestId: string, answers: Record<string, string>) => void
+}) {
+  return (
+    <>
+      {blocksOf(nodes).map((block, index) => (
+        <BlockView
+          key={`${String(index)}-${block.member ?? 'lead'}-${block.nodes[0]?.id ?? ''}`}
+          block={block}
+          status={block.member === undefined ? undefined : statusOf(block.member)}
+          startOpen={startOpen}
+          onAnswer={onAnswer}
+        />
+      ))}
+    </>
+  )
+}
+
+/**
+ * One turn: the prompt, its work folded behind a single line, then the answer.
+ *
+ * The fold is the point. A finished turn's forty rows of tool calls are how the
+ * answer was reached, not the answer, and leaving them expanded meant scrolling
+ * past all of them to find the two paragraphs that were actually asked for. A
+ * live turn is never folded — while it is running, the work IS what there is to
+ * read — and a turn that produced no answer stays open by default, because
+ * folding it would leave a line of summary and nothing else.
+ * @param props - The turn, whether it is the one still running, and callbacks.
+ * @returns The turn's rows.
+ */
+function TurnView({
+  turn,
+  live,
+  statusOf,
+  onAnswer,
+}: {
+  turn: Turn
+  live: boolean
+  statusOf: (member: string) => MemberState['status'] | undefined
+  onAnswer: (requestId: string, answers: Record<string, string>) => void
+}) {
+  // `null` means "nobody has decided yet", which is what lets a turn fold
+  // itself the moment it finishes without an effect racing the render: while it
+  // runs the default is open, and the same default reads as closed once there
+  // is an answer to fold behind.
+  const [open, setOpen] = useState<boolean | null>(null)
+  const expanded = live || (open ?? turn.result.length === 0)
+  const steps = turn.work.filter(node => node.kind === 'tool').length
+  // Named on the summary line because it changes what is behind it: a team
+  // turn folds four agents' work away, not one agent's.
+  const agents = new Set(
+    turn.work.flatMap(node => ('member' in node && node.member !== undefined ? [node.member] : [])),
+  ).size
+
+  const work = <BlockList nodes={turn.work} statusOf={statusOf} onAnswer={onAnswer} />
+
+  return (
+    <>
+      <BlockList nodes={turn.prompt} statusOf={statusOf} onAnswer={onAnswer} />
+      {turn.work.length > 0 && (live
+        ? work
+        : (
+          <div className={css.trail}>
+            <button
+              type="button"
+              className={css.trailToggle}
+              aria-expanded={expanded}
+              onClick={() => { setOpen(!expanded) }}
+            >
+              {expanded ? <IconChevronDownOutline14 /> : <IconChevronRightOutline14 />}
+              <span className={css.trailLabel}>
+                {turn.spanMs === undefined ? 'Process' : `Process · ${formatSpan(turn.spanMs)}`}
+              </span>
+              {steps > 0 && (
+                <span className={css.trailSteps}>
+                  {steps === 1 ? '1 step' : `${String(steps)} steps`}
+                </span>
+              )}
+              {agents > 0 && (
+                <span className={css.trailSteps}>
+                  {agents === 1 ? '1 agent' : `${String(agents)} agents`}
+                </span>
+              )}
+            </button>
+            {expanded && <div className={css.trailBody}>{work}</div>}
+          </div>
+        ))}
+      {turn.result.length > 0 && (
+        <section className={css.answerBlock} aria-label={live ? 'Response in progress'
+          : turn.result.some(node => node.kind === 'text' && node.incomplete) ? 'Partial response' : 'Final response'}>
+          <div className={css.answerLabel}>
+            {turn.result.some(node => node.kind === 'text')
+              ? live ? 'Response in progress'
+                : turn.result.some(node => node.kind === 'text' && node.incomplete) ? 'Partial answer' : 'Final answer'
+              : 'Run status'}
+          </div>
+          <BlockList nodes={turn.result} statusOf={statusOf} onAnswer={onAnswer} />
+        </section>
+      )}
+    </>
+  )
+}
+
 export interface ChatViewProps {
   chat: ChatController
   /** Model, effort, and loop-mode controls rendered on the composer bar. */
@@ -194,7 +331,7 @@ export interface ChatViewProps {
  */
 export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenSettings }: ChatViewProps) {
   const [draft, setDraft] = useState('')
-  const [focusedMember, setFocusedMember] = useState<string | null>(null)
+  const [focusRequest, setFocusedMember] = useState<string | null>(null)
   const bottom = useRef<HTMLDivElement | null>(null)
   const scroller = useRef<HTMLDivElement | null>(null)
   const pinned = useRef(true)
@@ -232,8 +369,26 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
     })()
   }
 
-  const blocks = blocksOf(chat.nodes.filter(node => focusedMember === null
-    || ('member' in node && node.member === focusedMember)))
+  const statusOf = (member: string) =>
+    chat.members.find(entry => entry.name === member)?.status
+
+  // The run's own roster while it has one, the transcript's afterwards — so a
+  // team conversation can still be read one agent at a time once it is over.
+  const transcript = useMemo(() => withDelegationPrompts(chat.nodes), [chat.nodes])
+  const roster = chat.members.length > 0 ? chat.members : rosterOf(transcript)
+  // A filter outlives the conversation it was set in, and switching to a chat
+  // that never had that member would leave the column filtered to nobody.
+  const focusedMember = focusRequest !== null && roster.some(entry => entry.name === focusRequest)
+    ? focusRequest
+    : null
+
+  // Focusing a member is a filter across the whole conversation, so it drops
+  // the prompts the turns are cut on. Those rows are shown flat rather than
+  // folded into turns that no longer have a shape.
+  const focused = focusedMember === null
+    ? undefined
+    : transcript.filter(node => 'member' in node && node.member === focusedMember)
+  const turns = turnsOf(transcript)
 
   // At most one prompt is shown at a time: the calls in a batch are parked
   // independently, and answering them one by one is what the user can follow.
@@ -266,16 +421,39 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
               </p>
             </div>
           )}
-          {blocks.map((block, index) => (
-            <BlockView
-              key={`${String(index)}-${block.member ?? 'lead'}-${block.nodes[0]?.id ?? ''}`}
-              block={block}
-              status={block.member === undefined
-                ? undefined
-                : chat.members.find(member => member.name === block.member)?.status}
-              onAnswer={(requestId, answers) => { void chat.answer(requestId, answers) }}
-            />
-          ))}
+          {focused !== undefined
+            ? (focused.length === 0
+                ? (
+                  /*
+                    A member on the roster that has not reported yet. Without
+                    this the column simply went blank, which reads as a broken
+                    filter rather than as "nothing from this one so far".
+                  */
+                  <div className={css.focusEmpty}>
+                    Nothing from <b>{focusedMember}</b> yet — it is on the roster but has not
+                    reported.
+                  </div>
+                )
+                : (
+                  <BlockList
+                    nodes={focused}
+                    statusOf={statusOf}
+                    // Asking for one member IS asking to see its work: a panel
+                    // that stayed folded because the member had finished made
+                    // every chip on the roster show the same one-line strip.
+                    startOpen
+                    onAnswer={(requestId, answers) => { void chat.answer(requestId, answers) }}
+                  />
+                ))
+            : turns.map((turn, index) => (
+              <TurnView
+                key={`turn-${String(index)}-${turn.prompt[0]?.id ?? turn.work[0]?.id ?? ''}`}
+                turn={turn}
+                live={chat.running && index === turns.length - 1}
+                statusOf={statusOf}
+                onAnswer={(requestId, answers) => { void chat.answer(requestId, answers) }}
+              />
+            ))}
           {/*
             The live status belongs at the END of the stream, where the next
             thing to appear will be — the same place Claude Code and Codex put
@@ -298,7 +476,7 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
       <div className={css.composerWrap}>
         <div className={css.composerInner}>
           <TeamRoster
-            members={chat.members}
+            members={roster}
             focused={focusedMember}
             onFocus={setFocusedMember}
           />

@@ -4,13 +4,21 @@ import { timeoutValue } from '../../../platform/config.ts'
 export function resolveRuntimeLimits(input: AgentRuntimeLimits | undefined): Readonly<AgentRuntimeLimits> {
   if (input === undefined) return Object.freeze({})
   const values = { ...input }
+  if (values.maxTotalTokens !== undefined && values.maxTotalTokens !== 'auto'
+    && (!Number.isSafeInteger(values.maxTotalTokens) || values.maxTotalTokens < 1)) {
+    throw new RangeError("agent runtimeLimits.maxTotalTokens must be a positive safe integer or 'auto'")
+  }
+  if (values.finalReportReserveTokens !== undefined
+    && (!Number.isSafeInteger(values.finalReportReserveTokens) || values.finalReportReserveTokens < 0
+      || (typeof values.maxTotalTokens === 'number' && values.finalReportReserveTokens >= values.maxTotalTokens))) {
+    throw new RangeError('agent runtimeLimits.finalReportReserveTokens must be a non-negative safe integer below maxTotalTokens')
+  }
   for (const key of [
     'teardownTimeoutMs', 'modelTimeoutMs', 'maxModelRequestBytes',
     'maxModelResponseBytes', 'maxModelStreamEvents', 'maxToolResultBytes',
     'maxToolDurationMs', 'toolTeardownTimeoutMs', 'maxParallelToolCalls',
     'maxConsecutiveToolErrors', 'repeatToolWarningAt', 'repeatToolLimit',
     'toolCycleWarningAt', 'toolCycleLimit', 'maxToolCycleLength', 'maxToolResultTokens',
-    'maxTotalTokens',
     'hookTimeoutMs', 'hookTeardownTimeoutMs', 'memoryOperationTimeoutMs',
     'observerTimeoutMs',
   ] as const) {

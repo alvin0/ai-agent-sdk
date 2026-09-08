@@ -33,6 +33,8 @@ export function captureToolDefinition<Args>(input: ToolDefinition<Args>): ToolDe
     // tool from the turn budget, so a truthy accident cannot quietly widen it.
     const budgetExempt = optionalOwnData(receiver, 'budgetExempt')
     if (budgetExempt !== undefined && budgetExempt !== true) invalid()
+    const completionExempt = optionalOwnData(receiver, 'completionExempt')
+    if (completionExempt !== undefined && completionExempt !== true) invalid()
     const maxOutputTokens = optionalOwnData(receiver, 'maxOutputTokens')
     if (maxOutputTokens !== undefined
       && (!Number.isSafeInteger(maxOutputTokens) || Number(maxOutputTokens) < 1)) invalid()
@@ -43,6 +45,7 @@ export function captureToolDefinition<Args>(input: ToolDefinition<Args>): ToolDe
       ...(timeoutMs === undefined ? {} : { timeoutMs: Number(timeoutMs) }),
       ...(isConcurrencySafe === undefined ? {} : { isConcurrencySafe }),
       ...(budgetExempt === undefined ? {} : { budgetExempt: true as const }),
+      ...(completionExempt === undefined ? {} : { completionExempt: true as const }),
       ...(maxOutputTokens === undefined ? {} : { maxOutputTokens: Number(maxOutputTokens) }),
     })
   } catch (error) {

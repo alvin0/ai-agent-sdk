@@ -32,6 +32,7 @@ export function ChatApp() {
         onOpenGroup={chat.openGroup}
         onManageProjects={() => { setProjectsOpen(true) }}
         currentId={chat.sessionId}
+        runningIds={chat.runningIds}
         onNewChat={chat.newConversation}
         onOpenConversation={chat.openConversation}
         onDeleteConversation={(id) => { void chat.removeConversation(id) }}

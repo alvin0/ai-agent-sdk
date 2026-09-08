@@ -7,7 +7,8 @@ import type {
 } from './events.ts'
 
 export interface TurnBounds {
-  readonly maxSteps: number
+  /** Model steps before finalization; 'auto' removes only the step ceiling. */
+  readonly maxSteps: number | 'auto'
   readonly maxToolCalls: number
   /**
    * Remaining-call counts at which the turn tells the model how much is left.
@@ -33,11 +34,15 @@ export interface TurnBounds {
    *   `maxTotalTokens`, and the run-level ledger limits instead. This is the
    *   shape both reference harnesses use — neither fails a tool call to
    *   enforce a budget — and it is the right choice for long research or team
-   *   work, where the useful call is often the last one.
+   *   work, where the useful call is often the last one. Step and loop-guard
+   *   exhaustion still allows one tools-disabled summary. Token and run-level
+   *   limits, or cancellation, never grant an extra model call.
    */
   readonly onExhausted: 'force-final-answer' | 'stop' | 'continue'
   readonly maxConsecutiveToolErrors: number
+  /** Consecutive identical calls before a corrective reminder. */
   readonly repeatToolWarningAt: number
+  /** Consecutive identical calls before declining further repetition. */
   readonly repeatToolLimit: number
   /** Repeated step-pattern cycles before a corrective reminder is injected. */
   readonly toolCycleWarningAt: number
@@ -45,8 +50,11 @@ export interface TurnBounds {
   readonly toolCycleLimit: number
   /** Longest repeating sequence of tool-call steps inspected for cycles. */
   readonly maxToolCycleLength: number
-  /** Maximum reported aggregate model tokens consumed by one turn. */
-  readonly maxTotalTokens: number
+  /** Maximum aggregate model tokens per turn. Default 'auto' imposes no total-token ceiling. */
+  readonly maxTotalTokens: number | 'auto'
+  /** Stop tool work this many tokens before the hard total to reserve a report.
+   * Ignored with maxTotalTokens: 'auto'. Zero disables the reserve. */
+  readonly finalReportReserveTokens: number
   readonly maxParallel: number
   /** Maximum serialized bytes retained for one finalized tool result. */
   readonly maxToolResultBytes: number

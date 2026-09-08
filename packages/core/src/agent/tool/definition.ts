@@ -165,6 +165,15 @@ export interface ToolDefinition<Args = unknown> extends ToolSchema {
   readonly budgetExempt?: true
 
   /**
+   * Progress/reporting only: calling this tool does not invalidate an accepted
+   * deep-mode completion submission. Examples include updating a visible todo
+   * list after the work has been verified. Never set this for tools that edit
+   * work, obtain new evidence, delegate, or change the user's requirements.
+   * This is independent of budgetExempt and is never sent to the model.
+   */
+  readonly completionExempt?: true
+
+  /**
    * Estimated tokens of text this tool's result may put in front of the model.
    *
    * For a tool that knows its own shape: a file reader can ask for room a

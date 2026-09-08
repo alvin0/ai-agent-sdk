@@ -159,17 +159,28 @@ export async function appendMessage(
 
 /**
  * Read a conversation's stored transcript.
+ *
+ * Each node is handed back with the row's own `created_at` folded in as `at`
+ * (milliseconds), because that is the only record of WHEN the work happened
+ * once the run is over: the client collapses a finished turn into "worked for
+ * 2m 41s", and without a stamp a reloaded transcript could not say it.
  * @param conversationId - Owning conversation.
- * @returns The nodes in order, parsed.
+ * @returns The nodes in order, parsed, each stamped with its arrival time.
  */
 export async function readMessages(conversationId: string): Promise<readonly unknown[]> {
   const { db } = database()
-  const rows = await db.select({ payload: schema.messages.payload })
+  const rows = await db
+    .select({ payload: schema.messages.payload, createdAt: schema.messages.createdAt })
     .from(schema.messages)
     .where(eq(schema.messages.conversationId, conversationId))
     .orderBy(asc(schema.messages.seq))
     .all()
-  return rows.map(row => JSON.parse(row.payload) as unknown)
+  return rows.map((row) => {
+    const node = JSON.parse(row.payload) as Record<string, unknown>
+    // A stamp already in the payload wins: it is the browser's own, to the
+    // millisecond, where this column only keeps whole seconds.
+    return node.at === undefined ? { ...node, at: row.createdAt * 1000 } : node
+  })
 }
 
 /**

@@ -12,6 +12,7 @@ import { ModelRegistry } from '@ai-agent-sdk/core'
 import { MOCK_MODELS, MOCK_PROVIDER, mockAdapter, mockEnabled } from './mock-provider'
 import type { CallConfig, ModelInfo, ResolvedModelInfo } from '@ai-agent-sdk/core'
 import { codexNodeAdapter } from '@ai-agent-sdk/auth-node/codex'
+import { CODEX_CATALOG_POLICY } from './model-policy'
 import { geminiAdapter } from '@ai-agent-sdk/provider-gemini'
 import { openAiAdapter } from '@ai-agent-sdk/provider-openai'
 import { anthropicAdapter } from '@ai-agent-sdk/provider-anthropic'
@@ -179,7 +180,7 @@ export async function buildRegistry(): Promise<{ registry: ModelRegistry; routed
     routed.push('anthropic')
   }
   if (await codexSignedIn()) {
-    registry.registerAdapter(['codex'], codexNodeAdapter())
+    registry.registerAdapter(['codex'], codexNodeAdapter(CODEX_CATALOG_POLICY))
     routed.push('codex')
   }
   return { registry, routed }

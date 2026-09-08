@@ -20,6 +20,27 @@ pnpm --filter @ai-agent-sdk/core build        # the backend consumes built dist 
 pnpm --filter @chat-agents/web dev            # http://localhost:3000
 ```
 
+After SDK changes, rebuild core and restart the dev server. See
+[Team-auto research regressions](RESEARCH-REGRESSIONS.md) for completion behavior,
+budget handling, automated checks, and research/coding/analysis reproduction prompts.
+
+Team and Team-auto use `maxTurns: 'auto'` for leads and workers, so a long task
+can continue past the former 32/48-step ceilings. Single-agent modes retain
+32 steps. Auto removes the step ceiling; token, loop, timeout and ledger limits
+still apply. Hosts using the SDK can choose a positive numeric `maxTurns` for
+a fixed work budget. The sample keeps tool-call counts advisory with
+`onExhausted: 'continue'`.
+
+Total-token policy defaults to `maxTotalTokens: 'auto'` in both SDK and sample:
+there is no aggregate token ceiling or token-reserve shutdown. Hosts can set
+`runtimeLimits: { maxTotalTokens: 500_000, finalReportReserveTokens: 100_000 }`
+to opt into a fixed budget and reporting reserve. Model context/output limits,
+timeouts, loop guards and run-ledger limits still apply.
+`fetch_url` includes bounded source links as well as readable
+text, so research can follow real URLs. Codex catalogue refresh failures may
+reuse recently verified metadata for up to 30 minutes beyond its normal cache
+lifetime; successful refreshes replace it immediately.
+
 Nothing has to be configured on disk: open **Settings** and either sign in with
 Codex (OAuth device code) or paste an API key for Gemini, OpenAI, or Anthropic.
 Environment variables (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`,
@@ -110,14 +131,31 @@ account exposes it); a model that discloses nothing falls back to the generic
 Team runs use `defineAgent` + `AgentSession` rather than `runAgent`, because a
 team needs addressable sessions with their own history. Members report through
 `AgentTeam.onAgentEvent` / `onWorkerEvent`, so every member's tool calls and
-text land in the same transcript. A member's consecutive rows are grouped into
-one named, indented panel rather than badged individually: drawn at the lead's
-level the transcript read as a single agent talking to itself, and the rule down
-the side is what says "this part is not the orchestrator". A member is marked
+text land in the same transcript. A member's rows are gathered into ONE named,
+indented panel rather than badged individually: drawn at the lead's level the
+transcript read as a single agent talking to itself, and the rule down the side
+is what says "this part is not the orchestrator". The panel gathers ALL of that
+member's rows, not each consecutive run of them — members work in parallel, so
+their rows arrive interleaved, and a nine-minute run with three agents drew
+forty-three panels. Gathering costs the ordering BETWEEN two members, which
+nobody could read anyway, and keeps the ordering that means something: the panel
+sits where the member first appears, which is the lead's own `spawn_agent` call.
+Each panel folds, closed once its member is done, and its header carries the
+member's step count — but deliberately no duration: a member's rows are handed
+over in bursts when the lead next wakes, so their stamps say when the run
+delivered the work, not how long the member spent on it. A member is marked
 finished on its OWN `agent-end`, not at the run's teardown — closing them all at
 the end left every subagent shown as busy long after its work was visibly done.
 The roster strip above the composer shows who is working and filters the
-transcript to one member.
+transcript to one member. It outlives the run that made it: the live roster is
+empty once the run ends and gone after a reload, so it falls back to the members
+found in the transcript itself — a stored team conversation can still be read one
+agent at a time. Filtering to a member always opens that member's panel, whatever
+its status: asking for one agent IS asking to see its work, and the folded
+default made every chip on the strip show the same one-line header. A member with
+nothing in the transcript yet says so by name rather than leaving the column
+blank, and a filter set in one conversation is dropped when the next one has no
+such member.
 
 In `team-dynamic` the harness belongs to the CONVERSATION, not to one run. A
 worker outlives the run that spawned it — that is the SDK's contract, so the
@@ -291,6 +329,56 @@ twice over. It judged the silence before recording the event that had just ended
 it, so it warned at the exact moment a run resumed, and an automatic abort would
 have killed a legitimate `npm install` that had simply not printed anything yet.
 
+**A finished turn folds into one line.** The transcript is cut into turns —
+one prompt, the work, the answer — and once a turn is over its work collapses
+behind `Worked for 2m 31s · 15 steps`, which opens again on click. Flat, the
+two paragraphs the user asked for sat at the same level as the forty tool rows
+that produced them, and finding the answer meant recognising it. Only the lead's
+own finished prose counts as the answer: a member's text is its report to the
+lead, and commentary is the agent narrating itself on the way. A failure or a
+question still waiting on the user counts too, so a fold can never hide why a
+turn stopped, and a turn that produced no answer stays open — folding it would
+leave a summary line with nothing under it. The turn still running is never
+folded, because while it runs the work IS what there is to read. The duration
+comes from the rows themselves: each is stamped as it settles, and a reload
+takes the stamp from the message's own `created_at`, so a transcript read back
+from SQLite can still say how long it took. `web/src/ui/chat/turns.ts` holds
+the split, apart from the view, because where the answer begins is a judgement
+about the agent's output rather than about React.
+
+**Nesting has three levels, not one.** A finished turn folds; inside it a run
+of consecutive tool calls folds behind `Fetch, Run · 9 steps`; inside that each
+call folds its own output. The middle level is the one that was missing, and it
+is the one that matters at scale: an agent works in long stretches of calls with
+a sentence of prose between them, so drawn flat a hundred-and-nineteen-step run
+buries the four lines where the agent said what it was doing. Three consecutive
+calls is the shortest run worth folding — two rows are not a wall, and hiding
+them costs a click to learn less than the rows already said. A call still
+RUNNING is never folded into a run: it is the row the user is watching. A run
+holding a failure opens itself and says `· 1 failed` on its summary, because a
+fold that hides a failure is hiding the one row the reader came for.
+
+**A run belongs to its conversation, not to the window on it.** Switching
+conversations used to abort the reader, and the backend treats a dropped reader
+as cancellation — so glancing at another chat killed the work you were waiting
+for, silently. Runs are now held in a map keyed by conversation
+(`useChat`'s `runs`): each one accumulates into its own buffer, and the screen
+mirrors whichever conversation is open. Come back and it is still going, with
+everything it produced while you were away. Two consequences are wired through
+the same map: the transcript loader skips a conversation that has a live buffer,
+because the cache and the server's settled copy are both BEHIND it; and every
+edit a person makes mid-run — answering a permission prompt, steering — goes
+through `editNodes`, which writes the buffer as well as the screen, or the next
+event would repaint over it. Deleting a conversation is the one case that still
+aborts: nothing is left for the run to write into.
+
+**The sidebar shows a run you walked away from.** The conversation row exists
+from the moment the run starts — the server creates it before its first event —
+but the list only ever refreshed when a run ENDED, so a conversation started and
+left to work was invisible for as long as it took. It refreshes at the start
+too, and a conversation with a run in flight is marked `Working…` with a live
+dot, whichever one you are reading.
+
 **The wire protocol is display-shaped.** `backend/src/wire.ts` defines what the
 frontend sees: text deltas, reasoning deltas, tool calls, tool results carrying
 a typed `ToolCard`, questions, permission prompts, retry notices, usage, and run lifecycle. The frontend never
@@ -341,7 +429,6 @@ what turns a result into a read, diff, search, web, todo, or filesystem card.
 
 ## Not built yet
 
-Attachments, the details/trajectory column, multi-agent orchestration (presets
-are single agents, not a team), multi-user auth, and
+Attachments, the details/trajectory column, multi-user auth, and
 encryption of the stored API keys (the database file is git-ignored but
 plaintext).

@@ -69,7 +69,8 @@ export interface AgentDefinitionInput {
   /** Constrain visible model output to plain text or a named JSON Schema. */
   readonly outputFormat?: ModelOutputFormat
   /** Maximum model iterations for one user turn; defaults to 16. */
-  readonly maxTurns?: number
+  /** Model steps per prompt; 'auto' continues without a fixed step ceiling. */
+  readonly maxTurns?: number | 'auto'
   /** Maximum host tool calls for one user turn; defaults to 64. */
   readonly maxToolCalls?: number
   /** Public progress narration policy; defaults to `concise`. */
@@ -97,7 +98,7 @@ export interface AgentDefinition {
   readonly skillOptions: ResolvedAgentSkillOptions
   readonly toolChoice: ToolChoice | undefined
   readonly outputFormat: ModelOutputFormat | undefined
-  readonly maxTurns: number
+  readonly maxTurns: number | 'auto'
   readonly maxToolCalls: number
   readonly commentary: 'auto' | 'concise' | 'off'
   readonly memory: AgentMemoryConfig
@@ -136,7 +137,7 @@ class DefinedAgentValue implements DefinedAgent {
   readonly skillOptions: ResolvedAgentSkillOptions
   readonly toolChoice: ToolChoice | undefined
   readonly outputFormat: ModelOutputFormat | undefined
-  readonly maxTurns: number
+  readonly maxTurns: number | 'auto'
   readonly maxToolCalls: number
   readonly commentary: 'auto' | 'concise' | 'off'
   readonly memory: AgentMemoryConfig
@@ -267,8 +268,9 @@ function validate(input: AgentDefinitionInput): void {
   if (input.instructions.trim().length === 0) {
     throw new TypeError('agent instructions must be a non-empty string')
   }
-  if (input.maxTurns !== undefined && (!Number.isInteger(input.maxTurns) || input.maxTurns < 1)) {
-    throw new RangeError('agent maxTurns must be a positive integer')
+  if (input.maxTurns !== undefined && input.maxTurns !== 'auto'
+    && (!Number.isSafeInteger(input.maxTurns) || input.maxTurns < 1)) {
+    throw new RangeError("agent maxTurns must be a positive safe integer or 'auto'")
   }
   if (input.maxTokens !== undefined
     && (!Number.isSafeInteger(input.maxTokens) || input.maxTokens < 1)) {

@@ -34,7 +34,7 @@ abstract class StubAdapter extends ModelAdapter {
 const isLead = (options: GenerateOptions): boolean =>
   (options.tools ?? []).some(tool => tool.name === 'spawn_agent')
 
-function teamOf(adapter: ModelAdapter, options: { maxWorkers?: number } = {}) {
+function teamOf(adapter: ModelAdapter, options: { maxWorkers?: number; allowModelWorkerCancellation?: boolean } = {}) {
   const registry = new ModelRegistry()
   registry.registerAdapter(['test'], adapter)
   return createManagedAgentTeam({
@@ -51,6 +51,7 @@ function teamOf(adapter: ModelAdapter, options: { maxWorkers?: number } = {}) {
     }),
     leadName: 'lead',
     ...options.maxWorkers === undefined ? {} : { maxWorkers: options.maxWorkers },
+    ...options.allowModelWorkerCancellation === undefined ? {} : { allowModelWorkerCancellation: options.allowModelWorkerCancellation },
   })
 }
 
@@ -375,6 +376,40 @@ describe('waiting for workers', () => {
 })
 
 describe('close_agent is the stopping point', () => {
+  it.each([false, true].flatMap(cancelRunning => [false, true].flatMap(pending =>
+    [false, true].map(allowModelWorkerCancellation => ({ cancelRunning, pending, allowModelWorkerCancellation })))))(
+    'respects cancellation policy (cancelRunning=$cancelRunning, pending=$pending, allowed=$allowModelWorkerCancellation)', async ({ cancelRunning, pending, allowModelWorkerCancellation }) => {
+    const target = pending ? 'dependent' : 'w'
+    class ClosingLead extends HeldWorker {
+      private rounds = 0
+      override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+        if (!isLead(options)) { yield* super.stream(options); return }
+        this.leadRequests.push(options)
+        this.rounds++
+        if (this.rounds % 2 === 1) {
+          yield* toolCall(`close-${this.rounds}`, 'close_agent', { name: target, ...(cancelRunning ? { cancelRunning: true } : {}) })
+        } else yield* text('Close request handled.')
+      }
+    }
+    const adapter = new ClosingLead()
+    const managed = teamOf(adapter, { allowModelWorkerCancellation })
+    try {
+      await managed.spawn({ name: 'w', task: 'finish the report' })
+      await adapter.workerRunning
+      if (pending) await managed.spawn({ name: target, task: 'check the report', dependsOn: ['w'] })
+      await managed.lead.run('Release the worker slot.')
+      if (cancelRunning && allowModelWorkerCancellation) expect(managed.workers().some(w => w.name === target)).toBe(false)
+      else {
+        expect(managed.workers().find(w => w.name === target)?.status).toBe(pending ? 'pending' : 'running')
+        expect(JSON.stringify(adapter.leadRequests.at(-1)?.messages)).toContain('has not finished its final report')
+        adapter.release?.()
+        expect((await managed.awaitWorker(target))?.text).toBe('worker answer')
+        await managed.lead.run('Now release the completed worker.')
+        expect(managed.workers().some(w => w.name === target)).toBe(false)
+      }
+    } finally { adapter.release?.(); await managed.dispose() }
+  })
+
   it('stops a running worker and frees its slot', async () => {
     const adapter = new HeldWorker()
     const managed = teamOf(adapter, { maxWorkers: 1 })
