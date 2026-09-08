@@ -165,3 +165,7 @@ vite.config.ts.timestamp-*
 
 # Reproducible reports emitted by human stress harnesses.
 /test-human/results/
+
+# Isolated chat sample live-check output
+.playwright-cli/
+.next-feedback/

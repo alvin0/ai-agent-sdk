@@ -9,6 +9,8 @@ This file records the narrow exceptions required by the workspace security confi
 | Package | Version reviewed | Script | Why execution is required | Registry integrity | Owner | Review expiry |
 |---|---:|---|---|---|---|---|
 | `esbuild` | `0.28.1` | `node install.js` | Verifies/selects the registry-pinned platform binary used by Vite/tsdown. Builds and browser tests require the executable. | `sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==` | SDK maintainers | 2026-12-01 |
+| `esbuild` | `0.18.20` | `node install.js` | Drizzle Kit tooling dependency; installed script selects the exact optional platform package and checks its version. | `sha512-ceqxoedUrcayh7Y7ZX6NdbbDzGROiyVBgC4PriJThBKSVPWnnFHZAkfI1lJT8QFkOwH4qOS2SJkS4wvpGl8BpA==` | SDK maintainers | 2026-12-01 |
+| `esbuild` | `0.25.12` | `node install.js` | Drizzle Kit tooling dependency; installed script selects the exact optional platform package and checks its version. | `sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg==` | SDK maintainers | 2026-12-01 |
 | `workerd` | `1.20260828.1` | `node install.js` | Verifies/selects the registry-pinned platform binary used by Wrangler for strict Worker tests. | `sha512-pB9yvt0kkwZDAGZHmpY59r0o3hM0DzdW6BJERqwZOhunZ3ssOyDSgQxOQer2cSZW4YCFeOTIQYN1qwhK5wv/Cw==` | SDK maintainers | 2026-12-01 |
 
 Both packages are registry tarballs with lockfile integrity and platform binaries expressed as exact-version optional dependencies. An upgrade must re-audit the package, version, lifecycle script, source, integrity, and platform dependency set before changing the allowlist.
@@ -58,3 +60,10 @@ The initial required workflow pins official GitHub actions to immutable, signed 
 | `actions/setup-node` | `v6.0.0` | `2028fbc5c25fe9cf00d9f06a71cc4710d4507903` |
 
 The workflow installs `pnpm@11.25.0` exactly with lifecycle scripts disabled before running the frozen workspace install.
+
+## Sample-only license exceptions (2026-09-08)
+
+These exceptions do not add licenses to the general allowlist. The checker matches the package and exact version. Owner: SDK maintainers; review expiry: 2026-12-01.
+
+- `caniuse-lite@1.0.30001810`: CC-BY-4.0 browser compatibility data used by the Next.js sample; preserve the distributed attribution/license.
+- `@img/sharp-libvips-<platform>@1.3.3`: LGPL-3.0-or-later prebuilt libvips for Next.js image handling, limited to the platforms pinned in the lockfile. Preserve upstream license/source notices when redistributing the sample. SDK core does not depend on libvips.

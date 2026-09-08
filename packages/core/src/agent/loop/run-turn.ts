@@ -346,7 +346,10 @@ async function driveTurn(
     const budgetIsAWall = bounds.onExhausted !== 'continue'
     const scheduled = await runToolCalls({
       calls: round.calls, catalog: options.tools, history: options.history,
-      position: { turn, step }, signal, parentTrace: root,
+      position: { turn, step,
+        ...(options.accounting === undefined ? {} : { runId: options.accounting.runId }),
+        ...(options.trace?.conversationId === undefined ? {} : { conversationId: options.trace.conversationId }),
+      }, signal, parentTrace: root,
       maxParallel: bounds.maxParallel,
       dispatchLimit: guardDeclined ? 0 : budgetIsAWall ? remaining : round.calls.length,
       declineReason,

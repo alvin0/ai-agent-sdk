@@ -22,6 +22,10 @@ import {
   steer,
 } from './session'
 import { grantPermission, listPermissions, revokePermission } from './approvals'
+import {
+  AttachmentRejected, MAX_ATTACHMENTS_PER_MESSAGE, MAX_FILE_BYTES, MAX_IMAGE_BYTES,
+  readAttachment, readAttachmentBytes, storeAttachment,
+} from './attachments'
 import { browseDirectory, currentWorkspace, defaultWorkspace, setWorkspace } from './workspace'
 import { clearUsage, usageSummary } from './usage'
 import { sweepSpill } from './spill'
@@ -60,6 +64,66 @@ export function createChatApp(basePath = '/api') {
 
   app.get('/health', c => c.json({ ok: true }))
 
+  // ---- attachments --------------------------------------------------------
+
+  /**
+   * The limits the composer enforces before it ever uploads.
+   *
+   * Served rather than duplicated in the frontend: a file refused by a number
+   * the browser guessed is a bug the user experiences as an arbitrary refusal.
+   */
+  app.get('/attachments/limits', c => c.json({
+    maxImageBytes: MAX_IMAGE_BYTES,
+    maxFileBytes: MAX_FILE_BYTES,
+    maxPerMessage: MAX_ATTACHMENTS_PER_MESSAGE,
+  }))
+
+  /**
+   * Store one attached file.
+   *
+   * Raw bytes with the name and type in headers, not multipart: the browser
+   * uploads one file per request so each has its own progress and its own
+   * retry, and a batch that fails halfway does not lose the files that worked.
+   */
+  app.post('/attachments', async (c) => {
+    const bytes = Buffer.from(await c.req.arrayBuffer())
+    const name = decodeURIComponent(c.req.header('x-attachment-name') ?? '')
+    const declared = c.req.header('content-type') ?? 'application/octet-stream'
+    try {
+      return c.json(storeAttachment(bytes, name, declared))
+    } catch (error) {
+      if (error instanceof AttachmentRejected) {
+        return c.json({ error: error.message, code: error.code }, 400)
+      }
+      return c.json({ error: failed(error) }, 500)
+    }
+  })
+
+  /**
+   * Serve one stored attachment.
+   *
+   * `Content-Disposition: inline` with a sanitized name, and a long immutable
+   * cache: ids are content addresses, so the bytes behind one never change.
+   */
+  app.get('/attachments/:id', (c) => {
+    const id = c.req.param('id')
+    const record = readAttachment(id)
+    const bytes = record === undefined ? undefined : readAttachmentBytes(id)
+    if (record === undefined || bytes === undefined) return c.json({ error: 'unknown attachment' }, 404)
+    return new Response(new Uint8Array(bytes), {
+      headers: {
+        'content-type': record.mediaType,
+        'content-length': String(record.bytes),
+        'content-disposition': `inline; filename*=UTF-8''${encodeURIComponent(record.name)}`,
+        'cache-control': 'private, max-age=31536000, immutable',
+        // The bytes are user-supplied and served same-origin, so a stored HTML
+        // or SVG file must never be allowed to run as a page in this origin.
+        'x-content-type-options': 'nosniff',
+        'content-security-policy': "default-src 'none'; sandbox",
+      },
+    })
+  })
+
   // ---- chat ---------------------------------------------------------------
 
   app.post('/chat', async (c) => {
@@ -71,7 +135,12 @@ export function createChatApp(basePath = '/api') {
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
-          for await (const event of runPrompt(body.sessionId, body.prompt, body.groupId)) {
+          const attachmentIds = Array.isArray(body.attachmentIds)
+            ? body.attachmentIds.filter((id): id is string => typeof id === 'string')
+            : []
+          for await (const event of runPrompt(
+            body.sessionId, body.prompt, body.groupId, attachmentIds,
+          )) {
             controller.enqueue(encoder.encode(sse(event)))
           }
         } catch (error) {

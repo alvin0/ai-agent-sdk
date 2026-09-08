@@ -90,6 +90,7 @@ export async function modelRound(
     ...finalOutput && tools.length > 0
       ? { toolChoice: 'none' as const }
       : options.toolChoice === undefined ? {} : { toolChoice: options.toolChoice },
+    ...options.imagePolicy === undefined ? {} : { imagePolicy: options.imagePolicy },
     ...outputFormat === undefined ? {} : { outputFormat },
   }
   const checkpointRequest: GenerateOptions = { ...requestBase, signal }
@@ -285,9 +286,9 @@ export async function modelRound(
   const structuredOutputFailure = finalOutput
     && options.outputFormat?.type === 'json_schema'
     && providerFinish.kind === 'stop'
-    && !isJsonText(textOf(classified))
+    && !isJsonText(textOf(classified), options.validateOutput)
     ? {
-      message: 'model returned invalid JSON for the requested structured output',
+      message: 'model returned invalid JSON or failed the structured output validator',
       code: MODEL_ERROR_CODES.MALFORMED_RESPONSE,
     }
     : undefined
@@ -353,9 +354,10 @@ export async function modelRound(
   }
 }
 
-function isJsonText(value: string): boolean {
+function isJsonText(value: string, validate?: (value: unknown) => void): boolean {
   try {
-    JSON.parse(value)
+    const parsed: unknown = JSON.parse(value)
+    validate?.(parsed)
     return true
   } catch {
     return false

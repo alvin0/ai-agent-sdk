@@ -69,7 +69,7 @@ export type {
 export type { LogLevel, SdkLogger } from './observability/types.ts'
 export { defineTool } from './agent/tool/definition.ts'
 export type { ToolDefinition, ToolRunContext } from './agent/tool/definition.ts'
-export { createApprovalBroker, fixedApprovalBroker } from './agent/tool/approval.ts'
+export { createApprovalRequest, createApprovalBroker, fixedApprovalBroker } from './agent/tool/approval.ts'
 export type {
   ApprovalBroker, ApprovalDecision, ApprovalRequest,
   InteractiveApprovalBroker, InteractiveApprovalBrokerOptions,
@@ -80,3 +80,11 @@ export type {
   UserInputAnswer, UserInputBroker, UserInputDecision, UserInputOption,
   UserInputQuestion, UserInputRequest, UserInputResponse,
 } from './agent/mode/user-input.ts'
+
+export { defineToolFromSchema, type RuntimeSchema } from './agent/tool/schema.ts'
+
+export { createToolExecutionInterceptor, localToolExecutionBackend, type ToolExecutionBackend, type ToolExecutionCapabilities, type ToolExecutionRequest, type ToolExecutionStore, type ToolOperation, type ToolOperationClaim } from './agent/tool/execution.ts'
+
+export { withApprovalPersistence, type ApprovalStateStore } from './agent/tool/approval.ts'
+
+export type { AgentInput } from './agent/define/session/types.ts'

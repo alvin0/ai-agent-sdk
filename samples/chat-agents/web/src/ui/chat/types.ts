@@ -1,4 +1,6 @@
-import type { ToolCard, WireApproval, WireApprovalScope, WireQuestion } from '@chat-agents/backend'
+import type {
+  ToolCard, WireApproval, WireApprovalScope, WireAttachment, WireQuestion,
+} from '@chat-agents/backend'
 
 /**
  * Wall-clock stamp every row carries.
@@ -11,7 +13,13 @@ type Timed<T> = T extends unknown ? T & { readonly at?: number } : never
 
 /** One rendered row of the transcript, in arrival order. */
 export type ChatNode = Timed<
-  | { readonly kind: 'user'; readonly id: string; readonly text: string }
+  | {
+      readonly kind: 'user'
+      readonly id: string
+      readonly text: string
+      /** What the user attached to this message, in the order they picked it. */
+      readonly attachments?: readonly WireAttachment[]
+    }
   | { readonly kind: 'assignment'; readonly id: string; readonly text: string; readonly member: string; readonly from: string; readonly followup: boolean }
   | {
       readonly kind: 'text'

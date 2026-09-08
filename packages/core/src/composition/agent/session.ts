@@ -1,3 +1,7 @@
+import { publicMessage } from './public-message.ts'
+import type { AgentInput } from '../../agent/define/session/types.ts'
+import { isJsonValue, detachedFrozen, type JsonValue } from '../../primitives/index.ts'
+import { freezeMessage } from '../../message/index.ts'
 import { AgentRunError } from '../../agent/accounting/error.ts'
 import type { RunReport } from '../exporter/delivery-types.ts'
 import { configureRuntimeSessionModel, streamRuntimeSession, type AgentSession } from '../../agent/define/session.ts'
@@ -53,8 +57,8 @@ const runtimeAgentBindings = new WeakMap<RuntimeAgent, RuntimeAgentBinding>()
 export function createRuntimeAgent(host: RuntimeAgentHost, definition: BoundRuntimeAgentDefinition): RuntimeAgent {
   const agent = Object.freeze({
     model: definition.model,
-    generate(input: string, options?: RuntimeAgentInvocationOptions) { return createRuntimeSession(host, definition).run(input, options) },
-    stream(input: string, options?: RuntimeAgentInvocationOptions) { return createRuntimeSession(host, definition).stream(input, options) },
+    generate(input: AgentInput, options?: RuntimeAgentInvocationOptions) { return createRuntimeSession(host, definition).run(input, options) },
+    stream(input: AgentInput, options?: RuntimeAgentInvocationOptions) { return createRuntimeSession(host, definition).stream(input, options) },
     createSession(options?: RuntimeAgentSessionOptions) { return createRuntimeSession(host, definition, options) },
     resumeSession(snapshot: RuntimeAgentSessionSnapshot, options?: RuntimeAgentSessionOptions) {
       return createRuntimeSession(host, definition, options, snapshot)
@@ -132,14 +136,17 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
   get conversationId(): string { return this.session.conversationId }
   get isRunning(): boolean { return this.active !== undefined }
 
-  stream(input: string, rawOptions?: RuntimeAgentInvocationOptions): RuntimeAgentRunHandle {
-    if (typeof input !== 'string') throw new TypeError('Runtime agent input must be a string')
+  stream(input: AgentInput, rawOptions?: RuntimeAgentInvocationOptions): RuntimeAgentRunHandle {
+    if (typeof input !== 'string') {
+      if (input === null || typeof input !== 'object' || input.role !== 'user') throw new TypeError('Runtime input must be text or a user message')
+      input = freezeMessage(input)
+    }
     const options = captureInvocationOptions(rawOptions)
     const started = this.start(input, options)
     return runtimeHandle(started.legacy, started.report, started.result, this.nativeProvider)
   }
 
-  private start(input: string | undefined, options: RuntimeAgentInvocationOptions): StartedRuntimeRun {
+  private start(input: AgentInput | undefined, options: RuntimeAgentInvocationOptions): StartedRuntimeRun {
     const operation = this.beginOperation()
     let lease: ReturnType<RuntimeOperations['acquire']>
     try {
@@ -150,18 +157,27 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
         ...(signal === undefined ? {} : { signal }),
       })
     } catch (error) { this.finishOperation(operation); throw error }
+    let output: JsonValue | undefined
+    const structured = options.structuredOutput
     let legacy: RuntimeSessionRunHandle
     try {
       legacy = input === undefined
         ? streamPendingRuntimeSession(this.session, { signal: lease.signal })
-        : streamRuntimeSession(this.session, input, { signal: lease.signal }, options.additionalInstructions)
+        : streamRuntimeSession(this.session, input, { signal: lease.signal, ...(structured === undefined ? {} : {
+          outputFormat: { type: 'json_schema' as const, name: structured.name, schema: structured.schema.jsonSchema },
+          validateOutput: (value: unknown) => {
+            const parsed = structured.schema.parse(value)
+            if (!isJsonValue(parsed)) throw new TypeError('structured output parser must return lossless JSON synchronously')
+            output = detachedFrozen(parsed)
+          },
+        }), ...(options.imagePolicy === undefined ? {} : { imagePolicy: options.imagePolicy }) }, options.additionalInstructions)
     } catch (error) { lease.settle(); this.finishOperation(operation); throw error }
     const abort = (): void => legacy.abort()
     lease.signal.addEventListener('abort', abort, { once: true })
     if (lease.signal.aborted) abort()
     void lease.whenSealed.then(() => legacy.seal()).catch(() => undefined)
     const report = this.runtimeReport(legacy.report, legacy.toolSourceSnapshots, lease.signal)
-    const internalResult = this.runtimeResult(legacy.result, report)
+    const internalResult = this.runtimeResult(legacy.result, report, () => output)
     const eventsSettled = Promise.race([legacy.eventsSettled, lease.whenSealed])
     const released = Promise.allSettled([eventsSettled, internalResult, report]).then(() => {
       lease.signal.removeEventListener('abort', abort)
@@ -174,7 +190,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
     return Object.freeze({ legacy, report, result })
   }
 
-  async run(input: string, rawOptions?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse> {
+  async run(input: AgentInput, rawOptions?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse> {
     const options = captureInvocationOptions(rawOptions)
     const handle = this.stream(input, options)
     try {
@@ -192,7 +208,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
     return await handle.result
   }
 
-  inject(input: string): number {
+  inject(input: AgentInput): number {
     this.host.operations.assertActive()
     this.assertOwnerActive()
     if (this.active !== undefined) throw new Error('Cannot inject while a runtime session is active')
@@ -306,6 +322,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
   private async runtimeResult(
     legacy: Promise<Awaited<LegacyRunHandle['result']>>,
     report: Promise<RuntimeRunReport>,
+    output: () => JsonValue | undefined,
   ): Promise<RuntimeAgentResponse> {
     try {
       const response = await legacy
@@ -313,9 +330,12 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
       if (final.status !== 'success') {
         throw runtimeFailure(undefined, final, final.errors.at(-1)?.code ?? 'AGENT_RUN_FAILED')
       }
+      const parsedOutput = output()
       return Object.freeze({ runId: final.runId, traceId: final.traceId,
         completed: response.outcome.completed, stopReason: response.outcome.reason.kind,
-        text: response.text, usage: final.usage, report: final })
+        text: response.text, ...(parsedOutput === undefined ? {} : { output: parsedOutput }),
+        ...(response.message === undefined ? {} : { message: publicMessage(response.message) }),
+        usage: final.usage, report: final })
     } catch (error) {
       const final = await report
       throw runtimeFailure(error, final, codeOf(error))
@@ -447,7 +467,7 @@ async function* projectEvents(
   nativeProvider: string,
 ): AsyncGenerator<RuntimeAgentRunEvent> {
   let sequence = 0, completed = false
-  const context = () => ({ runId: source.runId, traceId: source.traceId, sequence: ++sequence })
+  const context = () => ({ runId: source.runId, traceId: source.traceId, sequence: ++sequence, schemaVersion: 1 as const })
   try {
     for await (const event of source) {
       const projected = projectEvent(event, nativeProvider)
@@ -469,12 +489,29 @@ async function* projectEvents(
   } finally { if (!completed) source.abort() }
 }
 
-type WithoutEventContext<T> = T extends unknown ? Omit<T, 'runId' | 'traceId' | 'sequence'> : never
+type WithoutEventContext<T> = T extends unknown ? Omit<T, 'runId' | 'traceId' | 'sequence' | 'schemaVersion'> : never
 type ProjectedEvent = WithoutEventContext<RuntimeAgentRunEvent>
 
 function projectEvent(event: AgentRunEvent, nativeProvider: string): ProjectedEvent | undefined {
-  if (event.type === 'text-delta') return event.phase === 'commentary'
-    ? { type: 'commentary-delta', text: event.text } : { type: 'assistant-delta', text: event.text }
+  if (event.type === 'text-delta') return {
+    type: event.phase === 'commentary' ? 'commentary-delta' : 'assistant-delta',
+    text: event.text, index: event.index, phase: event.phase, blockId: `${event.trace.spanId}:${event.index}`,
+  }
+  if (event.type === 'assistant-message') return { type: 'assistant-message', message: publicMessage(event.message) }
+  if (event.type === 'text-end' || event.type === 'reasoning-delta') {
+    const { trace, ...content } = event
+    return { ...content, blockId: `${trace.spanId}:${event.index}` }
+  }
+  if (event.type === 'image-delta') {
+    const { trace, ...content } = event
+    return { ...content, blockId: `${trace.spanId}:${event.itemId}` }
+  }
+  if (event.type === 'compaction-start' || event.type === 'compaction-end'
+    || event.type === 'turn-start' || event.type === 'step-start' || event.type === 'step-end'
+    || event.type === 'assistant-text' || event.type === 'assistant-reasoning') {
+    const { trace: _trace, ...content } = event
+    return content
+  }
   if (event.type === 'tool-call') return { type: 'tool-call', callId: event.call.callId,
     name: event.call.toolName, input: parseInput(event.call.rawArguments) }
   if (event.type === 'tool-result') return { type: 'tool-result', callId: event.call.callId,

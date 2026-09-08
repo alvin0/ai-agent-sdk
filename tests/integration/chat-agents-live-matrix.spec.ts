@@ -91,7 +91,7 @@ describe('chat-agents live matrix', () => {
           }) + '\n')
         }
         if (event.t === 'approval') {
-          const tool = events.find((e): e is Extract<WireEvent, { t: 'tool-call' }> => e.t === 'tool-call' && e.id === event.callId)
+          const tool = events.find((e): e is Extract<WireEvent, { t: 'tool-call' }> => e.t === 'tool-call' && e.id === event.providerCallId)
           const args = typeof tool?.args === 'string' ? JSON.parse(tool.args) as Record<string, unknown> : {}
           const allowed = topic === 'coding' && ((tool?.name === 'edit_file' || tool?.name === 'write_file') && args.path === 'paginate.mjs'
             || tool?.name === 'run_command' && args.command === 'node test.mjs')

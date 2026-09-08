@@ -1,3 +1,4 @@
+import { captureOutputFormat } from '../../agent/define/output-format.ts'
 import { objectValue, optionalAbortSignal, ownData } from '../common/data.ts'
 import { captureAdditionalInstructions } from './instructions.ts'
 import { captureToolDefinitions } from '../../agent/tool/capture.ts'
@@ -10,13 +11,15 @@ import { captureToolSources } from '../tool-source/definition.ts'
 import { captureMemoryBinding } from '../memory/definition.ts'
 import { captureRuntimeSkillSources } from '../skill-provider/definition.ts'
 
-const KEYS = new Set(['signal', 'additionalInstructions', 'onEvent'])
+const KEYS = new Set(['signal', 'additionalInstructions', 'onEvent', 'imagePolicy', 'structuredOutput'])
 const SESSION_KEYS = new Set(['conversationId', 'tools', 'toolSources', 'skills', 'memory', 'skillCwd',
   'userInput', 'approvals', 'spillStore', 'interceptors', 'hooks', 'usagePolicy', 'historyLimits',
   'ledgerLimits',
   'eventBufferLimits', 'runtimeLimits', 'compaction'])
 
 export interface CapturedInvocationOptions {
+  readonly structuredOutput?: NonNullable<RuntimeAgentInvocationOptions['structuredOutput']>
+  readonly imagePolicy?: 'strict' | 'project'
   readonly signal?: AbortSignal
   readonly additionalInstructions?: string
   readonly onEvent?: NonNullable<RuntimeAgentInvocationOptions['onEvent']>
@@ -79,11 +82,25 @@ export function captureInvocationOptions(input: unknown): CapturedInvocationOpti
   if (Reflect.ownKeys(source).some(key => typeof key !== 'string' || !KEYS.has(key))) {
     throw new TypeError('Runtime invocation options contain unsupported fields')
   }
+  const structured = ownData(source, 'structuredOutput', false)
+  let structuredOutput: RuntimeAgentInvocationOptions['structuredOutput']
+  if (structured !== undefined) {
+    const output = objectValue(structured), schema = objectValue(ownData(output, 'schema'))
+    const parse = ownData(schema, 'parse')
+    if (typeof parse !== 'function') throw new TypeError('structuredOutput schema requires a synchronous parser')
+    const format = captureOutputFormat({ type: 'json_schema', name: ownData(output, 'name') as string,
+      schema: ownData(schema, 'jsonSchema') as import('../../primitives/index.ts').JsonObject })!
+    if (format.type !== 'json_schema') throw new TypeError('structuredOutput requires JSON Schema')
+    structuredOutput = Object.freeze({ name: format.name, schema: Object.freeze({ jsonSchema: format.schema,
+      parse: parse.bind(schema) as (value: unknown) => import('../../primitives/index.ts').JsonValue }) })
+  }
+  const imagePolicy = ownData(source, 'imagePolicy', false)
+  if (imagePolicy !== undefined && imagePolicy !== 'strict' && imagePolicy !== 'project') throw new TypeError('imagePolicy must be strict or project')
   const signal = optionalAbortSignal(ownData(source, 'signal', false))
   const additionalInstructions = captureAdditionalInstructions(ownData(source, 'additionalInstructions', false))
   const onEvent = ownData(source, 'onEvent', false)
   if (onEvent !== undefined && typeof onEvent !== 'function') throw new TypeError('Runtime event observer must be callable')
-  return Object.freeze({ ...(signal === undefined ? {} : { signal }),
+  return Object.freeze({ ...(structuredOutput === undefined ? {} : { structuredOutput }), ...(imagePolicy === undefined ? {} : { imagePolicy }), ...(signal === undefined ? {} : { signal }),
     ...(additionalInstructions === undefined ? {} : { additionalInstructions }),
     ...(onEvent === undefined ? {} : { onEvent: onEvent as NonNullable<RuntimeAgentInvocationOptions['onEvent']> }) })
 }

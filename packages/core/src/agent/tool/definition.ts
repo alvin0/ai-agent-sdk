@@ -31,6 +31,8 @@ type ReadonlyToolBehavior<Args extends readonly unknown[], Result> = {
 
 /** Where a tool call sits in the run, for logging and diagnostics. */
 export interface ToolCallPosition {
+  readonly runId?: string
+  readonly conversationId?: string
   /** 1-based turn number within the conversation. */
   readonly turn: number
   /** 1-based step number within the turn. */

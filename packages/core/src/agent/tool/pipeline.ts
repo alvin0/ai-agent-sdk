@@ -3,7 +3,7 @@ import type { ContentBlock } from '../../message/index.ts'
 import type { ToolCallId } from '../../primitives/index.ts'
 import { isJsonValue, type JsonObject, type JsonValue } from '../../primitives/index.ts'
 import { waitForSettlement } from '../../async/index.ts'
-import type { ApprovalBroker, ApprovalRequest } from './approval.ts'
+import { createApprovalRequest, type ApprovalBroker, type ApprovalRequest } from './approval.ts'
 import {
   executionModeOf, renderJsonValue, type ToolCallPosition, type ToolDefinition,
   type ToolExecutionMode, type ToolExecutionResult, type ToolFailure, type ToolRunContext,
@@ -120,6 +120,7 @@ export function prepareToolCall(options: DispatchToolCallOptions): PreparedToolC
 
 /** Ordered pre-policy and approval stage. */
 export async function authorizeToolCall(prepared: PreparedToolCall): Promise<AuthorizationOutcome> {
+  if (prepared.argumentFailure !== undefined) return { kind: 'final', result: prepared.argumentFailure }
   const interceptors = prepared.options.interceptors ?? []
   const decision = await chain<PreToolDecision>(
     interceptors,
@@ -135,11 +136,12 @@ export async function authorizeToolCall(prepared: PreparedToolCall): Promise<Aut
         TOOL_ERROR_CODES.DENIED,
       ) }
     }
-    const request: ApprovalRequest = {
+    const request = createApprovalRequest({
+      ...prepared.options.position,
       callId: prepared.context.callId, toolName: prepared.context.toolName,
       args: prepared.context.args, turn: prepared.context.turn, step: prepared.context.step,
       ...decision.reason === undefined ? {} : { reason: decision.reason },
-    }
+    })
     // Start the broker first. The streamed approval event is backpressured, and
     // a UI is allowed to answer synchronously while handling it. Publishing
     // before request() installs its waiter loses that answer and parks forever.
@@ -164,13 +166,13 @@ export async function authorizeToolCall(prepared: PreparedToolCall): Promise<Aut
       prepared.options.onApprovalSettled?.(prepared.context.signal.aborted ? 'aborted' : 'error', error)
       throw error
     }
+    if (answer !== 'allow' && answer !== 'deny' && answer !== 'abort') throw ToolError.fatal('invalid approval decision', 'INVALID_APPROVAL_DECISION')
     if (answer === 'abort') throw ToolError.fatal('the turn was withdrawn while awaiting approval', TOOL_ERROR_CODES.ABORTED)
     if (answer === 'deny') return { kind: 'final', result: toolFailure(
       decision.reason ?? `the call to "${prepared.context.toolName}" was not approved`,
       TOOL_ERROR_CODES.DENIED,
     ) }
   }
-  if (prepared.argumentFailure !== undefined) return { kind: 'final', result: prepared.argumentFailure }
   const tool = prepared.context.tool
   if (tool === undefined) return { kind: 'final', result: toolFailure(
     `no tool named "${prepared.context.toolName}" is available`, TOOL_ERROR_CODES.UNKNOWN_TOOL,
@@ -188,6 +190,7 @@ export async function dispatchAuthorizedToolCall(call: AuthorizedToolCall): Prom
     const extraContext: ContentBlock[] = []
     let concludes = false
     const runContext: ToolRunContext = {
+      ...call.options.position,
       turn: context.turn, step: context.step, callId: context.callId,
       toolName: context.toolName, signal,
       ...(context.logger === undefined ? {} : { logger: context.logger }),

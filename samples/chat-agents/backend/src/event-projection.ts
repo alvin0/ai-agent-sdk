@@ -7,11 +7,13 @@
  */
 
 import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
-import type { ToolCard, WireApproval, WireApprovalScope, WireEvent, WireQuestion } from './wire'
+import type {
+  ToolCard, WireApproval, WireApprovalScope, WireAttachment, WireEvent, WireQuestion,
+} from './wire'
 
 /** A settled transcript node, in the shape the frontend renders. */
 export type StoredNode =
-  | { kind: 'user'; id: string; text: string }
+  | { kind: 'user'; id: string; text: string; attachments?: readonly WireAttachment[] }
   | { kind: 'text'; id: string; text: string; phase: string; streaming: false; member?: string; incomplete?: true }
   | { kind: 'reasoning'; id: string; text: string; member?: string }
   | {
@@ -317,7 +319,7 @@ export class EventProjector {
       case 'user-input-response':
         return [{ t: 'question-answered', requestId: event.request.requestId }]
       case 'approval-request': {
-        const prompt = this.options.approval?.(event.request.callId)
+        const prompt = this.options.approval?.(event.request.approvalRequestId)
         // No prompt means an interceptor other than the sample's policy asked.
         // Its `reason` is written for the model, not for a card, so the
         // fallback names the tool instead of quoting it — but the call is still
@@ -325,7 +327,8 @@ export class EventProjector {
         return [{
           t: 'approval',
           ...prompt ?? {
-            callId: event.request.callId,
+            callId: event.request.approvalRequestId,
+            providerCallId: event.request.providerCallId,
             toolName: event.request.toolName,
             title: event.request.toolName,
             summary: 'This call needs your permission.',

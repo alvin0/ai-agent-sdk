@@ -71,3 +71,90 @@ export function showsLiveOutput(node: ToolDisplayState): boolean {
   if (node.state !== 'running') return false
   return node.name === 'run_command' || (node.liveOutput ?? '') !== ''
 }
+
+/** Tools whose calls are visits to the open web. */
+export const WEB_TOOLS: ReadonlySet<string> = new Set(['fetch_url'])
+
+/** One site a run of web calls reached, or tried to. */
+export interface WebVisit {
+  /** Hostname as the site spells it, `www.` included. */
+  readonly host: string
+  /** First URL seen for this host, for the title attribute. */
+  readonly url: string
+  /** Every call to this host failed. */
+  readonly failed: boolean
+  /** How many calls went to it. */
+  readonly count: number
+}
+
+/** Just enough of a tool node to place it on the source rail. */
+export interface WebCallState {
+  readonly name: string
+  readonly state: 'running' | 'ok' | 'error' | 'declined'
+  readonly args: string
+  readonly card?: { readonly kind: string; readonly url?: string }
+}
+
+/**
+ * The URL one web call was aimed at.
+ *
+ * The settled card carries the URL AFTER redirects, which is the one worth
+ * showing. A call that failed has no card, so its target is read back out of
+ * the arguments — the row would otherwise vanish from the rail, and a research
+ * run whose failures are invisible reads as one that found everything.
+ * @param node - The call.
+ * @returns The URL, or undefined when neither source has one.
+ */
+function webUrlOf(node: WebCallState): string | undefined {
+  if (node.card?.kind === 'web' && typeof node.card.url === 'string') return node.card.url
+  try {
+    const parsed = JSON.parse(node.args) as { url?: unknown }
+    return typeof parsed.url === 'string' ? parsed.url : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Fold a run of web calls into one entry per site.
+ *
+ * Eight rows of full URLs and their error strings is what the transcript used
+ * to draw for one research step. A reader does not need the query string of a
+ * 404; they need to know which sources were consulted, which is a short list of
+ * hostnames however many times each was hit.
+ * @param nodes - The run's calls, in order.
+ * @returns One visit per host, in the order each host was first reached.
+ */
+export function webVisitsOf(nodes: readonly WebCallState[]): readonly WebVisit[] {
+  const byHost = new Map<string, { url: string; failures: number; count: number }>()
+  for (const node of nodes) {
+    const url = webUrlOf(node)
+    if (url === undefined) continue
+    let host: string
+    try { host = new URL(url).hostname } catch { continue }
+    if (host === '') continue
+    const current = byHost.get(host) ?? { url, failures: 0, count: 0 }
+    current.count += 1
+    if (node.state === 'error') current.failures += 1
+    byHost.set(host, current)
+  }
+  return [...byHost].map(([host, entry]) => ({
+    host,
+    url: entry.url,
+    failed: entry.failures === entry.count,
+    count: entry.count,
+  }))
+}
+
+/**
+ * The one line a folded run of web calls shows.
+ * @param pages - How many calls the run made.
+ * @param sites - How many distinct hosts they reached.
+ * @returns The summary line.
+ */
+export function webGroupSummary(pages: number, sites: number): string {
+  const noun = sites === 1 ? 'site' : 'sites'
+  return pages === sites
+    ? `Read ${String(pages)} ${sites === 1 ? 'page' : 'pages'}`
+    : `Read ${String(pages)} pages from ${String(sites)} ${noun}`
+}

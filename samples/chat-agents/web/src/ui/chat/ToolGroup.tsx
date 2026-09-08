@@ -14,7 +14,8 @@ import { useState } from 'react'
 import clsx from 'clsx'
 import { IconChevronDownOutline14, IconChevronRightOutline14, StateDot } from '../primitives'
 import { TITLES, ToolNode } from './ToolNode'
-import { toolGroupSummary } from './toolDisplay'
+import { toolGroupSummary, WEB_TOOLS } from './toolDisplay'
+import { WebGroup } from './WebGroup'
 import type { ChatNode } from './types'
 import css from './ToolGroup.module.css'
 
@@ -38,6 +39,12 @@ export function ToolGroup({ nodes }: ToolGroupProps) {
   // default rather than a decision, so a click still wins.
   const [open, setOpen] = useState<boolean | null>(null)
   const expanded = open ?? failed > 0
+
+  // A run that is only web fetches is a research step, and it answers "what
+  // did you look at" with a list of sources rather than with a list of calls.
+  if (calls.length > 0 && calls.every(node => WEB_TOOLS.has(node.name))) {
+    return <WebGroup nodes={calls} />
+  }
 
   return (
     <div className={css.group}>

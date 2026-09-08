@@ -13,7 +13,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
-  ConversationRow, GroupRow, WireApproval, WireApprovalScope, WireEvent, WireQuestion,
+  ConversationRow, GroupRow, WireApproval, WireApprovalScope, WireAttachment, WireEvent,
+  WireQuestion,
 } from '@chat-agents/backend'
 import { deleteTranscript, readTranscript, writeTranscript } from './idb'
 import type { ChatNode, ChatState, MemberState } from './types'
@@ -278,7 +279,12 @@ export interface ChatController extends ChatState {
   createGroup: (workspaceRoot: string) => Promise<GroupRow | undefined>
   deleteGroup: (id: string) => Promise<void>
   refreshGroups: () => Promise<void>
-  send: (prompt: string) => Promise<void>
+  /**
+   * Start a turn.
+   * @param prompt - What the user typed; may be empty when files carry it.
+   * @param attachments - Records for the message row, in pick order.
+   */
+  send: (prompt: string, attachments?: readonly WireAttachment[]) => Promise<void>
   answer: (requestId: string, answers: Record<string, string>) => Promise<void>
   /** Add a message to the run in flight, instead of waiting for it to end. */
   steer: (prompt: string) => Promise<void>
@@ -438,11 +444,15 @@ export function useChat(): ChatController {
     void writeTranscript(sessionId, state.nodes)
   }, [sessionId, state.nodes, state.running])
 
-  const send = useCallback(async (prompt: string) => {
+  const send = useCallback(async (prompt: string, attachments: readonly WireAttachment[] = []) => {
     // The group has to be resolved: a run started without one creates the
     // conversation in the default project, and the agent then writes into the
     // sample's own sandbox instead of the folder on screen.
-    if (sessionId === '' || groupId === '' || prompt.trim() === '') return
+    //
+    // Attachments are a message of their own: dropping a screenshot in and
+    // pressing Enter with nothing typed is a complete thing to say.
+    if (sessionId === '' || groupId === '') return
+    if (prompt.trim() === '' && attachments.length === 0) return
     // Captured now: every update below belongs to THIS conversation, whatever
     // the user is looking at by the time the event arrives.
     const id = sessionId
@@ -454,6 +464,7 @@ export function useChat(): ChatController {
         id: `u_${String(Date.now())}`,
         text: prompt,
         at: Date.now(),
+        ...attachments.length === 0 ? {} : { attachments },
       }],
       members: [],
       usage: state.usage,
@@ -483,7 +494,12 @@ export function useChat(): ChatController {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sessionId: id, prompt, groupId }),
+        body: JSON.stringify({
+          sessionId: id,
+          prompt,
+          groupId,
+          ...attachments.length === 0 ? {} : { attachmentIds: attachments.map(item => item.id) },
+        }),
         signal: controller.signal,
       })
       if (response.body === null) throw new Error('the server returned no stream')

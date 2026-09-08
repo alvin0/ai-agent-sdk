@@ -131,17 +131,83 @@
   cursor: pointer;
 }
 
+/* The heading can be a full sentence; the row must stay one line. */
+.reasoningLabel {
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* How many blocks the group folds away, so a long stretch of thinking reads as
+   one thing with a size rather than as an unknown amount hidden. */
+.reasoningCount {
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-module-platform);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.reasoningToggle:disabled {
+  cursor: default;
+}
+
+.reasoningToggle:disabled:hover {
+  background: transparent;
+}
+
 .reasoningToggle:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .reasoningBody {
-  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 10px;
   border-left: 2px solid var(--dsw-alias-border-l3);
   color: var(--dsw-alias-label-tertiary);
   font-size: 13px;
   line-height: 1.6;
-  white-space: pre-wrap;
+}
+
+/* MarkdownText's root sets `font` and `color` for the assistant's answer.
+   Inside an aside those win over this block and draw the thinking at answer
+   size and answer brightness, which is what made a summary look like a second
+   reply. The root is handed back its container's own type. */
+.reasoningBody > * {
+  font: inherit;
+  color: inherit;
+}
+
+/* The markdown sheet spaces blocks for a full-width answer; at aside size that
+   rhythm is a column of gaps. */
+.reasoningBody :global(p),
+.reasoningBody :global(ul),
+.reasoningBody :global(ol) {
+  margin: 6px 0;
+}
+
+.reasoningBody :global(:where(h1, h2, h3, h4, h5, h6)) {
+  margin: 10px 0 4px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.reasoningBody :global(strong) {
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* A combinator may not sit inside `:global()`, so it is written outside it. */
+.reasoningBody > *:first-child > :global(*:first-child) {
+  margin-top: 0;
+}
+
+.reasoningBody > *:last-child > :global(*:last-child) {
+  margin-bottom: 0;
 }
 
 .error {
@@ -211,6 +277,32 @@
   font-size: 11px;
   color: var(--dsw-alias-label-tertiary);
   font-variant-numeric: tabular-nums;
+}
+
+/* The attach control sits with the other composer chips, and reads as one of
+   them rather than as a second send button. */
+.attach {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.attach:hover:not(:disabled) {
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-primary);
+}
+
+.attach:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
 }
 
 .send {

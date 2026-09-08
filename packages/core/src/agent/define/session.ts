@@ -1,3 +1,5 @@
+import { contentHasImage } from '../../message/projection.ts'
+import { ModelError } from '../../errors/model-error.ts'
 import { type ToolCatalog } from '../tool/registry.ts'
 import { History } from '../history/history.ts'
 import { normalizeToolPairing } from '../history/normalize.ts'
@@ -353,6 +355,14 @@ export class AgentSession {
           }
           this.currentHistory.append({ kind: 'user', message })
         }
+        // Preflight before compaction can turn a required image into a summary.
+        if (invocation.imagePolicy === 'strict' && this.history.messages().some(message => contentHasImage(message.content))) {
+          const config = this.callConfig()
+          const model = await this.options.registry.resolveModelInfo(config.provider, config.model, signal)
+          if (model.inputModalities !== undefined && !model.inputModalities.includes('image')) {
+            throw new ModelError(`model ${model.id} does not support required image input`, 'UNSUPPORTED_IMAGE_INPUT')
+          }
+        }
         for await (const event of this.runDefinition({ ...invocation, signal }, ledger)) {
           accountTraceEvent(ledger, spanOperations, event)
           if (event.type === 'agent-end') outcome = event.outcome
@@ -507,6 +517,7 @@ export class AgentSession {
     const definition = this.definition
     const hooks = this.combinedHooks(accounting)
     const catalog = this.effectiveCatalog()
+    const outputFormat = invocation.outputFormat ?? definition.outputFormat
     const common = {
       registry: this.options.registry,
       config: this.callConfig(),
@@ -514,7 +525,9 @@ export class AgentSession {
       ...catalog === undefined ? {} : { tools: catalog },
       ...definition.nativeTools.length === 0 ? {} : { nativeTools: definition.nativeTools },
       ...definition.toolChoice === undefined ? {} : { toolChoice: definition.toolChoice },
-      ...definition.outputFormat === undefined ? {} : { outputFormat: definition.outputFormat },
+      ...invocation.imagePolicy === undefined ? {} : { imagePolicy: invocation.imagePolicy },
+      ...outputFormat === undefined ? {} : { outputFormat },
+      ...(invocation.validateOutput === undefined ? {} : { validateOutput: invocation.validateOutput }),
       system: this.systemInstructions(this.activeAdditionalInstructions),
       maxTurns: definition.maxTurns,
       bounds: {

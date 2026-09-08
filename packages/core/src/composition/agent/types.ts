@@ -1,3 +1,5 @@
+import type { AgentInput } from '../../agent/define/session/types.ts'
+import type { Message } from '../../message/index.ts'
 import type { AgentRunEvent } from '../../agent/mode/run-agent.ts'
 import type { CompactionResult } from '../../agent/memory/compaction.ts'
 import type { AgentCompactionOptions } from '../../agent/memory/compaction-config.ts'
@@ -85,20 +87,34 @@ export interface RuntimeAgentSessionOptions {
 }
 
 export interface RuntimeAgentInvocationOptions {
+  /** One schema adapter supplies the provider schema and a synchronous runtime validator. */
+  readonly structuredOutput?: {
+    readonly name: string
+    readonly schema: import('../../agent/tool/schema.ts').RuntimeSchema<JsonValue>
+  }
+  /** strict rejects known text-only models when request history contains images; project permits lossy conversion. */
+  readonly imagePolicy?: 'strict' | 'project'
   readonly signal?: AbortSignal
   readonly additionalInstructions?: string
   readonly onEvent?: (event: RuntimeAgentRunEvent) => void | Promise<void>
 }
 
 export interface RuntimeAgentRunEventContext {
+  readonly schemaVersion: 1
   readonly runId: string
   readonly traceId: string
   readonly sequence: number
 }
 
+type PublicContentEvent = AgentRunEvent extends infer E
+  ? E extends { type: 'text-end' | 'image-delta' | 'assistant-message' | 'compaction-start' | 'compaction-end' | 'turn-start' | 'step-start' | 'step-end' | 'assistant-text' | 'assistant-reasoning' | 'reasoning-delta' }
+    ? Omit<E, 'trace'> & { readonly blockId?: string } : never
+  : never
+
 export type RuntimeAgentRunEvent = RuntimeAgentRunEventContext & (
-  | { readonly type: 'commentary-delta'; readonly text: string }
-  | { readonly type: 'assistant-delta'; readonly text: string }
+  | PublicContentEvent
+  | { readonly type: 'commentary-delta'; readonly text: string; readonly index: number; readonly blockId: string; readonly phase: import('../../agent/loop/events.ts').StreamedAssistantTextPhase }
+  | { readonly type: 'assistant-delta'; readonly text: string; readonly index: number; readonly blockId: string; readonly phase: import('../../agent/loop/events.ts').StreamedAssistantTextPhase }
   | { readonly type: 'tool-call'; readonly callId: string; readonly name: string; readonly input: unknown }
   | { readonly type: 'tool-result'; readonly callId: string; readonly name: string;
       readonly status: 'completed' | 'failed' | 'aborted' | 'rejected' | 'declined';
@@ -121,6 +137,8 @@ export interface RuntimeAgentResponse {
   readonly runId: string
   readonly traceId: string
   readonly text: string
+  readonly output?: JsonValue
+  readonly message?: Message
   readonly usage: RuntimeRunReport['usage']
   readonly report: RuntimeRunReport
 }
@@ -140,9 +158,9 @@ export interface RuntimeAgentSessionSnapshot extends AgentSessionSnapshot {
 export interface RuntimeAgentSession {
   readonly conversationId: string
   readonly isRunning: boolean
-  run(input: string, options?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse>
-  stream(input: string, options?: RuntimeAgentInvocationOptions): RuntimeAgentRunHandle
-  inject(input: string): number
+  run(input: AgentInput, options?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse>
+  stream(input: AgentInput, options?: RuntimeAgentInvocationOptions): RuntimeAgentRunHandle
+  inject(input: AgentInput): number
   snapshot(): RuntimeAgentSessionSnapshot
   compact(options?: RuntimeAgentInvocationOptions): Promise<CompactionResult | null>
   reset(): void
@@ -151,8 +169,8 @@ export interface RuntimeAgentSession {
 
 export interface RuntimeAgent {
   readonly model: ModelTarget
-  generate(input: string, options?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse>
-  stream(input: string, options?: RuntimeAgentInvocationOptions): RuntimeAgentRunHandle
+  generate(input: AgentInput, options?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse>
+  stream(input: AgentInput, options?: RuntimeAgentInvocationOptions): RuntimeAgentRunHandle
   createSession(options?: RuntimeAgentSessionOptions): RuntimeAgentSession
   resumeSession(snapshot: RuntimeAgentSessionSnapshot, options?: RuntimeAgentSessionOptions): RuntimeAgentSession
 }

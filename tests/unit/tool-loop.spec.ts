@@ -147,7 +147,7 @@ describe('runToolCalls ownership', () => {
         call.toolName === 'parked' ? { kind: 'ask' } : { kind: 'allow' } }],
     })
     await new Promise(resolve => setTimeout(resolve, 20))
-    expect(approvals.resolve(ToolCallId('parked-call'), 'allow')).toBe(true)
+    expect(approvals.resolve(approvals.pending()[0]!.approvalRequestId, 'allow')).toBe(true)
     await expect(pending).rejects.toMatchObject({ code: 'FATAL_WHILE_PARKED' })
   })
 
@@ -452,7 +452,7 @@ describe('runTurn', () => {
     expect(terminal?.outcome.reason).toEqual({
       kind: 'error',
       failure: {
-        message: 'model returned invalid JSON for the requested structured output',
+        message: 'model returned invalid JSON or failed the structured output validator',
         code: 'MALFORMED_RESPONSE',
       },
     })
@@ -1235,7 +1235,7 @@ describe('runTurn', () => {
       interceptors: [{ name: 'ask', before: async () => ({ kind: 'ask' }) }],
     })) {
       if (event.type === 'approval-request') {
-        resolved = approvals.resolve(event.request.callId, 'allow')
+        resolved = approvals.resolve(event.request.approvalRequestId, 'allow')
       }
     }
     expect(resolved).toBe(true)

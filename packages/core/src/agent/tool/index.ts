@@ -25,7 +25,7 @@ export {
   type ToolFilter,
 } from './registry.ts'
 export {
-  createApprovalBroker,
+  createApprovalBroker, createApprovalRequest,
   fixedApprovalBroker,
   type ApprovalBroker,
   type ApprovalDecision,
@@ -65,3 +65,9 @@ export {
   type ToolOutputOverflowPolicy,
   type TruncatedText,
 } from './output-budget.ts'
+
+export { defineToolFromSchema, type RuntimeSchema } from './schema.ts'
+
+export { createToolExecutionInterceptor, localToolExecutionBackend, type ToolExecutionBackend, type ToolExecutionCapabilities, type ToolExecutionRequest, type ToolExecutionStore, type ToolOperation, type ToolOperationClaim } from './execution.ts'
+
+export { withApprovalPersistence, type ApprovalStateStore } from './approval.ts'

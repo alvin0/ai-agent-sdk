@@ -9,15 +9,16 @@
 
 import { ToolRegistry } from '@ai-agent-sdk/core/agent'
 import type { AgentRunEvent, History } from '@ai-agent-sdk/core/agent'
-import { createUserInputBroker } from '@ai-agent-sdk/core'
+import { createUserInputBroker, createUserMessage } from '@ai-agent-sdk/core'
 import type { InteractiveUserInputBroker, UserInputResponse } from '@ai-agent-sdk/core'
-import type { ToolCallId } from '@ai-agent-sdk/core'
+import type { AgentInput, ContentBlock, ToolCallId } from '@ai-agent-sdk/core'
+import { AttachmentRejected, projectAttachments } from './attachments'
 import {
   appendMessage, ensureConversation, getConversation, loadHistory, nextSeq, saveHistory,
   updateConversation,
 } from './conversations'
 import { resolveModel, supportedEffort } from './registry'
-import type { ModelSelection } from './registry'
+import type { ModelSelection, ResolvedModel } from './registry'
 import { getAgent, listAgents } from './agents'
 import { startRun } from './agent-runtime'
 import type { RunMode } from './agent-runtime'
@@ -31,7 +32,9 @@ import { addToTally, recordUsage, turnShortfall, usageOf } from './usage'
 import type { UsageTally } from './usage'
 import { EventProjector } from './event-projection'
 import type { StoredNode } from './event-projection'
-import type { WireApproval, WireApprovalScope, WireEvent, WireQuestion } from './wire'
+import type {
+  WireApproval, WireApprovalScope, WireAttachment, WireEvent, WireQuestion,
+} from './wire'
 
 /**
  * Something that happened outside the run's own event stream and still belongs
@@ -555,6 +558,41 @@ export async function abortRun(id: string): Promise<boolean> {
 
 
 /**
+ * Refuse a prompt whose images the chosen model cannot see.
+ *
+ * The runtime already has an answer for this: it replaces images with an
+ * "image omitted" note so the request still succeeds. That is right for a long
+ * conversation being summarized by a cheaper text model, and wrong here — "read
+ * the total on this receipt" does not become a different, answerable question
+ * by removing the receipt. A request that runs is not the same as a request
+ * that was understood, so the mismatch is reported to the user, who can pick a
+ * model that takes images or drop the attachment.
+ * @param model - The resolved route this turn would run on.
+ * @param records - Attachments admitted for this prompt.
+ * @throws Error naming the model when it declares no image input.
+ */
+async function refuseImagesOnTextOnlyModel(
+  model: ResolvedModel,
+  records: readonly WireAttachment[],
+): Promise<void> {
+  if (!records.some(record => record.kind === 'image')) return
+  let modalities: readonly string[] | undefined
+  try {
+    modalities = (await model.registry.resolveModelInfo(model.config.provider, model.config.model))
+      .inputModalities
+  } catch {
+    // A route whose metadata cannot be resolved is not evidence of anything.
+    // Sending is the better failure: the provider says no in its own words.
+    return
+  }
+  if (modalities === undefined || modalities.includes('image')) return
+  throw new Error(
+    `${model.config.model} does not accept images.`
+    + ' Pick a model with vision, or remove the attached images before sending.',
+  )
+}
+
+/**
  * Run one prompt and project the SDK's event stream into wire events.
  *
  * Deltas are folded into settled nodes as they close, and each settled node is
@@ -568,6 +606,7 @@ export async function* runPrompt(
   id: string,
   prompt: string,
   groupId?: string,
+  attachmentIds: readonly string[] = [],
 ): AsyncGenerator<WireEvent> {
   const live = await session(id, groupId)
   const conversation = await getConversation(id)
@@ -615,10 +654,51 @@ export async function* runPrompt(
     return
   }
 
-  await persist({ kind: 'user', id: `u_${String(live.seq)}`, text: prompt })
-  if (conversation?.title === 'New chat') {
-    await updateConversation(id, { title: prompt.slice(0, 60) })
+  // Attachments are resolved BEFORE the turn starts, and a refusal ends it
+  // here. A run that has already spent a model call cannot un-send it, and a
+  // prompt whose picture was silently dropped is answered confidently about
+  // something the model never saw.
+  let attached: { records: readonly WireAttachment[]; blocks: readonly ContentBlock[] }
+  try {
+    attached = projectAttachments(attachmentIds)
+    await refuseImagesOnTextOnlyModel(model, attached.records)
+  } catch (error) {
+    const message = error instanceof AttachmentRejected || error instanceof Error
+      ? error.message
+      : String(error)
+    await persist({ kind: 'error', id: `e_${String(live.seq)}`, message })
+    yield { t: 'run-start', runId, members: [] }
+    yield { t: 'error', message }
+    return
   }
+
+  await persist({
+    kind: 'user',
+    id: `u_${String(live.seq)}`,
+    text: prompt,
+    ...attached.records.length === 0 ? {} : { attachments: attached.records },
+  })
+  if (conversation?.title === 'New chat') {
+    // An attachment-only prompt has no words to name the conversation with, so
+    // the first file's name stands in rather than leaving it "New chat".
+    const title = prompt.trim() === '' && attached.records[0] !== undefined
+      ? attached.records[0].name
+      : prompt.slice(0, 60)
+    await updateConversation(id, { title })
+  }
+
+  // One text block plus the attachment blocks, in pick order. A prompt with
+  // nothing attached stays a bare string, which is the shape every shape in
+  // `startRun` already accepted.
+  const input: AgentInput = attached.blocks.length === 0
+    ? prompt
+    : createUserMessage({
+      content: [
+        ...prompt.trim() === '' ? [] : [{ type: 'text', text: prompt } as const],
+        ...attached.blocks,
+      ],
+      source: { kind: 'user' },
+    })
 
   /**
    * What this run has already recorded, per member.
@@ -688,7 +768,7 @@ export async function* runPrompt(
 
   let handles
   try {
-    handles = await startRun(prompt, {
+    handles = await startRun(input, {
       registry: model.registry,
       provider: model.config.provider,
       model: model.config.model,

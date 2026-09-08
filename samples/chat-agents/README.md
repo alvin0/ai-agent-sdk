@@ -70,6 +70,9 @@ directories with a relative import.
 | --- | --- |
 | `POST /api/chat` | Run a prompt; responds with an SSE stream of wire events |
 | `POST /api/steer` | Add a message to the run in flight instead of waiting for it |
+| `POST /api/attachments` | Store one attached file (raw bytes; name and type in headers) |
+| `GET /api/attachments/:id` | Serve one stored attachment |
+| `GET /api/attachments/limits` | The admission limits the composer enforces before uploading |
 | `POST /api/answer` | Answer a parked `request_user_input` question |
 | `POST /api/approve` | Permit or refuse a parked tool call, with a scope of `once`, `session`, or `workspace` |
 | `GET/POST /api/groups/:id/permissions`, `DELETE .../:ruleKey` | Standing project-wide grants |
@@ -87,6 +90,24 @@ directories with a relative import.
 | `PUT /api/providers/:id/credential` | Store or clear an API key and endpoint |
 | `GET/POST /api/auth/codex[...]` | Device-code sign-in: state, start, cancel |
 | `GET/PUT /api/workspace`, `GET /api/workspace/browse` | Read, set, and browse the agent's directory |
+
+**Attachments are two different things.** An image is model input: it is
+base64-encoded into a user message's `ImageBlock` on every turn that replays
+it. A generic file is material — a text-ish one is inlined into the prompt so
+the model can read it at all, and anything else is named, sized, and located,
+because the agent's filesystem tools are confined to the workspace and
+attachments deliberately live outside it. Both are admitted before storage
+(byte, pixel, and per-side limits, plus a magic-byte check that the bytes are
+what the browser claimed), content-addressed under `.data/attachments`, and
+served back by id so a reloaded conversation still shows the screenshot the
+question was about.
+
+Files upload the moment they are picked — by the paperclip, by paste, or by a
+drop anywhere on the page — so each has its own progress and its own retry, and
+send is disabled only for as long as an upload is still running. A picture
+attached to a model that declares no image input is refused before the turn
+starts rather than silently replaced with an "image omitted" note: a request
+that runs is not the same as a request that was understood.
 
 **Credentials live on the server.** Keys are written to SQLite and handed to an
 adapter as a resolver function, so an edit applies to the next request without
@@ -429,6 +450,7 @@ what turns a result into a read, diff, search, web, todo, or filesystem card.
 
 ## Not built yet
 
-Attachments, the details/trajectory column, multi-user auth, and
-encryption of the stored API keys (the database file is git-ignored but
-plaintext).
+The details/trajectory column, multi-user auth, and encryption of the stored
+API keys (the database file is git-ignored but plaintext). Steering carries
+text only: attaching a file while a run is in flight starts a new turn, because
+the SDK's `inject` takes a string.

@@ -199,6 +199,8 @@ async function driveAgent(
     ...tools === undefined ? {} : { tools },
     ...options.nativeTools === undefined ? {} : { nativeTools: options.nativeTools },
     ...options.toolChoice === undefined ? {} : { toolChoice: options.toolChoice },
+    ...options.imagePolicy === undefined ? {} : { imagePolicy: options.imagePolicy },
+    ...(options.validateOutput === undefined ? {} : { validateOutput: options.validateOutput }),
     ...options.outputFormat === undefined ? {} : { outputFormat: options.outputFormat },
     system: joinSystem(options.system, modeSystem(mode, broker !== undefined)),
     ...options.interceptors === undefined ? {} : { interceptors: shieldControlTools(options.interceptors) },

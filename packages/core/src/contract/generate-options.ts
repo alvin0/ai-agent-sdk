@@ -11,6 +11,8 @@ import type { ModelOutputFormat } from './output-format.ts'
 
 /** One fully assembled model request. */
 export interface GenerateOptions {
+  /** strict rejects known text-only models when request history contains images; project permits lossy conversion. */
+  readonly imagePolicy?: 'strict' | 'project'
   /** Registered provider route, selecting the adapter instance. */
   provider: string
   /**

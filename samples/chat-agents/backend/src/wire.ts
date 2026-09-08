@@ -59,6 +59,8 @@ export type WireApprovalScope = 'once' | 'session' | 'workspace'
 
 /** What the user is being asked to permit. */
 export interface WireApproval {
+  /** Provider tool identity for display correlation; callId is the approval request identity. */
+  readonly providerCallId?: string
   /** Provider call id; the handle the decision is sent back with. */
   readonly callId: string
   readonly toolName: string
@@ -142,12 +144,32 @@ export type WireEvent =
   | { readonly t: 'run-end'; readonly reason: string; readonly text: string }
   | { readonly t: 'error'; readonly message: string }
 
+/**
+ * One file the user attached to a prompt, as the transcript remembers it.
+ *
+ * A durable record rather than the bytes: the browser drops its object URLs
+ * when the tab closes, and a reloaded conversation still has to draw the
+ * screenshot the question was about. `GET /api/attachments/:id` serves it.
+ */
+export interface WireAttachment {
+  readonly id: string
+  readonly name: string
+  readonly mediaType: string
+  readonly bytes: number
+  /** `image` is model input; `file` is material the prompt describes. */
+  readonly kind: 'image' | 'file'
+  readonly width?: number
+  readonly height?: number
+}
+
 /** One request body accepted by `POST /api/chat`. */
 export interface ChatRequestBody {
   readonly sessionId: string
   readonly prompt: string
   /** Group the conversation belongs to; omitted uses the default group. */
   readonly groupId?: string
+  /** Ids from `POST /api/attachments`, in the order the user picked them. */
+  readonly attachmentIds?: readonly string[]
 }
 
 /** One request body accepted by `POST /api/answer`. */

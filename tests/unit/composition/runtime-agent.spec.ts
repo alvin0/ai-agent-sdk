@@ -9,6 +9,7 @@ import type { ComposableModelProviderPlugin } from '../../../packages/core/src/c
 import { createRuntimeCompositionOwner } from '../../../packages/core/src/composition/runtime/owner.ts'
 import type { RuntimeAgentRunEvent } from '../../../packages/core/src/composition/agent/types.ts'
 import { defineTool } from '../../../packages/core/src/agent/tool/definition.ts'
+import { createUserMessage } from '../../../packages/core/src/message/message.ts'
 import { ToolError } from '../../../packages/core/src/agent/tool/errors.ts'
 import { ToolCallId } from '../../../packages/core/src/primitives/brand.ts'
 
@@ -79,6 +80,78 @@ function provider(adapter: ModelAdapter): ComposableModelProviderPlugin {
 }
 
 describe('runtime-bound agent', () => {
+  it('preserves multimodal input, output messages and public block identity', async () => {
+    const adapter = new RuntimeAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const session = runtime.agent({ id: 'images', instructions: 'describe', compaction: false }).createSession()
+    const input = createUserMessage({ source: { kind: 'user' }, content: [
+      { type: 'text', text: 'describe' }, { type: 'image', source: { kind: 'url', url: 'https://example.test/image.png' } },
+    ] })
+    const events: RuntimeAgentRunEvent[] = []
+    const result = await session.run(input, { onEvent: event => { events.push(event) } })
+    expect(adapter.requests[0]?.messages.some(message => message.content.some(block => block.type === 'image'))).toBe(true)
+    expect(result.message?.content).toContainEqual(expect.objectContaining({ type: 'text', text: 'hello' }))
+    const delta = events.find(event => event.type === 'assistant-delta')
+    expect(delta).toMatchObject({ schemaVersion: 1, index: 0, blockId: expect.any(String) })
+    expect(events.find(event => event.type === 'text-end')).toMatchObject({ blockId: delta?.type === 'assistant-delta' ? delta.blockId : '' })
+    expect(events.some(event => event.type === 'assistant-message')).toBe(true)
+    await runtime.close()
+  })
+
+  it('removes adapter-private replay state from full messages and nested blocks', async () => {
+    const adapter = new RuntimeAdapter()
+    adapter.stream = async function* () {
+      yield { type: 'block-end', index: 0, block: { type: 'text', text: 'public', annotations: [{ type: 'url-citation', url: 'https://example.test', providerState: { secret: 'PRIVATE/REPLAY~SENTINEL%' } }] } }
+      yield { type: 'block-end', index: 1, block: { type: 'reasoning', text: 'public summary', providerState: 'PRIVATE/REPLAY~SENTINEL%' } }
+      yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const response = await runtime.agent({ id: 'private-blocks', instructions: 'go', compaction: false }).generate('go', { onEvent: event => { events.push(event) } })
+    expect(JSON.stringify(response.message)).not.toContain('PRIVATE/REPLAY~SENTINEL%')
+    expect(JSON.stringify(events.filter(event => event.type === 'assistant-message'))).not.toContain('PRIVATE/REPLAY~SENTINEL%')
+    expect(response.message?.content[0]).toMatchObject({ annotations: [{ url: 'https://example.test' }] })
+    await runtime.close()
+  })
+
+  it('strict image input never dispatches to a known text-only model; projection remains opt-in compatible', async () => {
+    const adapter = new RuntimeAdapter()
+    adapter.resolveModel = async (provider, id) => ({ provider, id, name: id, inputModalities: ['text'] })
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const agent = runtime.agent({ id: 'strict-images', instructions: 'describe', compaction: false })
+    const input = createUserMessage({ source: { kind: 'user' }, content: [{ type: 'image', source: { kind: 'url', url: 'https://example.test/image.png' } }] })
+    await expect(agent.generate(input, { imagePolicy: 'strict' })).rejects.toMatchObject({ report: { status: 'error' } })
+    expect(adapter.requests).toHaveLength(0)
+    await agent.generate(input, { imagePolicy: 'project' })
+    expect(adapter.requests).toHaveLength(1)
+    expect(adapter.requests[0]?.messages.some(message => message.content.some(block => block.type === 'image'))).toBe(false)
+    await runtime.close()
+  })
+
+  it('returns validated structured output and rejects schema-invalid JSON', async () => {
+    const adapter = new RuntimeAdapter()
+    adapter.stream = async function* (options) {
+      this.requests.push(options)
+      yield { type: 'block-end', index: 0, block: { type: 'text', text: '{"amount":42}' } }
+      yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const agent = runtime.agent({ id: 'json', instructions: 'return JSON', compaction: false })
+    const parse = vi.fn((value: unknown) => {
+      if (typeof value !== 'object' || value === null || !('amount' in value) || typeof value.amount !== 'number') throw new Error('amount required')
+      return { amount: value.amount }
+    })
+    const schema = { jsonSchema: { type: 'object', properties: { amount: { type: 'number' } }, required: ['amount'], additionalProperties: false }, parse }
+    const response = await agent.generate('amount', { structuredOutput: { name: 'amount', schema } })
+    expect(response.output).toEqual({ amount: 42 })
+    expect(parse).toHaveBeenCalledTimes(1)
+    expect(adapter.requests[0]?.outputFormat).toMatchObject({ type: 'json_schema', name: 'amount' })
+    await expect(agent.generate('amount', { structuredOutput: { name: 'amount', schema: { ...schema, parse: () => { throw new Error('schema mismatch') } } } })).rejects.toMatchObject({ report: { status: 'error' } })
+    await runtime.close()
+  })
+
   it('projects an actually unknown tool as rejected', async () => {
     const adapter = new ToolAdapter('missing_tool')
     const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
@@ -158,7 +231,7 @@ describe('runtime-bound agent', () => {
   })
 
   it('removes blocked additional context from model requests and public events', async () => {
-    const sentinel = 'review/BLOCKED_PRIVATE_SENTINEL'
+    const sentinel = 'review/BLOCKED_PRIVATE/REPLAY~SENTINEL%'
     const adapter = new ToolAdapter()
     const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
     const events: RuntimeAgentRunEvent[] = []
@@ -177,7 +250,7 @@ describe('runtime-bound agent', () => {
   })
 
   it('removes replaced raw values from public events', async () => {
-    const sentinel = 'review/REPLACED_PRIVATE_SENTINEL'
+    const sentinel = 'review/REPLACED_PRIVATE/REPLAY~SENTINEL%'
     const adapter = new ToolAdapter()
     const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
     const events: RuntimeAgentRunEvent[] = []
@@ -243,10 +316,10 @@ describe('runtime-bound agent', () => {
     const response = await runtime.agent({ id: 'streamer', instructions: 'Stream', compaction: false }).generate('go', {
       onEvent: event => { events.push(event) },
     })
-    expect(events.map(event => event.type)).toEqual(['assistant-delta', 'usage'])
-    expect(events.map(event => event.sequence)).toEqual([1, 2])
+    expect(events.map(event => event.type)).toEqual(['turn-start', 'step-start', 'assistant-delta', 'text-end', 'step-end', 'assistant-message', 'assistant-text', 'usage'])
+    expect(events.map(event => event.sequence)).toEqual(events.map((_, index) => index + 1))
     expect(events.every(event => event.runId === response.runId && event.traceId === response.traceId)).toBe(true)
-    expect(events[1]).toMatchObject({ type: 'usage', report: response.report })
+    expect(events.at(-1)).toMatchObject({ type: 'usage', report: response.report })
     await runtime.close()
   })
 
@@ -259,17 +332,19 @@ describe('runtime-bound agent', () => {
         execute: () => ({ ok: true }) }),
     ], compaction: false }).generate('go', { onEvent: event => { events.push(event) } })
     expect(events.map(event => event.type)).toEqual([
-      'commentary-delta', 'assistant-native-tool', 'tool-call', 'tool-result', 'assistant-delta', 'usage',
+      'turn-start', 'step-start', 'commentary-delta', 'text-end', 'assistant-message', 'assistant-text',
+      'assistant-native-tool', 'tool-call', 'tool-result', 'step-end', 'step-start', 'assistant-delta',
+      'text-end', 'step-end', 'assistant-message', 'assistant-text', 'usage',
     ])
-    expect(events.map(event => event.sequence)).toEqual([1, 2, 3, 4, 5, 6])
+    expect(events.map(event => event.sequence)).toEqual(events.map((_, index) => index + 1))
     expect(events.every(event => event.runId === response.runId && event.traceId === response.traceId)).toBe(true)
-    expect(events[1]).toMatchObject({
+    expect(events.find(event => event.type === 'assistant-native-tool')).toMatchObject({
       type: 'assistant-native-tool', callId: 'native-search-1', provider: 'openai-a', name: 'web-search',
       status: 'completed', input: { query: 'runtime events' }, output: [{ type: 'text', text: 'native result' }],
     })
-    expect(events[2]).toMatchObject({ type: 'tool-call', callId: 'host-tool-1', name: 'lookup', input: { key: 'value' } })
-    expect(events[3]).toMatchObject({ type: 'tool-result', callId: 'host-tool-1', name: 'lookup', status: 'completed' })
-    expect(events[5]).toMatchObject({ type: 'usage', report: response.report })
+    expect(events.find(event => event.type === 'tool-call')).toMatchObject({ type: 'tool-call', callId: 'host-tool-1', name: 'lookup', input: { key: 'value' } })
+    expect(events.find(event => event.type === 'tool-result')).toMatchObject({ type: 'tool-result', callId: 'host-tool-1', name: 'lookup', status: 'completed' })
+    expect(events.at(-1)).toMatchObject({ type: 'usage', report: response.report })
     await runtime.close()
   })
 

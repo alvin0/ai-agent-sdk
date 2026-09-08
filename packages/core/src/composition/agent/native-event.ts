@@ -1,3 +1,4 @@
+import { publicContent } from './public-message.ts'
 import type { NativeToolCallBlock } from '../../message/content.ts'
 import type { JsonValue } from '../../primitives/index.ts'
 import { cloneJsonValue } from '../common/json-data.ts'
@@ -18,7 +19,7 @@ export function projectNativeToolEvent(
   provider: string,
 ): ProjectedNativeToolEvent {
   const input = optionalPayload(call.arguments)
-  const output = call.content.length === 0 ? undefined : optionalPayload(call.content)
+  const output = call.content.length === 0 ? undefined : optionalPayload(publicContent(call.content))
   return {
     type: 'assistant-native-tool', callId: call.id, provider, name: call.name,
     status: nativeStatus(call.status),

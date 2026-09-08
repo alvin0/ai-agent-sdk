@@ -157,7 +157,18 @@ function pnpmJson(command: readonly string[], allowNonzero = false): unknown {
 
 const allowedLicenses = new Set(['Apache-2.0', 'MIT', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC', '0BSD', 'BlueOak-1.0.0', 'CC0-1.0', 'Unlicense'])
 const licenses = pnpmJson(['licenses', 'list', '--prod', '--json']) as Readonly<Record<string, unknown>>
+const reviewedLicense = (expression: string, value: unknown): boolean => {
+  if (!Array.isArray(value) || value.length === 0) return false
+  return value.every((entry: { name?: string; versions?: string[] }) => {
+    if (!entry.versions?.length) return false
+    if (expression === 'CC-BY-4.0') return entry.name === 'caniuse-lite' && entry.versions.every(version => version === '1.0.30001810')
+    if (expression === 'LGPL-3.0-or-later') return /^@img\/sharp-libvips-(?:darwin-arm64|darwin-x64|linux-arm|linux-arm64|linux-ppc64|linux-riscv64|linux-s390x|linux-x64|linuxmusl-arm64|linuxmusl-x64)$/.test(entry.name ?? '')
+      && entry.versions.every(version => version === '1.3.3')
+    return false
+  })
+}
 for (const expression of Object.keys(licenses)) {
+  if (reviewedLicense(expression, licenses[expression])) continue
   const identifiers = expression.replace(/[()]/g, ' ').split(/\s+(?:AND|OR|WITH)\s+|\s+/).filter(Boolean)
   for (const identifier of identifiers) if (!allowedLicenses.has(identifier)) errors.push(`production license is not reviewed: ${expression}`)
 }

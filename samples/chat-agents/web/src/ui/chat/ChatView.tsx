@@ -9,8 +9,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   IconChevronDownOutline14, IconChevronRightOutline14, IconFolderOpen16, IconLoadingOutline16,
-  IconSendOutline16, IconStopFill16, IconThinkOutline14, IconWarningOutline16, MarkdownText,
-  projectUserText, StateDot,
+  IconPaperclipOutline16, IconSendOutline16, IconStopFill16, IconThinkOutline14,
+  IconWarningOutline16, MarkdownText, projectUserText, StateDot,
 } from '../primitives'
 import { markdownLabels } from '../labels'
 import { ApprovalCard, ApprovalRecord } from './ApprovalCard'
@@ -19,6 +19,8 @@ import { TeamRoster } from './TeamRoster'
 import { ToolNode } from './ToolNode'
 import { ToolGroup } from './ToolGroup'
 import { ComposerControls } from './ComposerControls'
+import { ComposerAttachments, MessageAttachments } from './Attachments'
+import { useAttachments } from './useAttachments'
 import type { SettingsController } from '../settings/useSettings'
 import type { ChatController } from './useChat'
 import { blocksOf, formatSpan, rosterOf, segmentsOf, turnsOf, withDelegationPrompts } from './turns'
@@ -26,15 +28,85 @@ import type { Block, Turn } from './turns'
 import type { ChatNode, MemberState } from './types'
 import css from './ChatView.module.css'
 
-function ReasoningRow({ node }: { node: Extract<ChatNode, { kind: 'reasoning' }> }) {
+/** A heading line, bold or hashed, anchored to the start of a line. */
+const REASONING_HEADING = /^[ \t]*(?:\*\*(.+?)\*\*|#{1,6}[ \t]+(.+?))[ \t]*$/m
+
+/**
+ * The heading a stretch of reasoning opens with.
+ *
+ * Reasoning arrives as sections, each introduced by a bold one-line summary —
+ * "Planning date retrieval method" — and a column of rows all labelled
+ * "Reasoning" says nothing about which is worth opening. The FIRST heading is
+ * used rather than the newest, so a group that is still growing does not
+ * relabel itself every few seconds.
+ * @param text - The block's markdown.
+ * @returns The heading, or undefined when the block has none.
+ */
+function reasoningTitle(text: string): string | undefined {
+  const heading = REASONING_HEADING.exec(text)
+  const found = (heading?.[1] ?? heading?.[2])?.trim()
+  return found === undefined || found === '' ? undefined : found
+}
+
+/**
+ * The same text with its opening heading removed.
+ *
+ * That heading is already the group's label, and printing it again as the
+ * first line of the body is how one thought came to occupy two lines that say
+ * the same thing.
+ * @param text - The block's markdown.
+ * @returns The body, possibly empty when the heading was all there was.
+ */
+function reasoningBody(text: string): string {
+  return text.replace(REASONING_HEADING, '').trim()
+}
+
+/**
+ * One stretch of thinking, behind one control.
+ *
+ * Grouped rather than drawn per block because a research turn emits a dozen of
+ * them back to back: twelve identical collapsed strips are a wall, and twelve
+ * expanded ones bury the tool calls and the answer between them.
+ * @param props - The consecutive reasoning rows, in order.
+ * @returns The collapsed strip, and its sections while it is open.
+ */
+function ReasoningGroup({ nodes }: { nodes: readonly Extract<ChatNode, { kind: 'reasoning' }>[] }) {
   const [open, setOpen] = useState(false)
+  const first = nodes[0]
+  const title = first === undefined ? undefined : reasoningTitle(first.text)
+  const sections = nodes.map((node, index) => ({
+    id: node.id,
+    // Only the first block's heading is the label, so only it is stripped.
+    text: index === 0 && title !== undefined ? reasoningBody(node.text) : node.text,
+  })).filter(section => section.text !== '')
+
   return (
     <div className={css.reasoning}>
-      <button type="button" className={css.reasoningToggle} onClick={() => { setOpen(value => !value) }}>
+      <button
+        type="button"
+        className={css.reasoningToggle}
+        aria-expanded={open}
+        disabled={sections.length === 0}
+        onClick={() => { setOpen(value => !value) }}
+      >
         <IconThinkOutline14 />
-        {open ? 'Hide reasoning' : 'Reasoning'}
+        <span className={css.reasoningLabel}>{title ?? 'Reasoning'}</span>
+        {nodes.length > 1 && <span className={css.reasoningCount}>{nodes.length}</span>}
+        {/* Nothing to open when the model wrote only the heading. */}
+        {sections.length > 0 && (open ? <IconChevronDownOutline14 /> : <IconChevronRightOutline14 />)}
       </button>
-      {open && <div className={css.reasoningBody}>{node.text}</div>}
+      {open && sections.length > 0 && (
+        <div className={css.reasoningBody}>
+          {sections.map(section => (
+            /*
+              Markdown, not preformatted text: the model writes its summaries
+              with bold headings and lists, and printing the asterisks is how a
+              summary turns into noise.
+            */
+            <MarkdownText key={section.id} text={section.text} labels={markdownLabels} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -104,13 +176,15 @@ function BlockView({
   const rows = segmentsOf(block.nodes).map((segment, index) => (
     <div
       className={css.row}
-      key={segment.kind === 'tools'
-        ? `tools-${segment.nodes[0]?.id ?? ''}-${String(index)}`
-        : `${segment.node.kind}-${segment.node.id}-${String(index)}`}
+      key={segment.kind === 'row'
+        ? `${segment.node.kind}-${segment.node.id}-${String(index)}`
+        : `${segment.kind}-${segment.nodes[0]?.id ?? ''}-${String(index)}`}
     >
       {segment.kind === 'tools'
         ? <ToolGroup nodes={segment.nodes} />
-        : <NodeView node={segment.node} onAnswer={onAnswer} />}
+        : segment.kind === 'reasoning'
+          ? <ReasoningGroup nodes={segment.nodes} />
+          : <NodeView node={segment.node} onAnswer={onAnswer} />}
     </div>
   ))
   if (block.member === undefined) return <>{rows}</>
@@ -158,7 +232,18 @@ function NodeView({
 }) {
   switch (node.kind) {
     case 'user':
-      return <div className={css.userMessage}>{projectUserText(node.text, [])}</div>
+      return (
+        <>
+          {node.attachments !== undefined && node.attachments.length > 0 && (
+            <MessageAttachments items={node.attachments} />
+          )}
+          {/* An attachment-only message has no bubble: an empty rounded box
+              under the picture reads as a rendering failure. */}
+          {node.text.trim() !== '' && (
+            <div className={css.userMessage}>{projectUserText(node.text, [])}</div>
+          )}
+        </>
+      )
     case 'assignment':
       return (
         <div className={css.assignment}>
@@ -172,8 +257,12 @@ function NodeView({
           <MarkdownText text={node.text} streaming={node.streaming} labels={markdownLabels} />
         </div>
       )
+    /*
+      Reasoning is never drawn as a lone row: `segmentsOf` gathers every
+      consecutive block into one group, which BlockList renders.
+    */
     case 'reasoning':
-      return <ReasoningRow node={node} />
+      return null
     case 'tool':
       return <ToolNode node={node} />
     case 'question':
@@ -332,6 +421,8 @@ export interface ChatViewProps {
 export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenSettings }: ChatViewProps) {
   const [draft, setDraft] = useState('')
   const [focusRequest, setFocusedMember] = useState<string | null>(null)
+  const attachments = useAttachments()
+  const picker = useRef<HTMLInputElement | null>(null)
   const bottom = useRef<HTMLDivElement | null>(null)
   const scroller = useRef<HTMLDivElement | null>(null)
   const pinned = useRef(true)
@@ -355,17 +446,29 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
   // Typing during a run steers it rather than queueing behind it: the message
   // joins the agent's history and its next model round reads it, so a wrong
   // turn is corrected without stopping and re-prompting.
+  /** Attachments whose upload finished, in the order the rail shows them. */
+  const ready = attachments.items.flatMap(
+    item => item.upload.status === 'ready' ? [item.upload.record] : [],
+  )
+  // Nothing to send, or something still on its way up. Send stays disabled
+  // through an upload rather than silently dropping the file it is waiting on.
+  const sendable = (draft.trim() !== '' || ready.length > 0) && !attachments.uploading
+
   const submit = () => {
+    if (!sendable) return
     const text = draft.trim()
-    if (text === '') return
     setDraft('')
+    attachments.clear()
     // The pickers may be showing a remembered model that the conversation row
     // does not carry yet — a new chat has no row until something writes one.
     // Persisting first is what makes the first prompt run on the model on
     // screen instead of failing with "pick a model before sending a message".
     void (async () => {
       await settings.persistPending()
-      await (chat.running ? chat.steer(text) : chat.send(text))
+      // Steering carries text and nothing else — it injects a string into the
+      // running agent's history — so a message with files starts its own turn
+      // instead of losing them.
+      await (chat.running && ready.length === 0 ? chat.steer(text) : chat.send(text, ready))
     })()
   }
 
@@ -482,6 +585,7 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
           />
         </div>
         <div className={css.composer}>
+          <ComposerAttachments attachments={attachments} />
           <textarea
             className={css.input}
             value={draft}
@@ -490,6 +594,19 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
               ? 'Steer the agent — it reads this on its next step…'
               : 'Ask anything about the workspace…'}
             onChange={(event) => { setDraft(event.target.value) }}
+            onPaste={(event) => {
+              // A screenshot on the clipboard is the fastest way an image ever
+              // reaches a chat, and it arrives as a file item with no name.
+              const files = [...event.clipboardData.items]
+                .filter(item => item.kind === 'file')
+                .map(item => item.getAsFile())
+                .filter((file): file is File => file !== null)
+              if (files.length === 0) return
+              // Only the files are taken; any text on the clipboard still
+              // pastes into the box, which is what a mixed copy meant.
+              attachments.add(files)
+              if (event.clipboardData.getData('text/plain') === '') event.preventDefault()
+            }}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
@@ -498,6 +615,28 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
             }}
           />
           <div className={css.composerActions}>
+            <input
+              ref={picker}
+              type="file"
+              multiple
+              hidden
+              onChange={(event) => {
+                attachments.add([...event.target.files ?? []])
+                // Cleared so picking the same file twice in a row still fires
+                // a change event.
+                event.target.value = ''
+              }}
+            />
+            <button
+              type="button"
+              className={css.attach}
+              aria-label="Attach files"
+              title="Attach images or files"
+              disabled={!attachments.canAccept}
+              onClick={() => { picker.current?.click() }}
+            >
+              <IconPaperclipOutline16 />
+            </button>
             <ComposerControls settings={settings} />
             <span className={css.usage}>
               {chat.usage.inputTokens + chat.usage.outputTokens > 0 && (
@@ -515,7 +654,10 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
               how you learn that steering a run in flight is possible at all.
               Clear the box to get stop back.
             */}
-            {chat.running && draft.trim() === ''
+            {/* Stop is what an empty composer offers during a run. A failed
+                upload left in the rail is not something to send, so it does
+                not take the stop control away. */}
+            {chat.running && draft.trim() === '' && ready.length === 0 && !attachments.uploading
               ? (
                 <button type="button" className={clsx(css.send, css.stop)} onClick={chat.stop} aria-label="Stop">
                   <IconStopFill16 />
@@ -526,8 +668,9 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
                   type="button"
                   className={css.send}
                   onClick={submit}
-                  disabled={draft.trim() === ''}
-                  aria-label={chat.running ? 'Steer' : 'Send'}
+                  disabled={!sendable}
+                  aria-label={chat.running && ready.length === 0 ? 'Steer' : 'Send'}
+                  title={attachments.uploading ? 'Waiting for the upload to finish' : undefined}
                 >
                   <IconSendOutline16 />
                 </button>

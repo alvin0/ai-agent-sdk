@@ -245,6 +245,7 @@ describe('runtime agent run handle', () => {
     const session = runtime.agent({ id: 'early-return', instructions: 'Stream', compaction: false }).createSession()
     const handle = session.stream('start')
     for await (const event of handle) {
+      if (event.type !== 'assistant-delta') continue
       expect(event).toMatchObject({ type: 'assistant-delta', text: 'first', runId: handle.runId })
       break
     }
@@ -289,7 +290,7 @@ describe('runtime agent run handle', () => {
     const response = await runtime.agent({ id: 'observer-order', instructions: 'Complete', compaction: false }).generate('go', {
       onEvent: async event => { await Promise.resolve(); observed.push(event.sequence) },
     })
-    expect(observed).toEqual([1, 2])
+    expect(observed).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
     expect(response.report.status).toBe('success')
     await runtime.close()
   })
@@ -303,9 +304,11 @@ describe('runtime agent run handle', () => {
         .createSession({ runtimeLimits: { observerTimeoutMs: 5 } })
       let rejected: unknown
       try {
-        await session.run('go', { onEvent: mode === 'reject'
-          ? () => Promise.reject(new Error('OBSERVER_PRIVATE/DETAIL~SENTINEL%'))
-          : () => new Promise<void>(() => undefined) })
+        await session.run('go', { onEvent: event => {
+          if (event.type !== 'assistant-delta') return
+          return mode === 'reject' ? Promise.reject(new Error('OBSERVER_PRIVATE/DETAIL~SENTINEL%'))
+            : new Promise<void>(() => undefined)
+        } })
       } catch (error) { rejected = error }
       expect(rejected).toMatchObject({ code: 'RUN_EVENT_OBSERVER_FAILED', report: { status: 'aborted' } })
       const report = (rejected as { report: unknown }).report
@@ -366,8 +369,8 @@ describe('runtime agent run handle', () => {
     try { await handle.result } catch (error) { rejected = error }
     expect(report.status).toBe('error')
     expect(rejected).toMatchObject({ report })
-    expect(events).toHaveLength(1)
-    expect(events[0]).toMatchObject({ type: 'error', report })
+    expect(events.filter(event => event.type === 'error')).toHaveLength(1)
+    expect(events.at(-1)).toMatchObject({ type: 'error', report })
     await session.whenIdle()
     await runtime.close()
   })

@@ -19,7 +19,7 @@ import type {
   AgentResponse, AgentRunEvent, ApprovalBroker, DefinedAgent, ManagedAgentTeam,
   ToolDefinition, ToolInterceptor,
 } from '@ai-agent-sdk/core/agent'
-import type { ModelRegistry, SkillSource, UserInputBroker } from '@ai-agent-sdk/core'
+import type { AgentInput, ModelRegistry, SkillSource, UserInputBroker } from '@ai-agent-sdk/core'
 import { fileSystemSkills } from '@ai-agent-sdk/skill-filesystem'
 import { MODEL_TIMEOUT_MS, retryHooks } from './resilience'
 import type { RetryNotice } from './resilience'
@@ -278,7 +278,8 @@ function steerSession(session: { inject: (input: string) => number }, text: stri
 /**
  * Start a run.
  *
- * @param prompt - The user's message.
+ * @param prompt - The user's message: plain text, or a full user message when
+ *   the prompt carries attachments.
  * @param context - Model, mode, workspace, tools, and the preset in play.
  * @param onMemberEvent - Raw events from every non-lead agent, tagged by name.
  * @returns The lead's event handle plus the member roster.
@@ -296,7 +297,7 @@ function spillStore(): ReturnType<typeof createFileSpillStore> {
 }
 
 export async function startRun(
-  prompt: string,
+  prompt: AgentInput,
   context: RunContext,
   onMemberEvent: (member: string, event: AgentRunEvent) => void,
 ): Promise<RunHandles> {

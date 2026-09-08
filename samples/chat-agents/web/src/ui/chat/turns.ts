@@ -252,10 +252,11 @@ export function rosterOf(nodes: readonly ChatNode[]): readonly MemberState[] {
   return [...counts].map(([name, toolCalls]) => ({ name, status: 'done' as const, toolCalls }))
 }
 
-/** A run of rows drawn together: one row, or a foldable run of tool calls. */
+/** A run of rows drawn together: one row, or a foldable run of like rows. */
 export type Segment =
   | { readonly kind: 'row', readonly node: ChatNode }
   | { readonly kind: 'tools', readonly nodes: readonly ChatNode[] }
+  | { readonly kind: 'reasoning', readonly nodes: readonly Extract<ChatNode, { kind: 'reasoning' }>[] }
 
 /**
  * Fold consecutive tool calls into runs.
@@ -273,21 +274,36 @@ export type Segment =
  */
 export function segmentsOf(nodes: readonly ChatNode[]): readonly Segment[] {
   const segments: Segment[] = []
-  let run: ChatNode[] = []
-  const flush = (): void => {
-    if (run.length >= TOOL_GROUP_MIN) segments.push({ kind: 'tools', nodes: run })
-    else for (const node of run) segments.push({ kind: 'row', node })
-    run = []
+  let tools: ChatNode[] = []
+  let thoughts: Extract<ChatNode, { kind: 'reasoning' }>[] = []
+  const flushTools = (): void => {
+    if (tools.length >= TOOL_GROUP_MIN) segments.push({ kind: 'tools', nodes: tools })
+    else for (const node of tools) segments.push({ kind: 'row', node })
+    tools = []
+  }
+  // Always a group, even of one, so a stretch of thinking is one control
+  // whether the model emitted it as one block or as nine.
+  const flushThoughts = (): void => {
+    if (thoughts.length > 0) segments.push({ kind: 'reasoning', nodes: thoughts })
+    thoughts = []
   }
   for (const node of nodes) {
     if (node.kind === 'tool' && node.state !== 'running') {
-      run.push(node)
+      flushThoughts()
+      tools.push(node)
       continue
     }
-    flush()
+    if (node.kind === 'reasoning') {
+      flushTools()
+      thoughts.push(node)
+      continue
+    }
+    flushTools()
+    flushThoughts()
     segments.push({ kind: 'row', node })
   }
-  flush()
+  flushTools()
+  flushThoughts()
   return segments
 }
 

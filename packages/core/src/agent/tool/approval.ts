@@ -3,7 +3,7 @@
  *
  * The shape is the one both reference implementations arrived at: the loop does
  * not pause, the *tool call* pauses. A pending promise is parked in a map keyed by
- * call id, a request is published, and whoever is watching resolves it later by
+ * approval request id, a request is published, and whoever is watching resolves it later by
  * that id. Everything else in the turn — other tool calls in the same batch,
  * streaming, cancellation — keeps working.
  *
@@ -20,8 +20,17 @@
  * @module ai-agent-sdk/agent/tool/approval
  */
 
+import { systemRandomId } from '../../platform/adapter.ts'
 import type { ToolCallId } from '../../primitives/index.ts'
 import { detachedFrozen } from '../../primitives/index.ts'
+
+const issuedRequests = new WeakSet<object>()
+
+export function createApprovalRequest(input: Omit<ApprovalRequest, 'approvalRequestId' | 'providerCallId'>): ApprovalRequest {
+  const request = detachedFrozen({ ...input, approvalRequestId: systemRandomId(), providerCallId: input.callId })
+  issuedRequests.add(request)
+  return request
+}
 
 /** What the approver decided. */
 export type ApprovalDecision =
@@ -34,6 +43,11 @@ export type ApprovalDecision =
 
 /** One request for permission. */
 export interface ApprovalRequest {
+  /** SDK-generated, single-use identity. Never resolve using the provider call id. */
+  readonly approvalRequestId: string
+  readonly providerCallId: ToolCallId
+  readonly runId?: string
+  readonly conversationId?: string
   /** Provider-issued id of the call awaiting a decision. */
   readonly callId: ToolCallId
   readonly toolName: string
@@ -70,7 +84,7 @@ export function fixedApprovalBroker(decision: ApprovalDecision): ApprovalBroker 
 }
 
 /**
- * A broker that publishes requests and waits to be answered by call id.
+ * A broker that publishes requests and waits to be answered by approval request id.
  *
  * This is the interactive one. Wire {@link InteractiveApprovalBroker.onRequest} to
  * a UI, and call {@link InteractiveApprovalBroker.resolve} when the human answers.
@@ -89,12 +103,16 @@ export interface InteractiveApprovalBroker extends ApprovalBroker {
   onRequest(listener: (request: ApprovalRequest) => void): () => void
   /**
    * Answer a pending request.
-   * @param callId - the call to answer.
+   * @param approvalRequestId - the SDK-issued request identity to answer.
    * @param decision - the answer.
    * @returns true when a pending request was answered; false when the id is
    *   unknown, which happens legitimately if the turn was already cancelled.
    */
-  resolve(callId: ToolCallId, decision: ApprovalDecision): boolean
+  resolve(approvalRequestId: string, decision: ApprovalDecision): boolean
+  /** Abort only pending requests belonging to this run. */
+  abortRun(runId: string): void
+  /** Abort only pending requests belonging to this conversation. */
+  abortSession(conversationId: string): void
   /**
    * Answer every outstanding request with `abort`.
    *
@@ -120,14 +138,15 @@ interface Waiter {
  */
 export function createApprovalBroker(options: InteractiveApprovalBrokerOptions = {}): InteractiveApprovalBroker {
   const maxPending = positiveSafeInteger(options.maxPending ?? 1_024, 'approval maxPending')
-  const waiters = new Map<ToolCallId, Waiter>()
+  const waiters = new Map<string, Waiter>()
   const listeners = new Set<(request: ApprovalRequest) => void>()
 
   return {
     request(request, signal) {
+      if (!issuedRequests.delete(request)) return Promise.reject(new Error('approval request must be fresh and SDK-issued'))
       if (signal?.aborted === true) return Promise.resolve('abort')
-      if (waiters.has(request.callId)) {
-        return Promise.reject(new Error(`approval request '${request.callId}' is already pending`))
+      if (waiters.has(request.approvalRequestId)) {
+        return Promise.reject(new Error(`approval request '${request.approvalRequestId}' is already pending`))
       }
       if (waiters.size >= maxPending) {
         return Promise.reject(new Error(`approval broker reached its ${maxPending}-request limit`))
@@ -139,7 +158,7 @@ export function createApprovalBroker(options: InteractiveApprovalBrokerOptions =
         const settle = (decision: ApprovalDecision): void => {
           if (settled) return
           settled = true
-          waiters.delete(request.callId)
+          waiters.delete(request.approvalRequestId)
           signal?.removeEventListener('abort', onAbort)
           resolve(decision)
         }
@@ -149,7 +168,7 @@ export function createApprovalBroker(options: InteractiveApprovalBrokerOptions =
 
         // Registered first, deliberately: a listener below may answer
         // synchronously, and there has to be somewhere for that answer to land.
-        waiters.set(request.callId, { request: published, settle })
+        waiters.set(request.approvalRequestId, { request: published, settle })
         signal?.addEventListener('abort', onAbort, { once: true })
 
         for (const listener of [...listeners]) {
@@ -173,12 +192,19 @@ export function createApprovalBroker(options: InteractiveApprovalBrokerOptions =
     },
 
     resolve(callId, decision) {
+      if (decision !== 'allow' && decision !== 'deny' && decision !== 'abort') return false
       const waiter = waiters.get(callId)
       if (waiter === undefined) return false
       waiter.settle(decision)
       return true
     },
 
+    abortRun(runId) {
+      for (const waiter of [...waiters.values()]) if (waiter.request.runId === runId) waiter.settle('abort')
+    },
+    abortSession(conversationId) {
+      for (const waiter of [...waiters.values()]) if (waiter.request.conversationId === conversationId) waiter.settle('abort')
+    },
     abortAll() {
       for (const waiter of [...waiters.values()]) waiter.settle('abort')
     },
@@ -188,4 +214,35 @@ export function createApprovalBroker(options: InteractiveApprovalBrokerOptions =
 function positiveSafeInteger(value: number, label: string): number {
   if (!Number.isSafeInteger(value) || value < 1) throw new RangeError(`${label} must be a positive safe integer`)
   return value
+}
+
+/** Optional durable approval journal, separate from conversation snapshots.
+ * The host owns loading pending records and reissuing a fresh approval on recovery;
+ * saved decisions are never automatically applied to a new request. */
+export interface ApprovalStateStore {
+  savePending(request: ApprovalRequest, signal?: AbortSignal): Promise<void>
+  saveDecision(request: ApprovalRequest, decision: ApprovalDecision, signal?: AbortSignal): Promise<void>
+}
+
+export function withApprovalPersistence(broker: ApprovalBroker, store: ApprovalStateStore): ApprovalBroker {
+  const request = broker.request.bind(broker)
+  const pendingRecord = store.savePending.bind(store), decisionRecord = store.saveDecision.bind(store)
+  return Object.freeze({
+    async request(value: ApprovalRequest, signal?: AbortSignal): Promise<ApprovalDecision> {
+      const owned = new AbortController()
+      const combined = signal === undefined ? owned.signal : AbortSignal.any([signal, owned.signal])
+      // Install the interactive waiter before any asynchronous storage operation.
+      const pending = request(value, combined)
+      void pending.catch(() => undefined)
+      try {
+        await pendingRecord(value, combined)
+        const decision = await pending
+        await decisionRecord(value, decision, combined)
+        return decision
+      } catch (error) {
+        owned.abort(error)
+        throw error
+      }
+    },
+  })
 }

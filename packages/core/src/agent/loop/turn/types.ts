@@ -16,6 +16,9 @@ import type { AssistantContentTiming, TurnBounds, TurnHooks } from '../types.ts'
 import type { SdkLogger } from '../../../logging/types.ts'
 
 export interface RunTurnOptions {
+  readonly validateOutput?: (value: unknown) => void
+  /** strict rejects known text-only models when request history contains images; project permits lossy conversion. */
+  readonly imagePolicy?: 'strict' | 'project'
   readonly registry: ModelRegistry
   readonly config: CallConfig
   readonly history: History

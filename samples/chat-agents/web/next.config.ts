@@ -18,6 +18,8 @@ process.env.AI_AGENT_SDK_CODEX_AUTH ??= resolve(process.cwd(), '../../../.provid
 
 
 const config: NextConfig = {
+  // Isolated live checks can run beside the developer server.
+  ...(process.env.CHAT_AGENTS_DIST_DIR === undefined ? {} : { distDir: process.env.CHAT_AGENTS_DIST_DIR }),
   // The backend ships TypeScript sources and is consumed as a dependency, so
   // Next compiles it in the same pass as the app.
   transpilePackages: ['@chat-agents/backend'],

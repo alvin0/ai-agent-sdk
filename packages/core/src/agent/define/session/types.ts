@@ -191,6 +191,10 @@ export interface AgentResumeSessionOptions
 }
 
 export interface AgentInvocationOptions {
+  readonly outputFormat?: import('../../../contract/index.ts').ModelOutputFormat
+  readonly validateOutput?: (value: unknown) => void
+  /** strict rejects known text-only models when request history contains images; project permits lossy conversion. */
+  readonly imagePolicy?: 'strict' | 'project'
   readonly signal?: AbortSignal
   /** Observe events when using run()/runPending(); stream() already exposes them directly. */
   readonly onEvent?: (event: AgentRunEvent) => void | Promise<void>

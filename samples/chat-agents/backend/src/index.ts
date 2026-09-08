@@ -51,6 +51,12 @@ export { cancelCodexLogin, codexAccount, codexLoginState, codexSignedIn, startCo
 export type { CodexAccount, CodexLoginState } from './auth'
 export { clearUsage, recordUsage, usageSummary } from './usage'
 export { createFileSpillStore, spillRoot, sweepSpill } from './spill'
+export {
+  attachmentPath, attachmentRoot, projectAttachments, readAttachment, readAttachmentBytes,
+  sanitizeName, sizeText, storeAttachment, AttachmentRejected,
+  MAX_ATTACHMENTS_PER_MESSAGE, MAX_FILE_BYTES, MAX_IMAGE_BYTES,
+} from './attachments'
+export type { AttachmentKind, AttachmentRecord } from './attachments'
 export type { UsageRow, UsageSummary, UsageTotals } from './usage'
 export { database, databaseFile, schema } from './db/client'
 export type * from './wire'

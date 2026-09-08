@@ -52,9 +52,14 @@ export async function* streamAdapter(input: AdapterStreamInput): AsyncGenerator<
     const withConfig = callConfigEquals(options, prepared.config)
       ? options
       : { ...options, ...prepared.config }
-    const projected = prepared.modelInfo.inputModalities !== undefined
+    const hasUnsupportedImages = prepared.modelInfo.inputModalities !== undefined
       && !prepared.modelInfo.inputModalities.includes('image')
       && withConfig.messages.some(message => contentHasImage(message.content))
+    if (withConfig.imagePolicy !== undefined && withConfig.imagePolicy !== 'strict' && withConfig.imagePolicy !== 'project') throw new ModelError('invalid image policy', 'INVALID_IMAGE_POLICY')
+    if (hasUnsupportedImages && withConfig.imagePolicy === 'strict') throw new ModelError(
+      `model ${prepared.modelInfo.id} does not support required image input`, 'UNSUPPORTED_IMAGE_INPUT',
+    )
+    const projected = hasUnsupportedImages
       ? { ...withConfig, messages: projectImagesForTextModel(withConfig.messages) }
       : withConfig
     validateNativeTools(projected, prepared.modelInfo)

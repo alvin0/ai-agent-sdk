@@ -1,0 +1,378 @@
+/* The composer rail. One row, never wrapping: a second row of thumbnails
+   pushes the text box down far enough that the composer stops looking like a
+   text box. Overflow scrolls instead. */
+.rail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.rail::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- image thumbnails --------------------------------------------------- */
+
+.thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+}
+
+.thumbButton {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-module-platform);
+  cursor: zoom-in;
+}
+
+.thumbButton img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.thumbVeil {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.42);
+  color: #fff;
+  pointer-events: none;
+}
+
+.thumbRetry {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.52);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* ---- file cards --------------------------------------------------------- */
+
+.fileCard {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 240px;
+  height: 64px;
+  padding: 0 12px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-module-platform);
+}
+
+.fileCard[data-state='error'] {
+  border-color: var(--dsw-alias-label-error, #d95757);
+}
+
+.fileGlyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.fileIcon {
+  width: 22px;
+  height: 26px;
+}
+
+.fileText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.fileName {
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fileMeta {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.progressTrack {
+  display: block;
+  height: 3px;
+  margin-top: 2px;
+  border-radius: 2px;
+  background: var(--dsw-alias-border-l3);
+  overflow: hidden;
+}
+
+.progressBar {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--dsw-alias-button-primary-fill);
+  transition: width var(--ds-transition-duration-fast, 120ms) linear;
+}
+
+/* Before the first byte report there is no fraction to draw, and a bar stuck
+   at zero reads as a stalled upload. */
+.progressBar[data-indeterminate] {
+  width: 40%;
+  animation: slide 1.1s ease-in-out infinite;
+}
+
+@keyframes slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+.spinner {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.cardAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.cardAction:hover {
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+/* The remove control stays out of the way until the pointer or the keyboard
+   asks for it — except on touch, where there is no hover to ask with. */
+.remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-secondary);
+  color: var(--dsw-alias-bg-base);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--ds-transition-duration-fast, 120ms) ease;
+}
+
+.thumb:hover .remove,
+.thumb:focus-within .remove,
+.fileCard:hover .remove,
+.fileCard:focus-within .remove,
+.remove:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .remove { opacity: 1; }
+}
+
+/* ---- refusal notice ----------------------------------------------------- */
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.noticeClose {
+  margin-left: auto;
+  display: inline-flex;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* ---- drop overlay ------------------------------------------------------- */
+
+.dropOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--dsw-alias-bg-base) 78%, transparent);
+  /* It says what a drop would do; it must never eat the drop itself. */
+  pointer-events: none;
+}
+
+.dropCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 48px;
+  border: 1.5px dashed var(--dsw-alias-border-l4);
+  border-radius: 20px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.dropIcon {
+  width: 34px;
+  height: 40px;
+}
+
+.dropTitle {
+  font-size: 15px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.dropLimits {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* ---- lightbox ----------------------------------------------------------- */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightboxMask {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.72);
+  cursor: zoom-out;
+}
+
+.lightboxImage {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 8px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.lightboxClose {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* ---- attachments inside a sent message ---------------------------------- */
+
+.messageGallery {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-self: flex-end;
+  gap: 8px;
+  max-width: 82%;
+}
+
+.messageThumb {
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-module-platform);
+  cursor: zoom-in;
+}
+
+.messageThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* A picture sent on its own keeps its shape, bounded on the longer edge and
+   never blown up past its own pixels. */
+.messageLone {
+  padding: 0;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-module-platform);
+  cursor: zoom-in;
+  line-height: 0;
+}
+
+.messageLone img {
+  max-width: min(240px, 100%);
+  max-height: 240px;
+  width: auto;
+  height: auto;
+  display: block;
+}
+
+/* Only when a bubble follows: an attachment-only message must not carry a
+   trailing gap with nothing under it. */
+.messageGallery:not(:last-child) {
+  margin-bottom: 6px;
+}
+
+/* A message's own file cards are a record, not a draft: nothing to remove. */
+.messageGallery .fileCard {
+  height: 56px;
+}

@@ -22,7 +22,6 @@ import { createApprovalBroker } from '@ai-agent-sdk/core/agent'
 import type {
   ApprovalDecision, InteractiveApprovalBroker, PreToolDecision, ToolInterceptor,
 } from '@ai-agent-sdk/core/agent'
-import type { ToolCallId } from '@ai-agent-sdk/core'
 import { database, schema } from './db/client'
 import { describeMutation } from './tools'
 import type { WireApproval, WireApprovalScope } from './wire'
@@ -127,6 +126,10 @@ export function createApprovalPolicy(options: ApprovalPolicyOptions): ApprovalPo
   const broker = createApprovalBroker()
   /** Prompt text for each parked call, so the answer can be reported richly. */
   const prompts = new Map<string, WireApproval>()
+  const prepared = new Map<string, WireApproval>()
+  const key = (call: { runId?: string; conversationId?: string; callId: string; turn: number; step: number }) =>
+    JSON.stringify([call.runId, call.conversationId, call.turn, call.step, call.callId])
+  const deciding = new Set<string>()
 
   const granted = async (ruleKey: string): Promise<boolean> => {
     if (sessionGrants.has(ruleKey)) return true
@@ -144,7 +147,7 @@ export function createApprovalPolicy(options: ApprovalPolicyOptions): ApprovalPo
       const description = await describeMutation(workspaceRoot, call.toolName, call.args)
       if (description === undefined) return upstream
       if (await granted(description.ruleKey)) return upstream
-      prompts.set(call.callId, {
+      prepared.set(key(call), {
         callId: call.callId,
         toolName: call.toolName,
         title: description.title,
@@ -163,27 +166,38 @@ export function createApprovalPolicy(options: ApprovalPolicyOptions): ApprovalPo
     },
   }
 
+  broker.onRequest(request => {
+    const prompt = prepared.get(key(request))
+    prepared.delete(key(request))
+    if (prompt !== undefined) prompts.set(request.approvalRequestId, { ...prompt, callId: request.approvalRequestId, providerCallId: request.providerCallId })
+  })
+
   return {
     broker,
     interceptor,
     prompt: callId => prompts.get(callId),
     pending: () => broker.pending()
-      .map(request => prompts.get(request.callId))
+      .map(request => prompts.get(request.approvalRequestId))
       .filter((prompt): prompt is WireApproval => prompt !== undefined),
     decide: async (callId, decision, scope) => {
-      const prompt = prompts.get(callId)
-      // Remember the grant BEFORE releasing the call: the model may issue the
-      // next call of the same family immediately, and it must not be asked again.
-      if (prompt !== undefined && decision === 'allow') {
-        if (scope === 'session') sessionGrants.add(prompt.ruleKey)
-        if (scope === 'workspace') {
-          sessionGrants.add(prompt.ruleKey)
-          await grantPermission(workspaceRoot, prompt.ruleKey)
+      if (deciding.has(callId)) return undefined
+      deciding.add(callId)
+      try {
+        const prompt = broker.pending().some(request => request.approvalRequestId === callId) ? prompts.get(callId) : undefined
+        if (prompt === undefined) return undefined
+        // Remember the grant BEFORE releasing the call: the model may issue the
+        // next call of the same family immediately, and it must not be asked again.
+        if (prompt !== undefined && decision === 'allow') {
+          if (scope === 'session') sessionGrants.add(prompt.ruleKey)
+          if (scope === 'workspace') {
+            sessionGrants.add(prompt.ruleKey)
+            await grantPermission(workspaceRoot, prompt.ruleKey)
+          }
         }
-      }
-      const released = broker.resolve(callId as ToolCallId, decision)
-      prompts.delete(callId)
-      return released ? prompt : undefined
+        const released = broker.resolve(callId, decision)
+        prompts.delete(callId)
+        return released ? prompt : undefined
+      } finally { deciding.delete(callId) }
     },
   }
 }
