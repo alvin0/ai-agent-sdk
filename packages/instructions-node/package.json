@@ -1,5 +1,9 @@
 {
   "name": "@ai-agent-sdk/instructions-node",
+  "author": {
+    "name": "alvin0 - chaulamdinhai",
+    "email": "chaulamdinhai@gmail.com"
+  },
   "version": "0.1.0",
   "private": true,
   "description": "Node filesystem-backed AGENTS.md context section for ai-agent-sdk",

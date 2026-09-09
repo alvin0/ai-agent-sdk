@@ -1,5 +1,9 @@
 {
   "name": "@ai-agent-sdk/observability-browser",
+  "author": {
+    "name": "alvin0 - chaulamdinhai",
+    "email": "chaulamdinhai@gmail.com"
+  },
   "version": "0.1.0",
   "private": true,
   "description": "IndexedDB durable observation queue and opt-in browser lifecycle integration",

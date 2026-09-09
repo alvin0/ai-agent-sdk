@@ -741,3 +741,7 @@ Multi-user auth and encryption of the stored
 API keys (the database file is git-ignored but plaintext). Steering carries
 text only: attaching a file while a run is in flight starts a new turn, because
 the SDK's `inject` takes a string.
+
+## Author
+
+alvin0 - chaulamdinhai — [chaulamdinhai@gmail.com](mailto:chaulamdinhai@gmail.com)

@@ -1,5 +1,9 @@
 {
   "name": "@chat-agents/backend",
+  "author": {
+    "name": "alvin0 - chaulamdinhai",
+    "email": "chaulamdinhai@gmail.com"
+  },
   "version": "0.0.0",
   "private": true,
   "description": "Hono backend for the chat-agents sample: owns the agent run loop and the UI wire protocol",

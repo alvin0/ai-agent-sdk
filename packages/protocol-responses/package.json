@@ -1,5 +1,9 @@
 {
   "name": "@ai-agent-sdk/protocol-responses",
+  "author": {
+    "name": "alvin0 - chaulamdinhai",
+    "email": "chaulamdinhai@gmail.com"
+  },
   "version": "0.1.0",
   "private": true,
   "description": "Universal OpenAI Responses and Codex wire schema, serializer, translator, and dialect for ai-agent-sdk",

@@ -1,5 +1,9 @@
 {
   "name": "@ai-agent-sdk/provider-gemini",
+  "author": {
+    "name": "alvin0 - chaulamdinhai",
+    "email": "chaulamdinhai@gmail.com"
+  },
   "version": "0.1.0",
   "private": true,
   "description": "Universal Gemini Interactions adapter and provider plugin for ai-agent-sdk",

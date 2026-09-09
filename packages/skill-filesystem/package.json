@@ -1,5 +1,9 @@
 {
   "name": "@ai-agent-sdk/skill-filesystem",
+  "author": {
+    "name": "alvin0 - chaulamdinhai",
+    "email": "chaulamdinhai@gmail.com"
+  },
   "version": "0.1.0",
   "private": true,
   "description": "Node filesystem-backed skill provider for ai-agent-sdk",

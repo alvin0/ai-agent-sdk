@@ -495,3 +495,7 @@ that mixing them in would discourage running the fast suite.
 ## License
 
 MIT
+
+## Author
+
+alvin0 - chaulamdinhai — [chaulamdinhai@gmail.com](mailto:chaulamdinhai@gmail.com)
