@@ -1,7 +1,7 @@
 # chat-agents
 
 A Next.js chat surface over the `ai-agent-sdk` agent loop, with the display
-model ported from the DeepSeek harness web client: streamed Markdown, typed
+model ported from a production chat web client: streamed Markdown, typed
 tool cards, the blocking-question card that answers the SDK's
 `request_user_input` boundary, and the permission card that answers its
 approval boundary.
@@ -721,19 +721,6 @@ and a locator that stops resolving is worse than an honest cut.
 **Tool cards come from the tool.** Each tool in `backend/src/tools.ts` returns
 `meta.card`, the SDK's UI-metadata channel that the model never sees. That is
 what turns a result into a read, diff, search, web, todo, or filesystem card.
-
-## What was ported from the harness
-
-- `web/src/ui/primitives/` — the harness's cordis-free React primitives verbatim:
-  the mdast→React Markdown renderer (incremental block caching while streaming,
-  Shiki highlighting, KaTeX, protocol allowlist, raw HTML kept literal) plus the
-  terminal, read, diff, search, web, and JSON blocks.
-- `web/src/styles/` — the `--dsw-*` design tokens; dark mode is
-  `body[data-ds-dark-theme]`, driven by a System/Light/Dark preference.
-- The shell, tool row, question card, permission card, and settings dialog are
-  rebuilt against
-  those tokens; the cordis plugin/slot framework and the WebSocket session
-  protocol are not part of this port.
 
 ## Not built yet
 

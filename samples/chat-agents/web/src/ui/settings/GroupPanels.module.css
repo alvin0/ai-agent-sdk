@@ -52,7 +52,7 @@
 }
 
 .rowSelected {
-  border-color: var(--dsw-static-deepseek-450);
+  border-color: var(--dsw-static-brand-450);
   background: var(--dsw-alias-interactive-bg-active);
 }
 

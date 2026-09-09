@@ -2,8 +2,6 @@
  * Compact relative-time bucketing shared by every surface that dates a
  * session. Bucketing is here so two surfaces naming the same session agree;
  * the words stay in each plugin's own dictionary, per locale-owned copy.
- *
- * @module @deepseek-ai/dsh-client-ui-primitives/relative-time
  */
 
 /** Relative-time bucket of a dated row's trailing label. */

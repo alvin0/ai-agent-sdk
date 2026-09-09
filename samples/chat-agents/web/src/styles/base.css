@@ -1,5 +1,5 @@
 /* Base variables referenced by the token sheets and component CSS but defined
- * upstream (deepsuite theme/global.css) — supplied here so the composite
+ * upstream (the design system's theme/global.css) — supplied here so the composite
  * --dsw-font-* variables resolve and motion rides the upstream curve. Code
  * font stack deliberately omits a bare `monospace` tail (Windows CJK falls
  * back to SimSun otherwise). */

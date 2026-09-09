@@ -1,4 +1,4 @@
-/* Visual baseline: deepsuite `@deepseek/md` markdown.css, adapted to CSS
+/* Visual baseline: the upstream markdown package's markdown.css, adapted to CSS
    Modules. Cite pills, header anchors, and thinking-small variants are
    intentionally absent (no matching DOM). Token names match that sheet. */
 
@@ -56,7 +56,7 @@
 }
 
 .markdown a {
-  /* deepsuite markdown.css uses brand-text (blue in newDesign); this sheet
+  /* The upstream markdown.css uses brand-text (blue in newDesign); this sheet
      keeps design-platform brand-text as near-black, so links use the
      dedicated link alias instead. */
   color: var(--dsw-alias-link);
@@ -222,7 +222,7 @@
 
 /* Many-column tables (the renderer's `md-table-wide` hook) keep their
    natural width and scroll inside the wrapper; a hosting layout may widen
-   the wrapper through the hook (deepsuite chat TableWrapper parity). */
+   the wrapper through the hook (upstream chat TableWrapper parity). */
 .tableScroll table {
   border-collapse: collapse;
   width: max-content;
@@ -231,7 +231,7 @@
 
 /* Tables under four columns, and any table inside a blockquote, fill the
    column instead: cells wrap down to their minimum readable width, and the
-   wrapper's scroll only remains for the below-floor case (deepsuite chat
+   wrapper's scroll only remains for the below-floor case (upstream chat
    parity: `.wrapper:not(:has(th:nth-child(4), td:nth-child(4)))`). */
 .tableFill table {
   width: 100%;

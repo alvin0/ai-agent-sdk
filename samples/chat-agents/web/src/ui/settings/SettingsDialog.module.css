@@ -198,7 +198,7 @@
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: var(--dsw-static-deepseek-500);
+  color: var(--dsw-static-brand-500);
   word-break: break-all;
 }
 
@@ -399,7 +399,7 @@
 }
 
 .themeCardSelected {
-  border-color: var(--dsw-static-deepseek-450);
+  border-color: var(--dsw-static-brand-450);
   background: var(--dsw-alias-interactive-bg-active);
   color: var(--dsw-alias-label-primary);
 }
@@ -441,7 +441,7 @@
 }
 
 .groupItemActive {
-  border-color: var(--dsw-static-deepseek-450);
+  border-color: var(--dsw-static-brand-450);
   background: var(--dsw-alias-interactive-bg-active);
 }
 
