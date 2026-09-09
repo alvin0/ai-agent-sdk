@@ -7,6 +7,13 @@
   "version": "0.1.0",
   "description": "Universal fetch, SSE, configurable provider, and provider-attempt accounting for ai-agent-sdk",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alvin0/ai-agent-sdk.git",
+    "directory": "packages/provider-http"
+  },
+  "homepage": "https://github.com/alvin0/ai-agent-sdk/tree/main/packages/provider-http#readme",
+  "bugs": { "url": "https://github.com/alvin0/ai-agent-sdk/issues" },
   "type": "module",
   "sideEffects": false,
   "files": ["dist", "README.md", "LICENSE"],

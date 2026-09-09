@@ -7,6 +7,13 @@
   "version": "0.1.0",
   "description": "Universal Anthropic Messages wire schema, serializer, translator, and dialect for ai-agent-sdk",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alvin0/ai-agent-sdk.git",
+    "directory": "packages/protocol-anthropic-messages"
+  },
+  "homepage": "https://github.com/alvin0/ai-agent-sdk/tree/main/packages/protocol-anthropic-messages#readme",
+  "bugs": { "url": "https://github.com/alvin0/ai-agent-sdk/issues" },
   "type": "module",
   "sideEffects": false,
   "files": ["dist", "README.md", "LICENSE"],

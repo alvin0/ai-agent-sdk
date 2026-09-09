@@ -7,6 +7,13 @@
   "version": "0.1.0",
   "description": "Durable Node JSONL observation journal, recovery, lifecycle, and opt-in wire diagnostics",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alvin0/ai-agent-sdk.git",
+    "directory": "packages/observability-node"
+  },
+  "homepage": "https://github.com/alvin0/ai-agent-sdk/tree/main/packages/observability-node#readme",
+  "bugs": { "url": "https://github.com/alvin0/ai-agent-sdk/issues" },
   "type": "module",
   "sideEffects": false,
   "files": ["dist", "README.md", "LICENSE"],

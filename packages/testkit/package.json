@@ -6,7 +6,15 @@
   },
   "version": "0.1.0",
   "description": "Framework-independent conformance suites for ai-agent-sdk capability authors",
+  "private": true,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alvin0/ai-agent-sdk.git",
+    "directory": "packages/testkit"
+  },
+  "homepage": "https://github.com/alvin0/ai-agent-sdk/tree/main/packages/testkit#readme",
+  "bugs": { "url": "https://github.com/alvin0/ai-agent-sdk/issues" },
   "type": "module",
   "sideEffects": false,
   "files": ["dist", "README.md", "LICENSE"],

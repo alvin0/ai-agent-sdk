@@ -7,6 +7,13 @@
   "version": "0.1.0",
   "description": "Acknowledged HTTPS observation batch exporter for Edge and Web runtimes",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alvin0/ai-agent-sdk.git",
+    "directory": "packages/observability-fetch"
+  },
+  "homepage": "https://github.com/alvin0/ai-agent-sdk/tree/main/packages/observability-fetch#readme",
+  "bugs": { "url": "https://github.com/alvin0/ai-agent-sdk/issues" },
   "type": "module",
   "sideEffects": false,
   "files": ["dist", "README.md", "LICENSE"],

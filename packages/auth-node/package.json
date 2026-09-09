@@ -7,6 +7,13 @@
   "version": "0.1.0",
   "description": "Node environment credentials and project-local Codex authentication for ai-agent-sdk",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alvin0/ai-agent-sdk.git",
+    "directory": "packages/auth-node"
+  },
+  "homepage": "https://github.com/alvin0/ai-agent-sdk/tree/main/packages/auth-node#readme",
+  "bugs": { "url": "https://github.com/alvin0/ai-agent-sdk/issues" },
   "type": "module",
   "sideEffects": false,
   "files": ["dist", "bin", "README.md", "LICENSE"],

@@ -7,6 +7,13 @@
   "version": "0.1.0",
   "description": "Node-elevated official A2A client/server bridge for ai-agent-sdk",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alvin0/ai-agent-sdk.git",
+    "directory": "packages/a2a"
+  },
+  "homepage": "https://github.com/alvin0/ai-agent-sdk/tree/main/packages/a2a#readme",
+  "bugs": { "url": "https://github.com/alvin0/ai-agent-sdk/issues" },
   "type": "module",
   "sideEffects": false,
   "files": ["dist", "README.md", "LICENSE"],

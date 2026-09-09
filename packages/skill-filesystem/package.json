@@ -7,6 +7,13 @@
   "version": "0.1.0",
   "description": "Node filesystem-backed skill provider for ai-agent-sdk",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alvin0/ai-agent-sdk.git",
+    "directory": "packages/skill-filesystem"
+  },
+  "homepage": "https://github.com/alvin0/ai-agent-sdk/tree/main/packages/skill-filesystem#readme",
+  "bugs": { "url": "https://github.com/alvin0/ai-agent-sdk/issues" },
   "type": "module",
   "sideEffects": false,
   "files": ["dist", "README.md", "LICENSE"],

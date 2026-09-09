@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Pack and inspect the tarballs without publishing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 22.18.0
+          registry-url: https://registry.npmjs.org
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@11.25.0 --ignore-scripts
+
+      - name: Install workspace-tool prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
+          rg --version
+
+      - name: Frozen dependency install
+        run: pnpm install --frozen-lockfile
+
+      - name: Graph and runtime boundary gates
+        run: pnpm lint
+
+      - name: Build publishable packages
+        run: pnpm workspace:build
+
+      - name: Package export and type gates
+        run: pnpm -r --filter './packages/*' check:publint && pnpm -r --filter './packages/*' check:types
+
+      # `pnpm pack` is what resolves `workspace:^` and `catalog:` specifiers into
+      # real semver ranges. `npm publish <tarball>` then uploads that resolved
+      # tarball with provenance attached by the OIDC token above.
+      - name: Pack every publishable package
+        run: |
+          rm -rf artifacts
+          mkdir -p artifacts
+          for dir in packages/*/; do
+            name="$(node -p "require('./${dir}package.json').name")"
+            if node -p "require('./${dir}package.json').private === true" | grep -q true; then
+              echo "skip (private) $name"
+              continue
+            fi
+            (cd "$dir" && pnpm pack --pack-destination "$GITHUB_WORKSPACE/artifacts")
+          done
+          ls -l artifacts
+
+      - name: Assert tag matches package versions
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(node -p "require('./packages/core/package.json').version")"
+          test "$tag" = "$version" || {
+            echo "tag $GITHUB_REF_NAME does not match @ai-agent-sdk/core version $version" >&2
+            exit 1
+          }
+
+      - name: Verify resolved dependency ranges
+        run: |
+          for tarball in artifacts/*.tgz; do
+            echo "== $tarball"
+            tar xzOf "$tarball" package/package.json \
+              | node -e "
+                  let raw = '';
+                  process.stdin.on('data', (chunk) => { raw += chunk });
+                  process.stdin.on('end', () => {
+                    const pkg = JSON.parse(raw);
+                    const specs = { ...pkg.dependencies, ...pkg.peerDependencies };
+                    const unresolved = Object.entries(specs).filter(([, spec]) => /^(workspace|catalog):/.test(spec));
+                    if (unresolved.length > 0) {
+                      console.error(pkg.name + ' has unresolved specifiers: ' + JSON.stringify(unresolved));
+                      process.exit(1);
+                    }
+                    console.log(pkg.name + '@' + pkg.version + ' ok');
+                  });
+                "
+          done
+
+      - name: Publish to npm with provenance
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.dry-run == false
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for tarball in artifacts/*.tgz; do
+            echo "== publishing $tarball"
+            npm publish "$tarball" --provenance --access public
+          done
