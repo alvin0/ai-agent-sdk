@@ -13,11 +13,13 @@ import { captureNativeTools, captureToolChoice } from './native-tools.ts'
 import { captureMemoryBinding } from '../memory/definition.ts'
 import type { CapturedMemoryBinding } from '../memory/types.ts'
 import { captureRuntimeSkillSources } from '../skill-provider/definition.ts'
+import { captureRuntimeContextSections } from './policy.ts'
 import type { AgentCompactionConfig, AgentCompactionOptions } from '../../agent/memory/compaction-config.ts'
 import { assertAgentIdentitySnapshot } from '../identity/agent.ts'
 
 const KEYS = new Set(['id', 'name', 'description', 'model', 'instructions', 'effort', 'maxTokens', 'mode',
-  'tools', 'nativeTools', 'toolChoice', 'outputFormat', 'toolSources', 'skills', 'allowedSkillIds', 'memory', 'compaction',
+  'tools', 'nativeTools', 'toolChoice', 'outputFormat', 'toolSources', 'skills', 'allowedSkillIds', 'memory',
+  'contextSections', 'compaction',
   'maxTurns', 'maxToolCalls', 'commentary'])
 
 export interface BoundRuntimeAgentDefinition {
@@ -91,6 +93,7 @@ export function bindRuntimeAgentDefinition(
   const toolChoice = captureToolChoice(values.toolChoice)
   const memory = values.memory === undefined ? undefined : captureMemoryBinding(values.memory)
   const skills = values.skills === undefined ? undefined : captureRuntimeSkillSources(values.skills)
+  const contextSections = captureRuntimeContextSections(values.contextSections)
   assertAgentIdentitySnapshot({ ...(tools === undefined ? {} : { tools }), nativeTools,
     ...(skills === undefined ? {} : { skills }), ...(values.allowedSkillIds === undefined ? {} : {
       allowedSkillIds: values.allowedSkillIds as readonly string[],
@@ -109,6 +112,7 @@ export function bindRuntimeAgentDefinition(
     ...(skills === undefined ? {} : { skills: skills as DefinedAgent['skills'] }),
     ...(values.allowedSkillIds === undefined ? {} : { skillIds: values.allowedSkillIds as readonly string[] }),
     ...(toolChoice === undefined ? {} : { toolChoice }),
+    ...(contextSections === undefined ? {} : { contextSections }),
     ...(values.outputFormat === undefined ? {} : {
       outputFormat: values.outputFormat as NonNullable<RuntimeAgentBindingInput['outputFormat']>,
     }),

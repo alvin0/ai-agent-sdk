@@ -220,6 +220,7 @@ async function driveAgent(
     ...options.trace === undefined ? {} : { trace: options.trace },
     ...options.accounting === undefined ? {} : { accounting: options.accounting },
     ...options.spillStore === undefined ? {} : { spillStore: options.spillStore },
+    ...options.contextSections === undefined ? {} : { contextSections: options.contextSections },
   }
 
   let terminal: TurnOutcome | undefined

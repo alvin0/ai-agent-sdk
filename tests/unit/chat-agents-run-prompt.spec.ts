@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -194,6 +194,96 @@ describe('runPrompt end to end', () => {
   }, 20_000)
 })
 
+describe('naming a skill with `/`', () => {
+  it('asks the model to load it, without rewriting what the user said', async () => {
+    // A skill is loaded when the MODEL decides it applies, so there was no way
+    // to say "use the review skill, now" except in prose. `/` says it — and it
+    // stays a mention: the directive tells the model to `load_skill`, it does
+    // not splice the skill's instructions into the prompt.
+    const skill = join(process.env.CHAT_AGENTS_WORKSPACE as string, '.agents', 'skills', 'code-review')
+    mkdirSync(skill, { recursive: true })
+    writeFileSync(
+      join(skill, 'SKILL.md'),
+      '---\nname: code-review\ndescription: Review a diff for defects.\n---\n\nRead the diff first.\n',
+      'utf8',
+    )
+    try {
+      const id = await conversation()
+      setMockScript(() => text('done'))
+
+      await prompt(id, '/code-review look at the diff')
+
+      const sent = JSON.stringify(mockRequests()[0]?.messages ?? [])
+      expect(sent).toContain('load_skill')
+      expect(sent).toContain('`code-review`')
+      // The user's own words survive intact next to the directive.
+      expect(sent).toContain('look at the diff')
+      // The skill's BODY is not in the prompt: the model loads it or it does
+      // not, and a copy here would be a second, stale one.
+      expect(sent).not.toContain('Read the diff first')
+
+      // The transcript stores what the user typed, not the instruction written
+      // for the model — with the match recorded beside it.
+      const stored = await readMessages(id)
+      const user = stored.find(node => (node as { kind?: string }).kind === 'user')
+      expect(user).toMatchObject({ text: '/code-review look at the diff', skills: ['code-review'] })
+      expect(JSON.stringify(user)).not.toContain('load_skill')
+    } finally { rmSync(join(process.env.CHAT_AGENTS_WORKSPACE as string, '.agents'), { recursive: true, force: true }) }
+  }, 20_000)
+
+  it('takes a chip the composer attached, with no `/` in the message', async () => {
+    // Picked from the menu, a mention is a chip: it leaves the text, so the
+    // prompt the model reads is an ordinary sentence and the id travels beside
+    // it. The catalogue is still the allowlist.
+    const skill = join(process.env.CHAT_AGENTS_WORKSPACE as string, '.agents', 'skills', 'code-review')
+    mkdirSync(skill, { recursive: true })
+    writeFileSync(
+      join(skill, 'SKILL.md'),
+      '---\nname: code-review\ndescription: Review a diff for defects.\n---\n\nRead the diff first.\n',
+      'utf8',
+    )
+    try {
+      const id = await conversation()
+      setMockScript(() => text('done'))
+
+      const wires: Wire[] = []
+      for await (const event of runPrompt(id, 'look at the diff', 'default', [], ['code-review'])) {
+        wires.push(event as Wire)
+      }
+
+      const sent = JSON.stringify(mockRequests()[0]?.messages ?? [])
+      expect(sent).toContain('load_skill')
+      expect(sent).toContain('`code-review`')
+      const stored = await readMessages(id)
+      expect(stored.find(node => (node as { kind?: string }).kind === 'user'))
+        .toMatchObject({ text: 'look at the diff', skills: ['code-review'] })
+    } finally { rmSync(join(process.env.CHAT_AGENTS_WORKSPACE as string, '.agents'), { recursive: true, force: true }) }
+  }, 20_000)
+
+  it('drops a chip id no project has', async () => {
+    const id = await conversation()
+    setMockScript(() => text('done'))
+
+    for await (const _ of runPrompt(id, 'do it', 'default', [], ['made-up'])) { /* drain */ }
+
+    expect(JSON.stringify(mockRequests()[0]?.messages ?? [])).not.toContain('load_skill')
+  }, 20_000)
+
+  it('leaves a path alone', async () => {
+    // `/etc/passwd` in a prompt must not become a skill, and a prompt with no
+    // match must not carry a directive at all.
+    const id = await conversation()
+    setMockScript(() => text('done'))
+
+    await prompt(id, 'read /etc/passwd and report')
+
+    expect(JSON.stringify(mockRequests()[0]?.messages ?? [])).not.toContain('load_skill')
+    const stored = await readMessages(id)
+    expect(stored.find(node => (node as { kind?: string }).kind === 'user'))
+      .not.toHaveProperty('skills')
+  }, 20_000)
+})
+
 describe('a conversation that goes on all day', () => {
   it('compacts a single-agent chat instead of growing until the provider refuses', async () => {
     // The single-agent modes used to run on the bare loop, which carries no
@@ -243,6 +333,45 @@ describe('a conversation that goes on all day', () => {
     await pending
     // The steered text reaches the model, not just the transcript.
     expect(JSON.stringify(mockRequests())).toContain('only the summary')
+  }, 30_000)
+
+  it('reads a `/` mention typed mid-run the same way as one typed at the start', async () => {
+    // Steering was the path where the composer offered the menu and the mention
+    // then arrived as bare text: `/code-review` mid-run meant nothing to the
+    // model, which is worse than not offering the menu at all.
+    const skill = join(process.env.CHAT_AGENTS_WORKSPACE as string, '.agents', 'skills', 'code-review')
+    mkdirSync(skill, { recursive: true })
+    writeFileSync(
+      join(skill, 'SKILL.md'),
+      '---\nname: code-review\ndescription: Review a diff for defects.\n---\n\nRead the diff first.\n',
+      'utf8',
+    )
+    try {
+      const id = await conversation()
+      let midRun: (() => void) | undefined
+      const running = new Promise<void>((resolve) => { midRun = resolve })
+      setMockScript((request, index) => {
+        if (index === 0) {
+          midRun?.()
+          return [
+            { type: 'text-delta', index: 0, text: 'working' },
+            { type: 'hang', signal: request.signal, ms: 150 } as unknown as StreamChunk,
+            { type: 'block-end', index: 0, block: { type: 'text', text: 'working', phase: 'final-answer' } },
+            { type: 'finish', reason: { kind: 'stop' } },
+          ]
+        }
+        return text('loaded it')
+      })
+
+      const pending = prompt(id, 'first ask')
+      await running
+      expect(await steer(id, 'now /code-review the diff')).toBe(true)
+      await pending
+
+      const sent = JSON.stringify(mockRequests())
+      expect(sent).toContain('load_skill')
+      expect(sent).toContain('the diff')
+    } finally { rmSync(join(process.env.CHAT_AGENTS_WORKSPACE as string, '.agents'), { recursive: true, force: true }) }
   }, 30_000)
 })
 

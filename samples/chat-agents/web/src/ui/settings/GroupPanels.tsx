@@ -342,6 +342,66 @@ export function McpPane({ settings }: { settings: SettingsController }) {
 }
 
 /**
+ * The project's `AGENTS.md` files, as the runtime reads them.
+ *
+ * Read-only on purpose: the files belong to the project and are edited there.
+ * What cannot be answered from the project is whether they are actually IN the
+ * prompt — the SDK delivers them as an always-on context section, which is
+ * silent by design, and a convention file being read invisibly looks exactly
+ * like one being ignored.
+ * @param props - The settings controller.
+ * @returns The project-instructions pane.
+ */
+export function InstructionsPane({ settings }: { settings: SettingsController }) {
+  const found = settings.instructions
+  const files = found?.files ?? []
+
+  return (
+    <div className={css.pane}>
+      <p className={css.muted}>
+        An <code>AGENTS.md</code> file states the project&apos;s conventions. Unlike a skill,
+        it is always on: every agent in this project reads it before every model round, and
+        the SDK re-reads it while the run is in progress, so an edit lands on the next round
+        without restarting the conversation.
+      </p>
+      <p className={css.muted}>
+        Files are read broad-to-specific from the project folder down, and a directory the
+        agent reaches into mid-run contributes its own file from that point on — those are
+        not listed here, because they depend on what the agent has opened so far.
+        <code> AGENTS.override.md</code> wins over <code>AGENTS.md</code> in the same folder.
+      </p>
+
+      <ul className={css.list}>
+        {found === undefined && <li className={css.muted}>Loading…</li>}
+        {found !== undefined && files.length === 0 && (
+          <li className={css.muted}>
+            No instruction file yet. Create <code>{`${found.workspaceRoot}/AGENTS.md`}</code>
+            {' '}and it is picked up on the next model round.
+          </li>
+        )}
+        {files.map(file => (
+          <li key={file.absolutePath}>
+            <div className={css.row}>
+              <StateDot state="done" />
+              <div className={css.rowMain}>
+                <span className={css.rowTitle}>
+                  {file.path}
+                  {file.global === true ? ' (global)' : ''}
+                </span>
+                <span className={css.rowMeta}>
+                  {`${String(Math.max(1, Math.round(file.bytes / 1024)))} KB`}
+                  {file.firstLine === '' ? '' : ` · ${file.firstLine}`}
+                </span>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/**
  * Skill roots: directories of SKILL.md folders discovered before each turn.
  * @param props - The settings controller.
  * @returns The skills pane.
@@ -384,7 +444,9 @@ export function SkillsPane({ settings }: { settings: SettingsController }) {
       <p className={css.muted}>
         Every project is scanned automatically: <code>.agents/skills</code> and
         <code> .dsh/skills</code> inside its folder, up to the repository root. The folders
-        below are global — they are available in every project.
+        below are global — they are available in every project. Set
+        <code> CHAT_AGENTS_USER_SKILLS=1</code> to also scan
+        <code> $HOME/.agents/skills</code>.
       </p>
 
       <div className={css.inlineForm}>

@@ -11,6 +11,7 @@ import type { ApprovalBroker } from '../../tool/approval.ts'
 import type { ToolInterceptor, ToolCallRequest } from '../../tool/pipeline.ts'
 import type { ToolCatalog } from '../../tool/registry.ts'
 import type { SpillStore } from '../../tool/output-budget.ts'
+import type { ContextSection } from '../../context/types.ts'
 import { type SpanId, type TraceId, type TraceRef } from '../../trace/trace.ts'
 import type { AssistantContentTiming, TurnBounds, TurnHooks } from '../types.ts'
 import type { SdkLogger } from '../../../logging/types.ts'
@@ -70,6 +71,13 @@ export interface RunTurnOptions {
    * retrieves the rest.
    */
   readonly spillStore?: SpillStore
+  /**
+   * Model-visible context recomputed before every model round.
+   *
+   * Each section owns one surface node and rewrites it only when its revision
+   * changes, so unchanged context costs nothing after the first write.
+   */
+  readonly contextSections?: readonly ContextSection[]
 }
 
 /** Internal request phase: structured process rounds defer the caller's final format. */

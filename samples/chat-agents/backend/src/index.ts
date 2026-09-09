@@ -20,9 +20,9 @@ export { credentialViews, saveCredential } from './credentials'
 export type { CredentialView } from './credentials'
 export { browseDirectory, currentWorkspace, defaultWorkspace, setWorkspace } from './workspace'
 export {
-  createGroup, deleteGroup, getGroup, listGroups, updateGroup, DEFAULT_GROUP_ID,
+  createGroup, deleteGroup, getGroup, listGroups, listGroupViews, updateGroup, DEFAULT_GROUP_ID,
 } from './groups'
-export type { GroupRow } from './groups'
+export type { GroupRow, GroupView } from './groups'
 export {
   createAgent, createMcpServer, createSkill, deleteAgent, deleteMcpServer, deleteSkill,
   getAgent, listAgents, listMcpServers, listSkills, mcpTools, updateAgent, updateMcpServer,
@@ -41,10 +41,16 @@ export { EventProjector } from './event-projection'
 export type { EventProjectorOptions, StoredNode } from './event-projection'
 export type { DirectoryEntry, DirectoryListing, PathSegment } from './workspace'
 export {
-  commandExecutable, createSampleTools, describeMutation, diffLines, onCommandOutput,
-  MUTATING_TOOLS, TOOL_LABELS,
+  commandRuleKeys, commandRules, createSampleTools, describeMutation, diffLines, onCommandOutput,
+  plainTokens, MUTATING_TOOLS, TOOL_LABELS,
 } from './tools'
-export type { CommandOutputListener, MutationDescription } from './tools'
+export type { CommandOutputListener, MutationDescription, RuleChoice } from './tools'
+export { commandHazards } from './hazards'
+export { listProjectInstructions } from './instructions'
+export { listAvailableSkills, resolveSkillMentions, skillSourcesFor } from './skill-catalog'
+export type { ResolvedMentions, SkillMention } from './skill-catalog'
+export type { ProjectInstructionFile, ProjectInstructions } from './instructions'
+export type { Hazard, HazardSeverity } from './hazards'
 export { buildRegistry, listModels, listProviders, resolveModel } from './registry'
 export type { ModelOption, ModelSelection, ProviderInfoView } from './registry'
 export { cancelCodexLogin, codexAccount, codexLoginState, codexSignedIn, startCodexLogin } from './auth'

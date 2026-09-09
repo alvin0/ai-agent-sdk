@@ -14,7 +14,9 @@ import {
   listAgents, listMcpServers, listSkills, updateAgent, updateMcpServer, updateSkill,
 } from './agents'
 import { credentialViews, saveCredential } from './credentials'
-import { createGroup, deleteGroup, getGroup, listGroups, updateGroup } from './groups'
+import { listProjectInstructions } from './instructions'
+import { listAvailableSkills } from './skill-catalog'
+import { createGroup, deleteGroup, getGroup, listGroupViews, updateGroup } from './groups'
 import { groupToolSurface } from './runtime-tools'
 import { listModels, listProviders } from './registry'
 import {
@@ -138,8 +140,11 @@ export function createChatApp(basePath = '/api') {
           const attachmentIds = Array.isArray(body.attachmentIds)
             ? body.attachmentIds.filter((id): id is string => typeof id === 'string')
             : []
+          const skillIds = Array.isArray(body.skillIds)
+            ? body.skillIds.filter((id): id is string => typeof id === 'string')
+            : []
           for await (const event of runPrompt(
-            body.sessionId, body.prompt, body.groupId, attachmentIds,
+            body.sessionId, body.prompt, body.groupId, attachmentIds, skillIds,
           )) {
             controller.enqueue(encoder.encode(sse(event)))
           }
@@ -173,7 +178,10 @@ export function createChatApp(basePath = '/api') {
     if (typeof body.sessionId !== 'string' || typeof body.prompt !== 'string') {
       return c.json({ error: 'sessionId and prompt are required' }, 400)
     }
-    return c.json({ steered: await steer(body.sessionId, body.prompt) })
+    const skillIds = Array.isArray(body.skillIds)
+      ? body.skillIds.filter((id): id is string => typeof id === 'string')
+      : []
+    return c.json({ steered: await steer(body.sessionId, body.prompt, skillIds) })
   })
 
   app.post('/answer', async (c) => {
@@ -185,7 +193,11 @@ export function createChatApp(basePath = '/api') {
    * Answer a parked permission prompt.
    *
    * `scope` decides how long the answer lasts: this call, the whole
-   * conversation, or every conversation in the project's directory.
+   * conversation, or every conversation in the project's directory. `ruleKey`
+   * decides how wide it reaches — one of the rules the prompt offered, e.g.
+   * `run_command:prefix:git diff` rather than every `git` command. An
+   * unrecognised key is dropped by the policy, which falls back to the
+   * narrowest rule instead of storing what the client asked for.
    */
   app.post('/approve', async (c) => {
     const body = await c.req.json<ApproveRequestBody>()
@@ -199,7 +211,12 @@ export function createChatApp(basePath = '/api') {
     if (!APPROVAL_SCOPES.includes(scope)) {
       return c.json({ error: `scope must be one of ${APPROVAL_SCOPES.join(', ')}` }, 400)
     }
-    return c.json({ resolved: await approve(body.sessionId, body.callId, body.decision, scope) })
+    if (body.ruleKey !== undefined && typeof body.ruleKey !== 'string') {
+      return c.json({ error: 'ruleKey must be a string' }, 400)
+    }
+    return c.json({
+      resolved: await approve(body.sessionId, body.callId, body.decision, scope, body.ruleKey),
+    })
   })
 
   // ---- standing permissions ----------------------------------------------
@@ -301,7 +318,9 @@ export function createChatApp(basePath = '/api') {
 
   // ---- groups -------------------------------------------------------------
 
-  app.get('/groups', async c => c.json({ groups: await listGroups() }))
+  // Carries each group's conversation count: the sidebar lists every project
+  // at once, and only the open project's conversations reach the browser.
+  app.get('/groups', async c => c.json({ groups: await listGroupViews() }))
 
   app.post('/groups', async (c) => {
     // A project IS a folder: the name defaults to the folder's own name, so
@@ -406,6 +425,41 @@ export function createChatApp(basePath = '/api') {
   })
 
   app.get('/groups/:id/skills', async c => c.json({ skills: await listSkills(c.req.param('id')) }))
+
+  /**
+   * The skills the composer's `/` menu offers.
+   *
+   * Metadata only, from the same providers the run uses, so the menu cannot
+   * advertise a skill the run would not find. Called on a keystroke, which is
+   * why it takes the provider's cheap `list` path and reads no skill bodies.
+   */
+  app.get('/groups/:id/skills/available', async (c) => {
+    const group = await getGroup(c.req.param('id'))
+    return c.json({
+      skills: await listAvailableSkills(
+        { groupId: group.id, workspaceRoot: group.workspaceRoot },
+        c.req.raw.signal,
+      ),
+    })
+  })
+
+  /**
+   * The `AGENTS.md` files this group's agents read before every model round.
+   *
+   * Read-only: the files belong to the project and are edited there. What the
+   * UI needs is the answer to "is my convention file actually being read",
+   * which an always-on context section cannot answer for itself.
+   */
+  app.get('/groups/:id/instructions', async (c) => {
+    const group = await getGroup(c.req.param('id'))
+    const globalFile = process.env.CHAT_AGENTS_GLOBAL_INSTRUCTIONS
+    return c.json({
+      instructions: await listProjectInstructions(group.workspaceRoot, {
+        ...globalFile === undefined || globalFile === '' ? {} : { globalFile },
+        walkUp: process.env.CHAT_AGENTS_INSTRUCTIONS_WALK_UP === '1',
+      }),
+    })
+  })
 
   app.post('/groups/:id/skills', async (c) => {
     const body = await c.req.json<{ name: string; rootPath: string; projectOnly?: boolean }>()

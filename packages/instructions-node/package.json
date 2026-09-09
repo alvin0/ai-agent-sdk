@@ -1,0 +1,43 @@
+{
+  "name": "@ai-agent-sdk/instructions-node",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node filesystem-backed AGENTS.md context section for ai-agent-sdk",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "README.md", "LICENSE"],
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": { "types": "./dist/index.d.mts", "import": "./dist/index.mjs", "default": "./dist/index.mjs" },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": { "access": "public", "provenance": true },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "node -e \"for(const p of ['dist','artifacts'])require('node:fs').rmSync(p,{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "pack": "pnpm pack --pack-destination artifacts",
+    "test:pack": "node ../../scripts/test-packed-node-capability.mts instructions-node",
+    "check:publint": "publint",
+    "check:types": "attw --profile esm-only --pack ."
+  },
+  "peerDependencies": { "@ai-agent-sdk/core": "workspace:^" },
+  "devDependencies": {
+    "@ai-agent-sdk/core": "workspace:^",
+    "@arethetypeswrong/cli": "catalog:",
+    "@types/node": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": { "node": ">=22.12" },
+  "aiAgentSdk": {
+    "runtime": "node",
+    "coreApi": 1,
+    "roles": ["context-section"]
+  }
+}

@@ -9,7 +9,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   IconChevronDownOutline14, IconChevronRightOutline14, IconFolderOpen16, IconLoadingOutline16,
-  IconPaperclipOutline16, IconSendOutline16, IconStopFill16, IconThinkOutline14,
+  IconPaperclipOutline16, IconSendOutline16, IconSettingsOutline16, IconStopFill16,
+  IconThinkOutline14,
   IconWarningOutline16, MarkdownText, projectUserText, StateDot,
 } from '../primitives'
 import { markdownLabels } from '../labels'
@@ -21,6 +22,12 @@ import { ToolGroup } from './ToolGroup'
 import { ComposerControls } from './ComposerControls'
 import { ComposerAttachments, MessageAttachments } from './Attachments'
 import { useAttachments } from './useAttachments'
+import {
+  MentionHighlights, SkillChips, SkillMenu, useActiveIndex, useSkillCatalogue,
+} from './SkillMenu'
+import { detachTrigger, matchSkills, mentionRanges, skillTriggerAt } from './mentions'
+import type { SkillTrigger } from './mentions'
+import type { SkillMention } from '@chat-agents/backend'
 import type { SettingsController } from '../settings/useSettings'
 import type { ChatController } from './useChat'
 import { blocksOf, formatSpan, rosterOf, segmentsOf, turnsOf, withDelegationPrompts } from './turns'
@@ -242,6 +249,15 @@ function NodeView({
           {node.text.trim() !== '' && (
             <div className={css.userMessage}>{projectUserText(node.text, [])}</div>
           )}
+          {/* Which skills the `/` mentions actually matched. The message shows
+              what was typed; this shows what the backend recognised, which is
+              the difference between a skill being loaded and a word being
+              ignored. */}
+          {node.skills !== undefined && node.skills.length > 0 && (
+            <div className={css.userSkills}>
+              {node.skills.map(id => <span key={id} className={css.userSkill}>{`/${id}`}</span>)}
+            </div>
+          )}
         </>
       )
     case 'assignment':
@@ -406,10 +422,19 @@ export interface ChatViewProps {
   settings: SettingsController
   /** Conversation title shown in the column header. */
   title: string
+  /**
+   * The open project's name, shown before the title.
+   *
+   * Its `workspace` path is the crumb's tooltip: two projects can be named for
+   * the same folder basename, and the path is what tells them apart.
+   */
+  project: string
   /** Effective provider/model for the next run. */
   modelLabel: string
   /** Directory the agent's tools are confined to. */
   workspace: string
+  /** Open the project dialog from the project crumb. */
+  onOpenProjects: () => void
   onOpenSettings: () => void
 }
 
@@ -418,11 +443,44 @@ export interface ChatViewProps {
  * @param props - Chat controller plus the header's context.
  * @returns The centre column.
  */
-export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenSettings }: ChatViewProps) {
+export function ChatView({
+  chat, settings, title, project, modelLabel, workspace, onOpenProjects, onOpenSettings,
+}: ChatViewProps) {
   const [draft, setDraft] = useState('')
   const [focusRequest, setFocusedMember] = useState<string | null>(null)
   const attachments = useAttachments()
   const picker = useRef<HTMLInputElement | null>(null)
+  const input = useRef<HTMLTextAreaElement | null>(null)
+  /**
+   * The `/` trigger under the caret, when there is one.
+   *
+   * Tracked in state rather than derived from `draft`, because it depends on
+   * the CARET as well as the text: the same draft has a live trigger when the
+   * caret sits inside `/rev` and none when it has moved to the end of the line.
+   */
+  const [trigger, setTrigger] = useState<SkillTrigger | undefined>(undefined)
+  // Keyed on whether a trigger exists at all, not on whether the menu has
+  // matches: the fetch is what PRODUCES the matches.
+  const catalogue = useSkillCatalogue(settings.groupId, trigger !== undefined)
+  const matches = useMemo(
+    () => trigger === undefined ? [] : matchSkills(catalogue, trigger.query),
+    [catalogue, trigger],
+  )
+  const [active, setActive] = useActiveIndex(matches.length)
+  /** The textarea's scroll offset, so the drawn layer can follow it. */
+  const [scrolled, setScrolled] = useState(0)
+  /**
+   * Skills attached to the message being composed.
+   *
+   * Picking from the menu takes the `/word` OUT of the draft and puts it here,
+   * so the message stays a sentence and the attachment is something you can see
+   * and remove. Typing `/id` by hand still works and is read from the text;
+   * both reach the backend, which reconciles them against the catalogue.
+   */
+  const [attached, setAttached] = useState<readonly SkillMention[]>([])
+  /** Whether the draft has a mention worth colouring — see `.painting`. */
+  const painting = useMemo(() => mentionRanges(draft, catalogue).length > 0, [draft, catalogue])
+  const menuOpen = trigger !== undefined && matches.length > 0
   const bottom = useRef<HTMLDivElement | null>(null)
   const scroller = useRef<HTMLDivElement | null>(null)
   const pinned = useRef(true)
@@ -454,10 +512,40 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
   // through an upload rather than silently dropping the file it is waiting on.
   const sendable = (draft.trim() !== '' || ready.length > 0) && !attachments.uploading
 
+  /** Track the trigger from whatever just moved the caret or the text. */
+  const retrack = (element: HTMLTextAreaElement) => {
+    setTrigger(skillTriggerAt(element.value, element.selectionStart))
+  }
+
+  const pick = (skill: SkillMention) => {
+    if (trigger === undefined) return
+    // The trigger text is removed rather than completed: the skill is now a
+    // chip, and leaving `/id` behind would attach it twice over.
+    const next = detachTrigger(draft, trigger)
+    setDraft(next.draft)
+    setTrigger(undefined)
+    setAttached(current => current.some(entry => entry.id === skill.id)
+      ? current
+      : [...current, skill])
+    requestAnimationFrame(() => {
+      const element = input.current
+      if (element === null) return
+      element.focus()
+      element.setSelectionRange(next.caret, next.caret)
+    })
+  }
+
+  const detach = (id: string) => {
+    setAttached(current => current.filter(skill => skill.id !== id))
+    input.current?.focus()
+  }
+
   const submit = () => {
     if (!sendable) return
     const text = draft.trim()
+    const skillIds = attached.map(skill => skill.id)
     setDraft('')
+    setAttached([])
     attachments.clear()
     // The pickers may be showing a remembered model that the conversation row
     // does not carry yet — a new chat has no row until something writes one.
@@ -468,7 +556,9 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
       // Steering carries text and nothing else — it injects a string into the
       // running agent's history — so a message with files starts its own turn
       // instead of losing them.
-      await (chat.running && ready.length === 0 ? chat.steer(text) : chat.send(text, ready))
+      await (chat.running && ready.length === 0
+        ? chat.steer(text, skillIds)
+        : chat.send(text, ready, skillIds))
     })()
   }
 
@@ -503,11 +593,34 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
   return (
     <div className={css.column}>
       <header className={css.header}>
-        <span className={css.headerTitle}>{title}</span>
-        <div className={css.headerMeta}>
-          <button type="button" className={css.chip} onClick={onOpenSettings} title={workspace}>
+        {/*
+          Project first, then the conversation. Which project is open decides
+          what every tool in a run can read and write, and the header used to
+          name only the conversation — with the project reduced to a folder chip
+          at the far right, where it read as a setting rather than as the place
+          the work is happening.
+        */}
+        <nav className={css.crumbs} aria-label="Location">
+          <button
+            type="button"
+            className={css.crumbProject}
+            title={workspace}
+            onClick={onOpenProjects}
+          >
             <IconFolderOpen16 />
-            <span className={css.chipText}>{workspace.split('/').slice(-1)[0] || workspace}</span>
+            <span className={css.crumbText}>{project}</span>
+          </button>
+          <span className={css.crumbSep} aria-hidden="true">›</span>
+          <span className={css.crumbTitle}>{title}</span>
+        </nav>
+        <div className={css.headerMeta}>
+          <button
+            type="button"
+            className={css.chip}
+            onClick={onOpenSettings}
+            title="Settings"
+          >
+            <IconSettingsOutline16 />
           </button>
         </div>
       </header>
@@ -572,7 +685,9 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
         <ApprovalCard
           key={parked.callId}
           node={parked}
-          onDecide={(callId, decision, scope) => { void chat.approve(callId, decision, scope) }}
+          onDecide={(callId, decision, scope, ruleKey) => {
+            void chat.approve(callId, decision, scope, ruleKey)
+          }}
         />
       )}
 
@@ -586,34 +701,84 @@ export function ChatView({ chat, settings, title, modelLabel, workspace, onOpenS
         </div>
         <div className={css.composer}>
           <ComposerAttachments attachments={attachments} />
-          <textarea
-            className={css.input}
-            value={draft}
-            rows={1}
-            placeholder={chat.running
-              ? 'Steer the agent — it reads this on its next step…'
-              : 'Ask anything about the workspace…'}
-            onChange={(event) => { setDraft(event.target.value) }}
-            onPaste={(event) => {
-              // A screenshot on the clipboard is the fastest way an image ever
-              // reaches a chat, and it arrives as a file item with no name.
-              const files = [...event.clipboardData.items]
-                .filter(item => item.kind === 'file')
-                .map(item => item.getAsFile())
-                .filter((file): file is File => file !== null)
-              if (files.length === 0) return
-              // Only the files are taken; any text on the clipboard still
-              // pastes into the box, which is what a mixed copy meant.
-              attachments.add(files)
-              if (event.clipboardData.getData('text/plain') === '') event.preventDefault()
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                submit()
-              }
-            }}
-          />
+          {menuOpen && (
+            <SkillMenu skills={matches} active={active} onPick={pick} onHover={setActive} />
+          )}
+          <div className={css.inputRow}>
+            <SkillChips skills={attached} onRemove={detach} />
+            <div className={clsx(css.inputWrap, painting && css.painting)}>
+              <MentionHighlights draft={draft} skills={catalogue} scrollTop={scrolled} />
+              <textarea
+                ref={input}
+                className={css.input}
+                value={draft}
+                rows={1}
+                placeholder={chat.running
+                  ? 'Steer the agent — it reads this on its next step…'
+                  : 'Ask anything about the workspace…'}
+                onChange={(event) => {
+                  setDraft(event.target.value)
+                  retrack(event.target)
+                }}
+                // A click or an arrow key can move the caret out of a trigger — or
+                // back into one — without changing a character of the text.
+                onSelect={(event) => { retrack(event.currentTarget) }}
+                onBlur={() => { setTrigger(undefined) }}
+                onPaste={(event) => {
+                  // A screenshot on the clipboard is the fastest way an image ever
+                  // reaches a chat, and it arrives as a file item with no name.
+                  const files = [...event.clipboardData.items]
+                    .filter(item => item.kind === 'file')
+                    .map(item => item.getAsFile())
+                    .filter((file): file is File => file !== null)
+                  if (files.length === 0) return
+                  // Only the files are taken; any text on the clipboard still
+                  // pastes into the box, which is what a mixed copy meant.
+                  attachments.add(files)
+                  if (event.clipboardData.getData('text/plain') === '') event.preventDefault()
+                }}
+                // A long draft scrolls inside the box; the painted layer has to
+                // scroll with it or the coloured text stays on the first line.
+                onScroll={(event) => { setScrolled(event.currentTarget.scrollTop) }}
+                onKeyDown={(event) => {
+                  // Backspace at the very start takes the last chip, the way any
+                  // token field behaves — otherwise a chip can only be removed
+                  // with the mouse.
+                  if (event.key === 'Backspace' && draft === '' && attached.length > 0) {
+                    event.preventDefault()
+                    setAttached(current => current.slice(0, -1))
+                    return
+                  }
+                  if (menuOpen) {
+                    const chosen = matches[active]
+                    // Enter and Tab complete rather than send: with a menu open the
+                    // user is picking, and sending the half-typed `/rev` would be
+                    // the one thing they did not ask for.
+                    if ((event.key === 'Enter' || event.key === 'Tab') && chosen !== undefined) {
+                      event.preventDefault()
+                      pick(chosen)
+                      return
+                    }
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                      event.preventDefault()
+                      const step = event.key === 'ArrowDown' ? 1 : -1
+                      setActive((active + step + matches.length) % matches.length)
+                      return
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault()
+                      setTrigger(undefined)
+                      return
+                    }
+                  }
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault()
+                    submit()
+                  }
+                }}
+              />
+            </div>
+          </div>
           <div className={css.composerActions}>
             <input
               ref={picker}

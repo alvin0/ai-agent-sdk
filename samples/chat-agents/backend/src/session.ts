@@ -20,6 +20,7 @@ import {
 import { resolveModel, supportedEffort } from './registry'
 import type { ModelSelection, ResolvedModel } from './registry'
 import { getAgent, listAgents } from './agents'
+import { listAvailableSkills, resolveSkillMentions } from './skill-catalog'
 import { startRun } from './agent-runtime'
 import type { RunMode } from './agent-runtime'
 import { getGroup } from './groups'
@@ -452,7 +453,9 @@ export async function answer(
  * @param id - Conversation id.
  * @param callId - The call carried by the `approval` event.
  * @param decision - Allow it, refuse this call, or withdraw the turn.
- * @param scope - How far an `allow` reaches; ignored otherwise.
+ * @param scope - How long an `allow` lasts; ignored otherwise.
+ * @param ruleKey - Which rule the prompt offered an `allow` is remembered
+ *   under; ignored for scope `once`, and defaults to the narrowest rule.
  * @returns Whether a parked call was actually released.
  */
 export async function approve(
@@ -460,15 +463,20 @@ export async function approve(
   callId: string,
   decision: 'allow' | 'deny' | 'abort',
   scope: WireApprovalScope = 'once',
+  ruleKey?: string,
 ): Promise<boolean> {
   const live = await session(id)
   const policy = live.approvals
   if (policy === undefined) return false
-  const prompt = await policy.decide(callId, decision, scope)
-  if (prompt === undefined) return false
+  const outcome = await policy.decide(callId, decision, scope, ruleKey)
+  if (outcome === undefined) return false
+  // The rule reported back is the one the POLICY settled on, not the one the
+  // client asked for: the record has to say what was actually remembered.
+  const settled = outcome.ruleKey
+  const remembered = settled === undefined ? {} : { ruleKey: settled }
   live.outbox.push({
-    wire: { t: 'approval-resolved', callId, decision, scope },
-    node: { ...prompt, kind: 'approval', id: callId, decision, scope },
+    wire: { t: 'approval-resolved', callId, decision, scope, ...remembered },
+    node: { ...outcome.prompt, kind: 'approval', id: callId, decision, scope, ...remembered },
   })
   live.notify?.()
   return true
@@ -486,13 +494,43 @@ export async function approve(
  * @param text - What the user typed while the agent was working.
  * @returns Whether a run was there to receive it.
  */
-export async function steer(id: string, text: string): Promise<boolean> {
+export async function steer(
+  id: string,
+  text: string,
+  skillIds: readonly string[] = [],
+): Promise<boolean> {
   const live = await session(id)
   const trimmed = text.trim()
   if (live.steerRun === undefined || trimmed === '') return false
-  if (!live.steerRun(trimmed)) return false
+  // `/` means the same thing mid-run as it does at the start. Steering was the
+  // one path where the composer offered the menu and the mention then arrived
+  // as bare text the model had no reason to act on.
+  const conversation = await getConversation(id)
+  const group = await getGroup(conversation?.groupId)
+  const workspaceRoot = conversation?.workspaceRoot ?? group.workspaceRoot
+  const mentioned = trimmed.includes('/') || skillIds.length > 0
+    ? resolveSkillMentions(
+      trimmed,
+      await listAvailableSkills({ groupId: group.id, workspaceRoot }),
+      skillIds,
+    )
+    : { skills: [] as const, directive: undefined }
+  const forModel = mentioned.directive === undefined
+    ? trimmed
+    : `${mentioned.directive}\n\n${trimmed}`
+  if (!live.steerRun(forModel)) return false
   live.steerUnread = true
-  live.outbox.push({ node: { kind: 'user', id: `u_${String(live.seq)}_steer`, text: trimmed } })
+  // The transcript shows what was typed; the directive was for the model.
+  live.outbox.push({
+    node: {
+      kind: 'user',
+      id: `u_${String(live.seq)}_steer`,
+      text: trimmed,
+      ...mentioned.skills.length === 0
+        ? {}
+        : { skills: mentioned.skills.map(skill => skill.id) },
+    },
+  })
   live.notify?.()
   return true
 }
@@ -607,6 +645,7 @@ export async function* runPrompt(
   prompt: string,
   groupId?: string,
   attachmentIds: readonly string[] = [],
+  skillIds: readonly string[] = [],
 ): AsyncGenerator<WireEvent> {
   const live = await session(id, groupId)
   const conversation = await getConversation(id)
@@ -672,11 +711,28 @@ export async function* runPrompt(
     return
   }
 
+  // Skills the user named with `/` in the composer. Resolved against the
+  // catalogue rather than by parsing alone, so `/etc/passwd` cannot invent one,
+  // and only when a `/` is present at all — the scan is filesystem I/O.
+  const mentioned = prompt.includes('/') || skillIds.length > 0
+    ? resolveSkillMentions(
+      prompt,
+      await listAvailableSkills({ groupId: group.id, workspaceRoot }, controller.signal),
+      skillIds,
+    )
+    : { skills: [] as const, directive: undefined }
+
   await persist({
     kind: 'user',
     id: `u_${String(live.seq)}`,
     text: prompt,
     ...attached.records.length === 0 ? {} : { attachments: attached.records },
+    // Recorded on the message rather than only acted on: a run that behaved
+    // oddly is read back later, and "which skills did this prompt ask for" is
+    // the first question about it.
+    ...mentioned.skills.length === 0
+      ? {}
+      : { skills: mentioned.skills.map(skill => skill.id) },
   })
   if (conversation?.title === 'New chat') {
     // An attachment-only prompt has no words to name the conversation with, so
@@ -687,14 +743,22 @@ export async function* runPrompt(
     await updateConversation(id, { title })
   }
 
+  // The directive goes to the MODEL, not into the stored user message: the user
+  // wrote a prompt, and a transcript that quoted an instruction back at them
+  // would be putting words in their mouth. It leads the text so the model reads
+  // "load this skill" before the request it applies to.
+  const forModel = mentioned.directive === undefined
+    ? prompt
+    : `${mentioned.directive}\n\n${prompt}`
+
   // One text block plus the attachment blocks, in pick order. A prompt with
   // nothing attached stays a bare string, which is the shape every shape in
   // `startRun` already accepted.
   const input: AgentInput = attached.blocks.length === 0
-    ? prompt
+    ? forModel
     : createUserMessage({
       content: [
-        ...prompt.trim() === '' ? [] : [{ type: 'text', text: prompt } as const],
+        ...forModel.trim() === '' ? [] : [{ type: 'text', text: forModel } as const],
         ...attached.blocks,
       ],
       source: { kind: 'user' },

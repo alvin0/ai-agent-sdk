@@ -15,6 +15,8 @@ import { maintenanceEmitter, emitAssistantContent, textOf } from './turn/content
 import { repeatKey, toolActionPattern, repeatedSuffixCycle } from './turn/repetition.ts'
 import { modelRound } from './turn/model-round.ts'
 import { accountingUsageStop } from './turn/usage-stop.ts'
+import { ContextSectionRuntime } from '../context/section.ts'
+import type { ContextToolTouch } from '../context/types.ts'
 
 function hasCallableTools(options: RunTurnOptions): boolean {
   if (options.toolChoice === 'none') return false
@@ -124,6 +126,17 @@ async function driveTurn(
     }
     budgetNoticeSeq = options.history.append({ kind: 'user', message }).seq
   }
+  const contextSections = options.contextSections === undefined || options.contextSections.length === 0
+    ? undefined
+    : new ContextSectionRuntime({
+      sections: options.contextSections,
+      history: options.history,
+      ...options.logger === undefined ? {} : { logger: options.logger },
+      guard: (pending, name) => runHook(pending, options, signal, name),
+      scope: { agentId: options.trace?.agentId, conversationId: options.trace?.conversationId },
+    })
+  /** Tool calls committed since the last section reconcile. */
+  let contextTouches: ContextToolTouch[] = []
   let rootStarted = false
   let rootEnded = false
   const callableTools = hasCallableTools(options)
@@ -194,6 +207,12 @@ async function driveTurn(
           `${maxSteps - steps} work steps remain. Finish essential verification, update any task list honestly, and submit the result if required. Summarize findings, evidence, and unfinished work; do not start new exploration.`,
         }],
       }) })
+    }
+    // Recomputed before the request that will read it, so a section reacting to
+    // the previous step's tool calls is already on the surface.
+    if (contextSections !== undefined) {
+      await contextSections.reconcile(steps, contextTouches, signal)
+      contextTouches = []
     }
     const step = steps + 1
     const round = await modelRound(
@@ -370,6 +389,17 @@ async function driveTurn(
         ),
       },
     })
+    // Results commit in model order, one per requested call, so the pairing
+    // holds for declined calls too. A short result list means a sibling failed
+    // its contract and the turn is already unwinding; reporting a guessed
+    // outcome would be worse than reporting nothing.
+    if (contextSections !== undefined && scheduled.results.length === round.calls.length) {
+      contextTouches.push(...round.calls.map((call, index) => ({
+        toolName: call.toolName,
+        rawArguments: call.rawArguments,
+        failed: scheduled.results[index]?.isError ?? true,
+      })))
+    }
     toolCalls += scheduled.budgeted
     const remainingAfterDispatch = Math.max(0, bounds.maxToolCalls - toolCalls)
     // One reminder per threshold crossed, not one per turn.

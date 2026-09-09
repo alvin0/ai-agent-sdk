@@ -228,8 +228,88 @@ a workspace tool always wins a name clash, and a failing server surfaces its
 error instead of breaking the turn. Skills come from two places: every project is scanned
 automatically for `.agents/skills` and `.dsh/skills` from its folder up to the
 repository root, and the Skills tab adds global folders available in every
-project. Either way the model sees names and descriptions first, then calls
-`load_skill` for the full instructions.
+project (`CHAT_AGENTS_USER_SKILLS=1` adds `$HOME/.agents/skills` on top).
+Either way the model sees names and descriptions first, then calls `load_skill`
+for the full instructions.
+
+**Naming a skill with `/`.** That last sentence is also the problem: a skill is
+loaded when the *model* decides it applies, which leaves the user describing it
+in prose and hoping. Typing `/` in the composer opens a menu of the skills this
+project actually has — the same providers the run uses build it
+(`backend/src/skill-catalog.ts`), so the menu can never offer one the run would
+not find — and picking writes `/<id>` into the message.
+
+It stays a **mention, not an execution**. The backend matches the `/` tokens
+against the catalogue and prepends one line asking the model to `load_skill`
+each match before acting; the skill's own instructions are never spliced in, so
+a skill named by mistake is a sentence the model can disregard rather than a
+body of rules already in its context. The catalogue is also the allowlist, which
+is why `read /etc/passwd` names nothing and `src/ui` never opens the menu. The
+directive goes to the model only — the transcript stores what the user typed,
+with a chip naming the skills that actually matched, so "did it use the skill"
+has a visible answer.
+
+Picking from the menu **detaches** the mention: the `/word` leaves the draft and
+the skill becomes a chip beside the text, so the message reads as a sentence and
+what is attached is something you can see and remove (click its ×, or Backspace
+at the start of an empty draft) rather than a word you have to notice and edit
+out. The ids travel next to the prompt as `skillIds`.
+
+Typing `/id` by hand still works, and there the mention is **coloured text** —
+a bordered chip inside the text read as an input field sitting inside the input
+field. A textarea cannot colour part of its own value, and swapping it for a
+contenteditable box would trade a working composer — IME, undo, paste, autosize
+— for a visual, so `MentionHighlights` mirrors the draft behind it and draws the
+text while the textarea's glyphs go transparent (its caret does not). That only
+happens while a typed mention is present; with none the textarea is left alone.
+Nothing but the colour may differ between the two layers: the caret is still
+placed by the textarea, so a bolder or larger mention would put every character
+after it off its own caret. Only a mention that MATCHES the catalogue is
+coloured, so an unrecognised `/word` staying plain is the signal that it will not
+load anything — and the backend reconciles both paths, chips first, against that
+same catalogue, so an id the browser invents attaches nothing. The rules themselves — where a trigger opens,
+how matches rank, what a completion writes, which spans are mentions — live in
+`web/src/ui/chat/mentions.ts` with no React in them, which is what lets the
+UI's rules be tested against the backend's in one spec without a browser. Mentions work identically mid-run, where the message
+steers the agent instead of starting a turn.
+
+**`AGENTS.md` is always on; a skill is not.** The two look similar and are
+opposite contracts. A skill is advertised by description and loaded when the
+model decides it is relevant. Project instructions are the conventions the work
+has to follow whether or not the model thought to ask — an agent that never read
+them has already broken them. So they arrive through
+`@ai-agent-sdk/instructions-node`, mounted as a `contextSections` entry on every
+agent in the group (`instructionsFor` in `backend/src/agent-runtime.ts`).
+
+A context section, not `instructions` text, because the system prompt is the
+prompt-cache prefix and these files change WHILE a session runs: the agent reads
+into a new folder, or someone edits the file mid-conversation. A section owns one
+node on the conversation surface, is re-resolved before every model round, and
+rewrites itself only when its revision changes — so an edit lands on the next
+round for free, and nothing invalidates the cached prefix. Discovery is
+broad-to-specific with `AGENTS.override.md` beating `AGENTS.md` in the same
+folder, and a directory the agent *reads into* contributes its own file from that
+point on (the sample's tools name the argument `path`, which is what the SDK's
+default touch reader looks for).
+
+Two deliberate departures from the package defaults:
+
+- `projectRootMarkers: []`, so the walk stops at the **workspace root**. The
+  default (`['.git']`) walks up to the enclosing checkout, which for a project
+  opened inside a larger repository would put a file the agent's own tools are
+  forbidden to read into every prompt. `CHAT_AGENTS_INSTRUCTIONS_WALK_UP=1` opts
+  back into the package behaviour.
+- No global file unless `CHAT_AGENTS_GLOBAL_INSTRUCTIONS` names one. Where a
+  host keeps a user's standing instructions is the host's decision.
+
+Because an always-on section is silent by design, the **AGENTS.md tab** answers
+the one question it cannot: which files are actually in the prompt right now,
+in the order the model sees them, with the first line of each.
+`GET /api/groups/:id/instructions` is that list, and it mirrors the runtime's own
+discovery (`backend/src/instructions.ts` reuses the SDK's root-finding rather
+than reimplementing the precedence). Subtrees picked up mid-run are left out —
+they depend on what the agent has opened so far, and a pane that changed while a
+run progressed would be noise.
 
 **The agent is confined to a workspace.** Every filesystem tool resolves paths
 inside its project's directory and refuses to escape it, and `run_command` runs
@@ -255,9 +335,81 @@ written, the command that would run — and the answer chooses its own reach:
 | This chat | the live conversation | the conversation ends |
 | This project | SQLite, keyed by workspace root | the grant is revoked |
 
-A grant covers a *family* of calls, not one call: the tool name, or
-`run_command:<executable>`, so approving `git status` for the project does not
-also approve `rm`. Refusing is an answer the model sees and can work around —
+A grant covers a *family* of calls, not one call, and the card asks for the
+family's **width** next to the scope's duration — a second row of chips,
+narrowest first:
+
+| rule key | covers |
+| --- | --- |
+| `run_command:prefix:git diff` | every `git diff …` command |
+| `run_command:prefix:git` | every `git` command |
+| `write_file:dir:src/ui` | writes under `src/ui/` |
+| `write_file` | writes anywhere in the project |
+
+So "allow `git diff` for this project" can exist without also meaning "allow
+`git push`". `describeMutation` derives both halves — the widths to offer and
+every key that would cover the pending call — so the store is still checked by
+equality and nothing re-parses a command line at match time. What a width may
+say is where the care goes:
+
+- A line that is more than a plain argument list offers nothing: `&&`, a pipe,
+  `$VAR`, a substitution, a redirection, a backslash. The prefix would label a
+  line it does not decide. Quotes are fine — they only group words — so
+  `git commit -m "two words"` still scopes to `git commit`.
+- The program word keeps its path. `git` is whatever `PATH` resolves; `./git`
+  is a file the agent can write, so it gets its own key and can never ride a
+  grant made on the name `git`.
+- Executables that must not be signed away wholesale (`rm`, `sudo`, `bash`,
+  `curl`, …) are never offered, read through the path and case-insensitively.
+- Paths are resolved the way the tools resolve them, so a rule is derived from
+  the path that will actually be written — `src/ui/../lib/x.ts` scopes to
+  `src/lib`, and a file whose *name* contains a separator for another platform
+  stays one name rather than a directory a grant could widen through.
+- A width nobody can read is not a width: chips naming a very long word or a
+  very deep directory are dropped rather than shown.
+
+A key added by hand through the permissions API is still honoured in every one
+of those cases, and the key the prompt settles on — never the one the client
+asked for — is what gets stored.
+
+**A destructive line says so, in words.** The workspace root confines the
+filesystem tools; it does NOT confine a shell. `run_command` fixes the working
+directory and hands the rest of the line to the platform shell, so `rm -rf ~`,
+`del /s /q C:\Windows`, `diskutil eraseDisk` and `echo x > /etc/hosts` are
+ordinary command lines as far as the tool is concerned — and a card that renders
+them as one more grey line of monospace is a card that gets approved by reflex.
+`backend/src/hazards.ts` reads the line before it runs and the card leads with
+what it found: a red banner above the command, the safe answer as the prominent
+button, two clicks to allow instead of one, and no grant offered at all (a line
+worth warning about is a line worth asking about every time).
+
+What it reads, on every platform the sample runs on:
+
+| recognised | examples |
+| --- | --- |
+| the filesystem root, home, system directories | `rm -rf /`, `rm -rf /*`, `rm -rf ~`, `del /s /q %SystemRoot%`, `rd /s /q C:\`, `Remove-Item -Recurse -Force $env:USERPROFILE` |
+| any path that simply is not in the workspace | `rm -rf /work/other`, `rm -rf ../..`, `rm -rf D:\backups` |
+| disks, volumes, and the ability to restore | `mkfs.ext4`, `diskutil eraseDisk`, `format D:`, `diskpart`, `Clear-Disk`, `vssadmin delete shadows`, `tmutil delete`, `dd of=/dev/disk0` |
+| deletes that never name a deleter | `find / -name '*.log' -delete`, `find /Users -exec rm -f {} +`, `rsync -a --delete ./ /Volumes/Backup/` |
+| writes and moves that leave the workspace | `echo x > /etc/hosts`, `cat junk >> ~/.zshrc`, `mv secrets.env /dev/null` |
+| permissions rewritten on the machine | `chmod -R 000 /`, `sudo chown -R root /usr` |
+| work nothing can restore | `git clean -xdf`, `rm -rf .` (the workspace root itself) |
+| a target that cannot be read yet | `rm -rf $BUILD_DIR`, `rm -rf \`echo /\`` — the empty-variable disaster, reported as unknown rather than guessed |
+
+And what it reads THROUGH, because each of these hid a delete behind one extra
+word: `sudo` and `FOO=1` prefixes, a path or `.exe` on the program
+(`/bin/rm`, `del.exe`), shell wrappers (`sh -c "rm -rf /"`, `ls | xargs rm -rf`,
+`powershell -Command "Remove-Item …"`), containers and remote shells
+(`ssh host "rm -rf /"`, `docker run -v /:/host … rm -rf /host`), a `cd` earlier
+in the same line (`cd /etc && rm -rf .`), and a path that starts somewhere safe
+and ends somewhere else (`/tmp/../etc`). Scratch directories (`/tmp`,
+`/var/folders`, `%TEMP%`) read as a warning rather than as destruction, because
+a card that shouts at `rm -rf /tmp/build-cache` teaches the user to click through
+shouting.
+
+It is **not** a sandbox and must not be read as one: an empty hazard list means
+nothing recognisable was found, not that the line is safe.
+Refusing is an answer the model sees and can work around —
 it is not the same as cancelling the run, which is what the stop button does.
 `GET`/`POST`/`DELETE /api/groups/:id/permissions` lists, adds, and withdraws
 the standing project-wide grants.
@@ -392,6 +544,35 @@ edit a person makes mid-run — answering a permission prompt, steering — goes
 through `editNodes`, which writes the buffer as well as the screen, or the next
 event would repaint over it. Deleting a conversation is the one case that still
 aborts: nothing is left for the run to write into.
+
+**The header says where you are.** `<project> › <conversation>`, with the
+project first: which project is open decides what every tool in a run can read
+and write, and the header used to name only the conversation, with the project
+reduced to a folder chip at the far right where it read as a setting rather than
+as the place the work is happening. The crumb opens the project dialog, its
+tooltip is the workspace path — two projects can share a folder basename — and
+when the header runs out of room the project keeps its name while the title
+truncates, because a half-shown project name is the one part of that line that
+could be read as the wrong project.
+
+**Projects are listed, and their conversations hang under them.** The sidebar
+opens with **New chat** as a row of its own — it is the thing a user does more
+often than anything else in that column, and as an icon in the header it was a
+28px target sharing a line with two others, identifiable only by hovering it.
+
+Below it, projects are listed rather than hidden behind a picker, and the open
+project expands to show its conversations indented beneath it with a rule down
+the left. A conversation belongs to exactly one project, so two flat lists made
+the reader join them up by inference; only the open project can expand, because
+it is the only one whose conversations the browser holds. A closed project shows
+its conversation count instead — computed in one grouped query on the server for
+that same reason. Clicking the open project folds its chats away; clicking
+another switches to it, which already starts a fresh conversation. Each row's
+hover action follows from that: a new chat on a project, a delete on a
+conversation, drawn ON the row rather than beside it, because a list that
+reflows under the cursor is a list you click the wrong thing in. Long lists page
+with "Show more" rather than scroll, and a raised limit resets when the project
+does.
 
 **The sidebar shows a run you walked away from.** The conversation row exists
 from the moment the run starts — the server creates it before its first event —

@@ -8,6 +8,7 @@ export default defineConfig({
       '../../tests/unit/agent-definition.spec.ts',
       '../../tests/unit/agent-modes.spec.ts',
       '../../tests/unit/agent-run-handle.spec.ts',
+      '../../tests/unit/context-sections.spec.ts',
       '../../tests/unit/history.spec.ts',
       '../../tests/unit/memory-compaction.spec.ts',
       '../../tests/unit/run-ledger.spec.ts',

@@ -1,0 +1,165 @@
+/*
+  Anchored above the composer card, not below it: the composer sits at the
+  bottom of the viewport, and a menu underneath would open off screen.
+
+  The surface is OPAQUE on purpose. The first version leaned on a token that
+  does not exist in this theme, fell through to a translucent hover fill, and
+  the transcript read straight through the menu — two paragraphs of text
+  interleaved with the skill names on top of them.
+*/
+.menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 16%);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowActive {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.icon {
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rowActive .icon {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.name {
+  flex: 0 0 auto;
+  max-width: 40%;
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* One line, always: a wrapped description turns a completion list into a page. */
+.description {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.provider {
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+}
+
+/*
+  The mention highlight.
+
+  A textarea cannot hold a chip, and replacing it with a contenteditable box
+  would trade a working composer — IME, undo, paste, autosize — for a visual. So
+  the draft is mirrored here and this layer draws the TEXT while the textarea
+  goes transparent (its caret stays visible). A mention is then simply coloured
+  text, the way the reference clients render one — the boxed version read as an
+  input field sitting inside the input field.
+
+  Only the colour changes. Weight, size, spacing and wrapping must stay
+  identical to `.input`, because the caret is still positioned by the textarea:
+  a bolder mention would be wider here than there, and every character after it
+  would sit off its own caret.
+*/
+.highlights {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  padding: inherit;
+  color: var(--dsw-alias-label-primary);
+  /* A textarea's own wrapping, spelled out: same break rule, same whitespace
+     handling, or a long line wraps in one layer and not the other. */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  pointer-events: none;
+  user-select: none;
+}
+
+.mention {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+/*
+  An attached skill, sitting in the composer beside the text rather than inside
+  it. Same height as a line of the draft, so a chip and the first words of the
+  message sit on one baseline.
+*/
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 220px;
+  padding: 2px 4px 2px 7px;
+  border-radius: 8px;
+  background: var(--dsw-alias-state-business-tertiary);
+  color: var(--dsw-alias-state-business-primary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.chipIcon {
+  flex: none;
+}
+
+.chipLabel {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chipRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.65;
+  cursor: pointer;
+}
+
+.chipRemove:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  opacity: 1;
+}

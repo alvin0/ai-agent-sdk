@@ -13,7 +13,12 @@ import type {
 
 /** A settled transcript node, in the shape the frontend renders. */
 export type StoredNode =
-  | { kind: 'user'; id: string; text: string; attachments?: readonly WireAttachment[] }
+  | {
+      kind: 'user'; id: string; text: string
+      attachments?: readonly WireAttachment[]
+      /** Skill ids the message named with `/`, matched against the catalogue. */
+      skills?: readonly string[]
+    }
   | { kind: 'text'; id: string; text: string; phase: string; streaming: false; member?: string; incomplete?: true }
   | { kind: 'reasoning'; id: string; text: string; member?: string }
   | {
@@ -33,6 +38,8 @@ export type StoredNode =
       id: string
       decision: 'allow' | 'deny' | 'abort'
       scope: WireApprovalScope
+      /** The rule the grant was stored under; absent when nothing was. */
+      ruleKey?: string
       member?: string
     })
   | { kind: 'notice'; id: string; level: 'info' | 'warn'; message: string; member?: string }
@@ -332,8 +339,9 @@ export class EventProjector {
             toolName: event.request.toolName,
             title: event.request.toolName,
             summary: 'This call needs your permission.',
-            ruleKey: event.request.toolName,
-            ruleLabel: `every ${event.request.toolName} call`,
+            // No rules: this policy did not raise the ask, so it has no key it
+            // could honour later. The call is permitted once or not at all.
+            rules: [],
           },
           ...tag,
         }]

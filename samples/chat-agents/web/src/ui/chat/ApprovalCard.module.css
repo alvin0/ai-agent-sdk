@@ -64,6 +64,69 @@
   overflow: hidden;
 }
 
+/*
+  `state-error-secondary` is a foreground red, not a wash — as a fill it turns
+  the strip into a solid red bar with unreadable text on it. Severity is carried
+  by the label colour and the rule down the side; the surface stays a tint.
+*/
+.stripCritical {
+  color: var(--dsw-alias-state-error-primary);
+  background: var(--dsw-alias-state-warn-tertiary);
+}
+
+/*
+  The hazard block sits ABOVE the command line, not beside the buttons: it has
+  to be read on the way to the decision, not found after it.
+*/
+.hazards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px 0;
+}
+
+.hazard {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-left: 3px solid var(--dsw-alias-state-warn-primary);
+  border-radius: 8px;
+  background: var(--dsw-alias-state-warn-tertiary);
+}
+
+.hazardCritical {
+  border-left-color: var(--dsw-alias-state-error-primary);
+}
+
+.hazardCritical .hazardTitle {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.hazardTitle {
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.hazardDetail {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  word-break: break-word;
+}
+
+.dangerous {
+  border-color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.dangerous:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
 .scopes {
   display: flex;
   align-items: center;

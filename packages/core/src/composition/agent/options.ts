@@ -3,8 +3,8 @@ import { objectValue, optionalAbortSignal, ownData } from '../common/data.ts'
 import { captureAdditionalInstructions } from './instructions.ts'
 import { captureToolDefinitions } from '../../agent/tool/capture.ts'
 import {
-  captureApprovalBroker, captureInterceptors, captureSpillStore, captureTurnHooks, captureUsagePolicy,
-  captureUserInputBroker,
+  captureApprovalBroker, captureInterceptors, captureRuntimeContextSections, captureSpillStore,
+  captureTurnHooks, captureUsagePolicy, captureUserInputBroker,
 } from './policy.ts'
 import type { RuntimeAgentInvocationOptions, RuntimeAgentSessionOptions } from './types.ts'
 import { captureToolSources } from '../tool-source/definition.ts'
@@ -13,7 +13,7 @@ import { captureRuntimeSkillSources } from '../skill-provider/definition.ts'
 
 const KEYS = new Set(['signal', 'additionalInstructions', 'onEvent', 'imagePolicy', 'structuredOutput'])
 const SESSION_KEYS = new Set(['conversationId', 'tools', 'toolSources', 'skills', 'memory', 'skillCwd',
-  'userInput', 'approvals', 'spillStore', 'interceptors', 'hooks', 'usagePolicy', 'historyLimits',
+  'userInput', 'approvals', 'spillStore', 'interceptors', 'contextSections', 'hooks', 'usagePolicy', 'historyLimits',
   'ledgerLimits',
   'eventBufferLimits', 'runtimeLimits', 'compaction'])
 
@@ -39,6 +39,7 @@ export function captureRuntimeSessionOptions(input: unknown): RuntimeAgentSessio
   const spillStore = captureSpillStore(value.spillStore)
   const userInput = captureUserInputBroker(value.userInput)
   const interceptors = captureInterceptors(value.interceptors)
+  const contextSections = captureRuntimeContextSections(value.contextSections)
   const hooks = captureTurnHooks(value.hooks)
   const usagePolicy = captureUsagePolicy(value.usagePolicy)
   const memory = value.memory === false || value.memory === undefined
@@ -56,6 +57,7 @@ export function captureRuntimeSessionOptions(input: unknown): RuntimeAgentSessio
     ...(approvals === undefined ? {} : { approvals }),
     ...(spillStore === undefined ? {} : { spillStore }),
     ...(interceptors === undefined ? {} : { interceptors }),
+    ...(contextSections === undefined ? {} : { contextSections }),
     ...(hooks === undefined ? {} : { hooks }),
     ...(usagePolicy === undefined ? {} : { usagePolicy }),
     ...(value.historyLimits === undefined ? {} : {

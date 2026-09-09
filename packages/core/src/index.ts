@@ -88,3 +88,12 @@ export { createToolExecutionInterceptor, localToolExecutionBackend, type ToolExe
 export { withApprovalPersistence, type ApprovalStateStore } from './agent/tool/approval.ts'
 
 export type { AgentInput } from './agent/define/session/types.ts'
+
+export {
+  CONTEXT_SECTION_ID_PATTERN, CONTEXT_SECTION_INVALID, MAX_CONTEXT_SECTION_TEXT_BYTES,
+  defineContextSection,
+} from './agent/context/index.ts'
+export type {
+  ContextSection, ContextSectionResolveInput, ContextSectionScope, ContextSectionState,
+  ContextToolTouch,
+} from './agent/context/index.ts'

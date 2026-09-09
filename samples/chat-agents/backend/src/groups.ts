@@ -8,7 +8,7 @@
 
 import { existsSync, statSync } from 'node:fs'
 import { basename, isAbsolute, resolve } from 'node:path'
-import { asc, eq, isNull } from 'drizzle-orm'
+import { asc, count, eq, isNull } from 'drizzle-orm'
 import { database, schema } from './db/client'
 import { defaultWorkspace } from './workspace'
 
@@ -18,6 +18,17 @@ export interface GroupRow {
   readonly workspaceRoot: string
   readonly createdAt: number
   readonly updatedAt: number
+}
+
+/**
+ * A group with the one derived number the sidebar shows beside it.
+ *
+ * Counted here rather than in the browser because the browser only ever holds
+ * the OPEN group's conversations: it has nothing to count the others with.
+ */
+export interface GroupView extends GroupRow {
+  /** How many conversations belong to this group. */
+  readonly conversations: number
 }
 
 export const DEFAULT_GROUP_ID = 'default'
@@ -123,4 +134,23 @@ export async function deleteGroup(id: string): Promise<void> {
   await db.delete(schema.mcpServers).where(eq(schema.mcpServers.groupId, id)).run()
   await db.delete(schema.skills).where(eq(schema.skills.groupId, id)).run()
   await db.delete(schema.groups).where(eq(schema.groups.id, id)).run()
+}
+
+/**
+ * Every group with its conversation count.
+ *
+ * One grouped query rather than one per group: the sidebar renders this list on
+ * every load, and a project list is exactly the place where a query per row
+ * turns into a visible pause.
+ * @returns The groups, oldest first, each with its count.
+ */
+export async function listGroupViews(): Promise<readonly GroupView[]> {
+  const groups = await listGroups()
+  const { db } = database()
+  const counts = await db.select({
+    groupId: schema.conversations.groupId,
+    total: count(schema.conversations.id),
+  }).from(schema.conversations).groupBy(schema.conversations.groupId).all()
+  const byGroup = new Map(counts.map(row => [row.groupId, Number(row.total)]))
+  return groups.map(group => ({ ...group, conversations: byGroup.get(group.id) ?? 0 }))
 }

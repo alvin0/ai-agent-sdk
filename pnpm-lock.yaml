@@ -161,6 +161,9 @@ importers:
       '@ai-agent-sdk/core':
         specifier: workspace:^
         version: link:packages/core
+      '@ai-agent-sdk/instructions-node':
+        specifier: workspace:^
+        version: link:packages/instructions-node
       '@ai-agent-sdk/mcp':
         specifier: workspace:^
         version: link:packages/mcp
@@ -351,6 +354,30 @@ importers:
       wrangler:
         specifier: 'catalog:'
         version: 4.127.1
+
+  packages/instructions-node:
+    devDependencies:
+      '@ai-agent-sdk/core':
+        specifier: workspace:^
+        version: link:../core
+      '@arethetypeswrong/cli':
+        specifier: 'catalog:'
+        version: 0.18.5
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.4.0
+      publint:
+        specifier: 'catalog:'
+        version: 0.3.24
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.24)(tsx@4.23.13)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-playwright@4.1.11)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.1)(tsx@4.23.13)(yaml@2.9.0))
 
   packages/mcp:
     dependencies:
@@ -904,6 +931,9 @@ importers:
       '@ai-agent-sdk/core':
         specifier: workspace:*
         version: link:../../../packages/core
+      '@ai-agent-sdk/instructions-node':
+        specifier: workspace:*
+        version: link:../../../packages/instructions-node
       '@ai-agent-sdk/mcp':
         specifier: workspace:*
         version: link:../../../packages/mcp

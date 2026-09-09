@@ -18,6 +18,8 @@ import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/p
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { defineTool, ToolRegistry } from '@ai-agent-sdk/core/agent'
 import type { JsonObject, JsonValue } from '@ai-agent-sdk/core'
+import { commandHazards } from './hazards'
+import type { Hazard } from './hazards'
 import type { DiffLine, SearchMatch, TodoItem, ToolCard } from './wire'
 import { webLinks } from './web-links'
 
@@ -135,18 +137,6 @@ function replaceOnce(
     content: replaceAll ? text.split(oldText).join(newText) : text.replace(oldText, newText),
     count: replaceAll ? occurrences : 1,
   }
-}
-
-/** The executable a shell command starts with, used as its permission key. */
-export function commandExecutable(command: string): string {
-  // Good enough for a permission label: the first bare word, with any
-  // `VAR=value` prefixes and a path skipped.
-  for (const word of command.trim().split(/\s+/)) {
-    if (word.includes('=') && !word.includes('/') && !word.includes('\\')) continue
-    const bare = word.split(/[/\\]/).pop() ?? word
-    return bare.replace(/["']/g, '') || command.trim()
-  }
-  return command.trim()
 }
 
 /** Receives output from a command while it is still running. */
@@ -777,18 +767,335 @@ export const MUTATING_TOOLS: readonly string[] = [
   'write_file', 'edit_file', 'delete_path', 'create_directory', 'move_path', 'run_command',
 ]
 
+/** One breadth a session or workspace grant can be given at. */
+export interface RuleChoice {
+  /** The stored grant key, e.g. `run_command:prefix:git diff`. */
+  readonly key: string
+  /** What that key covers, in words. */
+  readonly label: string
+}
+
 /** A pending mutating call, in the words a permission prompt needs. */
 export interface MutationDescription {
   /** Short action title, e.g. "Run command". */
   readonly title: string
   /** One line saying what will happen. */
   readonly summary: string
-  /** What a session/workspace grant covers; a family of calls, not one call. */
-  readonly ruleKey: string
-  /** That coverage in words. */
-  readonly ruleLabel: string
+  /**
+   * The breadths offered on the prompt, NARROWEST FIRST — `git diff *` before
+   * `git *`, this directory before every file. The first is the default, so a
+   * distracted "allow for this project" grants the smallest useful family.
+   *
+   * Empty means no grant is offered at all and the call can only be permitted
+   * once: a command line whose shape cannot be reasoned about, or an
+   * executable that must never be signed away wholesale.
+   */
+  readonly rules: readonly RuleChoice[]
+  /**
+   * Every key that covers this call — a superset of {@link rules}, because a
+   * key can be honoured without ever being suggested: a broader prefix stored
+   * earlier, a legacy key, or a grant added through the permissions API for an
+   * executable this module refuses to put on a chip.
+   */
+  readonly matchKeys: readonly string[]
+  /**
+   * What the call would destroy, when it is recognisably destructive — most
+   * severe first, empty when nothing was recognised (which is not a claim that
+   * the call is safe). A call with any hazard offers no `rules`: it is answered
+   * once, deliberately, or not at all.
+   */
+  readonly hazards: readonly Hazard[]
   /** Preview of the change, when one can be computed without making it. */
   readonly card?: ToolCard
+}
+
+/**
+ * Longest prefix a command grant may name.
+ *
+ * Past this a "family" is really one command line with its arguments, which
+ * would be remembered forever and match nothing again.
+ */
+const MAX_PREFIX_TOKENS = 8
+
+/**
+ * Shell syntax that makes a command line more than a plain argument list.
+ *
+ * A prefix grant is only sound when the prefix decides what runs. `git diff`
+ * does; `git diff && rm -rf .` and `git $CMD` do not — the chip would read
+ * "every `git diff …` command" while the line runs something else. Rather than
+ * parse a shell, anything that can redirect, chain, expand, or substitute makes
+ * the line opaque: permitted once, never remembered.
+ *
+ * Quotes are deliberately NOT here. They only group words, and grouping cannot
+ * change which program runs once everything above is excluded — so
+ * `git commit -m "two words"` still scopes to `git commit`, which is the
+ * commonest command in the sample there is. A quote in the program word itself
+ * is still refused, below: `"git"` and `git` must not share a key.
+ */
+const SHELL_METACHARACTERS = /[$`(){}<>&|;*?~!#\n\r\\]/
+
+/**
+ * Executables never offered as a grant.
+ *
+ * Not a security boundary — the workspace root and the sandbox are that. It
+ * keeps the prompt from offering one chip that signs away deletion, privilege
+ * escalation, or "run this arbitrary text" for a whole project. An explicit
+ * grant added through the permissions API is still honoured.
+ */
+const UNGRANTABLE_EXECUTABLES: ReadonlySet<string> = new Set([
+  'rm', 'rmdir', 'mv', 'dd', 'mkfs', 'chmod', 'chown', 'sudo', 'doas', 'su',
+  'shutdown', 'reboot', 'kill', 'killall', 'eval', 'exec', 'source',
+  'sh', 'bash', 'zsh', 'fish', 'env', 'xargs',
+  'node', 'python', 'python3', 'ruby', 'perl', 'osascript',
+  'curl', 'wget', 'ssh', 'scp', 'nc',
+])
+
+/**
+ * The words of a command line, when it is a plain argument list.
+ * @param command - The command line as the model wrote it.
+ * @returns Its words, or an empty array when nothing about it can be trusted
+ *   to a prefix rule.
+ */
+export function plainTokens(command: string): readonly string[] {
+  const trimmed = command.trim()
+  if (trimmed === '' || SHELL_METACHARACTERS.test(trimmed)) return []
+  const tokens = trimmed.split(/\s+/)
+  const program = tokens[0]
+  if (program === undefined) return []
+  // `FOO=1 cmd` runs `cmd` with an environment the prefix does not describe,
+  // and a quoted or escaped program word is a second spelling of a name that
+  // already has a key.
+  if (program.includes('=') || /["']/.test(program)) return []
+  return tokens
+}
+
+/**
+ * Whether a command word names a file rather than a program on `PATH`.
+ *
+ * The distinction decides what a grant may say. `git` is whatever `PATH`
+ * resolves, and a rule about it is a rule about git. `./git` is a file in the
+ * workspace — a file the agent can WRITE — so a grant that stripped the path
+ * would let a newly created `./git` ride the user's trust in git. A path stays
+ * in the key verbatim instead, where it names one file and nothing else.
+ */
+function isPath(word: string): boolean {
+  return word.includes('/') || word.includes('\\')
+}
+
+/** The last segment of a command word, for reading a path against the ban list. */
+function basename(word: string): string {
+  return word.split(/[/\\]/).pop() ?? word
+}
+
+/**
+ * Longest word a chip may name.
+ *
+ * A rule's label has to be readable in a row of chips at a glance. A model can
+ * write a 400-character path as its first word, and a chip that wide is a
+ * decision the user cannot actually read — so that width is simply not offered,
+ * and the call is permitted once.
+ */
+const MAX_LABEL_WORD = 48
+
+/** Longest directory a chip may name, for the same reason. */
+const MAX_LABEL_DIRECTORY = 80
+
+/** Whether an executable may be offered as a grant at all. */
+function grantable(word: string): boolean {
+  if (word.length > MAX_LABEL_WORD) return false
+  return !UNGRANTABLE_EXECUTABLES.has(basename(word).toLowerCase())
+}
+
+/**
+ * Every grant key that covers one command line.
+ *
+ * A stored `run_command:prefix:<words>` covers a call when its words are a
+ * prefix of the call's words, so this enumerates the call's own prefixes and
+ * lets the store be checked by equality. `run_command:<executable>` is listed
+ * too: it is the key this sample granted before prefixes existed, and rows
+ * written then still mean "every `git` command".
+ * @param command - The command line about to run.
+ * @returns The keys, narrowest first; empty for an opaque command line.
+ */
+export function commandRuleKeys(command: string): readonly string[] {
+  const tokens = plainTokens(command)
+  const executable = tokens[0]
+  if (executable === undefined) return []
+  const keys: string[] = []
+  const depth = Math.min(tokens.length, MAX_PREFIX_TOKENS)
+  for (let count = depth; count >= 1; count -= 1) {
+    keys.push(`run_command:prefix:${tokens.slice(0, count).join(' ')}`)
+  }
+  // The key this sample wrote before prefixes existed, and only for a program
+  // on `PATH`: a bare-name grant must never be what permits `./git`.
+  if (!isPath(executable)) keys.push(`run_command:${executable}`)
+  return keys
+}
+
+/**
+ * The breadths a command prompt offers: the subcommand, then the executable.
+ *
+ * `git diff --stat` offers `git diff *` and `git *` — the first because
+ * approving one diff should not have to approve `git push`, the second because
+ * a user who trusts a tool should be able to say so once.
+ * @param command - The command line about to run.
+ * @returns The choices, narrowest first; empty when none may be offered.
+ */
+export function commandRules(command: string): readonly RuleChoice[] {
+  const tokens = plainTokens(command)
+  const executable = tokens[0]
+  if (executable === undefined) return []
+  if (!grantable(executable)) return []
+  const rules: RuleChoice[] = []
+  const sub = tokens[1]
+  // A flag is not a subcommand: `ls -la` would offer "every `ls -la …`", which
+  // is one command line wearing a family's clothes.
+  if (sub !== undefined && !sub.startsWith('-') && sub.length <= MAX_LABEL_WORD) {
+    rules.push({
+      key: `run_command:prefix:${executable} ${sub}`,
+      label: `every \`${executable} ${sub} …\` command`,
+    })
+  }
+  rules.push({ key: `run_command:prefix:${executable}`, label: `every \`${executable}\` command` })
+  return rules
+}
+
+/**
+ * One tool argument as a canonical workspace-relative path.
+ *
+ * The same resolution the tools themselves use, so a rule is derived from the
+ * path that will actually be written — not from the string the model typed.
+ * `a/../b.txt` is `b.txt`, `./src/x` is `src/x`, and a file whose NAME
+ * contains a separator character for another platform stays one name rather
+ * than turning into a directory a grant could be widened through.
+ * @param root - Workspace root.
+ * @param path - The path argument, as the tool received it.
+ * @returns The relative path with `/` separators, or undefined when it names
+ *   nothing inside the workspace.
+ */
+function workspacePath(root: string, path: string): string | undefined {
+  if (path === '') return undefined
+  try {
+    const rest = relative(root, inRoot(root, path))
+    return rest === '' ? '.' : rest.split(sep).join('/')
+  } catch {
+    // Escapes the root. The call will fail on its own terms; until it does,
+    // the prompt must not imply a directory scope it cannot enforce.
+    return undefined
+  }
+}
+
+/**
+ * The directories a path sits under, nearest first.
+ *
+ * `.` is the workspace root and closes the chain, so a root-level file yields
+ * exactly one directory.
+ * @param root - Workspace root.
+ * @param path - The path argument, as the tool received it.
+ * @returns The chain, or undefined when the path is not inside the workspace
+ *   and so cannot be scoped.
+ */
+function directoryChain(root: string, path: string): readonly string[] | undefined {
+  const normal = workspacePath(root, path)
+  if (normal === undefined) return undefined
+  const parts = normal.split('/').filter(part => part !== '' && part !== '.')
+  parts.pop()
+  const chain: string[] = []
+  let prefix = ''
+  for (const part of parts) {
+    prefix = prefix === '' ? part : `${prefix}/${part}`
+    chain.push(prefix)
+  }
+  // Built root-outwards; the prompt wants the nearest directory first, and the
+  // workspace root last, where it means "anywhere in the project".
+  chain.reverse()
+  chain.push('.')
+  return chain
+}
+
+/**
+ * Directory keys covering every path one call touches.
+ *
+ * A move touches two paths, and a grant must cover both or it does not cover
+ * the call, so the chains are intersected rather than concatenated.
+ * @param toolName - The tool the key belongs to.
+ * @param paths - The workspace-relative paths the call writes.
+ * @returns The keys, narrowest first; empty when any path cannot be scoped.
+ */
+function pathRuleKeys(
+  root: string,
+  toolName: string,
+  paths: readonly string[],
+): readonly string[] {
+  const chains = paths.map(path => directoryChain(root, path))
+  if (chains.length === 0 || chains.some(chain => chain === undefined)) return []
+  const [first, ...rest] = chains as readonly (readonly string[])[]
+  const shared = (first ?? []).filter(dir => rest.every(chain => chain.includes(dir)))
+  return shared.map(dir => `${toolName}:dir:${dir}`)
+}
+
+/**
+ * The breadths a filesystem prompt offers: this directory, then the tool.
+ * @param toolName - The tool about to run.
+ * @param toolLabel - What a tool-wide grant covers, in words.
+ * @param paths - The workspace-relative paths the call writes.
+ * @returns The choices, narrowest first.
+ */
+function pathRules(
+  root: string,
+  toolName: string,
+  toolLabel: string,
+  paths: readonly string[],
+): readonly RuleChoice[] {
+  const keys = pathRuleKeys(root, toolName, paths)
+  const nearest = keys[0]
+  const directory = nearest?.slice(`${toolName}:dir:`.length)
+  // A directory too long to read is a chip the user cannot weigh; the
+  // tool-wide width still stands, and so does answering once.
+  const scoped: readonly RuleChoice[] = nearest === undefined || directory === undefined
+    || directory === '.' || directory.length > MAX_LABEL_DIRECTORY
+    ? []
+    : [{ key: nearest, label: `${toolLabel} under \`${directory}/\`` }]
+  return [...scoped, { key: toolName, label: toolLabel }]
+}
+
+/**
+ * What a filesystem call would reach that the user has to be told about.
+ *
+ * These tools resolve every path through the workspace root and refuse to
+ * leave, so an outside path is a call that will FAIL rather than one that will
+ * do damage. It is still worth saying: the model asked to touch something
+ * outside the project, and the user is the one who should know that.
+ * @param root - Workspace root.
+ * @param toolName - The tool about to run.
+ * @param paths - The path arguments, as the tool received them.
+ * @param recursive - Whether a delete takes everything underneath.
+ * @returns The hazards, empty when there is nothing to say.
+ */
+function pathHazards(
+  root: string,
+  toolName: string,
+  paths: readonly string[],
+  recursive = false,
+): readonly Hazard[] {
+  const hazards: Hazard[] = []
+  for (const path of paths) {
+    if (path === '') continue
+    if (workspacePath(root, path) !== undefined) continue
+    hazards.push({
+      severity: 'critical',
+      title: 'Points outside the workspace',
+      detail: `\`${path}\` resolves outside \`${root}\`. This tool refuses to leave the workspace, so the call will fail — but it asked to reach the rest of the machine, which is worth knowing before permitting anything else it does.`,
+    })
+  }
+  if (toolName === 'delete_path' && recursive && paths.some(path => workspacePath(root, path) === '.')) {
+    hazards.push({
+      severity: 'critical',
+      title: 'Deletes the whole workspace',
+      detail: `A recursive delete of the workspace root removes every file in \`${root}\`, including anything not tracked by git. It is not undoable.`,
+    })
+  }
+  return hazards
 }
 
 function argString(args: unknown, key: string): string {
@@ -816,26 +1123,43 @@ export async function describeMutation(
 
   if (toolName === 'run_command') {
     const command = argString(args, 'command')
-    const executable = commandExecutable(command)
+    // Where it runs is part of what it does: `git clean -fd` reads very
+    // differently in the root and in a scratch directory, and a rule is about
+    // the command line alone, so the working directory has to be on the card.
+    const requested = argString(args, 'cwd') || '.'
+    const cwd = workspacePath(root, requested)
+    const where = cwd === undefined || cwd === '.' ? '' : ` (in ${cwd}/)`
+    // Hazards are read against the directory the shell will actually get. A
+    // `cwd` that escapes the root makes the tool throw, but the reading has to
+    // happen against SOME directory, and the root is the honest guess.
+    const hazards = commandHazards(command, {
+      root,
+      cwd: cwd === undefined ? root : resolve(root, cwd),
+    })
     // No card: a terminal block for a command that has not run yet shows an
     // empty output pane and a settled status dot, which reads as "already
     // done". The summary carries the command line, which is the whole story.
     return {
       title: 'Run command',
-      summary: command,
-      ruleKey: `run_command:${executable}`,
-      ruleLabel: `every \`${executable}\` command`,
+      summary: `${command}${where}`,
+      // A line worth warning about is a line worth asking about every time:
+      // remembering it would turn one deliberate answer into a standing one.
+      rules: hazards.length === 0 ? commandRules(command) : [],
+      matchKeys: commandRuleKeys(command),
+      hazards,
     }
   }
 
   if (toolName === 'write_file' || toolName === 'edit_file') {
     const path = argString(args, 'path')
     const editing = toolName === 'edit_file'
+    const toolLabel = editing ? 'editing files in place' : 'writing whole files'
     const base: MutationDescription = {
       title: editing ? 'Edit file' : 'Write file',
       summary: path,
-      ruleKey: toolName,
-      ruleLabel: editing ? 'editing files in place' : 'writing whole files',
+      rules: pathRules(root, toolName, toolLabel, [path]),
+      matchKeys: [...pathRuleKeys(root, toolName, [path]), toolName],
+      hazards: pathHazards(root, toolName, [path]),
     }
     let after: string
     try {
@@ -857,20 +1181,27 @@ export async function describeMutation(
   // preview; an `fs` card here would repeat it in a box. Those cards belong to
   // the settled tool row, where there is no diff to show instead.
   if (toolName === 'move_path') {
+    const from = argString(args, 'from')
+    const to = argString(args, 'to')
     return {
       title: 'Move',
-      summary: `${argString(args, 'from')} → ${argString(args, 'to')}`,
-      ruleKey: 'move_path',
-      ruleLabel: 'moving and renaming files',
+      summary: `${from} → ${to}`,
+      rules: pathRules(root, 'move_path', 'moving and renaming files', [from, to]),
+      matchKeys: [...pathRuleKeys(root, 'move_path', [from, to]), 'move_path'],
+      hazards: pathHazards(root, 'move_path', [from, to]),
     }
   }
 
   if (toolName === 'create_directory') {
+    const target = argString(args, 'path')
     return {
       title: 'Create directory',
-      summary: argString(args, 'path'),
-      ruleKey: 'create_directory',
-      ruleLabel: 'creating directories',
+      summary: target,
+      // The chain drops the last segment, which for a directory is the one
+      // being created — so the scope is the parent it lands in.
+      rules: pathRules(root, 'create_directory', 'creating directories', [target]),
+      matchKeys: [...pathRuleKeys(root, 'create_directory', [target]), 'create_directory'],
+      hazards: pathHazards(root, 'create_directory', [target]),
     }
   }
 
@@ -880,8 +1211,9 @@ export async function describeMutation(
   return {
     title: 'Delete',
     summary: recursive ? `${path} (recursive, including everything inside)` : path,
-    ruleKey: 'delete_path',
-    ruleLabel: 'deleting files and directories',
+    rules: pathRules(root, 'delete_path', 'deleting files and directories', [path]),
+    matchKeys: [...pathRuleKeys(root, 'delete_path', [path]), 'delete_path'],
+    hazards: pathHazards(root, 'delete_path', [path], recursive),
   }
 }
 

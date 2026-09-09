@@ -5,10 +5,35 @@ import type { ApprovalBroker, ApprovalDecision, ApprovalRequest } from '../../ag
 import type { ToolExecutionResult } from '../../agent/tool/definition.ts'
 import type { PostToolDecision, PreToolDecision, ToolCallContext, ToolInterceptor } from '../../agent/tool/pipeline.ts'
 import type { SpillRecord, SpillSlice, SpillStore } from '../../agent/tool/output-budget.ts'
+import type {
+  ContextSection, ContextSectionResolveInput, ContextSectionState,
+} from '../../agent/context/types.ts'
+import { captureContextSections } from '../../agent/context/section.ts'
 import type { UsageCounters } from '../../observation/usage.ts'
 import { arrayData, boundedText, objectValue, ownData } from '../common/data.ts'
 
-const POLICY_LIMITS = Object.freeze({ interceptors: 128, identityBytes: 256 })
+const POLICY_LIMITS = Object.freeze({ interceptors: 128, contextSections: 64, identityBytes: 256 })
+
+/** Detach every section reference before an agent method can swap one. */
+export function captureRuntimeContextSections(value: unknown): readonly ContextSection[] | undefined {
+  if (value === undefined) return undefined
+  return captureContextSections(arrayData(value, POLICY_LIMITS.contextSections).map((entry) => {
+    const source = objectValue(entry)
+    const id = boundedText(ownData(source, 'id'), POLICY_LIMITS.identityBytes)
+    const resolve = captureMethod<
+      [ContextSectionResolveInput],
+      Promise<ContextSectionState | undefined> | ContextSectionState | undefined
+    >(source, 'resolve', true)!
+    const retraction = ownData(source, 'retractionText', false)
+    return {
+      id,
+      resolve,
+      ...retraction === undefined
+        ? {}
+        : { retractionText: boundedText(retraction, POLICY_LIMITS.identityBytes * 16) },
+    }
+  }))
+}
 
 export function captureApprovalBroker(value: unknown): ApprovalBroker | undefined {
   if (value === undefined) return undefined

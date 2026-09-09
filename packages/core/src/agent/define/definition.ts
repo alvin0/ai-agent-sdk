@@ -4,6 +4,8 @@ import type { ModelOutputFormat, ToolChoice, NativeToolSchema } from '../../cont
 import { ReasoningEffortId, type ReasoningEffortId as ReasoningEffort } from '../../primitives/index.ts'
 import type { AgentMode } from '../mode/run-agent.ts'
 import type { ToolDefinition } from '../tool/definition.ts'
+import { captureContextSections } from '../context/section.ts'
+import type { ContextSection } from '../context/types.ts'
 import {
   SKILL_TOOL_NAMES,
   resolveSkillOptions,
@@ -65,6 +67,14 @@ export interface AgentDefinitionInput {
   readonly skillIds?: readonly string[]
   /** Progressive-disclosure catalog and resource limits. */
   readonly skillOptions?: AgentSkillOptions
+  /**
+   * Model-visible context this agent always recomputes before a model round.
+   *
+   * Sections are platform-neutral callbacks. A filesystem-backed one (project
+   * instruction files, working-tree state) is built by a platform package and
+   * mounted here or per session.
+   */
+  readonly contextSections?: readonly ContextSection[]
   readonly toolChoice?: ToolChoice
   /** Constrain visible model output to plain text or a named JSON Schema. */
   readonly outputFormat?: ModelOutputFormat
@@ -96,6 +106,7 @@ export interface AgentDefinition {
   readonly skills: readonly SkillSource[]
   readonly skillIds: readonly string[] | undefined
   readonly skillOptions: ResolvedAgentSkillOptions
+  readonly contextSections: readonly ContextSection[]
   readonly toolChoice: ToolChoice | undefined
   readonly outputFormat: ModelOutputFormat | undefined
   readonly maxTurns: number | 'auto'
@@ -135,6 +146,7 @@ class DefinedAgentValue implements DefinedAgent {
   readonly skills: readonly SkillSource[]
   readonly skillIds: readonly string[] | undefined
   readonly skillOptions: ResolvedAgentSkillOptions
+  readonly contextSections: readonly ContextSection[]
   readonly toolChoice: ToolChoice | undefined
   readonly outputFormat: ModelOutputFormat | undefined
   readonly maxTurns: number | 'auto'
@@ -159,6 +171,7 @@ class DefinedAgentValue implements DefinedAgent {
     this.skills = Object.freeze([...(input.skills ?? [])])
     this.skillIds = input.skillIds === undefined ? undefined : Object.freeze([...input.skillIds])
     this.skillOptions = resolveSkillOptions(input.skillOptions)
+    this.contextSections = captureContextSections(input.contextSections) ?? Object.freeze([])
     this.toolChoice = input.toolChoice
     this.outputFormat = captureOutputFormat(input.outputFormat)
     this.maxTurns = input.maxTurns ?? 16
@@ -218,6 +231,7 @@ function mergedInput(
     skills: overrides.skills ?? source.skills,
     ...(skillIds === undefined ? {} : { skillIds }),
     skillOptions: overrides.skillOptions ?? source.skillOptions,
+    contextSections: overrides.contextSections ?? source.contextSections,
     ...(toolChoice === undefined ? {} : { toolChoice }),
     ...(outputFormat === undefined ? {} : { outputFormat }),
     maxTurns: overrides.maxTurns ?? source.maxTurns,

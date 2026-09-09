@@ -17,6 +17,7 @@
   "dependencies": {
     "@ai-agent-sdk/auth-node": "workspace:*",
     "@ai-agent-sdk/core": "workspace:*",
+    "@ai-agent-sdk/instructions-node": "workspace:*",
     "@ai-agent-sdk/mcp": "workspace:*",
     "@ai-agent-sdk/mcp-node": "workspace:*",
     "@ai-agent-sdk/provider-anthropic": "workspace:*",

@@ -106,42 +106,6 @@
   transition: none;
 }
 
-/* Model picker entry: the sidebar's one always-visible setting. */
-.groupRow {
-  padding: 4px 10px 8px;
-}
-
-.groupButton {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 10px;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 10px;
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.groupButton:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.groupName {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.groupMenu {
-  min-width: 220px;
-}
-
 .footNote {
   flex: 1;
   min-width: 0;
@@ -181,108 +145,243 @@
   font-family: var(--ds-font-family-code);
 }
 
-/* Conversation list -------------------------------------------------------- */
+/* Sections and rows -------------------------------------------------------- */
 
-.sectionLabel {
-  display: block;
-  padding: 4px 6px;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--dsw-alias-label-tertiary);
+.section {
+  margin-bottom: 14px;
 }
 
-.conversationList {
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px 2px 2px;
+}
+
+/* The label folds the group: a chevron alone is a target the size of a full
+   stop, and the words next to it are what the eye goes to anyway. */
+.sectionToggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sectionToggle:hover .sectionLabel {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.sectionChevron {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  transform: rotate(180deg);
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.sectionChevronFolded {
+  transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sectionChevron {
+    transition: none;
+  }
+}
+
+.sectionLabel {
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sectionAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.sectionAction:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.rows {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.empty {
-  padding: 8px 6px;
-  font-size: 12px;
-  color: var(--dsw-alias-label-tertiary);
+/* Holds a row and the delete button that only appears over it. */
+.rowWrap {
+  position: relative;
 }
 
-.conversation {
+.row {
   display: flex;
   align-items: center;
-  gap: 2px;
-  border-radius: 10px;
-}
-
-.conversation:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.conversationActive {
-  background: var(--dsw-alias-interactive-bg-active);
-}
-
-.conversationOpen {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
+  gap: 8px;
+  width: 100%;
   padding: 7px 8px;
   border: none;
+  border-radius: 8px;
   background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 13px;
   text-align: left;
   cursor: pointer;
 }
 
-.conversationTitle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.row:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* The open project and the open conversation are the two things the sidebar
+   has to answer at a glance, so selection is a fill, not a tint. */
+.rowActive {
+  background: var(--dsw-alias-bg-layer-1);
+  font-weight: 500;
+}
+
+.rowIcon {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rowActive .rowIcon {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.rowLabel {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  text-overflow: ellipsis;
+}
+
+.rowCount {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sits ON the row rather than beside it, and only while the row is hovered: a
+   list that reflows under the cursor is a list you click the wrong thing in. */
+.rowAction {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.rowWrap:hover .rowAction,
+.rowAction:focus-visible {
+  display: inline-flex;
+}
+
+.rowAction:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
 }
 
-/* Marks a conversation that is working while you are somewhere else. */
-.conversationDot {
-  flex: none;
-}
-
-.conversationMeta {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-  color: var(--dsw-alias-label-tertiary);
-}
-
-/* The delete affordance stays hidden until the row is hovered or focused. */
-.conversationDelete {
-  display: inline-flex;
+/*
+  New chat: a row, not an icon. The plus on the right is decoration for the
+  row's own purpose, so it is `aria-hidden` and the row carries the label.
+*/
+.newChat {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 26px;
-  height: 26px;
-  margin-right: 4px;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px;
   border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  opacity: 0;
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
   cursor: pointer;
 }
 
-.conversation:hover .conversationDelete,
-.conversationDelete:focus-visible {
-  opacity: 1;
+.newChat:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
-.conversationDelete:hover {
-  background: var(--dsw-alias-interactive-bg-hover-danger);
-  color: var(--dsw-static-red-600);
+.newChatPlus {
+  display: inline-flex;
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/*
+  The open project's conversations, indented under it. The rule down the left is
+  what says "these belong to that": indentation alone reads as a coincidence at
+  small sizes.
+*/
+.nested {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 1px 0 4px;
+  padding: 0 0 0 14px;
+  border-left: 1px solid var(--dsw-alias-border-l2);
+  margin-left: 12px;
+  list-style: none;
+}
+
+.nestedRow {
+  padding-left: 6px;
+  font-size: 13px;
+}
+
+.rowDot {
+  flex: none;
+}
+
+/* Paging, not scrolling: the recent rows are the ones being worked on, and a
+   column that runs past the fold is one nobody reads the bottom of. */
+.more {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.empty {
+  padding: 6px 8px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
 }

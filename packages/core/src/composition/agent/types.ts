@@ -7,6 +7,7 @@ import type { AgentSessionSnapshot } from '../../agent/define/session/types.ts'
 import type { ApprovalBroker, ApprovalRequest } from '../../agent/tool/approval.ts'
 import type { ToolDefinition } from '../../agent/tool/definition.ts'
 import type { ToolInterceptor } from '../../agent/tool/pipeline.ts'
+import type { ContextSection } from '../../agent/context/types.ts'
 import type { TurnHooks } from '../../agent/loop/types.ts'
 import type { UserInputBroker, UserInputDecision, UserInputRequest } from '../../agent/mode/user-input.ts'
 import type { UsagePolicy } from '../../agent/accounting/report.ts'
@@ -39,6 +40,14 @@ export interface RuntimeAgentDefinitionInput {
   readonly skills?: readonly RuntimeSkillSource[]
   readonly allowedSkillIds?: readonly string[]
   readonly memory?: MemoryBinding
+  /**
+   * Model-visible context this agent always recomputes before a model round.
+   *
+   * Definition-level sections belong to the agent wherever it runs; mount an
+   * environment-dependent one (project instruction files, working-tree state)
+   * on the session instead.
+   */
+  readonly contextSections?: readonly ContextSection[]
   readonly compaction?: AgentCompactionOptions | false
   /** Model steps per prompt; 'auto' removes the step ceiling, not resource limits. */
   readonly maxTurns?: number | 'auto'
@@ -74,6 +83,13 @@ export interface RuntimeAgentSessionOptions {
    */
   readonly spillStore?: SpillStore
   readonly interceptors?: readonly ToolInterceptor[]
+  /**
+   * Model-visible context recomputed before every model round.
+   *
+   * Mount a platform package's section (project instruction files, working-tree
+   * state) here; the core never reads a file to build one.
+   */
+  readonly contextSections?: readonly ContextSection[]
   readonly hooks?: TurnHooks
   readonly usagePolicy?: UsagePolicy
   /** In-memory append-only conversation history limits. */

@@ -57,6 +57,36 @@ export interface WireQuestion {
  */
 export type WireApprovalScope = 'once' | 'session' | 'workspace'
 
+/**
+ * One breadth a `session` or `workspace` grant can be given at.
+ *
+ * Two axes make one decision: `WireApprovalScope` is how LONG an allow lasts,
+ * a rule is how WIDE it reaches. The pair is what lets "allow `git diff` for
+ * this project" exist without also meaning "allow `git push`".
+ */
+export interface WireRule {
+  /** The key the grant is stored under, e.g. `run_command:prefix:git diff`. */
+  readonly key: string
+  /** What it covers, in words, e.g. "every `git diff …` command". */
+  readonly label: string
+}
+
+/**
+ * Something about a pending call the user has to read before allowing it.
+ *
+ * The workspace root confines the filesystem tools, not a shell: `rm -rf ~`,
+ * `del /s /q C:\` and `diskutil eraseDisk` are ordinary command lines as far
+ * as `run_command` is concerned. A hazard is the card saying so in words
+ * instead of leaving it as one more line of monospace.
+ */
+export interface WireHazard {
+  readonly severity: 'critical' | 'warning'
+  /** The headline, e.g. "Deletes files outside the workspace". */
+  readonly title: string
+  /** What was recognised, quoting the operative words of the call. */
+  readonly detail: string
+}
+
 /** What the user is being asked to permit. */
 export interface WireApproval {
   /** Provider tool identity for display correlation; callId is the approval request identity. */
@@ -68,10 +98,18 @@ export interface WireApproval {
   readonly title: string
   /** One line saying what will happen, e.g. the command or the target path. */
   readonly summary: string
-  /** What a session/workspace grant would cover, e.g. `run_command:git`. */
-  readonly ruleKey: string
-  /** That coverage in words, e.g. "every `git` command". */
-  readonly ruleLabel: string
+  /**
+   * The grant breadths this prompt offers, NARROWEST FIRST — `git diff *`
+   * before `git *`. The first is the default; an empty list means this call
+   * can only be permitted once.
+   */
+  readonly rules: readonly WireRule[]
+  /**
+   * What this call would destroy, most severe first. Empty is the ordinary
+   * case and is NOT a claim of safety — only that nothing recognisable was
+   * found. A prompt with any hazard offers no `rules`: it is answered once.
+   */
+  readonly hazards?: readonly WireHazard[]
   /** Preview of the pending change: the diff, the command, or the path. */
   readonly card?: ToolCard
 }
@@ -116,6 +154,8 @@ export type WireEvent =
       readonly callId: string
       readonly decision: 'allow' | 'deny' | 'abort'
       readonly scope: WireApprovalScope
+      /** The rule an `allow` was remembered under; absent for `once`. */
+      readonly ruleKey?: string
     }
   /**
    * Something the run did that belongs in the record — a model call retried,
@@ -170,6 +210,14 @@ export interface ChatRequestBody {
   readonly groupId?: string
   /** Ids from `POST /api/attachments`, in the order the user picked them. */
   readonly attachmentIds?: readonly string[]
+  /**
+   * Skill ids the composer attached as chips, in pick order.
+   *
+   * A mention picked from the `/` menu leaves the message text and travels
+   * here; one typed by hand is still read out of the text. Unknown ids are
+   * dropped against the project's catalogue rather than trusted.
+   */
+  readonly skillIds?: readonly string[]
 }
 
 /** One request body accepted by `POST /api/answer`. */
@@ -189,6 +237,8 @@ export interface AnswerRequestBody {
 export interface SteerRequestBody {
   readonly sessionId: string
   readonly prompt: string
+  /** Skill chips on the steering message; same contract as `ChatRequestBody`. */
+  readonly skillIds?: readonly string[]
 }
 
 /** One request body accepted by `POST /api/approve`. */
@@ -197,6 +247,12 @@ export interface ApproveRequestBody {
   /** The parked call, from the `approval` event. */
   readonly callId: string
   readonly decision: 'allow' | 'deny' | 'abort'
-  /** How far an `allow` reaches; ignored for `deny` and `abort`. */
+  /** How long an `allow` lasts; ignored for `deny` and `abort`. */
   readonly scope?: WireApprovalScope
+  /**
+   * Which of the prompt's `rules` an `allow` is remembered under. Ignored for
+   * scope `once`; defaults to the narrowest rule the prompt offered. A key the
+   * prompt did not offer is refused rather than stored.
+   */
+  readonly ruleKey?: string
 }

@@ -19,6 +19,8 @@ export type ChatNode = Timed<
       readonly text: string
       /** What the user attached to this message, in the order they picked it. */
       readonly attachments?: readonly WireAttachment[]
+      /** Skill ids the message named with `/` that matched a real skill. */
+      readonly skills?: readonly string[]
     }
   | { readonly kind: 'assignment'; readonly id: string; readonly text: string; readonly member: string; readonly from: string; readonly followup: boolean }
   | {
@@ -69,6 +71,8 @@ export type ChatNode = Timed<
       readonly id: string
       readonly decision?: 'allow' | 'deny' | 'abort'
       readonly scope?: WireApprovalScope
+      /** The rule an `allow` was remembered under; absent when nothing was. */
+      readonly ruleKey?: string
       readonly member?: string
     })
   /** A retry or other in-flight notice; not output, not a failure. */

@@ -45,8 +45,10 @@ export function ChatApp() {
           chat={chat}
           settings={settings}
           title={chat.conversations.find(row => row.id === chat.sessionId)?.title ?? 'New chat'}
+          project={chat.groups.find(row => row.id === chat.groupId)?.name ?? 'Project'}
           modelLabel={modelLabel}
           workspace={settings.workspace}
+          onOpenProjects={() => { setProjectsOpen(true) }}
           onOpenSettings={() => { setSettingsOpen(true) }}
         />
       </AppShell>

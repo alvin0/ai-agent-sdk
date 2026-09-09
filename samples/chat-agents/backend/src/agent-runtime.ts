@@ -19,11 +19,14 @@ import type {
   AgentResponse, AgentRunEvent, ApprovalBroker, DefinedAgent, ManagedAgentTeam,
   ToolDefinition, ToolInterceptor,
 } from '@ai-agent-sdk/core/agent'
-import type { AgentInput, ModelRegistry, SkillSource, UserInputBroker } from '@ai-agent-sdk/core'
-import { fileSystemSkills } from '@ai-agent-sdk/skill-filesystem'
+import type {
+  AgentInput, ContextSection, ModelRegistry, SkillSource, UserInputBroker,
+} from '@ai-agent-sdk/core'
+import { createProjectInstructionsSection } from '@ai-agent-sdk/instructions-node'
 import { MODEL_TIMEOUT_MS, retryHooks } from './resilience'
 import type { RetryNotice } from './resilience'
-import { listAgents, listSkills, mcpTools } from './agents'
+import { listAgents, mcpTools } from './agents'
+import { skillSourcesFor } from './skill-catalog'
 import { createFileSpillStore } from './spill'
 import type { AgentRow } from './agents'
 
@@ -195,31 +198,64 @@ export interface RunHandles {
   close(): Promise<void>
 }
 
+/**
+ * The user's own standing instructions, read before any project file.
+ *
+ * No default: where a host keeps a user's global `AGENTS.md` is the host's
+ * decision, and guessing would silently put a stranger's file in the prompt.
+ */
+const GLOBAL_INSTRUCTIONS = process.env.CHAT_AGENTS_GLOBAL_INSTRUCTIONS
+
+/**
+ * The `AGENTS.md` files that apply to one project, as a context section.
+ *
+ * Project instructions are always-on, which is what separates them from a
+ * skill: a skill is advertised and loaded when the model picks it, whereas an
+ * agent that never read the project's conventions has already broken them. The
+ * SDK models that as a `ContextSection` — a callback re-run before every model
+ * round, owning one node on the conversation surface — rather than as system
+ * prompt text, because these files change WHILE a session runs (a tool reaches
+ * into a new subtree, someone edits the file) and rewriting the system prompt
+ * would throw away the prompt cache on every edit.
+ *
+ * One section instance per group, shared by every member of a team: the section
+ * keys everything it accumulates by conversation scope, so a worker that reads
+ * into `packages/api` does not push that directory's instructions in front of
+ * its peers.
+ * @param workspaceRoot - The project directory the group's runs are confined to.
+ * @returns The section to mount on every agent in the group.
+ */
+function instructionsFor(workspaceRoot: string): ContextSection {
+  return createProjectInstructionsSection({
+    cwd: workspaceRoot,
+    ...GLOBAL_INSTRUCTIONS === undefined || GLOBAL_INSTRUCTIONS === ''
+      ? {}
+      : { globalFile: GLOBAL_INSTRUCTIONS },
+    // No markers, so the walk stops at the workspace root and the section reads
+    // that directory down. The default (`['.git']`) walks UP to the enclosing
+    // checkout, which for a workspace opened inside a larger repository would
+    // pull a file the agent's own tools are forbidden to read into every
+    // prompt. Set `CHAT_AGENTS_INSTRUCTIONS_WALK_UP=1` to opt into that.
+    projectRootMarkers: process.env.CHAT_AGENTS_INSTRUCTIONS_WALK_UP === '1' ? ['.git'] : [],
+  })
+}
+
 /** The tool/skill surface the agents in one group share. */
 async function surfaceFor(context: RunContext): Promise<{
   tools: readonly ToolDefinition[]
   skills: readonly SkillSource[]
+  instructions: ContextSection
 }> {
   const { tools: remoteTools } = await mcpTools(context.groupId)
-  const roots = (await listSkills(context.groupId))
-    .filter(row => row.enabled === 1)
-    .map(row => row.rootPath)
   const workspaceTools = context.workspaceTools.names()
     .map(name => context.workspaceTools.get(name))
     .filter((tool): tool is ToolDefinition => tool !== undefined)
   return {
+    instructions: instructionsFor(context.workspaceRoot),
     tools: [...workspaceTools, ...remoteTools],
-    // Two sources: an explicit `roots` list disables the provider's own project
-    // discovery, so the project's `.agents/skills` needs its own provider.
-    skills: [
-      fileSystemSkills({
-        id: 'project',
-        cwd: context.workspaceRoot,
-        includeProjectAgents: true,
-        includeProjectDsh: true,
-      }),
-      ...roots.length === 0 ? [] : [fileSystemSkills({ id: 'global', roots })],
-    ],
+    // Built where the composer's `/` menu builds them, so the menu can never
+    // offer a skill this run would not find.
+    skills: await skillSourcesFor(context),
   }
 }
 
@@ -239,6 +275,7 @@ function definitionFor(
   },
   tools: readonly ToolDefinition[],
   skills: readonly SkillSource[],
+  instructions: ContextSection,
 ): DefinedAgent {
   return defineAgent({
     id: overrides.id,
@@ -254,6 +291,8 @@ function definitionFor(
     mode: overrides.mode ?? sdkMode(context.mode),
     tools,
     skills,
+    // The project's own `AGENTS.md` files, re-read before every model round.
+    contextSections: [instructions],
     commentary: 'concise',
     maxTurns: overrides.maxTurns
       ?? (context.mode === 'team' || context.mode === 'team-dynamic' ? TEAM_TURN_BUDGET : TURN_BUDGET),
@@ -301,7 +340,7 @@ export async function startRun(
   context: RunContext,
   onMemberEvent: (member: string, event: AgentRunEvent) => void,
 ): Promise<RunHandles> {
-  const { tools, skills } = await surfaceFor(context)
+  const { tools, skills, instructions } = await surfaceFor(context)
   // Every session in a team shares the gate, so a member's `rm -rf` is asked
   // about exactly like the lead's — and shares the retry policy and the stream
   // deadline, so a member cannot stall the lead for ten silent minutes.
@@ -339,7 +378,7 @@ export async function startRun(
       members: [
         {
           name: 'lead',
-          agent: definitionFor(leadRow, context, { id: 'lead', maxTurns: TEAM_TURN_BUDGET }, tools, skills),
+          agent: definitionFor(leadRow, context, { id: 'lead', maxTurns: TEAM_TURN_BUDGET }, tools, skills, instructions),
           role: 'lead' as const,
           description: leadRow?.description ?? 'Coordinates the team and owns the final answer.',
           // Only the lead resumes the conversation's history: a member keeps
@@ -349,7 +388,7 @@ export async function startRun(
         },
         ...members.map(row => ({
           name: row.name,
-          agent: definitionFor(row, context, { id: row.id }, tools, skills),
+          agent: definitionFor(row, context, { id: row.id }, tools, skills, instructions),
           role: 'peer' as const,
           ...row.description == null ? {} : { description: row.description },
         })),
@@ -387,9 +426,10 @@ export async function startRun(
         { id: 'lead', maxTurns: TEAM_TURN_BUDGET },
         tools,
         skills,
+        instructions,
       ),
       leadName: 'lead',
-      workerTemplate: definitionFor(context.agent, context, { id: 'worker' }, tools, skills),
+      workerTemplate: definitionFor(context.agent, context, { id: 'worker' }, tools, skills, instructions),
       leadSessionOptions: sessionOptions,
       workerSessionOptions: sessionOptions,
       onWorkerEvent: report,
@@ -436,7 +476,7 @@ export async function startRun(
   // compactor, so a long conversation is condensed as it approaches the model's
   // context window instead of growing until the provider refuses it — which is
   // what both reference harnesses do, and what a chat that lasts all day needs.
-  const session = definitionFor(context.agent, context, { id: 'agent' }, tools, skills)
+  const session = definitionFor(context.agent, context, { id: 'agent' }, tools, skills, instructions)
     .createSession({ ...sessionOptions, history: context.history })
   const handle = session.stream(prompt, { signal: context.signal })
   return {

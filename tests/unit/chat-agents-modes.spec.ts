@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -507,6 +507,56 @@ describe('what the app actually configures for a single agent', () => {
     return { requests: adapter.requests, events }
   }
 
+  it('puts the project’s AGENTS.md in front of the model', async () => {
+    // Project conventions are always-on: an agent that never read them has
+    // already broken them. Delivered as a context section rather than as system
+    // prompt text, so an edit mid-run lands on the next round without
+    // discarding the prompt cache.
+    const sandbox = join(home, 'sandbox')
+    mkdirSync(sandbox, { recursive: true })
+    writeFileSync(join(sandbox, 'AGENTS.md'), '# House rules\nCommit messages use `fix:`.\n', 'utf8')
+    try {
+      const { requests } = await appRun(
+        [call('r1', 'read_file', { path: 'a.ts' }), text('read it')],
+        defineTool({
+          name: 'read_file', description: 'Read a file.', parameters: { type: 'object' },
+          execute: () => 'contents',
+        }),
+      )
+      const sent = JSON.stringify(requests[0]?.messages)
+      expect(sent).toContain('Commit messages use')
+      // Named, so the model can tell one directory's rules from another's.
+      expect(sent).toContain('AGENTS.md')
+      // NOT in the system prompt: that is the cache prefix, and these files
+      // change while a session runs.
+      const system = requests[0]?.system
+      expect(typeof system === 'string' ? system : JSON.stringify(system ?? ''))
+        .not.toContain('Commit messages use')
+      expect(system).toBeTypeOf('string')
+    } finally { rmSync(join(sandbox, 'AGENTS.md'), { force: true }) }
+  }, 20_000)
+
+  it('picks up a nested AGENTS.md once a tool reads into that folder', async () => {
+    // The sample's tools name their argument `path`, which is what the SDK's
+    // default touch reader looks for. Wire a tool that names it otherwise and
+    // this silently stops working, so the wiring is what is asserted.
+    const sandbox = join(home, 'sandbox')
+    mkdirSync(join(sandbox, 'pkg'), { recursive: true })
+    writeFileSync(join(sandbox, 'pkg', 'AGENTS.md'), 'Inside pkg: no default exports.\n', 'utf8')
+    try {
+      const { requests } = await appRun(
+        [call('r1', 'read_file', { path: 'pkg/handler.ts' }), text('read it')],
+        defineTool({
+          name: 'read_file', description: 'Read a file.', parameters: { type: 'object' },
+          execute: () => 'contents',
+        }),
+      )
+      // Round 1 could not know about it; round 2 follows the read.
+      expect(JSON.stringify(requests[0]?.messages)).not.toContain('no default exports')
+      expect(JSON.stringify(requests[1]?.messages)).toContain('no default exports')
+    } finally { rmSync(join(sandbox, 'pkg'), { recursive: true, force: true }) }
+  }, 20_000)
+
   it('gives a single agent the same oversized-output policy as a team', async () => {
     // Every mode reads files and runs commands, so every mode can be handed a
     // result too large for its context. A team run spills it and can read it
@@ -633,6 +683,159 @@ describe('permission prompts', () => {
     // The grant is what makes the second write silent; asking again would make
     // "allow for this workspace" meaningless.
     expect(asked).toHaveLength(1)
+  }, 20_000)
+
+  it('narrows a session grant to the rule the user picked', async () => {
+    // The prompt offers `git diff *` before `git *`. Picking the narrow rule
+    // has to actually narrow: the next diff is silent, and a push is not.
+    const { policy, tools } = gate()
+    const asked: string[] = []
+    const watch = setInterval(() => {
+      for (const prompt of policy.pending()) {
+        if (asked.includes(prompt.summary)) continue
+        asked.push(prompt.summary)
+        void policy.decide(prompt.callId, 'allow', 'session', 'run_command:prefix:git diff')
+      }
+    }, 5)
+
+    await run({
+      tools,
+      approvals: { broker: policy.broker, interceptor: policy.interceptor },
+      rounds: [
+        call('c1', 'run_command', { command: 'git diff --stat' }),
+        call('c2', 'run_command', { command: 'git diff --cached' }),
+        call('c3', 'run_command', { command: 'git push --force' }),
+        text('ran them'),
+      ],
+    })
+    clearInterval(watch)
+
+    // The second diff rode the grant; the push had to be asked about, which is
+    // the whole reason the narrow rule exists.
+    expect(asked).toEqual(['git diff --stat', 'git push --force'])
+  }, 20_000)
+
+  it('refuses to store a rule the prompt never offered', async () => {
+    // The rule key arrives from the client. A key it invents — `run_command`,
+    // covering every command there is — must not become a grant just because
+    // it was asked for; the policy falls back to the narrowest rule offered.
+    const { policy, tools } = gate()
+    const asked: string[] = []
+    const watch = setInterval(() => {
+      for (const prompt of policy.pending()) {
+        if (asked.includes(prompt.summary)) continue
+        asked.push(prompt.summary)
+        void policy.decide(prompt.callId, 'allow', 'session', 'run_command')
+      }
+    }, 5)
+
+    await run({
+      tools,
+      approvals: { broker: policy.broker, interceptor: policy.interceptor },
+      rounds: [
+        call('c1', 'run_command', { command: 'git diff --stat' }),
+        call('c2', 'run_command', { command: 'ls -la' }),
+        text('ran them'),
+      ],
+    })
+    clearInterval(watch)
+
+    expect(asked).toEqual(['git diff --stat', 'ls -la'])
+  }, 20_000)
+
+  it('keeps asking about a command no rule can describe', async () => {
+    // `&&` makes the prefix a label rather than a promise: "every `git diff …`
+    // command" would be printed over a line that also deletes the workspace.
+    // The prompt offers nothing, so `session` remembers nothing.
+    const { policy, tools } = gate()
+    const asked: string[] = []
+    const watch = setInterval(() => {
+      for (const prompt of policy.pending()) {
+        if (asked.includes(prompt.summary)) continue
+        asked.push(prompt.summary)
+        expect(prompt.rules).toEqual([])
+        void policy.decide(prompt.callId, 'allow', 'workspace')
+      }
+    }, 5)
+
+    await run({
+      tools,
+      approvals: { broker: policy.broker, interceptor: policy.interceptor },
+      rounds: [
+        call('c1', 'run_command', { command: 'git diff && echo one' }),
+        call('c2', 'run_command', { command: 'git diff && echo two' }),
+        text('ran them'),
+      ],
+    })
+    clearInterval(watch)
+
+    expect(asked).toHaveLength(2)
+  }, 20_000)
+
+  it('will not remember a destructive line, whatever scope is asked for', async () => {
+    // `rm -rf ~` is not a family of calls to be permitted for a project. The
+    // prompt offers no rule, so `workspace` stores nothing and the next one is
+    // asked about again — the opposite of what a scope normally does.
+    const { policy, tools } = gate()
+    const asked: string[] = []
+    const watch = setInterval(() => {
+      for (const prompt of policy.pending()) {
+        if (asked.includes(prompt.summary)) continue
+        asked.push(prompt.summary)
+        expect(prompt.rules).toEqual([])
+        expect(prompt.hazards?.[0]?.severity).toBe('critical')
+        void policy.decide(prompt.callId, 'allow', 'workspace')
+      }
+    }, 5)
+
+    await run({
+      tools,
+      approvals: { broker: policy.broker, interceptor: policy.interceptor },
+      rounds: [
+        call('c1', 'run_command', { command: 'rm -rf /tmp/../etc/hosts' }),
+        call('c2', 'run_command', { command: 'rm -rf /etc/hosts' }),
+        text('ran them'),
+      ],
+    })
+    clearInterval(watch)
+
+    expect(asked).toHaveLength(2)
+  }, 20_000)
+
+  it('can answer a prompt another interceptor parked', async () => {
+    // The policy only has a card for calls IT asked about. A second
+    // interceptor — a host guard, a plugin — parks calls on the same broker,
+    // and those used to be unanswerable: `decide` found no prompt, reported
+    // nothing released, and the run waited on a card the user had clicked.
+    const { policy, tools } = gate()
+    const askEverything = {
+      name: 'ask-all',
+      before: () => Promise.resolve({ kind: 'ask' as const, reason: 'the host guard wants a look' }),
+    }
+    const answered: string[] = []
+    const watch = setInterval(() => {
+      for (const request of policy.broker.pending()) {
+        if (answered.includes(request.approvalRequestId)) continue
+        answered.push(request.approvalRequestId)
+        void policy.decide(request.approvalRequestId, 'allow', 'once')
+      }
+    }, 5)
+
+    const result = await run({
+      tools,
+      approvals: { broker: policy.broker, interceptor: askEverything },
+      rounds: [
+        call('r1', 'read_file', { path: 'nothing.md' }),
+        text('read it'),
+      ],
+    })
+    clearInterval(watch)
+
+    expect(answered).toHaveLength(1)
+    // Released, not stranded: the call reached the tool and came back.
+    expect(result.nodes.filter(node => node.kind === 'tool')).toHaveLength(1)
+    // And nothing was remembered, because there was no rule to remember.
+    expect(policy.pending()).toEqual([])
   }, 20_000)
 
   it('never asks permission to read output the run itself saved', async () => {

@@ -2,6 +2,7 @@ import type { ApprovalBroker } from '../../tool/approval.ts'
 import type { ToolDefinition } from '../../tool/definition.ts'
 import type { ToolInterceptor } from '../../tool/pipeline.ts'
 import type { SpillStore, ToolOutputOverflowPolicy } from '../../tool/output-budget.ts'
+import type { ContextSection } from '../../context/types.ts'
 import { type ToolCatalog } from '../../tool/registry.ts'
 import { History, type HistoryLimits, type HistorySnapshot } from '../../history/history.ts'
 import type { TurnHooks } from '../../loop/types.ts'
@@ -109,6 +110,14 @@ export interface AgentSessionOptions {
    */
   readonly spillStore?: SpillStore
   readonly interceptors?: readonly ToolInterceptor[]
+  /**
+   * Model-visible context recomputed before every model round.
+   *
+   * Each section owns one surface node and rewrites it only when its content
+   * changes. Sections perform no I/O of their own here: a filesystem-backed
+   * section is built by a platform package and mounted through this option.
+   */
+  readonly contextSections?: readonly ContextSection[]
   readonly hooks?: TurnHooks
   /** Pluggable delivery backend for canonical run/model/tool observations. */
   readonly observation?: ObservationPort

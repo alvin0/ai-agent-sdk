@@ -8,6 +8,8 @@ import { ContextCompactor, type CompactionResult } from '../memory/compaction.ts
 import { bindCompactionAccounting } from '../memory/accounting-binding.ts'
 import { resolveCompactionConfig } from '../memory/compaction-config.ts'
 import { AgentMemory } from '../memory/memory.ts'
+import { captureContextSections } from '../context/section.ts'
+import type { ContextSection } from '../context/types.ts'
 import { runAgent, type AgentRunEvent, type AgentRunOutcome } from '../mode/run-agent.ts'
 import type { UserInputBroker } from '../mode/user-input.ts'
 import { waitForSettlement } from '../../async/index.ts'
@@ -53,6 +55,8 @@ export class AgentSession {
   private activeRuntimeCatalog: ToolCatalog | undefined
   private readonly skillCatalog: SkillCatalog | undefined
   private readonly runtimeLimits: Readonly<AgentRuntimeLimits>
+  /** Definition sections first, then session sections; duplicate ids are rejected. */
+  private readonly contextSections: readonly ContextSection[] | undefined
   private currentHistory: History
   private currentMemory: AgentMemory
   private currentConversationId: string
@@ -95,6 +99,18 @@ export class AgentSession {
       ...(options.interceptors === undefined ? {} : { interceptors: Object.freeze([...options.interceptors]) }),
     })
     this.runtimeLimits = resolveRuntimeLimits(options.runtimeLimits)
+    // A session may replace a definition section by reusing its id: the
+    // definition describes the agent, the session describes where it is
+    // running, and the more specific one wins in place. Two sections with one
+    // id inside the *same* list stays an error — a single live surface node
+    // cannot have two owners.
+    const overrides = captureContextSections(options.contextSections) ?? []
+    const base = captureContextSections(definition.contextSections) ?? []
+    const merged = [
+      ...base.map(section => overrides.find(override => override.id === section.id) ?? section),
+      ...overrides.filter(override => !base.some(section => section.id === override.id)),
+    ]
+    this.contextSections = merged.length === 0 ? undefined : Object.freeze(merged)
     this.currentConversationId = conversationId(options.conversationId)
     this.currentHistory = options.history ?? new History(historyLimits)
     const skillSources = [...definition.skills, ...options.skills ?? []]
@@ -589,6 +605,7 @@ export class AgentSession {
       ...this.options.approvals === undefined ? {} : { approvals: this.options.approvals },
       ...this.options.spillStore === undefined ? {} : { spillStore: this.options.spillStore },
       ...this.options.interceptors === undefined ? {} : { interceptors: this.options.interceptors },
+      ...this.contextSections === undefined ? {} : { contextSections: this.contextSections },
       ...hooks === undefined ? {} : { hooks },
       ...invocation.signal === undefined ? {} : { signal: invocation.signal },
       ...accounting === undefined ? {} : { accounting },

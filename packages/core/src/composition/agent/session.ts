@@ -387,6 +387,7 @@ function createRuntimeSession(
     ...(options.approvals === undefined ? {} : { approvals: options.approvals }),
     ...(options.spillStore === undefined ? {} : { spillStore: options.spillStore }),
     ...(options.interceptors === undefined ? {} : { interceptors: options.interceptors }),
+    ...(options.contextSections === undefined ? {} : { contextSections: options.contextSections }),
     ...(options.hooks === undefined ? {} : { hooks: options.hooks }),
     ...(options.usagePolicy === undefined ? {} : { usagePolicy: options.usagePolicy }),
     ...(options.historyLimits === undefined ? {} : { historyLimits: options.historyLimits }),

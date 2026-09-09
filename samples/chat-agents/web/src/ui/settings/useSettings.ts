@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   AgentRow, CodexLoginState, ConversationRow, DirectoryListing, GroupRow, McpServerRow, McpStatus,
-  ModelOption, ProviderInfoView, SkillRow,
+  ModelOption, ProjectInstructions, ProviderInfoView, SkillRow,
 } from '@chat-agents/backend'
 
 /** Loop policy, mirrored from the SDK's agent modes plus the two team shapes. */
@@ -49,6 +49,11 @@ export interface SettingsController {
   readonly mcpServers: readonly McpServerRow[]
   readonly mcpStatuses: readonly McpStatus[]
   readonly skills: readonly SkillRow[]
+  /**
+   * The project's `AGENTS.md` files, as the runtime reads them. `undefined`
+   * until the group's configuration has loaded once.
+   */
+  readonly instructions: ProjectInstructions | undefined
   /** The agent preset driving the open conversation, when one is chosen. */
   readonly agentId: string | undefined
   refresh: () => Promise<void>
@@ -175,6 +180,7 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
   const [mcpServers, setMcpServers] = useState<readonly McpServerRow[]>([])
   const [mcpStatuses, setMcpStatuses] = useState<readonly McpStatus[]>([])
   const [skills, setSkills] = useState<readonly SkillRow[]>([])
+  const [instructions, setInstructions] = useState<ProjectInstructions | undefined>(undefined)
   const [agentId, setAgentId] = useState<string | undefined>(undefined)
   /**
    * Fields the pickers show that the conversation row does not carry yet.
@@ -191,12 +197,14 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
   // The group's configuration: its workspace, agents, MCP servers, and skills.
   const refreshGroupConfig = useCallback(async () => {
     if (groupId === '') return
-    const [groupsResponse, agentResponse, mcpResponse, skillResponse] = await Promise.all([
-      fetch('/api/groups'),
-      fetch(`/api/groups/${groupId}/agents`),
-      fetch(`/api/groups/${groupId}/mcp`),
-      fetch(`/api/groups/${groupId}/skills`),
-    ])
+    const [groupsResponse, agentResponse, mcpResponse, skillResponse, instructionResponse]
+      = await Promise.all([
+        fetch('/api/groups'),
+        fetch(`/api/groups/${groupId}/agents`),
+        fetch(`/api/groups/${groupId}/mcp`),
+        fetch(`/api/groups/${groupId}/skills`),
+        fetch(`/api/groups/${groupId}/instructions`),
+      ])
     if (groupsResponse.ok) {
       const body = await groupsResponse.json() as { groups: GroupRow[] }
       const found = body.groups.find(row => row.id === groupId)
@@ -210,6 +218,10 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
       setMcpStatuses(body.statuses)
     }
     if (skillResponse.ok) setSkills((await skillResponse.json() as { skills: SkillRow[] }).skills)
+    if (instructionResponse.ok) {
+      const body = await instructionResponse.json() as { instructions: ProjectInstructions }
+      setInstructions(body.instructions)
+    }
   }, [groupId])
 
   const refresh = useCallback(async () => {
@@ -514,6 +526,7 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
     mcpServers,
     mcpStatuses,
     skills,
+    instructions,
     agentId,
     refresh,
     refreshGroupConfig,

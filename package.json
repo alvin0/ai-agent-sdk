@@ -21,7 +21,7 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "build": "pnpm --filter @ai-agent-sdk/core build && pnpm --filter @ai-agent-sdk/testkit build && pnpm --filter @ai-agent-sdk/a2a build && pnpm --filter @ai-agent-sdk/mcp-server build && pnpm --filter @ai-agent-sdk/mcp build && pnpm --filter @ai-agent-sdk/mcp-node build && pnpm --filter @ai-agent-sdk/mcp-node-server build && pnpm --filter @ai-agent-sdk/skill-filesystem build && pnpm --filter @ai-agent-sdk/provider-http build && pnpm --filter @ai-agent-sdk/protocol-anthropic-messages build && pnpm --filter @ai-agent-sdk/protocol-responses build && pnpm --filter @ai-agent-sdk/protocol-gemini-interactions build && pnpm --filter @ai-agent-sdk/provider-anthropic build && pnpm --filter @ai-agent-sdk/provider-openai build && pnpm --filter @ai-agent-sdk/provider-codex build && pnpm --filter @ai-agent-sdk/provider-gemini build && pnpm --filter @ai-agent-sdk/auth-node build && pnpm --filter @ai-agent-sdk/observability-fetch build && pnpm --filter @ai-agent-sdk/observability-browser build && pnpm --filter @ai-agent-sdk/observability-node build && pnpm --filter @ai-agent-sdk/observability-otel build",
+    "build": "pnpm --filter @ai-agent-sdk/core build && pnpm --filter @ai-agent-sdk/testkit build && pnpm --filter @ai-agent-sdk/a2a build && pnpm --filter @ai-agent-sdk/mcp-server build && pnpm --filter @ai-agent-sdk/mcp build && pnpm --filter @ai-agent-sdk/mcp-node build && pnpm --filter @ai-agent-sdk/mcp-node-server build && pnpm --filter @ai-agent-sdk/skill-filesystem build && pnpm --filter @ai-agent-sdk/instructions-node build && pnpm --filter @ai-agent-sdk/provider-http build && pnpm --filter @ai-agent-sdk/protocol-anthropic-messages build && pnpm --filter @ai-agent-sdk/protocol-responses build && pnpm --filter @ai-agent-sdk/protocol-gemini-interactions build && pnpm --filter @ai-agent-sdk/provider-anthropic build && pnpm --filter @ai-agent-sdk/provider-openai build && pnpm --filter @ai-agent-sdk/provider-codex build && pnpm --filter @ai-agent-sdk/provider-gemini build && pnpm --filter @ai-agent-sdk/auth-node build && pnpm --filter @ai-agent-sdk/observability-fetch build && pnpm --filter @ai-agent-sdk/observability-browser build && pnpm --filter @ai-agent-sdk/observability-node build && pnpm --filter @ai-agent-sdk/observability-otel build",
     "build:cli": "tsdown --config tsdown.cli.config.ts",
     "clean": "node -e \"require('node:fs').rmSync('dist-cli',{recursive:true,force:true})\"",
     "typecheck": "pnpm build && tsc --noEmit",
@@ -43,7 +43,7 @@
     "test:edge": "pnpm --filter @ai-agent-sdk/core test:pack && pnpm --filter @ai-agent-sdk/provider-http test:pack && pnpm --filter @ai-agent-sdk/mcp test:pack && pnpm --filter @ai-agent-sdk/observability-otel test:pack && pnpm test:no-follow",
     "test:no-follow": "node scripts/test-portable-no-follow.mts",
     "test:browser": "pnpm --filter @ai-agent-sdk/observability-browser test:pack",
-    "test:node": "pnpm --filter @ai-agent-sdk/auth-node test:pack && pnpm --filter @ai-agent-sdk/mcp-node test:pack && pnpm --filter @ai-agent-sdk/mcp-node-server test:pack && pnpm --filter @ai-agent-sdk/skill-filesystem test:pack && pnpm --filter @ai-agent-sdk/observability-node test:pack",
+    "test:node": "pnpm --filter @ai-agent-sdk/auth-node test:pack && pnpm --filter @ai-agent-sdk/mcp-node test:pack && pnpm --filter @ai-agent-sdk/mcp-node-server test:pack && pnpm --filter @ai-agent-sdk/skill-filesystem test:pack && pnpm --filter @ai-agent-sdk/instructions-node test:pack && pnpm --filter @ai-agent-sdk/observability-node test:pack",
     "test:recovery": "vitest run tests/unit/observability.spec.ts tests/unit/observability-node.spec.ts && pnpm --filter @ai-agent-sdk/observability-browser test:pack",
     "docs:install": "npm --prefix website install",
     "docs:dev": "npm --prefix website run dev",
@@ -85,6 +85,7 @@
     "@ai-agent-sdk/a2a": "workspace:^",
     "@ai-agent-sdk/auth-node": "workspace:^",
     "@ai-agent-sdk/core": "workspace:^",
+    "@ai-agent-sdk/instructions-node": "workspace:^",
     "@ai-agent-sdk/mcp": "workspace:^",
     "@ai-agent-sdk/mcp-server": "workspace:^",
     "@ai-agent-sdk/mcp-node": "workspace:^",

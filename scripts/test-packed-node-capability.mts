@@ -9,6 +9,7 @@ const capability = process.argv[2]
 const dependencyNames: Readonly<Record<string, readonly string[]>> = {
   'auth-node': ['core', 'provider-http', 'protocol-responses', 'provider-codex', 'auth-node'],
   'skill-filesystem': ['core', 'skill-filesystem'],
+  'instructions-node': ['core', 'instructions-node'],
   'mcp-node': ['core', 'mcp', 'mcp-node'],
   'mcp-node-server': ['core', 'mcp-server', 'mcp-node-server'],
 }
