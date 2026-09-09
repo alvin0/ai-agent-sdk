@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   ConversationRow, GroupRow, GroupView, WireApproval, WireApprovalScope, WireAttachment, WireEvent,
-  WireQuestion,
+  WireQuestion, WireSpan,
 } from '@chat-agents/backend'
 import { deleteTranscript, readTranscript, writeTranscript } from './idb'
 import type { ChatNode, ChatState, MemberState } from './types'
@@ -257,11 +257,34 @@ function reduceMembers(members: readonly MemberState[], event: WireEvent): reado
   }
 }
 
+/**
+ * Keep the run's spans, replacing each one as it closes.
+ *
+ * The server sends a span twice — once when the step opens, once when it ends
+ * with a duration — so this is an upsert by span id rather than an append. The
+ * order is arrival order, which is the order the tree draws siblings in.
+ * @param spans - What the run has reported so far.
+ * @param event - The wire event just received.
+ * @returns The spans after folding the event in.
+ */
+function reduceSpans(spans: readonly WireSpan[], event: WireEvent): readonly WireSpan[] {
+  if (event.t === 'run-start') return []
+  if (event.t !== 'span') return spans
+  const index = spans.findIndex(span => span.spanId === event.span.spanId)
+  if (index === -1) return [...spans, event.span]
+  const next = [...spans]
+  next[index] = event.span
+  return next
+}
+
 /** One run in flight, and everything it has produced so far. */
 interface LiveRun {
   readonly controller: AbortController
   nodes: readonly ChatNode[]
   members: readonly MemberState[]
+  spans: readonly WireSpan[]
+  /** The server's id for this run, once its first event has arrived. */
+  runId: string
   usage: { inputTokens: number, outputTokens: number }
   progress: string | null
 }
@@ -279,6 +302,8 @@ export interface ChatController extends ChatState {
   /** Create a project from a folder; its name defaults to the folder name. */
   createGroup: (workspaceRoot: string) => Promise<GroupRow | undefined>
   deleteGroup: (id: string) => Promise<void>
+  /** Show a project's folder in the desktop file manager. */
+  revealGroup: (id: string) => Promise<void>
   refreshGroups: () => Promise<void>
   /**
    * Start a turn.
@@ -324,6 +349,8 @@ export function useChat(): ChatController {
     usage: { inputTokens: 0, outputTokens: 0 },
     progress: null,
     members: [],
+    spans: [],
+    runId: '',
   })
   /**
    * Runs in flight, keyed by conversation.
@@ -483,6 +510,8 @@ export function useChat(): ChatController {
         ...skillIds.length === 0 ? {} : { skills: skillIds },
       }],
       members: [],
+      spans: [],
+      runId: '',
       usage: state.usage,
       progress: null,
     }
@@ -495,6 +524,8 @@ export function useChat(): ChatController {
         nodes: run.nodes,
         running: true,
         members: run.members,
+        spans: run.spans,
+        runId: run.runId,
         usage: run.usage,
         progress: run.progress,
       })
@@ -538,6 +569,8 @@ export function useChat(): ChatController {
           const event = JSON.parse(payload) as WireEvent
           run.nodes = reduce(run.nodes, event)
           run.members = reduceMembers(run.members, event)
+          run.spans = reduceSpans(run.spans, event)
+          if (event.t === 'run-start') run.runId = event.runId
           // Live status, deliberately not a transcript node: it is true only
           // while it is on screen.
           if (event.t === 'progress') run.progress = event.message
@@ -699,7 +732,13 @@ export function useChat(): ChatController {
    * window on it. Switching back to a conversation still working shows it
    * still working, from the buffer the run has been filling all along.
    */
-  const applyConversation = useCallback((id: string) => {
+  const applyConversation = useCallback((id: string): boolean => {
+    // Opening the conversation already open is nothing to do — and doing it
+    // anyway emptied the screen: the rows below are replaced with a blank
+    // state for the loader to fill, and the loader is keyed on the session id,
+    // which did not change. A second click on the open row left the transcript
+    // gone with nothing on its way to bring it back.
+    if (id === shown.current) return false
     window.localStorage.setItem(CURRENT_KEY, id)
     shown.current = id
     setSessionId(id)
@@ -707,16 +746,20 @@ export function useChat(): ChatController {
     setState(live === undefined
       ? {
           nodes: [], running: false, usage: { inputTokens: 0, outputTokens: 0 },
-          progress: null, members: [],
+          progress: null, members: [], spans: [], runId: '',
         }
       : {
           nodes: live.nodes, running: true, usage: live.usage,
           progress: live.progress, members: live.members,
+          spans: live.spans, runId: live.runId,
         })
+    return true
   }, [])
 
   const openConversation = useCallback((id: string) => {
-    applyConversation(id)
+    // No switch, no history entry: a second click on the open row would
+    // otherwise stack Back steps that go nowhere.
+    if (!applyConversation(id)) return
     writeUrl({ sessionId: id }, 'push')
   }, [applyConversation])
 
@@ -769,7 +812,7 @@ export function useChat(): ChatController {
     setSessionId(fresh)
     setState({
       nodes: [], running: false, usage: { inputTokens: 0, outputTokens: 0 },
-      progress: null, members: [],
+      progress: null, members: [], spans: [], runId: '',
     })
     writeUrl({ sessionId: fresh, groupId: id }, 'push')
   }, [])
@@ -794,6 +837,10 @@ export function useChat(): ChatController {
     if (id === groupId) setGroupId('')
   }, [groupId, refreshGroups])
 
+  const revealGroup = useCallback(async (id: string) => {
+    await fetch(`/api/groups/${id}/reveal`, { method: 'POST' })
+  }, [])
+
   return {
     ...state,
     sessionId,
@@ -804,6 +851,7 @@ export function useChat(): ChatController {
     openGroup,
     createGroup,
     deleteGroup,
+    revealGroup,
     refreshGroups,
     send,
     answer,

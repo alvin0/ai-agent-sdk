@@ -15,45 +15,25 @@ import {
   Button, IconCheckOutline16, IconCopyOutline16, IconDarkOutline16, IconFolderOpen16,
   IconFollowsystemOutline16, IconLightOutline16, IconRightUpOutline16, Input, Modal, writeClipboard,
 } from '../primitives'
-import { AgentsPane, InstructionsPane, McpPane, SkillsPane } from './GroupPanels'
+import { McpPane } from './GroupPanels'
 import { UsagePane } from './UsagePane'
-import type { SettingsController, RunMode } from './useSettings'
+import type { SettingsController } from './useSettings'
 import type { ThemeController, ThemePreference } from './theme'
 import css from './SettingsDialog.module.css'
 
 /**
- * Settings are GLOBAL: credentials, agent presets, MCP servers, and skill
- * folders apply to every project. A project is only its folder, so it is
- * created and switched from the project dialog instead.
+ * Everything here is GLOBAL: credentials, MCP servers, spend, and appearance
+ * apply to every project. An MCP server is registered with a null `group_id`,
+ * so it belongs here rather than under one project. What IS per project —
+ * agent presets and skill folders — lives in the project dialog.
  */
-type Tab = 'providers' | 'agents' | 'mcp' | 'skills' | 'instructions' | 'usage' | 'appearance'
+type Tab = 'providers' | 'mcp' | 'usage' | 'appearance'
 
 const TABS: readonly { id: Tab; label: string }[] = [
   { id: 'providers', label: 'Providers' },
-  { id: 'agents', label: 'Agents' },
   { id: 'mcp', label: 'MCP' },
-  { id: 'skills', label: 'Skills' },
-  { id: 'instructions', label: 'AGENTS.md' },
   { id: 'usage', label: 'Usage' },
   { id: 'appearance', label: 'Appearance' },
-]
-
-const MODES: readonly { id: RunMode; label: string; hint: string }[] = [
-  {
-    id: 'basic',
-    label: 'Basic',
-    hint: 'One answer per turn. No self-check, and the agent cannot stop to ask you a question.',
-  },
-  {
-    id: 'deep',
-    label: 'Deep',
-    hint: 'The agent must pass a submit_result self-check, so a run answers, submits, then answers again.',
-  },
-  {
-    id: 'deep-human-in-loop',
-    label: 'Deep + ask',
-    hint: 'Deep, plus the blocking question card: the agent can stop and ask you before continuing.',
-  },
 ]
 
 const THEMES: readonly { id: ThemePreference; label: string; icon: React.ReactNode }[] = [
@@ -246,23 +226,6 @@ export function SettingsDialog({
 
       {tab === 'providers' && (
         <div className={css.pane}>
-          <div className={css.modeGroup}>
-            <div className={css.modes}>
-              <span className={css.groupLabel}>Loop</span>
-              {MODES.map(entry => (
-                <button
-                  type="button"
-                  key={entry.id}
-                  className={clsx(css.chip, settings.mode === entry.id && css.chipSelected)}
-                  onClick={() => { void settings.setMode(entry.id) }}
-                >
-                  {entry.label}
-                </button>
-              ))}
-            </div>
-            <p className={css.muted}>{MODES.find(entry => entry.id === settings.mode)?.hint}</p>
-          </div>
-
           <div className={css.layout}>
             <ul className={css.providerList}>
               {settings.providers.map(provider => (
@@ -339,10 +302,7 @@ export function SettingsDialog({
         </div>
       )}
 
-      {tab === 'agents' && <AgentsPane settings={settings} />}
       {tab === 'mcp' && <McpPane settings={settings} />}
-      {tab === 'skills' && <SkillsPane settings={settings} />}
-      {tab === 'instructions' && <InstructionsPane settings={settings} />}
       {tab === 'usage' && <UsagePane groupId={settings.groupId} />}
 
       {tab === 'appearance' && (

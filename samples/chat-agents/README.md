@@ -85,6 +85,8 @@ directories with a relative import.
 | `GET/POST /api/groups/:id/mcp`, `PATCH/DELETE /api/mcp/:id` | MCP servers and their live status |
 | `GET/POST /api/groups/:id/skills`, `PATCH/DELETE /api/skills/:id` | Global skill folders (project folders are scanned automatically) |
 | `DELETE /api/conversations/:id` | Delete a conversation and its transcript |
+| `GET /api/conversations/:id/traces` | The conversation's runs, newest first: status, start, duration, span count |
+| `GET /api/traces/:runId` | Every span of one run, for the tree and its details |
 | `GET /api/providers` | Providers, readiness, key hints, endpoint overrides |
 | `GET /api/providers/:id/models` | Discovered catalogue (Codex) or suggestions |
 | `PUT /api/providers/:id/credential` | Store or clear an API key and endpoint |
@@ -583,9 +585,113 @@ dot, whichever one you are reading.
 
 **The wire protocol is display-shaped.** `backend/src/wire.ts` defines what the
 frontend sees: text deltas, reasoning deltas, tool calls, tool results carrying
-a typed `ToolCard`, questions, permission prompts, retry notices, usage, and run lifecycle. The frontend never
+a typed `ToolCard`, questions, permission prompts, retry notices, usage, execution
+spans, and run lifecycle. The frontend never
 imports the SDK's own event union, so the loop can change without touching the
 UI.
+
+**Every run leaves a trace.** The transcript says what the agent produced; the
+**Trace** button in the header says how it got there. The SDK emits
+OpenTelemetry-shaped span events on the same stream as the text and the tool
+calls — `span-start` when a step opens, `span-end` when it closes with a status,
+a duration, and its token counters — and `backend/src/traces.ts` keeps them.
+Each span is written when it opens and rewritten when it ends, so a trace opened
+while the agent is still working reads the same way as one opened afterwards.
+
+The left pane lists the conversation's runs in the order they happened, folded,
+with the newest at the bottom — where the transcript puts it too — and opens
+scrolled to it. A folded run is one line: the prompt it answered, its status,
+when it started, how long it took, how many steps it has, and what it spent.
+Opening one draws its call graph — the turn, the model rounds it made, the tool
+calls each round asked for nested under that round, a team member's own run as
+its own branch, and the compactions, which produce no assistant text and are
+therefore invisible in the transcript. The connectors are load bearing: four
+levels down, indentation alone stops saying which parent a row belongs to. Every branch folds on its own, and
+**Expand all** / **Collapse all** work on the run list.
+
+That nesting is the VIEW's, not the loop's. The loop hangs every tool call off
+the turn, beside the round that asked for it, because a call outlives the round
+— true of the lifetimes, and unreadable: a turn with thirty flat rows says
+nothing about which round caused which call. So `web/src/ui/trace/spans.ts`
+re-parents each call onto the last round that started before it, and the stored
+trace keeps the loop's own parent untouched.
+
+Each row is named for the step, not for the operation: the badge already says
+"TOOL" or "MODEL", so the SDK's own "execute_tool read_file" is trimmed to the
+half that differs. Beside the name sits what the step acted on — the file it
+read, the query it searched, the command it ran, summarised by the same code
+the transcript's tool rows use — and for a model round, the reasoning effort
+the call ran at, because the same model at minimal and at high is two
+different requests.
+
+Each row carries what that step cost: its duration, and fresh input, cached
+input, and output tokens kept apart, because they are not billed the same and a
+step that reads as expensive is often mostly cache. A step that reported no
+counters — a tool call, a compaction — leaves the cell empty rather than
+printing three zeroes it would be inventing. The run's own total is summed from
+the model rounds alone: a turn span reports the turn's aggregate, so counting it
+alongside its own rounds would bill every run twice.
+
+**The trace also shows what the harness prepared.** Two things decide what the
+model is about to read and neither is a step the loop takes: the project's
+instruction files, which arrive as a context section the loop rewrites
+silently, and the skill catalogue, which arrives as a tool schema. A run that
+quietly read no conventions file is then indistinguishable from one that read
+three — which is how "why does it ignore our rules" becomes an afternoon. So
+the harness records both as `context` rows under the run: which files were
+loaded (with sizes and first lines), which names it looked for, how many skills
+were discovered and from which provider, and which ones the prompt named with
+`/`. The candidate names are worth reading: the runtime looks for
+`AGENTS.override.md` and `AGENTS.md`, so a project that keeps its conventions in
+`CLAUDE.md` will show "none found" until the file is renamed or that name is
+added to the section's `fileNames`.
+
+The catalogue is scanned once per run now, rather than only for a prompt
+containing a `/`: which skills a run could see is part of explaining what it
+did, and it is the same directory walk the composer already does.
+
+**A team run is coloured.** Each member takes a hue on first appearance, and its
+rows carry it — the connectors, the member badge, and the chip in the run's
+folded line — so a delegation reads as its own branch instead of disappearing
+into the lead's. That is categorical colour, which the `--dsw-*` token set has
+no scale for, so the hues are declared in `SpanTree.tsx` and are mid-lightness
+on purpose: one value that works on both grounds.
+
+Selecting a row fills the right pane. **Input + Output** is the step's own
+conversation. A model round carries the request it sent, summarised rather than
+copied — the tools that were on offer, how many messages the context held, and
+the last eight of them clipped to 600 characters each — because a round's whole
+request can be larger than the work it describes, and the tail is the part that
+explains which tool it picked. Its output is the text, commentary, reasoning
+and tool-call count that came back, with the tokens it spent. A tool call
+carries the arguments it was given and the result it returned; a turn carries
+the prompt and the final answer. **Metadata** is the raw record, every attribute
+the SDK reported, for when the readable version has left out the field being
+chased.
+
+**API call** is the third tab, on a model round only. The step rows carry the
+loop's capped summary of a request; this is the recording made around the
+adapter call itself — the payload as sent (provider, model, effort and the other
+parameters, the system prompt, the tool names on offer, and the messages) and
+the stream as received (chunk count, coalesced text and reasoning, the tool
+calls, the usage counters, the finish reason, or the error that ended it). It is
+recorded by a `StreamMiddleware`, which the registry documents as the extension
+point for request logging, so one middleware covers every provider a run may
+route to — the offline one included, which is how the tests drive it.
+
+Correlation is by request IDENTITY, not by timing: the loop's span records the
+model, the message count and the id of the last message it sent, and the
+recorder computes the same triple. Two members of a team streaming at once
+cannot be filed under one another, which a "whichever call was in flight" rule
+would do. Payloads are cut to the last 60 messages and 20k characters per block
+with `truncated` set, because a conversation with a large file pasted into it is
+read, not archived.
+
+The run in flight is the exception to folding: it opens itself and streams its
+steps over the same SSE connection the transcript uses, so a long run is watched
+rather than waited for. A finished run is read back from SQLite when it is
+opened, where `trace_spans` keeps one row per span and a deleted conversation
+takes its spans with it.
 
 **Token spend is counted from two sources.** `backend/src/usage.ts` records one
 row per model call, grouped in Settings → Usage by provider, model and reasoning
@@ -631,7 +737,7 @@ what turns a result into a read, diff, search, web, todo, or filesystem card.
 
 ## Not built yet
 
-The details/trajectory column, multi-user auth, and encryption of the stored
+Multi-user auth and encryption of the stored
 API keys (the database file is git-ignored but plaintext). Steering carries
 text only: attaching a file while a run is in flight starts a new turn, because
 the SDK's `inject` takes a string.

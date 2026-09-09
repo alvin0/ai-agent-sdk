@@ -64,5 +64,7 @@ export {
 } from './attachments'
 export type { AttachmentKind, AttachmentRecord } from './attachments'
 export type { UsageRow, UsageSummary, UsageTotals } from './usage'
+export { deleteTraces, listTraces, readTrace, RunTrace } from './traces'
+export type { TraceSummary } from './traces'
 export { database, databaseFile, schema } from './db/client'
 export type * from './wire'

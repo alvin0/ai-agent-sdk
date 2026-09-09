@@ -17,6 +17,7 @@ import type { GenerateOptions } from '@ai-agent-sdk/core'
 import { createTextMessage } from '@ai-agent-sdk/core'
 import { ToolCallId } from '@ai-agent-sdk/core'
 import { ModelRegistry } from '@ai-agent-sdk/core'
+import { ReasoningEffortId } from '@ai-agent-sdk/core'
 import type { StreamChunk } from '@ai-agent-sdk/core'
 
 class ScriptedAdapter extends ModelAdapter {
@@ -350,6 +351,28 @@ describe('runTurn', () => {
     expect(tree).toHaveLength(1)
     expect(tree[0]?.children.map(child => child.kind)).toEqual(['chat', 'execute_tool', 'chat'])
     expect(tree[0]?.children[1]?.attributes).toMatchObject({ 'gen_ai.tool.call.id': 'c1' })
+    // No ladder on this route, so no level is claimed: a default nobody chose
+    // is worse than a missing attribute.
+    expect(tree[0]?.children[0]?.attributes).not.toHaveProperty('gen_ai.request.reasoning_effort')
+  })
+
+  it('reports the reasoning effort a model round ran at', async () => {
+    // The same model at minimal and at high is two different requests, priced
+    // and paced differently. A trace without the level cannot explain either,
+    // and the level is per CALL: a run may change it between rounds.
+    const state = await setup([textRound('done')])
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry,
+      config: { provider: 'test', model: 'm', reasoningEffort: ReasoningEffortId('high') },
+      history: state.history, tools: state.tools,
+    })) events.push(event)
+    const tree = buildTraceTree(events.filter((event): event is TraceEvent =>
+      event.type === 'span-start' || event.type === 'span-end'))
+    expect(tree[0]?.children[0]?.attributes).toMatchObject({
+      'gen_ai.request.model': 'm',
+      'gen_ai.request.reasoning_effort': 'high',
+    })
   })
 
   it('keeps long tool-loop rounds as text and applies JSON Schema only to the final answer', async () => {

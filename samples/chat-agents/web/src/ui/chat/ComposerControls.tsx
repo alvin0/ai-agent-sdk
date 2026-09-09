@@ -4,12 +4,21 @@
  * The controls that live on the composer bar: which model runs the next turn,
  * how hard it should think, and which loop policy the conversation uses.
  *
+ * Model and effort share ONE chip. Effort only means anything relative to a
+ * model — the ladder a route offers differs per model — so it is a submenu of
+ * the model list rather than a second control competing for bar width.
+ *
  * They edit the conversation row directly, so what the bar shows is what the
  * next run will actually use.
  */
 
+/** Prefix marking an effort row, so it cannot be read as a provider::model id. */
+const EFFORT = 'effort#'
+
 import { useMemo, useState } from 'react'
-import { IconChevronDownOutline14, IconSparkle16, IconThinkOutline14, Menu } from '../primitives'
+import {
+  IconCheckOutline16, IconChevronDownOutline14, Menu,
+} from '../primitives'
 import type { MenuEntry } from '../primitives'
 import type { SettingsController, RunMode } from '../settings/useSettings'
 import css from './ComposerControls.module.css'
@@ -25,19 +34,16 @@ const MODE_LABELS: Readonly<Record<RunMode, string>> = {
 function Chip({
   label,
   hint,
-  icon,
   open,
   onClick,
 }: {
   label: string
   hint?: string
-  icon?: React.ReactNode
   open: boolean
   onClick: () => void
 }) {
   return (
     <button type="button" className={css.chip} data-open={open || undefined} onClick={onClick}>
-      {icon}
       <span className={css.chipLabel}>{label}</span>
       {hint !== undefined && <span className={css.chipHint}>{hint}</span>}
       <IconChevronDownOutline14 />
@@ -48,10 +54,10 @@ function Chip({
 /**
  * Render the composer's model, effort, and loop-mode pickers.
  * @param props - The settings controller for the open conversation.
- * @returns The three chips.
+ * @returns The model and mode chips.
  */
 export function ComposerControls({ settings }: { settings: SettingsController }) {
-  const [openMenu, setOpenMenu] = useState<'model' | 'effort' | 'mode' | null>(null)
+  const [openMenu, setOpenMenu] = useState<'model' | 'mode' | null>(null)
 
   // Only providers that can actually run: a model with no credential behind it
   // is not a choice, it is a dead end. The provider heading is dropped when a
@@ -67,7 +73,13 @@ export function ComposerControls({ settings }: { settings: SettingsController })
       if (models.length === 0) continue
       if (ready.length > 1) entries.push({ type: 'label', id: `l_${provider.id}`, text: provider.label })
       for (const model of models) {
-        entries.push({ id: `${provider.id}::${model.id}`, label: model.id })
+        entries.push({
+          id: `${provider.id}::${model.id}`,
+          label: model.id,
+          // Typing a provider name narrows to its models, which the row itself
+          // does not spell out once the heading has scrolled away.
+          searchText: `${provider.label} ${provider.id} ${model.id}`,
+        })
       }
     }
     return entries.length === 0
@@ -84,6 +96,16 @@ export function ComposerControls({ settings }: { settings: SettingsController })
     : settings.modelsFor(settings.choice.provider).find(entry => entry.id === settings.choice?.model)
   const effort = settings.effort ?? selectedModel?.defaultEffort ?? 'medium'
 
+  /**
+   * Whether the static-team row is worth offering.
+   *
+   * An empty roster makes Team behave like one agent, so it is hidden — unless
+   * the conversation is already ON Team, because a selected mode with no row
+   * would leave the chip naming a choice the list does not contain.
+   */
+  const hasRoster = settings.agents.some(agent => agent.inTeam === 1)
+    || settings.mode === 'team'
+
   return (
     <div className={css.row}>
       <Menu
@@ -96,8 +118,40 @@ export function ComposerControls({ settings }: { settings: SettingsController })
         selectedId={settings.choice === undefined
           ? undefined
           : `${settings.choice.provider}::${settings.choice.model}`}
+        search="Search models…"
         items={modelEntries}
+        footer={[
+          {
+            id: 'effort',
+            label: (
+              <span className={css.menuRow}>
+                Effort
+                <span className={css.menuValue}>{effort}</span>
+              </span>
+            ),
+            submenu: efforts.map(level => ({
+              id: `${EFFORT}${level}`,
+              label: (
+                <span className={css.menuRow}>
+                  {level}
+                  <span className={css.menuTail}>
+                    {level === selectedModel?.defaultEffort && (
+                      <span className={css.menuValue}>default</span>
+                    )}
+                    {/* The submenu draws no selection marker of its own. */}
+                    {level === effort && <IconCheckOutline16 />}
+                  </span>
+                </span>
+              ),
+            })),
+          },
+        ]}
         onSelect={(id) => {
+          if (id.startsWith(EFFORT)) {
+            void settings.setEffort(id.slice(EFFORT.length))
+            setOpenMenu(null)
+            return
+          }
           const [provider, model] = id.split('::')
           if (provider !== undefined && model !== undefined) void settings.choose({ provider, model })
           setOpenMenu(null)
@@ -105,7 +159,7 @@ export function ComposerControls({ settings }: { settings: SettingsController })
         anchor={(
           <Chip
             label={modelLabel}
-            icon={<IconSparkle16 />}
+            hint={effort}
             open={openMenu === 'model'}
             onClick={() => {
               setOpenMenu(current => (current === 'model' ? null : 'model'))
@@ -119,32 +173,6 @@ export function ComposerControls({ settings }: { settings: SettingsController })
       />
 
       <Menu
-        open={openMenu === 'effort'}
-        onClose={() => { setOpenMenu(null) }}
-        portal
-        side="top"
-        align="start"
-        className={css.menu}
-        selectedId={effort}
-        items={efforts.map(level => ({
-          id: level,
-          label: level === selectedModel?.defaultEffort ? `${level} (default)` : level,
-        }))}
-        onSelect={(id) => {
-          void settings.setEffort(id)
-          setOpenMenu(null)
-        }}
-        anchor={(
-          <Chip
-            label={effort}
-            icon={<IconThinkOutline14 />}
-            open={openMenu === 'effort'}
-            onClick={() => { setOpenMenu(current => (current === 'effort' ? null : 'effort')) }}
-          />
-        )}
-      />
-
-      <Menu
         open={openMenu === 'mode'}
         onClose={() => { setOpenMenu(null) }}
         portal
@@ -153,17 +181,16 @@ export function ComposerControls({ settings }: { settings: SettingsController })
         className={css.menu}
         selectedId={settings.mode}
         items={[
-          { type: 'label', id: 'l_single', text: 'One agent' },
+          { type: 'label', id: 'l_agent', text: 'Agent' },
           { id: 'basic', label: 'Basic' },
           { id: 'deep', label: 'Deep' },
           { id: 'deep-human-in-loop', label: 'Deep + ask' },
-          { type: 'label', id: 'l_team', text: 'Multiple agents' },
-          {
-            id: 'team',
-            label: 'Team',
-            // A roster with nobody in it would silently behave like one agent.
-            disabled: settings.agents.filter(agent => agent.inTeam === 1).length === 0,
-          },
+          { type: 'separator', id: 'sep_team' },
+          // A roster with nobody in it would behave like one agent, so the row
+          // is not offered at all until a preset has been added to the team.
+          ...hasRoster
+            ? [{ id: 'team', label: 'Team' } as const]
+            : [],
           { id: 'team-dynamic', label: 'Team · auto' },
         ]}
         onSelect={(id) => {

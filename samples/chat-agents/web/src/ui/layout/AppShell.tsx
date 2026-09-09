@@ -13,9 +13,10 @@ import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import type { ConversationRow, GroupView } from '@chat-agents/backend'
 import {
-  IconChevronDownOutline14, IconDarkOutline16, IconFolderClose16, IconFolderOpen16,
-  IconLightOutline16, IconNewChatOutline16, IconPanelLeftOutline16, IconPlusOutline16,
-  IconSettingsOutline16, IconTrashOutline16, StateDot,
+  IconChevronDownOutline14, IconDarkOutline16, IconEditOutline16, IconEllipsisOutline16,
+  IconFolderClose16, IconFolderOpen16, IconLightOutline16, IconNewChatOutline16,
+  IconPanelLeftOutline16, IconPlusOutline16, IconSettingsOutline16, IconTrashOutline16,
+  Menu, StateDot,
 } from '../primitives'
 import css from './AppShell.module.css'
 
@@ -102,6 +103,17 @@ export interface AppShellProps {
   onOpenGroup: (id: string) => void
   /** Open the project dialog: switch project, or pick a folder to add one. */
   onManageProjects: () => void
+  /** Open one project's own settings, without switching to it first. */
+  onEditProject: (id: string) => void
+  /** Show a project's folder in the desktop file manager. */
+  onRevealProject: (id: string) => void
+  /**
+   * Drop a project from the list.
+   *
+   * The folder is untouched: this deletes the project row and its per-project
+   * presets, and moves its conversations back to the default project.
+   */
+  onDeleteProject: (id: string) => void
   currentId: string
   /** Conversations with a run in flight, including ones not on screen. */
   runningIds: readonly string[]
@@ -128,6 +140,9 @@ export function AppShell({
   runningIds,
   onOpenGroup,
   onManageProjects,
+  onEditProject,
+  onRevealProject,
+  onDeleteProject,
   currentId,
   onNewChat,
   onOpenConversation,
@@ -151,6 +166,17 @@ export function AppShell({
   const fold = (section: 'projects' | 'chats') => () => {
     setFolded(current => ({ ...current, [section]: !current[section] }))
   }
+  /** The project row whose "…" menu is open. */
+  const [projectMenu, setProjectMenu] = useState<string | undefined>(undefined)
+  /**
+   * The project whose removal has been asked for once.
+   *
+   * Removing drops the project's own presets and moves its conversations back
+   * to the default project, and none of that is undoable — so the row asks a
+   * second time rather than acting on the first click, the same two-step the
+   * usage pane uses for clearing history.
+   */
+  const [confirmRemove, setConfirmRemove] = useState<string | undefined>(undefined)
   const [chatLimit, setChatLimit] = useState(CHAT_PAGE)
   // A limit the user raised belonged to the project they raised it in; carrying
   // it into the next one would expand a list they never asked to see.
@@ -239,20 +265,92 @@ export function AppShell({
                         <span className={css.rowLabel}>{group.name}</span>
                         {!open && <span className={css.rowCount}>{group.conversations}</span>}
                       </button>
-                      <button
-                        type="button"
-                        className={css.rowAction}
-                        aria-label={`New chat in ${group.name}`}
-                        title={`New chat in ${group.name}`}
-                        onClick={() => {
-                          // Switching project already starts a fresh
-                          // conversation, so the two cases differ by one call.
-                          if (open) onNewChat()
-                          else onOpenGroup(group.id)
-                        }}
+                      {/*
+                        Hover actions. The menu keeps them shown while it is
+                        open, so the row does not empty out from under the list
+                        the moment the pointer moves onto it.
+                      */}
+                      <span
+                        className={clsx(
+                          css.rowActions,
+                          projectMenu === group.id && css.rowActionsOpen,
+                        )}
                       >
-                        <IconNewChatOutline16 />
-                      </button>
+                        <button
+                          type="button"
+                          className={css.rowActionItem}
+                          aria-label={`New chat in ${group.name}`}
+                          title={`New chat in ${group.name}`}
+                          onClick={() => {
+                            // Switching project already starts a fresh
+                            // conversation, so the two cases differ by one call.
+                            if (open) onNewChat()
+                            else onOpenGroup(group.id)
+                          }}
+                        >
+                          <IconNewChatOutline16 />
+                        </button>
+                        <Menu
+                          open={projectMenu === group.id}
+                          onClose={() => {
+                            setProjectMenu(undefined)
+                            setConfirmRemove(undefined)
+                          }}
+                          portal
+                          align="end"
+                          items={[
+                            { id: 'edit', label: 'Edit project', icon: <IconEditOutline16 /> },
+                            {
+                              id: 'reveal',
+                              label: 'Open folder',
+                              icon: <IconFolderOpen16 />,
+                            },
+                            { type: 'separator', id: 's1' },
+                            {
+                              id: 'remove',
+                              label: confirmRemove === group.id
+                                ? 'Remove — click to confirm'
+                                : 'Remove from list',
+                              icon: <IconTrashOutline16 />,
+                              danger: true,
+                              // The fallback every conversation lands in, so
+                              // there is nowhere for its chats to go.
+                              disabled: group.id === 'default',
+                            },
+                          ]}
+                          onSelect={(id) => {
+                            if (id === 'remove') {
+                              // First click arms, second removes.
+                              if (confirmRemove !== group.id) {
+                                setConfirmRemove(group.id)
+                                return
+                              }
+                              setConfirmRemove(undefined)
+                              setProjectMenu(undefined)
+                              onDeleteProject(group.id)
+                              return
+                            }
+                            setConfirmRemove(undefined)
+                            setProjectMenu(undefined)
+                            if (id === 'edit') onEditProject(group.id)
+                            else if (id === 'reveal') onRevealProject(group.id)
+                          }}
+                          anchor={(
+                            <button
+                              type="button"
+                              className={css.rowActionItem}
+                              aria-label={`Actions for ${group.name}`}
+                              title="More"
+                              onClick={() => {
+                                setConfirmRemove(undefined)
+                                setProjectMenu(current => (current === group.id ? undefined : group.id))
+                              }}
+                            >
+                              <IconEllipsisOutline16 />
+                            </button>
+                          )}
+                        />
+                      </span>
                     </div>
 
                     {open && !folded.chats && (

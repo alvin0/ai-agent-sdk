@@ -21,7 +21,7 @@ import { resolveModel, supportedEffort } from './registry'
 import type { ModelSelection, ResolvedModel } from './registry'
 import { getAgent, listAgents } from './agents'
 import { listAvailableSkills, resolveSkillMentions } from './skill-catalog'
-import { startRun } from './agent-runtime'
+import { instructionsInForce, startRun } from './agent-runtime'
 import type { RunMode } from './agent-runtime'
 import { getGroup } from './groups'
 import { createSampleTools, onCommandOutput, TOOL_LABELS } from './tools'
@@ -32,9 +32,12 @@ import type { ManagedAgentTeam } from '@ai-agent-sdk/core/agent'
 import { addToTally, recordUsage, turnShortfall, usageOf } from './usage'
 import type { UsageTally } from './usage'
 import { EventProjector } from './event-projection'
+import { RunTrace } from './traces'
+import { recordProviderCalls } from './provider-calls'
+import type { CallFingerprint, CallSink } from './provider-calls'
 import type { StoredNode } from './event-projection'
 import type {
-  WireApproval, WireApprovalScope, WireAttachment, WireEvent, WireQuestion,
+  WireApiCall, WireApproval, WireApprovalScope, WireAttachment, WireEvent, WireQuestion,
 } from './wire'
 
 /**
@@ -677,10 +680,21 @@ export async function* runPrompt(
     live.seq += 1
   }
 
+  /**
+   * Where a finished provider call goes.
+   *
+   * The recorder has to be installed on the registry before the first call,
+   * which is before the trace it feeds exists — so calls land in a buffer and
+   * the sink is replaced once there is a trace and a stream to send on.
+   */
+  const recordedCalls: { call: WireApiCall; id: CallFingerprint }[] = []
+  let onProviderCall: CallSink = (call, callId) => { recordedCalls.push({ call, id: callId }) }
+  const recorder = recordProviderCalls((call, callId) => { onProviderCall(call, callId) })
+
   let model
   let effort: string | undefined
   try {
-    model = await resolveModel(selection)
+    model = await resolveModel(selection, recorder)
     // The conversation's remembered effort against the model it actually ran
     // on. Switching a conversation to a model with a different ladder — or
     // none — otherwise fails every later prompt with a provider rejection.
@@ -711,16 +725,84 @@ export async function* runPrompt(
     return
   }
 
-  // Skills the user named with `/` in the composer. Resolved against the
-  // catalogue rather than by parsing alone, so `/etc/passwd` cannot invent one,
-  // and only when a `/` is present at all — the scan is filesystem I/O.
+  /**
+   * The run's execution trace, for the trace view.
+   *
+   * Fed the same raw events as the transcript projector, and separately: a span
+   * is not a transcript node, and the transcript is not a record of how long
+   * each step took or what nested inside what.
+   *
+   * Built this early because the harness's own preparation — the instruction
+   * files, the skill catalogue — happens before the loop starts and is part of
+   * what explains the run.
+   */
+  const trace = new RunTrace(id, runId, prompt)
+
+  // The project's conventions files. Recorded even when there are none: a run
+  // that read no AGENTS.md is the answer to "why did it ignore our rules", and
+  // an empty list says it where silence could not.
+  const instructionsAt = Date.now()
+  try {
+    const instructions = await instructionsInForce(workspaceRoot)
+    trace.note({
+      name: 'instructions',
+      startedAt: instructionsAt,
+      durationMs: Date.now() - instructionsAt,
+      attributes: {
+        'agent.instructions.files': instructions.files.length,
+        'agent.instructions.candidates': instructions.fileNames.join(', '),
+        'agent.instructions.project_root': instructions.projectRoot,
+      },
+      output: {
+        projectRoot: instructions.projectRoot,
+        candidates: instructions.fileNames,
+        files: instructions.files.map(file => ({
+          path: file.path,
+          bytes: file.bytes,
+          firstLine: file.firstLine,
+          ...file.global === true ? { global: true } : {},
+        })),
+      },
+    })
+  } catch (error) {
+    trace.note({
+      name: 'instructions',
+      startedAt: instructionsAt,
+      durationMs: Date.now() - instructionsAt,
+      output: undefined,
+      error: { type: 'InstructionsUnreadable', message: error instanceof Error ? error.message : String(error) },
+    })
+  }
+
+  // Skills the user named with `/` in the composer, resolved against the
+  // catalogue rather than by parsing alone, so `/etc/passwd` cannot invent one.
+  //
+  // The catalogue is scanned for EVERY run now, not only for a prompt with a
+  // `/` in it: which skills a run could see is part of explaining what it did,
+  // and the scan is the same directory walk the composer already does.
+  const catalogueAt = Date.now()
+  const catalogue = await listAvailableSkills({ groupId: group.id, workspaceRoot }, controller.signal)
   const mentioned = prompt.includes('/') || skillIds.length > 0
-    ? resolveSkillMentions(
-      prompt,
-      await listAvailableSkills({ groupId: group.id, workspaceRoot }, controller.signal),
-      skillIds,
-    )
+    ? resolveSkillMentions(prompt, catalogue, skillIds)
     : { skills: [] as const, directive: undefined }
+  trace.note({
+    name: 'skills',
+    startedAt: catalogueAt,
+    durationMs: Date.now() - catalogueAt,
+    attributes: {
+      'agent.skills.discovered': catalogue.length,
+      'agent.skills.named': mentioned.skills.map(skill => skill.id).join(', '),
+    },
+    output: {
+      named: mentioned.skills.map(skill => skill.id),
+      discovered: catalogue.map(skill => ({
+        id: skill.id,
+        name: skill.name,
+        provider: skill.provider,
+        ...skill.whenToUse === undefined ? {} : { whenToUse: skill.whenToUse },
+      })),
+    },
+  })
 
   await persist({
     kind: 'user',
@@ -790,7 +872,17 @@ export async function* runPrompt(
   live.approvals = policy
   const project = new EventProjector({ approval: callId => policy.prompt(callId) })
 
+
   const wake = createDoorbell()
+
+  // The trace and the stream both exist now, so recorded calls can go where
+  // they belong. Whatever the first rounds recorded while the buffer was in
+  // place is drained through the same path.
+  onProviderCall = (call, callId) => {
+    for (const wire of trace.attachCall(call, callId)) queued.push(wire)
+    wake.ring()
+  }
+  for (const buffered of recordedCalls.splice(0)) onProviderCall(buffered.call, buffered.id)
 
   const feed = createMemberFeed(project, (event) => { queued.push(event) })
   const onMemberEvent = (member: string, event: AgentRunEvent): void => {
@@ -817,6 +909,10 @@ export async function* runPrompt(
       void recordUsage(streamed, memberContext)
     }
     void recordUsage(turnShortfall(event, tally, tallyKey), memberContext)
+    // Spans first: the step that produced these events opened before them.
+    for (const wire of trace.observe(event, member === LEAD_NAME ? undefined : member)) {
+      queued.push(wire)
+    }
     if (member === LEAD_NAME) {
       // The agent the user is talking to, reporting a turn it was woken for
       // after a worker finished. Projected as the lead so its synthesis reads
@@ -981,6 +1077,7 @@ export async function* runPrompt(
           void recordUsage(streamed, leadContext)
         }
         void recordUsage(turnShortfall(step.lead, tally), leadContext)
+        for (const wire of trace.observe(step.lead)) yield wire
         for (const wire of project.forLead(step.lead)) {
           if (wire.t === 'tool-call') inFlight.set(wire.id, wire.name)
           if (wire.t === 'tool-result') inFlight.delete(wire.id)
@@ -1003,6 +1100,7 @@ export async function* runPrompt(
     if (live.steerUnread && handles.continuePending !== undefined && !controller.signal.aborted) {
       live.steerUnread = false
       for await (const event of handles.continuePending()) {
+        for (const wire of trace.observe(event)) yield wire
         for (const wire of project.forLead(event)) {
           if (wire.t === 'tool-call') inFlight.set(wire.id, wire.name)
           if (wire.t === 'tool-result') inFlight.delete(wire.id)

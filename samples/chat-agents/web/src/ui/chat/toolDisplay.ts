@@ -158,3 +158,67 @@ export function webGroupSummary(pages: number, sites: number): string {
     ? `Read ${String(pages)} ${sites === 1 ? 'page' : 'pages'}`
     : `Read ${String(pages)} pages from ${String(sites)} ${noun}`
 }
+
+/**
+ * The one line a tool call is recognised by: what it acted on.
+ *
+ * The tool's NAME says what kind of thing happened; this says which thing —
+ * the file that was read, the query that was searched, the command that ran.
+ * Both the transcript's tool rows and the trace's tool steps ask that same
+ * question, so the answer lives here rather than in either component.
+ *
+ * Takes the arguments either as the raw JSON the model produced or already
+ * parsed, because the transcript keeps the string and a trace span keeps the
+ * value. Anything unparseable is cut to a length that fits a row.
+ * @param name - The tool's name.
+ * @param args - The call's arguments, raw or parsed.
+ * @returns The summary, or an empty string when the call took no arguments.
+ */
+export function toolSummary(name: string, args: unknown): string {
+  const parsed = typeof args === 'string' ? parseArgs(args) : args
+  if (typeof parsed !== 'object' || parsed === null) {
+    return typeof parsed === 'string' ? parsed.slice(0, 120) : ''
+  }
+  const fields = parsed as Record<string, unknown>
+  // A control tool's arguments are a whole payload; summarise the part a
+  // reader recognises rather than the raw JSON.
+  if (name === 'request_user_input') {
+    const questions = fields.questions
+    const first = Array.isArray(questions) ? questions[0] as { question?: unknown } | undefined : undefined
+    if (typeof first?.question === 'string') return first.question
+  }
+  if (name === 'submit_result' && typeof fields.summary === 'string') return fields.summary
+  // The command line IS the summary of a shell call; its path arguments are not.
+  if (name === 'run_command' && typeof fields.command === 'string') return fields.command
+  if (name === 'move_path' && typeof fields.from === 'string' && typeof fields.to === 'string') {
+    return `${fields.from} → ${fields.to}`
+  }
+  // A spawned worker is named by WHO it is, not by the paragraph it was given.
+  if (typeof fields.name === 'string' && (name === 'spawn_agent' || name === 'send_message')) {
+    return fields.name
+  }
+
+  // A search is its QUERY. Ranked above the path because a search of the
+  // workspace root carries '.' as its path, and reporting that told the reader
+  // where the search ran instead of what it looked for.
+  if (typeof fields.query === 'string' && fields.query !== '') return fields.query
+
+  // The workspace root reads better than the literal "." the model sends.
+  if (typeof fields.path === 'string' && (fields.path === '.' || fields.path === './')) {
+    return 'workspace root'
+  }
+
+  const first = fields.path ?? fields.url ?? fields.items
+  if (typeof first === 'string') return first
+  if (Array.isArray(first)) return `${String(first.length)} items`
+  return Object.keys(fields).length === 0 ? '' : JSON.stringify(fields).slice(0, 120)
+}
+
+/** Parse arguments, keeping the raw text when the model sent something else. */
+function parseArgs(args: string): unknown {
+  try {
+    return JSON.parse(args) as unknown
+  } catch {
+    return args
+  }
+}

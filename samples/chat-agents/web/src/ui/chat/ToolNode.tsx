@@ -17,7 +17,7 @@ import {
 } from '../primitives'
 import { markdownLabels } from '../labels'
 import { ToolCardBody } from './ToolCardBody'
-import { opensByDefault, showsLiveOutput } from './toolDisplay'
+import { opensByDefault, showsLiveOutput, toolSummary } from './toolDisplay'
 import type { ChatNode } from './types'
 import css from './ToolRow.module.css'
 
@@ -80,39 +80,6 @@ export function iconFor(name: string) {
   }
 }
 
-/** One-line collapsed summary derived from the call's arguments. */
-function summaryOf(name: string, args: string): string {
-  let parsed: Record<string, unknown>
-  try {
-    parsed = JSON.parse(args) as Record<string, unknown>
-  } catch {
-    return args.slice(0, 120)
-  }
-  // A control tool's arguments are a whole payload; summarise the part a
-  // reader recognises rather than the raw JSON.
-  if (name === 'request_user_input') {
-    const questions = parsed.questions
-    const first = Array.isArray(questions) ? questions[0] as { question?: unknown } | undefined : undefined
-    if (typeof first?.question === 'string') return first.question
-  }
-  if (name === 'submit_result' && typeof parsed.summary === 'string') return parsed.summary
-  // The command line IS the summary of a shell call; its path arguments are not.
-  if (name === 'run_command' && typeof parsed.command === 'string') return parsed.command
-  if (name === 'move_path' && typeof parsed.from === 'string' && typeof parsed.to === 'string') {
-    return `${parsed.from} → ${parsed.to}`
-  }
-
-  // The workspace root reads better than the literal "." the model sends.
-  if (typeof parsed.path === 'string' && (parsed.path === '.' || parsed.path === './')) {
-    return 'workspace root'
-  }
-
-  const first = parsed.path ?? parsed.query ?? parsed.url ?? parsed.items
-  if (typeof first === 'string') return first
-  if (Array.isArray(first)) return `${first.length} items`
-  return Object.keys(parsed).length === 0 ? '' : JSON.stringify(parsed).slice(0, 120)
-}
-
 function prettyJson(text: string): string {
   try {
     return JSON.stringify(JSON.parse(text), null, 2)
@@ -154,7 +121,7 @@ function LiveOutput({ command, text }: { command: string; text: string }) {
  */
 export function ToolNode({ node }: { node: Extract<ChatNode, { kind: 'tool' }> }) {
   const [open, setOpen] = useState(opensByDefault(node.name))
-  const summary = useMemo(() => summaryOf(node.name, node.args), [node.name, node.args])
+  const summary = useMemo(() => toolSummary(node.name, node.args), [node.name, node.args])
   // Declined is its own row state: nothing broke and nothing ran, so it is
   // neither a green result nor a red failure.
   const rowState = node.state === 'running'

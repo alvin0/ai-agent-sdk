@@ -7,6 +7,7 @@
  * a browser cannot hand a real path to the backend.
  */
 
+import { execFile } from 'node:child_process'
 import { mkdirSync, readdirSync, statSync, writeFileSync, existsSync } from 'node:fs'
 import { homedir, platform } from 'node:os'
 import { isAbsolute, join, parse, resolve, sep } from 'node:path'
@@ -172,4 +173,26 @@ export function browseDirectory(path?: string): DirectoryListing {
     roots: filesystemRoots(),
     entries,
   }
+}
+
+/**
+ * Show a directory in the desktop's own file manager.
+ *
+ * The path is NEVER taken from the request: callers pass a workspace root read
+ * back from the database, so a crafted body cannot point this at an arbitrary
+ * directory. `execFile` is used without a shell and with the path as its own
+ * argument, so a folder name containing shell metacharacters stays a name.
+ * @param path - Absolute directory to reveal.
+ * @throws If the path is not an existing directory.
+ */
+export function revealDirectory(path: string): void {
+  const target = resolve(path)
+  if (!existsSync(target) || !statSync(target).isDirectory()) {
+    throw new Error(`not a directory: ${target}`)
+  }
+  const current = platform()
+  const command = current === 'win32' ? 'explorer.exe' : current === 'darwin' ? 'open' : 'xdg-open'
+  // Fire and forget: Explorer exits 1 even when it opened the window, so an
+  // exit code here says nothing about whether the user saw the folder.
+  execFile(command, [target], () => undefined)
 }

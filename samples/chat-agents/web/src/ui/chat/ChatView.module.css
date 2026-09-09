@@ -326,20 +326,9 @@
 .composerActions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-/* The usage counter yields the row to the pickers on a narrow composer. */
-.composerActions .usage {
-  margin-left: auto;
-}
-
-.usage {
-  font-size: 11px;
-  color: var(--dsw-alias-label-tertiary);
-  font-variant-numeric: tabular-nums;
 }
 
 /* The attach control sits with the other composer chips, and reads as one of
@@ -648,6 +637,16 @@
 .chip:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
+
+/* A chip that names itself, for an action a symbol alone would not explain. */
+.chipText {
+  width: auto;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  font-size: 12px;
 }
 
 /* Team run: who wrote a row, and the roster strip above the composer. */

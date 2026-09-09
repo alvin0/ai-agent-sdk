@@ -119,6 +119,94 @@ export interface WireMember {
   readonly member?: string
 }
 
+/** Token counters a span reports, in the SDK's own shape. */
+export interface WireSpanUsage {
+  readonly inputTokens?: number
+  readonly outputTokens?: number
+  readonly cacheReadTokens?: number
+  readonly cacheWriteTokens?: number
+  readonly reasoningTokens?: number
+  readonly totalTokens?: number
+}
+
+/**
+ * One model call as it crossed the provider boundary.
+ *
+ * The step rows carry a SUMMARY of the request, capped so a trace stays
+ * smaller than the work it describes. This is the other thing a reader asks
+ * for when a model does something inexplicable: the whole payload that went
+ * out and the whole stream that came back, recorded around the adapter call.
+ */
+export interface WireApiCall {
+  /** Epoch milliseconds the call was dispatched. */
+  readonly at: number
+  readonly durationMs: number
+  readonly provider: string
+  readonly model: string
+  /** Everything sent, minus the messages: effort, temperature, tools, format. */
+  readonly params: Readonly<Record<string, unknown>>
+  /** The messages as sent, in order. Cut when the payload is enormous. */
+  readonly messages: readonly unknown[]
+  /** The system prompt as sent, when the request carried one. */
+  readonly system?: string
+  /** True when the payload was cut to fit; what is kept is the tail. */
+  readonly truncated?: true
+  /** What came back, in the order the provider streamed it. */
+  readonly response: {
+    readonly chunks: number
+    readonly text?: string
+    readonly reasoning?: string
+    readonly toolCalls?: readonly { readonly name: string; readonly arguments: string }[]
+    readonly usage?: WireSpanUsage
+    readonly finishReason?: string
+    readonly error?: string
+  }
+}
+/**
+ * One step of a run, as the trace view draws it.
+ *
+ * The SDK reports spans as two events — a start and an end — and this is the
+ * merged row: sent once when the span opens, and again when it closes with a
+ * duration and a result. The client keys them by span id, so the second
+ * delivery replaces the first and a reload reads the same shape from the
+ * database.
+ */
+export interface WireSpan {
+  readonly runId: string
+  readonly traceId: string
+  readonly spanId: string
+  /** Null for the span that covers the whole run. */
+  readonly parentSpanId: string | null
+  /** Arrival order within the run, so siblings keep the order they started in. */
+  readonly seq: number
+  readonly name: string
+  /**
+   * What kind of step this was.
+   *
+   * The first four are the SDK's own span kinds. `context` is the harness's:
+   * the work done AROUND a turn — reading the project's instruction files,
+   * discovering the skill catalogue — which the loop never sees as a step and
+   * which a run is nonetheless explained by.
+   */
+  readonly kind: 'invoke_agent' | 'chat' | 'execute_tool' | 'compact' | 'context'
+  /** Epoch milliseconds. */
+  readonly startedAt: number
+  /** Null while the span is still running. */
+  readonly durationMs: number | null
+  readonly status: 'success' | 'error' | 'aborted' | 'unknown'
+  /** The team member that produced it; absent for the lead. */
+  readonly member?: string
+  /** OpenTelemetry GenAI attributes, verbatim. */
+  readonly attributes?: Readonly<Record<string, unknown>>
+  /** The prompt for a run, the arguments for a tool call. */
+  readonly input?: unknown
+  readonly output?: unknown
+  readonly usage?: WireSpanUsage
+  /** The provider call this step made, when the harness recorded one. */
+  readonly apiCall?: WireApiCall
+  readonly error?: { readonly type: string; readonly message: string; readonly code?: string }
+}
+
 export type WireEvent =
   | { readonly t: 'run-start'; readonly runId: string; readonly members: readonly string[] }
   /** A team member started or finished a delegated run. */
@@ -182,6 +270,11 @@ export type WireEvent =
   | { readonly t: 'progress'; readonly message: string | null }
   | { readonly t: 'usage'; readonly inputTokens: number; readonly outputTokens: number }
   | { readonly t: 'run-end'; readonly reason: string; readonly text: string }
+  /**
+   * One execution step, opened or closed. Not a transcript node: the trace
+   * view reads spans, and the transcript already says what the run produced.
+   */
+  | { readonly t: 'span'; readonly span: WireSpan }
   | { readonly t: 'error'; readonly message: string }
 
 /**

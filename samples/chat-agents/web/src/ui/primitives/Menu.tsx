@@ -17,6 +17,13 @@ export interface MenuItem {
   danger?: boolean
   /** Nested card opened to the right on hover/focus. */
   submenu?: readonly MenuItem[]
+  /**
+   * Text the filter matches this row on.
+   *
+   * Needed only when `label` is not a plain string — a rendered label carries
+   * no text the filter can read.
+   */
+  searchText?: string
 }
 
 /** Hairline between item groups (not selectable). */
@@ -65,6 +72,11 @@ const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
  * both trigger and list for the pointer grace (default false keeps it open
  * until outside click/Escape/selection). The grace makes the 4px trigger->list
  * gap and a brief overshoot survivable; coming back cancels the close.
+ * @param props.search - placeholder for a filter field above the list. Given,
+ * the menu renders the field, focuses it on open, and narrows `items` (never
+ * `footer`) to the rows whose `searchText` or string label matches. Group
+ * labels and separators drop out while a query is active, so no empty heading
+ * is left behind.
  * @param props.dense - reduce vertical row spacing without changing the standard typography or card width.
  * @param props.compact - use reduced menu typography and spacing.
  * @param props.getAnchorRect - portal mode only: supply the anchor rect
@@ -75,9 +87,12 @@ const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
  * scroll/resize; return null to skip placement for that frame.
  * @param props.footer - rows pinned below the scrolling items area, separated
  * by a hairline; they stay visible while the items above scroll.
+ * @param props.className - extra class for the dropdown card, so a caller can
+ * cap its width or height. The anchor wrapper is left alone: sizing it would
+ * stretch the trigger sitting inside it.
  * @returns anchor wrapper with the conditional list.
  */
-export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, getAnchorRect, footer, className }: {
+export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, getAnchorRect, footer, search, className }: {
   open: boolean
   anchor: ReactNode
   items: readonly MenuEntry[]
@@ -93,11 +108,15 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   dense?: boolean
   compact?: boolean
   getAnchorRect?: () => DOMRect | null
+  /** Placeholder for a filter field above the list; omitted, there is none. */
+  search?: string
   className?: string
 }) {
   const rootRef = useRef<HTMLSpanElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null)
+  /** The filter text, reset every time the list closes. */
+  const [query, setQuery] = useState('')
   const [fixedPos, setFixedPos] = useState<CSSProperties | null>(null)
   const { arm: armClose, cancel: cancelClose } = usePointerGrace(onClose)
 
@@ -148,7 +167,20 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
     place()
     window.addEventListener('scroll', place, true)
     window.addEventListener('resize', place)
+
+    // The list's own height is an input to `y` when it opens upwards, so a
+    // list that shrinks — filtering down to a couple of rows, or to none —
+    // must be placed again or it stays where the taller list ended up,
+    // floating away from its anchor. Position changes do not alter size, so
+    // this cannot feed back on itself.
+    const listEl = listRef.current
+    const observer = typeof ResizeObserver === 'undefined' || listEl === null
+      ? undefined
+      : new ResizeObserver(place)
+    observer?.observe(listEl as Element)
+
     return () => {
+      observer?.disconnect()
       window.removeEventListener('scroll', place, true)
       window.removeEventListener('resize', place)
     }
@@ -185,9 +217,28 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
     if (!open) cancelClose()
   }, [open, cancelClose])
 
+  useEffect(() => { if (!open) setQuery('') }, [open])
+
+  /**
+   * The rows a query leaves behind.
+   *
+   * Headings and separators are dropped while filtering: they describe groups,
+   * and a heading above nothing reads as a group that came back empty. The
+   * footer is never filtered — it holds actions, not results.
+   */
+  const needle = query.trim().toLowerCase()
+  const shown = needle === ''
+    ? items
+    : items.filter((entry) => {
+      if (isSeparator(entry) || isLabel(entry)) return false
+      const text = entry.searchText ?? (typeof entry.label === 'string' ? entry.label : entry.id)
+      return text.toLowerCase().includes(needle)
+    })
+
   // The submenu card is absolutely positioned outside the list box; the
   // scroll clip would crop it, so only submenu-free menus get the height cap.
-  const scrollable = !items.some(entry => !isSeparator(entry) && !isLabel(entry) && entry.submenu !== undefined && entry.submenu.length > 0)
+  // A filtered list never shows one, so searching restores the cap.
+  const scrollable = !shown.some(entry => !isSeparator(entry) && !isLabel(entry) && entry.submenu !== undefined && entry.submenu.length > 0)
 
   const renderEntry = (entry: MenuEntry) => {
     if (isSeparator(entry)) {
@@ -255,7 +306,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   const list = open && (
     <div
       ref={listRef}
-      className={clsx(css.list, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
+      className={clsx(css.list, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd, className)}
       style={portal ? fixedPos ?? MEASURE_STYLE : undefined}
       role="menu"
       // React portals bubble synthetic events through the REACT tree: without
@@ -263,8 +314,27 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       // (open/toggle) after onSelect.
       onClick={(e) => { e.stopPropagation() }}
     >
+      {search !== undefined && (
+        <div className={css.search} role="presentation">
+          <input
+            className={css.searchInput}
+            // The list is opened to pick something; typing is the next act.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            type="text"
+            spellCheck={false}
+            aria-label={search}
+            placeholder={search}
+            value={query}
+            onChange={(event) => { setQuery(event.target.value) }}
+          />
+        </div>
+      )}
       <div className={css.viewport} role="presentation">
-        {items.map(renderEntry)}
+        {shown.map(renderEntry)}
+        {shown.length === 0 && (
+          <div className={css.empty} role="presentation">No matches</div>
+        )}
       </div>
       {footer !== undefined && footer.length > 0 && (
         <div className={css.footer} role="presentation">
@@ -281,7 +351,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   return (
     <span
       ref={rootRef}
-      className={clsx(css.root, className)}
+      className={css.root}
       onPointerEnter={closeOnPointerLeave ? cancelClose : undefined}
       onPointerLeave={closeOnPointerLeave ? () => { if (open) armClose() } : undefined}
     >

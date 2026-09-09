@@ -10,7 +10,7 @@
 
 import { ModelRegistry } from '@ai-agent-sdk/core'
 import { MOCK_MODELS, MOCK_PROVIDER, mockAdapter, mockEnabled } from './mock-provider'
-import type { CallConfig, ModelInfo, ResolvedModelInfo } from '@ai-agent-sdk/core'
+import type { CallConfig, ModelInfo, ResolvedModelInfo, StreamMiddleware } from '@ai-agent-sdk/core'
 import { codexNodeAdapter } from '@ai-agent-sdk/auth-node/codex'
 import { CODEX_CATALOG_POLICY } from './model-policy'
 import { geminiAdapter } from '@ai-agent-sdk/provider-gemini'
@@ -144,8 +144,13 @@ export async function listProviders(): Promise<readonly ProviderInfoView[]> {
  * Build a registry carrying every provider whose credential is present.
  * @returns The registry plus the provider ids it can route.
  */
-export async function buildRegistry(): Promise<{ registry: ModelRegistry; routed: readonly string[] }> {
+export async function buildRegistry(
+  middleware?: StreamMiddleware,
+): Promise<{ registry: ModelRegistry; routed: readonly string[] }> {
   const registry = new ModelRegistry()
+  // Installed before any adapter routes anything, so no call of this run can
+  // slip past the recording.
+  if (middleware !== undefined) registry.use(middleware)
   const routed: string[] = []
 
   // Offline first, and only when asked for: a deployment with real credentials
@@ -233,11 +238,15 @@ export interface ResolvedModel {
 /**
  * Resolve the call config for a run.
  * @param selection - The conversation's chosen pair, when the user picked one.
+ * @param middleware - Wraps every model call of this run, for the trace.
  * @returns The registry and the config to run with.
  * @throws When the selection has no credential, or nothing is configured at all.
  */
-export async function resolveModel(selection: ModelSelection | undefined): Promise<ResolvedModel> {
-  const { registry, routed } = await buildRegistry()
+export async function resolveModel(
+  selection: ModelSelection | undefined,
+  middleware?: StreamMiddleware,
+): Promise<ResolvedModel> {
+  const { registry, routed } = await buildRegistry(middleware)
   if (routed.length === 0) {
     throw new Error('no provider is configured: add an API key or sign in with Codex in Settings')
   }

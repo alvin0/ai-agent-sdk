@@ -1,6 +1,6 @@
 import type { GenerateOptions } from '../../../contract/index.ts'
 import { MODEL_ERROR_CODES, type ModelFailure } from '../../../errors/index.ts'
-import type { ContentBlock, ToolCallBlock } from '../../../message/index.ts'
+import type { ContentBlock, Message, ToolCallBlock } from '../../../message/index.ts'
 import { BlockAssembler } from '../../../stream/index.ts'
 import type { FinishReason } from '../../../stream/index.ts'
 import type { ModelCallReport } from '../../../observation/index.ts'
@@ -19,6 +19,66 @@ import {
   recentToolResultIds, systemText,
   createAssistant, textOf,
 } from './content.ts'
+
+/** How much of one message the trace keeps. */
+const PREVIEW_CHARS = 600
+
+/** How many trailing messages the trace keeps. */
+const PREVIEW_MESSAGES = 8
+
+function clip(text: string): string {
+  const flattened = text.replace(/\s+/gu, ' ').trim()
+  return flattened.length > PREVIEW_CHARS ? `${flattened.slice(0, PREVIEW_CHARS)}…` : flattened
+}
+
+/** One message as a line: who spoke, and what the model could read of it. */
+function previewMessage(message: Message): Record<string, unknown> {
+  const parts: string[] = []
+  const calls: string[] = []
+  for (const block of message.content) {
+    if (block.type === 'text' || block.type === 'reasoning') parts.push(block.text)
+    else if (block.type === 'tool-call') calls.push(`${block.name}(${clip(block.arguments)})`)
+    else if (block.type === 'tool-result') parts.push(textOf(block.content))
+    else parts.push(`[${block.type}]`)
+  }
+  return {
+    role: message.role,
+    producer: message.source.kind,
+    ...parts.length === 0 ? {} : { text: clip(parts.join(' ')) },
+    ...calls.length === 0 ? {} : { toolCalls: calls },
+  }
+}
+
+/**
+ * What this round sent the model, in a form a person can read.
+ *
+ * A summary, not a copy: the request can be the whole conversation plus every
+ * tool schema, and a trace that stored it verbatim would be larger than the
+ * work it describes. What survives is the part that explains the round — which
+ * tools were on offer, how long the context was, and the tail of the
+ * conversation the model was actually answering, each message clipped.
+ * @param request - The request about to be dispatched.
+ * @returns The summary for the span.
+ */
+function requestSummary(request: GenerateOptions): Record<string, unknown> {
+  const messages = request.messages ?? []
+  const dropped = Math.max(0, messages.length - PREVIEW_MESSAGES)
+  return {
+    messageCount: messages.length,
+    // The identity of the request, for a host that records the provider call
+    // separately and has to say WHICH round each recording belongs to. Message
+    // ids are stable across every representation boundary, so the last one plus
+    // the count names one round of one agent without ambiguity.
+    ...messages.at(-1) === undefined ? {} : { lastMessageId: messages.at(-1)?.id },
+    ...request.system === undefined ? {} : { system: clip(request.system) },
+    ...request.tools === undefined || request.tools.length === 0
+      ? {}
+      : { tools: request.tools.map(tool => tool.name) },
+    ...request.toolChoice === undefined ? {} : { toolChoice: request.toolChoice },
+    ...dropped === 0 ? {} : { earlierMessagesOmitted: dropped },
+    messages: messages.slice(-PREVIEW_MESSAGES).map(previewMessage),
+  }
+}
 
 export async function modelRound(
   options: RunTurnOptions,
@@ -111,8 +171,15 @@ export async function modelRound(
   if (beforeDispatch !== undefined) return beforeDispatch
   await emit({ type: 'span-start', trace, at: now(), name: `chat ${options.config.model}`, kind: 'chat', attributes: {
     'gen_ai.operation.name': 'chat', 'gen_ai.request.model': options.config.model,
+    // The effort is part of WHICH call this was: the same model at minimal and
+    // at high is two different requests, priced and paced differently, and a
+    // trace that omits it cannot explain either. Absent when the route has no
+    // effort ladder, rather than reported as a default nobody chose.
+    ...options.config.reasoningEffort === undefined
+      ? {}
+      : { 'gen_ai.request.reasoning_effort': options.config.reasoningEffort },
     turn, step, forcedFinal, phase,
-  } })
+  }, input: requestSummary(requestBase) })
   await emit({ type: 'step-start', turn, step, trace, ...forcedFinal ? { forcedFinal: true as const } : {} })
   const assembler = new BlockAssembler()
   const closedBlockIndexes = new Set<number>()

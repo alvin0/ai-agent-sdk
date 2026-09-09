@@ -60,38 +60,6 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-.modeGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.modes {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.chip {
-  padding: 5px 12px;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 999px;
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.chip:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.chipSelected {
-  border-color: var(--dsw-static-deepseek-450);
-  background: var(--dsw-alias-interactive-bg-active);
-  color: var(--dsw-alias-label-primary);
-}
-
 .layout {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);

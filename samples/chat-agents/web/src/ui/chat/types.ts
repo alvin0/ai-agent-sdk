@@ -1,5 +1,5 @@
 import type {
-  ToolCard, WireApproval, WireApprovalScope, WireAttachment, WireQuestion,
+  ToolCard, WireApproval, WireApprovalScope, WireAttachment, WireQuestion, WireSpan,
 } from '@chat-agents/backend'
 
 /**
@@ -101,4 +101,13 @@ export interface ChatState {
   readonly progress: string | null
   /** Roster for the current run; empty outside team modes. */
   readonly members: readonly MemberState[]
+  /**
+   * The run in flight, for the trace view to follow live.
+   *
+   * Empty between runs: a finished run's trace is read back from the server,
+   * where every run's spans are kept, rather than held on screen.
+   */
+  readonly spans: readonly WireSpan[]
+  /** The run these spans belong to; empty when nothing is running. */
+  readonly runId: string
 }

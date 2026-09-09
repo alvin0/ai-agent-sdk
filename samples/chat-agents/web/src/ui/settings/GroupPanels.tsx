@@ -1,10 +1,12 @@
 'use client'
 
 /**
- * The group-scoped settings panes: agent presets, MCP servers, and skill roots.
+ * The panes for agent presets, MCP servers, and skills.
  *
- * Everything here belongs to the OPEN GROUP, so switching group switches which
- * agents, remote tools, and skills a run can reach.
+ * Scope is a property of the ROW, not of the pane: every one of these tables
+ * carries a nullable `group_id`, and the API writes null — visible in every
+ * project — unless the caller asks for `projectOnly`. So an agent or a skill
+ * root can be shared or pinned to one project, and the editor says which.
  */
 
 import { useState } from 'react'
@@ -12,6 +14,7 @@ import clsx from 'clsx'
 import type { AgentRow, McpServerRow, SkillRow } from '@chat-agents/backend'
 import { Button, IconCheckOutline16, IconTrashOutline16, Input, StateDot } from '../primitives'
 import type { SettingsController } from './useSettings'
+import { HelpNote } from './HelpNote'
 import css from './GroupPanels.module.css'
 
 const MODES = ['basic', 'deep', 'deep-human-in-loop'] as const
@@ -33,6 +36,15 @@ function AgentEditor({
   const [model, setModel] = useState(
     agent?.provider != null && agent.model != null ? `${agent.provider}::${agent.model}` : '',
   )
+  /**
+   * Where the preset shows up.
+   *
+   * A new preset defaults to the project being edited, because that is the
+   * project the user is looking at; an existing one keeps whatever it has.
+   */
+  const [projectOnly, setProjectOnly] = useState(
+    agent === undefined ? true : agent.groupId !== null,
+  )
 
   const [modelProvider, modelId] = model === '' ? ['', undefined] : model.split('::') as [string, string]
 
@@ -47,8 +59,15 @@ function AgentEditor({
       mode,
       reasoningEffort: effort === '' ? null : effort,
     }
-    if (agent === undefined) await settings.createAgent(payload)
-    else await settings.updateAgent(agent.id, payload)
+    if (agent === undefined) await settings.createAgent({ ...payload, projectOnly })
+    // A saved preset moves between scopes by rewriting the column: null is
+    // every project, the group id is this one.
+    else {
+      await settings.updateAgent(agent.id, {
+        ...payload,
+        groupId: projectOnly ? settings.groupId : null,
+      })
+    }
     onDone()
   }
 
@@ -104,6 +123,17 @@ function AgentEditor({
               .map(entry => <option key={entry} value={entry}>{entry}</option>)}
           </select>
         </label>
+        <label className={css.field}>
+          <span className={css.fieldLabel}>Available in</span>
+          <select
+            className={css.select}
+            value={projectOnly ? 'project' : 'all'}
+            onChange={(e) => { setProjectOnly(e.target.value === 'project') }}
+          >
+            <option value="project">This project only</option>
+            <option value="all">All projects</option>
+          </select>
+        </label>
       </div>
       <div className={css.formActions}>
         <Button variant="ghost" onClick={onDone}>Cancel</Button>
@@ -117,10 +147,18 @@ function AgentEditor({
 
 /**
  * Agent presets: name, system prompt, default model, loop policy, effort.
- * @param props - The settings controller.
+ * @param props.settings - The controller for the project being edited.
+ * @param props.canSelect - Whether a preset can be made the active one, which
+ * is conversation state and so only applies to the project that has one open.
  * @returns The agents pane.
  */
-export function AgentsPane({ settings }: { settings: SettingsController }) {
+export function AgentsPane({
+  settings,
+  canSelect = true,
+}: {
+  settings: SettingsController
+  canSelect?: boolean
+}) {
   const [editing, setEditing] = useState<AgentRow | 'new' | undefined>(undefined)
 
   if (editing !== undefined) {
@@ -136,36 +174,53 @@ export function AgentsPane({ settings }: { settings: SettingsController }) {
   return (
     <div className={css.pane}>
       <div className={css.paneHead}>
-        <p className={css.muted}>
-          An agent preset replaces the system prompt and can pin its own model, loop policy,
-          and effort. The conversation runs the preset you select here — and in <strong>Team
-          </strong> mode that preset leads, delegating to every preset marked <strong>In team
-          </strong>. <strong>Team · auto</strong> ignores the roster and lets the lead spawn
-          its own workers.
-        </p>
+        <HelpNote
+          summary={canSelect
+            ? 'Presets for this project. The conversation runs the one you select.'
+            : 'Presets for this project. Open the project to run one.'}
+          label="How agent presets and team mode work"
+        >
+          <p>
+            An agent preset replaces the system prompt and can pin its own model, loop policy,
+            and effort.
+          </p>
+          <p>
+            Each preset is scoped by its <strong>Available in</strong> setting: pinned to this
+            project, or shared with every project. A shared one is marked <strong>shared</strong>
+            {' '}in the list below.
+          </p>
+          <p>
+            In <strong>Team</strong> mode the selected preset leads, delegating to every preset
+            marked <strong>In team</strong>. <strong>Team · auto</strong> ignores the roster and
+            lets the lead spawn its own workers.
+          </p>
+        </HelpNote>
         <Button variant="primary" onClick={() => { setEditing('new') }}>New agent</Button>
       </div>
 
       <ul className={css.list}>
-        <li>
-          <div className={clsx(css.row, settings.agentId === undefined && css.rowSelected)}>
-            <button
-              type="button"
-              className={css.rowMain}
-              onClick={() => { void settings.chooseAgent(null) }}
-            >
-              <span className={css.rowTitle}>Default assistant</span>
-              <span className={css.rowMeta}>The built-in system prompt</span>
-            </button>
-            {settings.agentId === undefined && <IconCheckOutline16 />}
-          </div>
-        </li>
-        {settings.agents.map(agent => (
-          <li key={agent.id}>
-            <div className={clsx(css.row, settings.agentId === agent.id && css.rowSelected)}>
+        {canSelect && (
+          <li>
+            <div className={clsx(css.row, settings.agentId === undefined && css.rowSelected)}>
               <button
                 type="button"
                 className={css.rowMain}
+                onClick={() => { void settings.chooseAgent(null) }}
+              >
+                <span className={css.rowTitle}>Default assistant</span>
+                <span className={css.rowMeta}>The built-in system prompt</span>
+              </button>
+              {settings.agentId === undefined && <IconCheckOutline16 />}
+            </div>
+          </li>
+        )}
+        {settings.agents.map(agent => (
+          <li key={agent.id}>
+            <div className={clsx(css.row, canSelect && settings.agentId === agent.id && css.rowSelected)}>
+              <button
+                type="button"
+                className={css.rowMain}
+                disabled={!canSelect}
                 onClick={() => { void settings.chooseAgent(agent.id) }}
               >
                 <span className={css.rowTitle}>{agent.name}</span>
@@ -176,7 +231,7 @@ export function AgentsPane({ settings }: { settings: SettingsController }) {
                   {agent.groupId === null ? ' · shared' : ''}
                 </span>
               </button>
-              {settings.agentId === agent.id && <IconCheckOutline16 />}
+              {canSelect && settings.agentId === agent.id && <IconCheckOutline16 />}
               <Button
                 variant="ghost"
                 onClick={() => {
@@ -279,6 +334,10 @@ function McpEditor({ settings, onDone }: { settings: SettingsController; onDone:
 
 /**
  * MCP servers: register, enable, and see what each one exposes.
+ *
+ * Global, not per project: the create route writes a null `group_id` unless
+ * asked otherwise, and this pane never asks — so a server registered once is
+ * reachable from every project.
  * @param props - The settings controller.
  * @returns The MCP pane.
  */
@@ -291,10 +350,15 @@ export function McpPane({ settings }: { settings: SettingsController }) {
   return (
     <div className={css.pane}>
       <div className={css.paneHead}>
-        <p className={css.muted}>
-          Tools from an enabled server join the workspace tools for every run in this group.
-          A workspace tool always wins a name clash.
-        </p>
+        <HelpNote
+          summary="Servers are shared by every project. Tools from an enabled one join every run."
+          label="How MCP tools reach a run"
+        >
+          <p>
+            A server registered here is available in every project. Tools from an enabled server
+            join the workspace tools for every run, and a workspace tool always wins a name clash.
+          </p>
+        </HelpNote>
         <Button variant="primary" onClick={() => { setAdding(true) }}>Add server</Button>
       </div>
 
@@ -342,66 +406,6 @@ export function McpPane({ settings }: { settings: SettingsController }) {
 }
 
 /**
- * The project's `AGENTS.md` files, as the runtime reads them.
- *
- * Read-only on purpose: the files belong to the project and are edited there.
- * What cannot be answered from the project is whether they are actually IN the
- * prompt — the SDK delivers them as an always-on context section, which is
- * silent by design, and a convention file being read invisibly looks exactly
- * like one being ignored.
- * @param props - The settings controller.
- * @returns The project-instructions pane.
- */
-export function InstructionsPane({ settings }: { settings: SettingsController }) {
-  const found = settings.instructions
-  const files = found?.files ?? []
-
-  return (
-    <div className={css.pane}>
-      <p className={css.muted}>
-        An <code>AGENTS.md</code> file states the project&apos;s conventions. Unlike a skill,
-        it is always on: every agent in this project reads it before every model round, and
-        the SDK re-reads it while the run is in progress, so an edit lands on the next round
-        without restarting the conversation.
-      </p>
-      <p className={css.muted}>
-        Files are read broad-to-specific from the project folder down, and a directory the
-        agent reaches into mid-run contributes its own file from that point on — those are
-        not listed here, because they depend on what the agent has opened so far.
-        <code> AGENTS.override.md</code> wins over <code>AGENTS.md</code> in the same folder.
-      </p>
-
-      <ul className={css.list}>
-        {found === undefined && <li className={css.muted}>Loading…</li>}
-        {found !== undefined && files.length === 0 && (
-          <li className={css.muted}>
-            No instruction file yet. Create <code>{`${found.workspaceRoot}/AGENTS.md`}</code>
-            {' '}and it is picked up on the next model round.
-          </li>
-        )}
-        {files.map(file => (
-          <li key={file.absolutePath}>
-            <div className={css.row}>
-              <StateDot state="done" />
-              <div className={css.rowMain}>
-                <span className={css.rowTitle}>
-                  {file.path}
-                  {file.global === true ? ' (global)' : ''}
-                </span>
-                <span className={css.rowMeta}>
-                  {`${String(Math.max(1, Math.round(file.bytes / 1024)))} KB`}
-                  {file.firstLine === '' ? '' : ` · ${file.firstLine}`}
-                </span>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-/**
  * Skill roots: directories of SKILL.md folders discovered before each turn.
  * @param props - The settings controller.
  * @returns The skills pane.
@@ -436,18 +440,25 @@ export function SkillsPane({ settings }: { settings: SettingsController }) {
 
   return (
     <div className={css.pane}>
-      <p className={css.muted}>
-        A skill is a folder holding a <code>SKILL.md</code>. The agent sees each skill&apos;s
-        name and description, then calls <code>load_skill</code> to read the full instructions
-        on demand.
-      </p>
-      <p className={css.muted}>
-        Every project is scanned automatically: <code>.agents/skills</code> and
-        <code> .dsh/skills</code> inside its folder, up to the repository root. The folders
-        below are global — they are available in every project. Set
-        <code> CHAT_AGENTS_USER_SKILLS=1</code> to also scan
-        <code> $HOME/.agents/skills</code>.
-      </p>
+      <div className={css.paneHead}>
+        <HelpNote
+          summary="What this project can load, and the extra folders it looks in."
+          label="How skills are discovered"
+        >
+          <p>
+            A skill is a folder holding a <code>SKILL.md</code>. The agent sees each skill&apos;s
+            name and description, then calls <code>load_skill</code> to read the full instructions
+            on demand.
+          </p>
+          <p>
+            Every project is scanned automatically: <code>.agents/skills</code> and
+            <code> .dsh/skills</code> inside its folder, up to the repository root. The folders
+            below are global — they are available in every project. Set
+            <code> CHAT_AGENTS_USER_SKILLS=1</code> to also scan
+            <code> $HOME/.agents/skills</code>.
+          </p>
+        </HelpNote>
+      </div>
 
       <div className={css.inlineForm}>
         <Input value={name} placeholder="Name" onChange={(e) => { setName(e.target.value) }} />
@@ -469,6 +480,36 @@ export function SkillsPane({ settings }: { settings: SettingsController }) {
         </Button>
       </div>
 
+      {/*
+        What a run would actually find, read from the same catalogue the
+        composer's `/` menu uses — so the pane can never advertise a skill the
+        run would miss, or hide one it would pick up.
+      */}
+      <span className={css.groupLabel}>Available in this project</span>
+      <ul className={css.list}>
+        {settings.availableSkills.length === 0 && (
+          <li className={css.muted}>
+            Nothing found yet. Add a folder above, or create <code>.agents/skills</code> in the
+            project.
+          </li>
+        )}
+        {settings.availableSkills.map(skill => (
+          <li key={skill.id}>
+            <div className={css.row}>
+              <StateDot state="done" />
+              <div className={css.rowMain}>
+                <span className={css.rowTitle}>{skill.name}</span>
+                <span className={css.rowMeta}>
+                  {skill.description}
+                </span>
+              </div>
+              <span className={css.rowMeta}>{skill.provider}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <span className={css.groupLabel}>Folders you added</span>
       <ul className={css.list}>
         {settings.skills.length === 0 && <li className={css.muted}>No skill roots yet.</li>}
         {settings.skills.map(skill => <li key={skill.id}>{rowOf(skill)}</li>)}

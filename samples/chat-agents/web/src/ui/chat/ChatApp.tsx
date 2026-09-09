@@ -17,6 +17,13 @@ export function ChatApp() {
   const theme = useTheme()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [projectsOpen, setProjectsOpen] = useState(false)
+  /**
+   * The project the dialog should open onto, from the sidebar's row menu.
+   *
+   * Undefined means the dialog opens on its folder tab for the open project,
+   * which is what the breadcrumb and the "Open a folder…" action want.
+   */
+  const [editProjectId, setEditProjectId] = useState<string | undefined>(undefined)
   // With no explicit choice the backend runs the first ready provider, so the
   // badge says "Auto" rather than implying nothing is configured.
   const modelLabel = settings.choice === undefined
@@ -30,7 +37,16 @@ export function ChatApp() {
         groups={chat.groups}
         groupId={chat.groupId}
         onOpenGroup={chat.openGroup}
-        onManageProjects={() => { setProjectsOpen(true) }}
+        onManageProjects={() => {
+          setEditProjectId(undefined)
+          setProjectsOpen(true)
+        }}
+        onEditProject={(id) => {
+          setEditProjectId(id)
+          setProjectsOpen(true)
+        }}
+        onRevealProject={(id) => { void chat.revealGroup(id) }}
+        onDeleteProject={(id) => { void chat.deleteGroup(id) }}
         currentId={chat.sessionId}
         runningIds={chat.runningIds}
         onNewChat={chat.newConversation}
@@ -62,7 +78,10 @@ export function ChatApp() {
         onOpenProject={chat.openGroup}
         onCreateProject={chat.createGroup}
         onDeleteProject={chat.deleteGroup}
+        onRevealProject={(id) => { void chat.revealGroup(id) }}
         onMoveProject={settings.chooseWorkspace}
+        settings={settings}
+        editProjectId={editProjectId}
       />
 
       <SettingsDialog

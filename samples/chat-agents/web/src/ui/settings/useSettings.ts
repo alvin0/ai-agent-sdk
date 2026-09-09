@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   AgentRow, CodexLoginState, ConversationRow, DirectoryListing, GroupRow, McpServerRow, McpStatus,
-  ModelOption, ProjectInstructions, ProviderInfoView, SkillRow,
+  ModelOption, ProviderInfoView, SkillMention, SkillRow,
 } from '@chat-agents/backend'
 
 /** Loop policy, mirrored from the SDK's agent modes plus the two team shapes. */
@@ -53,7 +53,14 @@ export interface SettingsController {
    * The project's `AGENTS.md` files, as the runtime reads them. `undefined`
    * until the group's configuration has loaded once.
    */
-  readonly instructions: ProjectInstructions | undefined
+  /**
+   * The skills a run in this project would actually find.
+   *
+   * Discovered from the project's own folders plus the roots below, so the
+   * pane can show what is already available instead of only what was added
+   * by hand. Same source the composer's `/` menu reads.
+   */
+  readonly availableSkills: readonly SkillMention[]
   /** The agent preset driving the open conversation, when one is chosen. */
   readonly agentId: string | undefined
   refresh: () => Promise<void>
@@ -84,7 +91,7 @@ export interface SettingsController {
   createMcpServer: (input: Record<string, unknown>) => Promise<string | undefined>
   updateMcpServer: (serverId: string, patch: Record<string, unknown>) => Promise<void>
   deleteMcpServer: (serverId: string) => Promise<void>
-  createSkill: (input: { name: string; rootPath: string }) => Promise<void>
+  createSkill: (input: { name: string; rootPath: string; projectOnly?: boolean }) => Promise<void>
   updateSkill: (skillId: string, patch: Record<string, unknown>) => Promise<void>
   deleteSkill: (skillId: string) => Promise<void>
   renameGroup: (name: string) => Promise<void>
@@ -180,7 +187,7 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
   const [mcpServers, setMcpServers] = useState<readonly McpServerRow[]>([])
   const [mcpStatuses, setMcpStatuses] = useState<readonly McpStatus[]>([])
   const [skills, setSkills] = useState<readonly SkillRow[]>([])
-  const [instructions, setInstructions] = useState<ProjectInstructions | undefined>(undefined)
+  const [availableSkills, setAvailableSkills] = useState<readonly SkillMention[]>([])
   const [agentId, setAgentId] = useState<string | undefined>(undefined)
   /**
    * Fields the pickers show that the conversation row does not carry yet.
@@ -197,13 +204,13 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
   // The group's configuration: its workspace, agents, MCP servers, and skills.
   const refreshGroupConfig = useCallback(async () => {
     if (groupId === '') return
-    const [groupsResponse, agentResponse, mcpResponse, skillResponse, instructionResponse]
+    const [groupsResponse, agentResponse, mcpResponse, skillResponse, availableResponse]
       = await Promise.all([
         fetch('/api/groups'),
         fetch(`/api/groups/${groupId}/agents`),
         fetch(`/api/groups/${groupId}/mcp`),
         fetch(`/api/groups/${groupId}/skills`),
-        fetch(`/api/groups/${groupId}/instructions`),
+        fetch(`/api/groups/${groupId}/skills/available`),
       ])
     if (groupsResponse.ok) {
       const body = await groupsResponse.json() as { groups: GroupRow[] }
@@ -218,9 +225,9 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
       setMcpStatuses(body.statuses)
     }
     if (skillResponse.ok) setSkills((await skillResponse.json() as { skills: SkillRow[] }).skills)
-    if (instructionResponse.ok) {
-      const body = await instructionResponse.json() as { instructions: ProjectInstructions }
-      setInstructions(body.instructions)
+    if (availableResponse.ok) {
+      const body = await availableResponse.json() as { skills: SkillMention[] }
+      setAvailableSkills(body.skills)
     }
   }, [groupId])
 
@@ -464,7 +471,9 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
     await refreshGroupConfig()
   }, [refreshGroupConfig])
 
-  const createSkill = useCallback(async (input: { name: string; rootPath: string }) => {
+  const createSkill = useCallback(async (
+    input: { name: string; rootPath: string; projectOnly?: boolean },
+  ) => {
     await fetch(`/api/groups/${groupId}/skills`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
     })
@@ -526,7 +535,7 @@ export function useSettings(conversationId: string, groupId: string): SettingsCo
     mcpServers,
     mcpStatuses,
     skills,
-    instructions,
+    availableSkills,
     agentId,
     refresh,
     refreshGroupConfig,

@@ -1,11 +1,14 @@
 'use client'
 
 /**
- * Projects.
+ * Projects, and everything scoped to the open one.
  *
  * A project IS a folder: pick a directory and that becomes the project's
  * workspace, its name, and the scope every conversation inside it runs in.
  * The browser runs server-side because a web page cannot hand over a real path.
+ *
+ * Agent presets, MCP servers, skill roots, and AGENTS.md all carry a group id,
+ * so they belong to one project and live here rather than in global settings.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -13,10 +16,31 @@ import clsx from 'clsx'
 import type { DirectoryListing, GroupRow } from '@chat-agents/backend'
 import {
   Button, IconCheckOutline16, IconChevronRightOutline14, IconChevronUpOutline14,
-  IconEditOutline16, IconFolderClose16, IconFolderOpen16, IconSearchOutline16,
-  IconTrashOutline16, Modal,
+  IconEditOutline16, IconEllipsisOutline16, IconFolderClose16, IconFolderOpen16,
+  IconSearchOutline16, IconTrashOutline16, Menu, Modal,
 } from '../primitives'
+import { AgentsPane, SkillsPane } from './GroupPanels'
+import { useSettings } from './useSettings'
+import type { SettingsController } from './useSettings'
 import css from './ProjectDialog.module.css'
+
+type Tab = 'folder' | 'agents' | 'skills'
+
+/**
+ * The folder tab lists every project, so it is offered only when the dialog was
+ * opened to switch or add one. Asked to edit a single project, the dialog shows
+ * that project's settings and nothing about the others.
+ */
+const SWITCHER_TABS: readonly { id: Tab; label: string }[] = [
+  { id: 'folder', label: 'Folder' },
+  { id: 'agents', label: 'Agents' },
+  { id: 'skills', label: 'Skills' },
+]
+
+const EDIT_TABS: readonly { id: Tab; label: string }[] = [
+  { id: 'agents', label: 'Agents' },
+  { id: 'skills', label: 'Skills' },
+]
 
 export interface ProjectDialogProps {
   open: boolean
@@ -27,9 +51,24 @@ export interface ProjectDialogProps {
   browse: (path?: string) => Promise<DirectoryListing | undefined>
   onOpenProject: (id: string) => void
   onCreateProject: (workspaceRoot: string) => Promise<unknown>
+  /**
+   * Drop a project from the list.
+   *
+   * The folder is left alone: this removes the project row and its own presets,
+   * and its conversations move back to the default project.
+   */
   onDeleteProject: (id: string) => Promise<void>
+  /** Show a project's folder in the desktop file manager. */
+  onRevealProject: (id: string) => void
   /** Repoint the open project at another folder. */
   onMoveProject: (workspaceRoot: string) => Promise<unknown>
+  /** Drives the panes scoped to the open project. */
+  settings: SettingsController
+  /**
+   * Open straight onto this project's settings instead of the folder picker.
+   * Undefined opens the folder tab for the project already in play.
+   */
+  editProjectId?: string | undefined
 }
 
 /**
@@ -46,8 +85,34 @@ export function ProjectDialog({
   onOpenProject,
   onCreateProject,
   onDeleteProject,
+  onRevealProject,
   onMoveProject,
+  settings,
+  editProjectId,
 }: ProjectDialogProps) {
+  const [tab, setTab] = useState<Tab>('folder')
+  /**
+   * The project the non-folder tabs configure.
+   *
+   * Defaults to the open project, and the row menu repoints it — so a project
+   * can be configured without first switching the conversation to it.
+   */
+  const [configuringId, setConfiguringId] = useState(currentId)
+  /** The project row whose "…" menu is open. */
+  const [menuFor, setMenuFor] = useState<string | undefined>(undefined)
+  /** The project whose removal has been asked for once; see the sidebar's menu. */
+  const [confirmRemove, setConfirmRemove] = useState<string | undefined>(undefined)
+
+  /**
+   * A second controller, for a project that is NOT the open one.
+   *
+   * The conversation id is empty on purpose: model, effort, loop mode, and the
+   * selected preset belong to a conversation, and there is no conversation
+   * open in another project. Its group-scoped actions are what the tabs use.
+   */
+  const other = useSettings('', configuringId)
+  const configuring = configuringId === currentId ? settings : other
+  const configuringProject = projects.find(project => project.id === configuringId)
   const [listing, setListing] = useState<DirectoryListing | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
@@ -74,6 +139,8 @@ export function ProjectDialog({
 
   useEffect(() => {
     if (!open) return
+    setTab(editProjectId === undefined ? 'folder' : 'agents')
+    setConfiguringId(editProjectId ?? currentId)
     const open_at = projects.find(project => project.id === currentId)?.workspaceRoot
     void load(open_at)
     // The picker re-opens where the current project lives.
@@ -101,11 +168,43 @@ export function ProjectDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title="Projects"
+      title={editProjectId === undefined ? 'Projects' : configuringProject?.name ?? 'Project'}
       closeLabel="Close"
-      description="A project is a folder. Everything an agent reads stays inside it."
+      description={editProjectId === undefined
+        ? 'A project is a folder. Everything an agent reads stays inside it.'
+        : 'Agent presets and skills for this project.'}
       className={css.dialog}
     >
+      <nav className={css.tabs}>
+        {(editProjectId === undefined ? SWITCHER_TABS : EDIT_TABS).map(entry => (
+          <button
+            type="button"
+            key={entry.id}
+            className={clsx(css.tab, tab === entry.id && css.tabActive)}
+            onClick={() => { setTab(entry.id) }}
+          >
+            {entry.label}
+          </button>
+        ))}
+      </nav>
+
+      {tab !== 'folder' && editProjectId === undefined && (
+        <p className={css.scopeNote}>
+          Editing <strong>{configuringProject?.name ?? 'this project'}</strong>
+          {configuringId === currentId ? ', the project you have open.' : ', which is not open.'}
+        </p>
+      )}
+
+      {/*
+        Choosing which preset a conversation runs is conversation state, so it
+        only means something for the project that has one open.
+      */}
+      {tab === 'agents' && (
+        <AgentsPane settings={configuring} canSelect={configuringId === currentId} />
+      )}
+      {tab === 'skills' && <SkillsPane settings={configuring} />}
+
+      {tab === 'folder' && (
       <div className={css.layout}>
         <div className={css.column}>
           <span className={css.label}>Your projects</span>
@@ -127,16 +226,79 @@ export function ProjectDialog({
                     </span>
                     <span className={css.path}>{project.workspaceRoot}</span>
                   </button>
-                  {project.id !== 'default' && (
-                    <button
-                      type="button"
-                      className={css.delete}
-                      aria-label={`Remove ${project.name}`}
-                      onClick={() => { void onDeleteProject(project.id) }}
-                    >
-                      <IconTrashOutline16 />
-                    </button>
-                  )}
+                  <Menu
+                    open={menuFor === project.id}
+                    onClose={() => {
+                      setMenuFor(undefined)
+                      setConfirmRemove(undefined)
+                    }}
+                    portal
+                    align="end"
+                    items={[
+                      {
+                        id: 'edit',
+                        label: 'Edit project',
+                        icon: <IconEditOutline16 />,
+                      },
+                      {
+                        id: 'reveal',
+                        label: 'Open folder',
+                        icon: <IconFolderOpen16 />,
+                      },
+                      {
+                        id: 'browse',
+                        label: 'Show it in the picker',
+                        icon: <IconSearchOutline16 />,
+                      },
+                      { type: 'separator', id: 's1' },
+                      {
+                        id: 'remove',
+                        label: confirmRemove === project.id
+                          ? 'Remove — click to confirm'
+                          : 'Remove from list',
+                        icon: <IconTrashOutline16 />,
+                        danger: true,
+                        // The default project is the fallback every conversation
+                        // lands in, so it is not removable.
+                        disabled: project.id === 'default',
+                      },
+                    ]}
+                    onSelect={(id) => {
+                      if (id === 'remove') {
+                        // First click arms, second removes.
+                        if (confirmRemove !== project.id) {
+                          setConfirmRemove(project.id)
+                          return
+                        }
+                        setConfirmRemove(undefined)
+                        setMenuFor(undefined)
+                        void onDeleteProject(project.id)
+                        return
+                      }
+                      setConfirmRemove(undefined)
+                      setMenuFor(undefined)
+                      if (id === 'edit') {
+                        setConfiguringId(project.id)
+                        setTab('agents')
+                        return
+                      }
+                      if (id === 'reveal') onRevealProject(project.id)
+                      else if (id === 'browse') void load(project.workspaceRoot)
+                    }}
+                    anchor={(
+                      <button
+                        type="button"
+                        className={css.rowMenu}
+                        aria-label={`Actions for ${project.name}`}
+                        onClick={() => {
+                          setConfirmRemove(undefined)
+                          setMenuFor(current => (current === project.id ? undefined : project.id))
+                        }}
+                      >
+                        <IconEllipsisOutline16 />
+                      </button>
+                    )}
+                  />
                 </div>
               </li>
             ))}
@@ -292,6 +454,7 @@ export function ProjectDialog({
           </div>
         </div>
       </div>
+      )}
     </Modal>
   )
 }

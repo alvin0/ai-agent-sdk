@@ -23,6 +23,8 @@ import type {
   AgentInput, ContextSection, ModelRegistry, SkillSource, UserInputBroker,
 } from '@ai-agent-sdk/core'
 import { createProjectInstructionsSection } from '@ai-agent-sdk/instructions-node'
+import { listProjectInstructions } from './instructions'
+import type { ProjectInstructions } from './instructions'
 import { MODEL_TIMEOUT_MS, retryHooks } from './resilience'
 import type { RetryNotice } from './resilience'
 import { listAgents, mcpTools } from './agents'
@@ -237,6 +239,25 @@ function instructionsFor(workspaceRoot: string): ContextSection {
     // pull a file the agent's own tools are forbidden to read into every
     // prompt. Set `CHAT_AGENTS_INSTRUCTIONS_WALK_UP=1` to opt into that.
     projectRootMarkers: process.env.CHAT_AGENTS_INSTRUCTIONS_WALK_UP === '1' ? ['.git'] : [],
+  })
+}
+
+/**
+ * The instruction files a run of this workspace will actually read.
+ *
+ * The same question the section above answers for the model, answered for the
+ * trace — and answered through the SAME options, because "which files apply"
+ * must not be able to differ between what the model was sent and what the
+ * trace claims was sent.
+ * @param workspaceRoot - The project directory the run is confined to.
+ * @returns The files that exist now, broad-to-specific.
+ */
+export async function instructionsInForce(workspaceRoot: string): Promise<ProjectInstructions> {
+  return await listProjectInstructions(workspaceRoot, {
+    ...GLOBAL_INSTRUCTIONS === undefined || GLOBAL_INSTRUCTIONS === ''
+      ? {}
+      : { globalFile: GLOBAL_INSTRUCTIONS },
+    walkUp: process.env.CHAT_AGENTS_INSTRUCTIONS_WALK_UP === '1',
   })
 }
 

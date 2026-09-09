@@ -234,6 +234,20 @@
 /* Holds a row and the delete button that only appears over it. */
 .rowWrap {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/*
+  Inside a row wrapper the label button gives up its full width to the actions
+  beside it. The actions keep their space when hidden, so nothing reflows on
+  hover and a long title ellipsises clear of the icons.
+*/
+.rowWrap > .row {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .row {
@@ -289,21 +303,55 @@
 
 /* Sits ON the row rather than beside it, and only while the row is hovered: a
    list that reflows under the cursor is a list you click the wrong thing in. */
-.rowAction {
-  position: absolute;
-  top: 50%;
-  right: 6px;
+/*
+  The project row's hover actions: new chat, then the "…" menu. They sit in one
+  absolutely-positioned cluster so the row's own label can stay a plain button,
+  and they stay shown while the menu is open.
+*/
+.rowActions {
   display: none;
+  flex: none;
+  gap: 2px;
+}
+
+.rowWrap:hover .rowActions,
+.rowActionsOpen,
+.rowActions:focus-within {
+  display: inline-flex;
+}
+
+.rowActionItem {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
+  padding: 0;
   border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
-  transform: translateY(-50%);
+}
+
+.rowActionItem:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.rowAction {
+  display: none;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
 }
 
 .rowWrap:hover .rowAction,

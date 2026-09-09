@@ -20,6 +20,16 @@ export interface TraceSpanStart {
   readonly name: string
   readonly kind: AgentSpanKind
   readonly attributes?: Readonly<Record<string, unknown>>
+  /**
+   * What went INTO this step, when the step has an input worth keeping.
+   *
+   * The counterpart of {@link TraceSpanEnd.output}, and bounded by whoever
+   * emits it: a model round's whole request can be a hundred thousand tokens,
+   * so what lands here is a summary of the request — the tools offered and the
+   * tail of the conversation — not a copy of it. A span with nothing
+   * interesting to declare omits the field rather than sending an empty object.
+   */
+  readonly input?: unknown
 }
 
 export interface TraceSpanEnd {
@@ -44,6 +54,7 @@ export interface AgentProcessSpan {
   readonly durationMs: number | null
   readonly status: AgentSpanStatus
   readonly attributes?: Readonly<Record<string, unknown>>
+  readonly input?: unknown
   readonly output?: unknown
   readonly usage?: TokenUsage
   readonly error?: TraceSpanEnd['error']
@@ -62,6 +73,7 @@ export function buildTraceTree(events: readonly TraceEvent[]): readonly AgentPro
     durationMs: number | null
     status: AgentSpanStatus
     attributes?: Readonly<Record<string, unknown>>
+    input?: unknown
     output?: unknown
     usage?: TokenUsage
     error?: TraceSpanEnd['error']
@@ -81,6 +93,7 @@ export function buildTraceTree(events: readonly TraceEvent[]): readonly AgentPro
         durationMs: null,
         status: 'unknown',
         ...event.attributes === undefined ? {} : { attributes: event.attributes },
+        ...event.input === undefined ? {} : { input: event.input },
         children: [],
       }
       byId.set(span.spanId, span)

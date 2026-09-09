@@ -8,7 +8,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  IconChevronDownOutline14, IconChevronRightOutline14, IconFolderOpen16, IconLoadingOutline16,
+  IconChevronDownOutline14, IconChevronRightOutline14, IconClockOutline16, IconFolderOpen16,
+  IconLoadingOutline16,
   IconPaperclipOutline16, IconSendOutline16, IconSettingsOutline16, IconStopFill16,
   IconThinkOutline14,
   IconWarningOutline16, MarkdownText, projectUserText, StateDot,
@@ -20,6 +21,7 @@ import { TeamRoster } from './TeamRoster'
 import { ToolNode } from './ToolNode'
 import { ToolGroup } from './ToolGroup'
 import { ComposerControls } from './ComposerControls'
+import { TraceDialog } from '../trace/TraceDialog'
 import { ComposerAttachments, MessageAttachments } from './Attachments'
 import { useAttachments } from './useAttachments'
 import {
@@ -447,6 +449,7 @@ export function ChatView({
   chat, settings, title, project, modelLabel, workspace, onOpenProjects, onOpenSettings,
 }: ChatViewProps) {
   const [draft, setDraft] = useState('')
+  const [traceOpen, setTraceOpen] = useState(false)
   const [focusRequest, setFocusedMember] = useState<string | null>(null)
   const attachments = useAttachments()
   const picker = useRef<HTMLInputElement | null>(null)
@@ -614,6 +617,20 @@ export function ChatView({
           <span className={css.crumbTitle}>{title}</span>
         </nav>
         <div className={css.headerMeta}>
+          {/*
+            The trace opens from the header rather than from a turn: it covers
+            the whole run — every model round, tool call and delegation — and
+            the runs of this conversation are navigated inside it.
+          */}
+          <button
+            type="button"
+            className={clsx(css.chip, css.chipText)}
+            onClick={() => { setTraceOpen(true) }}
+            title="Trace this conversation's runs"
+          >
+            <IconClockOutline16 />
+            Trace
+          </button>
           <button
             type="button"
             className={css.chip}
@@ -803,11 +820,6 @@ export function ChatView({
               <IconPaperclipOutline16 />
             </button>
             <ComposerControls settings={settings} />
-            <span className={css.usage}>
-              {chat.usage.inputTokens + chat.usage.outputTokens > 0 && (
-                `${String(chat.usage.inputTokens)} in · ${String(chat.usage.outputTokens)} out`
-              )}
-            </span>
             {/*
               One button, never two. While a run is going it is Stop, because
               that is the action a button is needed for; steering is sent with
@@ -843,6 +855,14 @@ export function ChatView({
           </div>
         </div>
       </div>
+
+      <TraceDialog
+        open={traceOpen}
+        onClose={() => { setTraceOpen(false) }}
+        conversationId={chat.sessionId}
+        liveRunId={chat.runId}
+        liveSpans={chat.spans}
+      />
     </div>
   )
 }

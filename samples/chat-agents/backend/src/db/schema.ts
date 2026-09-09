@@ -166,3 +166,55 @@ export const usageEvents = sqliteTable('usage_events', {
   index('usage_events_model').on(table.provider, table.model, table.effort),
   index('usage_events_conversation').on(table.conversationId),
 ])
+
+/**
+ * One span of one run's execution, as the trace view reads it back.
+ *
+ * A row per SPAN rather than a blob per run: spans are written as they start
+ * and updated when they end, so a trace opened while the run is still working
+ * is the same shape as one opened afterwards. The waterfall needs nothing but
+ * `startedAt`, `durationMs`, and the parent link; the details pane reads the
+ * JSON columns, which are stored verbatim so a span the SDK grows a new
+ * attribute for needs no migration here.
+ */
+export const traceSpans = sqliteTable('trace_spans', {
+  /** `<runId>:<spanId>`, so re-observing a span updates one row. */
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id').notNull(),
+  runId: text('run_id').notNull(),
+  traceId: text('trace_id').notNull(),
+  spanId: text('span_id').notNull(),
+  /** Null for the root span of the run. */
+  parentSpanId: text('parent_span_id'),
+  /** Arrival order, so siblings that started in the same millisecond keep it. */
+  seq: integer('seq').notNull(),
+  /** Team member that produced this span, or null for the agent the user talks to. */
+  member: text('member'),
+  name: text('name').notNull(),
+  /** 'invoke_agent' | 'chat' | 'execute_tool' | 'compact'. */
+  kind: text('kind').notNull(),
+  /** Epoch milliseconds; the waterfall measures every bar against the root. */
+  startedAt: integer('started_at').notNull(),
+  /** Null while the span is still open. */
+  durationMs: integer('duration_ms'),
+  /** 'success' | 'error' | 'aborted' | 'unknown' — unknown while open. */
+  status: text('status').notNull(),
+  /** OpenTelemetry GenAI attributes as JSON. */
+  attributes: text('attributes'),
+  /** What went in: the prompt for a run, the arguments for a tool call. */
+  input: text('input'),
+  output: text('output'),
+  usage: text('usage'),
+  error: text('error'),
+  /**
+   * The provider call this step made, as JSON.
+   *
+   * Kept apart from `input`, which is the loop's own capped summary: this is
+   * the whole payload and the whole streamed answer, which is what the API tab
+   * of the trace shows.
+   */
+  apiCall: text('api_call'),
+}, table => [
+  index('trace_spans_run').on(table.runId, table.seq),
+  index('trace_spans_conversation').on(table.conversationId, table.startedAt),
+])

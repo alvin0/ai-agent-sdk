@@ -28,8 +28,11 @@ import {
   AttachmentRejected, MAX_ATTACHMENTS_PER_MESSAGE, MAX_FILE_BYTES, MAX_IMAGE_BYTES,
   readAttachment, readAttachmentBytes, storeAttachment,
 } from './attachments'
-import { browseDirectory, currentWorkspace, defaultWorkspace, setWorkspace } from './workspace'
+import {
+  browseDirectory, currentWorkspace, defaultWorkspace, revealDirectory, setWorkspace,
+} from './workspace'
 import { clearUsage, usageSummary } from './usage'
+import { deleteTraces, listTraces, readTrace } from './traces'
 import { sweepSpill } from './spill'
 import type {
   AnswerRequestBody, ApproveRequestBody, ChatRequestBody, SteerRequestBody, WireApprovalScope,
@@ -312,8 +315,25 @@ export function createChatApp(basePath = '/api') {
   app.delete('/conversations/:id', async (c) => {
     const id = c.req.param('id')
     forgetSession(id)
+    await deleteTraces(id)
     await deleteConversation(id)
     return c.json({ deleted: true })
+  })
+
+  /**
+   * The runs of one conversation, newest first.
+   *
+   * Summaries only: the trace view lists them in its header and fetches the
+   * spans of the one being looked at, because a conversation with fifty runs
+   * would otherwise ship every span of every run to draw one waterfall.
+   */
+  app.get('/conversations/:id/traces', async (c) => {
+    return c.json({ traces: await listTraces(c.req.param('id')) })
+  })
+
+  /** Every span of one run, for the tree and the waterfall. */
+  app.get('/traces/:runId', async (c) => {
+    return c.json({ spans: await readTrace(c.req.param('runId')) })
   })
 
   // ---- groups -------------------------------------------------------------
@@ -337,6 +357,22 @@ export function createChatApp(basePath = '/api') {
     const body = await c.req.json<{ name?: string; workspaceRoot?: string }>()
     try {
       return c.json({ group: await updateGroup(c.req.param('id'), body) })
+    } catch (error) {
+      return c.json({ error: failed(error) }, 400)
+    }
+  })
+
+  /**
+   * Show the project's folder in the desktop file manager.
+   *
+   * The path is read from the group row, never from the request, so this
+   * cannot be pointed at an arbitrary directory by a crafted body.
+   */
+  app.post('/groups/:id/reveal', async (c) => {
+    try {
+      const group = await getGroup(c.req.param('id'))
+      revealDirectory(group.workspaceRoot)
+      return c.json({ revealed: true })
     } catch (error) {
       return c.json({ error: failed(error) }, 400)
     }

@@ -241,3 +241,33 @@
   left: -10px;
   width: 10px;
 }
+
+/* The filter field sits above the scrolling viewport, so it stays put while
+   the results move under it. */
+.search {
+  flex: none;
+  padding: 2px 2px 6px;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  outline: none;
+}
+
+.searchInput::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.empty {
+  padding: 8px 10px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 14px;
+}
