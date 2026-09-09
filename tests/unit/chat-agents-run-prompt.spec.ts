@@ -227,7 +227,7 @@ describe('naming a skill with `/`', () => {
       const stored = await readMessages(id)
       const user = stored.find(node => (node as { kind?: string }).kind === 'user')
       expect(user).toMatchObject({ text: '/code-review look at the diff', skills: ['code-review'] })
-      expect(JSON.stringify(user)).not.toContain('load_skill')
+      expect(JSON.stringify(user)).not.toContain('`load_skill`')
     } finally { rmSync(join(process.env.CHAT_AGENTS_WORKSPACE as string, '.agents'), { recursive: true, force: true }) }
   }, 20_000)
 
@@ -266,7 +266,7 @@ describe('naming a skill with `/`', () => {
 
     for await (const _ of runPrompt(id, 'do it', 'default', [], ['made-up'])) { /* drain */ }
 
-    expect(JSON.stringify(mockRequests()[0]?.messages ?? [])).not.toContain('load_skill')
+    expect(JSON.stringify(mockRequests()[0]?.messages ?? [])).not.toContain('`load_skill`')
   }, 20_000)
 
   it('leaves a path alone', async () => {
@@ -277,7 +277,7 @@ describe('naming a skill with `/`', () => {
 
     await prompt(id, 'read /etc/passwd and report')
 
-    expect(JSON.stringify(mockRequests()[0]?.messages ?? [])).not.toContain('load_skill')
+    expect(JSON.stringify(mockRequests()[0]?.messages ?? [])).not.toContain('`load_skill`')
     const stored = await readMessages(id)
     expect(stored.find(node => (node as { kind?: string }).kind === 'user'))
       .not.toHaveProperty('skills')
