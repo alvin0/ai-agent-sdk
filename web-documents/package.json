@@ -5,6 +5,7 @@
     "email": "chaulamdinhai@gmail.com"
   },
   "version": "0.0.0",
+  "private": true,
   "type": "module",
   "description": "Documentation site for AI Agent SDK. Intentionally outside the pnpm workspace so its dev dependencies never enter the SDK lockfile, catalog, or supply-chain gates.",
   "scripts": {

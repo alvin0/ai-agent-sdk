@@ -1,4 +1,5 @@
 {
   "name": "protocol-responses-worker-consumer",
+  "private": true,
   "type": "module"
 }
