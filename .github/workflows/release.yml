@@ -109,7 +109,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          # The "./" prefix is required: npm reads a bare relative path as a
+          # GitHub owner/repo shorthand and tries to clone it over ssh.
           for tarball in artifacts/*.tgz; do
             echo "== publishing $tarball"
-            npm publish "$tarball" --provenance --access public
+            npm publish "./$tarball" --provenance --access public
           done
