@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Node environment credentials and project-local Codex authentication for ai-agent-sdk",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "files": ["dist", "bin", "README.md", "LICENSE"],

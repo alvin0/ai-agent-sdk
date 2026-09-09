@@ -23,7 +23,7 @@ Both accept `models: [{ id, contextWindow, maxTokens }]` plus provider-level
 `defaultContextWindow` and `defaultMaxTokens` fallbacks. Currently a catalog
 model's `maxTokens` is both its default output budget and its SDK output ceiling;
 set a lower `maxTokens` on the agent to request less output. See the
-[provider model limits guide](../../docs/provider-model-limits.md) for an example
+[provider model limits guide](../../web-documents/en/09-providers/index.md) for an example
 and precedence rules. These declarations do not increase server-side limits.
 
 Composition: `runtime.providers`. Lifecycle: `inert-runtime-owned-registration`;

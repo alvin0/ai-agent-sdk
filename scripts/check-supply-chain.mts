@@ -8,7 +8,8 @@ const workspaceRoot = resolve(process.cwd())
 const errors: string[] = []
 const workspaceConfig = readFileSync(join(workspaceRoot, 'pnpm-workspace.yaml'), 'utf8')
 const lockfile = readFileSync(join(workspaceRoot, 'pnpm-lock.yaml'), 'utf8')
-const policy = readFileSync(join(workspaceRoot, 'docs', 'dependency-policy.md'), 'utf8')
+const policyPath = join(workspaceRoot, 'web-documents', 'en', '14-project', 'dependency-policy.md')
+const policy = readFileSync(policyPath, 'utf8')
 const exactVersion = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
 const exoticSpecifier = /^(?:git(?:\+[^:]+)?:|github:|https?:|file:|link:|portal:|patch:)/i
 
@@ -138,7 +139,7 @@ for (const name of allowedBuilds) {
   const versions = reviewedLifecycle.get(name)
   if (!versions || versions.size === 0) errors.push(`allowBuilds entry ${name} does not match an installed lifecycle script`)
   for (const version of versions ?? []) {
-    if (!policy.includes(`| \`${name}\` | \`${version}\``)) errors.push(`${name}@${version} lifecycle approval is missing package/version evidence in docs/dependency-policy.md`)
+    if (!policy.includes(`| \`${name}\` | \`${version}\``)) errors.push(`${name}@${version} lifecycle approval is missing package/version evidence in web-documents/en/14-project/dependency-policy.md`)
   }
 }
 

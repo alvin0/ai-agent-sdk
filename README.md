@@ -217,10 +217,10 @@ Two structural rules carry most of the weight:
   accidentally ship its own fetch loop that forgets attribution headers,
   mishandles abort, or invents error codes.
 
-See [provider model limits](docs/provider-model-limits.md) to configure context
+See [provider model limits](web-documents/en/09-providers/index.md) to configure context
 windows and output budgets per model when setting up a provider.
 
-See [the package architecture](docs/monorepo-package-architecture.md) and
+See [the package architecture](web-documents/en/11-internals/package-topology.md) and
 [`@ai-agent-sdk/provider-http`](packages/provider-http/README.md) for the adapter
 pipeline, ownership rules, and provider extension boundary.
 
@@ -271,7 +271,7 @@ await session.run('Now multiply that by 10.')
 Omitting `provider`, `model`, and `effort` selects Codex `gpt-5.6-luna` at
 `medium` effort. Use `session.stream()` instead of `session.run()` when a GUI
 needs live commentary, reasoning summaries, tool nodes, image deltas, and trace
-events. See [`docs/agent-definitions.md`](docs/agent-definitions.md) for modes,
+events. See [Creating an Agent](web-documents/en/02-agents/creating-an-agent.md) for modes,
 native tools, variants, and session ownership.
 
 Agents can also own progressively disclosed skills. Web applications declare
@@ -280,13 +280,13 @@ Node CLIs discover `SKILL.md` folders through the separate
 `@ai-agent-sdk/skill-filesystem` entry point. Reusable definitions may declare a
 strict `skillIds` allowlist over session-provided request/workflow sources without
 pre-activating those skills. See the
-[skills section](docs/agent-definitions.md#skills-web-definitions-and-cli-discovery)
+[skills section](web-documents/en/04-skills/index.md)
 for both setups and the discovery rules.
 
 Definitions also enable long-task continuity by default: the original user
 objective is pinned outside compactable history, and older context is replaced
 with a structured handoff checkpoint near the model's context limit. See
-[`docs/memory-and-compaction.md`](docs/memory-and-compaction.md).
+[Memory](web-documents/en/05-memory/index.md).
 
 Long-lived agents can exchange attributed messages through an `AgentTeam`.
 Quiet local messages add context without waking an idle agent; wake-up messages
@@ -304,12 +304,12 @@ Attached models receive bound `list_agents`, `send_message`, `followup_task`, an
 `wait_agents` tools by default. Production controls are capability-oriented:
 hosts choose ownership, auth, endpoint, storage, and tool policies while the SDK
 provides quotas, TTL, cancellation, sanitized errors, and lifecycle hooks. See
-[`docs/a2a.md`](docs/a2a.md).
+[Agent-to-Agent](web-documents/en/08-a2a/index.md).
 
 The SDK can also consume remote MCP tools or expose SDK tools and defined agents
 as an MCP API. MCP stays in optional `mcp-client`, `mcp-server`, and Node-only
 `mcp-node` entry points so web/workflow users do not inherit CLI dependencies.
-See [`docs/mcp.md`](docs/mcp.md) and run `npm run human:mcp` for a credential-free
+See [MCP](web-documents/en/07-mcp/index.md) and run `npm run human:mcp` for a credential-free
 protocol round trip.
 
 ### Low-level loop
@@ -444,7 +444,7 @@ native web search and image generation. Anthropic maps native web search, preser
 its encrypted result/citation replay state, and reports unsupported native image
 generation or file-id image input as typed `INVALID_REQUEST` errors.
 
-See [`docs/tool-loop-design.md`](docs/tool-loop-design.md) for the architecture,
+See [Tool Execution](web-documents/en/03-tools/tool-execution.md) for the architecture,
 bounds, checkpoint contract, and design rationale.
 
 For manual acceptance against a real provider, use the interactive commands in
@@ -494,4 +494,4 @@ that mixing them in would discourage running the fast suite.
 
 ## License
 
-Apache-2.0
+MIT

@@ -1,14 +1,17 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { dirname, extname, join, relative, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
  * Documentation hygiene gate.
  *
  * Deliberately checks only things that stay true as the SDK grows: every package
- * README describes its own runtime and install command, no Markdown link points
- * at a missing file, no unresolved marker survives, and no documented root
- * script has been renamed away.
+ * README describes its own runtime and install command, no README link points at
+ * a missing file, no unresolved marker survives, and no documented root script
+ * has been renamed away.
+ *
+ * The documentation site under `web-documents/` is gated by `pnpm docs:build`,
+ * which fails on its own dead links.
  *
  * It intentionally does NOT freeze the package set, the dependency count, or any
  * migration-era ledger. Adding a package or a dependency must not require
@@ -47,22 +50,23 @@ for (const { root, manifest } of manifests) {
   }
 }
 
+/**
+ * README files only. The documentation site under `web-documents/` uses VitePress
+ * route links rather than filesystem paths, and `pnpm docs:build` already fails on
+ * a dead link there — a filesystem link checker would reject every valid route.
+ */
 const markdownFiles = [
   join(workspaceRoot, 'README.md'),
-  join(workspaceRoot, '.changeset', 'README.md'),
-  ...walkMarkdown(join(workspaceRoot, 'docs')),
   ...manifests.map(entry => join(entry.root, 'README.md')),
 ].filter(path => existsSync(path))
 
-const implementationLedger = join(workspaceRoot, 'docs', 'implementation-todo.md')
-
 for (const path of markdownFiles) {
   const text = readFileSync(path, 'utf8')
-  if (path !== implementationLedger && /\b(?:TBD|FIXME)\b|TODO\s*\(/.test(text)) {
+  if (/\b(?:TBD|FIXME)\b|TODO\s*\(/.test(text)) {
     errors.push(`${relative(workspaceRoot, path)} contains an unresolved implementation marker`)
   }
   for (const match of text.matchAll(/@ai-agent-sdk\/[a-z0-9-]+/g)) {
-    if (!packageNames.has(match[0]) && !isHistoricalRecord(path)) {
+    if (!packageNames.has(match[0])) {
       errors.push(`${relative(workspaceRoot, path)} names unknown package ${match[0]}`)
     }
   }
@@ -95,22 +99,6 @@ if (errors.length > 0) {
     `Release docs passed: ${markdownFiles.length} Markdown files, `
     + `${manifests.length} package READMEs, zero findings.\n`,
   )
-}
-
-function walkMarkdown(root: string): string[] {
-  if (!existsSync(root)) return []
-  const files: string[] = []
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
-    const path = join(root, entry.name)
-    if (entry.isDirectory()) files.push(...walkMarkdown(path))
-    else if (extname(entry.name) === '.md') files.push(path)
-  }
-  return files.sort()
-}
-
-/** Historical design records may name packages that no longer exist. */
-function isHistoricalRecord(path: string): boolean {
-  return relative(workspaceRoot, path).replaceAll('\\', '/').startsWith('docs/')
 }
 
 interface PackageManifest {

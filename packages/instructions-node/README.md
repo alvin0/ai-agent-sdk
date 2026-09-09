@@ -3,6 +3,12 @@
 Node filesystem discovery for `AGENTS.md`-style project instructions, delivered
 as a core **context section**.
 
+Runtime: **Node 22.12+**.
+
+```bash
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/instructions-node
+```
+
 The core SDK never reads a file. It exposes `ContextSection`: a callback the
 turn loop re-runs before every model round, owning exactly one node on the model
 surface and rewriting it only when its revision changes. This package is the

@@ -1,6 +1,6 @@
 {
   "name": "ai-agent-sdk-workspace",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@11.25.0",
   "description": "Private workspace orchestration for ai-agent-sdk packages",
@@ -15,7 +15,7 @@
     "sdk",
     "typescript"
   ],
-  "license": "Apache-2.0",
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=22.18"
@@ -45,12 +45,10 @@
     "test:browser": "pnpm --filter @ai-agent-sdk/observability-browser test:pack",
     "test:node": "pnpm --filter @ai-agent-sdk/auth-node test:pack && pnpm --filter @ai-agent-sdk/mcp-node test:pack && pnpm --filter @ai-agent-sdk/mcp-node-server test:pack && pnpm --filter @ai-agent-sdk/skill-filesystem test:pack && pnpm --filter @ai-agent-sdk/instructions-node test:pack && pnpm --filter @ai-agent-sdk/observability-node test:pack",
     "test:recovery": "vitest run tests/unit/observability.spec.ts tests/unit/observability-node.spec.ts && pnpm --filter @ai-agent-sdk/observability-browser test:pack",
-    "docs:install": "npm --prefix website install",
-    "docs:dev": "npm --prefix website run dev",
-    "docs:build": "npm --prefix website run build",
-    "docs:preview": "npm --prefix website run preview",
-    "changeset": "changeset",
-    "version-packages": "changeset version",
+    "docs:install": "npm --prefix web-documents install",
+    "docs:dev": "npm --prefix web-documents run dev",
+    "docs:build": "npm --prefix web-documents run build",
+    "docs:preview": "npm --prefix web-documents run preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
@@ -105,7 +103,6 @@
     "@ai-agent-sdk/skill-filesystem": "workspace:^",
     "@ai-agent-sdk/testkit": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",
-    "@changesets/cli": "catalog:",
     "@modelcontextprotocol/client": "catalog:",
     "@modelcontextprotocol/node": "catalog:",
     "@modelcontextprotocol/server": "catalog:",

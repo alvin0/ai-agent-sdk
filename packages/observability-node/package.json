@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Durable Node JSONL observation journal, recovery, lifecycle, and opt-in wire diagnostics",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "files": ["dist", "README.md", "LICENSE"],
