@@ -1,6 +1,5 @@
 {
   "name": "@ai-agent-sdk/provider-openai",
   "version": "0.1.0",
-  "private": true,
   "type": "module"
 }

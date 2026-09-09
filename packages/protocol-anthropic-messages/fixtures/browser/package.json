@@ -1,5 +1,4 @@
 {
   "name": "protocol-anthropic-messages-browser-consumer",
-  "private": true,
   "type": "module"
 }

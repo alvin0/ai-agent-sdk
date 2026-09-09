@@ -1,5 +1,4 @@
 {
   "name": "core-browser-consumer",
-  "private": true,
   "type": "module"
 }

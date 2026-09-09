@@ -1,7 +1,6 @@
 {
   "name": "@fixture/independent-provider",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "exports": { ".": "./index.mjs" },

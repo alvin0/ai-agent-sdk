@@ -1,5 +1,4 @@
 {
   "name": "provider-http-standards-consumer",
-  "private": true,
   "type": "module"
 }

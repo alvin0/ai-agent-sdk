@@ -5,7 +5,6 @@
     "email": "chaulamdinhai@gmail.com"
   },
   "version": "0.1.0",
-  "private": true,
   "description": "Node environment credentials and project-local Codex authentication for ai-agent-sdk",
   "license": "MIT",
   "type": "module",

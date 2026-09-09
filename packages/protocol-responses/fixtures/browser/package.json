@@ -1,5 +1,4 @@
 {
   "name": "protocol-responses-browser-consumer",
-  "private": true,
   "type": "module"
 }

@@ -5,7 +5,6 @@
     "email": "chaulamdinhai@gmail.com"
   },
   "version": "0.1.0",
-  "private": true,
   "description": "Acknowledged HTTPS observation batch exporter for Edge and Web runtimes",
   "license": "MIT",
   "type": "module",

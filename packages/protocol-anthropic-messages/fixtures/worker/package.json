@@ -1,5 +1,4 @@
 {
   "name": "protocol-anthropic-messages-worker-consumer",
-  "private": true,
   "type": "module"
 }

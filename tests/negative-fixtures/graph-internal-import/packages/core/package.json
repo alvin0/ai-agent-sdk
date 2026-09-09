@@ -1,7 +1,6 @@
 {
   "name": "@ai-agent-sdk/core",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "exports": { ".": "./dist/index.js" }
 }
