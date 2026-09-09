@@ -14,15 +14,15 @@
 
 import {
   AgentTeam, History, ToolRegistry, createDefinedAgentTeam, createManagedAgentTeam, defineAgent,
-} from '@ai-agent-sdk/core/agent'
+} from '@alvin0/ai-agent-sdk-core/agent'
 import type {
   AgentResponse, AgentRunEvent, ApprovalBroker, DefinedAgent, ManagedAgentTeam,
   ToolDefinition, ToolInterceptor,
-} from '@ai-agent-sdk/core/agent'
+} from '@alvin0/ai-agent-sdk-core/agent'
 import type {
   AgentInput, ContextSection, ModelRegistry, SkillSource, UserInputBroker,
-} from '@ai-agent-sdk/core'
-import { createProjectInstructionsSection } from '@ai-agent-sdk/instructions-node'
+} from '@alvin0/ai-agent-sdk-core'
+import { createProjectInstructionsSection } from '@alvin0/ai-agent-sdk-instructions-node'
 import { listProjectInstructions } from './instructions'
 import type { ProjectInstructions } from './instructions'
 import { MODEL_TIMEOUT_MS, retryHooks } from './resilience'

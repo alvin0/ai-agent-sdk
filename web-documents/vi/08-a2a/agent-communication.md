@@ -145,7 +145,7 @@ hai worker về mặt vật lý không thể ghi cùng một tệp.
 Muốn kiểm soát hoàn toàn, hãy tự nối team:
 
 ```ts
-import { AgentTeam, defineAgent } from '@ai-agent-sdk/core/agent'
+import { AgentTeam, defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
 
 const team = new AgentTeam({ id: 'release-team', maxMembers: 8 })
 

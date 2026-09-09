@@ -144,7 +144,7 @@ physically cannot write the same file.
 For full control, wire the team yourself:
 
 ```ts
-import { AgentTeam, defineAgent } from '@ai-agent-sdk/core/agent'
+import { AgentTeam, defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
 
 const team = new AgentTeam({ id: 'release-team', maxMembers: 8 })
 

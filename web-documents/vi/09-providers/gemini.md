@@ -5,12 +5,12 @@ Slot ghép nối: `runtime.providers`.
 Vòng đời: `inert-runtime-owned-registration`.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-gemini
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-gemini
 ```
 
 **Chỉ** nhắm tới endpoint Gemini **Interactions** của Google tại
 `/v1beta/interactions`, thông qua
-[`@ai-agent-sdk/protocol-gemini-interactions`](/vi/09-providers/protocols).
+[`@alvin0/ai-agent-sdk-protocol-gemini-interactions`](/vi/09-providers/protocols).
 
 > Nó **không** dùng `generateContent`, và **không** dùng endpoint Chat
 > Completions tương thích OpenAI. Đó là những giao thức wire khác.
@@ -18,8 +18,8 @@ pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-gemini
 ## Ghép nối
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { geminiPlugin } from '@ai-agent-sdk/provider-gemini'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { geminiPlugin } from '@alvin0/ai-agent-sdk-provider-gemini'
 
 const runtime = await createAgentRuntime({
   providers: [geminiPlugin({ apiKey: () => secretStore.get('gemini') })],
@@ -35,7 +35,7 @@ const agent = runtime.agent({
 Trên Node, đọc khoá từ môi trường qua package auth của Node:
 
 ```ts
-import { envCredential } from '@ai-agent-sdk/auth-node'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
 
 geminiPlugin({ apiKey: envCredential('GEMINI_API_KEY') })
 ```
@@ -68,8 +68,8 @@ export { geminiInteractionsProtocol, type GeminiInteractionsDialect }
 | `GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta` |
 
 ```ts
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { geminiAdapter } from '@ai-agent-sdk/provider-gemini'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { geminiAdapter } from '@alvin0/ai-agent-sdk-provider-gemini'
 
 const registry = new ModelRegistry()
 registry.registerAdapter(['gemini'], geminiAdapter({ apiKey }))

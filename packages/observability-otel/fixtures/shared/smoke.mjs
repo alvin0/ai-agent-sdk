@@ -1,7 +1,7 @@
 import { trace } from '@opentelemetry/api'
-import { createOperationId } from '@ai-agent-sdk/core'
-import { createObservability } from '@ai-agent-sdk/core/observability'
-import { createOpenTelemetryBridge } from '@ai-agent-sdk/observability-otel'
+import { createOperationId } from '@alvin0/ai-agent-sdk-core'
+import { createObservability } from '@alvin0/ai-agent-sdk-core/observability'
+import { createOpenTelemetryBridge } from '@alvin0/ai-agent-sdk-observability-otel'
 
 class Span {
   constructor(name, context, parent, attributes) {

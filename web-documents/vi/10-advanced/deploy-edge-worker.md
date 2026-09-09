@@ -6,8 +6,8 @@ Bun, hoặc bất kỳ host nào có `Request`/`Response` và `waitUntil`.
 ## Cài đặt
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
-  @ai-agent-sdk/observability-fetch
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
+  @alvin0/ai-agent-sdk-observability-fetch
 ```
 
 Ba package. Tất cả đều Universal — không builtin Node nào lọt vào bundle.
@@ -15,12 +15,12 @@ Ba package. Tất cả đều Universal — không builtin Node nào lọt vào 
 ## Worker
 
 ```ts
-import { createAgentRuntime, defineTool } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime, defineTool } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 import {
   fetchObservationExporter,
   flushObservabilityWithWaitUntil,
-} from '@ai-agent-sdk/observability-fetch'
+} from '@alvin0/ai-agent-sdk-observability-fetch'
 
 interface Env {
   OPENAI_API_KEY: string
@@ -153,7 +153,7 @@ Package không bao giờ giả định có biến toàn cục của nền tảng
 
 ## Ràng buộc cần nhớ
 
-- **Không thứ gì chỉ-chạy-Node được lọt vào bundle.** `@ai-agent-sdk/auth-node`,
+- **Không thứ gì chỉ-chạy-Node được lọt vào bundle.** `@alvin0/ai-agent-sdk-auth-node`,
   `mcp-node`, `skill-filesystem`, `observability-node`, và `a2a` đều ở tầng Node.
 - **Host Edge không thể trông cậy vào việc tiến trình thoát.** Mọi lần flush phải
   tường minh.

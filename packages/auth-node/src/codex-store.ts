@@ -2,12 +2,12 @@
 
 import { createHash } from 'node:crypto'
 import { isAbsolute, resolve } from 'node:path'
-import { defineCredentialStore } from '@ai-agent-sdk/core/provider'
+import { defineCredentialStore } from '@alvin0/ai-agent-sdk-core/provider'
 import type {
   CodexAuthFile,
   CodexAuthStore,
   CodexCredentialStore,
-} from '@ai-agent-sdk/provider-codex'
+} from '@alvin0/ai-agent-sdk-provider-codex'
 import {
   credentialFileError,
   readCredentialText,

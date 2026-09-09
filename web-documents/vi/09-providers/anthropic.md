@@ -5,17 +5,17 @@ Slot ghép nối: `runtime.providers`.
 Vòng đời: `inert-runtime-owned-registration`.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-anthropic
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-anthropic
 ```
 
 Nhắm tới **Anthropic Messages API** thông qua
-[`@ai-agent-sdk/protocol-anthropic-messages`](/vi/09-providers/protocols).
+[`@alvin0/ai-agent-sdk-protocol-anthropic-messages`](/vi/09-providers/protocols).
 
 ## Ghép nối
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { anthropicPlugin } from '@ai-agent-sdk/provider-anthropic'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { anthropicPlugin } from '@alvin0/ai-agent-sdk-provider-anthropic'
 
 const runtime = await createAgentRuntime({
   providers: [anthropicPlugin({ apiKey: () => secretStore.get('anthropic') })],
@@ -30,7 +30,7 @@ const agent = runtime.agent({
 
 Thông tin xác thực được **tiêm vào**. Package là Universal và không bao giờ tự
 đọc biến môi trường hay tệp; trên Node hãy dùng
-`envCredential('ANTHROPIC_API_KEY')` từ `@ai-agent-sdk/auth-node`.
+`envCredential('ANTHROPIC_API_KEY')` từ `@alvin0/ai-agent-sdk-auth-node`.
 
 ## Export
 
@@ -63,8 +63,8 @@ export {
 | `DEFAULT_THINKING_BUDGETS` | Ánh xạ mức nỗ lực suy luận sang ngân sách token suy nghĩ. |
 
 ```ts
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { anthropicPlugin } from '@ai-agent-sdk/provider-anthropic'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { anthropicPlugin } from '@alvin0/ai-agent-sdk-provider-anthropic'
 
 const registry = new ModelRegistry()
 registry.install(anthropicPlugin({ apiKey: () => secretStore.get('anthropic') }))

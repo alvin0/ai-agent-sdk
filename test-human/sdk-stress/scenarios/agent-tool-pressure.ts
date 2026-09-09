@@ -6,8 +6,8 @@ import {
   type GenerateOptions,
   type ResolvedModelInfo,
   type StreamChunk,
-} from '@ai-agent-sdk/core'
-import { buildTraceTree, defineAgent, defineTool, type AgentRunEvent, type TraceEvent } from '@ai-agent-sdk/core/agent'
+} from '@alvin0/ai-agent-sdk-core'
+import { buildTraceTree, defineAgent, defineTool, type AgentRunEvent, type TraceEvent } from '@alvin0/ai-agent-sdk-core/agent'
 import type { SdkStressContext, SdkStressScenarioResult } from '../types.ts'
 import { runBoundedWorkers, StressChecks } from './shared.ts'
 

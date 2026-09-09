@@ -2,11 +2,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { ToolRegistry, createUserInputBroker, defineTool, runAgent } from '@ai-agent-sdk/core/agent'
-import type { AgentRunEvent, SpillStore } from '@ai-agent-sdk/core/agent'
-import { History } from '@ai-agent-sdk/core/agent'
-import { ModelAdapter, ModelRegistry, ReasoningEffortId, ToolCallId, createTextMessage } from '@ai-agent-sdk/core'
-import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@ai-agent-sdk/core'
+import { ToolRegistry, createUserInputBroker, defineTool, runAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import type { AgentRunEvent, SpillStore } from '@alvin0/ai-agent-sdk-core/agent'
+import { History } from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter, ModelRegistry, ReasoningEffortId, ToolCallId, createTextMessage } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 const home = mkdtempSync(join(tmpdir(), 'modes-'))
 process.env.CHAT_AGENTS_DB = join(home, '.data', 'test.db')

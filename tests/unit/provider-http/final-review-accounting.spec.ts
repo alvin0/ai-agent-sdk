@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { ModelRegistry, ReasoningEffortId, validateUsageCounters, withRetry } from '@ai-agent-sdk/core'
-import { defineAgent } from '@ai-agent-sdk/core/agent'
-import { createRuntimeHttpProvider, defineWireProtocol } from '@ai-agent-sdk/provider-http'
+import { ModelRegistry, ReasoningEffortId, validateUsageCounters, withRetry } from '@alvin0/ai-agent-sdk-core'
+import { defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import { createRuntimeHttpProvider, defineWireProtocol } from '@alvin0/ai-agent-sdk-provider-http'
 
 describe('final review provider retry to terminal ledger', () => {
   it('keeps partial attempt evidence and a readable terminal report after a successful retry', async () => {

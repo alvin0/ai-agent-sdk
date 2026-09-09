@@ -7,19 +7,19 @@ sink confirms delivery.
 ## Install
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
-  @ai-agent-sdk/observability-browser
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
+  @alvin0/ai-agent-sdk-observability-browser
 ```
 
 ## Setup
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 import {
   indexedDbObservationExporter,
   installBrowserObservabilityLifecycle,
-} from '@ai-agent-sdk/observability-browser'
+} from '@alvin0/ai-agent-sdk-observability-browser'
 
 const queue = indexedDbObservationExporter()
 
@@ -108,7 +108,7 @@ source drifted.
 guarantee one.
 
 If your audit requirement is stronger than "usually", the acknowledged HTTPS
-exporter (`@ai-agent-sdk/observability-fetch`) is the honest answer — it retries
+exporter (`@alvin0/ai-agent-sdk-observability-fetch`) is the honest answer — it retries
 the identical serialized batch with an idempotency key until the server accepts
 it.
 
@@ -120,7 +120,7 @@ survival, and HTTPS as `best-effort`/`remote-acknowledged` for the live path.
 - Credentials must reach the browser somehow. Prefer a short-lived token minted
   by your backend over shipping a provider API key to the client.
 - Browser storage is per-origin and clearable by the user.
-- `@ai-agent-sdk/observability-browser` is Browser-tier — it requires IndexedDB
+- `@alvin0/ai-agent-sdk-observability-browser` is Browser-tier — it requires IndexedDB
   and optional page lifecycle APIs.
 
 ## Read next

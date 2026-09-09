@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { AgentTeam } from '@ai-agent-sdk/core/agent'
-import { ToolCallId } from '@ai-agent-sdk/core'
-import type { TeamSessionPort } from '@ai-agent-sdk/core/agent'
+import { AgentTeam } from '@alvin0/ai-agent-sdk-core/agent'
+import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import type { TeamSessionPort } from '@alvin0/ai-agent-sdk-core/agent'
 
 /**
  * Wait cycles.

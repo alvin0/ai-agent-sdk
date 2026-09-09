@@ -1,6 +1,6 @@
-import type { ContentBlock, Message } from '@ai-agent-sdk/core'
-import type { ToolExecutionResult } from '@ai-agent-sdk/core/agent'
-import { MAX_SKILL_ID_CHARS, SKILL_ID_PATTERN } from '@ai-agent-sdk/core/agent'
+import type { ContentBlock, Message } from '@alvin0/ai-agent-sdk-core'
+import type { ToolExecutionResult } from '@alvin0/ai-agent-sdk-core/agent'
+import { MAX_SKILL_ID_CHARS, SKILL_ID_PATTERN } from '@alvin0/ai-agent-sdk-core/agent'
 import { SKILL_TOOLS, CONTROL_TOOLS, MATERIAL_AGENTCODE_TOOLS, SUCCESSFUL_NATIVE_STATUSES } from './constants.ts'
 import type {
   AgentCodeSkillEvidence,

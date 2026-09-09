@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ModelAdapter } from '@ai-agent-sdk/core'
-import type { GenerateOptions } from '@ai-agent-sdk/core'
-import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
-import { ModelError } from '@ai-agent-sdk/core'
-import { createTextMessage } from '@ai-agent-sdk/core'
-import { ModelRegistry, type StreamMiddleware } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
+import { ModelAdapter } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
+import type { ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core'
+import { ModelError } from '@alvin0/ai-agent-sdk-core'
+import { createTextMessage } from '@alvin0/ai-agent-sdk-core'
+import { ModelRegistry, type StreamMiddleware } from '@alvin0/ai-agent-sdk-core'
+import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 /** An adapter whose behaviour each test dictates. */
 class FakeAdapter extends ModelAdapter {

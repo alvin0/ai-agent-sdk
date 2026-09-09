@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import type { ObservationBoundary } from '@ai-agent-sdk/core'
+import type { ObservationBoundary } from '@alvin0/ai-agent-sdk-core'
 import type { JsonlObservationJournalOptions } from './types.ts'
 import { JOURNAL_DEFAULTS, positiveSafeInteger } from './config.ts'
 

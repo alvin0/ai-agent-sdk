@@ -2,7 +2,7 @@
  * Which `AGENTS.md` files a project's agents are reading.
  *
  * The section that puts them in the prompt lives in the SDK
- * (`@ai-agent-sdk/instructions-node`) and is deliberately silent: it owns one
+ * (`@alvin0/ai-agent-sdk-instructions-node`) and is deliberately silent: it owns one
  * node on the model surface and rewrites it when the files change. Silent is
  * right for the model and wrong for the user — a convention file that is being
  * read invisibly is indistinguishable from one that is being ignored, which is
@@ -17,7 +17,7 @@ import { readFile, stat } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
 import {
   DEFAULT_FILE_NAMES, ancestorChain, findProjectRoot,
-} from '@ai-agent-sdk/instructions-node'
+} from '@alvin0/ai-agent-sdk-instructions-node'
 
 /** One instruction file the agents in a project will read. */
 export interface ProjectInstructionFile {

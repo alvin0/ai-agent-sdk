@@ -6,7 +6,7 @@ bộ lập lịch không bao giờ cố chạy chúng.
 ## Khai báo native tool
 
 ```ts
-import { ReasoningEffortId, runAgent } from '@ai-agent-sdk/core'
+import { ReasoningEffortId, runAgent } from '@alvin0/ai-agent-sdk-core'
 
 for await (const event of runAgent({
   mode: 'basic',

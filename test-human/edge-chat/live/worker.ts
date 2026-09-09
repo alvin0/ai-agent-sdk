@@ -5,10 +5,10 @@ import {
   type RuntimeAgentRunEvent,
   type RuntimeAgentRunHandle,
   type RuntimeAgentSession,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import {
   CODEX_BASE_URL, codexPlugin, memoryCodexCredentialStore, type CodexAuthFile,
-} from '@ai-agent-sdk/provider-codex'
+} from '@alvin0/ai-agent-sdk-provider-codex'
 import { EDGE_CHAT_HTML, edgeSecurityHeaders } from '../app.ts'
 import { createLiveResearchTools } from './tools.ts'
 import type { ResearchEvidenceLedger } from './evidence.ts'

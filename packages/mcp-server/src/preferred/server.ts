@@ -1,5 +1,5 @@
-import type { RuntimeAgent, RuntimeAgentInvocationOptions, RuntimeAgentResponse } from '@ai-agent-sdk/core/agent'
-import type { SdkLogger, ToolCatalog } from '@ai-agent-sdk/core/tools'
+import type { RuntimeAgent, RuntimeAgentInvocationOptions, RuntimeAgentResponse } from '@alvin0/ai-agent-sdk-core/agent'
+import type { SdkLogger, ToolCatalog } from '@alvin0/ai-agent-sdk-core/tools'
 import { createSdkMcpHandler, createSdkMcpServer, type SdkMcpServerOptions } from '../server/advanced.ts'
 import {
   attachPreferredState, copyPreferredState, MCP_WEB_SERVER_FACTORY,

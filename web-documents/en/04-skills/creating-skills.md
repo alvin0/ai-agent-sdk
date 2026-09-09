@@ -6,7 +6,7 @@ For a browser, edge worker, database-backed application, or any host without a
 skill directory:
 
 ```ts
-import { defineAgent, defineSkill } from '@ai-agent-sdk/core/agent'
+import { defineAgent, defineSkill } from '@alvin0/ai-agent-sdk-core/agent'
 
 const incidentTriage = defineSkill({
   id: 'incident-triage',
@@ -51,7 +51,7 @@ for outages, elevated error rates, and degraded latency" beats "for incidents".
 Implement the same environment-neutral contract against any backing store:
 
 ```ts
-import { defineSkillProvider } from '@ai-agent-sdk/core/agent'
+import { defineSkillProvider } from '@alvin0/ai-agent-sdk-core/agent'
 
 const scopedSkills = defineSkillProvider({
   kind: 'skill-provider',

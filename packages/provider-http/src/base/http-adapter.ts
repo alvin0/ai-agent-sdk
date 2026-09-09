@@ -19,28 +19,28 @@
  * @module ai-agent-sdk/providers/base/http-adapter
  */
 
-import { ModelAdapter, type PreparedAdapterCall } from '@ai-agent-sdk/core'
-import type { GenerateOptions } from '@ai-agent-sdk/core'
+import { ModelAdapter, type PreparedAdapterCall } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
 import type {
   ModelInfo,
   ModelModality,
   ModelReasoningInfo,
   ProviderInfo,
   ResolvedModelInfo,
-} from '@ai-agent-sdk/core'
-import type { ResolvedRetryPolicy } from '@ai-agent-sdk/core'
-import type { NativeToolName } from '@ai-agent-sdk/core'
-import { MODEL_ERROR_CODES, ModelError } from '@ai-agent-sdk/core'
-import { contentHasImage } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
-import type { ModelInvocationContext } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
+import type { ResolvedRetryPolicy } from '@alvin0/ai-agent-sdk-core'
+import type { NativeToolName } from '@alvin0/ai-agent-sdk-core'
+import { MODEL_ERROR_CODES, ModelError } from '@alvin0/ai-agent-sdk-core'
+import { contentHasImage } from '@alvin0/ai-agent-sdk-core'
+import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
+import type { ModelInvocationContext } from '@alvin0/ai-agent-sdk-core'
 import type {
   ProviderAttemptHandle,
   SafeErrorRecord,
   TokenUsage,
   UsageCounters,
-} from '@ai-agent-sdk/core'
-import { validateUsageCounters } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
+import { validateUsageCounters } from '@alvin0/ai-agent-sdk-core'
 import { parseSseBounded } from '../stream/parser.ts'
 import type { SseEvent } from '../stream/sse.ts'
 import { DEFAULT_MAX_SSE_EVENT_CHARS, DEFAULT_MAX_SSE_EVENTS } from '../stream/config.ts'
@@ -50,7 +50,7 @@ import type { ProviderProtocolChunk } from '../stream/types.ts'
 import { HTTP_PROVIDER_ERROR_CODES } from '../common/config.ts'
 import { normalizeHttpBoundaryError } from '../common/failure.ts'
 import { mergeHeaderLayers } from '../common/header-layers.ts'
-import { attributionHeaders } from '@ai-agent-sdk/core'
+import { attributionHeaders } from '@alvin0/ai-agent-sdk-core'
 import { httpErrorCode, parseErrorBody, requestIdFrom, retryAfterMs } from './http-errors.ts'
 import {
   abortError,

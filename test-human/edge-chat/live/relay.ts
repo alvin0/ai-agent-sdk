@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { once } from 'node:events'
-import { attributionHeaders } from '@ai-agent-sdk/core'
-import { CODEX_BASE_URL } from '@ai-agent-sdk/provider-codex'
+import { attributionHeaders } from '@alvin0/ai-agent-sdk-core'
+import { CODEX_BASE_URL } from '@alvin0/ai-agent-sdk-provider-codex'
 
 const MAX_REQUEST_BYTES = 4 * 1024 * 1024
 const REQUEST_HEADER_ALLOWLIST = new Set([

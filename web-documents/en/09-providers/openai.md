@@ -5,11 +5,11 @@ Composition slot: `runtime.providers`.
 Lifecycle: `inert-runtime-owned-registration`.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai
 ```
 
 Targets the **OpenAI Responses API** through
-[`@ai-agent-sdk/protocol-responses`](/en/09-providers/protocols).
+[`@alvin0/ai-agent-sdk-protocol-responses`](/en/09-providers/protocols).
 
 ## Compose it
 
@@ -17,8 +17,8 @@ To declare context windows and output budgets per model, see
 [Configure context and output limits](/en/09-providers/#configure-context-and-output-limits).
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const runtime = await createAgentRuntime({
   providers: [openAiPlugin({ apiKey: () => secretStore.get('openai') })],
@@ -34,7 +34,7 @@ const agent = runtime.agent({
 On Node, read the key from the environment through the Node auth package:
 
 ```ts
-import { envCredential } from '@ai-agent-sdk/auth-node'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
 
 openAiPlugin({ apiKey: envCredential('OPENAI_API_KEY') })
 ```
@@ -65,8 +65,8 @@ export { openAiResponsesProtocol, type ResponsesDialect }
 | `OPENAI_BASE_URL` | The default endpoint, if you need to reference or override it. |
 
 ```ts
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { openAiAdapter } from '@ai-agent-sdk/provider-openai'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { openAiAdapter } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const registry = new ModelRegistry()
 registry.registerAdapter(['openai'], openAiAdapter({ apiKey }))
@@ -112,7 +112,7 @@ release cadence, so any built-in default would eventually name a retired model.
 ## Retry
 
 ```ts
-import { withRetry } from '@ai-agent-sdk/core'
+import { withRetry } from '@alvin0/ai-agent-sdk-core'
 
 registry.registerAdapter(['openai'], withRetry(openAiAdapter({ apiKey }), {
   policy: { mode: 'normal', maxRetries: 3 },
@@ -150,8 +150,8 @@ A route collision fails **before setup completes** with
 Any endpoint speaking the **Responses** protocol needs no new package:
 
 ```ts
-import { openAiResponsesProtocol } from '@ai-agent-sdk/protocol-responses'
-import { createHttpProvider } from '@ai-agent-sdk/provider-http'
+import { openAiResponsesProtocol } from '@alvin0/ai-agent-sdk-protocol-responses'
+import { createHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
 
 registry.registerAdapter(['openrouter'], createHttpProvider({
   displayName: 'OpenRouter',

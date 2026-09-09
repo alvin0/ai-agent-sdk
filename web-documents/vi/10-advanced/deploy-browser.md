@@ -7,19 +7,19 @@ sau khi sink từ xa của chính bạn báo đã nhận.
 ## Cài đặt
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
-  @ai-agent-sdk/observability-browser
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
+  @alvin0/ai-agent-sdk-observability-browser
 ```
 
 ## Thiết lập
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 import {
   indexedDbObservationExporter,
   installBrowserObservabilityLifecycle,
-} from '@ai-agent-sdk/observability-browser'
+} from '@alvin0/ai-agent-sdk-observability-browser'
 
 const queue = indexedDbObservationExporter()
 
@@ -108,7 +108,7 @@ cầu model nếu một nguồn đã trôi lệch.
 điều đó.
 
 Nếu yêu cầu kiểm toán của bạn mạnh hơn mức "thường thì được", exporter HTTPS có
-xác nhận (`@ai-agent-sdk/observability-fetch`) mới là câu trả lời trung thực — nó
+xác nhận (`@alvin0/ai-agent-sdk-observability-fetch`) mới là câu trả lời trung thực — nó
 gửi lại đúng lô đã tuần tự hoá kèm khoá idempotency cho tới khi server chấp nhận.
 
 Bạn có thể đăng ký cả hai: IndexedDB ở mức `required`/`local-durable` để sống sót
@@ -121,7 +121,7 @@ tiếp.
   ngắn hạn do backend của bạn phát hành, thay vì đẩy API key của nhà cung cấp
   xuống client.
 - Kho lưu của trình duyệt theo từng origin và người dùng có thể xoá.
-- `@ai-agent-sdk/observability-browser` ở tầng Browser — nó cần IndexedDB và các
+- `@alvin0/ai-agent-sdk-observability-browser` ở tầng Browser — nó cần IndexedDB và các
   API vòng đời trang tuỳ chọn.
 
 ## Đọc tiếp

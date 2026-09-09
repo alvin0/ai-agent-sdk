@@ -1,4 +1,4 @@
-import { waitForSettlement } from '@ai-agent-sdk/core'
+import { waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 import type { McpHttpClientOptions } from './api-types.ts'
 import type { McpFetch } from './public-types.ts'
 import { createAbortTimeoutScope, positiveSafeInteger, raceAbort, timeoutMilliseconds } from './runtime-helpers.ts'

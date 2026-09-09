@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   translateAnthropicStream,
   type ProtocolSseEvent,
-} from '@ai-agent-sdk/protocol-anthropic-messages'
-import { validateUsageCounters } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-protocol-anthropic-messages'
+import { validateUsageCounters } from '@alvin0/ai-agent-sdk-core'
 
 async function* events(values: readonly object[]): AsyncIterable<ProtocolSseEvent> {
   for (const value of values) yield { event: undefined, data: JSON.stringify(value) }

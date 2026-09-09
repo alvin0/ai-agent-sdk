@@ -22,11 +22,11 @@ import {
   QUOTA_EXCEEDED_CODE,
   isContextWindowExceededError,
   isQuotaExceededError,
-} from '@ai-agent-sdk/core'
-import { ToolCallId } from '@ai-agent-sdk/core'
-import { isJsonValue, type JsonValue } from '@ai-agent-sdk/core'
-import type { ContentBlock, TextAnnotation } from '@ai-agent-sdk/core'
-import type { FinishReason, UsageCounters } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
+import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { isJsonValue, type JsonValue } from '@alvin0/ai-agent-sdk-core'
+import type { ContentBlock, TextAnnotation } from '@alvin0/ai-agent-sdk-core'
+import type { FinishReason, UsageCounters } from '@alvin0/ai-agent-sdk-core'
 import type { ProtocolSseEvent, ProtocolStreamChunk } from './contract.ts'
 import type { AnthropicReasoningState } from './serialize.ts'
 import type {

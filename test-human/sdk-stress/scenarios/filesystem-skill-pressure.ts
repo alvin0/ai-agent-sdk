@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { SkillCatalog } from '@ai-agent-sdk/core/agent'
-import { fileSystemSkills } from '@ai-agent-sdk/skill-filesystem'
+import { SkillCatalog } from '@alvin0/ai-agent-sdk-core/agent'
+import { fileSystemSkills } from '@alvin0/ai-agent-sdk-skill-filesystem'
 import type { SdkStressContext, SdkStressScenarioResult } from '../types.ts'
 import { StressChecks } from './shared.ts'
 

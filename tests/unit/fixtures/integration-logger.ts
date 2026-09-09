@@ -1,5 +1,5 @@
-import type { JsonObject } from '@ai-agent-sdk/core'
-import type { SdkLogger } from '@ai-agent-sdk/core/observability'
+import type { JsonObject } from '@alvin0/ai-agent-sdk-core'
+import type { SdkLogger } from '@alvin0/ai-agent-sdk-core/observability'
 
 export interface RecordedLogEntry {
   readonly level: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'

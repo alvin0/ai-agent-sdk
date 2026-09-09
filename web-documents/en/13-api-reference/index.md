@@ -11,7 +11,7 @@ entrypoints, the exports that matter, and a usage shape.
 
 | Page | Packages covered | Runtime |
 | --- | --- | --- |
-| [core](/en/13-api-reference/core) | `@ai-agent-sdk/core` and its 6 subpaths | Universal |
+| [core](/en/13-api-reference/core) | `@alvin0/ai-agent-sdk-core` and its 6 subpaths | Universal |
 | [Agent](/en/13-api-reference/agent) · [Tool](/en/13-api-reference/tool) · [Workflow](/en/13-api-reference/workflow) · [Memory](/en/13-api-reference/memory) · [Types](/en/13-api-reference/types) | Per-concept reference | Universal |
 | [Providers](/en/09-providers/) | `provider-openai`, `provider-anthropic`, `provider-codex`, `provider-gemini`, `provider-http` | Universal |
 | [Protocols](/en/09-providers/protocols) | `protocol-responses`, `protocol-anthropic-messages`, `protocol-gemini-interactions` | Universal |

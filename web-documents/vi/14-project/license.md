@@ -40,10 +40,10 @@ Các phụ thuộc runtime trực tiếp đáng chú ý:
 
 | Phụ thuộc | Package sở hữu |
 | --- | --- |
-| `eventsource-parser@4.1.0` | `@ai-agent-sdk/provider-http` (chủ sở hữu trực tiếp duy nhất) |
-| `@modelcontextprotocol/*` | `@ai-agent-sdk/mcp`, `mcp-server`, `mcp-node`, `mcp-node-server` |
-| `@a2a-js/sdk` | `@ai-agent-sdk/a2a` |
-| `@opentelemetry/api`, `@opentelemetry/api-logs` | `@ai-agent-sdk/observability-otel` (peer) |
+| `eventsource-parser@4.1.0` | `@alvin0/ai-agent-sdk-provider-http` (chủ sở hữu trực tiếp duy nhất) |
+| `@modelcontextprotocol/*` | `@alvin0/ai-agent-sdk-mcp`, `mcp-server`, `mcp-node`, `mcp-node-server` |
+| `@a2a-js/sdk` | `@alvin0/ai-agent-sdk-a2a` |
+| `@opentelemetry/api`, `@opentelemetry/api-logs` | `@alvin0/ai-agent-sdk-observability-otel` (peer) |
 
 Xem [chính sách phụ thuộc](/vi/14-project/dependency-policy) để biết các ngoại
 lệ đã rà soát và hạn rà soát lại của chúng.

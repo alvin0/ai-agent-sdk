@@ -1,4 +1,4 @@
-import { AgentSdkError } from '@ai-agent-sdk/core/provider'
+import { AgentSdkError } from '@alvin0/ai-agent-sdk-core/provider'
 import { HTTP_PROVIDER_ERROR_CODES } from './config.ts'
 
 export type HeaderLayer = 'transport' | 'sdk-attribution' | 'wire-protocol' | 'endpoint' | 'auth'

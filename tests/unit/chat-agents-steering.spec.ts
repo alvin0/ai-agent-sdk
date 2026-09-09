@@ -2,9 +2,9 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { History, ToolRegistry, defineTool } from '@ai-agent-sdk/core/agent'
-import { ModelAdapter, ModelRegistry, ToolCallId, createUserInputBroker } from '@ai-agent-sdk/core'
-import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@ai-agent-sdk/core'
+import { History, ToolRegistry, defineTool } from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter, ModelRegistry, ToolCallId, createUserInputBroker } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 const home = mkdtempSync(join(tmpdir(), 'steering-'))
 process.env.CHAT_AGENTS_DB = join(home, '.data', 'test.db')

@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
-import { defineTool, ToolRegistry } from '@ai-agent-sdk/core/agent'
+import { defineTool, ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
 import { ensureAgentCodeWorkspace, resolveExistingAgentCodePath, resolveWritableAgentCodePath } from '../workspace.ts'
 import { createWindowsCommandProcessCleanup } from '../process-cleanup.ts'
 import { DEFAULT_MAX_DIRECTORIES, DEFAULT_MAX_ENTRIES, DEFAULT_MAX_WRITE_BYTES, MAX_COMMAND_OUTPUT_CHARS, MAX_GREP_CHARS, MAX_READ_CHARS, SEARCH_EXCLUDES, type AgentCodeResolvedCommand, type AgentCodeToolRegistryOptions } from './types.ts'

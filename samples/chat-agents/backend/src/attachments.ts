@@ -18,7 +18,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join, resolve } from 'node:path'
-import type { ContentBlock, ImageMediaType } from '@ai-agent-sdk/core'
+import type { ContentBlock, ImageMediaType } from '@alvin0/ai-agent-sdk-core'
 import { databaseFile } from './db/client'
 
 /** Raster types every supported provider accepts; the SDK's `ImageMediaType`. */

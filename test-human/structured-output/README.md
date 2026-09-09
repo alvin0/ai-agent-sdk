@@ -35,7 +35,7 @@ call pattern, requires one public tool-call and tool-result event per check, and
 requires HTTP 200 for every provider attempt.
 
 Codex uses the project-local credential store managed by
-`@ai-agent-sdk/auth-node/codex`. Gemini may read `GEMINI_KEY` and `GEMINI_MODEL`
+`@alvin0/ai-agent-sdk-auth-node/codex`. Gemini may read `GEMINI_KEY` and `GEMINI_MODEL`
 from the repository `.env` as a test-harness convenience. The Gemini provider
 itself never reads environment variables and still receives the key through the
 normal injected credential contract. The command writes bounded, support-safe evidence to

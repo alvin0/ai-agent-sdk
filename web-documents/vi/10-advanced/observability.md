@@ -8,7 +8,7 @@ thực/danh mục, lỗi đã làm sạch, và log ứng dụng có tương quan
 ## Cách ghép
 
 ```ts
-import { createObservability, MemoryObservationExporter } from '@ai-agent-sdk/core/observability'
+import { createObservability, MemoryObservationExporter } from '@alvin0/ai-agent-sdk-core/observability'
 
 const exporter = new MemoryObservationExporter()  // chỉ để kiểm tra cục bộ / trong test
 const observation = createObservability({
@@ -228,7 +228,7 @@ Bộ ghi log wire chính xác tới nhà cung cấp là một **cầu nối ch�
 riêng biệt**, vì phần thân của nó chứa prompt và kết quả tool:
 
 ```ts
-import { createDailyJsonlRequestLogger } from '@ai-agent-sdk/observability-node/diagnostic'
+import { createDailyJsonlRequestLogger } from '@alvin0/ai-agent-sdk-observability-node/diagnostic'
 
 registry.registerAdapter(['codex'], codexAdapter({
   requestLogger: createDailyJsonlRequestLogger({
@@ -248,10 +248,10 @@ liệu cục bộ nhạy cảm.
 
 | Package | Ranh giới | Dùng cho |
 | --- | --- | --- |
-| `@ai-agent-sdk/observability-fetch` | `remote-acknowledged` | Lô HTTPS có xác nhận, Universal |
-| `@ai-agent-sdk/observability-node` | `local-durable` | Sổ JSONL có khung checksum |
-| `@ai-agent-sdk/observability-browser` | `local-durable` | Dàn dựng qua IndexedDB và khôi phục sau sập |
-| `@ai-agent-sdk/observability-otel` | — (processor) | Ánh xạ sự kiện sang API OpenTelemetry do caller cấp |
+| `@alvin0/ai-agent-sdk-observability-fetch` | `remote-acknowledged` | Lô HTTPS có xác nhận, Universal |
+| `@alvin0/ai-agent-sdk-observability-node` | `local-durable` | Sổ JSONL có khung checksum |
+| `@alvin0/ai-agent-sdk-observability-browser` | `local-durable` | Dàn dựng qua IndexedDB và khôi phục sau sập |
+| `@alvin0/ai-agent-sdk-observability-otel` | — (processor) | Ánh xạ sự kiện sang API OpenTelemetry do caller cấp |
 
 ---
 
@@ -338,7 +338,7 @@ Host Edge không thể trông cậy vào việc tiến trình thoát. Hãy đưa
 cho `waitUntil` tường minh của nền tảng:
 
 ```ts
-import { flushObservabilityWithWaitUntil } from '@ai-agent-sdk/observability-fetch'
+import { flushObservabilityWithWaitUntil } from '@alvin0/ai-agent-sdk-observability-fetch'
 
 export default {
   async fetch(request, env, ctx) {
@@ -354,7 +354,7 @@ Package không bao giờ giả định có biến toàn cục của nền tảng
 ## Vòng đời trên trình duyệt
 
 ```ts
-import { installBrowserObservabilityLifecycle } from '@ai-agent-sdk/observability-browser'
+import { installBrowserObservabilityLifecycle } from '@alvin0/ai-agent-sdk-observability-browser'
 
 installBrowserObservabilityLifecycle(observability)
 ```

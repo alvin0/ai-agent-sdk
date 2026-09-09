@@ -1,4 +1,4 @@
-import type { TurnHooks } from '@ai-agent-sdk/core/agent'
+import type { TurnHooks } from '@alvin0/ai-agent-sdk-core/agent'
 import { AgentCodeSkillReportRecorder } from './recorder.ts'
 
 /** Merge recorder checkpoints with existing steering/memory hooks. */

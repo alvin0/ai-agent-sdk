@@ -1,8 +1,8 @@
 import { InMemoryTransport } from '@modelcontextprotocol/client'
-import { defineTool, dispatchToolCall, ToolRegistry } from '@ai-agent-sdk/core/agent'
-import { ToolCallId } from '@ai-agent-sdk/core'
-import { McpClientConnection, type McpClientState } from '@ai-agent-sdk/mcp/client'
-import { createSdkMcpServer } from '@ai-agent-sdk/mcp/server'
+import { defineTool, dispatchToolCall, ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
+import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { McpClientConnection, type McpClientState } from '@alvin0/ai-agent-sdk-mcp/client'
+import { createSdkMcpServer } from '@alvin0/ai-agent-sdk-mcp/server'
 
 export interface McpRoundTripOptions {
   readonly requests: number

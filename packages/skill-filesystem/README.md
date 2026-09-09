@@ -1,4 +1,4 @@
-# @ai-agent-sdk/skill-filesystem
+# @alvin0/ai-agent-sdk-skill-filesystem
 
 The package directly owns exact `yaml@2.9.0` for bounded, fail-closed parsing of
 `agents/openai.yaml` invocation policy. Aliases and duplicate keys are rejected.
@@ -6,14 +6,14 @@ The package directly owns exact `yaml@2.9.0` for bounded, fail-closed parsing of
 Runtime: **Node 22.12+**.
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/skill-filesystem
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-skill-filesystem
 ```
 
 Lazy Node filesystem discovery and activation for `SKILL.md` bundles.
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { fileSystemSkillProviderPlugin } from '@ai-agent-sdk/skill-filesystem'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { fileSystemSkillProviderPlugin } from '@alvin0/ai-agent-sdk-skill-filesystem'
 
 const skills = fileSystemSkillProviderPlugin({ roots: ['./skills'] })
 const runtime = await createAgentRuntime({ providers: [modelProvider] })

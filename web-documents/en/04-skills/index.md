@@ -37,7 +37,7 @@ assume a remote provider is safe for concurrent access.
 | --- | --- | --- |
 | **In-memory definition** | Browser, edge worker, bundled content | `defineSkill()` |
 | **Provider contract** | Database, API, lazy I/O, remote store | `defineSkillProvider()` |
-| **Filesystem discovery** | Node CLI with `SKILL.md` folders | `@ai-agent-sdk/skill-filesystem` |
+| **Filesystem discovery** | Node CLI with `SKILL.md` folders | `@alvin0/ai-agent-sdk-skill-filesystem` |
 
 All three satisfy the same environment-neutral contract. Neither the main SDK
 entry nor the provider contract imports Node filesystem modules.

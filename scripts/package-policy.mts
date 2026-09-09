@@ -9,7 +9,7 @@ export interface PackageRule {
   readonly externalRuntimeDependencies: readonly string[]
 }
 
-const scoped = (name: string): string => `@ai-agent-sdk/${name}`
+const scoped = (name: string): string => `@alvin0/ai-agent-sdk-${name}`
 
 /** Normative package graph from docs/monorepo-implementation-design.md. */
 export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {

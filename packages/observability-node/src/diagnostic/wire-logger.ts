@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import type { FileHandle } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import type { JsonValue, ObservationContentPolicy } from '@ai-agent-sdk/core/observability'
+import type { JsonValue, ObservationContentPolicy } from '@alvin0/ai-agent-sdk-core/observability'
 import { ensureSafeRoot, openExclusiveFile } from '../common/safe-filesystem.ts'
 
 export interface ProviderWireLogRecord {

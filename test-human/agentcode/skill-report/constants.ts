@@ -1,4 +1,4 @@
-import { AGENT_CONTROL_TOOLS } from '@ai-agent-sdk/core/agent'
+import { AGENT_CONTROL_TOOLS } from '@alvin0/ai-agent-sdk-core/agent'
 
 export const SKILL_TOOLS = new Set([
   'load_skill',

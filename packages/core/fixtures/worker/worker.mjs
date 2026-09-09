@@ -6,7 +6,7 @@ export default {
   async fetch() {
     globalThis.Buffer = undefined
     globalThis.process = undefined
-    const { ModelAdapter, ModelRegistry, createAgentRuntime, createTraceId } = await import('@ai-agent-sdk/core')
+    const { ModelAdapter, ModelRegistry, createAgentRuntime, createTraceId } = await import('@alvin0/ai-agent-sdk-core')
     class FixtureAdapter extends ModelAdapter {
       stream() {
         return (async function* () {

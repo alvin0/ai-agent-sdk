@@ -1,4 +1,4 @@
-import type { JsonObject } from '@ai-agent-sdk/core'
+import type { JsonObject } from '@alvin0/ai-agent-sdk-core'
 
 export interface McpRequestAuthInfo {
   readonly token: string

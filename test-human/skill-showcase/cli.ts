@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { resolve } from 'node:path'
 import { stdout } from 'node:process'
-import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
+import type { AgentRunEvent } from '@alvin0/ai-agent-sdk-core/agent'
 import type { HumanProvider } from '../config.ts'
 import { HumanArtifactRecorder } from '../artifacts.ts'
 import { errorMessage, label, paint } from '../console.ts'

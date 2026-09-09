@@ -48,7 +48,7 @@ function testAuthEnvOnly(packages: ReadonlyMap<string, string>): void {
       required(packages, 'core'), required(packages, 'auth-node'),
     ], temporary)
     run(process.execPath, ['smoke.mjs'], temporary)
-    const providerPath = join(temporary, 'node_modules', '@ai-agent-sdk', 'provider-codex')
+    const providerPath = join(temporary, 'node_modules', '@alvin0', 'ai-agent-sdk-provider-codex')
     if (existsSync(providerPath)) throw new Error('env-only auth closure installed provider-codex')
   } finally {
     rmSync(temporary, { recursive: true, force: true })

@@ -59,7 +59,7 @@ try {
       mkdirSync(join(coreRoot, 'src'), { recursive: true })
       mkdirSync(targetRoot, { recursive: true })
       writeFileSync(join(coreRoot, 'package.json'), JSON.stringify({
-        name: '@ai-agent-sdk/core', version: '0.0.0', type: 'module',
+        name: '@alvin0/ai-agent-sdk-core', version: '0.0.0', type: 'module',
         dependencies: { [packageName]: 'workspace:*' }, aiAgentSdk: { runtime: 'universal' },
       }))
       writeFileSync(join(coreRoot, 'src', 'index.ts'), `import '${packageName}'\n`)

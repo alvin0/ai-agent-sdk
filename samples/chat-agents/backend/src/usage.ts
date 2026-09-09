@@ -8,7 +8,7 @@
  */
 
 import { and, eq, sql } from 'drizzle-orm'
-import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
+import type { AgentRunEvent } from '@alvin0/ai-agent-sdk-core/agent'
 import { database, schema } from './db/client'
 
 /** Token counters as the run loop reports them. */

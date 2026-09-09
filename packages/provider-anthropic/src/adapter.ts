@@ -8,32 +8,32 @@
  * @module ai-agent-sdk/providers/anthropic/adapter
  */
 
-import type { ModelReasoningInfo } from '@ai-agent-sdk/core'
-import type { ModelProviderPlugin, ModelProviderRegistrar, RetryPolicyConfig } from '@ai-agent-sdk/core'
-import { ReasoningEffortId } from '@ai-agent-sdk/core'
+import type { ModelReasoningInfo } from '@alvin0/ai-agent-sdk-core'
+import type { ModelProviderPlugin, ModelProviderRegistrar, RetryPolicyConfig } from '@alvin0/ai-agent-sdk-core'
+import { ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
 import {
   defineModelProviderPlugin,
   type ComposableModelProviderPlugin,
   type CredentialInput,
   type ModelTarget,
-} from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/provider'
 import type {
   HttpModelAdapter,
   ProviderCatalogModel,
   ProviderRequestLogger,
-} from '@ai-agent-sdk/provider-http'
+} from '@alvin0/ai-agent-sdk-provider-http'
 import {
   createHttpProvider,
   createRuntimeHttpProvider,
   type CredentialSource,
-} from '@ai-agent-sdk/provider-http'
+} from '@alvin0/ai-agent-sdk-provider-http'
 import {
   ANTHROPIC_VERSION,
   DEFAULT_THINKING_BUDGETS,
   anthropicMessagesProtocol,
   type AnthropicDialect,
   type ThinkingBudgets,
-} from '@ai-agent-sdk/protocol-anthropic-messages'
+} from '@alvin0/ai-agent-sdk-protocol-anthropic-messages'
 
 /** The Anthropic API base. */
 export const ANTHROPIC_BASE_URL = 'https://api.anthropic.com'

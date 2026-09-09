@@ -2,11 +2,11 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { ProviderRequestLogRecord } from '@ai-agent-sdk/provider-http'
+import type { ProviderRequestLogRecord } from '@alvin0/ai-agent-sdk-provider-http'
 import {
   combineProviderRequestLoggers,
   createDailyJsonlRequestLogger,
-} from '@ai-agent-sdk/observability-node/diagnostic'
+} from '@alvin0/ai-agent-sdk-observability-node/diagnostic'
 
 const roots: string[] = []
 

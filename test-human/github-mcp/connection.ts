@@ -1,6 +1,6 @@
 import type { AuthProvider, OAuthClientProvider } from '@modelcontextprotocol/client'
-import type { McpClientState } from '@ai-agent-sdk/mcp/client'
-import { createMcpHttpClient, type McpClientConnection } from '@ai-agent-sdk/mcp/client'
+import type { McpClientState } from '@alvin0/ai-agent-sdk-mcp/client'
+import { createMcpHttpClient, type McpClientConnection } from '@alvin0/ai-agent-sdk-mcp/client'
 import type { GitHubMcpCliConfig } from './config.ts'
 
 const READ_TOOLS = ['get_me', 'get_file_contents'] as const

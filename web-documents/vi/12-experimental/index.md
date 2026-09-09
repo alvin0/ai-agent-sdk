@@ -9,7 +9,7 @@
 > tra mà mỗi phần đang chờ. Hãy coi trang này là câu trả lời trung thực cho câu
 > hỏi "cái gì có thể đổi".
 
-## 1. `@ai-agent-sdk/a2a` được nâng lên tầng Node, đang chờ được thăng cấp
+## 1. `@alvin0/ai-agent-sdk-a2a` được nâng lên tầng Node, đang chờ được thăng cấp
 
 | Thuộc tính | Trạng thái |
 | --- | --- |
@@ -60,10 +60,10 @@ HTTP**, và phương án dự phòng cố ý quan sát được để một tri�
 pnpm add ./artifacts/ai-agent-sdk-core-0.1.0.tgz
 ```
 
-Mọi lệnh `pnpm add @ai-agent-sdk/...` trong tài liệu này mô tả cấu hình cài đặt
+Mọi lệnh `pnpm add @alvin0/ai-agent-sdk-...` trong tài liệu này mô tả cấu hình cài đặt
 **dự kiến** cho một bản phát hành registry trong tương lai.
 
-`@ai-agent-sdk/testkit` còn ở trạng thái **private** và được chạy qua cài đặt
+`@alvin0/ai-agent-sdk-testkit` còn ở trạng thái **private** và được chạy qua cài đặt
 workspace cục bộ hoặc tarball; việc publish cố ý không được cấu hình cho nó.
 
 ## 4. Ước lượng token là một chỗ giữ có chủ ý

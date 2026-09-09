@@ -1,7 +1,7 @@
 import type {
   JSONRPCMessage, MessageExtraInfo, Transport, TransportSendOptions,
 } from '@modelcontextprotocol/server'
-import type { SdkLogger } from '@ai-agent-sdk/core/observability'
+import type { SdkLogger } from '@alvin0/ai-agent-sdk-core/observability'
 import { beginStdioServerOperation, safeChildLogger,
   type EvidenceAttempt, type EvidenceOperation } from '../common/evidence.ts'
 

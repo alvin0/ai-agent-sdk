@@ -3,7 +3,7 @@ import {
   type ObservationExporterPlugin,
   type ObservationExportItem,
   type ObservationDeliveryBatch,
-} from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core/observability'
 import type { JsonlObservationJournalOptions } from './types.ts'
 import { join } from 'node:path'
 import { ensureSafeRoot } from '../common/safe-filesystem.ts'

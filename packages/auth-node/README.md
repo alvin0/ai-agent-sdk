@@ -1,4 +1,4 @@
-# @ai-agent-sdk/auth-node
+# @alvin0/ai-agent-sdk-auth-node
 
 Runtime: **Node 22.12+**.
 
@@ -9,13 +9,13 @@ not require or load a model provider.
 For an OpenAI agent whose key comes from the environment:
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai @ai-agent-sdk/auth-node
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai @alvin0/ai-agent-sdk-auth-node
 ```
 
 ```ts
-import { envCredential } from '@ai-agent-sdk/auth-node'
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const runtime = await createAgentRuntime({
   providers: [openAiPlugin({ apiKey: envCredential('OPENAI_API_KEY') })],
@@ -29,12 +29,12 @@ close lifecycle.
 Codex support is an explicit optional closure:
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-codex @ai-agent-sdk/auth-node
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-codex @alvin0/ai-agent-sdk-auth-node
 ```
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { codexNodeProviderPlugin } from '@ai-agent-sdk/auth-node/codex'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { codexNodeProviderPlugin } from '@alvin0/ai-agent-sdk-auth-node/codex'
 
 const runtime = await createAgentRuntime({
   providers: [codexNodeProviderPlugin()],

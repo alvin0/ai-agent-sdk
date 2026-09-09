@@ -1,5 +1,5 @@
 {
-  "name": "@ai-agent-sdk/provider-http",
+  "name": "@alvin0/ai-agent-sdk-provider-http",
   "author": {
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
@@ -45,10 +45,10 @@
     "eventsource-parser": "4.1.0"
   },
   "peerDependencies": {
-    "@ai-agent-sdk/core": "workspace:^"
+    "@alvin0/ai-agent-sdk-core": "workspace:^"
   },
   "devDependencies": {
-    "@ai-agent-sdk/core": "workspace:^",
+    "@alvin0/ai-agent-sdk-core": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",
     "playwright": "catalog:",
     "publint": "catalog:",

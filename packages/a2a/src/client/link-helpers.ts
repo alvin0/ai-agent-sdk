@@ -3,7 +3,7 @@ import {
   JsonRpcTransportFactory,
   RestTransportFactory,
 } from '@a2a-js/sdk/client'
-import type { SupportSafeError } from '@ai-agent-sdk/core'
+import type { SupportSafeError } from '@alvin0/ai-agent-sdk-core'
 import type { A2AAgentLinkOptions, A2AUnlinkReport } from './types.ts'
 import { cleanupFailure } from '../common/cleanup-report.ts'
 

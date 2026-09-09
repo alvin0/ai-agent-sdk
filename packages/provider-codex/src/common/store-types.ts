@@ -1,4 +1,4 @@
-import type { CredentialStore } from '@ai-agent-sdk/core/provider'
+import type { CredentialStore } from '@alvin0/ai-agent-sdk-core/provider'
 
 /** OAuth tokens as stored by Codex authentication. */
 export interface CodexTokens {

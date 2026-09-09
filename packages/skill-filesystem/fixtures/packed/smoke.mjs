@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import {
   fileSystemSkillProviderPlugin,
   fileSystemSkills,
-} from '@ai-agent-sdk/skill-filesystem'
+} from '@alvin0/ai-agent-sdk-skill-filesystem'
 
 const directory = resolve('.agents/skills/packed-skill')
 await mkdir(directory, { recursive: true })

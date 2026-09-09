@@ -1,5 +1,5 @@
-import type { SupportSafeError } from '@ai-agent-sdk/core/agent'
-import type { SdkLogger } from '@ai-agent-sdk/core/observability'
+import type { SupportSafeError } from '@alvin0/ai-agent-sdk-core/agent'
+import type { SdkLogger } from '@alvin0/ai-agent-sdk-core/observability'
 import { beginStdioServerOperation } from '../common/evidence.ts'
 import type { ObservedStdioTransport } from './observed-transport.ts'
 

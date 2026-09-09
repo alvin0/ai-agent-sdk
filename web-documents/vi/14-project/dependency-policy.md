@@ -42,14 +42,14 @@ toàn vẹn, và tập phụ thuộc nền tảng **trước** khi đổi danh s
 ## Giữ lại bộ phân tích SSE
 
 Workspace giữ đúng `eventsource-parser@4.1.0` trong
-`@ai-agent-sdk/provider-http`, sau khi ứng viên parser tự viết không đạt **cổng
+`@alvin0/ai-agent-sdk-provider-http`, sau khi ứng viên parser tự viết không đạt **cổng
 hiệu năng đã tuyên bố trước**. Quy tắc và bằng chứng nằm trong
 `docs/dependency-policy.md`.
 
 | Thuộc tính | Trạng thái |
 | --- | --- |
 | Script vòng đời | Không có |
-| Chủ sở hữu trực tiếp | Chỉ `@ai-agent-sdk/provider-http` |
+| Chủ sở hữu trực tiếp | Chỉ `@alvin0/ai-agent-sdk-provider-http` |
 | Toàn vẹn registry, giấy phép, phân giải đóng băng | Cổng phát hành |
 | Hành vi runtime khi đã đóng gói | Cổng phát hành |
 | Cảnh báo bảo mật | Cổng phát hành |
@@ -61,7 +61,7 @@ trọng.
 
 ## Parser YAML cho metadata skill
 
-`@ai-agent-sdk/skill-filesystem` sở hữu trực tiếp đúng `yaml@2.9.0`. Parser đọc
+`@alvin0/ai-agent-sdk-skill-filesystem` sở hữu trực tiếp đúng `yaml@2.9.0`. Parser đọc
 policy `agents/openai.yaml` có giới hạn, tắt alias và từ chối metadata trùng key,
 sai cú pháp, quá sâu hoặc quá lớn. Toàn vẹn, giấy phép ISC, hành vi runtime sau
 đóng gói và cảnh báo bảo mật đều là cổng phát hành. Hạn rà soát: 2026-12-06.

@@ -1,5 +1,5 @@
-import type { SdkLogger } from '@ai-agent-sdk/core/observability'
-import { waitForSettlement } from '@ai-agent-sdk/core'
+import type { SdkLogger } from '@alvin0/ai-agent-sdk-core/observability'
+import { waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 import type { McpCloseReport } from './api-types.ts'
 import { beginIntegrationOperation, type McpIntegrationFamily } from '../common/integration-operation.ts'
 import { mcpSupportError } from '../common/support-error.ts'

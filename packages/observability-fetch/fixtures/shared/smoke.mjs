@@ -1,10 +1,10 @@
-import { createCoreSpan, createObservationRunScope, createOperationId } from '@ai-agent-sdk/core'
-import { createObservability } from '@ai-agent-sdk/core/observability'
+import { createCoreSpan, createObservationRunScope, createOperationId } from '@alvin0/ai-agent-sdk-core'
+import { createObservability } from '@alvin0/ai-agent-sdk-core/observability'
 import {
   FetchObservationExporter,
   fetchObservationExporter,
   flushObservabilityWithWaitUntil,
-} from '@ai-agent-sdk/observability-fetch'
+} from '@alvin0/ai-agent-sdk-observability-fetch'
 
 // Construct host response objects before the standards-only Node fixture removes
 // Node globals; browsers and Workers already provide native Web Response objects.

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { createManagedAgentTeam, defineAgent, defineTool } from '@ai-agent-sdk/core/agent'
-import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
-import { codexNodeAdapter } from '@ai-agent-sdk/auth-node/codex'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { createManagedAgentTeam, defineAgent, defineTool } from '@alvin0/ai-agent-sdk-core/agent'
+import type { AgentRunEvent } from '@alvin0/ai-agent-sdk-core/agent'
+import { codexNodeAdapter } from '@alvin0/ai-agent-sdk-auth-node/codex'
 
 const model = process.env.CHAT_AGENTS_LIVE_MODEL ?? 'gpt-reserve'
 const output = resolve('samples/chat-agents/.data/live-budget', new Date().toISOString().replaceAll(':', '-'))

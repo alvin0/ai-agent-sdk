@@ -1,5 +1,5 @@
 {
-  "name": "@ai-agent-sdk/auth-node",
+  "name": "@alvin0/ai-agent-sdk-auth-node",
   "author": {
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
@@ -38,15 +38,15 @@
     "check:types": "attw --profile esm-only --pack ."
   },
   "peerDependencies": {
-    "@ai-agent-sdk/core": "workspace:^",
-    "@ai-agent-sdk/provider-codex": "workspace:^"
+    "@alvin0/ai-agent-sdk-core": "workspace:^",
+    "@alvin0/ai-agent-sdk-provider-codex": "workspace:^"
   },
   "peerDependenciesMeta": {
-    "@ai-agent-sdk/provider-codex": { "optional": true }
+    "@alvin0/ai-agent-sdk-provider-codex": { "optional": true }
   },
   "devDependencies": {
-    "@ai-agent-sdk/core": "workspace:^",
-    "@ai-agent-sdk/provider-codex": "workspace:^",
+    "@alvin0/ai-agent-sdk-core": "workspace:^",
+    "@alvin0/ai-agent-sdk-provider-codex": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",
     "@types/node": "catalog:",
     "publint": "catalog:",

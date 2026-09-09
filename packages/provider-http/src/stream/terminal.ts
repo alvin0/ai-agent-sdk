@@ -1,4 +1,4 @@
-import { MODEL_ERROR_CODES, ModelError, type StreamChunk } from '@ai-agent-sdk/core'
+import { MODEL_ERROR_CODES, ModelError, type StreamChunk } from '@alvin0/ai-agent-sdk-core'
 import type { ProviderProtocolChunk } from './types.ts'
 
 /**

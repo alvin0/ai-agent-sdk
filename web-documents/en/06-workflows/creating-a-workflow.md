@@ -64,7 +64,7 @@ concepts, same `AgentTeam` result.
 ### Managed — the lead decides at runtime
 
 ```ts
-import { createManagedAgentTeam, defineAgent } from '@ai-agent-sdk/core'
+import { createManagedAgentTeam, defineAgent } from '@alvin0/ai-agent-sdk-core'
 
 const harness = createManagedAgentTeam({
   registry,
@@ -86,7 +86,7 @@ Multiple `spawn_agent` calls in one model step are concurrency-safe.
 ### Composed — you fix the roster
 
 ```ts
-import { createDefinedAgentTeam } from '@ai-agent-sdk/core'
+import { createDefinedAgentTeam } from '@alvin0/ai-agent-sdk-core'
 
 const composed = createDefinedAgentTeam({
   registry,

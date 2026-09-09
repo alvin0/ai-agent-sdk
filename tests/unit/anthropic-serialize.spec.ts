@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { ToolCallId } from '@ai-agent-sdk/core'
+import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
 import {
   createAssistantMessage,
   createTextMessage,
   createToolResultMessage,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import {
   DEFAULT_THINKING_BUDGETS,
   serializeAnthropicRequest,
-} from '@ai-agent-sdk/protocol-anthropic-messages'
-import { ReasoningEffortId } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-protocol-anthropic-messages'
+import { ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
 import { providerRequest } from './fixtures.ts'
 
 const options = { budgets: DEFAULT_THINKING_BUDGETS }

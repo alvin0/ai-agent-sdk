@@ -2,7 +2,7 @@ import {
   openAiResponsesProtocol,
   serializeResponsesRequest,
   translateResponsesStream,
-} from '@ai-agent-sdk/protocol-responses'
+} from '@alvin0/ai-agent-sdk-protocol-responses'
 
 async function* frames() {
   yield {

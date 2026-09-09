@@ -1,4 +1,4 @@
-# @ai-agent-sdk/instructions-node
+# @alvin0/ai-agent-sdk-instructions-node
 
 Node filesystem discovery for `AGENTS.md`-style project instructions, delivered
 as a core **context section**.
@@ -6,7 +6,7 @@ as a core **context section**.
 Runtime: **Node 22.12+**.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/instructions-node
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-instructions-node
 ```
 
 The core SDK never reads a file. It exposes `ContextSection`: a callback the
@@ -17,8 +17,8 @@ Node implementation of that callback for project instruction files.
 ## Usage
 
 ```ts
-import { defineAgent } from '@ai-agent-sdk/core'
-import { createProjectInstructionsSection } from '@ai-agent-sdk/instructions-node'
+import { defineAgent } from '@alvin0/ai-agent-sdk-core'
+import { createProjectInstructionsSection } from '@alvin0/ai-agent-sdk-instructions-node'
 
 const agent = defineAgent({
   id: 'coder',

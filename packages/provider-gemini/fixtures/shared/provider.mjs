@@ -1,4 +1,4 @@
-import { geminiPlugin } from '@ai-agent-sdk/provider-gemini'
+import { geminiPlugin } from '@alvin0/ai-agent-sdk-provider-gemini'
 
 export const providerId = 'gemini'
 export const expectedCredential = 'packed-gemini-secret'

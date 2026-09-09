@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createManagedAgentTeam, defineAgent } from '@ai-agent-sdk/core/agent'
-import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
-import { ModelAdapter, ModelRegistry, ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
-import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@ai-agent-sdk/core'
+import { createManagedAgentTeam, defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import type { AgentRunEvent } from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter, ModelRegistry, ReasoningEffortId, ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 /**
  * The reported run, reduced to its mechanism.

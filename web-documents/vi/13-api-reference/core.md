@@ -1,4 +1,4 @@
-# `@ai-agent-sdk/core`
+# `@alvin0/ai-agent-sdk-core`
 
 Runtime: **Universal**. Mã đã phát hành dùng ECMAScript, kiểu tương thích Fetch,
 Web Streams, `AbortController`, đo thời gian hiệu năng, và Web Crypto. Nó không
@@ -6,20 +6,20 @@ dùng builtin của Node, `process`, `Buffer`, đường dẫn cục bộ, truy 
 tiến trình con, hay stdio.
 
 ```bash
-pnpm add @ai-agent-sdk/core
+pnpm add @alvin0/ai-agent-sdk-core
 ```
 
 ## Các điểm vào
 
 | Định danh | Đối tượng dùng |
 | --- | --- |
-| `@ai-agent-sdk/core` | Ứng dụng — facade root đã biên soạn. |
-| `@ai-agent-sdk/core/agent` | Viết agent và vòng lặp tầng thấp. |
-| `@ai-agent-sdk/core/provider` | Tác giả provider và thông tin xác thực. |
-| `@ai-agent-sdk/core/tools` | Tác giả tool source. |
-| `@ai-agent-sdk/core/skills` | Tác giả skill provider. |
-| `@ai-agent-sdk/core/memory` | Tác giả memory store. |
-| `@ai-agent-sdk/core/observability` | Bus quan sát và tác giả exporter. |
+| `@alvin0/ai-agent-sdk-core` | Ứng dụng — facade root đã biên soạn. |
+| `@alvin0/ai-agent-sdk-core/agent` | Viết agent và vòng lặp tầng thấp. |
+| `@alvin0/ai-agent-sdk-core/provider` | Tác giả provider và thông tin xác thực. |
+| `@alvin0/ai-agent-sdk-core/tools` | Tác giả tool source. |
+| `@alvin0/ai-agent-sdk-core/skills` | Tác giả skill provider. |
+| `@alvin0/ai-agent-sdk-core/memory` | Tác giả memory store. |
+| `@alvin0/ai-agent-sdk-core/observability` | Bus quan sát và tác giả exporter. |
 
 Root là một facade **chỉ re-export** đã biên soạn. Các subpath tập trung và root
 đều là khung nhìn lên cùng một chủ sở hữu hiện thực chuẩn nội bộ — chúng không
@@ -189,7 +189,7 @@ Kiểu: `ContextSection`, `ContextSectionResolveInput`, `ContextSectionScope`,
 `ContextSectionState`, `ContextToolTouch`, `AgentInput`.
 
 Section là một callback tính lại thuần khiết: core SDK không bao giờ chạm hệ tệp,
-đồng hồ hay mạng thay cho nó. `@ai-agent-sdk/instructions-node` là bản hiện thực
+đồng hồ hay mạng thay cho nó. `@alvin0/ai-agent-sdk-instructions-node` là bản hiện thực
 Node cho các tệp kiểu `AGENTS.md`. Xem
 [Context Sections](/vi/02-agents/context-sections).
 
@@ -223,7 +223,7 @@ import {
   runAgent, runTurn, defineAgent, defineSkill, defineSkillProvider,
   buildTraceTree,
   createManagedAgentTeam, createDefinedAgentTeam,
-} from '@ai-agent-sdk/core/agent'
+} from '@alvin0/ai-agent-sdk-core/agent'
 ```
 
 Nó re-export cùng các kiểu runtime như root — `AgentRuntime`, `RuntimeAgent`,

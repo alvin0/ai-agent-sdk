@@ -16,4 +16,4 @@ export {
   type AnthropicDialect,
   type AnthropicReasoningState,
   type ThinkingBudgets,
-} from '@ai-agent-sdk/protocol-anthropic-messages'
+} from '@alvin0/ai-agent-sdk-protocol-anthropic-messages'

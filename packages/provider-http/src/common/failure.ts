@@ -3,7 +3,7 @@ import {
   ModelError,
   type ModelFailure,
   type ProviderRequestId,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import { HTTP_FOREIGN_FAILURE_LIMITS } from './config.ts'
 
 const ENCODER = new TextEncoder()

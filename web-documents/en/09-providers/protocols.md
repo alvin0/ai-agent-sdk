@@ -5,19 +5,19 @@ translator, and dialect record**. It owns no endpoint, credentials, fetch
 implementation, filesystem access, or Node APIs.
 
 All three packages are **Universal**, their only runtime dependency is
-`@ai-agent-sdk/core`, composition slot is `provider-author.protocol`, and
+`@alvin0/ai-agent-sdk-core`, composition slot is `provider-author.protocol`, and
 lifecycle is `inert-value` — select one in `createRuntimeHttpProvider()` with no
 startup or cleanup obligation.
 
 ---
 
-## `@ai-agent-sdk/protocol-responses`
+## `@alvin0/ai-agent-sdk-protocol-responses`
 
 The OpenAI Responses / Codex wire protocol. `openai` and `codex` share this one
 implementation and differ only by a small dialect record.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/protocol-responses
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-protocol-responses
 ```
 
 ```ts
@@ -38,7 +38,7 @@ export type * from './wire.ts'   // the complete wire schema types
 ```
 
 ```ts
-import { openAiResponsesProtocol } from '@ai-agent-sdk/protocol-responses'
+import { openAiResponsesProtocol } from '@alvin0/ai-agent-sdk-protocol-responses'
 
 createRuntimeHttpProvider({ protocol: openAiResponsesProtocol, baseUrl, auth })
 ```
@@ -48,14 +48,14 @@ input, and `detail: 'original'`.
 
 ---
 
-## `@ai-agent-sdk/protocol-gemini-interactions`
+## `@alvin0/ai-agent-sdk-protocol-gemini-interactions`
 
 The Google Gemini Interactions wire protocol. It serializes stateless Step
 history and translates the current `step.*` / `interaction.completed` SSE
 events. It does not implement `generateContent` or Chat Completions.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/protocol-gemini-interactions
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-protocol-gemini-interactions
 ```
 
 It preserves thought signatures across function-call loops and maps JSON Schema
@@ -63,12 +63,12 @@ output to `response_format` with `application/json`.
 
 ---
 
-## `@ai-agent-sdk/protocol-anthropic-messages`
+## `@alvin0/ai-agent-sdk-protocol-anthropic-messages`
 
 The Anthropic Messages wire protocol.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/protocol-anthropic-messages
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-protocol-anthropic-messages
 ```
 
 ```ts

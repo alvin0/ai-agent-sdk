@@ -4,13 +4,13 @@ import {
   createTextMessage,
   withRetry,
   type StreamChunk,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import {
   HTTP_PROVIDER_ERROR_CODES,
   createRuntimeHttpProvider,
   defineWireProtocol,
   type RuntimeHttpProviderOptions,
-} from '@ai-agent-sdk/provider-http'
+} from '@alvin0/ai-agent-sdk-provider-http'
 
 const encoder = new TextEncoder()
 

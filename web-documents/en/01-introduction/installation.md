@@ -21,23 +21,23 @@ Choose the smallest runtime closure you need.
 **Edge/Worker with a remote provider and acknowledged HTTPS telemetry**
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
-  @ai-agent-sdk/observability-fetch
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
+  @alvin0/ai-agent-sdk-observability-fetch
 ```
 
 **Browser harness with IndexedDB crash recovery**
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
-  @ai-agent-sdk/observability-browser
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
+  @alvin0/ai-agent-sdk-observability-browser
 ```
 
 **Node coding harness — only the capabilities it uses**
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/auth-node @ai-agent-sdk/provider-codex \
-  @ai-agent-sdk/mcp-node @ai-agent-sdk/observability-node \
-  @ai-agent-sdk/skill-filesystem
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-auth-node @alvin0/ai-agent-sdk-provider-codex \
+  @alvin0/ai-agent-sdk-mcp-node @alvin0/ai-agent-sdk-observability-node \
+  @alvin0/ai-agent-sdk-skill-filesystem
 ```
 
 All three profiles share the same Universal core and agent loop.
@@ -50,7 +50,7 @@ read environment variables or files themselves.
 **Node, from the environment:**
 
 ```ts
-import { envCredential } from '@ai-agent-sdk/auth-node'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
 
 openAiPlugin({ apiKey: envCredential('OPENAI_API_KEY') })
 ```
@@ -80,9 +80,9 @@ token and silently logs you out of your real Codex CLI.
 ## Verify the install
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
-import { envCredential } from '@ai-agent-sdk/auth-node'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
 
 const runtime = await createAgentRuntime({
   providers: [openAiPlugin({ apiKey: envCredential('OPENAI_API_KEY') })],

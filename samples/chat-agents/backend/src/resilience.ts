@@ -18,8 +18,8 @@
  *    for a working one, so every attempt is reported to the transcript.
  */
 
-import type { ModelFailure } from '@ai-agent-sdk/core'
-import type { TurnHooks } from '@ai-agent-sdk/core/agent'
+import type { ModelFailure } from '@alvin0/ai-agent-sdk-core'
+import type { TurnHooks } from '@alvin0/ai-agent-sdk-core/agent'
 
 /**
  * Cap on one model stream.

@@ -18,7 +18,7 @@
  * rule would do.
  */
 
-import type { GenerateOptions, StreamChunk, StreamMiddleware } from '@ai-agent-sdk/core'
+import type { GenerateOptions, StreamChunk, StreamMiddleware } from '@alvin0/ai-agent-sdk-core'
 import type { WireApiCall } from './wire'
 
 /** What identifies one round's request, on both sides of the recording. */

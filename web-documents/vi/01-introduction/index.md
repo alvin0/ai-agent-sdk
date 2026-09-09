@@ -6,8 +6,8 @@ loại lỗi dùng chung cho Anthropic Messages API, OpenAI Responses API, và e
 Codex chạy nền ChatGPT.
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const runtime = await createAgentRuntime({ providers: [openAiPlugin({ apiKey })] })
 const agent = runtime.agent({
@@ -23,7 +23,7 @@ await runtime.close()
 ## Nó cho bạn cái gì
 
 **Một bộ từ vựng trung lập.** Message, content block, stream chunk, số token,
-lý do kết thúc, và mã lỗi được định nghĩa một lần trong `@ai-agent-sdk/core`.
+lý do kết thúc, và mã lỗi được định nghĩa một lần trong `@alvin0/ai-agent-sdk-core`.
 Adapter là tầng duy nhất biết định dạng wire; mọi thứ phía trên nói bằng từ vựng
 trung lập.
 

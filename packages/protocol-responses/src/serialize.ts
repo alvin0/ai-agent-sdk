@@ -12,9 +12,9 @@
  */
 
 import type { ProtocolRequest } from './contract.ts'
-import { MODEL_ERROR_CODES, ModelError } from '@ai-agent-sdk/core'
-import type { ContentBlock, ImageBlock, TextBlock } from '@ai-agent-sdk/core'
-import type { Message } from '@ai-agent-sdk/core'
+import { MODEL_ERROR_CODES, ModelError } from '@alvin0/ai-agent-sdk-core'
+import type { ContentBlock, ImageBlock, TextBlock } from '@alvin0/ai-agent-sdk-core'
+import type { Message } from '@alvin0/ai-agent-sdk-core'
 import {
   isNativeToolSchema,
   type ModelOutputFormat,
@@ -23,7 +23,7 @@ import {
   type NativeWebSearchTool,
   type ToolChoice,
   type ToolSchema,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import type {
   ResponsesDialect,
   WireContentPart,

@@ -10,19 +10,19 @@ import {
 import type { Client, ClientFactory } from '@a2a-js/sdk/client'
 import { ServerCallContext } from '@a2a-js/sdk/server'
 import { describe, expect, it, vi } from 'vitest'
-import { AgentTeam } from '@ai-agent-sdk/core/agent'
-import { defineAgent } from '@ai-agent-sdk/core/agent'
-import { createA2AAgentLink, linkA2AAgent } from '@ai-agent-sdk/a2a/client'
+import { AgentTeam } from '@alvin0/ai-agent-sdk-core/agent'
+import { defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import { createA2AAgentLink, linkA2AAgent } from '@alvin0/ai-agent-sdk-a2a/client'
 import {
   createAgentCardFromDefinition,
   createDefinedAgentA2AServer,
-} from '@ai-agent-sdk/a2a/server'
-import { ModelAdapter } from '@ai-agent-sdk/core'
-import type { GenerateOptions } from '@ai-agent-sdk/core'
-import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
-import { ReasoningEffortId } from '@ai-agent-sdk/core'
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-a2a/server'
+import { ModelAdapter } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
+import type { ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core'
+import { ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
 import { RecordingLogger, integrationOperations } from './fixtures/integration-logger.ts'
 
 class ScriptedAdapter extends ModelAdapter {

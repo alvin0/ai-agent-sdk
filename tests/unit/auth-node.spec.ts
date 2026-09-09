@@ -2,11 +2,11 @@ import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { AgentSdkError, createAgentRuntime } from '@ai-agent-sdk/core'
+import { AgentSdkError, createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
 import {
   apiKeyFromEnv,
   envCredential,
-} from '@ai-agent-sdk/auth-node/env'
+} from '@alvin0/ai-agent-sdk-auth-node/env'
 import {
   CODEX_AUTH_PATH_ENV,
   DEFAULT_CODEX_AUTH_PATH,
@@ -18,7 +18,7 @@ import {
   fileCodexAuthStore,
   fileCodexCredentialStore,
   resolveCodexAuthPath,
-} from '@ai-agent-sdk/auth-node/codex'
+} from '@alvin0/ai-agent-sdk-auth-node/codex'
 
 const cleanup: string[] = []
 const changedEnvironment = new Map<string, string | undefined>()

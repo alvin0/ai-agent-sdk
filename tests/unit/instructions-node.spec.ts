@@ -5,11 +5,11 @@ import { join } from 'node:path'
 import {
   ancestorChain, byDepthThenPath, createProjectInstructionsSection, defaultFilePathFromTouch,
   descendantDirsBetween,
-} from '@ai-agent-sdk/instructions-node'
-import { History, runTurn, ToolRegistry, defineTool } from '@ai-agent-sdk/core/agent'
-import { ModelAdapter, ModelRegistry, ToolCallId, createTextMessage } from '@ai-agent-sdk/core'
-import type { ContextSectionResolveInput, ContextSectionState } from '@ai-agent-sdk/core'
-import type { GenerateOptions, StreamChunk } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-instructions-node'
+import { History, runTurn, ToolRegistry, defineTool } from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter, ModelRegistry, ToolCallId, createTextMessage } from '@alvin0/ai-agent-sdk-core'
+import type { ContextSectionResolveInput, ContextSectionState } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions, StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 const roots: string[] = []
 

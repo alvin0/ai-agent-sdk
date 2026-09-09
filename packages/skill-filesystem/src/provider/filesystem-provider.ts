@@ -18,11 +18,11 @@ import {
   type SkillProvider,
   type SkillProviderListOptions,
   type SkillResourceSummary,
-} from '@ai-agent-sdk/core/skills'
+} from '@alvin0/ai-agent-sdk-core/skills'
 import {
   validateCandidate,
   validateSkillResourcePath,
-} from '@ai-agent-sdk/core/skills'
+} from '@alvin0/ai-agent-sdk-core/skills'
 
 const TEXT_RESOURCE_EXTENSIONS = new Set([
   '.md', '.txt', '.json', '.csv', '.yaml', '.yml', '.ts', '.tsx', '.js', '.mjs', '.cjs',

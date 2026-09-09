@@ -1,4 +1,4 @@
-import { defineTool, type JsonObject, type JsonValue, type ToolDefinition } from '@ai-agent-sdk/core'
+import { defineTool, type JsonObject, type JsonValue, type ToolDefinition } from '@alvin0/ai-agent-sdk-core'
 import {
   ResearchEvidenceLedger, type ResearchAuditInput, type ResearchAuditSnapshot,
 } from './evidence.ts'

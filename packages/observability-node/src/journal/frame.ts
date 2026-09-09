@@ -4,7 +4,7 @@ import {
   isTraceId,
   type ObservationEvent,
   type ObservationEventName,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 
 const EVENT_NAMES = new Set<ObservationEventName>([
   'sdk.agent.run', 'sdk.agent.turn', 'sdk.model.call', 'sdk.provider.attempt',

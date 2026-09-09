@@ -2,7 +2,7 @@ import {
   anthropicMessagesProtocol,
   serializeAnthropicRequest,
   translateAnthropicStream,
-} from '@ai-agent-sdk/protocol-anthropic-messages'
+} from '@alvin0/ai-agent-sdk-protocol-anthropic-messages'
 
 async function* frames() {
   const values = [

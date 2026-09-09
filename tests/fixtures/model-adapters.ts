@@ -1,7 +1,7 @@
-import { ModelAdapter } from '@ai-agent-sdk/core'
-import type { GenerateOptions } from '@ai-agent-sdk/core'
-import { MODEL_ERROR_CODES, ModelError } from '@ai-agent-sdk/core'
-import type { StreamChunk, TokenUsage } from '@ai-agent-sdk/core'
+import { ModelAdapter } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
+import { MODEL_ERROR_CODES, ModelError } from '@alvin0/ai-agent-sdk-core'
+import type { StreamChunk, TokenUsage } from '@alvin0/ai-agent-sdk-core'
 
 export type FixtureAttempt = (
   options: GenerateOptions,

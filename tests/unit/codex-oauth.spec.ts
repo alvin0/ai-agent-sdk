@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { requestDeviceCode } from '@ai-agent-sdk/provider-codex'
+import { requestDeviceCode } from '@alvin0/ai-agent-sdk-provider-codex'
 
 describe('Codex OAuth transport guards', () => {
   it('requires HTTPS unless a local test issuer is explicitly allowed', async () => {

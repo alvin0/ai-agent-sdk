@@ -1,4 +1,4 @@
-import type { Observability } from '@ai-agent-sdk/core/observability'
+import type { Observability } from '@alvin0/ai-agent-sdk-core/observability'
 
 interface LifecycleTarget {
   readonly visibilityState?: string

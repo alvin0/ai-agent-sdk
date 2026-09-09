@@ -5,7 +5,7 @@ model**. Nó sở hữu đúng một node trên bề mặt model và chỉ ghi l
 nội dung thực sự thay đổi.
 
 ```ts
-import { defineContextSection } from '@ai-agent-sdk/core'
+import { defineContextSection } from '@alvin0/ai-agent-sdk-core'
 
 const clock = defineContextSection({
   id: 'wall-clock',
@@ -164,11 +164,11 @@ nó vẫn khớp.
 
 ## Chỉ dẫn dự án
 
-`@ai-agent-sdk/instructions-node` là bản hiện thực Node của callback này cho các
+`@alvin0/ai-agent-sdk-instructions-node` là bản hiện thực Node của callback này cho các
 tệp kiểu `AGENTS.md`. Core SDK không bao giờ đọc tệp.
 
 ```ts
-import { createProjectInstructionsSection } from '@ai-agent-sdk/instructions-node'
+import { createProjectInstructionsSection } from '@alvin0/ai-agent-sdk-instructions-node'
 
 const agent = defineAgent({
   id: 'coder',

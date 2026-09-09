@@ -2,7 +2,7 @@
  * Filesystem walk for instruction files: project root, ancestor chain, and the
  * descendant directories a tool call reached into.
  *
- * @module @ai-agent-sdk/instructions-node/discovery
+ * @module @alvin0/ai-agent-sdk-instructions-node/discovery
  */
 
 import { readFile, stat } from 'node:fs/promises'

@@ -30,10 +30,10 @@
  */
 
 import { and, eq } from 'drizzle-orm'
-import { createApprovalBroker } from '@ai-agent-sdk/core/agent'
+import { createApprovalBroker } from '@alvin0/ai-agent-sdk-core/agent'
 import type {
   ApprovalDecision, InteractiveApprovalBroker, PreToolDecision, ToolInterceptor,
-} from '@ai-agent-sdk/core/agent'
+} from '@alvin0/ai-agent-sdk-core/agent'
 import { database, schema } from './db/client'
 import { describeMutation } from './tools'
 import type { WireApproval, WireApprovalScope } from './wire'

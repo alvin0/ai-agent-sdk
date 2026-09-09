@@ -1,4 +1,4 @@
-import { runProviderConformanceSuite } from '@ai-agent-sdk/testkit'
+import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
 import { independentProviderFixture } from '@fixture/independent-provider'
 
 const report = await runProviderConformanceSuite(independentProviderFixture, { caseTimeoutMs: 1_000 })

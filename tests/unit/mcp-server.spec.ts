@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ToolCallId } from '@ai-agent-sdk/core'
-import type { RuntimeAgent } from '@ai-agent-sdk/core/agent'
-import { defineTool, dispatchToolCall, ToolRegistry } from '@ai-agent-sdk/core/tools'
-import { createMcpHttpClient } from '@ai-agent-sdk/mcp/client'
-import { createMcpServer } from '@ai-agent-sdk/mcp-server'
+import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import type { RuntimeAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import { defineTool, dispatchToolCall, ToolRegistry } from '@alvin0/ai-agent-sdk-core/tools'
+import { createMcpHttpClient } from '@alvin0/ai-agent-sdk-mcp/client'
+import { createMcpServer } from '@alvin0/ai-agent-sdk-mcp-server'
 import { RecordingLogger, integrationOperations } from './fixtures/integration-logger.ts'
 
 function tools(): ToolRegistry {

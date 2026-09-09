@@ -60,7 +60,7 @@ Teams enforce these so you do not have to:
 supported transport, and adds the peer to the same roster used by local agents.
 
 ```ts
-import { linkA2AAgent } from '@ai-agent-sdk/a2a/client'
+import { linkA2AAgent } from '@alvin0/ai-agent-sdk-a2a/client'
 
 const { link, unlink } = await linkA2AAgent(team, {
   name: 'security',
@@ -99,7 +99,7 @@ by default** and enabled explicitly with `legacyCompat: true`.
 ## Publishing your own card
 
 ```ts
-import { createAgentCardFromDefinition } from '@ai-agent-sdk/a2a/server'
+import { createAgentCardFromDefinition } from '@alvin0/ai-agent-sdk-a2a/server'
 
 const agentCard = createAgentCardFromDefinition(reviewer, {
   url: 'https://agents.example.com/reviewer/a2a',

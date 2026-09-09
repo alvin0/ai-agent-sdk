@@ -5,7 +5,7 @@ import {
   withRetry,
   type GenerateOptions,
   type StreamChunk,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import type { SdkStressContext, SdkStressScenarioResult } from '../types.ts'
 import { runBoundedWorkers, StressChecks } from './shared.ts'
 

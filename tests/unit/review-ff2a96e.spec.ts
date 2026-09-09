@@ -259,8 +259,8 @@ describe('composition completion and estimator ownership', () => {
 
   it('compaction observes a rejection created at the same time as cancellation', () => {
     execFileSync(process.execPath, ['--input-type=module', '-e', `
-      import { ModelRegistry, createTextMessage } from '@ai-agent-sdk/core';
-      import { ContextCompactor, History, resolveCompactionConfig } from '@ai-agent-sdk/core/agent';
+      import { ModelRegistry, createTextMessage } from '@alvin0/ai-agent-sdk-core';
+      import { ContextCompactor, History, resolveCompactionConfig } from '@alvin0/ai-agent-sdk-core/agent';
       const controller = new AbortController();
       const registry = new ModelRegistry();
       registry.resolveModelInfo = () => {

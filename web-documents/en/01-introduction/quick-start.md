@@ -9,9 +9,9 @@ reusable definition.
 registration, observability, and lifecycle.
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { envCredential } from '@ai-agent-sdk/auth-node'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const runtime = await createAgentRuntime({
   providers: [openAiPlugin({ apiKey: envCredential('OPENAI_API_KEY') })],
@@ -24,7 +24,7 @@ Tools are ordinary typed values. There is no second string-id registry to keep
 in sync.
 
 ```ts
-import { defineTool } from '@ai-agent-sdk/core'
+import { defineTool } from '@alvin0/ai-agent-sdk-core'
 
 const multiply = defineTool({
   name: 'multiply',
@@ -90,7 +90,7 @@ something ignored cancellation.
 sessions per conversation. Use it when the same agent serves many requests.
 
 ```ts
-import { defineAgent } from '@ai-agent-sdk/core'
+import { defineAgent } from '@alvin0/ai-agent-sdk-core'
 
 export const calculator = defineAgent({
   id: 'calculator',
@@ -116,9 +116,9 @@ Omitting `provider`, `model`, and `effort` on a definition selects Codex
 ## Full working file
 
 ```ts
-import { createAgentRuntime, defineTool } from '@ai-agent-sdk/core'
-import { envCredential } from '@ai-agent-sdk/auth-node'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime, defineTool } from '@alvin0/ai-agent-sdk-core'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const multiply = defineTool({
   name: 'multiply',

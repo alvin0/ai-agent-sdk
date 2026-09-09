@@ -1,4 +1,4 @@
-import type { GenerateOptions, StreamChunk, UsageCounters } from '@ai-agent-sdk/core'
+import type { GenerateOptions, StreamChunk, UsageCounters } from '@alvin0/ai-agent-sdk-core'
 
 export interface ProtocolRequest {
   readonly options: GenerateOptions

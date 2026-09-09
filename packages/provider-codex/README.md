@@ -1,16 +1,16 @@
-# @ai-agent-sdk/provider-codex
+# @alvin0/ai-agent-sdk-provider-codex
 
 Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node with an injected auth store).
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-codex
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-codex
 ```
 
 Universal Codex adapter, OAuth flows, memory/custom auth stores, and transactional provider plugin. A `CodexAuthStore` must be injected; filesystem and environment defaults belong to the Node auth package.
 
 ```ts
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { codexPlugin } from '@ai-agent-sdk/provider-codex'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { codexPlugin } from '@alvin0/ai-agent-sdk-provider-codex'
 
 const registry = new ModelRegistry()
 registry.install(codexPlugin({ authStore: mySecretManagerStore }))

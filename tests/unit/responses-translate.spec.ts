@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   translateResponsesStream,
   type ProtocolSseEvent,
-} from '@ai-agent-sdk/protocol-responses'
-import { createTextMessage, validateUsageCounters } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-protocol-responses'
+import { createTextMessage, validateUsageCounters } from '@alvin0/ai-agent-sdk-core'
 import { providerRequest } from './fixtures.ts'
 
 async function* events(values: readonly object[]): AsyncIterable<ProtocolSseEvent> {

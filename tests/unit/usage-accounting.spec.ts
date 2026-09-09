@@ -5,8 +5,8 @@ import {
   possiblyBilledAttemptsWithoutUsage,
   validateUsageCounters,
   type AttemptUsageReport,
-} from '@ai-agent-sdk/core'
-import { createSpanId } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
+import { createSpanId } from '@alvin0/ai-agent-sdk-core'
 
 function attempt(overrides: Partial<AttemptUsageReport> = {}): AttemptUsageReport {
   return {

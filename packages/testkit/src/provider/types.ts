@@ -1,4 +1,4 @@
-import type { ComposableModelProviderPlugin } from '@ai-agent-sdk/core/provider'
+import type { ComposableModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
 
 export type ProviderConformanceScenario =
   | 'success'

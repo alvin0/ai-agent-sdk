@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import * as core from '@ai-agent-sdk/core'
-import * as advanced from '@ai-agent-sdk/core/agent'
-import * as provider from '@ai-agent-sdk/core/provider'
+import * as core from '@alvin0/ai-agent-sdk-core'
+import * as advanced from '@alvin0/ai-agent-sdk-core/agent'
+import * as provider from '@alvin0/ai-agent-sdk-core/provider'
 
 describe('core author ergonomics', () => {
   it('keeps canonical tool and skill helper identities on root and advanced routes', () => {

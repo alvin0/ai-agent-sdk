@@ -16,7 +16,7 @@ samples/chat-agents/
 
 ```bash
 pnpm install
-pnpm --filter @ai-agent-sdk/core build        # the backend consumes built dist output
+pnpm --filter @alvin0/ai-agent-sdk-core build        # the backend consumes built dist output
 pnpm --filter @chat-agents/web dev            # http://localhost:3000
 ```
 
@@ -58,7 +58,7 @@ Sample-local state, all git-ignored:
 ## How the pieces fit
 
 **Dependencies, not paths.** `@chat-agents/backend` depends on
-`@ai-agent-sdk/core`, `@ai-agent-sdk/auth-node`, and the provider packages
+`@alvin0/ai-agent-sdk-core`, `@alvin0/ai-agent-sdk-auth-node`, and the provider packages
 through `workspace:*`; the web app depends on the backend the same way and
 compiles its TypeScript sources via `transpilePackages`. Nothing reaches across
 directories with a relative import.
@@ -280,7 +280,7 @@ opposite contracts. A skill is advertised by description and loaded when the
 model decides it is relevant. Project instructions are the conventions the work
 has to follow whether or not the model thought to ask — an agent that never read
 them has already broken them. So they arrive through
-`@ai-agent-sdk/instructions-node`, mounted as a `contextSections` entry on every
+`@alvin0/ai-agent-sdk-instructions-node`, mounted as a `contextSections` entry on every
 agent in the group (`instructionsFor` in `backend/src/agent-runtime.ts`).
 
 A context section, not `instructions` text, because the system prompt is the

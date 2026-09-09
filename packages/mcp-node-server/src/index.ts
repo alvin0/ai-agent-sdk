@@ -6,18 +6,18 @@ import {
   hostHeaderValidation, localhostHostValidation, localhostOriginValidation,
   originValidation, toNodeHandler, type NodeMcpRequestHandler, type ToNodeHandlerOptions,
 } from '@modelcontextprotocol/node'
-import type { SdkLogger } from '@ai-agent-sdk/core/observability'
+import type { SdkLogger } from '@alvin0/ai-agent-sdk-core/observability'
 import {
   createSdkMcpServer, type McpWebServer, type SdkMcpRequestContext,
   type SdkMcpServer, type SdkMcpServerOptions,
-} from '@ai-agent-sdk/mcp-server'
+} from '@alvin0/ai-agent-sdk-mcp-server'
 import { createReportedServerClose, type McpNodeServerCloseReport } from './server/close.ts'
 import { ObservedStdioTransport } from './server/observed-transport.ts'
 import { MCP_NODE_SERVER_DEFAULTS } from './server/config.ts'
 
 export {
   createMcpServer, type McpServerDefinition, type McpWebServer,
-} from '@ai-agent-sdk/mcp-server'
+} from '@alvin0/ai-agent-sdk-mcp-server'
 export type { NodeMcpRequestHandler, ToNodeHandlerOptions }
 export {
   hostHeaderValidation, localhostHostValidation, localhostOriginValidation,

@@ -11,7 +11,7 @@ Bốn package, một bus. Chọn theo **nơi sự kiện cần đáp xuống**.
 
 ---
 
-## `@ai-agent-sdk/observability-fetch`
+## `@alvin0/ai-agent-sdk-observability-fetch`
 
 Exporter HTTPS có xác nhận, chạy Universal. Gửi các lô JSON có chặn trên kèm khoá
 idempotency và chỉ thử lại **lô quan sát** — không thử lại thao tác
@@ -53,7 +53,7 @@ Package không bao giờ giả định có biến toàn cục của nền tảng
 
 ---
 
-## `@ai-agent-sdk/observability-node`
+## `@alvin0/ai-agent-sdk-observability-node`
 
 Sổ quan sát bền vững chỉ chạy trên Node, cộng với các hàm trợ giúp vòng đời và
 chẩn đoán tường minh. **Thư mục gốc của sổ luôn do caller cấp.**
@@ -130,7 +130,7 @@ Không có gì tự động cài đặt handler vòng đời tiến trình.
 
 ---
 
-## `@ai-agent-sdk/observability-browser`
+## `@alvin0/ai-agent-sdk-observability-browser`
 
 Tính bền vững cục bộ, chỉ chạy trên trình duyệt. Exporter dàn dựng các sự kiện đã
 xử lý quyền riêng tư vào IndexedDB trong lúc **thu thập đồng bộ**, và chỉ xác
@@ -169,12 +169,12 @@ trang chuyển sang ẩn và khi `pagehide`. Nó **không tuyên bố bền vữ
 
 ---
 
-## `@ai-agent-sdk/observability-otel`
+## `@alvin0/ai-agent-sdk-observability-otel`
 
 Cầu nối ánh xạ Universal cho các đối tượng API OpenTelemetry **do caller cấp**.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/observability-otel \
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-observability-otel \
   @opentelemetry/api @opentelemetry/api-logs
 ```
 

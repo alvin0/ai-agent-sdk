@@ -4,7 +4,7 @@ import type {
   ResolvedModelInfo,
   StreamChunk,
   UsageCounters,
-} from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/provider'
 import type { HTTP_PROTOCOL_API_VERSION } from './config.ts'
 import type { HttpConnection } from '../base/http-adapter.ts'
 

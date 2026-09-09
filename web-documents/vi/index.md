@@ -11,13 +11,13 @@ cho Anthropic Messages API, OpenAI Responses API, và endpoint Codex chạy nề
 ChatGPT.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai @ai-agent-sdk/auth-node
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai @alvin0/ai-agent-sdk-auth-node
 ```
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { envCredential } from '@ai-agent-sdk/auth-node'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const runtime = await createAgentRuntime({
   providers: [openAiPlugin({ apiKey: envCredential('OPENAI_API_KEY') })],

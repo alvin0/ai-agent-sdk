@@ -1,16 +1,16 @@
-# @ai-agent-sdk/provider-openai
+# @alvin0/ai-agent-sdk-provider-openai
 
 Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai
 ```
 
 Universal OpenAI adapter and transactional provider plugin. Credentials are injected; this package never reads environment variables or files.
 
 ```ts
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const registry = new ModelRegistry()
 registry.install(openAiPlugin({ apiKey: () => secretStore.get('openai') }))

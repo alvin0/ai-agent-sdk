@@ -1,17 +1,17 @@
-# @ai-agent-sdk/observability-fetch
+# @alvin0/ai-agent-sdk-observability-fetch
 
 Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/observability-fetch
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-observability-fetch
 ```
 
-Universal acknowledged HTTPS exporter for `@ai-agent-sdk/core/observability`. It sends
+Universal acknowledged HTTPS exporter for `@alvin0/ai-agent-sdk-core/observability`. It sends
 bounded JSON batches with an idempotency key and retries only the observation
 batch—not the model/provider operation that produced it.
 
 ```ts
-import { fetchObservationExporter } from '@ai-agent-sdk/observability-fetch'
+import { fetchObservationExporter } from '@alvin0/ai-agent-sdk-observability-fetch'
 
 const exporter = fetchObservationExporter({
   endpoint: 'https://telemetry.example.com/v1/observations',

@@ -1,6 +1,6 @@
-import { ToolCallId } from '@ai-agent-sdk/core'
-import { dispatchToolCall } from '@ai-agent-sdk/core/tools'
-import { connectMcpStdio } from '@ai-agent-sdk/mcp-node'
+import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { dispatchToolCall } from '@alvin0/ai-agent-sdk-core/tools'
+import { connectMcpStdio } from '@alvin0/ai-agent-sdk-mcp-node'
 
 const connection = await connectMcpStdio({
   serverName: 'packed-node', command: process.execPath, args: ['server.mjs'], reconnect: false,

@@ -1,5 +1,5 @@
-import type { SdkLogger, ToolSource } from '@ai-agent-sdk/core/tools'
-import { createMcpHttpClient } from '@ai-agent-sdk/mcp'
+import type { SdkLogger, ToolSource } from '@alvin0/ai-agent-sdk-core/tools'
+import { createMcpHttpClient } from '@alvin0/ai-agent-sdk-mcp'
 
 const signal = new AbortController().signal
 const logger: SdkLogger = {

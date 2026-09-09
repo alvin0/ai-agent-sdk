@@ -1,8 +1,8 @@
-import type { ToolExecutionResult } from '@ai-agent-sdk/core/agent'
-import { dispatchToolCall } from '@ai-agent-sdk/core/agent'
-import type { ToolCatalog } from '@ai-agent-sdk/core/agent'
-import { ToolCallId } from '@ai-agent-sdk/core'
-import type { JsonObject } from '@ai-agent-sdk/core'
+import type { ToolExecutionResult } from '@alvin0/ai-agent-sdk-core/agent'
+import { dispatchToolCall } from '@alvin0/ai-agent-sdk-core/agent'
+import type { ToolCatalog } from '@alvin0/ai-agent-sdk-core/agent'
+import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import type { JsonObject } from '@alvin0/ai-agent-sdk-core'
 
 export type GitHubMcpToolName = 'get_me' | 'get_file_contents' | 'create_or_update_file'
 

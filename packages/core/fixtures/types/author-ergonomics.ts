@@ -1,13 +1,13 @@
 import {
   ModelRegistry, defineAgent, defineSkill, defineTool,
   type AgentCompactionOptions, type CapabilityIdentityConflict, type NativeToolSchema,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import type {
   AgentInvocationOptions, AgentRuntimeLimits, AgentSessionSnapshot,
   CapabilityIdentityConflict as AgentCapabilityIdentityConflict,
   SkillResourceSummary, ToolRunContext,
-} from '@ai-agent-sdk/core/agent'
-import { ModelRegistry as ProviderModelRegistry } from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelRegistry as ProviderModelRegistry } from '@alvin0/ai-agent-sdk-core/provider'
 
 const identityConflict: CapabilityIdentityConflict = {
   namespace: 'tool-name', key: '[redacted]', firstIndex: 0, secondIndex: 1,

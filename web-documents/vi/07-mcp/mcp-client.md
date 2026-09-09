@@ -6,20 +6,20 @@ của CLI.
 
 | Package | Runtime | Vai trò |
 | --- | --- | --- |
-| `@ai-agent-sdk/mcp` | Universal | Client HTTP + `ToolSource` |
-| `@ai-agent-sdk/mcp-server` | Universal | Server `Request`/`Response` dạng trơ |
-| `@ai-agent-sdk/mcp-node` | Node | Tầng truyền tải client qua stdio |
-| `@ai-agent-sdk/mcp-node-server` | Node | Hosting server qua stdio / `node:http` |
+| `@alvin0/ai-agent-sdk-mcp` | Universal | Client HTTP + `ToolSource` |
+| `@alvin0/ai-agent-sdk-mcp-server` | Universal | Server `Request`/`Response` dạng trơ |
+| `@alvin0/ai-agent-sdk-mcp-node` | Node | Tầng truyền tải client qua stdio |
+| `@alvin0/ai-agent-sdk-mcp-node-server` | Node | Hosting server qua stdio / `node:http` |
 
 ---
 
-## `@ai-agent-sdk/mcp`
+## `@alvin0/ai-agent-sdk-mcp`
 
 Runtime: **Universal**. Điểm vào: `.`, `./client`, `./server`.
 Ghép nối: `runtime-agent.toolSources`. Vòng đời: `connected-caller-owned`.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/mcp
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-mcp
 ```
 
 ```ts
@@ -66,7 +66,7 @@ connection.closeWithReport()     // McpCloseReport
 
 ---
 
-## `@ai-agent-sdk/mcp-server`
+## `@alvin0/ai-agent-sdk-mcp-server`
 
 Runtime: **Universal** (Edge/Worker, trình duyệt, Deno, Bun, Node).
 Ghép nối: `host.mcp-server`. Vòng đời: `inert-host-mounted`.
@@ -81,18 +81,18 @@ dụng sở hữu việc xác thực và gắn route; **mỗi yêu cầu sở h�
 của chính nó**, nên server trả về không có handle dọn dẹp mức ứng dụng nào bị bịa
 ra.
 
-Tuyến `@ai-agent-sdk/mcp/server` phơi ra `createSdkMcpHandler()` cho cùng mục
+Tuyến `@alvin0/ai-agent-sdk-mcp/server` phơi ra `createSdkMcpHandler()` cho cùng mục
 đích, từ phía package MCP.
 
 ---
 
-## `@ai-agent-sdk/mcp-node`
+## `@alvin0/ai-agent-sdk-mcp-node`
 
 Runtime: **Node 22.12+**. Ghép nối: `runtime-agent.toolSources`.
 Vòng đời: `connected-caller-owned`.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/mcp @ai-agent-sdk/mcp-node
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-mcp @alvin0/ai-agent-sdk-mcp-node
 ```
 
 ```ts
@@ -115,7 +115,7 @@ Tham số stdio lấy từ MCP SDK: `command`, `args`, `env`, `stderr`, `cwd`,
 
 ---
 
-## `@ai-agent-sdk/mcp-node-server`
+## `@alvin0/ai-agent-sdk-mcp-node-server`
 
 Runtime: **Node 22.12+**. Ghép nối: `host.mcp-server`.
 Vòng đời: `host-owned` — gọi `handle.close({ signal })` và giữ lại bằng chứng về

@@ -89,7 +89,7 @@ Cục bộ theo provider và ghim chính xác:
 | Rút cạn tuyến tính | Không quét lại bộ đệm theo độ phức tạp bình phương. |
 | Bắt buộc đúng một sự kiện kết thúc | Thân bị cắt cụt sinh `STREAM_CLOSED`, không phải một message ngắn âm thầm. |
 
-`@ai-agent-sdk/provider-http` là chủ sở hữu trực tiếp duy nhất của bản ghim chính
+`@alvin0/ai-agent-sdk-provider-http` là chủ sở hữu trực tiếp duy nhất của bản ghim chính
 xác `eventsource-parser@4.1.0`; xem
 [chính sách phụ thuộc](/vi/14-project/dependency-policy).
 

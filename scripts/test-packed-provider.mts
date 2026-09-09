@@ -47,7 +47,7 @@ try {
     run('npm', [
       'install', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund', ...tarballs,
     ], consumer)
-    assertSingleInstalledPackage(consumer, '@ai-agent-sdk/core')
+    assertSingleInstalledPackage(consumer, '@alvin0/ai-agent-sdk-core')
     consumers.set(runtime, consumer)
   }
 

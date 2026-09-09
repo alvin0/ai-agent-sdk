@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createManagedAgentTeam, defineAgent, defineTool } from '@ai-agent-sdk/core/agent'
-import { ModelAdapter, ModelRegistry, ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
-import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@ai-agent-sdk/core'
+import { createManagedAgentTeam, defineAgent, defineTool } from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter, ModelRegistry, ReasoningEffortId, ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 const scenarios = {
   research: 'Compare energy storage sources: dated observations available; October forecast unverified.',

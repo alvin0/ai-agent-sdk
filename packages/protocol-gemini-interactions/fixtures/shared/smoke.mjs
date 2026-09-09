@@ -2,7 +2,7 @@ import {
   geminiInteractionsProtocol,
   serializeGeminiInteractionsRequest,
   translateGeminiInteractionsStream,
-} from '@ai-agent-sdk/protocol-gemini-interactions'
+} from '@alvin0/ai-agent-sdk-protocol-gemini-interactions'
 
 async function* frames() {
   yield {

@@ -1,8 +1,8 @@
-import { ModelAdapter } from '@ai-agent-sdk/core'
-import type { GenerateOptions } from '@ai-agent-sdk/core'
-import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
-import { ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
+import { ModelAdapter } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
+import type { ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core'
+import { ReasoningEffortId, ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
 import type { StressRequestKind } from './observer.ts'
 
 export interface ScriptedToolCall {

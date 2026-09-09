@@ -7,8 +7,8 @@
  */
 
 import { asc, desc, eq } from 'drizzle-orm'
-import { History } from '@ai-agent-sdk/core/agent'
-import type { HistorySnapshot } from '@ai-agent-sdk/core/agent'
+import { History } from '@alvin0/ai-agent-sdk-core/agent'
+import type { HistorySnapshot } from '@alvin0/ai-agent-sdk-core/agent'
 import { database, schema } from './db/client'
 import type { WireEvent } from './wire'
 

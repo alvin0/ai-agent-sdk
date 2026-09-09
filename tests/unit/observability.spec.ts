@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import * as canonicalObservability from '@ai-agent-sdk/core/observability'
+import * as canonicalObservability from '@alvin0/ai-agent-sdk-core/observability'
 import {
   createCoreSpan,
   createObservationRunScope,
@@ -10,7 +10,7 @@ import {
   type ObservationEvent,
   type ObservationPriority,
   type StreamChunk,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import {
   MemoryObservationExporter,
   TestObservationExporter,
@@ -19,7 +19,7 @@ import {
   projectMetrics,
   projectTrace,
   type ObservationExporter,
-} from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core/observability'
 
 const resource = Object.freeze({
   sdkName: 'ai-agent-sdk' as const,

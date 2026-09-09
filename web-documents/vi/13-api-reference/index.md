@@ -12,7 +12,7 @@ vào công khai, những export quan trọng, và hình dạng cách dùng.
 
 | Trang | Package bao gồm | Runtime |
 | --- | --- | --- |
-| [core](/vi/13-api-reference/core) | `@ai-agent-sdk/core` và 6 subpath của nó | Universal |
+| [core](/vi/13-api-reference/core) | `@alvin0/ai-agent-sdk-core` và 6 subpath của nó | Universal |
 | [Agent](/vi/13-api-reference/agent) · [Tool](/vi/13-api-reference/tool) · [Workflow](/vi/13-api-reference/workflow) · [Memory](/vi/13-api-reference/memory) · [Types](/vi/13-api-reference/types) | Tham chiếu theo khái niệm | Universal |
 | [Provider](/vi/09-providers/) | `provider-openai`, `provider-anthropic`, `provider-codex`, `provider-gemini`, `provider-http` | Universal |
 | [Protocol](/vi/09-providers/protocols) | `protocol-responses`, `protocol-anthropic-messages`, `protocol-gemini-interactions` | Universal |

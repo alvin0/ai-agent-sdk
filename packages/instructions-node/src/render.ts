@@ -1,7 +1,7 @@
 /**
  * Rendering and byte accounting for the instruction section.
  *
- * @module @ai-agent-sdk/instructions-node/render
+ * @module @alvin0/ai-agent-sdk-instructions-node/render
  */
 
 import { createHash } from 'node:crypto'

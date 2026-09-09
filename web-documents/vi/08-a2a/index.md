@@ -4,8 +4,8 @@ SDK kết hợp **hai tầng sau cùng một danh bạ agent**:
 
 | Tầng | Nó là gì | Package |
 | --- | --- | --- |
-| `AgentTeam` | Cộng tác giữa các session sống lâu **trong cùng tiến trình** | `@ai-agent-sdk/core/agent` |
-| A2A Protocol v1.0 | Khám phá Agent Card và gọi **từ xa** qua JSON-RPC / HTTP+JSON | `@ai-agent-sdk/a2a` |
+| `AgentTeam` | Cộng tác giữa các session sống lâu **trong cùng tiến trình** | `@alvin0/ai-agent-sdk-core/agent` |
+| A2A Protocol v1.0 | Khám phá Agent Card và gọi **từ xa** qua JSON-RPC / HTTP+JSON | `@alvin0/ai-agent-sdk-a2a` |
 
 Sự phân biệt này quan trọng. Chỉ tương thích giao thức thì không tạo ra một bộ
 lập lịch cục bộ, còn một hộp thư trong tiến trình thì không với tới được agent ở
@@ -16,7 +16,7 @@ Phần hỗ trợ A2A là hiện thực chính thức
 [`@a2a-js/sdk`](https://github.com/a2aproject/a2a-js) — SDK làm cầu nối tới nó
 chứ không hiện thực lại giao thức.
 
-> **Tầng runtime: Node.** `@ai-agent-sdk/a2a` hiện được **nâng lên tầng Node** vì
+> **Tầng runtime: Node.** `@alvin0/ai-agent-sdk-a2a` hiện được **nâng lên tầng Node** vì
 > bộ mã hoá nhị phân ở thượng nguồn gọi `Buffer.from` để tuần tự hoá `Part` nhị
 > phân thô. Văn bản, dữ liệu có cấu trúc, URL, và giá trị nhị phân đều chạy được
 > trên Node. Các đường văn bản tình cờ chạy được trong Worker nghiêm ngặt, nhưng
@@ -25,7 +25,7 @@ chứ không hiện thực lại giao thức.
 > [Experimental](/vi/12-experimental/).
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/a2a
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-a2a
 ```
 
 ## Một danh bạ, hai loại thành viên
@@ -73,8 +73,8 @@ dựng sẵn không thể âm thầm làm đổi topology đã khai báo.
 
 | Chiều | Điểm vào |
 | --- | --- |
-| **Tiêu thụ** — nối một agent từ xa vào danh bạ của bạn | `@ai-agent-sdk/a2a/client` → `linkA2AAgent()` |
-| **Công bố** — phơi `DefinedAgent` của bạn thành A2A server | `@ai-agent-sdk/a2a/server` → `createDefinedAgentA2AServer()` |
+| **Tiêu thụ** — nối một agent từ xa vào danh bạ của bạn | `@alvin0/ai-agent-sdk-a2a/client` → `linkA2AAgent()` |
+| **Công bố** — phơi `DefinedAgent` của bạn thành A2A server | `@alvin0/ai-agent-sdk-a2a/server` → `createDefinedAgentA2AServer()` |
 
 ## Phần nào vẫn thuộc host
 

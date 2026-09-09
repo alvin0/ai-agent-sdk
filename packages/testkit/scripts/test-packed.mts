@@ -25,7 +25,7 @@ try {
   const providerManifest = JSON.parse(readFileSync(
     join(temporary, 'node_modules/@fixture/independent-provider/package.json'), 'utf8',
   )) as { peerDependencies?: Record<string, string>; scripts?: Record<string, string> }
-  if (providerManifest.peerDependencies?.['@ai-agent-sdk/core'] !== '>=0.1.0 <0.2.0') {
+  if (providerManifest.peerDependencies?.['@alvin0/ai-agent-sdk-core'] !== '>=0.1.0 <0.2.0') {
     throw new Error('installed provider core peer range drifted')
   }
   if (Object.keys(providerManifest.scripts ?? {}).some(name => /^(?:pre|post)?install$/u.test(name))) {
@@ -43,7 +43,7 @@ try {
     schemaVersion: 1,
     registryPublish: false,
     installScripts: false,
-    providerCorePeer: providerManifest.peerDependencies['@ai-agent-sdk/core'],
+    providerCorePeer: providerManifest.peerDependencies['@alvin0/ai-agent-sdk-core'],
     report,
   }, null, 2)}\n`)
   process.stdout.write(`packed third-party provider conformance passed: ${relative(workspaceRoot, reportPath)}\n`)

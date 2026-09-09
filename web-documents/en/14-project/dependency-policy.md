@@ -41,14 +41,14 @@ integrity, and platform dependency set **before** changing the allowlist.
 ## SSE parser retention
 
 The workspace retains exact `eventsource-parser@4.1.0` in
-`@ai-agent-sdk/provider-http` after the owned-parser candidate failed its
+`@alvin0/ai-agent-sdk-provider-http` after the owned-parser candidate failed its
 **predeclared performance gate**. The rule and its evidence live in
 `docs/dependency-policy.md`.
 
 | Property | Status |
 | --- | --- |
 | Lifecycle script | None |
-| Direct owner | `@ai-agent-sdk/provider-http` only |
+| Direct owner | `@alvin0/ai-agent-sdk-provider-http` only |
 | Registry integrity, license, frozen resolution | Release gates |
 | Packed runtime behavior | Release gate |
 | Advisories | Release gate |
@@ -59,7 +59,7 @@ found zero advisories at every severity.
 
 ## Skill metadata YAML parser
 
-`@ai-agent-sdk/skill-filesystem` directly owns exact `yaml@2.9.0`. It parses the
+`@alvin0/ai-agent-sdk-skill-filesystem` directly owns exact `yaml@2.9.0`. It parses the
 bounded `agents/openai.yaml` policy with aliases disabled and rejects duplicate,
 malformed, over-deep, or oversized metadata. Integrity, ISC licensing, packed
 runtime behavior, and advisories are release gates. Review expiry: 2026-12-06.

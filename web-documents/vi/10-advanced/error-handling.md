@@ -26,7 +26,7 @@ nhìn thấy.
 ## Xử lý lỗi
 
 ```ts
-import { AgentSdkError, MODEL_ERROR_CODES } from '@ai-agent-sdk/core'
+import { AgentSdkError, MODEL_ERROR_CODES } from '@alvin0/ai-agent-sdk-core'
 
 try {
   const response = await agent.generate(input)

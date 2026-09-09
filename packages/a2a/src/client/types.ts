@@ -1,7 +1,7 @@
 import type { AgentCard, StreamResponse } from '@a2a-js/sdk'
 import type { Client, ClientFactory, RequestOptions } from '@a2a-js/sdk/client'
-import type { LinkAgentOptions } from '@ai-agent-sdk/core/agent'
-import type { SdkLogger, SupportSafeError } from '@ai-agent-sdk/core'
+import type { LinkAgentOptions } from '@alvin0/ai-agent-sdk-core/agent'
+import type { SdkLogger, SupportSafeError } from '@alvin0/ai-agent-sdk-core'
 
 export interface A2AAgentLinkOptions {
   readonly logger?: SdkLogger

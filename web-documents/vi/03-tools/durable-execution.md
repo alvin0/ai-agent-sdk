@@ -5,7 +5,7 @@ gọi tool **sống sót qua lần khởi động lại**. Cả hai đều là i
 không có gì ở đây bật theo mặc định.
 
 ```ts
-import { createToolExecutionInterceptor, localToolExecutionBackend } from '@ai-agent-sdk/core'
+import { createToolExecutionInterceptor, localToolExecutionBackend } from '@alvin0/ai-agent-sdk-core'
 ```
 
 ## Vị trí trong đường ống
@@ -127,7 +127,7 @@ Thao tác bền yêu cầu `args` và `identity` là JSON không mất mát, vì
 Cùng ý tưởng cho lằn ranh con người:
 
 ```ts
-import { createApprovalBroker, withApprovalPersistence } from '@ai-agent-sdk/core'
+import { createApprovalBroker, withApprovalPersistence } from '@alvin0/ai-agent-sdk-core'
 
 const approvals = withApprovalPersistence(createApprovalBroker(), {
   async savePending(request)            { await db.insertPending(request) },

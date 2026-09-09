@@ -4,7 +4,7 @@ A tool is a **typed host function the model can call**. There is no second
 string-id registry to keep in sync — the definition *is* the registration.
 
 ```ts
-import { defineTool } from '@ai-agent-sdk/core'
+import { defineTool } from '@alvin0/ai-agent-sdk-core'
 
 const multiply = defineTool({
   name: 'multiply',

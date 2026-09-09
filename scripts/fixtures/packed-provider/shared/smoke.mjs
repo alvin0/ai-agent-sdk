@@ -1,4 +1,4 @@
-import { createAgentRuntime } from '@ai-agent-sdk/core'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
 import { createPlugin, expectedCredential, frames, providerId } from './provider.mjs'
 
 export async function runPackedProviderFixture() {

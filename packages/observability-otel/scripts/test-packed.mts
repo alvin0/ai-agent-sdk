@@ -23,7 +23,7 @@ try {
     coreTarball, otelTarball,
   ], missingPeer)
   const missing = spawnSync(process.execPath, [
-    '--input-type=module', '-e', "await import('@ai-agent-sdk/observability-otel')",
+    '--input-type=module', '-e', "await import('@alvin0/ai-agent-sdk-observability-otel')",
   ], { cwd: missingPeer, encoding: 'utf8', env: process.env })
   const missingOutput = `${missing.stdout}${missing.stderr}`
   if (missing.status === 0 || !missingOutput.includes('@opentelemetry/api')) {

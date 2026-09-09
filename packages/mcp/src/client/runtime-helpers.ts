@@ -1,5 +1,5 @@
-import type { ToolFilter } from '@ai-agent-sdk/core/tools'
-import { isJsonValue, type JsonValue } from '@ai-agent-sdk/core'
+import type { ToolFilter } from '@alvin0/ai-agent-sdk-core/tools'
+import { isJsonValue, type JsonValue } from '@alvin0/ai-agent-sdk-core'
 import type {
   McpAuthenticationKind,
   McpReconnectOptions,

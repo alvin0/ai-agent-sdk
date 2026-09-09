@@ -3,8 +3,8 @@ import {
   ModelAdapter,
   ModelError,
   withRetry,
-} from '@ai-agent-sdk/core'
-import { defineModelProviderPlugin } from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core'
+import { defineModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
 
 class FixtureAdapter extends ModelAdapter {
   constructor(scenario, state, privateSentinel) {

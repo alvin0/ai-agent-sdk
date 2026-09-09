@@ -16,7 +16,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import type { SpillRecord, SpillSlice, SpillStore } from '@ai-agent-sdk/core/agent'
+import type { SpillRecord, SpillSlice, SpillStore } from '@alvin0/ai-agent-sdk-core/agent'
 import { databaseFile } from './db/client'
 
 /** How long a spilled file survives before startup cleanup removes it. */

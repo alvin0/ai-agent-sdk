@@ -3,7 +3,7 @@ import {
   connectMcpStdio,
   createMcpStdioClient,
   McpConnectionError,
-} from '@ai-agent-sdk/mcp-node'
+} from '@alvin0/ai-agent-sdk-mcp-node'
 
 describe('MCP Node capability', () => {
   it('exposes only the stdio client boundary without hiding process creation', () => {

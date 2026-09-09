@@ -5,12 +5,12 @@ Composition slot: `runtime.providers`.
 Lifecycle: `inert-runtime-owned-registration`.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-gemini
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-gemini
 ```
 
 Targets **only** Google's Gemini **Interactions** endpoint at
 `/v1beta/interactions`, through
-[`@ai-agent-sdk/protocol-gemini-interactions`](/en/09-providers/protocols).
+[`@alvin0/ai-agent-sdk-protocol-gemini-interactions`](/en/09-providers/protocols).
 
 > It does **not** use `generateContent`, and it does **not** use the
 > OpenAI-compatible Chat Completions endpoint. Those are different wire
@@ -19,8 +19,8 @@ Targets **only** Google's Gemini **Interactions** endpoint at
 ## Compose it
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { geminiPlugin } from '@ai-agent-sdk/provider-gemini'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { geminiPlugin } from '@alvin0/ai-agent-sdk-provider-gemini'
 
 const runtime = await createAgentRuntime({
   providers: [geminiPlugin({ apiKey: () => secretStore.get('gemini') })],
@@ -36,7 +36,7 @@ const agent = runtime.agent({
 On Node, read the key from the environment through the Node auth package:
 
 ```ts
-import { envCredential } from '@ai-agent-sdk/auth-node'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
 
 geminiPlugin({ apiKey: envCredential('GEMINI_API_KEY') })
 ```
@@ -69,8 +69,8 @@ export { geminiInteractionsProtocol, type GeminiInteractionsDialect }
 | `GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta` |
 
 ```ts
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { geminiAdapter } from '@ai-agent-sdk/provider-gemini'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { geminiAdapter } from '@alvin0/ai-agent-sdk-provider-gemini'
 
 const registry = new ModelRegistry()
 registry.registerAdapter(['gemini'], geminiAdapter({ apiKey }))

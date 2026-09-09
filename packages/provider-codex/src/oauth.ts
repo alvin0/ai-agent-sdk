@@ -16,9 +16,9 @@
  * @module ai-agent-sdk/providers/codex/oauth
  */
 
-import { AgentSdkError } from '@ai-agent-sdk/core'
-import { waitForSettlement } from '@ai-agent-sdk/core'
-import type { CredentialOperationOptions, SdkLogger } from '@ai-agent-sdk/core/provider'
+import { AgentSdkError } from '@alvin0/ai-agent-sdk-core'
+import { waitForSettlement } from '@alvin0/ai-agent-sdk-core'
+import type { CredentialOperationOptions, SdkLogger } from '@alvin0/ai-agent-sdk-core/provider'
 import {
   readJwtClaims,
   resolveAccountId,

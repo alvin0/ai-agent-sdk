@@ -1,5 +1,5 @@
 {
-  "name": "@ai-agent-sdk/protocol-responses",
+  "name": "@alvin0/ai-agent-sdk-protocol-responses",
   "author": {
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
@@ -42,10 +42,10 @@
     "check:types": "attw --profile esm-only --pack ."
   },
   "peerDependencies": {
-    "@ai-agent-sdk/core": "workspace:^"
+    "@alvin0/ai-agent-sdk-core": "workspace:^"
   },
   "devDependencies": {
-    "@ai-agent-sdk/core": "workspace:^",
+    "@alvin0/ai-agent-sdk-core": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",
     "playwright": "catalog:",
     "publint": "catalog:",

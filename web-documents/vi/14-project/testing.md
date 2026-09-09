@@ -56,13 +56,13 @@ các GitHub action chính thức ghim vào commit phát hành bất biến, có 
 
 ## Conformance cho provider
 
-Với tác giả các package năng lực, `@ai-agent-sdk/testkit` đưa một fixture provider
+Với tác giả các package năng lực, `@alvin0/ai-agent-sdk-testkit` đưa một fixture provider
 mới đi qua kiểm tra marker, xung đột tuyến, rollback, streaming, usage, thử lại,
 huỷ, hành vi danh mục, thất bại luồng có chặn trên, quyền riêng tư/tương quan của
 quan sát, kiềm chế lỗi khi dọn dẹp, và dọn dẹp lặp lại không đổi kết quả.
 
 ```ts
-import { runProviderConformanceSuite } from '@ai-agent-sdk/testkit'
+import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
 
 const report = await runProviderConformanceSuite(fixture)
 ```
@@ -134,5 +134,5 @@ observability, và MCP.
 
 ## Đọc tiếp
 
-- [`@ai-agent-sdk/testkit`](/vi/14-project/testkit)
+- [`@alvin0/ai-agent-sdk-testkit`](/vi/14-project/testkit)
 - [Đóng góp](/vi/14-project/contributing)

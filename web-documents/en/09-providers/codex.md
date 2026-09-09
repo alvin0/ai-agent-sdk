@@ -5,10 +5,10 @@ The ChatGPT-backed Codex endpoint. Runtime: **Universal**, with an **injected**
 
 ```bash
 # Universal — you inject the store
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-codex
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-codex
 
 # Node — project-local OAuth store included
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-codex @ai-agent-sdk/auth-node
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-codex @alvin0/ai-agent-sdk-auth-node
 ```
 
 `openai` and `codex` share **one** Responses implementation and differ only by a
@@ -23,8 +23,8 @@ pnpm exec ai-agent-sdk-codex-login --status    # local account/status details
 ```
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { codexNodeProviderPlugin } from '@ai-agent-sdk/auth-node/codex'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { codexNodeProviderPlugin } from '@alvin0/ai-agent-sdk-auth-node/codex'
 
 const runtime = await createAgentRuntime({ providers: [codexNodeProviderPlugin()] })
 
@@ -56,8 +56,8 @@ directory sync. **Credential-file symlinks are rejected.**
 ## Anywhere else — inject a store
 
 ```ts
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { codexPlugin } from '@ai-agent-sdk/provider-codex'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { codexPlugin } from '@alvin0/ai-agent-sdk-provider-codex'
 
 const registry = new ModelRegistry()
 registry.install(codexPlugin({ authStore: mySecretManagerStore }))
@@ -67,7 +67,7 @@ The `CodexAuthStore` contract is Universal — a browser, Worker, secret manager
 or Node package owns persistence. For tests and ephemeral hosts:
 
 ```ts
-import { memoryCodexCredentialStore } from '@ai-agent-sdk/provider-codex'
+import { memoryCodexCredentialStore } from '@alvin0/ai-agent-sdk-provider-codex'
 
 codexPlugin({ authStore: memoryCodexCredentialStore(tokens) })
 ```

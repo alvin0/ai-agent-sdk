@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ToolCallId } from '@ai-agent-sdk/core'
-import { withApprovalPersistence, createApprovalRequest, createApprovalBroker, fixedApprovalBroker } from '@ai-agent-sdk/core/agent'
-import { defineTool, type ToolDefinition } from '@ai-agent-sdk/core/agent'
-import { ToolError } from '@ai-agent-sdk/core/agent'
-import type { ToolRunContext } from '@ai-agent-sdk/core/agent'
+import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { withApprovalPersistence, createApprovalRequest, createApprovalBroker, fixedApprovalBroker } from '@alvin0/ai-agent-sdk-core/agent'
+import { defineTool, type ToolDefinition } from '@alvin0/ai-agent-sdk-core/agent'
+import { ToolError } from '@alvin0/ai-agent-sdk-core/agent'
+import type { ToolRunContext } from '@alvin0/ai-agent-sdk-core/agent'
 import {
   dispatchToolCall,
   type PreToolDecision,
   type ToolCallContext,
   type ToolInterceptor,
-} from '@ai-agent-sdk/core/agent'
-import { ToolRegistry } from '@ai-agent-sdk/core/agent'
+} from '@alvin0/ai-agent-sdk-core/agent'
+import { ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
 
 const POSITION = { turn: 1, step: 1 } as const
 

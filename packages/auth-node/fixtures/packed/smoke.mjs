@@ -1,14 +1,14 @@
 import { spawnSync } from 'node:child_process'
 import { lstat, readdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { envCredential } from '@ai-agent-sdk/auth-node/env'
-import { createAgentRuntime } from '@ai-agent-sdk/core'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node/env'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
 import {
   codexNodeAdapter,
   codexNodeProviderPlugin,
   fileCodexAuthStore,
   fileCodexCredentialStore,
-} from '@ai-agent-sdk/auth-node/codex'
+} from '@alvin0/ai-agent-sdk-auth-node/codex'
 
 process.env.PACKED_AUTH_KEY = 'packed-secret'
 if (envCredential('PACKED_AUTH_KEY')() !== 'packed-secret') throw new Error('env credential failed')
@@ -43,7 +43,7 @@ if (!staleRejected) throw new Error('stale credential revision was accepted')
 codexNodeAdapter({ models: [] })
 const runtime = await createAgentRuntime({ providers: [codexNodeProviderPlugin({ models: [] })] })
 await runtime.close()
-const cli = resolve('node_modules/@ai-agent-sdk/auth-node/bin/ai-agent-sdk-codex-login.mjs')
+const cli = resolve('node_modules/@alvin0/ai-agent-sdk-auth-node/bin/ai-agent-sdk-codex-login.mjs')
 const status = spawnSync(process.execPath, [cli, '--status', '--path', resolve('missing.json')], {
   encoding: 'utf8', env: process.env,
 })

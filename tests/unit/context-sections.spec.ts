@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { History, runTurn } from '@ai-agent-sdk/core/agent'
-import { defineTool, ToolRegistry } from '@ai-agent-sdk/core/agent'
-import { ModelAdapter, ModelRegistry, ToolCallId, createTextMessage } from '@ai-agent-sdk/core'
-import { defineContextSection } from '@ai-agent-sdk/core'
+import { History, runTurn } from '@alvin0/ai-agent-sdk-core/agent'
+import { defineTool, ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter, ModelRegistry, ToolCallId, createTextMessage } from '@alvin0/ai-agent-sdk-core'
+import { defineContextSection } from '@alvin0/ai-agent-sdk-core'
 import { captureContextSections } from '../../packages/core/src/agent/context/section.ts'
-import type { ContextSection, ContextToolTouch } from '@ai-agent-sdk/core'
-import type { GenerateOptions, StreamChunk } from '@ai-agent-sdk/core'
+import type { ContextSection, ContextToolTouch } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions, StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 class ScriptedAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []

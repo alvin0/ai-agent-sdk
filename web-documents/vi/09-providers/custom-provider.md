@@ -8,9 +8,9 @@ Với bất kỳ endpoint nào nói một giao thức mà package này đã hi�
 vào chỉ là **cấu hình**. Không tệp mới, không thư mục mới, không sửa SDK.
 
 ```ts
-import { openAiResponsesProtocol } from '@ai-agent-sdk/protocol-responses'
-import { createHttpProvider } from '@ai-agent-sdk/provider-http'
-import { envCredential } from '@ai-agent-sdk/auth-node/env'
+import { openAiResponsesProtocol } from '@alvin0/ai-agent-sdk-protocol-responses'
+import { createHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node/env'
 
 registry.registerAdapter(['openrouter'], createHttpProvider({
   displayName: 'OpenRouter',
@@ -24,12 +24,12 @@ Hiện có sẵn ba giao thức:
 
 | Giao thức | Package |
 | --- | --- |
-| OpenAI Responses / Codex | `@ai-agent-sdk/protocol-responses` |
-| Anthropic Messages | `@ai-agent-sdk/protocol-anthropic-messages` |
-| Gemini Interactions | `@ai-agent-sdk/protocol-gemini-interactions` |
+| OpenAI Responses / Codex | `@alvin0/ai-agent-sdk-protocol-responses` |
+| Anthropic Messages | `@alvin0/ai-agent-sdk-protocol-anthropic-messages` |
+| Gemini Interactions | `@alvin0/ai-agent-sdk-protocol-gemini-interactions` |
 
 Cả ba đều Universal, không sở hữu endpoint hay thông tin xác thực, và chỉ phụ
-thuộc `@ai-agent-sdk/core`.
+thuộc `@alvin0/ai-agent-sdk-core`.
 
 ### OAuth không cần kế thừa lớp
 
@@ -42,8 +42,8 @@ Với một package bạn định phát hành, hãy bọc adapter trong một pl
 để runtime kích hoạt và gỡ đăng ký được:
 
 ```ts
-import { createRuntimeHttpProvider } from '@ai-agent-sdk/provider-http'
-import { defineModelProviderPlugin } from '@ai-agent-sdk/core/provider'
+import { createRuntimeHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
+import { defineModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
 
 export const myProviderPlugin = defineModelProviderPlugin({
   id: 'my-provider',
@@ -114,13 +114,13 @@ Hai ràng buộc đáng biết:
 
 ## Kiểm chứng bằng bộ conformance
 
-`@ai-agent-sdk/testkit` đưa một fixture provider mới qua kiểm tra marker, xung đột
+`@alvin0/ai-agent-sdk-testkit` đưa một fixture provider mới qua kiểm tra marker, xung đột
 tuyến, rollback, streaming, usage, thử lại, huỷ, hành vi danh mục, thất bại luồng
 có chặn trên, quyền riêng tư/tương quan của quan sát, kiềm chế lỗi khi dọn dẹp,
 và tính bất biến khi dọn dẹp lặp lại.
 
 ```ts
-import { runProviderConformanceSuite } from '@ai-agent-sdk/testkit'
+import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
 
 const report = await runProviderConformanceSuite(fixture)
 ```

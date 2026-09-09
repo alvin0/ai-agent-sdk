@@ -8,7 +8,7 @@
 > What *is* provisional is listed here explicitly, with the gate each one is
 > waiting on. Treat this page as the honest answer to "what might change".
 
-## 1. `@ai-agent-sdk/a2a` is Node-elevated, pending promotion
+## 1. `@alvin0/ai-agent-sdk-a2a` is Node-elevated, pending promotion
 
 | Property | Status |
 | --- | --- |
@@ -58,10 +58,10 @@ not hide in a health UI.
 pnpm add ./artifacts/ai-agent-sdk-core-0.1.0.tgz
 ```
 
-Every `pnpm add @ai-agent-sdk/...` command in this documentation describes the
+Every `pnpm add @alvin0/ai-agent-sdk-...` command in this documentation describes the
 **intended** install profile for a future registry release.
 
-`@ai-agent-sdk/testkit` is additionally **private** and is exercised through
+`@alvin0/ai-agent-sdk-testkit` is additionally **private** and is exercised through
 local workspace or tarball installs; publishing is intentionally not configured
 for it at all.
 

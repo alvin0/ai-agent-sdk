@@ -16,9 +16,9 @@ import {
   QUOTA_EXCEEDED_CODE,
   isContextWindowExceededError,
   isQuotaExceededError,
-} from '@ai-agent-sdk/core'
-import { MODEL_ERROR_CODES } from '@ai-agent-sdk/core'
-import { ProviderRequestId } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
+import { MODEL_ERROR_CODES } from '@alvin0/ai-agent-sdk-core'
+import { ProviderRequestId } from '@alvin0/ai-agent-sdk-core'
 
 /**
  * Map an HTTP status plus whatever the provider said into a stable code.

@@ -6,8 +6,8 @@ protocol, and one error taxonomy across the Anthropic Messages API, the OpenAI
 Responses API, and the ChatGPT-backed Codex endpoint.
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const runtime = await createAgentRuntime({ providers: [openAiPlugin({ apiKey })] })
 const agent = runtime.agent({
@@ -23,7 +23,7 @@ await runtime.close()
 ## What it gives you
 
 **A neutral vocabulary.** Messages, content blocks, stream chunks, token usage,
-finish reasons, and error codes are defined once in `@ai-agent-sdk/core`.
+finish reasons, and error codes are defined once in `@alvin0/ai-agent-sdk-core`.
 Adapters are the only layer that knows a wire format; everything above speaks
 the neutral vocabulary.
 

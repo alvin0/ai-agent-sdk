@@ -2,10 +2,10 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { createManagedAgentTeam, defineAgent } from '@ai-agent-sdk/core/agent'
-import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
-import { ModelAdapter, ModelRegistry, ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
-import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@ai-agent-sdk/core'
+import { createManagedAgentTeam, defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import type { AgentRunEvent } from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter, ModelRegistry, ReasoningEffortId, ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 const home = mkdtempSync(join(tmpdir(), 'team-synthesis-'))
 process.env.CHAT_AGENTS_DB = join(home, '.data', 'test.db')

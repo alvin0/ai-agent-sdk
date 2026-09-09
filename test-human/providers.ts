@@ -1,15 +1,15 @@
 /** Provider registration for real human-test runs. */
 
 import { resolve } from 'node:path'
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { anthropicAdapter } from '@ai-agent-sdk/provider-anthropic'
-import { codexNodeAdapter as codexAdapter } from '@ai-agent-sdk/auth-node/codex'
-import { envCredential } from '@ai-agent-sdk/auth-node/env'
-import { openAiAdapter } from '@ai-agent-sdk/provider-openai'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { anthropicAdapter } from '@alvin0/ai-agent-sdk-provider-anthropic'
+import { codexNodeAdapter as codexAdapter } from '@alvin0/ai-agent-sdk-auth-node/codex'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node/env'
+import { openAiAdapter } from '@alvin0/ai-agent-sdk-provider-openai'
 import {
   combineProviderRequestLoggers,
   createDailyJsonlRequestLogger,
-} from '@ai-agent-sdk/observability-node/diagnostic'
+} from '@alvin0/ai-agent-sdk-observability-node/diagnostic'
 import type { HumanCliConfig } from './config.ts'
 
 const PROJECT_ROOT = resolve(process.cwd())

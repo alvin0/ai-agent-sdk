@@ -40,10 +40,10 @@ Notable direct runtime dependencies:
 
 | Dependency | Owner package |
 | --- | --- |
-| `eventsource-parser@4.1.0` | `@ai-agent-sdk/provider-http` (sole direct owner) |
-| `@modelcontextprotocol/*` | `@ai-agent-sdk/mcp`, `mcp-server`, `mcp-node`, `mcp-node-server` |
-| `@a2a-js/sdk` | `@ai-agent-sdk/a2a` |
-| `@opentelemetry/api`, `@opentelemetry/api-logs` | `@ai-agent-sdk/observability-otel` (peer) |
+| `eventsource-parser@4.1.0` | `@alvin0/ai-agent-sdk-provider-http` (sole direct owner) |
+| `@modelcontextprotocol/*` | `@alvin0/ai-agent-sdk-mcp`, `mcp-server`, `mcp-node`, `mcp-node-server` |
+| `@a2a-js/sdk` | `@alvin0/ai-agent-sdk-a2a` |
+| `@opentelemetry/api`, `@opentelemetry/api-logs` | `@alvin0/ai-agent-sdk-observability-otel` (peer) |
 
 See [the dependency policy](/en/14-project/dependency-policy) for the reviewed
 exceptions and their expiry dates.

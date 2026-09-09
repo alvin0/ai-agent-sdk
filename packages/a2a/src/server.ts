@@ -14,15 +14,15 @@ import {
   type RequestContext,
   type TaskStore,
 } from '@a2a-js/sdk/server'
-import type { SdkLogger, SupportSafeError } from '@ai-agent-sdk/core'
-import { createUserMessage } from '@ai-agent-sdk/core'
-import type { ModelRegistry } from '@ai-agent-sdk/core'
-import { waitForSettlement } from '@ai-agent-sdk/core'
+import type { SdkLogger, SupportSafeError } from '@alvin0/ai-agent-sdk-core'
+import { createUserMessage } from '@alvin0/ai-agent-sdk-core'
+import type { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 import {
   AgentSession,
   type DefinedAgent,
   type AgentSessionOptions,
-} from '@ai-agent-sdk/core/agent'
+} from '@alvin0/ai-agent-sdk-core/agent'
 import { cleanupFailure } from './common/cleanup-report.ts'
 import { a2aErrorCode, a2aIntegrationChildLogger,
   beginA2AIntegrationOperation } from './common/integration-operation.ts'

@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { defineCredentialSource, defineCredentialStore } from '@ai-agent-sdk/core/provider'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
-import { anthropicPlugin } from '@ai-agent-sdk/provider-anthropic'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { defineCredentialSource, defineCredentialStore } from '@alvin0/ai-agent-sdk-core/provider'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
+import { anthropicPlugin } from '@alvin0/ai-agent-sdk-provider-anthropic'
 import {
   codexPlugin,
   memoryCodexCredentialStore,
   type CodexAuthFile,
-} from '@ai-agent-sdk/provider-codex'
+} from '@alvin0/ai-agent-sdk-provider-codex'
 
 const encoder = new TextEncoder()
 

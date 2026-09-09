@@ -9,9 +9,9 @@ dạng định nghĩa tái dùng.
 provider, observability, và vòng đời.
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { envCredential } from '@ai-agent-sdk/auth-node'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const runtime = await createAgentRuntime({
   providers: [openAiPlugin({ apiKey: envCredential('OPENAI_API_KEY') })],
@@ -24,7 +24,7 @@ Tool là giá trị có kiểu thông thường. Không có registry thứ hai t
 phải giữ đồng bộ.
 
 ```ts
-import { defineTool } from '@ai-agent-sdk/core'
+import { defineTool } from '@alvin0/ai-agent-sdk-core'
 
 const multiply = defineTool({
   name: 'multiply',
@@ -90,7 +90,7 @@ và trả về bằng chứng có cấu trúc. Đây không phải thủ tục h
 session cho từng hội thoại. Dùng cách này khi cùng một agent phục vụ nhiều yêu cầu.
 
 ```ts
-import { defineAgent } from '@ai-agent-sdk/core'
+import { defineAgent } from '@alvin0/ai-agent-sdk-core'
 
 export const calculator = defineAgent({
   id: 'calculator',
@@ -116,9 +116,9 @@ Bỏ trống `provider`, `model`, và `effort` trong một định nghĩa sẽ c
 ## Tệp hoàn chỉnh chạy được
 
 ```ts
-import { createAgentRuntime, defineTool } from '@ai-agent-sdk/core'
-import { envCredential } from '@ai-agent-sdk/auth-node'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime, defineTool } from '@alvin0/ai-agent-sdk-core'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const multiply = defineTool({
   name: 'multiply',

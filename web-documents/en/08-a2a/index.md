@@ -4,8 +4,8 @@ The SDK combines **two layers behind one agent roster**:
 
 | Layer | What it is | Package |
 | --- | --- | --- |
-| `AgentTeam` | Collaboration between long-lived **in-process** sessions | `@ai-agent-sdk/core/agent` |
-| A2A Protocol v1.0 | Agent Card discovery and **remote** JSON-RPC / HTTP+JSON calls | `@ai-agent-sdk/a2a` |
+| `AgentTeam` | Collaboration between long-lived **in-process** sessions | `@alvin0/ai-agent-sdk-core/agent` |
+| A2A Protocol v1.0 | Agent Card discovery and **remote** JSON-RPC / HTTP+JSON calls | `@alvin0/ai-agent-sdk-a2a` |
 
 The distinction matters. Protocol interoperability alone does not implement a
 local scheduler, and an in-process mailbox cannot reach an agent in another
@@ -17,7 +17,7 @@ A2A support is the official
 [`@a2a-js/sdk`](https://github.com/a2aproject/a2a-js) implementation — the SDK
 bridges to it rather than reimplementing the protocol.
 
-> **Runtime tier: Node.** `@ai-agent-sdk/a2a` is currently **Node-elevated**
+> **Runtime tier: Node.** `@alvin0/ai-agent-sdk-a2a` is currently **Node-elevated**
 > because the upstream binary codec calls `Buffer.from` for raw binary `Part`
 > serialization. Text, structured data, URLs, and binary values work in Node.
 > Text paths happen to work in strict Workers, but the package must not be
@@ -25,7 +25,7 @@ bridges to it rather than reimplementing the protocol.
 > passes without Node globals. See [Experimental](/en/12-experimental/).
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/a2a
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-a2a
 ```
 
 ## One roster, two kinds of member
@@ -73,8 +73,8 @@ concept cannot silently change the declared topology.
 
 | Direction | Entry point |
 | --- | --- |
-| **Consume** — link a remote agent into your roster | `@ai-agent-sdk/a2a/client` → `linkA2AAgent()` |
-| **Publish** — expose your `DefinedAgent` as an A2A server | `@ai-agent-sdk/a2a/server` → `createDefinedAgentA2AServer()` |
+| **Consume** — link a remote agent into your roster | `@alvin0/ai-agent-sdk-a2a/client` → `linkA2AAgent()` |
+| **Publish** — expose your `DefinedAgent` as an A2A server | `@alvin0/ai-agent-sdk-a2a/server` → `createDefinedAgentA2AServer()` |
 
 ## What stays with the host
 

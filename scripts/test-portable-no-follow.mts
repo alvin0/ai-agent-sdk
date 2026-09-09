@@ -43,12 +43,12 @@ try {
     ...tarballs,
   ], consumer)
   for (const packageName of [
-    '@ai-agent-sdk/core',
-    '@ai-agent-sdk/provider-http',
-    '@ai-agent-sdk/protocol-responses',
-    '@ai-agent-sdk/provider-codex',
-    '@ai-agent-sdk/mcp',
-    '@ai-agent-sdk/observability-fetch',
+    '@alvin0/ai-agent-sdk-core',
+    '@alvin0/ai-agent-sdk-provider-http',
+    '@alvin0/ai-agent-sdk-protocol-responses',
+    '@alvin0/ai-agent-sdk-provider-codex',
+    '@alvin0/ai-agent-sdk-mcp',
+    '@alvin0/ai-agent-sdk-observability-fetch',
   ]) assertSingleInstalledPackage(consumer, packageName)
 
   server = createFixtureServer(consumer)

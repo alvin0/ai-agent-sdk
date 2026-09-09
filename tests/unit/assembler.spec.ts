@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { BlockAssembler } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
-import { ToolCallId } from '@ai-agent-sdk/core'
+import { BlockAssembler } from '@alvin0/ai-agent-sdk-core'
+import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
+import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
 
 const source = { kind: 'model', provider: 'p', model: 'm' } as const
 

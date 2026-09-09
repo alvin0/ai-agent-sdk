@@ -1,11 +1,11 @@
 import { Message, Role, TaskState } from '@a2a-js/sdk'
 import { ServerCallContext } from '@a2a-js/sdk/server'
-import { defineAgent } from '@ai-agent-sdk/core/agent'
-import { ModelAdapter, ModelRegistry, ReasoningEffortId } from '@ai-agent-sdk/core'
+import { defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter, ModelRegistry, ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
 import {
   createAgentCardFromDefinition,
   createDefinedAgentA2AServer,
-} from '@ai-agent-sdk/a2a/server'
+} from '@alvin0/ai-agent-sdk-a2a/server'
 
 class FixtureAdapter extends ModelAdapter {
   requests = []

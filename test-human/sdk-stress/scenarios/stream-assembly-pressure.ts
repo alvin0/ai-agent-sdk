@@ -1,4 +1,4 @@
-import { BlockAssembler, ToolCallId, type StreamChunk } from '@ai-agent-sdk/core'
+import { BlockAssembler, ToolCallId, type StreamChunk } from '@alvin0/ai-agent-sdk-core'
 import type { SdkStressContext, SdkStressScenarioResult } from '../types.ts'
 import { StressChecks } from './shared.ts'
 

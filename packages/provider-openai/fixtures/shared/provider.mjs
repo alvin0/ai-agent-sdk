@@ -1,4 +1,4 @@
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 export const providerId = 'openai'
 export const expectedCredential = 'packed-openai-secret'

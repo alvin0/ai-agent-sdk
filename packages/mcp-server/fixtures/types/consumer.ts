@@ -1,5 +1,5 @@
-import { ToolRegistry, defineTool } from '@ai-agent-sdk/core/tools'
-import { createMcpServer, type McpWebServer } from '@ai-agent-sdk/mcp-server'
+import { ToolRegistry, defineTool } from '@alvin0/ai-agent-sdk-core/tools'
+import { createMcpServer, type McpWebServer } from '@alvin0/ai-agent-sdk-mcp-server'
 
 const tools = new ToolRegistry()
 tools.register(defineTool({

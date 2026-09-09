@@ -79,7 +79,7 @@ jobs:
           tag="${GITHUB_REF_NAME#v}"
           version="$(node -p "require('./packages/core/package.json').version")"
           test "$tag" = "$version" || {
-            echo "tag $GITHUB_REF_NAME does not match @ai-agent-sdk/core version $version" >&2
+            echo "tag $GITHUB_REF_NAME does not match @alvin0/ai-agent-sdk-core version $version" >&2
             exit 1
           }
 

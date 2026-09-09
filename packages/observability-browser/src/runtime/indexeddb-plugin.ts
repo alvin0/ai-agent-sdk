@@ -3,7 +3,7 @@ import {
   type ObservationDeliveryBatch,
   type ObservationExportItem,
   type ObservationExporterPlugin,
-} from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core/observability'
 import {
   IndexedDbObservationExporter,
   type IndexedDbObservationExporterOptions,

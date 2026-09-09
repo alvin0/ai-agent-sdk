@@ -15,7 +15,7 @@
  */
 
 import { asc, desc, eq } from 'drizzle-orm'
-import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
+import type { AgentRunEvent } from '@alvin0/ai-agent-sdk-core/agent'
 import { database, schema } from './db/client'
 import { fingerprintOf } from './provider-calls'
 import type { CallFingerprint } from './provider-calls'

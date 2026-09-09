@@ -1,18 +1,18 @@
-# @ai-agent-sdk/mcp-node
+# @alvin0/ai-agent-sdk-mcp-node
 
 Runtime: **Node 22.12+**.
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/mcp @ai-agent-sdk/mcp-node
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-mcp @alvin0/ai-agent-sdk-mcp-node
 ```
 
 Node-only MCP stdio client transport. Universal remote HTTP clients remain in
-`@ai-agent-sdk/mcp`; server hosting is selected separately through
-`@ai-agent-sdk/mcp-server` or `@ai-agent-sdk/mcp-node-server`.
+`@alvin0/ai-agent-sdk-mcp`; server hosting is selected separately through
+`@alvin0/ai-agent-sdk-mcp-server` or `@alvin0/ai-agent-sdk-mcp-node-server`.
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { connectMcpStdio } from '@ai-agent-sdk/mcp-node'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { connectMcpStdio } from '@alvin0/ai-agent-sdk-mcp-node'
 
 const runtime = await createAgentRuntime({ providers: [modelProvider] })
 let connection: Awaited<ReturnType<typeof connectMcpStdio>> | undefined

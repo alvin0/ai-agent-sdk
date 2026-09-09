@@ -1,4 +1,4 @@
-import type { IntegrationOperationEvidenceFields, SdkLogger } from '@ai-agent-sdk/core/observability'
+import type { IntegrationOperationEvidenceFields, SdkLogger } from '@alvin0/ai-agent-sdk-core/observability'
 
 export const A2A_INTEGRATION_OPERATIONS = Object.freeze({
   'a2a-client-link': Object.freeze(['agent-card-resolve', 'link', 'send', 'stream', 'unlink']),

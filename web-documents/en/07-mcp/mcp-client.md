@@ -5,20 +5,20 @@ again, so a web/workflow user never inherits CLI dependencies.
 
 | Package | Runtime | Role |
 | --- | --- | --- |
-| `@ai-agent-sdk/mcp` | Universal | HTTP client + `ToolSource` |
-| `@ai-agent-sdk/mcp-server` | Universal | Inert `Request`/`Response` server |
-| `@ai-agent-sdk/mcp-node` | Node | stdio client transport |
-| `@ai-agent-sdk/mcp-node-server` | Node | stdio / `node:http` server hosting |
+| `@alvin0/ai-agent-sdk-mcp` | Universal | HTTP client + `ToolSource` |
+| `@alvin0/ai-agent-sdk-mcp-server` | Universal | Inert `Request`/`Response` server |
+| `@alvin0/ai-agent-sdk-mcp-node` | Node | stdio client transport |
+| `@alvin0/ai-agent-sdk-mcp-node-server` | Node | stdio / `node:http` server hosting |
 
 ---
 
-## `@ai-agent-sdk/mcp`
+## `@alvin0/ai-agent-sdk-mcp`
 
 Runtime: **Universal**. Entrypoints: `.`, `./client`, `./server`.
 Composition: `runtime-agent.toolSources`. Lifecycle: `connected-caller-owned`.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/mcp
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-mcp
 ```
 
 ```ts
@@ -65,7 +65,7 @@ connection.closeWithReport()     // McpCloseReport
 
 ---
 
-## `@ai-agent-sdk/mcp-server`
+## `@alvin0/ai-agent-sdk-mcp-server`
 
 Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, Node).
 Composition: `host.mcp-server`. Lifecycle: `inert-host-mounted`.
@@ -79,18 +79,18 @@ export * from './server/advanced.ts'   // createSdkMcpServer, SdkMcpServerOption
 application owns authentication and mounting; **each request owns its protocol
 resources**, so the returned server has no fabricated application cleanup handle.
 
-The `@ai-agent-sdk/mcp/server` route exposes `createSdkMcpHandler()` for the same
+The `@alvin0/ai-agent-sdk-mcp/server` route exposes `createSdkMcpHandler()` for the same
 purpose from the MCP package.
 
 ---
 
-## `@ai-agent-sdk/mcp-node`
+## `@alvin0/ai-agent-sdk-mcp-node`
 
 Runtime: **Node 22.12+**. Composition: `runtime-agent.toolSources`.
 Lifecycle: `connected-caller-owned`.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/mcp @ai-agent-sdk/mcp-node
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-mcp @alvin0/ai-agent-sdk-mcp-node
 ```
 
 ```ts
@@ -113,7 +113,7 @@ Stdio parameters come from the MCP SDK: `command`, `args`, `env`, `stderr`,
 
 ---
 
-## `@ai-agent-sdk/mcp-node-server`
+## `@alvin0/ai-agent-sdk-mcp-node-server`
 
 Runtime: **Node 22.12+**. Composition: `host.mcp-server`.
 Lifecycle: `host-owned` — call `handle.close({ signal })` and retain the

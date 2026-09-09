@@ -4,7 +4,7 @@ Runtime: **Node 22.12+**. Entrypoints: `.`, `./client`, `./server`.
 Composition: `runtime-team.linkAgent`. Lifecycle: `borrowed-caller-owned`.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/a2a
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-a2a
 ```
 
 Node-elevated bridge between AI Agent SDK agents/teams and the official
@@ -29,7 +29,7 @@ export function linkA2AAgent(team, options): Promise<{ link: A2AAgentLink; unlin
 ```
 
 ```ts
-import { linkA2AAgent } from '@ai-agent-sdk/a2a/client'
+import { linkA2AAgent } from '@alvin0/ai-agent-sdk-a2a/client'
 
 const { link, unlink } = await linkA2AAgent(team, {
   name: 'security',

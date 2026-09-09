@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createManagedAgentTeam, defineAgent } from '@ai-agent-sdk/core/agent'
-import type { ManagedAgentTeam } from '@ai-agent-sdk/core/agent'
-import { ModelAdapter, ModelRegistry, ReasoningEffortId } from '@ai-agent-sdk/core'
-import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@ai-agent-sdk/core'
+import { createManagedAgentTeam, defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import type { ManagedAgentTeam } from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter, ModelRegistry, ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 /**
  * Ordering, ownership, and roles.

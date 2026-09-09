@@ -8,7 +8,7 @@ import {
   type ObservationEvent,
   type ObservationPort,
   type StreamChunk,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import {
   CODEX_BASE_URL,
   codexAdapter,
@@ -19,12 +19,12 @@ import {
   requestDeviceCode,
   type CodexAuthFile,
   type CodexAuthStore,
-} from '@ai-agent-sdk/provider-codex'
+} from '@alvin0/ai-agent-sdk-provider-codex'
 import {
   defineCredentialStore,
   type SdkLogger,
-} from '@ai-agent-sdk/core/provider'
-import { runProviderConformanceSuite } from '@ai-agent-sdk/testkit'
+} from '@alvin0/ai-agent-sdk-core/provider'
+import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
 import { officialProviderConformanceFixture } from './fixtures/official-provider-conformance.ts'
 
 const NULL_LOGGER: SdkLogger = Object.freeze({

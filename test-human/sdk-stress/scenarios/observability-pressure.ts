@@ -1,4 +1,4 @@
-import { MemoryObservationExporter, TestObservationExporter, createObservability } from '@ai-agent-sdk/core/observability'
+import { MemoryObservationExporter, TestObservationExporter, createObservability } from '@alvin0/ai-agent-sdk-core/observability'
 import type { SdkStressContext, SdkStressScenarioResult } from '../types.ts'
 import { StressChecks } from './shared.ts'
 

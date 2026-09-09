@@ -8,14 +8,14 @@
  * request.
  */
 
-import { ModelRegistry } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
 import { MOCK_MODELS, MOCK_PROVIDER, mockAdapter, mockEnabled } from './mock-provider'
-import type { CallConfig, ModelInfo, ResolvedModelInfo, StreamMiddleware } from '@ai-agent-sdk/core'
-import { codexNodeAdapter } from '@ai-agent-sdk/auth-node/codex'
+import type { CallConfig, ModelInfo, ResolvedModelInfo, StreamMiddleware } from '@alvin0/ai-agent-sdk-core'
+import { codexNodeAdapter } from '@alvin0/ai-agent-sdk-auth-node/codex'
 import { CODEX_CATALOG_POLICY } from './model-policy'
-import { geminiAdapter } from '@ai-agent-sdk/provider-gemini'
-import { openAiAdapter } from '@ai-agent-sdk/provider-openai'
-import { anthropicAdapter } from '@ai-agent-sdk/provider-anthropic'
+import { geminiAdapter } from '@alvin0/ai-agent-sdk-provider-gemini'
+import { openAiAdapter } from '@alvin0/ai-agent-sdk-provider-openai'
+import { anthropicAdapter } from '@alvin0/ai-agent-sdk-provider-anthropic'
 import { codexSignedIn } from './auth'
 import { apiKeyFor, baseUrlFor, credentialViews } from './credentials'
 

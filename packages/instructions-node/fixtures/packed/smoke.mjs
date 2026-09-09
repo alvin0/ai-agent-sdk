@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { createProjectInstructionsSection } from '@ai-agent-sdk/instructions-node'
+import { createProjectInstructionsSection } from '@alvin0/ai-agent-sdk-instructions-node'
 
 const nested = resolve('packages/api')
 await mkdir(resolve('.git'), { recursive: true })

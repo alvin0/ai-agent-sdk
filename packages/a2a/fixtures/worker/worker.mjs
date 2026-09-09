@@ -1,5 +1,5 @@
 import { Message, Role } from '@a2a-js/sdk'
-import { A2AAgentLink } from '@ai-agent-sdk/a2a/client'
+import { A2AAgentLink } from '@alvin0/ai-agent-sdk-a2a/client'
 
 export default {
   fetch(request) {

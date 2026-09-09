@@ -1,9 +1,9 @@
-# @ai-agent-sdk/observability-node
+# @alvin0/ai-agent-sdk-observability-node
 
 Runtime: **Node 22.12+**.
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/observability-node
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-observability-node
 ```
 
 Node-only durable observation journal and explicit lifecycle/diagnostic helpers.
@@ -20,11 +20,11 @@ factory. Filesystem resources are acquired only when `createAgentRuntime()`
 calls its `ready()` lifecycle boundary:
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
 import {
   jsonlObservationExporter,
   recoverRuntimeObservationJournal,
-} from '@ai-agent-sdk/observability-node'
+} from '@alvin0/ai-agent-sdk-observability-node'
 
 const runtime = await createAgentRuntime({
   providers: [provider],
@@ -58,8 +58,8 @@ Composition: `runtime.observability.exporters`. Lifecycle:
 `explicit-owned-or-borrowed`; normal JSONL composition selects owned local
 durability, while advanced hosts may retain a borrowed exporter explicitly.
 
-Use `@ai-agent-sdk/observability-node/journal` when only durable journal and
-lifecycle APIs are needed, or `@ai-agent-sdk/observability-node/diagnostic` for
+Use `@alvin0/ai-agent-sdk-observability-node/journal` when only durable journal and
+lifecycle APIs are needed, or `@alvin0/ai-agent-sdk-observability-node/diagnostic` for
 the separately gated exact-wire capability. That diagnostic route exports
 `createDailyJsonlRequestLogger()` and `combineProviderRequestLoggers()` for
 provider request-logger slots. The root entry re-exports both.

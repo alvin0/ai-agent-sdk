@@ -6,7 +6,7 @@ khi `execute` chạy, và một lời từ chối trở thành kết quả mà m
 ## Chặn một lời gọi
 
 ```ts
-import { createApprovalBroker } from '@ai-agent-sdk/core'
+import { createApprovalBroker } from '@alvin0/ai-agent-sdk-core'
 
 const approvals = createApprovalBroker()
 const session = agent.createSession({ approvals })
@@ -42,7 +42,7 @@ const result = await session.run('Xoá các nhánh đã cũ.')
 ## Lượt chạy không giám sát
 
 ```ts
-import { fixedApprovalBroker } from '@ai-agent-sdk/core'
+import { fixedApprovalBroker } from '@alvin0/ai-agent-sdk-core'
 
 // Test, benchmark, nghiệm thu CI:
 const approvals = fixedApprovalBroker('allow')

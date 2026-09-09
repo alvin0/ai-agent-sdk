@@ -1,16 +1,16 @@
 import {
   ModelAdapter, defineCredentialSource, defineModelProviderPlugin,
   type CredentialOperationOptions, type SdkLogger as ProviderLogger,
-} from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/provider'
 import {
   defineToolSource, type SdkLogger as ToolLogger, type ToolSourceSnapshotOptions,
-} from '@ai-agent-sdk/core/tools'
+} from '@alvin0/ai-agent-sdk-core/tools'
 import {
   defineSkillProviderPlugin, type RuntimeSkillLookupOptions, type SdkLogger as SkillLogger,
-} from '@ai-agent-sdk/core/skills'
+} from '@alvin0/ai-agent-sdk-core/skills'
 import {
   defineMemoryStore, type MemoryStoreOptions, type SdkLogger as MemoryLogger,
-} from '@ai-agent-sdk/core/memory'
+} from '@alvin0/ai-agent-sdk-core/memory'
 
 declare const adapter: ModelAdapter
 const useLogger = (_logger: ProviderLogger | ToolLogger | SkillLogger | MemoryLogger): void => undefined

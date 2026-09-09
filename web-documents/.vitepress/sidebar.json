@@ -359,7 +359,7 @@
           "link": "/en/13-api-reference/types"
         },
         {
-          "text": "@ai-agent-sdk/core",
+          "text": "@alvin0/ai-agent-sdk-core",
           "link": "/en/13-api-reference/core"
         },
         {
@@ -759,7 +759,7 @@
           "link": "/vi/13-api-reference/types"
         },
         {
-          "text": "@ai-agent-sdk/core",
+          "text": "@alvin0/ai-agent-sdk-core",
           "link": "/vi/13-api-reference/core"
         },
         {

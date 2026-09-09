@@ -6,9 +6,9 @@ actions, and a durable observation journal.
 ## Install
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/auth-node @ai-agent-sdk/provider-codex \
-  @ai-agent-sdk/mcp @ai-agent-sdk/mcp-node @ai-agent-sdk/observability-node \
-  @ai-agent-sdk/skill-filesystem
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-auth-node @alvin0/ai-agent-sdk-provider-codex \
+  @alvin0/ai-agent-sdk-mcp @alvin0/ai-agent-sdk-mcp-node @alvin0/ai-agent-sdk-observability-node \
+  @alvin0/ai-agent-sdk-skill-filesystem
 ```
 
 ```bash
@@ -19,14 +19,14 @@ pnpm exec ai-agent-sdk-codex-login
 
 ```ts
 import { createInterface } from 'node:readline/promises'
-import { createAgentRuntime, createApprovalBroker, defineTool } from '@ai-agent-sdk/core'
-import { codexNodeProviderPlugin } from '@ai-agent-sdk/auth-node/codex'
-import { connectMcpStdio } from '@ai-agent-sdk/mcp-node'
+import { createAgentRuntime, createApprovalBroker, defineTool } from '@alvin0/ai-agent-sdk-core'
+import { codexNodeProviderPlugin } from '@alvin0/ai-agent-sdk-auth-node/codex'
+import { connectMcpStdio } from '@alvin0/ai-agent-sdk-mcp-node'
 import {
   jsonlObservationExporter,
   recoverRuntimeObservationJournal,
-} from '@ai-agent-sdk/observability-node'
-import { fileSystemSkillProviderPlugin } from '@ai-agent-sdk/skill-filesystem'
+} from '@alvin0/ai-agent-sdk-observability-node'
+import { fileSystemSkillProviderPlugin } from '@alvin0/ai-agent-sdk-skill-filesystem'
 
 const runShellCommand = defineTool({
   name: 'run_command',

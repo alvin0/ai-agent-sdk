@@ -1,17 +1,17 @@
-# @ai-agent-sdk/mcp
+# @alvin0/ai-agent-sdk-mcp
 
 Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/mcp
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-mcp
 ```
 
 Universal MCP client for Fetch-shaped HTTP runtimes. It connects remote MCP
 servers to the SDK as a versioned `ToolSource`.
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { connectMcpHttp } from '@ai-agent-sdk/mcp'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { connectMcpHttp } from '@alvin0/ai-agent-sdk-mcp'
 
 const runtime = await createAgentRuntime({ providers: [modelProvider] })
 let connection: Awaited<ReturnType<typeof connectMcpHttp>> | undefined
@@ -33,7 +33,7 @@ try {
 ```
 
 The normal root and `/client` route contain no server, stdio, filesystem,
-`node:http`, or process lifecycle integration. Use `@ai-agent-sdk/mcp-node` for
+`node:http`, or process lifecycle integration. Use `@alvin0/ai-agent-sdk-mcp-node` for
 the Node stdio client, and a dedicated server package for hosting.
 
 HTTP endpoints are host-selected. HTTPS, public-network-only access, and no

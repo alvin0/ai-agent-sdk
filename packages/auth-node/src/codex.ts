@@ -4,7 +4,7 @@ import type {
   ComposableModelProviderPlugin,
   ModelProviderPlugin,
   ModelProviderRegistrar,
-} from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/provider'
 import {
   CODEX_BASE_URL,
   CODEX_CLIENT_VERSION,
@@ -15,7 +15,7 @@ import {
   type CodexAuthStore,
   type CodexCredentialStore,
   type CodexProviderOptions,
-} from '@ai-agent-sdk/provider-codex'
+} from '@alvin0/ai-agent-sdk-provider-codex'
 import { fileCodexAuthStore, fileCodexCredentialStore } from './codex-store.ts'
 
 export { CODEX_BASE_URL, CODEX_CLIENT_VERSION, CODEX_ORIGINATOR }
@@ -96,7 +96,7 @@ export {
   type CodexOAuthOptions,
   type CodexTokens,
   type RefreshFailureKind,
-} from '@ai-agent-sdk/provider-codex'
+} from '@alvin0/ai-agent-sdk-provider-codex'
 export {
   CODEX_AUTH_PATH_ENV,
   DEFAULT_CODEX_AUTH_PATH,

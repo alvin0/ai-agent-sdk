@@ -7,11 +7,11 @@
  * transcript, model, mode, workspace — lives in SQLite (`conversations.ts`).
  */
 
-import { ToolRegistry } from '@ai-agent-sdk/core/agent'
-import type { AgentRunEvent, History } from '@ai-agent-sdk/core/agent'
-import { createUserInputBroker, createUserMessage } from '@ai-agent-sdk/core'
-import type { InteractiveUserInputBroker, UserInputResponse } from '@ai-agent-sdk/core'
-import type { AgentInput, ContentBlock, ToolCallId } from '@ai-agent-sdk/core'
+import { ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
+import type { AgentRunEvent, History } from '@alvin0/ai-agent-sdk-core/agent'
+import { createUserInputBroker, createUserMessage } from '@alvin0/ai-agent-sdk-core'
+import type { InteractiveUserInputBroker, UserInputResponse } from '@alvin0/ai-agent-sdk-core'
+import type { AgentInput, ContentBlock, ToolCallId } from '@alvin0/ai-agent-sdk-core'
 import { AttachmentRejected, projectAttachments } from './attachments'
 import {
   appendMessage, ensureConversation, getConversation, loadHistory, nextSeq, saveHistory,
@@ -28,7 +28,7 @@ import { createSampleTools, onCommandOutput, TOOL_LABELS } from './tools'
 import { createApprovalPolicy } from './approvals'
 import { createIdleWatch } from './resilience'
 import type { ApprovalPolicy } from './approvals'
-import type { ManagedAgentTeam } from '@ai-agent-sdk/core/agent'
+import type { ManagedAgentTeam } from '@alvin0/ai-agent-sdk-core/agent'
 import { addToTally, recordUsage, turnShortfall, usageOf } from './usage'
 import type { UsageTally } from './usage'
 import { EventProjector } from './event-projection'

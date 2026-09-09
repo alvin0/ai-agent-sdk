@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineAgent } from '@ai-agent-sdk/core/agent'
-import { History } from '@ai-agent-sdk/core/agent'
-import { runToolCalls } from '@ai-agent-sdk/core/agent'
+import { defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import { History } from '@alvin0/ai-agent-sdk-core/agent'
+import { runToolCalls } from '@alvin0/ai-agent-sdk-core/agent'
 import {
   MAX_SKILL_RESOURCE_CHARS,
   SkillCatalog,
@@ -12,15 +12,15 @@ import {
   resolveSkillOptions,
   type SkillCandidate,
   type SkillProviderListOptions,
-} from '@ai-agent-sdk/core/agent'
-import { defineTool, executionModeOf } from '@ai-agent-sdk/core/agent'
-import { dispatchToolCall } from '@ai-agent-sdk/core/agent'
-import { ToolRegistry } from '@ai-agent-sdk/core/agent'
-import { ModelAdapter } from '@ai-agent-sdk/core'
-import type { GenerateOptions } from '@ai-agent-sdk/core'
-import { ReasoningEffortId, ToolCallId, createSpanId, createTraceId } from '@ai-agent-sdk/core'
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core/agent'
+import { defineTool, executionModeOf } from '@alvin0/ai-agent-sdk-core/agent'
+import { dispatchToolCall } from '@alvin0/ai-agent-sdk-core/agent'
+import { ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
+import { ReasoningEffortId, ToolCallId, createSpanId, createTraceId } from '@alvin0/ai-agent-sdk-core'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 function skill(overrides: Partial<Parameters<typeof defineSkill>[0]> = {}) {
   return defineSkill({

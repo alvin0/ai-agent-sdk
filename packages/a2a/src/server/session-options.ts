@@ -1,4 +1,4 @@
-import type { AgentSessionOptions } from '@ai-agent-sdk/core/agent'
+import type { AgentSessionOptions } from '@alvin0/ai-agent-sdk-core/agent'
 
 export function snapshotSessionOptions(
   options: Omit<AgentSessionOptions, 'conversationId' | 'registry'>,

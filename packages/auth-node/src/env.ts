@@ -1,8 +1,8 @@
-import { AgentSdkError, MISSING_CREDENTIAL_CODE } from '@ai-agent-sdk/core'
+import { AgentSdkError, MISSING_CREDENTIAL_CODE } from '@alvin0/ai-agent-sdk-core'
 import {
   defineCredentialSource,
   type CredentialSource,
-} from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/provider'
 
 /** Read a credential lazily while preserving the historical callable view. */
 export function envCredential(envVar: string): CredentialSource & (() => string) {

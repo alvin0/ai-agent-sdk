@@ -9,7 +9,7 @@ import {
   type ObservationEvent,
   type ObservationEventName,
   type ObservationSpanName,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 
 interface ProviderOperationInput {
   readonly name: Extract<ObservationEventName, 'sdk.credential.operation' | 'sdk.integration.request'>

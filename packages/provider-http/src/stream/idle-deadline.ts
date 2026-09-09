@@ -1,4 +1,4 @@
-import { MODEL_ERROR_CODES, ModelError, waitForSettlement } from '@ai-agent-sdk/core'
+import { MODEL_ERROR_CODES, ModelError, waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 
 /** One resettable deadline shared by every body read in one physical attempt. */
 export interface StreamIdleDeadline {

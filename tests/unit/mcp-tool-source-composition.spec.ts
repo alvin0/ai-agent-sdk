@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   ModelAdapter, createAgentRuntime,
   type GenerateOptions, type ModelProviderRegistrar, type StreamChunk,
-} from '@ai-agent-sdk/core'
-import type { ComposableModelProviderPlugin } from '@ai-agent-sdk/core/provider'
-import { ToolRegistry, defineTool } from '@ai-agent-sdk/core/tools'
-import { McpClientConnection } from '@ai-agent-sdk/mcp'
-import { createSdkMcpServer } from '@ai-agent-sdk/mcp-server'
+} from '@alvin0/ai-agent-sdk-core'
+import type { ComposableModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
+import { ToolRegistry, defineTool } from '@alvin0/ai-agent-sdk-core/tools'
+import { McpClientConnection } from '@alvin0/ai-agent-sdk-mcp'
+import { createSdkMcpServer } from '@alvin0/ai-agent-sdk-mcp-server'
 
 class CatalogAdapter extends ModelAdapter {
   readonly observedTools: string[][] = []

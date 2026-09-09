@@ -6,10 +6,10 @@
  * read-only view here rather than inside the loop.
  */
 
-import { SkillCatalog, createSkillTools, executionModeOf, renderSkillCatalog, resolveSkillOptions } from '@ai-agent-sdk/core/agent'
-import type { ToolCatalog, ToolDefinition, ToolExecutionMode } from '@ai-agent-sdk/core/agent'
-import type { ToolSchema } from '@ai-agent-sdk/core'
-import { fileSystemSkills } from '@ai-agent-sdk/skill-filesystem'
+import { SkillCatalog, createSkillTools, executionModeOf, renderSkillCatalog, resolveSkillOptions } from '@alvin0/ai-agent-sdk-core/agent'
+import type { ToolCatalog, ToolDefinition, ToolExecutionMode } from '@alvin0/ai-agent-sdk-core/agent'
+import type { ToolSchema } from '@alvin0/ai-agent-sdk-core'
+import { fileSystemSkills } from '@alvin0/ai-agent-sdk-skill-filesystem'
 import { listSkills, mcpTools } from './agents'
 
 /**

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createAgentRuntime } from '@ai-agent-sdk/core'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
 import {
   OPENAI_BASE_URL,
   openAiAdapter,
   openAiPlugin,
-} from '@ai-agent-sdk/provider-openai'
-import { runProviderConformanceSuite } from '@ai-agent-sdk/testkit'
+} from '@alvin0/ai-agent-sdk-provider-openai'
+import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
 import { officialProviderConformanceFixture } from './fixtures/official-provider-conformance.ts'
 
 const RESPONSES_TEXT = [

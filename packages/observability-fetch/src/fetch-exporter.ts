@@ -1,14 +1,14 @@
-import { waitForSettlement, type ObservationBoundary } from '@ai-agent-sdk/core'
+import { waitForSettlement, type ObservationBoundary } from '@alvin0/ai-agent-sdk-core'
 import type {
   ExportAck,
   ObservationBatch,
   ObservationExporter,
-} from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core/observability'
 import {
   defineObservationExporter,
   type ObservationDeliveryBatch,
   type ObservationExporterPlugin,
-} from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core/observability'
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000
 const DEFAULT_MAX_ATTEMPTS = 8

@@ -1,7 +1,7 @@
 # `Agent`
 
 Everything that creates, binds, or runs an agent. Import from
-`@ai-agent-sdk/core` (or `@ai-agent-sdk/core/agent` for the authoring route).
+`@alvin0/ai-agent-sdk-core` (or `@alvin0/ai-agent-sdk-core/agent` for the authoring route).
 
 ## Factories
 
@@ -253,7 +253,7 @@ was given, never a provider call id. See
 
 ## Low-level loop
 
-From `@ai-agent-sdk/core/agent`:
+From `@alvin0/ai-agent-sdk-core/agent`:
 
 ```ts
 runAgent(options): AsyncIterable<AgentRunEvent>     // you own history

@@ -1,4 +1,4 @@
-import type { StreamChunk, UsageCounters } from '@ai-agent-sdk/core'
+import type { StreamChunk, UsageCounters } from '@alvin0/ai-agent-sdk-core'
 
 /** Protocol output before untrusted usage crosses the transport validator. */
 export type ProviderProtocolChunk =

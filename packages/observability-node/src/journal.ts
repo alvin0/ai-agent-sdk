@@ -15,8 +15,8 @@ import {
   deepFreeze,
   type ObservationBoundary,
   type ObservationEvent,
-} from '@ai-agent-sdk/core'
-import type { ExportAck, ObservationBatch, ObservationExporter } from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core'
+import type { ExportAck, ObservationBatch, ObservationExporter } from '@alvin0/ai-agent-sdk-core/observability'
 import {
   JOURNAL_DEFAULTS,
   JOURNAL_FILES,

@@ -1,7 +1,7 @@
 # `Agent`
 
-Mọi thứ tạo, gắn, hoặc chạy một agent. Import từ `@ai-agent-sdk/core` (hoặc
-`@ai-agent-sdk/core/agent` cho tuyến dành cho tác giả).
+Mọi thứ tạo, gắn, hoặc chạy một agent. Import từ `@alvin0/ai-agent-sdk-core` (hoặc
+`@alvin0/ai-agent-sdk-core/agent` cho tuyến dành cho tác giả).
 
 ## Các factory
 
@@ -253,7 +253,7 @@ bao giờ dùng id lời gọi của nhà cung cấp. Xem
 
 ## Vòng lặp tầng thấp
 
-Từ `@ai-agent-sdk/core/agent`:
+Từ `@alvin0/ai-agent-sdk-core/agent`:
 
 ```ts
 runAgent(options): AsyncIterable<AgentRunEvent>     // bạn sở hữu lịch sử

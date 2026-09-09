@@ -1,4 +1,4 @@
-import type { Observability } from '@ai-agent-sdk/core/observability'
+import type { Observability } from '@alvin0/ai-agent-sdk-core/observability'
 
 export interface NodeLifecycleTarget {
   on(event: 'beforeExit' | 'SIGINT' | 'SIGTERM', listener: () => void): unknown

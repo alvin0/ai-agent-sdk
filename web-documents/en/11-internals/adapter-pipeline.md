@@ -89,7 +89,7 @@ Provider-local and exact-pinned:
 | Linear draining | No quadratic buffer rescanning. |
 | One required terminal finish | A truncated body produces `STREAM_CLOSED`, not a silently short message. |
 
-`@ai-agent-sdk/provider-http` is the sole direct owner of exact
+`@alvin0/ai-agent-sdk-provider-http` is the sole direct owner of exact
 `eventsource-parser@4.1.0`; see
 [the dependency policy](/en/14-project/dependency-policy).
 

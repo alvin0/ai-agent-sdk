@@ -67,7 +67,7 @@ Most endpoints need **no new package** — see
 run the conformance suite:
 
 ```ts
-import { runProviderConformanceSuite } from '@ai-agent-sdk/testkit'
+import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
 const report = await runProviderConformanceSuite(fixture)
 ```
 

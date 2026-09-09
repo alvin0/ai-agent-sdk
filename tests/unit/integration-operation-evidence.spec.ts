@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { IntegrationOperationEvidenceFields, SdkLogger } from '@ai-agent-sdk/core/observability'
+import type { IntegrationOperationEvidenceFields, SdkLogger } from '@alvin0/ai-agent-sdk-core/observability'
 import {
   MCP_INTEGRATION_OPERATIONS,
   beginIntegrationOperation,

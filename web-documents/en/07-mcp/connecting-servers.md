@@ -3,7 +3,7 @@
 ## Connect
 
 ```ts
-import { connectMcpHttp } from '@ai-agent-sdk/mcp/client'
+import { connectMcpHttp } from '@alvin0/ai-agent-sdk-mcp/client'
 
 const mcp = await connectMcpHttp({
   serverName: 'billing',
@@ -157,11 +157,11 @@ that pins the validated address, or enforce equivalent outbound network policy.
 ## Node stdio
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/mcp @ai-agent-sdk/mcp-node
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-mcp @alvin0/ai-agent-sdk-mcp-node
 ```
 
 ```ts
-import { connectMcpStdio, createMcpStdioClient } from '@ai-agent-sdk/mcp-node'
+import { connectMcpStdio, createMcpStdioClient } from '@alvin0/ai-agent-sdk-mcp-node'
 
 const local = await connectMcpStdio({
   serverName: 'filesystem',

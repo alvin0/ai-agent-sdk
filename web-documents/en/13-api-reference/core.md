@@ -1,4 +1,4 @@
-# `@ai-agent-sdk/core`
+# `@alvin0/ai-agent-sdk-core`
 
 Runtime: **Universal**. Published code uses ECMAScript, Fetch-compatible types,
 Web Streams, `AbortController`, performance timing, and Web Crypto. It does not
@@ -6,20 +6,20 @@ use Node built-ins, `process`, `Buffer`, local paths, filesystem access, child
 processes, or stdio.
 
 ```bash
-pnpm add @ai-agent-sdk/core
+pnpm add @alvin0/ai-agent-sdk-core
 ```
 
 ## Entrypoints
 
 | Specifier | Audience |
 | --- | --- |
-| `@ai-agent-sdk/core` | Applications — the curated root facade. |
-| `@ai-agent-sdk/core/agent` | Agent authoring and the low-level loop. |
-| `@ai-agent-sdk/core/provider` | Provider and credential authors. |
-| `@ai-agent-sdk/core/tools` | Tool-source authors. |
-| `@ai-agent-sdk/core/skills` | Skill-provider authors. |
-| `@ai-agent-sdk/core/memory` | Memory-store authors. |
-| `@ai-agent-sdk/core/observability` | Observation bus and exporter authors. |
+| `@alvin0/ai-agent-sdk-core` | Applications — the curated root facade. |
+| `@alvin0/ai-agent-sdk-core/agent` | Agent authoring and the low-level loop. |
+| `@alvin0/ai-agent-sdk-core/provider` | Provider and credential authors. |
+| `@alvin0/ai-agent-sdk-core/tools` | Tool-source authors. |
+| `@alvin0/ai-agent-sdk-core/skills` | Skill-provider authors. |
+| `@alvin0/ai-agent-sdk-core/memory` | Memory-store authors. |
+| `@alvin0/ai-agent-sdk-core/observability` | Observation bus and exporter authors. |
 
 The root is a curated **re-export-only** facade. Focused subpaths and the root
 are views over one internal canonical implementation owner — they never own
@@ -188,7 +188,7 @@ Types: `ContextSection`, `ContextSectionResolveInput`, `ContextSectionScope`,
 `ContextSectionState`, `ContextToolTouch`, `AgentInput`.
 
 A section is a pure recompute callback: the core SDK never touches a filesystem,
-a clock, or a network on its behalf. `@ai-agent-sdk/instructions-node` is the
+a clock, or a network on its behalf. `@alvin0/ai-agent-sdk-instructions-node` is the
 Node implementation for `AGENTS.md`-style files. See
 [Context Sections](/en/02-agents/context-sections).
 
@@ -222,7 +222,7 @@ import {
   runAgent, runTurn, defineAgent, defineSkill, defineSkillProvider,
   buildTraceTree,
   createManagedAgentTeam, createDefinedAgentTeam,
-} from '@ai-agent-sdk/core/agent'
+} from '@alvin0/ai-agent-sdk-core/agent'
 ```
 
 It re-exports the same runtime types as the root — `AgentRuntime`,

@@ -10,12 +10,12 @@
 
 | You want | Type / function | Entry point |
 | --- | --- | --- |
-| Ordered steps | `RuntimeAgentSession.run()` | `@ai-agent-sdk/core` |
-| Parallel tool calls | `ToolDefinition.isConcurrencySafe` | `@ai-agent-sdk/core` |
-| Parallel agents | `RuntimeAgentTeam`, `spawn_agent` | `@ai-agent-sdk/core` |
-| A conditional gate | `TurnHooks.beforeStep` → `StepDecision` | `@ai-agent-sdk/core/agent` |
-| A human gate | `ApprovalBroker`, `UserInputBroker` | `@ai-agent-sdk/core` |
-| A completion contract | `mode: 'deep'` | `@ai-agent-sdk/core` |
+| Ordered steps | `RuntimeAgentSession.run()` | `@alvin0/ai-agent-sdk-core` |
+| Parallel tool calls | `ToolDefinition.isConcurrencySafe` | `@alvin0/ai-agent-sdk-core` |
+| Parallel agents | `RuntimeAgentTeam`, `spawn_agent` | `@alvin0/ai-agent-sdk-core` |
+| A conditional gate | `TurnHooks.beforeStep` → `StepDecision` | `@alvin0/ai-agent-sdk-core/agent` |
+| A human gate | `ApprovalBroker`, `UserInputBroker` | `@alvin0/ai-agent-sdk-core` |
+| A completion contract | `mode: 'deep'` | `@alvin0/ai-agent-sdk-core` |
 
 ## Teams
 
@@ -47,7 +47,7 @@ Types: `RuntimeAgentTeam`, `RuntimeAgentTeamEvent`, `RuntimeAgentTeamOptions`,
 
 ### `AgentTeam` — the low-level primitive
 
-From `@ai-agent-sdk/core/agent`:
+From `@alvin0/ai-agent-sdk-core/agent`:
 
 ```ts
 class AgentTeam {

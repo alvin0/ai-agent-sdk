@@ -7,18 +7,18 @@ import {
   type GenerateOptions,
   type ModelInvocationContext,
   type StreamChunk,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import {
   defineModelProviderPlugin,
   type ComposableModelProviderPlugin,
-} from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/provider'
 import {
   runProviderConformanceSuite,
   type ProviderConformanceCase,
   type ProviderConformanceCaseInput,
   type ProviderConformanceControlSnapshot,
   type ProviderConformanceFixture,
-} from '@ai-agent-sdk/testkit'
+} from '@alvin0/ai-agent-sdk-testkit'
 
 interface State {
   setupCalls: number

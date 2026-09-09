@@ -5,19 +5,19 @@ luồng, và bản ghi phương ngữ**. Nó không sở hữu endpoint, thông 
 hiện thực fetch, truy cập hệ tệp, hay API của Node.
 
 Cả ba package đều **Universal**, phụ thuộc runtime duy nhất là
-`@ai-agent-sdk/core`, slot ghép nối là `provider-author.protocol`, và vòng đời là
+`@alvin0/ai-agent-sdk-core`, slot ghép nối là `provider-author.protocol`, và vòng đời là
 `inert-value` — chọn một cái trong `createRuntimeHttpProvider()` mà không có
 nghĩa vụ khởi động hay dọn dẹp nào.
 
 ---
 
-## `@ai-agent-sdk/protocol-responses`
+## `@alvin0/ai-agent-sdk-protocol-responses`
 
 Giao thức wire OpenAI Responses / Codex. `openai` và `codex` dùng chung một hiện
 thực này và chỉ khác nhau ở một bản ghi phương ngữ nhỏ.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/protocol-responses
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-protocol-responses
 ```
 
 ```ts
@@ -38,7 +38,7 @@ export type * from './wire.ts'   // toàn bộ kiểu của lược đồ wire
 ```
 
 ```ts
-import { openAiResponsesProtocol } from '@ai-agent-sdk/protocol-responses'
+import { openAiResponsesProtocol } from '@alvin0/ai-agent-sdk-protocol-responses'
 
 createRuntimeHttpProvider({ protocol: openAiResponsesProtocol, baseUrl, auth })
 ```
@@ -48,14 +48,14 @@ Hỗ trợ web search native và sinh ảnh, ảnh đầu vào dạng
 
 ---
 
-## `@ai-agent-sdk/protocol-gemini-interactions`
+## `@alvin0/ai-agent-sdk-protocol-gemini-interactions`
 
 Giao thức wire Google Gemini Interactions. Nó tuần tự hoá lịch sử Step stateless
 và dịch các sự kiện SSE `step.*` / `interaction.completed` hiện hành. Nó không
 hiện thực `generateContent` hay Chat Completions.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/protocol-gemini-interactions
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-protocol-gemini-interactions
 ```
 
 Giao thức giữ chữ ký thought qua các vòng function-call và ánh xạ JSON Schema
@@ -63,12 +63,12 @@ output sang `response_format` với `application/json`.
 
 ---
 
-## `@ai-agent-sdk/protocol-anthropic-messages`
+## `@alvin0/ai-agent-sdk-protocol-anthropic-messages`
 
 Giao thức wire Anthropic Messages.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/protocol-anthropic-messages
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-protocol-anthropic-messages
 ```
 
 ```ts

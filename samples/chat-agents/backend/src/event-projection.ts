@@ -6,7 +6,7 @@
  * merge into one another's text node.
  */
 
-import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
+import type { AgentRunEvent } from '@alvin0/ai-agent-sdk-core/agent'
 import type {
   ToolCard, WireApproval, WireApprovalScope, WireAttachment, WireEvent, WireQuestion,
 } from './wire'

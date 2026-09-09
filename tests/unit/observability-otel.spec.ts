@@ -25,12 +25,12 @@ import {
   type ObservationPhase,
   type ObservationResource,
   type SafeErrorRecord,
-} from '@ai-agent-sdk/core'
-import { createObservability } from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core'
+import { createObservability } from '@alvin0/ai-agent-sdk-core/observability'
 import {
   OTEL_SEMANTIC_CONVENTIONS_COMMIT,
   createOpenTelemetryBridge,
-} from '@ai-agent-sdk/observability-otel'
+} from '@alvin0/ai-agent-sdk-observability-otel'
 import { describe, expect, it, vi } from 'vitest'
 
 const RESOURCE: ObservationResource = {

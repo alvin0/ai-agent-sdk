@@ -1,5 +1,5 @@
-import { isTraceId, type ObservationEvent, type RunTerminalRecord } from '@ai-agent-sdk/core'
-import type { ObservationExportItem } from '@ai-agent-sdk/core/observability'
+import { isTraceId, type ObservationEvent, type RunTerminalRecord } from '@alvin0/ai-agent-sdk-core'
+import type { ObservationExportItem } from '@alvin0/ai-agent-sdk-core/observability'
 import { journalChecksum, validObservationEvent } from './frame.ts'
 
 export type RuntimeFrameKind = 'event' | 'run-terminal-record'

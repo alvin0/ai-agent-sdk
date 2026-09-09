@@ -4,7 +4,7 @@
 Redis, Durable Objects, a vector index, anything.
 
 ```ts
-import { defineMemoryStore, MEMORY_STORE_API_VERSION } from '@ai-agent-sdk/core/memory'
+import { defineMemoryStore, MEMORY_STORE_API_VERSION } from '@alvin0/ai-agent-sdk-core/memory'
 ```
 
 ## The contract

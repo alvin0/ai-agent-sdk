@@ -3,7 +3,7 @@
 ## A complete tool
 
 ```ts
-import { defineTool } from '@ai-agent-sdk/core'
+import { defineTool } from '@alvin0/ai-agent-sdk-core'
 import { z } from 'zod'
 
 const Args = z.object({ path: z.string().min(1) })

@@ -1,4 +1,4 @@
-# `@ai-agent-sdk/testkit`
+# `@alvin0/ai-agent-sdk-testkit`
 
 Runtime: **Universal** — development dependency only.
 
@@ -36,7 +36,7 @@ export type {
 ## Running the suite
 
 ```ts
-import { runProviderConformanceSuite } from '@ai-agent-sdk/testkit'
+import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
 
 const report = await runProviderConformanceSuite(fixture)
 ```

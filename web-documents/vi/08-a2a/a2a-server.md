@@ -2,10 +2,10 @@
 
 Phơi một `DefinedAgent` để các dịch vụ khác gọi được qua A2A Protocol v1.0.
 
-Runtime: **Node 22.12+**. Điểm vào: `@ai-agent-sdk/a2a/server`.
+Runtime: **Node 22.12+**. Điểm vào: `@alvin0/ai-agent-sdk-a2a/server`.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/a2a
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-a2a
 ```
 
 Cầu nối này dựng trên API server chính thức của

@@ -7,7 +7,7 @@ const savedProcess = globalThis.process
 try {
   globalThis.Buffer = undefined
   globalThis.process = undefined
-  const sdk = await import('@ai-agent-sdk/core')
+  const sdk = await import('@alvin0/ai-agent-sdk-core')
   assert.equal(typeof globalThis.Buffer, 'undefined')
   assert.equal(typeof globalThis.process, 'undefined')
   assert.match(sdk.createTraceId(), /^[0-9a-f]{32}$/)

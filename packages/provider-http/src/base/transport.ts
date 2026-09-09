@@ -6,7 +6,7 @@ import {
   type ModelInfo,
   type ResolvedModelInfo,
   type SafeErrorRecord,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import type { ProviderCatalogModel } from './http-adapter.ts'
 import { HTTP_PROVIDER_ERROR_CODES } from '../common/config.ts'
 import { isSensitiveHeaderName } from '../common/header-layers.ts'

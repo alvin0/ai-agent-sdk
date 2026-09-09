@@ -1,4 +1,4 @@
-import { codexPlugin, memoryCodexCredentialStore } from '@ai-agent-sdk/provider-codex'
+import { codexPlugin, memoryCodexCredentialStore } from '@alvin0/ai-agent-sdk-provider-codex'
 
 export const providerId = 'codex'
 export const expectedCredential = 'packed-codex-secret'

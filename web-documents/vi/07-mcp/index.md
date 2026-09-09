@@ -4,24 +4,24 @@ MCP (Model Context Protocol) là một **ranh giới tuỳ chọn**. SDK trung l
 import MCP, và ứng dụng chỉ cài những điểm vào nó dùng.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/mcp
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-mcp
 ```
 
 ## Hai chiều
 
 | Chiều | Bạn nhận được | Package |
 | --- | --- | --- |
-| **Tiêu thụ** — tool MCP từ xa thành tool của SDK | Một `ToolSource` có phiên bản | `@ai-agent-sdk/mcp` |
-| **Công bố** — tool và agent của SDK thành API MCP | Một handler theo chuẩn web | `@ai-agent-sdk/mcp` `/server`, `@ai-agent-sdk/mcp-server` |
+| **Tiêu thụ** — tool MCP từ xa thành tool của SDK | Một `ToolSource` có phiên bản | `@alvin0/ai-agent-sdk-mcp` |
+| **Công bố** — tool và agent của SDK thành API MCP | Một handler theo chuẩn web | `@alvin0/ai-agent-sdk-mcp` `/server`, `@alvin0/ai-agent-sdk-mcp-server` |
 
 ## Bốn package
 
 | Package | Runtime | Vai trò |
 | --- | --- | --- |
-| `@ai-agent-sdk/mcp` | Universal | Client HTTP + `ToolSource`; kèm `/server` |
-| `@ai-agent-sdk/mcp-server` | Universal | Host server `Request`/`Response` dạng trơ |
-| `@ai-agent-sdk/mcp-node` | Node | Tầng truyền tải client qua stdio |
-| `@ai-agent-sdk/mcp-node-server` | Node | Hosting server qua stdio / `node:http` |
+| `@alvin0/ai-agent-sdk-mcp` | Universal | Client HTTP + `ToolSource`; kèm `/server` |
+| `@alvin0/ai-agent-sdk-mcp-server` | Universal | Host server `Request`/`Response` dạng trơ |
+| `@alvin0/ai-agent-sdk-mcp-node` | Node | Tầng truyền tải client qua stdio |
+| `@alvin0/ai-agent-sdk-mcp-node-server` | Node | Hosting server qua stdio / `node:http` |
 
 Client và server tách riêng, rồi các tầng truyền tải Node lại tách riêng lần nữa,
 nên người dùng web hoặc quy trình **không bao giờ phải kế thừa phụ thuộc của
@@ -31,8 +31,8 @@ CLI**. Root thông thường và tuyến `/client` không chứa server, stdio, 
 ## Ví dụ ngắn nhất mà hữu dụng
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { connectMcpHttp } from '@ai-agent-sdk/mcp'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { connectMcpHttp } from '@alvin0/ai-agent-sdk-mcp'
 
 const runtime = await createAgentRuntime({ providers: [modelProvider] })
 let mcp: Awaited<ReturnType<typeof connectMcpHttp>> | undefined

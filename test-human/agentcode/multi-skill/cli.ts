@@ -6,14 +6,14 @@ import { dirname, join, resolve } from 'node:path'
 import { stdin, stdout } from 'node:process'
 import { createInterface, type Interface } from 'node:readline/promises'
 import { pathToFileURL } from 'node:url'
-import type { AgentSession } from '@ai-agent-sdk/core/agent'
+import type { AgentSession } from '@alvin0/ai-agent-sdk-core/agent'
 import { HumanArtifactRecorder } from '../../artifacts.ts'
 import {
   createUserInputBroker,
   type AgentRunEvent,
   type AgentRunOutcome,
   type InteractiveUserInputBroker,
-} from '@ai-agent-sdk/core/agent'
+} from '@alvin0/ai-agent-sdk-core/agent'
 import { errorMessage, label } from '../../console.ts'
 import { createHumanModelRegistry } from '../../providers.ts'
 import { prepareSkillStressFixtures, type PreparedSkillStressFixtures } from '../../skill-stress/prepare.ts'

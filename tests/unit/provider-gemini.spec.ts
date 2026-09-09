@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { envCredential } from '@ai-agent-sdk/auth-node'
-import { createAgentRuntime } from '@ai-agent-sdk/core'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
 import {
   GEMINI_BASE_URL,
   geminiAdapter,
   geminiPlugin,
-} from '@ai-agent-sdk/provider-gemini'
-import { runProviderConformanceSuite } from '@ai-agent-sdk/testkit'
+} from '@alvin0/ai-agent-sdk-provider-gemini'
+import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
 import { officialProviderConformanceFixture } from './fixtures/official-provider-conformance.ts'
 
 const GEMINI_TEXT = [

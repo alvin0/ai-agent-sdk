@@ -1,9 +1,9 @@
 /** Shared builders so serializer tests read as data, not as setup. */
 
-import type { GenerateOptions } from '@ai-agent-sdk/core'
-import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
-import { resolveRetryPolicy } from '@ai-agent-sdk/core'
-import type { ProviderRequest } from '@ai-agent-sdk/provider-http'
+import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
+import type { ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core'
+import { resolveRetryPolicy } from '@alvin0/ai-agent-sdk-core'
+import type { ProviderRequest } from '@alvin0/ai-agent-sdk-provider-http'
 
 /** Build a `ProviderRequest` around the parts a serializer actually reads. */
 export function providerRequest(

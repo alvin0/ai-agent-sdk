@@ -1,4 +1,4 @@
-import { waitForSettlement } from '@ai-agent-sdk/core'
+import { waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 
 /** Reject every redirect shape exposed by Web fetch before any second request. */
 export async function rejectCodexRedirect(

@@ -13,18 +13,18 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { BlockAssembler } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
-import { createTextMessage } from '@ai-agent-sdk/core'
-import { ReasoningEffortId } from '@ai-agent-sdk/core'
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { withRetry } from '@ai-agent-sdk/core'
-import { codexNodeAdapter as codexAdapter, fileCodexAuthStore } from '@ai-agent-sdk/auth-node/codex'
+import { BlockAssembler } from '@alvin0/ai-agent-sdk-core'
+import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
+import { createTextMessage } from '@alvin0/ai-agent-sdk-core'
+import { ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { withRetry } from '@alvin0/ai-agent-sdk-core'
+import { codexNodeAdapter as codexAdapter, fileCodexAuthStore } from '@alvin0/ai-agent-sdk-auth-node/codex'
 import {
   MemoryObservationExporter,
   createObservability,
   type Observability,
-} from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core/observability'
 
 /** A model this account can reach. Discovered via the adapter's own catalog. */
 const MODEL = 'gpt-5.6-luna'

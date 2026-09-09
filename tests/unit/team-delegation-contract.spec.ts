@@ -5,10 +5,10 @@ import {
   createManagedAgentTeam,
   DEFAULT_MIN_WAIT_TIMEOUT_MS,
   defineAgent,
-} from '@ai-agent-sdk/core/agent'
-import type { HistorySnapshot } from '@ai-agent-sdk/core/agent'
-import { ModelAdapter, ModelRegistry, ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
-import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core/agent'
+import type { HistorySnapshot } from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter, ModelRegistry, ReasoningEffortId, ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 const toolCall = (id: string, name: string, args: unknown): StreamChunk[] => [
   {

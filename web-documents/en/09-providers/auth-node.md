@@ -1,4 +1,4 @@
-# `@ai-agent-sdk/auth-node`
+# `@alvin0/ai-agent-sdk-auth-node`
 
 Runtime: **Node 22.12+**. Entrypoints: `.`, `./env`, `./codex`.
 Composition: `provider-factory.credentials`. Lifecycle: `borrowed-caller-owned` —
@@ -14,7 +14,7 @@ does not require or load a model provider.
 ## Root and `/env` — environment credentials
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai @ai-agent-sdk/auth-node
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai @alvin0/ai-agent-sdk-auth-node
 ```
 
 ```ts
@@ -23,9 +23,9 @@ export const apiKeyFromEnv = envCredential   // alias
 ```
 
 ```ts
-import { envCredential } from '@ai-agent-sdk/auth-node'
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const runtime = await createAgentRuntime({
   providers: [openAiPlugin({ apiKey: envCredential('OPENAI_API_KEY') })],
@@ -36,7 +36,7 @@ const runtime = await createAgentRuntime({
 and remains callable as a plain function for compatibility. It is borrowed by the
 provider and has no close lifecycle.
 
-`@ai-agent-sdk/auth-node/env` is a retained compatibility route: an
+`@alvin0/ai-agent-sdk-auth-node/env` is a retained compatibility route: an
 identity-preserving view of the env-only root that does **not** pull in the
 optional Codex closure.
 
@@ -45,7 +45,7 @@ optional Codex closure.
 ## `/codex` — project-local Codex auth
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-codex @ai-agent-sdk/auth-node
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-codex @alvin0/ai-agent-sdk-auth-node
 ```
 
 ```ts
@@ -66,8 +66,8 @@ export { CODEX_BASE_URL, CODEX_CLIENT_VERSION, CODEX_ORIGINATOR }
 ```
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { codexNodeProviderPlugin } from '@ai-agent-sdk/auth-node/codex'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { codexNodeProviderPlugin } from '@alvin0/ai-agent-sdk-auth-node/codex'
 
 const runtime = await createAgentRuntime({
   providers: [codexNodeProviderPlugin()],

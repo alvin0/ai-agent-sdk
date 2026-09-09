@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { ModelRegistry, createAgentRuntime } from '@ai-agent-sdk/core'
+import { ModelRegistry, createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
 import {
   ANTHROPIC_BASE_URL,
   anthropicAdapter,
   anthropicPlugin,
-} from '@ai-agent-sdk/provider-anthropic'
-import { runProviderConformanceSuite } from '@ai-agent-sdk/testkit'
+} from '@alvin0/ai-agent-sdk-provider-anthropic'
+import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
 import { officialProviderConformanceFixture } from './fixtures/official-provider-conformance.ts'
 
 const ANTHROPIC_TEXT = [

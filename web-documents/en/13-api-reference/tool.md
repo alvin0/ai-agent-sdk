@@ -1,7 +1,7 @@
 # `Tool`
 
-Import from `@ai-agent-sdk/core`; tool-source authoring lives on
-`@ai-agent-sdk/core/tools`.
+Import from `@alvin0/ai-agent-sdk-core`; tool-source authoring lives on
+`@alvin0/ai-agent-sdk-core/tools`.
 
 ## `defineTool`
 
@@ -59,7 +59,7 @@ source, so the JSON Schema the provider sees can never drift from the validator
 that guards `execute`.
 
 ```ts
-import { defineToolFromSchema } from '@ai-agent-sdk/core'
+import { defineToolFromSchema } from '@alvin0/ai-agent-sdk-core'
 import { z } from 'zod'
 
 const shape = z.object({ path: z.string() })
@@ -171,7 +171,7 @@ Types: `ApprovalBroker`, `ApprovalDecision`, `ApprovalRequest`,
 
 A rejected call becomes a `ToolFailure` with run-event `status: 'rejected'`.
 
-## Tool sources — `@ai-agent-sdk/core/tools`
+## Tool sources — `@alvin0/ai-agent-sdk-core/tools`
 
 ```ts
 export { defineToolSource, TOOL_SOURCE_API_VERSION }

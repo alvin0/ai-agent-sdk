@@ -2,15 +2,15 @@ import assert from 'node:assert/strict'
 import { access, mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createCoreSpan, createObservationRunScope, createOperationId } from '@ai-agent-sdk/core'
-import { createObservability } from '@ai-agent-sdk/core/observability'
+import { createCoreSpan, createObservationRunScope, createOperationId } from '@alvin0/ai-agent-sdk-core'
+import { createObservability } from '@alvin0/ai-agent-sdk-core/observability'
 import {
   JsonlObservationJournalExporter,
   jsonlObservationExporter,
-} from '@ai-agent-sdk/observability-node/journal'
+} from '@alvin0/ai-agent-sdk-observability-node/journal'
 import {
   createDiagnosticWireLogger,
-} from '@ai-agent-sdk/observability-node/diagnostic'
+} from '@alvin0/ai-agent-sdk-observability-node/diagnostic'
 
 const root = await mkdtemp(join(tmpdir(), 'ai-agent-sdk-node-packed-'))
 try {

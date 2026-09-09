@@ -23,20 +23,20 @@ afterEach(() => {
 describe('packed installed-tree contract', () => {
   it('accepts exactly one scoped package location', () => {
     const root = temporaryConsumer()
-    installDirectory(root, ['@ai-agent-sdk', 'core'])
-    expect(() => assertSingleInstalledPackage(root, '@ai-agent-sdk/core')).not.toThrow()
+    installDirectory(root, ['@alvin0', 'ai-agent-sdk-core'])
+    expect(() => assertSingleInstalledPackage(root, '@alvin0/ai-agent-sdk-core')).not.toThrow()
   })
 
   it('recursively rejects a nested normal copy', () => {
     const root = temporaryConsumer()
-    installDirectory(root, ['@ai-agent-sdk', 'core'])
-    installDirectory(root, ['@ai-agent-sdk', 'provider-http', 'node_modules', '@ai-agent-sdk', 'core'])
-    expect(() => assertSingleInstalledPackage(root, '@ai-agent-sdk/core'))
-      .toThrow(/expected one installed @ai-agent-sdk\/core location; found 2/u)
+    installDirectory(root, ['@alvin0', 'ai-agent-sdk-core'])
+    installDirectory(root, ['@alvin0', 'ai-agent-sdk-provider-http', 'node_modules', '@alvin0', 'ai-agent-sdk-core'])
+    expect(() => assertSingleInstalledPackage(root, '@alvin0/ai-agent-sdk-core'))
+      .toThrow(/expected one installed @alvin0\/ai-agent-sdk-core location; found 2/u)
   })
 
   it('rejects a missing peer installation', () => {
-    expect(() => assertSingleInstalledPackage(temporaryConsumer(), '@ai-agent-sdk/core'))
+    expect(() => assertSingleInstalledPackage(temporaryConsumer(), '@alvin0/ai-agent-sdk-core'))
       .toThrow(/found 0/u)
   })
 })

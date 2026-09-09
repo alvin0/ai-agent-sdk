@@ -65,7 +65,7 @@ for (const path of markdownFiles) {
   if (/\b(?:TBD|FIXME)\b|TODO\s*\(/.test(text)) {
     errors.push(`${relative(workspaceRoot, path)} contains an unresolved implementation marker`)
   }
-  for (const match of text.matchAll(/@ai-agent-sdk\/[a-z0-9-]+/g)) {
+  for (const match of text.matchAll(/@alvin0\/ai-agent-sdk-[a-z0-9-]+/g)) {
     if (!packageNames.has(match[0])) {
       errors.push(`${relative(workspaceRoot, path)} names unknown package ${match[0]}`)
     }

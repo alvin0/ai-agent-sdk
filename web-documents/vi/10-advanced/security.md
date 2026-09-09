@@ -37,7 +37,7 @@ nào nhìn thấy một sự kiện.
 log. Nó từ chối khởi tạo trừ khi đặt **cả hai** cờ:
 
 ```ts
-import { createDailyJsonlRequestLogger } from '@ai-agent-sdk/observability-node/diagnostic'
+import { createDailyJsonlRequestLogger } from '@alvin0/ai-agent-sdk-observability-node/diagnostic'
 
 registry.registerAdapter(['codex'], codexAdapter({
   requestLogger: createDailyJsonlRequestLogger({

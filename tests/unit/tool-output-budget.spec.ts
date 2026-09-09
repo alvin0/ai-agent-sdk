@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { History } from '@ai-agent-sdk/core/agent'
-import { runTurn, runAgent } from '@ai-agent-sdk/core/agent'
-import { createMemorySpillStore, defineTool, readSpillTool, ToolRegistry } from '@ai-agent-sdk/core/agent'
-import type { AgentEvent, SpillStore, ToolExecutionResult } from '@ai-agent-sdk/core/agent'
+import { History } from '@alvin0/ai-agent-sdk-core/agent'
+import { runTurn, runAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import { createMemorySpillStore, defineTool, readSpillTool, ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
+import type { AgentEvent, SpillStore, ToolExecutionResult } from '@alvin0/ai-agent-sdk-core/agent'
 import { resolveBounds } from '../../packages/core/src/agent/loop/turn/config.ts'
 import { resolveRuntimeLimits } from '../../packages/core/src/agent/define/session/config.ts'
-import { ModelAdapter, ModelRegistry, ToolCallId, createTextMessage } from '@ai-agent-sdk/core'
-import type { GenerateOptions, StreamChunk } from '@ai-agent-sdk/core'
+import { ModelAdapter, ModelRegistry, ToolCallId, createTextMessage } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions, StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 class ScriptedAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []

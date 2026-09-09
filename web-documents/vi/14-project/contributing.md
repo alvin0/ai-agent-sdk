@@ -66,7 +66,7 @@ Phần lớn endpoint **không cần package mới** — xem
 một cái, hãy chạy bộ conformance:
 
 ```ts
-import { runProviderConformanceSuite } from '@ai-agent-sdk/testkit'
+import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
 const report = await runProviderConformanceSuite(fixture)
 ```
 

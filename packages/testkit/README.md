@@ -1,4 +1,4 @@
-# @ai-agent-sdk/testkit
+# @alvin0/ai-agent-sdk-testkit
 
 Runtime: **Universal** (development dependency only)
 

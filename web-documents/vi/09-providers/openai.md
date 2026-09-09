@@ -8,17 +8,17 @@ Slot ghép nối: `runtime.providers`.
 Vòng đời: `inert-runtime-owned-registration`.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai
 ```
 
 Nhắm tới **OpenAI Responses API** thông qua
-[`@ai-agent-sdk/protocol-responses`](/vi/09-providers/protocols).
+[`@alvin0/ai-agent-sdk-protocol-responses`](/vi/09-providers/protocols).
 
 ## Ghép nối
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const runtime = await createAgentRuntime({
   providers: [openAiPlugin({ apiKey: () => secretStore.get('openai') })],
@@ -34,7 +34,7 @@ const agent = runtime.agent({
 Trên Node, đọc khoá từ môi trường qua package auth của Node:
 
 ```ts
-import { envCredential } from '@ai-agent-sdk/auth-node'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
 
 openAiPlugin({ apiKey: envCredential('OPENAI_API_KEY') })
 ```
@@ -65,8 +65,8 @@ export { openAiResponsesProtocol, type ResponsesDialect }
 | `OPENAI_BASE_URL` | Endpoint mặc định, khi bạn cần tham chiếu hoặc ghi đè. |
 
 ```ts
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { openAiAdapter } from '@ai-agent-sdk/provider-openai'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { openAiAdapter } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const registry = new ModelRegistry()
 registry.registerAdapter(['openai'], openAiAdapter({ apiKey }))
@@ -113,7 +113,7 @@ vào một model đã ngừng phục vụ.
 ## Thử lại
 
 ```ts
-import { withRetry } from '@ai-agent-sdk/core'
+import { withRetry } from '@alvin0/ai-agent-sdk-core'
 
 registry.registerAdapter(['openai'], withRetry(openAiAdapter({ apiKey }), {
   policy: { mode: 'normal', maxRetries: 3 },
@@ -151,8 +151,8 @@ không phải tới lúc dùng lần đầu.
 Bất kỳ endpoint nào nói giao thức **Responses** đều không cần package mới:
 
 ```ts
-import { openAiResponsesProtocol } from '@ai-agent-sdk/protocol-responses'
-import { createHttpProvider } from '@ai-agent-sdk/provider-http'
+import { openAiResponsesProtocol } from '@alvin0/ai-agent-sdk-protocol-responses'
+import { createHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
 
 registry.registerAdapter(['openrouter'], createHttpProvider({
   displayName: 'OpenRouter',

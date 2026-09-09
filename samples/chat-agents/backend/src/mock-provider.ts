@@ -11,8 +11,8 @@
  * accidentally route a conversation to a machine that makes things up.
  */
 
-import { ModelAdapter } from '@ai-agent-sdk/core'
-import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@ai-agent-sdk/core'
+import { ModelAdapter } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 /** The provider id an offline conversation runs on. */
 export const MOCK_PROVIDER = 'mock'

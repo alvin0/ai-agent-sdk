@@ -8,14 +8,14 @@ import {
   type CreateMcpHandlerOptions,
   type ServerContext,
 } from '@modelcontextprotocol/server'
-import type { ContentBlock } from '@ai-agent-sdk/core'
-import { ToolCallId, isJsonValue, type JsonValue } from '@ai-agent-sdk/core'
-import type { AgentSession, DefinedAgent } from '@ai-agent-sdk/core/agent'
-import type { ApprovalBroker, SdkLogger, ToolCatalog, ToolInterceptor } from '@ai-agent-sdk/core/tools'
+import type { ContentBlock } from '@alvin0/ai-agent-sdk-core'
+import { ToolCallId, isJsonValue, type JsonValue } from '@alvin0/ai-agent-sdk-core'
+import type { AgentSession, DefinedAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import type { ApprovalBroker, SdkLogger, ToolCatalog, ToolInterceptor } from '@alvin0/ai-agent-sdk-core/tools'
 import {
   dispatchToolCall,
-} from '@ai-agent-sdk/core/tools'
-import { waitForSettlement } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core/tools'
+import { waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 import {
   beginIntegrationOperation,
   integrationChildLogger,

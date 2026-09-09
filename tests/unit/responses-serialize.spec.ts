@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { ToolCallId } from '@ai-agent-sdk/core'
-import { ReasoningEffortId } from '@ai-agent-sdk/core'
+import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
 import {
   createAssistantMessage,
   createTextMessage,
   createToolResultMessage,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import {
   serializeResponsesRequest,
   type ResponsesDialect,
-} from '@ai-agent-sdk/protocol-responses'
+} from '@alvin0/ai-agent-sdk-protocol-responses'
 import { providerRequest } from './fixtures.ts'
 
 const dialect: ResponsesDialect = {

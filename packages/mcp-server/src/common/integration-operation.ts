@@ -1,4 +1,4 @@
-import type { IntegrationOperationEvidenceFields, SdkLogger } from '@ai-agent-sdk/core/observability'
+import type { IntegrationOperationEvidenceFields, SdkLogger } from '@alvin0/ai-agent-sdk-core/observability'
 
 export const MCP_SERVER_INTEGRATION_OPERATIONS = Object.freeze({
   'mcp-web-server': Object.freeze(['request', 'tool-call', 'agent-call']),

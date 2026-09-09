@@ -1,5 +1,5 @@
 import type { AgentCodeCliConfig } from '../../config.ts'
-import type { AgentRunOutcome } from '@ai-agent-sdk/core/agent'
+import type { AgentRunOutcome } from '@alvin0/ai-agent-sdk-core/agent'
 import type { SignalDeskVerificationReport } from '../verify.ts'
 
 export interface MultiSkillCliConfig {

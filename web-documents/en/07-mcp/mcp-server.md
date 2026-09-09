@@ -6,13 +6,13 @@ can consume.
 ## Web handler (Next.js, Worker, Deno, Bun)
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/mcp
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-mcp
 ```
 
 ```ts
 // app/api/mcp/route.ts
-import { defineTool } from '@ai-agent-sdk/core'
-import { createSdkMcpHandler } from '@ai-agent-sdk/mcp/server'
+import { defineTool } from '@alvin0/ai-agent-sdk-core'
+import { createSdkMcpHandler } from '@alvin0/ai-agent-sdk-mcp/server'
 
 const lookupInvoice = defineTool({
   name: 'lookup_invoice',
@@ -97,12 +97,12 @@ Set `exposeInternalErrors: true` **only** for a trusted diagnostic surface.
 ## Node stdio server
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/mcp-server @ai-agent-sdk/mcp-node-server
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-mcp-server @alvin0/ai-agent-sdk-mcp-node-server
 ```
 
 ```ts
-import { createMcpServer } from '@ai-agent-sdk/mcp-server'
-import { serveMcpStdio } from '@ai-agent-sdk/mcp-node-server'
+import { createMcpServer } from '@alvin0/ai-agent-sdk-mcp-server'
+import { serveMcpStdio } from '@alvin0/ai-agent-sdk-mcp-node-server'
 
 const server = createMcpServer({
   name: 'local-tools',
@@ -131,7 +131,7 @@ import {
   toNodeHandler,
   localhostHostValidation,
   localhostOriginValidation,
-} from '@ai-agent-sdk/mcp-node-server'
+} from '@alvin0/ai-agent-sdk-mcp-node-server'
 import { createServer } from 'node:http'
 
 const handler = toNodeHandler(server)

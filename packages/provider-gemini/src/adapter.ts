@@ -1,24 +1,24 @@
-import type { ModelProviderPlugin, ModelProviderRegistrar, RetryPolicyConfig } from '@ai-agent-sdk/core'
+import type { ModelProviderPlugin, ModelProviderRegistrar, RetryPolicyConfig } from '@alvin0/ai-agent-sdk-core'
 import {
   defineModelProviderPlugin,
   type ComposableModelProviderPlugin,
   type CredentialInput,
   type ModelTarget,
-} from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/provider'
 import type {
   HttpModelAdapter,
   ProviderCatalogModel,
   ProviderRequestLogger,
-} from '@ai-agent-sdk/provider-http'
+} from '@alvin0/ai-agent-sdk-provider-http'
 import {
   createHttpProvider,
   createRuntimeHttpProvider,
   type CredentialSource,
-} from '@ai-agent-sdk/provider-http'
+} from '@alvin0/ai-agent-sdk-provider-http'
 import {
   geminiInteractionsProtocol,
   type GeminiInteractionsDialect,
-} from '@ai-agent-sdk/protocol-gemini-interactions'
+} from '@alvin0/ai-agent-sdk-protocol-gemini-interactions'
 
 /** Google Gemini API v1beta base. The protocol appends only `/interactions`. */
 export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'

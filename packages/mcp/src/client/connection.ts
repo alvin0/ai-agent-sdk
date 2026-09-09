@@ -9,7 +9,7 @@ import {
   type Tool,
   type Transport,
 } from '@modelcontextprotocol/client'
-import type { JsonValue } from '@ai-agent-sdk/core'
+import type { JsonValue } from '@alvin0/ai-agent-sdk-core'
 import {
   ToolRegistry,
   type ToolCatalog,
@@ -17,7 +17,7 @@ import {
   type ToolDefinition,
   type ToolSource,
   type ToolSourceSnapshotOptions,
-} from '@ai-agent-sdk/core/tools'
+} from '@alvin0/ai-agent-sdk-core/tools'
 import type { McpProtocolClient } from './public-types.ts'
 import type {
   McpAuthenticationKind,

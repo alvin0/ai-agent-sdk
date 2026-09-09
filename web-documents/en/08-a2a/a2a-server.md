@@ -2,10 +2,10 @@
 
 Expose a `DefinedAgent` so other services can call it over A2A Protocol v1.0.
 
-Runtime: **Node 22.12+**. Entrypoint: `@ai-agent-sdk/a2a/server`.
+Runtime: **Node 22.12+**. Entrypoint: `@alvin0/ai-agent-sdk-a2a/server`.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/a2a
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-a2a
 ```
 
 The bridge builds on the official [`@a2a-js/sdk`](https://github.com/a2aproject/a2a-js)

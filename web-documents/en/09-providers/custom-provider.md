@@ -8,9 +8,9 @@ For any endpoint speaking a protocol this package already implements, adding it
 is **configuration**. No new file, no new folder, no edit to the SDK.
 
 ```ts
-import { openAiResponsesProtocol } from '@ai-agent-sdk/protocol-responses'
-import { createHttpProvider } from '@ai-agent-sdk/provider-http'
-import { envCredential } from '@ai-agent-sdk/auth-node/env'
+import { openAiResponsesProtocol } from '@alvin0/ai-agent-sdk-protocol-responses'
+import { createHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node/env'
 
 registry.registerAdapter(['openrouter'], createHttpProvider({
   displayName: 'OpenRouter',
@@ -24,12 +24,12 @@ Three protocols ship today:
 
 | Protocol | Package |
 | --- | --- |
-| OpenAI Responses / Codex | `@ai-agent-sdk/protocol-responses` |
-| Anthropic Messages | `@ai-agent-sdk/protocol-anthropic-messages` |
-| Gemini Interactions | `@ai-agent-sdk/protocol-gemini-interactions` |
+| OpenAI Responses / Codex | `@alvin0/ai-agent-sdk-protocol-responses` |
+| Anthropic Messages | `@alvin0/ai-agent-sdk-protocol-anthropic-messages` |
+| Gemini Interactions | `@alvin0/ai-agent-sdk-protocol-gemini-interactions` |
 
 All three are Universal, own no endpoint or credentials, and depend only on
-`@ai-agent-sdk/core`.
+`@alvin0/ai-agent-sdk-core`.
 
 ### OAuth needs no subclass
 
@@ -42,8 +42,8 @@ For a package you intend to publish, wrap the adapter in a transactional plugin
 so the runtime can activate and remove the registration:
 
 ```ts
-import { createRuntimeHttpProvider } from '@ai-agent-sdk/provider-http'
-import { defineModelProviderPlugin } from '@ai-agent-sdk/core/provider'
+import { createRuntimeHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
+import { defineModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
 
 export const myProviderPlugin = defineModelProviderPlugin({
   id: 'my-provider',
@@ -113,13 +113,13 @@ Two constraints worth knowing:
 
 ## Verify with the conformance suite
 
-`@ai-agent-sdk/testkit` drives a fresh provider fixture through marker preflight,
+`@alvin0/ai-agent-sdk-testkit` drives a fresh provider fixture through marker preflight,
 route conflicts, rollback, streaming, usage, retries, cancellation, catalog
 behavior, bounded-stream failure, observation privacy/correlation,
 cleanup-failure containment, and idempotent cleanup.
 
 ```ts
-import { runProviderConformanceSuite } from '@ai-agent-sdk/testkit'
+import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
 
 const report = await runProviderConformanceSuite(fixture)
 ```

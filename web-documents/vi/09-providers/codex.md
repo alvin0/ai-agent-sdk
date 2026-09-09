@@ -5,10 +5,10 @@ Endpoint Codex chạy nền ChatGPT. Runtime: **Universal**, với một
 
 ```bash
 # Universal — bạn tự tiêm kho vào
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-codex
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-codex
 
 # Node — kèm kho OAuth cục bộ theo dự án
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-codex @ai-agent-sdk/auth-node
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-codex @alvin0/ai-agent-sdk-auth-node
 ```
 
 `openai` và `codex` dùng chung **một** hiện thực Responses và chỉ khác nhau ở một
@@ -23,8 +23,8 @@ pnpm exec ai-agent-sdk-codex-login --status    # chi tiết tài khoản/trạng
 ```
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { codexNodeProviderPlugin } from '@ai-agent-sdk/auth-node/codex'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { codexNodeProviderPlugin } from '@alvin0/ai-agent-sdk-auth-node/codex'
 
 const runtime = await createAgentRuntime({ providers: [codexNodeProviderPlugin()] })
 
@@ -56,8 +56,8 @@ thư mục. **Symlink tới tệp thông tin xác thực bị từ chối.**
 ## Ở mọi nơi khác — tiêm một kho vào
 
 ```ts
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { codexPlugin } from '@ai-agent-sdk/provider-codex'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { codexPlugin } from '@alvin0/ai-agent-sdk-provider-codex'
 
 const registry = new ModelRegistry()
 registry.install(codexPlugin({ authStore: mySecretManagerStore }))
@@ -67,7 +67,7 @@ Hợp đồng `CodexAuthStore` là Universal — trình duyệt, Worker, secret 
 một package Node sở hữu phần lưu trữ. Cho test và các host phù du:
 
 ```ts
-import { memoryCodexCredentialStore } from '@ai-agent-sdk/provider-codex'
+import { memoryCodexCredentialStore } from '@alvin0/ai-agent-sdk-provider-codex'
 
 codexPlugin({ authStore: memoryCodexCredentialStore(tokens) })
 ```

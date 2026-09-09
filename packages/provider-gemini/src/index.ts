@@ -12,4 +12,4 @@ export {
 export {
   geminiInteractionsProtocol,
   type GeminiInteractionsDialect,
-} from '@ai-agent-sdk/protocol-gemini-interactions'
+} from '@alvin0/ai-agent-sdk-protocol-gemini-interactions'

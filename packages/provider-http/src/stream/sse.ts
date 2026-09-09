@@ -15,7 +15,7 @@
  * SDK does not require `TextDecoderStream` to exist  Eit is absent on some
  * runtimes this package should still work on.
  *
- * @module @ai-agent-sdk/provider-http/sse
+ * @module @alvin0/ai-agent-sdk-provider-http/sse
  */
 
 import {

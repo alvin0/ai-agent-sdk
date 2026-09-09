@@ -3,7 +3,7 @@ import type {
   ModelInvocationContext,
   ResolvedModelInfo,
   RetryPolicyConfig,
-} from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/provider'
 import type { ProviderCatalogModel, ProviderRequestLogger } from '../base/http-adapter.ts'
 import type {
   HttpAuthResolveOptions,

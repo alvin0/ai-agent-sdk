@@ -14,7 +14,7 @@ import type {
   ProtocolSseEvent,
   ProtocolStreamChunk,
 } from './contract.ts'
-import type { ModelTarget, ResolvedModelInfo } from '@ai-agent-sdk/core/provider'
+import type { ModelTarget, ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core/provider'
 import { serializeResponsesRequest } from './serialize.ts'
 import { translateResponsesStream } from './translate.ts'
 import type { ResponsesDialect } from './wire.ts'

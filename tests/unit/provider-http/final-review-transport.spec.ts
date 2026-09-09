@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createRuntimeHttpProvider, defineWireProtocol } from '../../../packages/provider-http/src/index.ts'
-import type { ModelInvocationContext } from '@ai-agent-sdk/core'
+import type { ModelInvocationContext } from '@alvin0/ai-agent-sdk-core'
 
 const protocol = defineWireProtocol({
   id: 'ownership-test', defaultDialect: {}, endpointPath: () => '/stream', serialize: () => ({}),

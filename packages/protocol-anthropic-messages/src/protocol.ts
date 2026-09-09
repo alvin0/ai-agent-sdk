@@ -10,7 +10,7 @@ import type {
   ProtocolSseEvent,
   ProtocolStreamChunk,
 } from './contract.ts'
-import type { ModelTarget, ResolvedModelInfo } from '@ai-agent-sdk/core/provider'
+import type { ModelTarget, ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core/provider'
 import { serializeAnthropicRequest, type ThinkingBudgets } from './serialize.ts'
 import { translateAnthropicStream } from './translate.ts'
 

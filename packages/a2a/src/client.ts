@@ -18,10 +18,10 @@ import type {
   LinkedAgentResult,
   LinkedAgentSendInput,
   LinkedAgentTransport,
-} from '@ai-agent-sdk/core/agent'
-import type { ContentBlock } from '@ai-agent-sdk/core'
-import { detachedFrozen } from '@ai-agent-sdk/core'
-import { waitForSettlement } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core/agent'
+import type { ContentBlock } from '@alvin0/ai-agent-sdk-core'
+import { detachedFrozen } from '@alvin0/ai-agent-sdk-core'
+import { waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 import { a2aErrorCode, beginA2AIntegrationOperation } from './common/integration-operation.ts'
 import { defaultFactory, unlinkReport } from './client/link-helpers.ts'
 import { fetchA2AEndpoint } from './client/http-redirect.ts'

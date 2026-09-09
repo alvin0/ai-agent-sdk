@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { JsonValue } from '@ai-agent-sdk/core'
+import type { JsonValue } from '@alvin0/ai-agent-sdk-core'
 import {
   defineSkillProviderPlugin,
   type RuntimeSkillCandidate,
@@ -7,7 +7,7 @@ import {
   type SkillCandidate,
   type SkillProviderPlugin,
   type SkillReference,
-} from '@ai-agent-sdk/core/skills'
+} from '@alvin0/ai-agent-sdk-core/skills'
 import {
   fileSystemSkills,
   type FileSystemSkillsOptions,

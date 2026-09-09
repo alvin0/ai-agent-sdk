@@ -5,17 +5,17 @@ Composition slot: `runtime.providers`.
 Lifecycle: `inert-runtime-owned-registration`.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-anthropic
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-anthropic
 ```
 
 Targets the **Anthropic Messages API** through
-[`@ai-agent-sdk/protocol-anthropic-messages`](/en/09-providers/protocols).
+[`@alvin0/ai-agent-sdk-protocol-anthropic-messages`](/en/09-providers/protocols).
 
 ## Compose it
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { anthropicPlugin } from '@ai-agent-sdk/provider-anthropic'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { anthropicPlugin } from '@alvin0/ai-agent-sdk-provider-anthropic'
 
 const runtime = await createAgentRuntime({
   providers: [anthropicPlugin({ apiKey: () => secretStore.get('anthropic') })],
@@ -30,7 +30,7 @@ const agent = runtime.agent({
 
 Credentials are **injected**. The package is Universal and never reads
 environment variables or files itself; on Node use
-`envCredential('ANTHROPIC_API_KEY')` from `@ai-agent-sdk/auth-node`.
+`envCredential('ANTHROPIC_API_KEY')` from `@alvin0/ai-agent-sdk-auth-node`.
 
 ## Exports
 
@@ -63,8 +63,8 @@ export {
 | `DEFAULT_THINKING_BUDGETS` | Maps reasoning efforts to thinking token budgets. |
 
 ```ts
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { anthropicPlugin } from '@ai-agent-sdk/provider-anthropic'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { anthropicPlugin } from '@alvin0/ai-agent-sdk-provider-anthropic'
 
 const registry = new ModelRegistry()
 registry.install(anthropicPlugin({ apiKey: () => secretStore.get('anthropic') }))

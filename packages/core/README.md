@@ -1,11 +1,11 @@
-# `@ai-agent-sdk/core`
+# `@alvin0/ai-agent-sdk-core`
 
 Provider-neutral contracts and runtime primitives for building model adapters and streaming AI applications.
 
 Runtime: **Universal**. Published code uses ECMAScript, Fetch-compatible types, Web Streams, AbortController, performance timing, and Web Crypto. It does not use Node built-ins, `process`, `Buffer`, local paths, filesystem access, child processes, or stdio.
 
 ```sh
-pnpm add @ai-agent-sdk/core
+pnpm add @alvin0/ai-agent-sdk-core
 ```
 
 `createAgentRuntime()` is the recommended composition root. `defineAgent()`
@@ -17,7 +17,7 @@ import {
   createAgentRuntime,
   defineAgent,
   type SdkLogger,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 
 const runtime = await createAgentRuntime({ providers: [provider] })
 const definition = defineAgent({ id: 'assistant', instructions: 'Be concise.' })
@@ -27,7 +27,7 @@ logger.info('agent ready')
 ```
 
 ```ts
-import { ModelAdapter, ModelRegistry } from '@ai-agent-sdk/core'
+import { ModelAdapter, ModelRegistry } from '@alvin0/ai-agent-sdk-core'
 
 const registry = new ModelRegistry()
 registry.registerAdapter(['example'], new YourAdapter())

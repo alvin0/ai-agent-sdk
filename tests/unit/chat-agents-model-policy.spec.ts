@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ReasoningEffortId } from '@ai-agent-sdk/core'
-import { createHttpProvider } from '@ai-agent-sdk/provider-http'
-import { openAiResponsesProtocol } from '@ai-agent-sdk/protocol-responses'
+import { ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
+import { createHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
+import { openAiResponsesProtocol } from '@alvin0/ai-agent-sdk-protocol-responses'
 import { CODEX_CATALOG_POLICY } from '../../samples/chat-agents/backend/src/model-policy.ts'
 
 describe('long-running research model metadata', () => {

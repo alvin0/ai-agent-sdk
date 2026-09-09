@@ -12,4 +12,4 @@ export {
 export {
   openAiResponsesProtocol,
   type ResponsesDialect,
-} from '@ai-agent-sdk/protocol-responses'
+} from '@alvin0/ai-agent-sdk-protocol-responses'

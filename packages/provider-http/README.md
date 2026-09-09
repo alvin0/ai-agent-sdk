@@ -1,15 +1,15 @@
-# @ai-agent-sdk/provider-http
+# @alvin0/ai-agent-sdk-provider-http
 
 Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-http
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-http
 ```
 
 Universal fetch/SSE transport, configurable HTTP providers, resource bounds, and physical provider-attempt accounting. Credentials are supplied explicitly; this package never reads environment variables or files.
 
 ```ts
-import { createRuntimeHttpProvider } from '@ai-agent-sdk/provider-http'
+import { createRuntimeHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
 
 const adapter = createRuntimeHttpProvider({ protocol, baseUrl, auth })
 ```

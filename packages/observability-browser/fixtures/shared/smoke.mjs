@@ -1,15 +1,15 @@
 import { trace } from '@opentelemetry/api'
 import {
   ModelAdapter, createAgentRuntime, createCoreSpan, createObservationRunScope, createOperationId,
-} from '@ai-agent-sdk/core'
-import { createObservability } from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core'
+import { createObservability } from '@alvin0/ai-agent-sdk-core/observability'
 import {
   BROWSER_OBSERVATION_ERROR_CODES,
   IndexedDbObservationExporter,
   indexedDbObservationExporter,
   installBrowserObservabilityLifecycle,
-} from '@ai-agent-sdk/observability-browser'
-import { createOpenTelemetryBridge } from '@ai-agent-sdk/observability-otel'
+} from '@alvin0/ai-agent-sdk-observability-browser'
+import { createOpenTelemetryBridge } from '@alvin0/ai-agent-sdk-observability-otel'
 
 class RuntimeAdapter extends ModelAdapter {
   async * stream() {

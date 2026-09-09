@@ -1,6 +1,6 @@
-import type { ContentBlock, ImageMediaType, JsonValue } from '@ai-agent-sdk/core'
-import type { SupportSafeError } from '@ai-agent-sdk/core'
-import { isJsonValue } from '@ai-agent-sdk/core'
+import type { ContentBlock, ImageMediaType, JsonValue } from '@alvin0/ai-agent-sdk-core'
+import type { SupportSafeError } from '@alvin0/ai-agent-sdk-core'
+import { isJsonValue } from '@alvin0/ai-agent-sdk-core'
 import type {
   McpClientStatus,
   McpCloseReport,

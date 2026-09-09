@@ -28,7 +28,7 @@ lỗi `INVALID_REQUEST` có kiểu, chứ không âm thầm bỏ qua.
 ## Message là bất biến
 
 ```ts
-import { createTextMessage } from '@ai-agent-sdk/core'
+import { createTextMessage } from '@alvin0/ai-agent-sdk-core'
 
 const message = createTextMessage('21 * 2 bằng bao nhiêu?')
 ```

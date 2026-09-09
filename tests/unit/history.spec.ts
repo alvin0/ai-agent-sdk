@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { History } from '@ai-agent-sdk/core/agent'
-import { normalizeToolPairing } from '@ai-agent-sdk/core/agent'
-import { createMessage, createTextMessage, createToolResultMessage } from '@ai-agent-sdk/core'
-import { ToolCallId } from '@ai-agent-sdk/core'
+import { History } from '@alvin0/ai-agent-sdk-core/agent'
+import { normalizeToolPairing } from '@alvin0/ai-agent-sdk-core/agent'
+import { createMessage, createTextMessage, createToolResultMessage } from '@alvin0/ai-agent-sdk-core'
+import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
 
 type MutableSnapshot = {
   version: number

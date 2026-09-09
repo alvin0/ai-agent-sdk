@@ -1,5 +1,5 @@
 {
-  "name": "@ai-agent-sdk/mcp",
+  "name": "@alvin0/ai-agent-sdk-mcp",
   "author": {
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
@@ -40,15 +40,15 @@
     "@modelcontextprotocol/client": "catalog:"
   },
   "peerDependencies": {
-    "@ai-agent-sdk/core": "workspace:^",
-    "@ai-agent-sdk/mcp-server": "workspace:^"
+    "@alvin0/ai-agent-sdk-core": "workspace:^",
+    "@alvin0/ai-agent-sdk-mcp-server": "workspace:^"
   },
   "peerDependenciesMeta": {
-    "@ai-agent-sdk/mcp-server": { "optional": true }
+    "@alvin0/ai-agent-sdk-mcp-server": { "optional": true }
   },
   "devDependencies": {
-    "@ai-agent-sdk/core": "workspace:^",
-    "@ai-agent-sdk/mcp-server": "workspace:^",
+    "@alvin0/ai-agent-sdk-core": "workspace:^",
+    "@alvin0/ai-agent-sdk-mcp-server": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",
     "playwright": "catalog:",
     "publint": "catalog:",

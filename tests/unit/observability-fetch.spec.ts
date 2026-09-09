@@ -8,13 +8,13 @@ import {
   createOperationId,
   type ObservationEvent,
   type StreamChunk,
-} from '@ai-agent-sdk/core'
-import { createObservability, type ObservationBatch } from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core'
+import { createObservability, type ObservationBatch } from '@alvin0/ai-agent-sdk-core/observability'
 import {
   FetchObservationExporter,
   fetchObservationExporter,
   flushObservabilityWithWaitUntil,
-} from '@ai-agent-sdk/observability-fetch'
+} from '@alvin0/ai-agent-sdk-observability-fetch'
 
 type FetchInput = Parameters<typeof fetch>[0]
 

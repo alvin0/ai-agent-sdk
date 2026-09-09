@@ -6,7 +6,7 @@ Two separate boundaries block on a human: **approvals** gate a tool call,
 ## Approvals — gate a tool call
 
 ```ts
-import { createApprovalBroker } from '@ai-agent-sdk/core'
+import { createApprovalBroker } from '@alvin0/ai-agent-sdk-core'
 
 const approvals = createApprovalBroker()
 const session = agent.createSession({ approvals })
@@ -31,7 +31,7 @@ request identically.
 `deep-human-in-loop` mode gives the model a blocking `request_user_input` tool.
 
 ```ts
-import { createUserInputBroker } from '@ai-agent-sdk/core'
+import { createUserInputBroker } from '@alvin0/ai-agent-sdk-core'
 
 const userInput = createUserInputBroker()
 

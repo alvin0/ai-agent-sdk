@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { isJsonValue } from '@ai-agent-sdk/core'
+import { isJsonValue } from '@alvin0/ai-agent-sdk-core'
 import {
   defineTool,
   executionModeOf,
   renderJsonValue,
   type ToolDefinition,
-} from '@ai-agent-sdk/core/agent'
-import { ToolError, toolErrorDisposition } from '@ai-agent-sdk/core/agent'
-import { ToolRegistry } from '@ai-agent-sdk/core/agent'
+} from '@alvin0/ai-agent-sdk-core/agent'
+import { ToolError, toolErrorDisposition } from '@alvin0/ai-agent-sdk-core/agent'
+import { ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
 
 const echo = defineTool({
   name: 'echo',

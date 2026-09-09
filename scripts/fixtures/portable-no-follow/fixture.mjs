@@ -1,12 +1,12 @@
-import { createObservability } from '@ai-agent-sdk/core/observability'
-import { createMcpHttpClient } from '@ai-agent-sdk/mcp'
-import { fetchObservationExporter } from '@ai-agent-sdk/observability-fetch'
-import { createHttpProvider } from '@ai-agent-sdk/provider-http'
+import { createObservability } from '@alvin0/ai-agent-sdk-core/observability'
+import { createMcpHttpClient } from '@alvin0/ai-agent-sdk-mcp'
+import { fetchObservationExporter } from '@alvin0/ai-agent-sdk-observability-fetch'
+import { createHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
 import {
   codexAdapter,
   memoryCodexCredentialStore,
   requestDeviceCode,
-} from '@ai-agent-sdk/provider-codex'
+} from '@alvin0/ai-agent-sdk-provider-codex'
 
 const protocol = Object.freeze({
   id: 'native-no-follow',

@@ -13,26 +13,26 @@ header quy kết, xử lý sai abort, hoặc bịa mã lỗi.
 
 | Điểm vào | Endpoint | Thông tin xác thực |
 | --- | --- | --- |
-| `@ai-agent-sdk/provider-anthropic` | Messages API | `apiKey` tiêm vào |
-| `@ai-agent-sdk/provider-openai` | Responses API | `apiKey` tiêm vào |
-| `@ai-agent-sdk/provider-codex` | Codex nền ChatGPT | `CodexAuthStore` tiêm vào |
-| `@ai-agent-sdk/provider-gemini` | Gemini Interactions API | `apiKey` tiêm vào |
-| `@ai-agent-sdk/auth-node/codex` | Codex trên Node | đăng nhập device-code cục bộ theo dự án |
+| `@alvin0/ai-agent-sdk-provider-anthropic` | Messages API | `apiKey` tiêm vào |
+| `@alvin0/ai-agent-sdk-provider-openai` | Responses API | `apiKey` tiêm vào |
+| `@alvin0/ai-agent-sdk-provider-codex` | Codex nền ChatGPT | `CodexAuthStore` tiêm vào |
+| `@alvin0/ai-agent-sdk-provider-gemini` | Gemini Interactions API | `apiKey` tiêm vào |
+| `@alvin0/ai-agent-sdk-auth-node/codex` | Codex trên Node | đăng nhập device-code cục bộ theo dự án |
 
 `openai` và `codex` dùng chung **một** hiện thực Responses
-(`@ai-agent-sdk/protocol-responses`) và chỉ khác nhau ở một bản ghi phương ngữ
+(`@alvin0/ai-agent-sdk-protocol-responses`) và chỉ khác nhau ở một bản ghi phương ngữ
 nhỏ: base URL, cách xác thực, và endpoint chấp nhận những trường tuỳ chọn nào.
 
 Mọi package provider đều là Universal và đòi thông tin xác thực tường minh. Nó
 không bao giờ đọc biến môi trường hay tệp — việc tra cứu môi trường thuộc về một
-lớp bọc Node như `@ai-agent-sdk/auth-node`.
+lớp bọc Node như `@alvin0/ai-agent-sdk-auth-node`.
 
 ## Hai kiểu đăng ký
 
 **Plugin (khuyến nghị).** Một đăng ký có giao dịch mà runtime kích hoạt và gỡ bỏ:
 
 ```ts
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const runtime = await createAgentRuntime({
   providers: [openAiPlugin({ apiKey: () => secretStore.get('openai') })],
@@ -42,8 +42,8 @@ const runtime = await createAgentRuntime({
 **Adapter (tuyến thủ công).** Điều khiển registry trực tiếp:
 
 ```ts
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { openAiAdapter } from '@ai-agent-sdk/provider-openai'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { openAiAdapter } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const registry = new ModelRegistry()
 registry.registerAdapter(['openai'], openAiAdapter({ apiKey }))
@@ -80,8 +80,8 @@ provider dựng sẵn dựa trên HTTP nhận `models`, `defaultContextWindow` v
 thông số model thật; hãy thay bằng giá trị đúng với endpoint của bạn.
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const runtime = await createAgentRuntime({
   providers: [openAiPlugin({
@@ -145,7 +145,7 @@ Một số nhà cung cấp khám phá danh mục từ chính endpoint vì model 
 thuộc gói dịch vụ của tài khoản — Codex là ví dụ dựng sẵn:
 
 ```ts
-import { codexAdapter } from '@ai-agent-sdk/auth-node/codex'
+import { codexAdapter } from '@alvin0/ai-agent-sdk-auth-node/codex'
 
 registry.registerAdapter(['codex'], codexAdapter())
 const models = await registry.listModels('codex')
@@ -178,7 +178,7 @@ Thử lại là một decorator, và nó chỉ thử lại những thất bại 
 chunk đầu tiên tới tay bên tiêu thụ** — phát lại token đã giao sẽ nhân đôi output.
 
 ```ts
-import { withRetry } from '@ai-agent-sdk/core'
+import { withRetry } from '@alvin0/ai-agent-sdk-core'
 
 registry.registerAdapter(['openai'], withRetry(openAiAdapter({ apiKey }), {
   policy: { mode: 'normal', maxRetries: 3 },

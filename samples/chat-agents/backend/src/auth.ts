@@ -10,8 +10,8 @@
 
 import {
   fileCodexAuthStore, readJwtClaims, requireTokens, resolveCodexAuthPath, runDeviceCodeLogin,
-} from '@ai-agent-sdk/auth-node/codex'
-import type { CodexDeviceCode, CodexLoginResult } from '@ai-agent-sdk/auth-node/codex'
+} from '@alvin0/ai-agent-sdk-auth-node/codex'
+import type { CodexDeviceCode, CodexLoginResult } from '@alvin0/ai-agent-sdk-auth-node/codex'
 
 export interface CodexAccount {
   readonly signedIn: boolean

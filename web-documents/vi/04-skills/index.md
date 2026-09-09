@@ -37,7 +37,7 @@ thứ tự model cho một lô như `load_skill` rồi `read_skill_resource`, v�
 | --- | --- | --- |
 | **Định nghĩa trong bộ nhớ** | Trình duyệt, edge worker, nội dung đóng gói kèm | `defineSkill()` |
 | **Hợp đồng provider** | Cơ sở dữ liệu, API, I/O lười, kho từ xa | `defineSkillProvider()` |
-| **Khám phá qua hệ tệp** | CLI trên Node với các thư mục `SKILL.md` | `@ai-agent-sdk/skill-filesystem` |
+| **Khám phá qua hệ tệp** | CLI trên Node với các thư mục `SKILL.md` | `@alvin0/ai-agent-sdk-skill-filesystem` |
 
 Cả ba đều thoả cùng một hợp đồng trung lập với môi trường. Cả điểm vào chính của
 SDK lẫn hợp đồng provider đều không import module hệ tệp của Node.

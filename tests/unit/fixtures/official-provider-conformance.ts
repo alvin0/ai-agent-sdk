@@ -11,15 +11,15 @@ import {
   type ResolvedModelInfo,
   type ResolvedRetryPolicy,
   type StreamChunk,
-} from '@ai-agent-sdk/core'
-import { defineModelProviderPlugin } from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core'
+import { defineModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
 import type {
   ProviderConformanceCase,
   ProviderConformanceCaseInput,
   ProviderConformanceControlSnapshot,
   ProviderConformanceFixture,
   ProviderConformanceScenario,
-} from '@ai-agent-sdk/testkit'
+} from '@alvin0/ai-agent-sdk-testkit'
 
 export interface OfficialHttpAdapterInput {
   readonly fetch: typeof globalThis.fetch

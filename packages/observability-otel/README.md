@@ -1,9 +1,9 @@
-# @ai-agent-sdk/observability-otel
+# @alvin0/ai-agent-sdk-observability-otel
 
 Runtime: **Universal** (the caller chooses runtime-compatible OpenTelemetry APIs).
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/observability-otel @opentelemetry/api @opentelemetry/api-logs
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-observability-otel @opentelemetry/api @opentelemetry/api-logs
 ```
 
 Universal mapping bridge for caller-supplied OpenTelemetry API objects. It
@@ -20,8 +20,8 @@ requires the explicit bridge option `content: 'full'` and the same policy on the
 SDK observability bus.
 
 ```ts
-import { createObservability } from '@ai-agent-sdk/core/observability'
-import { createOpenTelemetryBridge } from '@ai-agent-sdk/observability-otel'
+import { createObservability } from '@alvin0/ai-agent-sdk-core/observability'
+import { createOpenTelemetryBridge } from '@alvin0/ai-agent-sdk-observability-otel'
 
 const bridge = createOpenTelemetryBridge({
   tracer: tracerProvider.getTracer('my-agent'),

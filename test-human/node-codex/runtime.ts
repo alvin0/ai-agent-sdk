@@ -13,11 +13,11 @@ import {
   type RuntimeAgentRunEvent,
   type StreamChunk,
   type ToolDefinition,
-} from '@ai-agent-sdk/core'
-import { defineModelProviderPlugin } from '@ai-agent-sdk/core/provider'
-import { connectMcpStdio } from '@ai-agent-sdk/mcp-node'
-import { jsonlObservationExporter, recoverRuntimeObservationJournal } from '@ai-agent-sdk/observability-node'
-import { fileSystemSkillProviderPlugin } from '@ai-agent-sdk/skill-filesystem'
+} from '@alvin0/ai-agent-sdk-core'
+import { defineModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
+import { connectMcpStdio } from '@alvin0/ai-agent-sdk-mcp-node'
+import { jsonlObservationExporter, recoverRuntimeObservationJournal } from '@alvin0/ai-agent-sdk-observability-node'
+import { fileSystemSkillProviderPlugin } from '@alvin0/ai-agent-sdk-skill-filesystem'
 import { HumanArtifactRecorder, type HumanArtifactInvariant } from '../artifacts.ts'
 
 export interface NodeCodexAcceptanceOptions {

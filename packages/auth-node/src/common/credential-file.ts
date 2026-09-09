@@ -10,7 +10,7 @@ import {
   type FileHandle,
 } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { AgentSdkError } from '@ai-agent-sdk/core'
+import { AgentSdkError } from '@alvin0/ai-agent-sdk-core'
 
 export const MAX_CREDENTIAL_FILE_BYTES = 1024 * 1024
 const LOCK_RETRY_MS = 10

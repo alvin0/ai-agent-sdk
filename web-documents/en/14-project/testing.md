@@ -56,13 +56,13 @@ lockfile, and official GitHub actions pinned to immutable signed release commits
 
 ## Provider conformance
 
-For capability authors, `@ai-agent-sdk/testkit` drives a fresh provider fixture
+For capability authors, `@alvin0/ai-agent-sdk-testkit` drives a fresh provider fixture
 through marker preflight, route conflicts, rollback, streaming, usage, retries,
 cancellation, catalog behaviour, bounded-stream failure, observation
 privacy/correlation, cleanup-failure containment, and idempotent cleanup.
 
 ```ts
-import { runProviderConformanceSuite } from '@ai-agent-sdk/testkit'
+import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
 
 const report = await runProviderConformanceSuite(fixture)
 ```
@@ -132,5 +132,5 @@ core, agent, base observability, protocols, observability capabilities, and MCP.
 
 ## Read next
 
-- [`@ai-agent-sdk/testkit`](/en/14-project/testkit)
+- [`@alvin0/ai-agent-sdk-testkit`](/en/14-project/testkit)
 - [Contributing](/en/14-project/contributing)

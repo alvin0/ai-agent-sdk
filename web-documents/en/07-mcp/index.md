@@ -4,24 +4,24 @@ MCP (Model Context Protocol) is an **optional boundary**. The provider-neutral
 SDK does not import MCP, and applications install only the entries they use.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/mcp
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-mcp
 ```
 
 ## Two directions
 
 | Direction | You get | Package |
 | --- | --- | --- |
-| **Consume** — remote MCP tools become SDK tools | A versioned `ToolSource` | `@ai-agent-sdk/mcp` |
-| **Publish** — SDK tools and agents become an MCP API | A web-standard handler | `@ai-agent-sdk/mcp` `/server`, `@ai-agent-sdk/mcp-server` |
+| **Consume** — remote MCP tools become SDK tools | A versioned `ToolSource` | `@alvin0/ai-agent-sdk-mcp` |
+| **Publish** — SDK tools and agents become an MCP API | A web-standard handler | `@alvin0/ai-agent-sdk-mcp` `/server`, `@alvin0/ai-agent-sdk-mcp-server` |
 
 ## Four packages
 
 | Package | Runtime | Role |
 | --- | --- | --- |
-| `@ai-agent-sdk/mcp` | Universal | HTTP client + `ToolSource`; also `/server` |
-| `@ai-agent-sdk/mcp-server` | Universal | Inert `Request`/`Response` server host |
-| `@ai-agent-sdk/mcp-node` | Node | stdio client transport |
-| `@ai-agent-sdk/mcp-node-server` | Node | stdio / `node:http` server hosting |
+| `@alvin0/ai-agent-sdk-mcp` | Universal | HTTP client + `ToolSource`; also `/server` |
+| `@alvin0/ai-agent-sdk-mcp-server` | Universal | Inert `Request`/`Response` server host |
+| `@alvin0/ai-agent-sdk-mcp-node` | Node | stdio client transport |
+| `@alvin0/ai-agent-sdk-mcp-node-server` | Node | stdio / `node:http` server hosting |
 
 Client and server are separate, and Node transports are separate again, so a
 web or workflow user **never inherits CLI dependencies**. The normal root and
@@ -31,8 +31,8 @@ lifecycle integration.
 ## The shortest useful example
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { connectMcpHttp } from '@ai-agent-sdk/mcp'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { connectMcpHttp } from '@alvin0/ai-agent-sdk-mcp'
 
 const runtime = await createAgentRuntime({ providers: [modelProvider] })
 let mcp: Awaited<ReturnType<typeof connectMcpHttp>> | undefined

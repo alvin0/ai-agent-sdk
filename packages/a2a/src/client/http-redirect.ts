@@ -1,4 +1,4 @@
-import { waitForSettlement } from '@ai-agent-sdk/core'
+import { waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 const MAX_REDIRECT_HOPS = 5

@@ -3,8 +3,8 @@ import {
   type AgentRuntime,
   type RunReport,
   type RuntimeAgentRunEvent,
-} from '@ai-agent-sdk/core'
-import type { ComposableModelProviderPlugin } from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core'
+import type { ComposableModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
 import { PROVIDER_CONFORMANCE_DEFAULTS } from './config.ts'
 import type {
   ProviderConformanceCase,

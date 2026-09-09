@@ -6,6 +6,6 @@
   "sideEffects": false,
   "exports": { ".": "./index.mjs" },
   "peerDependencies": {
-    "@ai-agent-sdk/core": ">=0.1.0 <0.2.0"
+    "@alvin0/ai-agent-sdk-core": ">=0.1.0 <0.2.0"
   }
 }

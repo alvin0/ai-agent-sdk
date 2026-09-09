@@ -5,7 +5,7 @@ import {
   type RuntimeAgentRunEvent,
   type RuntimeAgentRunHandle,
   type RuntimeAgentSession,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import {
   DEEP_SEARCH_INSTRUCTIONS,
   STANDARD_INSTRUCTIONS,

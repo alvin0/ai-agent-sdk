@@ -2,13 +2,13 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { runTurn } from '@ai-agent-sdk/core/agent'
-import type { ToolRunContext } from '@ai-agent-sdk/core/agent'
-import { ModelAdapter } from '@ai-agent-sdk/core'
-import { createTextMessage } from '@ai-agent-sdk/core'
-import type { ToolCallId } from '@ai-agent-sdk/core'
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
+import { runTurn } from '@alvin0/ai-agent-sdk-core/agent'
+import type { ToolRunContext } from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter } from '@alvin0/ai-agent-sdk-core'
+import { createTextMessage } from '@alvin0/ai-agent-sdk-core'
+import type { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
 import {
   DEFAULT_AGENTCODE_PROMPT,
   parseAgentCodeCliArgs,
@@ -25,8 +25,8 @@ import { resolveAgentCodePath } from '../../test-human/agentcode/workspace.ts'
 import { AgentCodeSteeringQueue } from '../../test-human/agentcode/steering.ts'
 import { TerminalLineQueue } from '../../test-human/agentcode/line-queue.ts'
 import { summarizeToolArguments, summarizeToolResult } from '../../test-human/terminal.ts'
-import { History } from '@ai-agent-sdk/core/agent'
-import { SkillCatalog } from '@ai-agent-sdk/core/agent'
+import { History } from '@alvin0/ai-agent-sdk-core/agent'
+import { SkillCatalog } from '@alvin0/ai-agent-sdk-core/agent'
 
 const temporaryDirectories: string[] = []
 

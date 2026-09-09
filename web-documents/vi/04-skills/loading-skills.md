@@ -3,12 +3,12 @@
 ## Khám phá qua hệ tệp Node
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/skill-filesystem
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-skill-filesystem
 ```
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { fileSystemSkillProviderPlugin } from '@ai-agent-sdk/skill-filesystem'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { fileSystemSkillProviderPlugin } from '@alvin0/ai-agent-sdk-skill-filesystem'
 
 const skills = fileSystemSkillProviderPlugin({ roots: ['./skills'] })
 const runtime = await createAgentRuntime({ providers: [modelProvider] })

@@ -9,27 +9,27 @@
  * @module ai-agent-sdk/providers/openai/adapter
  */
 
-import type { ModelProviderPlugin, ModelProviderRegistrar, RetryPolicyConfig } from '@ai-agent-sdk/core'
+import type { ModelProviderPlugin, ModelProviderRegistrar, RetryPolicyConfig } from '@alvin0/ai-agent-sdk-core'
 import {
   defineModelProviderPlugin,
   type ComposableModelProviderPlugin,
   type CredentialInput,
   type ModelTarget,
-} from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/provider'
 import type {
   HttpModelAdapter,
   ProviderCatalogModel,
   ProviderRequestLogger,
-} from '@ai-agent-sdk/provider-http'
+} from '@alvin0/ai-agent-sdk-provider-http'
 import {
   createHttpProvider,
   createRuntimeHttpProvider,
   type CredentialSource,
-} from '@ai-agent-sdk/provider-http'
+} from '@alvin0/ai-agent-sdk-provider-http'
 import {
   openAiResponsesProtocol,
   type ResponsesDialect,
-} from '@ai-agent-sdk/protocol-responses'
+} from '@alvin0/ai-agent-sdk-protocol-responses'
 
 /** The OpenAI API base. */
 export const OPENAI_BASE_URL = 'https://api.openai.com/v1'

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ModelError } from '@ai-agent-sdk/core'
-import { parseSse } from '@ai-agent-sdk/provider-http'
+import { ModelError } from '@alvin0/ai-agent-sdk-core'
+import { parseSse } from '@alvin0/ai-agent-sdk-provider-http'
 
 function byteStream(chunks: readonly Uint8Array[]): ReadableStream<Uint8Array> {
   return new ReadableStream({

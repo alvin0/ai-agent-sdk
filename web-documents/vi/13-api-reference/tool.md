@@ -1,7 +1,7 @@
 # `Tool`
 
-Import từ `@ai-agent-sdk/core`; phần viết tool source nằm ở
-`@ai-agent-sdk/core/tools`.
+Import từ `@alvin0/ai-agent-sdk-core`; phần viết tool source nằm ở
+`@alvin0/ai-agent-sdk-core/tools`.
 
 ## `defineTool`
 
@@ -59,7 +59,7 @@ lấy từ cùng một nguồn, nên JSON Schema mà nhà cung cấp thấy khô
 khỏi bộ kiểm tra đứng canh `execute`.
 
 ```ts
-import { defineToolFromSchema } from '@ai-agent-sdk/core'
+import { defineToolFromSchema } from '@alvin0/ai-agent-sdk-core'
 import { z } from 'zod'
 
 const shape = z.object({ path: z.string() })
@@ -173,7 +173,7 @@ Các kiểu: `ApprovalBroker`, `ApprovalDecision`, `ApprovalRequest`,
 Lời gọi bị từ chối trở thành `ToolFailure` với `status: 'rejected'` trên sự kiện
 của lượt chạy.
 
-## Tool source — `@ai-agent-sdk/core/tools`
+## Tool source — `@alvin0/ai-agent-sdk-core/tools`
 
 ```ts
 export { defineToolSource, TOOL_SOURCE_API_VERSION }

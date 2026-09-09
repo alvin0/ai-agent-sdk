@@ -5,7 +5,7 @@ Two opt-in adapters move tool work off the local process and make one tool call
 default.
 
 ```ts
-import { createToolExecutionInterceptor, localToolExecutionBackend } from '@ai-agent-sdk/core'
+import { createToolExecutionInterceptor, localToolExecutionBackend } from '@alvin0/ai-agent-sdk-core'
 ```
 
 ## Where it sits in the pipeline
@@ -128,7 +128,7 @@ recovered operation must compare equal to the one that was saved.
 The same idea for the human boundary:
 
 ```ts
-import { createApprovalBroker, withApprovalPersistence } from '@ai-agent-sdk/core'
+import { createApprovalBroker, withApprovalPersistence } from '@alvin0/ai-agent-sdk-core'
 
 const approvals = withApprovalPersistence(createApprovalBroker(), {
   async savePending(request)            { await db.insertPending(request) },

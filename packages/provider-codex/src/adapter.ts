@@ -21,31 +21,31 @@
  * @module ai-agent-sdk/providers/codex/adapter
  */
 
-import type { ModelProviderPlugin, ModelProviderRegistrar, RetryPolicyConfig } from '@ai-agent-sdk/core'
-import { ReasoningEffortId } from '@ai-agent-sdk/core'
-import { waitForSettlement } from '@ai-agent-sdk/core'
+import type { ModelProviderPlugin, ModelProviderRegistrar, RetryPolicyConfig } from '@alvin0/ai-agent-sdk-core'
+import { ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
+import { waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 import {
   defineModelProviderPlugin,
   type ComposableModelProviderPlugin,
   type CredentialOperationOptions,
   type ModelTarget,
   type SdkLogger,
-} from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/provider'
 import type {
   HttpModelAdapter,
   ProviderCatalogModel,
   ProviderRequestLogger,
-} from '@ai-agent-sdk/provider-http'
+} from '@alvin0/ai-agent-sdk-provider-http'
 import {
   createHttpProvider,
   createRuntimeHttpProvider,
   observeCredentialOperation,
   type ModelDiscoveryContext,
-} from '@ai-agent-sdk/provider-http'
+} from '@alvin0/ai-agent-sdk-provider-http'
 import {
   openAiResponsesProtocol,
   type ResponsesDialect,
-} from '@ai-agent-sdk/protocol-responses'
+} from '@alvin0/ai-agent-sdk-protocol-responses'
 import {
   isFedrampAccount,
   requireTokens,

@@ -7,7 +7,7 @@ errors, and correlated application logs — with `content: 'none'` as the defaul
 ## Compose it
 
 ```ts
-import { createObservability, MemoryObservationExporter } from '@ai-agent-sdk/core/observability'
+import { createObservability, MemoryObservationExporter } from '@alvin0/ai-agent-sdk-core/observability'
 
 const exporter = new MemoryObservationExporter()  // test/local inspection only
 const observation = createObservability({
@@ -227,7 +227,7 @@ The exact provider-wire logger is a **separate high-risk diagnostic bridge**
 because its body contains prompts and tool results:
 
 ```ts
-import { createDailyJsonlRequestLogger } from '@ai-agent-sdk/observability-node/diagnostic'
+import { createDailyJsonlRequestLogger } from '@alvin0/ai-agent-sdk-observability-node/diagnostic'
 
 registry.registerAdapter(['codex'], codexAdapter({
   requestLogger: createDailyJsonlRequestLogger({
@@ -246,10 +246,10 @@ is git-ignored but should still be treated as sensitive local data.
 
 | Package | Boundary | Use for |
 | --- | --- | --- |
-| `@ai-agent-sdk/observability-fetch` | `remote-acknowledged` | Universal acknowledged HTTPS batches |
-| `@ai-agent-sdk/observability-node` | `local-durable` | Checksum-framed JSONL journal |
-| `@ai-agent-sdk/observability-browser` | `local-durable` | IndexedDB staging and crash recovery |
-| `@ai-agent-sdk/observability-otel` | — (processor) | Map events to caller-supplied OpenTelemetry APIs |
+| `@alvin0/ai-agent-sdk-observability-fetch` | `remote-acknowledged` | Universal acknowledged HTTPS batches |
+| `@alvin0/ai-agent-sdk-observability-node` | `local-durable` | Checksum-framed JSONL journal |
+| `@alvin0/ai-agent-sdk-observability-browser` | `local-durable` | IndexedDB staging and crash recovery |
+| `@alvin0/ai-agent-sdk-observability-otel` | — (processor) | Map events to caller-supplied OpenTelemetry APIs |
 
 ---
 
@@ -336,7 +336,7 @@ An Edge host cannot rely on process exit. Hand the flush promise to the
 platform's explicit `waitUntil`:
 
 ```ts
-import { flushObservabilityWithWaitUntil } from '@ai-agent-sdk/observability-fetch'
+import { flushObservabilityWithWaitUntil } from '@alvin0/ai-agent-sdk-observability-fetch'
 
 export default {
   async fetch(request, env, ctx) {
@@ -352,7 +352,7 @@ The package never assumes a platform global.
 ## Browser lifecycle
 
 ```ts
-import { installBrowserObservabilityLifecycle } from '@ai-agent-sdk/observability-browser'
+import { installBrowserObservabilityLifecycle } from '@alvin0/ai-agent-sdk-observability-browser'
 
 installBrowserObservabilityLifecycle(observability)
 ```

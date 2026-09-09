@@ -1,12 +1,12 @@
 /**
  * The filesystem-backed {@link ContextSection} itself.
  *
- * @module @ai-agent-sdk/instructions-node/section
+ * @module @alvin0/ai-agent-sdk-instructions-node/section
  */
 
 import { resolve } from 'node:path'
-import { defineContextSection } from '@ai-agent-sdk/core'
-import type { ContextSection, ContextSectionScope, ContextSectionState } from '@ai-agent-sdk/core'
+import { defineContextSection } from '@alvin0/ai-agent-sdk-core'
+import type { ContextSection, ContextSectionScope, ContextSectionState } from '@alvin0/ai-agent-sdk-core'
 import {
   resolveInstructionsConfig,
   type ProjectInstructionsOptions,

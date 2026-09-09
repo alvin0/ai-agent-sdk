@@ -1,6 +1,6 @@
 # `Memory`
 
-Import từ `@ai-agent-sdk/core/memory`.
+Import từ `@alvin0/ai-agent-sdk-core/memory`.
 
 ```ts
 export { defineMemoryStore, MEMORY_STORE_API_VERSION, MEMORY_ERROR_CODES }

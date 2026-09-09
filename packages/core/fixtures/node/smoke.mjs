@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import metadata from '@ai-agent-sdk/core/package.json' with { type: 'json' }
-import { ModelAdapter, ModelRegistry, createAgentRuntime, SDK_VERSION, createTraceId } from '@ai-agent-sdk/core'
+import metadata from '@alvin0/ai-agent-sdk-core/package.json' with { type: 'json' }
+import { ModelAdapter, ModelRegistry, createAgentRuntime, SDK_VERSION, createTraceId } from '@alvin0/ai-agent-sdk-core'
 import { logicReviewEvidence } from './shared/logic-review.js'
 import { overflowEvidence } from './shared/overflow.js'
 

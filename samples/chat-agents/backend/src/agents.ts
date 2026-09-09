@@ -7,9 +7,9 @@
  */
 
 import { asc, eq, isNull, or } from 'drizzle-orm'
-import { connectMcpStdio } from '@ai-agent-sdk/mcp-node'
-import { connectMcpHttp } from '@ai-agent-sdk/mcp/client'
-import type { ToolDefinition } from '@ai-agent-sdk/core'
+import { connectMcpStdio } from '@alvin0/ai-agent-sdk-mcp-node'
+import { connectMcpHttp } from '@alvin0/ai-agent-sdk-mcp/client'
+import type { ToolDefinition } from '@alvin0/ai-agent-sdk-core'
 import { database, schema } from './db/client'
 
 export interface AgentRow {

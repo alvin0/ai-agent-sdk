@@ -11,12 +11,12 @@ import {
   type FileHandle,
 } from 'node:fs/promises'
 import { join } from 'node:path'
-import { deepFreeze, type ObservationEvent } from '@ai-agent-sdk/core'
+import { deepFreeze, type ObservationEvent } from '@alvin0/ai-agent-sdk-core'
 import type {
   ObservationDeliveryAck,
   ObservationDeliveryBatch,
   ObservationExportItem,
-} from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core/observability'
 import { atomicWriteJson, ensureSafeRoot, openExclusiveFile } from '../common/safe-filesystem.ts'
 import { JOURNAL_FILES, JOURNAL_LIMITS, safeSegmentId } from './config.ts'
 import { journalFailure } from './errors.ts'

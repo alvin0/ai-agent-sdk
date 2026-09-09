@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ModelAdapter } from '@ai-agent-sdk/core'
-import type { GenerateOptions } from '@ai-agent-sdk/core'
+import { ModelAdapter } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
 import {
   createCoreSpan,
   createSpanId,
@@ -16,9 +16,9 @@ import {
   type ObservationEvent,
   type ObservationPort,
   type OpenObservationSpanInput,
-} from '@ai-agent-sdk/core'
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 class ObservedAdapter extends ModelAdapter {
   seenContext: ModelInvocationContext | undefined

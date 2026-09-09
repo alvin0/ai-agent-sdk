@@ -1,5 +1,5 @@
-import { ModelRegistry, createCoreSpan } from '@ai-agent-sdk/core'
-import { createHttpProvider } from '@ai-agent-sdk/provider-http'
+import { ModelRegistry, createCoreSpan } from '@alvin0/ai-agent-sdk-core'
+import { createHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
 
 const protocol = {
   id: 'packed-protocol',

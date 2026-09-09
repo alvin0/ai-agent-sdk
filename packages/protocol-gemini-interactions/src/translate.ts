@@ -8,7 +8,7 @@ import {
   type FinishReason,
   type TextAnnotation,
   type UsageCounters,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import type { ProtocolRequest, ProtocolSseEvent, ProtocolStreamChunk } from './contract.ts'
 import type {
   GeminiThoughtState,

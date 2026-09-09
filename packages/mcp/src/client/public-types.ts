@@ -1,4 +1,4 @@
-import type { JsonObject } from '@ai-agent-sdk/core'
+import type { JsonObject } from '@alvin0/ai-agent-sdk-core'
 
 /** Protocol-selection surface owned by the SDK so Web consumers do not inherit Node ambient types. */
 export type McpVersionNegotiationMode = 'legacy' | 'auto' | { readonly pin: string }

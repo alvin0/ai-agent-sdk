@@ -2,8 +2,8 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { SdkLogger, SkillReference } from '@ai-agent-sdk/core/skills'
-import { fileSystemSkillProviderPlugin } from '@ai-agent-sdk/skill-filesystem'
+import type { SdkLogger, SkillReference } from '@alvin0/ai-agent-sdk-core/skills'
+import { fileSystemSkillProviderPlugin } from '@alvin0/ai-agent-sdk-skill-filesystem'
 
 const temporary: string[] = []
 

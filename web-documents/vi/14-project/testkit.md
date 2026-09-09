@@ -1,4 +1,4 @@
-# `@ai-agent-sdk/testkit`
+# `@alvin0/ai-agent-sdk-testkit`
 
 Runtime: **Universal** — chỉ là phụ thuộc phát triển.
 
@@ -37,7 +37,7 @@ export type {
 ## Chạy bộ kiểm tra
 
 ```ts
-import { runProviderConformanceSuite } from '@ai-agent-sdk/testkit'
+import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
 
 const report = await runProviderConformanceSuite(fixture)
 ```

@@ -1,4 +1,4 @@
-import { anthropicPlugin } from '@ai-agent-sdk/provider-anthropic'
+import { anthropicPlugin } from '@alvin0/ai-agent-sdk-provider-anthropic'
 
 export const providerId = 'anthropic'
 export const expectedCredential = 'packed-anthropic-secret'

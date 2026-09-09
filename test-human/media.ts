@@ -2,7 +2,7 @@
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, extname, resolve } from 'node:path'
-import type { ContentBlock, ImageBlock, ImageMediaType } from '@ai-agent-sdk/core'
+import type { ContentBlock, ImageBlock, ImageMediaType } from '@alvin0/ai-agent-sdk-core'
 import { label } from './console.ts'
 
 export async function loadImageBlock(input: string): Promise<ImageBlock> {

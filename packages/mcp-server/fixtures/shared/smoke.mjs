@@ -1,5 +1,5 @@
-import { ToolRegistry, defineTool } from '@ai-agent-sdk/core/tools'
-import { createMcpServer } from '@ai-agent-sdk/mcp-server'
+import { ToolRegistry, defineTool } from '@alvin0/ai-agent-sdk-core/tools'
+import { createMcpServer } from '@alvin0/ai-agent-sdk-mcp-server'
 
 const meta = {
   'io.modelcontextprotocol/protocolVersion': '2026-07-28',

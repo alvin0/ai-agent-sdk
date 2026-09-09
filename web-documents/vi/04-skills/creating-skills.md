@@ -6,7 +6,7 @@ Dành cho trình duyệt, edge worker, ứng dụng nền cơ sở dữ liệu, 
 nào không có thư mục skill:
 
 ```ts
-import { defineAgent, defineSkill } from '@ai-agent-sdk/core/agent'
+import { defineAgent, defineSkill } from '@alvin0/ai-agent-sdk-core/agent'
 
 const incidentTriage = defineSkill({
   id: 'incident-triage',
@@ -50,7 +50,7 @@ outages, elevated error rates, and degraded latency" tốt hơn "for incidents".
 Hiện thực cùng hợp đồng trung lập với môi trường, trên bất kỳ kho nào:
 
 ```ts
-import { defineSkillProvider } from '@ai-agent-sdk/core/agent'
+import { defineSkillProvider } from '@alvin0/ai-agent-sdk-core/agent'
 
 const scopedSkills = defineSkillProvider({
   kind: 'skill-provider',

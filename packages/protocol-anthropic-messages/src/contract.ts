@@ -1,4 +1,4 @@
-import type { GenerateOptions, StreamChunk, UsageCounters } from '@ai-agent-sdk/core'
+import type { GenerateOptions, StreamChunk, UsageCounters } from '@alvin0/ai-agent-sdk-core'
 
 /** The request fields a pure wire protocol is allowed to inspect. */
 export interface ProtocolRequest {

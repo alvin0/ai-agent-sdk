@@ -60,7 +60,7 @@ Team cưỡng chế những điều sau để bạn không phải tự làm:
 được hỗ trợ, và thêm peer vào đúng danh bạ mà các agent cục bộ đang dùng.
 
 ```ts
-import { linkA2AAgent } from '@ai-agent-sdk/a2a/client'
+import { linkA2AAgent } from '@alvin0/ai-agent-sdk-a2a/client'
 
 const { link, unlink } = await linkA2AAgent(team, {
   name: 'security',
@@ -99,7 +99,7 @@ và bật tường minh bằng `legacyCompat: true`.
 ## Công bố card của chính bạn
 
 ```ts
-import { createAgentCardFromDefinition } from '@ai-agent-sdk/a2a/server'
+import { createAgentCardFromDefinition } from '@alvin0/ai-agent-sdk-a2a/server'
 
 const agentCard = createAgentCardFromDefinition(reviewer, {
   url: 'https://agents.example.com/reviewer/a2a',

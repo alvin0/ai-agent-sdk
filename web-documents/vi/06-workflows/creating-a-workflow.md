@@ -64,7 +64,7 @@ team. Hai khái niệm, cùng cho ra một `AgentTeam`.
 ### Dạng quản lý — agent dẫn dắt quyết lúc chạy
 
 ```ts
-import { createManagedAgentTeam, defineAgent } from '@ai-agent-sdk/core'
+import { createManagedAgentTeam, defineAgent } from '@alvin0/ai-agent-sdk-core'
 
 const harness = createManagedAgentTeam({
   registry,
@@ -87,7 +87,7 @@ toàn khi chạy đồng thời.
 ### Dạng dựng sẵn — bạn chốt danh bạ
 
 ```ts
-import { createDefinedAgentTeam } from '@ai-agent-sdk/core'
+import { createDefinedAgentTeam } from '@alvin0/ai-agent-sdk-core'
 
 const composed = createDefinedAgentTeam({
   registry,

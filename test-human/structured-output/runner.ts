@@ -1,7 +1,7 @@
-import { createAgentRuntime, defineTool } from '@ai-agent-sdk/core'
-import { envCredential } from '@ai-agent-sdk/auth-node'
-import { codexNodeProviderPlugin } from '@ai-agent-sdk/auth-node/codex'
-import { geminiPlugin } from '@ai-agent-sdk/provider-gemini'
+import { createAgentRuntime, defineTool } from '@alvin0/ai-agent-sdk-core'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
+import { codexNodeProviderPlugin } from '@alvin0/ai-agent-sdk-auth-node/codex'
+import { geminiPlugin } from '@alvin0/ai-agent-sdk-provider-gemini'
 import {
   HumanArtifactRecorder,
   type HumanArtifactInvariant,

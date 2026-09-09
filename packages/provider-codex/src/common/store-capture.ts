@@ -5,7 +5,7 @@ import {
   type CredentialCommitResult,
   type CredentialOperationOptions,
   type CredentialRecord,
-} from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/provider'
 import type {
   CodexAuthFile,
   CodexAuthStore,

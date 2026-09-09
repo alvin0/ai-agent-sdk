@@ -5,7 +5,7 @@ import { stdin, stdout } from 'node:process'
 import { createInterface } from 'node:readline/promises'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { createUserInputBroker } from '@ai-agent-sdk/core/agent'
+import { createUserInputBroker } from '@alvin0/ai-agent-sdk-core/agent'
 import { HumanArtifactRecorder } from './artifacts.ts'
 import { createHumanAgent } from './agent.ts'
 import {

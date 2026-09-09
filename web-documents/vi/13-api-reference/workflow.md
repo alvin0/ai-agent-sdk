@@ -10,12 +10,12 @@
 
 | Bạn muốn | Kiểu / hàm | Điểm vào |
 | --- | --- | --- |
-| Các bước theo thứ tự | `RuntimeAgentSession.run()` | `@ai-agent-sdk/core` |
-| Lời gọi tool song song | `ToolDefinition.isConcurrencySafe` | `@ai-agent-sdk/core` |
-| Agent song song | `RuntimeAgentTeam`, `spawn_agent` | `@ai-agent-sdk/core` |
-| Một cổng có điều kiện | `TurnHooks.beforeStep` → `StepDecision` | `@ai-agent-sdk/core/agent` |
-| Một cổng do người chốt | `ApprovalBroker`, `UserInputBroker` | `@ai-agent-sdk/core` |
-| Một hợp đồng hoàn thành | `mode: 'deep'` | `@ai-agent-sdk/core` |
+| Các bước theo thứ tự | `RuntimeAgentSession.run()` | `@alvin0/ai-agent-sdk-core` |
+| Lời gọi tool song song | `ToolDefinition.isConcurrencySafe` | `@alvin0/ai-agent-sdk-core` |
+| Agent song song | `RuntimeAgentTeam`, `spawn_agent` | `@alvin0/ai-agent-sdk-core` |
+| Một cổng có điều kiện | `TurnHooks.beforeStep` → `StepDecision` | `@alvin0/ai-agent-sdk-core/agent` |
+| Một cổng do người chốt | `ApprovalBroker`, `UserInputBroker` | `@alvin0/ai-agent-sdk-core` |
+| Một hợp đồng hoàn thành | `mode: 'deep'` | `@alvin0/ai-agent-sdk-core` |
 
 ## Team
 
@@ -47,7 +47,7 @@ Các kiểu: `RuntimeAgentTeam`, `RuntimeAgentTeamEvent`, `RuntimeAgentTeamOptio
 
 ### `AgentTeam` — nguyên thuỷ tầng thấp
 
-Từ `@ai-agent-sdk/core/agent`:
+Từ `@alvin0/ai-agent-sdk-core/agent`:
 
 ```ts
 class AgentTeam {

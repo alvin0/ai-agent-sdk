@@ -28,7 +28,7 @@ them as a typed `INVALID_REQUEST` error rather than silently dropping them.
 ## Messages are immutable
 
 ```ts
-import { createTextMessage } from '@ai-agent-sdk/core'
+import { createTextMessage } from '@alvin0/ai-agent-sdk-core'
 
 const message = createTextMessage('What is 21 * 2?')
 ```

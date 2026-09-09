@@ -8,14 +8,14 @@ import {
   SkillCatalog,
   createSkillTools,
   resolveSkillOptions,
-} from '@ai-agent-sdk/core/agent'
+} from '@alvin0/ai-agent-sdk-core/agent'
 import {
   discoverFileSystemSkills,
   fileSystemSkills,
-} from '@ai-agent-sdk/skill-filesystem'
-import { dispatchToolCall } from '@ai-agent-sdk/core/agent'
-import { ToolRegistry } from '@ai-agent-sdk/core/agent'
-import { ToolCallId } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-skill-filesystem'
+import { dispatchToolCall } from '@alvin0/ai-agent-sdk-core/agent'
+import { ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
+import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
 
 const observedReads = vi.hoisted(() => vi.fn<(path: string, bytes: number) => void>())
 vi.mock('node:fs/promises', async importOriginal => {

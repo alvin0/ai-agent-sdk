@@ -1,5 +1,5 @@
 import type { Part } from '@a2a-js/sdk'
-import type { ContentBlock, ImageMediaType } from '@ai-agent-sdk/core'
+import type { ContentBlock, ImageMediaType } from '@alvin0/ai-agent-sdk-core'
 
 export function partsToContent(parts: readonly Part[]): ContentBlock[] {
   const blocks: ContentBlock[] = []

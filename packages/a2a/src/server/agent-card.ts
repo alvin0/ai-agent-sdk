@@ -1,6 +1,6 @@
 import { A2A_PROTOCOL_VERSION, type AgentCard, type AgentProvider,
   type AgentSkill, type SecurityRequirement, type SecurityScheme } from '@a2a-js/sdk'
-import type { DefinedAgent } from '@ai-agent-sdk/core/agent'
+import type { DefinedAgent } from '@alvin0/ai-agent-sdk-core/agent'
 
 export interface AgentCardFromDefinitionOptions {
   readonly url: string

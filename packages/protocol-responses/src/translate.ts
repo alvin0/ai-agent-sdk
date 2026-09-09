@@ -21,17 +21,17 @@
 import {
   CONTEXT_WINDOW_EXCEEDED_CODE,
   QUOTA_EXCEEDED_CODE,
-} from '@ai-agent-sdk/core'
-import { MODEL_ERROR_CODES, ModelError } from '@ai-agent-sdk/core'
-import { ToolCallId } from '@ai-agent-sdk/core'
-import { isJsonValue } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
+import { MODEL_ERROR_CODES, ModelError } from '@alvin0/ai-agent-sdk-core'
+import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { isJsonValue } from '@alvin0/ai-agent-sdk-core'
 import type {
   AssistantTextPhase,
   ContentBlock,
   ImageMediaType,
   TextAnnotation,
-} from '@ai-agent-sdk/core'
-import type { FinishReason, UsageCounters } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
+import type { FinishReason, UsageCounters } from '@alvin0/ai-agent-sdk-core'
 import type { ProtocolRequest, ProtocolSseEvent, ProtocolStreamChunk } from './contract.ts'
 import type { ResponsesReasoningState } from './serialize.ts'
 import type {

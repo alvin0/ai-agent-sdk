@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { validateUsageCounters } from '@ai-agent-sdk/core'
+import { validateUsageCounters } from '@alvin0/ai-agent-sdk-core'
 import {
   translateGeminiInteractionsStream,
   type ProtocolSseEvent,
-} from '@ai-agent-sdk/protocol-gemini-interactions'
+} from '@alvin0/ai-agent-sdk-protocol-gemini-interactions'
 
 async function* events(values: readonly object[]): AsyncIterable<ProtocolSseEvent> {
   for (const value of values) yield { event: undefined, data: JSON.stringify(value) }

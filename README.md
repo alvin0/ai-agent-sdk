@@ -29,17 +29,17 @@ Choose the smallest runtime closure you need:
 
 ```bash
 # Edge/Worker harness with a remote provider and acknowledged HTTPS telemetry
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
-  @ai-agent-sdk/observability-fetch
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
+  @alvin0/ai-agent-sdk-observability-fetch
 
 # Browser harness with IndexedDB crash recovery
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
-  @ai-agent-sdk/observability-browser
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
+  @alvin0/ai-agent-sdk-observability-browser
 
 # Node coding harness: choose only the capabilities it uses
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/auth-node @ai-agent-sdk/provider-codex \
-  @ai-agent-sdk/mcp-node @ai-agent-sdk/observability-node \
-  @ai-agent-sdk/skill-filesystem
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-auth-node @alvin0/ai-agent-sdk-provider-codex \
+  @alvin0/ai-agent-sdk-mcp-node @alvin0/ai-agent-sdk-observability-node \
+  @alvin0/ai-agent-sdk-skill-filesystem
 ```
 
 All three profiles share the same Universal core and agent loop. Importing a Node
@@ -54,9 +54,9 @@ import {
   BlockAssembler,
   ModelRegistry,
   createTextMessage,
-} from '@ai-agent-sdk/core'
-import { envCredential } from '@ai-agent-sdk/auth-node/env'
-import { openAiAdapter } from '@ai-agent-sdk/provider-openai'
+} from '@alvin0/ai-agent-sdk-core'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node/env'
+import { openAiAdapter } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const registry = new ModelRegistry()
 registry.registerAdapter(['openai'], openAiAdapter({
@@ -86,10 +86,10 @@ retired model.
 
 | Entry point | Endpoint | Credential |
 | --- | --- | --- |
-| `@ai-agent-sdk/provider-anthropic` | Messages API | injected `apiKey` |
-| `@ai-agent-sdk/provider-openai` | Responses API | injected `apiKey` |
-| `@ai-agent-sdk/provider-codex` | ChatGPT-backed Codex | injected `CodexAuthStore` |
-| `@ai-agent-sdk/auth-node/codex` | ChatGPT-backed Codex on Node | project-local device-code login |
+| `@alvin0/ai-agent-sdk-provider-anthropic` | Messages API | injected `apiKey` |
+| `@alvin0/ai-agent-sdk-provider-openai` | Responses API | injected `apiKey` |
+| `@alvin0/ai-agent-sdk-provider-codex` | ChatGPT-backed Codex | injected `CodexAuthStore` |
+| `@alvin0/ai-agent-sdk-auth-node/codex` | ChatGPT-backed Codex on Node | project-local device-code login |
 
 `openai` and `codex` share one Responses implementation (`packages/protocol-responses/`)
 and differ only by a small dialect record — base URL, auth, and which optional
@@ -109,7 +109,7 @@ file will eventually race — the second to refresh replays a spent token and th
 user is silently logged out of their real Codex CLI.
 
 ```ts
-import { codexAdapter } from '@ai-agent-sdk/auth-node/codex'
+import { codexAdapter } from '@alvin0/ai-agent-sdk-auth-node/codex'
 
 registry.registerAdapter(['codex'], codexAdapter())
 const models = await registry.listModels('codex')   // discovered from the account
@@ -129,11 +129,11 @@ credential/catalog operations, safe errors, and correlated application logs whil
 defaulting to `content: 'none'`:
 
 ```ts
-import { ModelRegistry } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
 import {
   MemoryObservationExporter,
   createObservability,
-} from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core/observability'
 
 const exporter = new MemoryObservationExporter() // test/local inspection only
 const observation = createObservability({
@@ -157,8 +157,8 @@ body contains prompts and tool results.
 Enable the Node-only logger when debugging the wire payload sent to a provider:
 
 ```ts
-import { createDailyJsonlRequestLogger } from '@ai-agent-sdk/observability-node/diagnostic'
-import { codexAdapter } from '@ai-agent-sdk/provider-codex'
+import { createDailyJsonlRequestLogger } from '@alvin0/ai-agent-sdk-observability-node/diagnostic'
+import { codexAdapter } from '@alvin0/ai-agent-sdk-provider-codex'
 
 registry.registerAdapter(['codex'], codexAdapter({
   requestLogger: createDailyJsonlRequestLogger({
@@ -180,7 +180,7 @@ Retry is a decorator, and it only retries failures that occur **before the first
 chunk reaches the consumer** — replaying delivered tokens would duplicate output.
 
 ```ts
-import { withRetry } from '@ai-agent-sdk/core'
+import { withRetry } from '@alvin0/ai-agent-sdk-core'
 
 registry.registerAdapter(['openai'], withRetry(openAiAdapter({
   apiKey: envCredential('OPENAI_API_KEY'),
@@ -221,7 +221,7 @@ See [provider model limits](web-documents/en/09-providers/index.md) to configure
 windows and output budgets per model when setting up a provider.
 
 See [the package architecture](web-documents/en/11-internals/package-topology.md) and
-[`@ai-agent-sdk/provider-http`](packages/provider-http/README.md) for the adapter
+[`@alvin0/ai-agent-sdk-provider-http`](packages/provider-http/README.md) for the adapter
 pipeline, ownership rules, and provider extension boundary.
 
 ## Tool loop
@@ -237,7 +237,7 @@ per conversation. The session owns history, so callers do not have to assemble a
 new `runAgent()` options object for every user turn:
 
 ```ts
-import { defineAgent, defineTool } from '@ai-agent-sdk/core'
+import { defineAgent, defineTool } from '@alvin0/ai-agent-sdk-core'
 
 const multiply = defineTool({
   name: 'multiply',
@@ -277,7 +277,7 @@ native tools, variants, and session ownership.
 Agents can also own progressively disclosed skills. Web applications declare
 portable in-memory skills with `defineSkill()` or a custom `defineSkillProvider()`;
 Node CLIs discover `SKILL.md` folders through the separate
-`@ai-agent-sdk/skill-filesystem` entry point. Reusable definitions may declare a
+`@alvin0/ai-agent-sdk-skill-filesystem` entry point. Reusable definitions may declare a
 strict `skillIds` allowlist over session-provided request/workflow sources without
 pre-activating those skills. See the
 [skills section](web-documents/en/04-skills/index.md)
@@ -318,7 +318,7 @@ Use `runTurn()` when the application needs to own history and every execution
 boundary directly:
 
 ```ts
-import { History, ToolRegistry, defineTool, createTextMessage, runTurn } from '@ai-agent-sdk/core/agent'
+import { History, ToolRegistry, defineTool, createTextMessage, runTurn } from '@alvin0/ai-agent-sdk-core/agent'
 
 const history = new History()
 history.append({ kind: 'user', message: createTextMessage('What is 21 * 2?') })
@@ -351,7 +351,7 @@ for await (const event of runTurn({
 For a ready-made execution policy, use `runAgent()` above `runTurn`:
 
 ```ts
-import { createUserInputBroker, runAgent } from '@ai-agent-sdk/core'
+import { createUserInputBroker, runAgent } from '@alvin0/ai-agent-sdk-core'
 
 const userInput = createUserInputBroker()
 
@@ -410,7 +410,7 @@ are passed separately from host functions so the scheduler never tries to execut
 them:
 
 ```ts
-import { ReasoningEffortId, runAgent } from '@ai-agent-sdk/core'
+import { ReasoningEffortId, runAgent } from '@alvin0/ai-agent-sdk-core'
 
 for await (const event of runAgent({
   mode: 'basic',
@@ -458,9 +458,9 @@ For any endpoint speaking a protocol this package already implements, adding it 
 configuration — no new file, no new folder, no edit to this package:
 
 ```ts
-import { openAiResponsesProtocol } from '@ai-agent-sdk/protocol-responses'
-import { createHttpProvider } from '@ai-agent-sdk/provider-http'
-import { envCredential } from '@ai-agent-sdk/auth-node/env'
+import { openAiResponsesProtocol } from '@alvin0/ai-agent-sdk-protocol-responses'
+import { createHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node/env'
 
 registry.registerAdapter(['openrouter'], createHttpProvider({
   displayName: 'OpenRouter',
@@ -475,7 +475,7 @@ subclass — the built-in `codex` provider is itself only config.
 
 Subclass `HttpModelAdapter` only when connection facts cannot be expressed as data
 (request signing over the body, such as AWS SigV4). Decision table and a new-protocol
-walkthrough in [`@ai-agent-sdk/provider-http`](packages/provider-http/README.md).
+walkthrough in [`@alvin0/ai-agent-sdk-provider-http`](packages/provider-http/README.md).
 
 ## Scripts
 

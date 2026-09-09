@@ -8,12 +8,12 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ReasoningEffortId, createTextMessage } from '@ai-agent-sdk/core'
-import { defineCredentialSource } from '@ai-agent-sdk/core/provider'
-import { ModelAdapter, ModelRegistry } from '@ai-agent-sdk/core'
-import { OBSERVATION_ERROR_CODES, createCoreSpan, withRetry } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
-import type { CaptureReceipt, ObservationEvent, ObservationPort } from '@ai-agent-sdk/core'
+import { ReasoningEffortId, createTextMessage } from '@alvin0/ai-agent-sdk-core'
+import { defineCredentialSource } from '@alvin0/ai-agent-sdk-core/provider'
+import { ModelAdapter, ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { OBSERVATION_ERROR_CODES, createCoreSpan, withRetry } from '@alvin0/ai-agent-sdk-core'
+import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
+import type { CaptureReceipt, ObservationEvent, ObservationPort } from '@alvin0/ai-agent-sdk-core'
 import {
   HTTP_PROTOCOL_API_VERSION,
   HTTP_PROVIDER_ERROR_CODES,
@@ -26,12 +26,12 @@ import {
   type ProviderRequestLogRecord,
   type SseEvent,
   type WireProtocol,
-} from '@ai-agent-sdk/provider-http'
-import { apiKeyFromEnv } from '@ai-agent-sdk/auth-node/env'
+} from '@alvin0/ai-agent-sdk-provider-http'
+import { apiKeyFromEnv } from '@alvin0/ai-agent-sdk-auth-node/env'
 import {
   openAiResponsesProtocol,
   type ResponsesDialect,
-} from '@ai-agent-sdk/protocol-responses'
+} from '@alvin0/ai-agent-sdk-protocol-responses'
 import { ForeignModelError } from './fixtures/foreign-model-error.ts'
 
 /** Build a `Response` whose body streams the given SSE frames. */

@@ -10,9 +10,9 @@ import {
   type ModelProviderRegistrar,
   type ResolvedModelInfo,
   type StreamChunk,
-} from '@ai-agent-sdk/core'
-import type { ComposableModelProviderPlugin } from '@ai-agent-sdk/core/provider'
-import { jsonlObservationExporter } from '@ai-agent-sdk/observability-node'
+} from '@alvin0/ai-agent-sdk-core'
+import type { ComposableModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
+import { jsonlObservationExporter } from '@alvin0/ai-agent-sdk-observability-node'
 
 const roots: string[] = []
 

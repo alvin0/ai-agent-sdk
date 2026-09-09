@@ -1,4 +1,4 @@
-import type { IntegrationOperationEvidenceFields, SdkLogger } from '@ai-agent-sdk/core/observability'
+import type { IntegrationOperationEvidenceFields, SdkLogger } from '@alvin0/ai-agent-sdk-core/observability'
 
 type OperationName = 'request' | 'close'
 type Status = 'success' | 'error' | 'aborted'

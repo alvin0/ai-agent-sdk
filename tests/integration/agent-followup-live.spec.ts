@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { defineAgent } from '@ai-agent-sdk/core/agent'
-import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
-import { codexNodeAdapter } from '@ai-agent-sdk/auth-node/codex'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import type { AgentRunEvent } from '@alvin0/ai-agent-sdk-core/agent'
+import { codexNodeAdapter } from '@alvin0/ai-agent-sdk-auth-node/codex'
 
 describe('live current-run self-check', () => {
   it.each(['medium', 'high', 'max'])('%s', async effort => {

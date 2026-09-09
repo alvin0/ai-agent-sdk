@@ -1,17 +1,17 @@
-# @ai-agent-sdk/a2a
+# @alvin0/ai-agent-sdk-a2a
 
 Runtime: **Node 22.12+**.
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/a2a
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-a2a
 ```
 
 Node-elevated bridge between ai-agent-sdk agents/teams and the official A2A
 client/server APIs.
 
 ```ts
-import { linkA2AAgent } from '@ai-agent-sdk/a2a/client'
-import { createDefinedAgentA2AServer } from '@ai-agent-sdk/a2a/server'
+import { linkA2AAgent } from '@alvin0/ai-agent-sdk-a2a/client'
+import { createDefinedAgentA2AServer } from '@alvin0/ai-agent-sdk-a2a/server'
 ```
 
 This package is intentionally classified as Node. The official A2A 1.1.0 codec

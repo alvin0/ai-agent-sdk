@@ -36,7 +36,7 @@ This is a **separate high-risk capability**, not a verbosity setting. It refuses
 construction unless **both** flags are set:
 
 ```ts
-import { createDailyJsonlRequestLogger } from '@ai-agent-sdk/observability-node/diagnostic'
+import { createDailyJsonlRequestLogger } from '@alvin0/ai-agent-sdk-observability-node/diagnostic'
 
 registry.registerAdapter(['codex'], codexAdapter({
   requestLogger: createDailyJsonlRequestLogger({

@@ -1,4 +1,4 @@
-import type { ToolExecutionResult } from '@ai-agent-sdk/core/agent'
+import type { ToolExecutionResult } from '@alvin0/ai-agent-sdk-core/agent'
 import type { GitHubMcpCommandStep } from './commands.ts'
 
 export function renderGitHubMcpStep(step: GitHubMcpCommandStep, maxChars: number): string {

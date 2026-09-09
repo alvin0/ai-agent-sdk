@@ -1,7 +1,7 @@
 /**
  * Normalized discovery configuration for filesystem instruction files.
  *
- * @module @ai-agent-sdk/instructions-node/config
+ * @module @alvin0/ai-agent-sdk-instructions-node/config
  */
 
 export const DEFAULT_FILE_NAMES = Object.freeze(['AGENTS.override.md', 'AGENTS.md'])

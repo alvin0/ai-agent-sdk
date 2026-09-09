@@ -22,14 +22,14 @@ import {
   createOperationId,
   type ObservationEvent,
   type ObservationPriority,
-} from '@ai-agent-sdk/core'
-import { createObservability, type ObservationBatch } from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core'
+import { createObservability, type ObservationBatch } from '@alvin0/ai-agent-sdk-core/observability'
 import {
   JsonlObservationJournalExporter,
   createDiagnosticWireLogger,
   installNodeObservabilityLifecycle,
   recoverJournal,
-} from '@ai-agent-sdk/observability-node'
+} from '@alvin0/ai-agent-sdk-observability-node'
 
 const roots: string[] = []
 

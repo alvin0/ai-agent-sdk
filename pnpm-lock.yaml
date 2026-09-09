@@ -149,70 +149,70 @@ importers:
       '@a2a-js/sdk':
         specifier: 'catalog:'
         version: 1.1.0
-      '@ai-agent-sdk/a2a':
+      '@alvin0/ai-agent-sdk-a2a':
         specifier: workspace:^
         version: link:packages/a2a
-      '@ai-agent-sdk/auth-node':
+      '@alvin0/ai-agent-sdk-auth-node':
         specifier: workspace:^
         version: link:packages/auth-node
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:packages/core
-      '@ai-agent-sdk/instructions-node':
+      '@alvin0/ai-agent-sdk-instructions-node':
         specifier: workspace:^
         version: link:packages/instructions-node
-      '@ai-agent-sdk/mcp':
+      '@alvin0/ai-agent-sdk-mcp':
         specifier: workspace:^
         version: link:packages/mcp
-      '@ai-agent-sdk/mcp-node':
+      '@alvin0/ai-agent-sdk-mcp-node':
         specifier: workspace:^
         version: link:packages/mcp-node
-      '@ai-agent-sdk/mcp-node-server':
+      '@alvin0/ai-agent-sdk-mcp-node-server':
         specifier: workspace:^
         version: link:packages/mcp-node-server
-      '@ai-agent-sdk/mcp-server':
+      '@alvin0/ai-agent-sdk-mcp-server':
         specifier: workspace:^
         version: link:packages/mcp-server
-      '@ai-agent-sdk/observability-browser':
+      '@alvin0/ai-agent-sdk-observability-browser':
         specifier: workspace:^
         version: link:packages/observability-browser
-      '@ai-agent-sdk/observability-fetch':
+      '@alvin0/ai-agent-sdk-observability-fetch':
         specifier: workspace:^
         version: link:packages/observability-fetch
-      '@ai-agent-sdk/observability-node':
+      '@alvin0/ai-agent-sdk-observability-node':
         specifier: workspace:^
         version: link:packages/observability-node
-      '@ai-agent-sdk/observability-otel':
+      '@alvin0/ai-agent-sdk-observability-otel':
         specifier: workspace:^
         version: link:packages/observability-otel
-      '@ai-agent-sdk/protocol-anthropic-messages':
+      '@alvin0/ai-agent-sdk-protocol-anthropic-messages':
         specifier: workspace:^
         version: link:packages/protocol-anthropic-messages
-      '@ai-agent-sdk/protocol-gemini-interactions':
+      '@alvin0/ai-agent-sdk-protocol-gemini-interactions':
         specifier: workspace:^
         version: link:packages/protocol-gemini-interactions
-      '@ai-agent-sdk/protocol-responses':
+      '@alvin0/ai-agent-sdk-protocol-responses':
         specifier: workspace:^
         version: link:packages/protocol-responses
-      '@ai-agent-sdk/provider-anthropic':
+      '@alvin0/ai-agent-sdk-provider-anthropic':
         specifier: workspace:^
         version: link:packages/provider-anthropic
-      '@ai-agent-sdk/provider-codex':
+      '@alvin0/ai-agent-sdk-provider-codex':
         specifier: workspace:^
         version: link:packages/provider-codex
-      '@ai-agent-sdk/provider-gemini':
+      '@alvin0/ai-agent-sdk-provider-gemini':
         specifier: workspace:^
         version: link:packages/provider-gemini
-      '@ai-agent-sdk/provider-http':
+      '@alvin0/ai-agent-sdk-provider-http':
         specifier: workspace:^
         version: link:packages/provider-http
-      '@ai-agent-sdk/provider-openai':
+      '@alvin0/ai-agent-sdk-provider-openai':
         specifier: workspace:^
         version: link:packages/provider-openai
-      '@ai-agent-sdk/skill-filesystem':
+      '@alvin0/ai-agent-sdk-skill-filesystem':
         specifier: workspace:^
         version: link:packages/skill-filesystem
-      '@ai-agent-sdk/testkit':
+      '@alvin0/ai-agent-sdk-testkit':
         specifier: workspace:^
         version: link:packages/testkit
       '@arethetypeswrong/cli':
@@ -273,7 +273,7 @@ importers:
         specifier: 'catalog:'
         version: 1.1.0
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -300,10 +300,10 @@ importers:
 
   packages/auth-node:
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
-      '@ai-agent-sdk/provider-codex':
+      '@alvin0/ai-agent-sdk-provider-codex':
         specifier: workspace:^
         version: link:../provider-codex
       '@arethetypeswrong/cli':
@@ -351,7 +351,7 @@ importers:
 
   packages/instructions-node:
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -379,10 +379,10 @@ importers:
         specifier: 'catalog:'
         version: 2.0.0
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
-      '@ai-agent-sdk/mcp-server':
+      '@alvin0/ai-agent-sdk-mcp-server':
         specifier: workspace:^
         version: link:../mcp-server
       '@arethetypeswrong/cli':
@@ -409,14 +409,14 @@ importers:
 
   packages/mcp-node:
     dependencies:
-      '@ai-agent-sdk/mcp':
+      '@alvin0/ai-agent-sdk-mcp':
         specifier: workspace:^
         version: link:../mcp
       '@modelcontextprotocol/client':
         specifier: 'catalog:'
         version: 2.0.0
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -440,7 +440,7 @@ importers:
 
   packages/mcp-node-server:
     dependencies:
-      '@ai-agent-sdk/mcp-server':
+      '@alvin0/ai-agent-sdk-mcp-server':
         specifier: workspace:^
         version: link:../mcp-server
       '@modelcontextprotocol/node':
@@ -450,7 +450,7 @@ importers:
         specifier: 'catalog:'
         version: 2.0.0
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -478,7 +478,7 @@ importers:
         specifier: 'catalog:'
         version: 2.0.0
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -505,7 +505,7 @@ importers:
 
   packages/observability-browser:
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -526,7 +526,7 @@ importers:
 
   packages/observability-fetch:
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -553,7 +553,7 @@ importers:
 
   packages/observability-node:
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -577,7 +577,7 @@ importers:
 
   packages/observability-otel:
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -610,7 +610,7 @@ importers:
 
   packages/protocol-anthropic-messages:
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -637,7 +637,7 @@ importers:
 
   packages/protocol-gemini-interactions:
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -664,7 +664,7 @@ importers:
 
   packages/protocol-responses:
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -691,17 +691,17 @@ importers:
 
   packages/provider-anthropic:
     dependencies:
-      '@ai-agent-sdk/protocol-anthropic-messages':
+      '@alvin0/ai-agent-sdk-protocol-anthropic-messages':
         specifier: workspace:^
         version: link:../protocol-anthropic-messages
-      '@ai-agent-sdk/provider-http':
+      '@alvin0/ai-agent-sdk-provider-http':
         specifier: workspace:^
         version: link:../provider-http
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
-      '@ai-agent-sdk/testkit':
+      '@alvin0/ai-agent-sdk-testkit':
         specifier: workspace:^
         version: link:../testkit
       '@arethetypeswrong/cli':
@@ -728,17 +728,17 @@ importers:
 
   packages/provider-codex:
     dependencies:
-      '@ai-agent-sdk/protocol-responses':
+      '@alvin0/ai-agent-sdk-protocol-responses':
         specifier: workspace:^
         version: link:../protocol-responses
-      '@ai-agent-sdk/provider-http':
+      '@alvin0/ai-agent-sdk-provider-http':
         specifier: workspace:^
         version: link:../provider-http
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
-      '@ai-agent-sdk/testkit':
+      '@alvin0/ai-agent-sdk-testkit':
         specifier: workspace:^
         version: link:../testkit
       '@arethetypeswrong/cli':
@@ -765,17 +765,17 @@ importers:
 
   packages/provider-gemini:
     dependencies:
-      '@ai-agent-sdk/protocol-gemini-interactions':
+      '@alvin0/ai-agent-sdk-protocol-gemini-interactions':
         specifier: workspace:^
         version: link:../protocol-gemini-interactions
-      '@ai-agent-sdk/provider-http':
+      '@alvin0/ai-agent-sdk-provider-http':
         specifier: workspace:^
         version: link:../provider-http
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
-      '@ai-agent-sdk/testkit':
+      '@alvin0/ai-agent-sdk-testkit':
         specifier: workspace:^
         version: link:../testkit
       '@arethetypeswrong/cli':
@@ -806,7 +806,7 @@ importers:
         specifier: 4.1.0
         version: 4.1.0
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -833,17 +833,17 @@ importers:
 
   packages/provider-openai:
     dependencies:
-      '@ai-agent-sdk/protocol-responses':
+      '@alvin0/ai-agent-sdk-protocol-responses':
         specifier: workspace:^
         version: link:../protocol-responses
-      '@ai-agent-sdk/provider-http':
+      '@alvin0/ai-agent-sdk-provider-http':
         specifier: workspace:^
         version: link:../provider-http
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
-      '@ai-agent-sdk/testkit':
+      '@alvin0/ai-agent-sdk-testkit':
         specifier: workspace:^
         version: link:../testkit
       '@arethetypeswrong/cli':
@@ -874,7 +874,7 @@ importers:
         specifier: 'catalog:'
         version: 2.9.0
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -898,7 +898,7 @@ importers:
 
   packages/testkit:
     devDependencies:
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
         version: link:../core
       '@arethetypeswrong/cli':
@@ -919,31 +919,31 @@ importers:
 
   samples/chat-agents/backend:
     dependencies:
-      '@ai-agent-sdk/auth-node':
+      '@alvin0/ai-agent-sdk-auth-node':
         specifier: workspace:*
         version: link:../../../packages/auth-node
-      '@ai-agent-sdk/core':
+      '@alvin0/ai-agent-sdk-core':
         specifier: workspace:*
         version: link:../../../packages/core
-      '@ai-agent-sdk/instructions-node':
+      '@alvin0/ai-agent-sdk-instructions-node':
         specifier: workspace:*
         version: link:../../../packages/instructions-node
-      '@ai-agent-sdk/mcp':
+      '@alvin0/ai-agent-sdk-mcp':
         specifier: workspace:*
         version: link:../../../packages/mcp
-      '@ai-agent-sdk/mcp-node':
+      '@alvin0/ai-agent-sdk-mcp-node':
         specifier: workspace:*
         version: link:../../../packages/mcp-node
-      '@ai-agent-sdk/provider-anthropic':
+      '@alvin0/ai-agent-sdk-provider-anthropic':
         specifier: workspace:*
         version: link:../../../packages/provider-anthropic
-      '@ai-agent-sdk/provider-gemini':
+      '@alvin0/ai-agent-sdk-provider-gemini':
         specifier: workspace:*
         version: link:../../../packages/provider-gemini
-      '@ai-agent-sdk/provider-openai':
+      '@alvin0/ai-agent-sdk-provider-openai':
         specifier: workspace:*
         version: link:../../../packages/provider-openai
-      '@ai-agent-sdk/skill-filesystem':
+      '@alvin0/ai-agent-sdk-skill-filesystem':
         specifier: workspace:*
         version: link:../../../packages/skill-filesystem
       drizzle-orm:

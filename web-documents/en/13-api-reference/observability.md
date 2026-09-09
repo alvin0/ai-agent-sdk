@@ -11,7 +11,7 @@ Four packages, one bus. Pick by **where the events need to land**.
 
 ---
 
-## `@ai-agent-sdk/observability-fetch`
+## `@alvin0/ai-agent-sdk-observability-fetch`
 
 Universal acknowledged HTTPS exporter. Sends bounded JSON batches with an
 idempotency key and retries **only the observation batch** — not the
@@ -53,7 +53,7 @@ The package never assumes a platform global.
 
 ---
 
-## `@ai-agent-sdk/observability-node`
+## `@alvin0/ai-agent-sdk-observability-node`
 
 Node-only durable observation journal plus explicit lifecycle and diagnostic
 helpers. **The journal root is always caller-supplied.**
@@ -130,7 +130,7 @@ Nothing installs process lifecycle handlers automatically.
 
 ---
 
-## `@ai-agent-sdk/observability-browser`
+## `@alvin0/ai-agent-sdk-observability-browser`
 
 Browser-only local durability. The exporter stages privacy-processed events in
 IndexedDB during **synchronous capture** and confirms `local-durable` only after
@@ -169,12 +169,12 @@ visibility and `pagehide`. It makes **no unload-durability claim**.
 
 ---
 
-## `@ai-agent-sdk/observability-otel`
+## `@alvin0/ai-agent-sdk-observability-otel`
 
 Universal mapping bridge for **caller-supplied** OpenTelemetry API objects.
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/observability-otel \
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-observability-otel \
   @opentelemetry/api @opentelemetry/api-logs
 ```
 

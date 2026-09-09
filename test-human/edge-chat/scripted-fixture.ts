@@ -6,8 +6,8 @@ import {
   type GenerateOptions,
   type Message,
   type StreamChunk,
-} from '@ai-agent-sdk/core'
-import { defineModelProviderPlugin } from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core'
+import { defineModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
 
 const DEEP_SEARCH_POLICY_MARKER = '<deep_search_policy>'
 export type ChatMode = 'auto' | 'deep-search'

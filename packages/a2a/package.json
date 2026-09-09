@@ -1,5 +1,5 @@
 {
-  "name": "@ai-agent-sdk/a2a",
+  "name": "@alvin0/ai-agent-sdk-a2a",
   "author": {
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
@@ -40,10 +40,10 @@
     "@a2a-js/sdk": "catalog:"
   },
   "peerDependencies": {
-    "@ai-agent-sdk/core": "workspace:^"
+    "@alvin0/ai-agent-sdk-core": "workspace:^"
   },
   "devDependencies": {
-    "@ai-agent-sdk/core": "workspace:^",
+    "@alvin0/ai-agent-sdk-core": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",
     "@types/node": "catalog:",
     "publint": "catalog:",

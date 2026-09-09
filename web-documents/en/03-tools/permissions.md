@@ -6,7 +6,7 @@ before `execute` runs, and a denial becomes a result the model can react to.
 ## Gating a call
 
 ```ts
-import { createApprovalBroker } from '@ai-agent-sdk/core'
+import { createApprovalBroker } from '@alvin0/ai-agent-sdk-core'
 
 const approvals = createApprovalBroker()
 const session = agent.createSession({ approvals })
@@ -42,7 +42,7 @@ const result = await session.run('Delete the stale branches.')
 ## Unattended runs
 
 ```ts
-import { fixedApprovalBroker } from '@ai-agent-sdk/core'
+import { fixedApprovalBroker } from '@alvin0/ai-agent-sdk-core'
 
 // Tests, benchmarks, CI acceptance:
 const approvals = fixedApprovalBroker('allow')

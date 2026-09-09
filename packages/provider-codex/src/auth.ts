@@ -5,10 +5,10 @@
  * Node auth package, never this Universal provider.
  */
 
-import { AgentSdkError, MISSING_CREDENTIAL_CODE } from '@ai-agent-sdk/core'
+import { AgentSdkError, MISSING_CREDENTIAL_CODE } from '@alvin0/ai-agent-sdk-core'
 import {
   defineCredentialStore,
-} from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/provider'
 import type {
   CodexAuthFile,
   CodexAuthStore,

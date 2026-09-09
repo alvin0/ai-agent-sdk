@@ -4,7 +4,7 @@ Tool là một **hàm host có kiểu mà model có thể gọi**. Không có re
 theo chuỗi id để phải giữ đồng bộ — định nghĩa *chính là* đăng ký.
 
 ```ts
-import { defineTool } from '@ai-agent-sdk/core'
+import { defineTool } from '@alvin0/ai-agent-sdk-core'
 
 const multiply = defineTool({
   name: 'multiply',

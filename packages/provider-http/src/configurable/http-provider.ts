@@ -32,12 +32,12 @@ import type {
   ModelInfo,
   ModelInvocationContext,
   ResolvedModelInfo,
-} from '@ai-agent-sdk/core'
-import { resolveRetryPolicy, type RetryPolicyConfig } from '@ai-agent-sdk/core'
-import type { ResolvedRetryPolicy } from '@ai-agent-sdk/core'
-import { assertUsableApiKey } from '@ai-agent-sdk/core'
-import { attributionHeaders } from '@ai-agent-sdk/core'
-import { detachedFrozen } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
+import { resolveRetryPolicy, type RetryPolicyConfig } from '@alvin0/ai-agent-sdk-core'
+import type { ResolvedRetryPolicy } from '@alvin0/ai-agent-sdk-core'
+import { assertUsableApiKey } from '@alvin0/ai-agent-sdk-core'
+import { attributionHeaders } from '@alvin0/ai-agent-sdk-core'
+import { detachedFrozen } from '@alvin0/ai-agent-sdk-core'
 import type { SseEvent } from '../stream/sse.ts'
 import {
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,

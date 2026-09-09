@@ -1,4 +1,4 @@
-import { ModelError } from '@ai-agent-sdk/core'
+import { ModelError } from '@alvin0/ai-agent-sdk-core'
 import { HTTP_PROVIDER_ERROR_CODES } from './config.ts'
 import { snapshotJsonObject } from './json-snapshot.ts'
 

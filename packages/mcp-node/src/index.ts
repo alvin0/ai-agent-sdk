@@ -5,10 +5,10 @@ import {
   McpConnectionError,
   McpClientConnection,
   type McpClientLifecycleOptions,
-} from '@ai-agent-sdk/mcp/client'
+} from '@alvin0/ai-agent-sdk-mcp/client'
 
-export { McpConnectionError } from '@ai-agent-sdk/mcp/client'
-export type { McpCloseReport } from '@ai-agent-sdk/mcp/client'
+export { McpConnectionError } from '@alvin0/ai-agent-sdk-mcp/client'
+export type { McpCloseReport } from '@alvin0/ai-agent-sdk-mcp/client'
 
 /** Stdio-specialized alias retained so normal Node recipes name their transport. */
 export interface McpStdioConnection extends McpClientConnection {}

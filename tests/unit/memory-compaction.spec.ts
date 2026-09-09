@@ -1,24 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import { defineAgent } from '@ai-agent-sdk/core/agent'
-import { History } from '@ai-agent-sdk/core/agent'
+import { defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import { History } from '@alvin0/ai-agent-sdk-core/agent'
 import {
   AgentMemory,
   ContextCompactor,
   estimateMessageTokens,
   resolveCompactionConfig,
   selectCompactablePrefix,
-} from '@ai-agent-sdk/core/agent'
-import { ModelAdapter } from '@ai-agent-sdk/core'
-import type { GenerateOptions } from '@ai-agent-sdk/core'
-import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
+import type { ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core'
 import {
   createMessage,
   createTextMessage,
   createToolResultMessage,
-} from '@ai-agent-sdk/core'
-import { ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
+import { ReasoningEffortId, ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
 class ScriptedAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []

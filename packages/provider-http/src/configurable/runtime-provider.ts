@@ -4,7 +4,7 @@ import {
   type CredentialOperationOptions,
   type ModelInvocationContext,
   type SdkLogger,
-} from '@ai-agent-sdk/core/provider'
+} from '@alvin0/ai-agent-sdk-core/provider'
 import {
   boundedIdentifier,
   capturedMethod,
@@ -63,8 +63,8 @@ export function createRuntimeHttpProvider<Dialect extends object>(
     'fetch',
   )
   const describeModel = optionalCapturedMethod<
-    [import('@ai-agent-sdk/core/provider').ResolvedModelInfo, Dialect],
-    import('@ai-agent-sdk/core/provider').ResolvedModelInfo
+    [import('@alvin0/ai-agent-sdk-core/provider').ResolvedModelInfo, Dialect],
+    import('@alvin0/ai-agent-sdk-core/provider').ResolvedModelInfo
   >(source, 'describeModel')
   const errorCode = optionalCapturedMethod<[number, string], string | undefined>(source, 'errorCode')
   const requestLogger = optionalCapturedMethod<

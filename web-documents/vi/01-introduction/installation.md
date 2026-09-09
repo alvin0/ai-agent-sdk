@@ -21,23 +21,23 @@ Chọn tập runtime nhỏ nhất bạn cần.
 **Edge/Worker với provider từ xa và telemetry HTTPS có xác nhận**
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
-  @ai-agent-sdk/observability-fetch
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
+  @alvin0/ai-agent-sdk-observability-fetch
 ```
 
 **Harness trình duyệt có khôi phục sau sập bằng IndexedDB**
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
-  @ai-agent-sdk/observability-browser
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
+  @alvin0/ai-agent-sdk-observability-browser
 ```
 
 **Harness lập trình trên Node — chỉ những năng lực nó dùng**
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/auth-node @ai-agent-sdk/provider-codex \
-  @ai-agent-sdk/mcp-node @ai-agent-sdk/observability-node \
-  @ai-agent-sdk/skill-filesystem
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-auth-node @alvin0/ai-agent-sdk-provider-codex \
+  @alvin0/ai-agent-sdk-mcp-node @alvin0/ai-agent-sdk-observability-node \
+  @alvin0/ai-agent-sdk-skill-filesystem
 ```
 
 Cả ba cấu hình dùng chung một core Universal và một vòng lặp agent.
@@ -50,7 +50,7 @@ không bao giờ tự đọc biến môi trường hay tệp.
 **Trên Node, lấy từ môi trường:**
 
 ```ts
-import { envCredential } from '@ai-agent-sdk/auth-node'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
 
 openAiPlugin({ apiKey: envCredential('OPENAI_API_KEY') })
 ```
@@ -80,9 +80,9 @@ lại một token đã tiêu và bạn bị đăng xuất âm thầm khỏi Code
 ## Kiểm chứng cài đặt
 
 ```ts
-import { createAgentRuntime } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
-import { envCredential } from '@ai-agent-sdk/auth-node'
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node'
 
 const runtime = await createAgentRuntime({
   providers: [openAiPlugin({ apiKey: envCredential('OPENAI_API_KEY') })],

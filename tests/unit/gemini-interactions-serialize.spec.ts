@@ -5,11 +5,11 @@ import {
   createToolResultMessage,
   ReasoningEffortId,
   ToolCallId,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import {
   serializeGeminiInteractionsRequest,
   type GeminiInteractionsDialect,
-} from '@ai-agent-sdk/protocol-gemini-interactions'
+} from '@alvin0/ai-agent-sdk-protocol-gemini-interactions'
 import { providerRequest } from './fixtures.ts'
 
 const dialect: GeminiInteractionsDialect = { store: false, thinkingSummaries: 'auto' }

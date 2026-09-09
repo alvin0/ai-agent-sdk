@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ModelFailure } from '@ai-agent-sdk/core'
+import type { ModelFailure } from '@alvin0/ai-agent-sdk-core'
 
 const { backoffMs, createIdleWatch, isTransient, retryHooks, MAX_MODEL_ATTEMPTS } =
   await import('../../samples/chat-agents/backend/src/resilience.ts')

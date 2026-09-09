@@ -1,4 +1,4 @@
-import { createMcpHttpClient } from '@ai-agent-sdk/mcp'
+import { createMcpHttpClient } from '@alvin0/ai-agent-sdk-mcp'
 
 const ADD_SCHEMA = Object.freeze({
   type: 'object',

@@ -1,16 +1,16 @@
-# @ai-agent-sdk/provider-anthropic
+# @alvin0/ai-agent-sdk-provider-anthropic
 
 Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
 
 ```sh
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-anthropic
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-anthropic
 ```
 
 Universal Anthropic adapter and transactional provider plugin. Credentials are injected; this package never reads environment variables or files.
 
 ```ts
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import { anthropicPlugin } from '@ai-agent-sdk/provider-anthropic'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { anthropicPlugin } from '@alvin0/ai-agent-sdk-provider-anthropic'
 
 const registry = new ModelRegistry()
 registry.install(anthropicPlugin({ apiKey: () => secretStore.get('anthropic') }))

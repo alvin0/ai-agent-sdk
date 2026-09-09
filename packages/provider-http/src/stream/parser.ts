@@ -1,4 +1,4 @@
-import { ModelError, waitForSettlement } from '@ai-agent-sdk/core'
+import { ModelError, waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 import { createParser } from 'eventsource-parser'
 import { HTTP_PROVIDER_ERROR_CODES } from '../common/config.ts'
 import type { SseEvent } from './sse.ts'

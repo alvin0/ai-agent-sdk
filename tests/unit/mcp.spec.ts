@@ -5,24 +5,24 @@ import {
   type Transport,
 } from '@modelcontextprotocol/client'
 import { describe, expect, it, vi } from 'vitest'
-import { defineAgent } from '@ai-agent-sdk/core/agent'
-import { dispatchToolCall } from '@ai-agent-sdk/core/agent'
-import { defineTool } from '@ai-agent-sdk/core/agent'
-import { ToolRegistry } from '@ai-agent-sdk/core/agent'
-import { ModelAdapter } from '@ai-agent-sdk/core'
-import type { GenerateOptions } from '@ai-agent-sdk/core'
-import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
-import { ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
-import { ModelRegistry } from '@ai-agent-sdk/core'
-import type { StreamChunk } from '@ai-agent-sdk/core'
+import { defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import { dispatchToolCall } from '@alvin0/ai-agent-sdk-core/agent'
+import { defineTool } from '@alvin0/ai-agent-sdk-core/agent'
+import { ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
+import { ModelAdapter } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
+import type { ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core'
+import { ReasoningEffortId, ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
 import {
   McpClientConnection,
   McpConnectionError,
   connectMcpHttp,
   createMcpHttpClient,
   resolveMcpReconnectOptions,
-} from '@ai-agent-sdk/mcp/client'
-import { createSdkMcpHandler, createSdkMcpServer } from '@ai-agent-sdk/mcp/server'
+} from '@alvin0/ai-agent-sdk-mcp/client'
+import { createSdkMcpHandler, createSdkMcpServer } from '@alvin0/ai-agent-sdk-mcp/server'
 import { GitHubOAuthProvider } from '../../test-human/github-mcp/oauth.ts'
 import { RecordingLogger, integrationOperations } from './fixtures/integration-logger.ts'
 

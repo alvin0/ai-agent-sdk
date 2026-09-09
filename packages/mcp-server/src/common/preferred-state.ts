@@ -1,4 +1,4 @@
-import type { RuntimeAgentResponse } from '@ai-agent-sdk/core/agent'
+import type { RuntimeAgentResponse } from '@alvin0/ai-agent-sdk-core/agent'
 import type { SdkMcpRequestContext, SdkMcpServer } from './server-public-types.ts'
 
 export type McpServerRuntimeFamily = 'mcp-web-server' | 'mcp-stdio-server'

@@ -6,8 +6,8 @@ or any host with `Request`/`Response` and `waitUntil`.
 ## Install
 
 ```bash
-pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
-  @ai-agent-sdk/observability-fetch
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
+  @alvin0/ai-agent-sdk-observability-fetch
 ```
 
 Three packages. All Universal — no Node built-ins reach the bundle.
@@ -15,12 +15,12 @@ Three packages. All Universal — no Node built-ins reach the bundle.
 ## Worker
 
 ```ts
-import { createAgentRuntime, defineTool } from '@ai-agent-sdk/core'
-import { openAiPlugin } from '@ai-agent-sdk/provider-openai'
+import { createAgentRuntime, defineTool } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 import {
   fetchObservationExporter,
   flushObservabilityWithWaitUntil,
-} from '@ai-agent-sdk/observability-fetch'
+} from '@alvin0/ai-agent-sdk-observability-fetch'
 
 interface Env {
   OPENAI_API_KEY: string
@@ -152,7 +152,7 @@ The package never assumes a platform global — you pass `waitUntil` in.
 
 ## Constraints to keep in mind
 
-- **Nothing Node-only may enter the bundle.** `@ai-agent-sdk/auth-node`,
+- **Nothing Node-only may enter the bundle.** `@alvin0/ai-agent-sdk-auth-node`,
   `mcp-node`, `skill-filesystem`, `observability-node`, and `a2a` are Node-tier.
 - **An Edge host cannot rely on process exit.** Every flush must be explicit.
 - **A worker has no durable local disk.** Conversation snapshots belong in KV, D1,

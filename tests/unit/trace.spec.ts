@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildTraceTree, type TraceEvent, type TraceRef } from '@ai-agent-sdk/core/agent'
-import { createSpanId, createTraceId, traceparent } from '@ai-agent-sdk/core'
+import { buildTraceTree, type TraceEvent, type TraceRef } from '@alvin0/ai-agent-sdk-core/agent'
+import { createSpanId, createTraceId, traceparent } from '@alvin0/ai-agent-sdk-core'
 
 describe('agent trace', () => {
   it('uses W3C-sized ids and builds immutable parent/child process trees', () => {

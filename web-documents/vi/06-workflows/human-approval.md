@@ -6,7 +6,7 @@ còn **đầu vào người dùng** dừng model lại ở một quyết định
 ## Phê duyệt — chặn một lời gọi tool
 
 ```ts
-import { createApprovalBroker } from '@ai-agent-sdk/core'
+import { createApprovalBroker } from '@alvin0/ai-agent-sdk-core'
 
 const approvals = createApprovalBroker()
 const session = agent.createSession({ approvals })
@@ -31,7 +31,7 @@ yêu cầu y hệt nhau.
 Chế độ `deep-human-in-loop` cho model một tool chặn tên `request_user_input`.
 
 ```ts
-import { createUserInputBroker } from '@ai-agent-sdk/core'
+import { createUserInputBroker } from '@alvin0/ai-agent-sdk-core'
 
 const userInput = createUserInputBroker()
 

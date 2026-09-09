@@ -11,7 +11,7 @@ import {
   type TextAnnotation,
   type ToolChoice,
   type ToolSchema,
-} from '@ai-agent-sdk/core'
+} from '@alvin0/ai-agent-sdk-core'
 import type { ProtocolRequest } from './contract.ts'
 import type {
   GeminiInteractionsDialect,

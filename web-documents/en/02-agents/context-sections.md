@@ -5,7 +5,7 @@ round**. It owns exactly one node on the model surface and rewrites that node
 only when its content actually changed.
 
 ```ts
-import { defineContextSection } from '@ai-agent-sdk/core'
+import { defineContextSection } from '@alvin0/ai-agent-sdk-core'
 
 const clock = defineContextSection({
   id: 'wall-clock',
@@ -165,11 +165,11 @@ revision still matched.
 
 ## Project instructions
 
-`@ai-agent-sdk/instructions-node` is the Node implementation of this callback
+`@alvin0/ai-agent-sdk-instructions-node` is the Node implementation of this callback
 for `AGENTS.md`-style files. The core SDK never reads a file.
 
 ```ts
-import { createProjectInstructionsSection } from '@ai-agent-sdk/instructions-node'
+import { createProjectInstructionsSection } from '@alvin0/ai-agent-sdk-instructions-node'
 
 const agent = defineAgent({
   id: 'coder',

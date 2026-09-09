@@ -1,10 +1,10 @@
-import { deepFreeze, type ObservationBoundary, type ObservationEvent } from '@ai-agent-sdk/core'
+import { deepFreeze, type ObservationBoundary, type ObservationEvent } from '@alvin0/ai-agent-sdk-core'
 import type {
   ExportAck,
   ObservationBatch,
   ObservationExporter,
   ObservationExportItem,
-} from '@ai-agent-sdk/core/observability'
+} from '@alvin0/ai-agent-sdk-core/observability'
 
 const DATABASE_VERSION = 1
 const EVENTS_STORE = 'events'

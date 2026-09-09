@@ -13,8 +13,8 @@
  * into its context.
  */
 
-import { fileSystemSkills } from '@ai-agent-sdk/skill-filesystem'
-import type { SkillSource } from '@ai-agent-sdk/core'
+import { fileSystemSkills } from '@alvin0/ai-agent-sdk-skill-filesystem'
+import type { SkillSource } from '@alvin0/ai-agent-sdk-core'
 import { listSkills } from './agents'
 
 /** One skill the composer can offer and the model can be asked to load. */
