@@ -7,18 +7,26 @@
 | Phiên bản | `0.1.0` |
 | Giấy phép | MIT |
 | Yêu cầu Node | 22.18+ cho công cụ workspace; 22.12+ cho package năng lực Node đã cài |
-| Publish lên registry | **Hoãn có chủ ý** |
+| Publish lên registry | **Đã publish** — 21 package dưới scope `@alvin0` |
 
 ## Publish lên registry
 
-Việc publish lên npm đang hoãn có chủ ý trong lúc thu xếp quyền sở hữu scope. Các
-lệnh cài đặt xuyên suốt tài liệu này mô tả cấu hình cài đặt **dự kiến** cho một
-bản phát hành registry trong tương lai.
+Cả 21 package publish được đều đã lên npm dưới scope `@alvin0`, tên
+`@alvin0/ai-agent-sdk-<capability>`. Scope `@ai-agent-sdk` thuộc một account
+khác, nên tên đã publish mang tên dự án ở dạng tiền tố thay vì ở scope.
 
-Hiện tại việc kiểm chứng dùng tarball tự sinh hoặc dùng thẳng workspace:
+Release chạy từ `.github/workflows/release.yml` khi push tag `v*`: các gate CI
+chạy, `pnpm pack` giải `workspace:^` và `catalog:` thành range thật, rồi từng
+tarball được publish bằng `npm publish --provenance`, nên mỗi version đều có
+attestation provenance SLSA.
+
+`@alvin0/ai-agent-sdk-testkit` vẫn private — nó chỉ là devDependency của các
+package provider.
+
+Nếu muốn cài từ tarball cục bộ:
 
 ```bash
-pnpm add ./artifacts/ai-agent-sdk-core-0.1.0.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.0.tgz
 ```
 
 ## Đánh phiên bản

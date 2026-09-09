@@ -20,10 +20,8 @@ pnpm build:cli
 
 Workspace tooling and Node capability packages require Node 22.12 or newer.
 
-Registry publication is intentionally deferred while npm ownership is being set
-up. The commands below document the intended application install profiles for a
-future registry release; current validation installs the generated tarballs or
-uses the workspace directly.
+All 21 packages are published on npm under the `@alvin0` scope, built and signed
+from CI with SLSA provenance.
 
 Choose the smallest runtime closure you need:
 

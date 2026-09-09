@@ -7,19 +7,27 @@
 | Version | `0.1.0` |
 | License | MIT |
 | Node requirement | 22.18+ for workspace tooling; 22.12+ for installed Node capability packages |
-| Registry publication | **Intentionally deferred** |
+| Registry publication | **Published** — 21 packages under `@alvin0` |
 
 ## Registry publication
 
-Publication to npm is intentionally deferred while ownership of the scope is
-being arranged. The install commands throughout this documentation describe the
-**intended** install profiles for a future registry release.
+All 21 publishable packages are on npm under the `@alvin0` scope, named
+`@alvin0/ai-agent-sdk-<capability>`. The scope `@ai-agent-sdk` belongs to a
+different account, which is why the published names carry the project as a name
+prefix rather than as the scope.
 
-Current validation installs the generated tarballs or uses the workspace
-directly:
+Releases run from `.github/workflows/release.yml` on a `v*` tag: the CI gates
+run, `pnpm pack` resolves `workspace:^` and `catalog:` specifiers into real
+ranges, and each tarball is published with `npm publish --provenance`, so every
+version carries a SLSA provenance attestation.
+
+`@alvin0/ai-agent-sdk-testkit` stays private — it is only ever a devDependency
+of the provider packages.
+
+To install from a local tarball instead:
 
 ```bash
-pnpm add ./artifacts/ai-agent-sdk-core-0.1.0.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.0.tgz
 ```
 
 ## Versioning

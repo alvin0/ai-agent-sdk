@@ -11,10 +11,8 @@
 
 ## Install
 
-> **Registry status.** Publication to npm is intentionally deferred while
-> ownership is being arranged. The commands below document the intended install
-> profiles. Current validation installs the generated tarballs or uses the
-> workspace directly. See [10. Project Information](/en/14-project/).
+All 21 packages are published on npm under the `@alvin0` scope, built and
+signed from CI with SLSA provenance.
 
 Choose the smallest runtime closure you need.
 

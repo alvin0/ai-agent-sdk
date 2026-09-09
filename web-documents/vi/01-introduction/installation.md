@@ -11,10 +11,8 @@
 
 ## Cài đặt
 
-> **Trạng thái registry.** Việc publish lên npm đang hoãn có chủ ý trong lúc thu
-> xếp quyền sở hữu. Các lệnh bên dưới mô tả cấu hình cài đặt dự kiến. Hiện tại
-> việc kiểm chứng dùng tarball tự sinh hoặc dùng thẳng workspace. Xem
-> [10. Thông tin dự án](/vi/14-project/).
+Cả 21 package đã publish trên npm dưới scope `@alvin0`, build và ký từ CI kèm
+provenance SLSA.
 
 Chọn tập runtime nhỏ nhất bạn cần.
 
