@@ -1,0 +1,11 @@
+{
+  "name": "@fixture/independent-provider",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": { ".": "./index.mjs" },
+  "peerDependencies": {
+    "@ai-agent-sdk/core": ">=0.1.0 <0.2.0"
+  }
+}

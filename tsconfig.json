@@ -28,16 +28,16 @@
     "noUnusedParameters": true
   },
   "include": [
-    "src",
     "tests",
     "scripts",
     "spikes",
     "test-human",
-    "tsdown.config.ts",
+    "tsdown.cli.config.ts",
     "vitest.config.ts",
     "vitest.integration.config.ts"
   ],
   "exclude": [
+    "tests/negative-fixtures",
     "test-human/workspaces",
     "test-human/agentcode/multi-skill/fixture"
   ]

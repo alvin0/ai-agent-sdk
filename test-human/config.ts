@@ -1,8 +1,10 @@
 /** Pure command-line parsing for the human test harness. */
 
+import { resolve } from 'node:path'
+
 export type HumanProvider = 'codex' | 'openai' | 'anthropic'
 export type HumanMode = 'basic' | 'deep' | 'deep-human-in-loop'
-export type HumanScenario = 'chat' | 'web' | 'vision' | 'image-gen'
+export type HumanScenario = 'chat' | 'web' | 'deep-research' | 'vision' | 'image-gen'
 
 export interface HumanCliConfig {
   readonly provider: HumanProvider
@@ -13,6 +15,8 @@ export interface HumanCliConfig {
   readonly maxTurns: number
   readonly prompt?: string
   readonly image?: string
+  readonly runId?: string
+  readonly resultsRoot?: string
   readonly showReasoning: boolean
   readonly forceTool: boolean
   readonly logs: boolean
@@ -22,6 +26,7 @@ export interface HumanCliConfig {
 
 const VALUE_FLAGS = new Set([
   '--provider', '--model', '--mode', '--scenario', '--effort', '--max-turns', '--prompt', '--image',
+  '--run-id', '--results-root',
 ])
 
 export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
@@ -34,7 +39,11 @@ export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
     const token = argv[index]
     if (token === undefined) continue
     if (positional) { trailing.push(token); continue }
-    if (token === '--') { positional = true; continue }
+    if (token === '--') {
+      if (argv[index + 1]?.startsWith('--') === true) continue
+      positional = true
+      continue
+    }
     if (token === '-h') { switches.add(token); continue }
     const equals = token.indexOf('=')
     if (equals > 0) {
@@ -50,7 +59,7 @@ export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
       continue
     }
     if (token.startsWith('--')) {
-      if (!['--show-reasoning', '--force-tool', '--no-force-tool', '--no-logs', '--help', '--dry-run'].includes(token)) {
+      if (!['--show-reasoning', '--force-tool', '--no-force-tool', '--logs', '--no-logs', '--help', '--dry-run'].includes(token)) {
         throw new Error(`unknown option: ${token}`)
       }
       switches.add(token)
@@ -61,7 +70,7 @@ export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
 
   const provider = enumValue(values.get('--provider') ?? 'codex', ['codex', 'openai', 'anthropic'], '--provider')
   const mode = enumValue(values.get('--mode') ?? 'basic', ['basic', 'deep', 'deep-human-in-loop'], '--mode')
-  const scenario = enumValue(values.get('--scenario') ?? 'chat', ['chat', 'web', 'vision', 'image-gen'], '--scenario')
+  const scenario = enumValue(values.get('--scenario') ?? 'chat', ['chat', 'web', 'deep-research', 'vision', 'image-gen'], '--scenario')
   const rawTurns = values.get('--max-turns') ?? '8'
   const maxTurns = Number(rawTurns)
   if (!Number.isInteger(maxTurns) || maxTurns < 1) throw new Error('--max-turns must be a positive integer')
@@ -71,6 +80,10 @@ export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
   const prompt = values.get('--prompt') ?? (trailing.length === 0 ? undefined : trailing.join(' '))
   const model = values.get('--model')
   const image = values.get('--image')
+  const runId = values.get('--run-id')
+  if (runId !== undefined && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(runId)) {
+    throw new Error('--run-id must be one safe path segment of at most 128 characters')
+  }
   const defaultForce = scenario === 'web' || scenario === 'image-gen'
 
   return {
@@ -82,9 +95,11 @@ export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
     maxTurns,
     ...prompt === undefined ? {} : { prompt },
     ...image === undefined ? {} : { image },
+    ...runId === undefined ? {} : { runId },
+    resultsRoot: resolve(values.get('--results-root') ?? 'test-human/results'),
     showReasoning: switches.has('--show-reasoning'),
     forceTool: switches.has('--force-tool') || (!switches.has('--no-force-tool') && defaultForce),
-    logs: !switches.has('--no-logs'),
+    logs: switches.has('--logs') && !switches.has('--no-logs'),
     help: switches.has('--help') || switches.has('-h'),
     dryRun: switches.has('--dry-run'),
   }
@@ -106,18 +121,22 @@ export function humanCliHelp(): string {
   return `Human test harness for ai-agent-sdk
 
 Usage:
-  npm run human -- [options] [prompt]
+  pnpm human -- [options] [prompt]
 
 Options:
   --provider <codex|openai|anthropic>       Default: codex
   --model <id>                              Codex default: gpt-5.6-luna
   --mode <basic|deep|deep-human-in-loop>    Default: basic
-  --scenario <chat|web|vision|image-gen>    Default: chat
+  --scenario <chat|web|deep-research|vision|image-gen>
+                                             Default: chat
   --effort <id>                             Default: medium
   --max-turns <number>                      Default: 8
   --prompt <text>                           Run once; omit for interactive REPL
   --image <path|url|file-id:ID>             Required by vision scenario
+  --run-id <safe-id>                        Stable artifact directory suffix
+  --results-root <path>                     Artifact root; default: test-human/results
   --show-reasoning                          Print provider-emitted reasoning summaries
+  --logs                                    Enable high-risk exact provider-wire logs
   --force-tool / --no-force-tool            Override scenario tool choice
   --no-logs                                 Disable daily provider request JSONL
   --dry-run                                 Validate and print config without network

@@ -1,0 +1,47 @@
+{
+  "name": "@chat-agents/web",
+  "author": {
+    "name": "alvin0 - chaulamdinhai",
+    "email": "chaulamdinhai@gmail.com"
+  },
+  "version": "0.0.0",
+  "private": true,
+  "description": "Next.js frontend for the chat-agents sample",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@chat-agents/backend": "workspace:*",
+    "@shikijs/langs": "catalog:",
+    "anser": "catalog:",
+    "clsx": "catalog:",
+    "katex": "catalog:",
+    "mdast-util-from-markdown": "catalog:",
+    "mdast-util-gfm": "catalog:",
+    "mdast-util-math": "catalog:",
+    "micromark-core-commonmark": "catalog:",
+    "micromark-extension-gfm": "catalog:",
+    "micromark-extension-math": "catalog:",
+    "micromark-factory-space": "catalog:",
+    "micromark-util-character": "catalog:",
+    "micromark-util-classify-character": "catalog:",
+    "micromark-util-sanitize-uri": "catalog:",
+    "micromark-util-symbol": "catalog:",
+    "micromark-util-types": "catalog:",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "shiki": "catalog:"
+  },
+  "devDependencies": {
+    "@types/mdast": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:"
+  }
+}

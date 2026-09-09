@@ -10,22 +10,58 @@ message.
 
 ## Setup
 
+For repository development:
+
 ```bash
-npm install
-npm run build
+pnpm install --frozen-lockfile
+pnpm workspace:build
+pnpm build:cli
 ```
 
-Requires Node 22.6+. Scripts and tests run TypeScript directly (`node file.ts`),
-so no build step is needed for development.
+Workspace tooling and Node capability packages require Node 22.12 or newer.
+
+Registry publication is intentionally deferred while npm ownership is being set
+up. The commands below document the intended application install profiles for a
+future registry release; current validation installs the generated tarballs or
+uses the workspace directly.
+
+Choose the smallest runtime closure you need:
+
+```bash
+# Edge/Worker harness with a remote provider and acknowledged HTTPS telemetry
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
+  @ai-agent-sdk/observability-fetch
+
+# Browser harness with IndexedDB crash recovery
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/provider-openai \
+  @ai-agent-sdk/observability-browser
+
+# Node coding harness: choose only the capabilities it uses
+pnpm add @ai-agent-sdk/core @ai-agent-sdk/auth-node @ai-agent-sdk/provider-codex \
+  @ai-agent-sdk/mcp-node @ai-agent-sdk/observability-node \
+  @ai-agent-sdk/skill-filesystem
+```
+
+All three profiles share the same Universal core and agent loop. Importing a Node
+capability elevates only that application's reachable graph; it does not swap in a
+different harness implementation. Applications import the scoped core and exact
+capability packages directly.
 
 ## Quick start
 
 ```ts
-import { BlockAssembler, ModelRegistry, createTextMessage } from 'ai-agent-sdk'
-import { openAiAdapter } from 'ai-agent-sdk/openai'
+import {
+  BlockAssembler,
+  ModelRegistry,
+  createTextMessage,
+} from '@ai-agent-sdk/core'
+import { envCredential } from '@ai-agent-sdk/auth-node/env'
+import { openAiAdapter } from '@ai-agent-sdk/provider-openai'
 
 const registry = new ModelRegistry()
-registry.registerAdapter(['openai'], openAiAdapter())   // reads OPENAI_API_KEY
+registry.registerAdapter(['openai'], openAiAdapter({
+  apiKey: envCredential('OPENAI_API_KEY'),
+}))
 
 const assembler = new BlockAssembler()
 for await (const chunk of registry.stream({
@@ -50,19 +86,20 @@ retired model.
 
 | Entry point | Endpoint | Credential |
 | --- | --- | --- |
-| `ai-agent-sdk/anthropic` | Messages API | `ANTHROPIC_API_KEY` |
-| `ai-agent-sdk/openai` | Responses API | `OPENAI_API_KEY` |
-| `ai-agent-sdk/codex` | ChatGPT-backed Codex | device-code login |
+| `@ai-agent-sdk/provider-anthropic` | Messages API | injected `apiKey` |
+| `@ai-agent-sdk/provider-openai` | Responses API | injected `apiKey` |
+| `@ai-agent-sdk/provider-codex` | ChatGPT-backed Codex | injected `CodexAuthStore` |
+| `@ai-agent-sdk/auth-node/codex` | ChatGPT-backed Codex on Node | project-local device-code login |
 
-`openai` and `codex` share one Responses implementation (`src/providers/responses/`)
+`openai` and `codex` share one Responses implementation (`packages/protocol-responses/`)
 and differ only by a small dialect record — base URL, auth, and which optional
 fields the endpoint accepts.
 
 ### Codex: project-local login
 
 ```bash
-npm run provider:codex:login-device    # sign in
-npm run provider:codex:status          # check state
+pnpm exec ai-agent-sdk-codex-login             # sign in
+pnpm exec ai-agent-sdk-codex-login --status    # local account/status details
 ```
 
 Tokens land in `.providers/.codex/auth.json` (git-ignored), **not** in the Codex
@@ -72,7 +109,7 @@ file will eventually race — the second to refresh replays a spent token and th
 user is silently logged out of their real Codex CLI.
 
 ```ts
-import { codexAdapter } from 'ai-agent-sdk/codex'
+import { codexAdapter } from '@ai-agent-sdk/auth-node/codex'
 
 registry.registerAdapter(['codex'], codexAdapter())
 const models = await registry.listModels('codex')   // discovered from the account
@@ -86,22 +123,56 @@ for production.
 
 ### Exact provider request logs
 
+For normal production diagnosis, prefer the structured Universal observation bus.
+It records model calls, physical provider attempts, usage coverage, retries,
+credential/catalog operations, safe errors, and correlated application logs while
+defaulting to `content: 'none'`:
+
+```ts
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import {
+  MemoryObservationExporter,
+  createObservability,
+} from '@ai-agent-sdk/core/observability'
+
+const exporter = new MemoryObservationExporter() // test/local inspection only
+const observation = createObservability({
+  exporters: [{ exporter, requirement: 'best-effort', boundary: 'none' }],
+})
+const observedRegistry = new ModelRegistry({ observation })
+
+observation.logger({ fields: { component: 'checkout-agent' } })
+  .info('agent initialized')
+await observation.flush()
+```
+
+Missing token usage remains `missing`/`partial`, never a fabricated zero. OAuth
+tokens, API keys, cookies, account details, headers outside a positive allowlist,
+and prompt/completion content are excluded by default. Memory delivery never
+claims durability; reliable/audit modes require a durable exporter package.
+
+The exact wire logger below is a separate high-risk diagnostic bridge because its
+body contains prompts and tool results.
+
 Enable the Node-only logger when debugging the wire payload sent to a provider:
 
 ```ts
-import { createDailyJsonlRequestLogger } from 'ai-agent-sdk/request-logger'
-import { codexAdapter } from 'ai-agent-sdk/codex'
+import { createDailyJsonlRequestLogger } from '@ai-agent-sdk/observability-node/diagnostic'
+import { codexAdapter } from '@ai-agent-sdk/provider-codex'
 
 registry.registerAdapter(['codex'], codexAdapter({
-  requestLogger: createDailyJsonlRequestLogger(),
+  requestLogger: createDailyJsonlRequestLogger({
+    content: 'full',
+    allowWireBodies: true,
+  }),
 }))
 ```
 
-Requests append to `.providers/<provider>/logs/YYYY-MM-DD.jsonl`. Credentials,
+Requests append to a private unique file under `.providers/<provider>/wire/`. Credentials,
 cookies, and account ids are redacted; request bodies are not, because prompts and
 tool results are the point of this diagnostic. `.providers/` is git-ignored but
-should still be treated as sensitive local data. Spike B enables this logger by
-default.
+should still be treated as sensitive local data. The human harness leaves this
+disabled unless `--logs` is passed explicitly.
 
 ## Retry
 
@@ -109,9 +180,11 @@ Retry is a decorator, and it only retries failures that occur **before the first
 chunk reaches the consumer** — replaying delivered tokens would duplicate output.
 
 ```ts
-import { withRetry } from 'ai-agent-sdk'
+import { withRetry } from '@ai-agent-sdk/core'
 
-registry.registerAdapter(['openai'], withRetry(openAiAdapter(), {
+registry.registerAdapter(['openai'], withRetry(openAiAdapter({
+  apiKey: envCredential('OPENAI_API_KEY'),
+}), {
   policy: { mode: 'normal', maxRetries: 3 },
   onRetry: attempt => console.warn(`retry ${attempt.attempt}: ${attempt.failure.code}`),
 }))
@@ -126,24 +199,13 @@ direct callers must supply their own cancellation boundary.
 
 ## Architecture
 
-```
-src/
-├── core/                 provider-neutral; knows nothing about any vendor
-│   ├── primitives/       branded ids, deep freeze, exhaustiveness
-│   ├── errors/           the `code`-routed taxonomy + its serializable twin
-│   ├── message/          content blocks, immutable messages, projection
-│   ├── stream/           chunk protocol, assembler, SSE, idle bound
-│   ├── contract/         what an adapter implements and what it receives
-│   ├── runtime/          the registry that routes calls, and retry
-│   └── http/             credential and attribution concerns
-└── providers/
-    ├── base/             the shared HTTP/SSE pipeline every provider runs through
-    ├── http-provider.ts  turns a config object into an adapter
-    ├── protocols/        reusable wire protocols, decoupled from any endpoint
-    ├── responses/        OpenAI Responses serialize + translate
-    ├── anthropic/        Messages serialize + translate, and its config
-    ├── openai/           Responses on api.openai.com  (config only)
-    └── codex/            Responses on the ChatGPT backend + OAuth (config only)
+```text
+packages/core                         Universal runtime, agent, observability, contracts, and registry
+packages/provider-http                shared Fetch/SSE transport
+packages/protocol-*                   reusable wire protocols
+packages/provider-*                   explicit provider plugins
+packages/observability-*              runtime-specific exporters and bridges
+packages/auth-node, mcp-node          explicit Node elevation
 ```
 
 Two structural rules carry most of the weight:
@@ -155,9 +217,12 @@ Two structural rules carry most of the weight:
   accidentally ship its own fetch loop that forgets attribution headers,
   mishandles abort, or invents error codes.
 
-See [`src/providers/README.md`](src/providers/README.md) for how the adapter layer
-works in detail: the pipeline, who owns error classification, throw-vs-finish-chunk
-layering, where the two wire protocols genuinely differ, and how to add a provider.
+See [provider model limits](web-documents/en/09-providers/index.md) to configure context
+windows and output budgets per model when setting up a provider.
+
+See [the package architecture](web-documents/en/11-internals/package-topology.md) and
+[`@ai-agent-sdk/provider-http`](packages/provider-http/README.md) for the adapter
+pipeline, ownership rules, and provider extension boundary.
 
 ## Tool loop
 
@@ -172,7 +237,7 @@ per conversation. The session owns history, so callers do not have to assemble a
 new `runAgent()` options object for every user turn:
 
 ```ts
-import { defineAgent, defineTool } from 'ai-agent-sdk'
+import { defineAgent, defineTool } from '@ai-agent-sdk/core'
 
 const multiply = defineTool({
   name: 'multiply',
@@ -206,29 +271,31 @@ await session.run('Now multiply that by 10.')
 Omitting `provider`, `model`, and `effort` selects Codex `gpt-5.6-luna` at
 `medium` effort. Use `session.stream()` instead of `session.run()` when a GUI
 needs live commentary, reasoning summaries, tool nodes, image deltas, and trace
-events. See [`docs/agent-definitions.md`](docs/agent-definitions.md) for modes,
+events. See [Creating an Agent](web-documents/en/02-agents/creating-an-agent.md) for modes,
 native tools, variants, and session ownership.
 
 Agents can also own progressively disclosed skills. Web applications declare
 portable in-memory skills with `defineSkill()` or a custom `defineSkillProvider()`;
 Node CLIs discover `SKILL.md` folders through the separate
-`ai-agent-sdk/skill-filesystem` entry point. Reusable definitions may declare a
+`@ai-agent-sdk/skill-filesystem` entry point. Reusable definitions may declare a
 strict `skillIds` allowlist over session-provided request/workflow sources without
 pre-activating those skills. See the
-[skills section](docs/agent-definitions.md#skills-web-definitions-and-cli-discovery)
+[skills section](web-documents/en/04-skills/index.md)
 for both setups and the discovery rules.
 
 Definitions also enable long-task continuity by default: the original user
 objective is pinned outside compactable history, and older context is replaced
 with a structured handoff checkpoint near the model's context limit. See
-[`docs/memory-and-compaction.md`](docs/memory-and-compaction.md).
+[Memory](web-documents/en/05-memory/index.md).
 
 Long-lived agents can exchange attributed messages through an `AgentTeam`.
 Quiet local messages add context without waking an idle agent; wake-up messages
 are queued behind an active turn and guaranteed a follow-up turn.
-`createManagedAgentTeam()` gives a lead a parallel-safe `spawn_agent` tool for
-Codex-style dynamic delegation, while `createDefinedAgentTeam()` connects stable
-pre-defined agents and sessions. Both expose the same roster, which can link
+`createManagedAgentTeam()` gives a lead `spawn_agent` and `close_agent` for
+Codex-style dynamic delegation: spawning starts a worker and returns without
+waiting, the worker reports its result back to the lead, and `wait_agents`
+pauses for one within a bounded timeout. `createDefinedAgentTeam()` connects
+stable pre-defined agents and sessions. Both expose the same roster, which can link
 remote peers using the official
 [`@a2a-js/sdk`](https://github.com/a2aproject/a2a-js), with Agent Card discovery,
 JSON-RPC/HTTP+JSON, streaming task results, and retained A2A contexts. A
@@ -237,12 +304,12 @@ Attached models receive bound `list_agents`, `send_message`, `followup_task`, an
 `wait_agents` tools by default. Production controls are capability-oriented:
 hosts choose ownership, auth, endpoint, storage, and tool policies while the SDK
 provides quotas, TTL, cancellation, sanitized errors, and lifecycle hooks. See
-[`docs/a2a.md`](docs/a2a.md).
+[Agent-to-Agent](web-documents/en/08-a2a/index.md).
 
 The SDK can also consume remote MCP tools or expose SDK tools and defined agents
 as an MCP API. MCP stays in optional `mcp-client`, `mcp-server`, and Node-only
 `mcp-node` entry points so web/workflow users do not inherit CLI dependencies.
-See [`docs/mcp.md`](docs/mcp.md) and run `npm run human:mcp` for a credential-free
+See [MCP](web-documents/en/07-mcp/index.md) and run `npm run human:mcp` for a credential-free
 protocol round trip.
 
 ### Low-level loop
@@ -251,7 +318,7 @@ Use `runTurn()` when the application needs to own history and every execution
 boundary directly:
 
 ```ts
-import { History, ToolRegistry, defineTool, createTextMessage, runTurn } from 'ai-agent-sdk'
+import { History, ToolRegistry, defineTool, createTextMessage, runTurn } from '@ai-agent-sdk/core/agent'
 
 const history = new History()
 history.append({ kind: 'user', message: createTextMessage('What is 21 * 2?') })
@@ -284,7 +351,7 @@ for await (const event of runTurn({
 For a ready-made execution policy, use `runAgent()` above `runTurn`:
 
 ```ts
-import { createUserInputBroker, runAgent } from 'ai-agent-sdk'
+import { createUserInputBroker, runAgent } from '@ai-agent-sdk/core'
 
 const userInput = createUserInputBroker()
 
@@ -343,7 +410,7 @@ are passed separately from host functions so the scheduler never tries to execut
 them:
 
 ```ts
-import { ReasoningEffortId, runAgent } from 'ai-agent-sdk'
+import { ReasoningEffortId, runAgent } from '@ai-agent-sdk/core'
 
 for await (const event of runAgent({
   mode: 'basic',
@@ -377,7 +444,7 @@ native web search and image generation. Anthropic maps native web search, preser
 its encrypted result/citation replay state, and reports unsupported native image
 generation or file-id image input as typed `INVALID_REQUEST` errors.
 
-See [`docs/tool-loop-design.md`](docs/tool-loop-design.md) for the architecture,
+See [Tool Execution](web-documents/en/03-tools/tool-execution.md) for the architecture,
 bounds, checkpoint contract, and design rationale.
 
 For manual acceptance against a real provider, use the interactive commands in
@@ -391,13 +458,15 @@ For any endpoint speaking a protocol this package already implements, adding it 
 configuration — no new file, no new folder, no edit to this package:
 
 ```ts
-import { createHttpProvider, apiKeyFromEnv, openAiResponsesProtocol } from 'ai-agent-sdk'
+import { openAiResponsesProtocol } from '@ai-agent-sdk/protocol-responses'
+import { createHttpProvider } from '@ai-agent-sdk/provider-http'
+import { envCredential } from '@ai-agent-sdk/auth-node/env'
 
 registry.registerAdapter(['openrouter'], createHttpProvider({
   displayName: 'OpenRouter',
   protocol: openAiResponsesProtocol,
   baseUrl: 'https://openrouter.ai/api/v1',
-  auth: { kind: 'bearer', token: apiKeyFromEnv('OPENROUTER_API_KEY') },
+  auth: { kind: 'bearer', token: envCredential('OPENROUTER_API_KEY') },
 }))
 ```
 
@@ -406,20 +475,27 @@ subclass — the built-in `codex` provider is itself only config.
 
 Subclass `HttpModelAdapter` only when connection facts cannot be expressed as data
 (request signing over the body, such as AWS SigV4). Decision table and a new-protocol
-walkthrough in [`src/providers/README.md`](src/providers/README.md#adding-a-provider).
+walkthrough in [`@ai-agent-sdk/provider-http`](packages/provider-http/README.md).
 
 ## Scripts
 
 | Script | Purpose |
 | --- | --- |
-| `npm test` | unit suite (fast, no network) |
-| `npm run test:integration` | live provider calls; needs credentials |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run build` | bundle + declarations to `dist/` |
+| `pnpm test:unit` | root unit suite (fast, no network) |
+| `pnpm test:contract` | frozen compatibility and runtime-identity contracts |
+| `pnpm test:packages` | every package-owned suite |
+| `pnpm test:pack` | publint, ATTW, and all tarball/runtime fixtures |
+| `pnpm test:integration` | live provider calls; needs credentials and may cost tokens |
+| `pnpm workspace:typecheck` | typecheck all publishable packages in graph order |
+| `pnpm workspace:build` | build all package-owned bundles and declarations |
 
 Integration tests are a separate run because they cost tokens and are slow enough
 that mixing them in would discourage running the fast suite.
 
 ## License
 
-Apache-2.0
+MIT
+
+## Author
+
+alvin0 - chaulamdinhai — [chaulamdinhai@gmail.com](mailto:chaulamdinhai@gmail.com)

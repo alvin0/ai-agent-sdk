@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ModelAdapter } from '../../src/core/contract/adapter.ts'
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
-import { ModelError } from '../../src/core/errors/model-error.ts'
-import { createTextMessage } from '../../src/core/message/message.ts'
-import { withRetry, type RetryAttempt } from '../../src/core/runtime/with-retry.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+import { ModelAdapter } from '@ai-agent-sdk/core'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
+import { ModelError } from '@ai-agent-sdk/core'
+import { createTextMessage } from '@ai-agent-sdk/core'
+import { withRetry, type RetryAttempt } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 
 /** Replays a scripted outcome per attempt, counting how many were made. */
 class ScriptedAdapter extends ModelAdapter {
@@ -112,7 +112,7 @@ describe('withRetry', () => {
   it('lets the registry funnel convert that same mid-stream failure to a finish', async () => {
     // The other half of the layering above: composed as intended, the caller does
     // get a terminal chunk rather than a throw.
-    const { ModelRegistry } = await import('../../src/core/runtime/registry.ts')
+    const { ModelRegistry } = await import('@ai-agent-sdk/core')
     const inner = new ScriptedAdapter([
       async function* () {
         yield { type: 'text-delta', index: 0, text: 'already sent' }

@@ -1,0 +1,47 @@
+{
+  "name": "@ai-agent-sdk/observability-browser",
+  "author": {
+    "name": "alvin0 - chaulamdinhai",
+    "email": "chaulamdinhai@gmail.com"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "description": "IndexedDB durable observation queue and opt-in browser lifecycle integration",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "README.md", "LICENSE"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "default": "./dist/index.js" },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": { "access": "public", "provenance": true },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('artifacts',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && node scripts/test-packed.mts",
+    "pack": "pnpm pack --pack-destination artifacts",
+    "test:pack": "node scripts/test-packed.mts",
+    "check:publint": "publint",
+    "check:types": "attw --profile esm-only --pack ."
+  },
+  "peerDependencies": {
+    "@ai-agent-sdk/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@ai-agent-sdk/core": "workspace:^",
+    "@arethetypeswrong/cli": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:"
+  },
+  "aiAgentSdk": {
+    "runtime": "browser",
+    "coreApi": 1,
+    "roles": ["observation-exporter"]
+  }
+}

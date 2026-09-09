@@ -1,0 +1,57 @@
+{
+  "name": "@ai-agent-sdk/auth-node",
+  "author": {
+    "name": "alvin0 - chaulamdinhai",
+    "email": "chaulamdinhai@gmail.com"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node environment credentials and project-local Codex authentication for ai-agent-sdk",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "bin", "README.md", "LICENSE"],
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": { "types": "./dist/index.d.mts", "import": "./dist/index.mjs", "default": "./dist/index.mjs" },
+    "./env": { "types": "./dist/env.d.mts", "import": "./dist/env.mjs", "default": "./dist/env.mjs" },
+    "./codex": { "types": "./dist/codex.d.mts", "import": "./dist/codex.mjs", "default": "./dist/codex.mjs" },
+    "./package.json": "./package.json"
+  },
+  "bin": { "ai-agent-sdk-codex-login": "./bin/ai-agent-sdk-codex-login.mjs" },
+  "publishConfig": { "access": "public", "provenance": true },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "node -e \"for(const p of ['dist','artifacts'])require('node:fs').rmSync(p,{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "pack": "pnpm pack --pack-destination artifacts",
+    "test:pack": "node ../../scripts/test-packed-node-capability.mts auth-node",
+    "check:publint": "publint",
+    "check:types": "attw --profile esm-only --pack ."
+  },
+  "peerDependencies": {
+    "@ai-agent-sdk/core": "workspace:^",
+    "@ai-agent-sdk/provider-codex": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@ai-agent-sdk/provider-codex": { "optional": true }
+  },
+  "devDependencies": {
+    "@ai-agent-sdk/core": "workspace:^",
+    "@ai-agent-sdk/provider-codex": "workspace:^",
+    "@arethetypeswrong/cli": "catalog:",
+    "@types/node": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": { "node": ">=22.12" },
+  "aiAgentSdk": {
+    "runtime": "node",
+    "coreApi": 1,
+    "roles": ["credential-source", "credential-store"]
+  }
+}

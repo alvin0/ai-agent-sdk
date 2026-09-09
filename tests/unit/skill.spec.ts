@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineAgent } from '../../src/agent/define/definition.ts'
-import { History } from '../../src/agent/history/history.ts'
-import { runToolCalls } from '../../src/agent/loop/schedule.ts'
+import { defineAgent } from '@ai-agent-sdk/core/agent'
+import { History } from '@ai-agent-sdk/core/agent'
+import { runToolCalls } from '@ai-agent-sdk/core/agent'
 import {
   MAX_SKILL_RESOURCE_CHARS,
   SkillCatalog,
@@ -12,16 +12,15 @@ import {
   resolveSkillOptions,
   type SkillCandidate,
   type SkillProviderListOptions,
-} from '../../src/agent/skill/index.ts'
-import { defineTool, executionModeOf } from '../../src/agent/tool/definition.ts'
-import { dispatchToolCall } from '../../src/agent/tool/pipeline.ts'
-import { ToolRegistry } from '../../src/agent/tool/registry.ts'
-import { createSpanId, createTraceId } from '../../src/agent/trace/trace.ts'
-import { ModelAdapter } from '../../src/core/contract/adapter.ts'
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
-import { ReasoningEffortId, ToolCallId } from '../../src/core/primitives/brand.ts'
-import { ModelRegistry } from '../../src/core/runtime/registry.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+} from '@ai-agent-sdk/core/agent'
+import { defineTool, executionModeOf } from '@ai-agent-sdk/core/agent'
+import { dispatchToolCall } from '@ai-agent-sdk/core/agent'
+import { ToolRegistry } from '@ai-agent-sdk/core/agent'
+import { ModelAdapter } from '@ai-agent-sdk/core'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
+import { ReasoningEffortId, ToolCallId, createSpanId, createTraceId } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 
 function skill(overrides: Partial<Parameters<typeof defineSkill>[0]> = {}) {
   return defineSkill({
@@ -228,7 +227,10 @@ describe('environment-neutral skills', () => {
       }]),
       load: () => Promise.resolve(undefined),
     })
-    await expect(new SkillCatalog([skill(), provider]).discover()).rejects.toThrow(/duplicate skill/)
+    await expect(new SkillCatalog([skill(), provider]).discover()).rejects.toMatchObject({
+      code: 'SKILL_ID_CONFLICT',
+      conflict: { namespace: 'skill-id', key: '[redacted]', firstIndex: 0, secondIndex: 1 },
+    })
   })
 
   it('rejects candidates that spoof another provider identity', async () => {

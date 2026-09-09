@@ -1,0 +1,59 @@
+{
+  "name": "@ai-agent-sdk/mcp",
+  "author": {
+    "name": "alvin0 - chaulamdinhai",
+    "email": "chaulamdinhai@gmail.com"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "description": "Universal MCP HTTP client for ai-agent-sdk",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "README.md", "LICENSE"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "default": "./dist/index.js" },
+    "./client": { "types": "./dist/client.d.ts", "import": "./dist/client.js", "default": "./dist/client.js" },
+    "./server": { "types": "./dist/server.d.ts", "import": "./dist/server.js", "default": "./dist/server.js" },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": { "access": "public", "provenance": true },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('artifacts',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "pack": "pnpm pack --pack-destination artifacts",
+    "test:pack": "node scripts/test-packed.mts",
+    "check:publint": "publint",
+    "check:types": "attw --profile esm-only --pack ."
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "catalog:"
+  },
+  "peerDependencies": {
+    "@ai-agent-sdk/core": "workspace:^",
+    "@ai-agent-sdk/mcp-server": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@ai-agent-sdk/mcp-server": { "optional": true }
+  },
+  "devDependencies": {
+    "@ai-agent-sdk/core": "workspace:^",
+    "@ai-agent-sdk/mcp-server": "workspace:^",
+    "@arethetypeswrong/cli": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  },
+  "aiAgentSdk": {
+    "runtime": "universal",
+    "coreApi": 1,
+    "roles": ["mcp-client", "tool-source"]
+  }
+}

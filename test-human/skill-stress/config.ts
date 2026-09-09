@@ -1,4 +1,5 @@
 import { resolve } from 'node:path'
+import { stripCommandSeparators } from '../cli-args.ts'
 import type { HumanProvider } from '../config.ts'
 import type { SkillStressConfig } from './types.ts'
 
@@ -15,7 +16,7 @@ export function parseSkillStressArgs(
 ): SkillStressConfig {
   const values = new Map<string, string[]>()
   const switches = new Set<string>()
-  const input = argv[0] === 'run' ? argv.slice(1) : [...argv]
+  const input = stripCommandSeparators(argv)
   for (let index = 0; index < input.length; index++) {
     const token = input[index]
     if (token === undefined) continue

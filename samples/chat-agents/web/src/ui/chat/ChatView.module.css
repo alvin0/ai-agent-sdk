@@ -1,0 +1,745 @@
+/* Centre column: a scrolling thread over a pinned composer. Every colour is a
+   --dsw-* alias token, so the light/dark switch is a single body attribute. */
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.scroller {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 768px;
+  margin: 0 auto;
+  padding: 32px 24px 24px;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+}
+
+.empty {
+  padding: 64px 0 24px;
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.emptyHint {
+  margin: 0 auto;
+  max-width: 460px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.userMessage {
+  align-self: flex-end;
+  max-width: 82%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Right-aligned under the bubble, reading as a footnote to the message. */
+.userSkills {
+  display: flex;
+  align-self: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.userSkill {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--ds-font-family-code);
+  font-size: 11px;
+}
+
+.assistant {
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.assignment {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-module-platform);
+  border: 1px solid var(--dsw-alias-border-l3);
+}
+
+.assignmentLabel {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.assignmentText {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--dsw-alias-label-primary);
+}
+
+.answerBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dsw-alias-border-l3);
+}
+
+.answerLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* Progress narration reads as chrome, not as the answer. */
+.commentary {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+}
+
+.reasoning {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reasoningToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* The heading can be a full sentence; the row must stay one line. */
+.reasoningLabel {
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* How many blocks the group folds away, so a long stretch of thinking reads as
+   one thing with a size rather than as an unknown amount hidden. */
+.reasoningCount {
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-module-platform);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.reasoningToggle:disabled {
+  cursor: default;
+}
+
+.reasoningToggle:disabled:hover {
+  background: transparent;
+}
+
+.reasoningToggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.reasoningBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 10px;
+  border-left: 2px solid var(--dsw-alias-border-l3);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* MarkdownText's root sets `font` and `color` for the assistant's answer.
+   Inside an aside those win over this block and draw the thinking at answer
+   size and answer brightness, which is what made a summary look like a second
+   reply. The root is handed back its container's own type. */
+.reasoningBody > * {
+  font: inherit;
+  color: inherit;
+}
+
+/* The markdown sheet spaces blocks for a full-width answer; at aside size that
+   rhythm is a column of gaps. */
+.reasoningBody :global(p),
+.reasoningBody :global(ul),
+.reasoningBody :global(ol) {
+  margin: 6px 0;
+}
+
+.reasoningBody :global(:where(h1, h2, h3, h4, h5, h6)) {
+  margin: 10px 0 4px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.reasoningBody :global(strong) {
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* A combinator may not sit inside `:global()`, so it is written outside it. */
+.reasoningBody > *:first-child > :global(*:first-child) {
+  margin-top: 0;
+}
+
+.reasoningBody > *:last-child > :global(*:last-child) {
+  margin-bottom: 0;
+}
+
+.error {
+  padding: 10px 12px;
+  border: 0.5px solid var(--dsw-static-red-400);
+  border-radius: 10px;
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+  color: var(--dsw-static-red-600);
+  font-size: 13px;
+}
+
+.composerWrap {
+  padding: 0 24px 20px;
+  background: var(--dsw-alias-bg-base);
+}
+
+.composer {
+  /* The `/` menu is absolutely positioned against this card. */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 768px;
+  margin: 0 auto;
+  padding: 10px 12px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 20px;
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.composer:focus-within {
+  border-color: var(--dsw-alias-border-l4);
+}
+
+/*
+  Chips and the text share one line: an attached skill reads as part of the
+  sentence being written, not as a separate tray above it. The textarea keeps
+  its own growth, so a long message wraps inside it while the chips stay put.
+*/
+.inputRow {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  padding-top: 2px;
+}
+
+.inputRow > .inputWrap {
+  flex: 1 1 200px;
+  width: auto;
+}
+
+/*
+  Wraps the textarea and the layer that draws its mentions in colour. The font
+  lives HERE so both children inherit one set of metrics — the caret is still
+  placed by the textarea, so text drawn at any other size would sit off it.
+*/
+.inputWrap {
+  position: relative;
+  width: 100%;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.input {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-height: 200px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  field-sizing: content;
+}
+
+/*
+  Only while a mention is present. The textarea stops drawing glyphs and keeps
+  drawing the caret; the layer behind it draws the same text with the mention
+  coloured. With no mention there is nothing to colour and the textarea is left
+  entirely alone.
+*/
+.painting .input {
+  color: transparent;
+  caret-color: var(--dsw-alias-label-primary);
+}
+
+.input::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.composerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* The attach control sits with the other composer chips, and reads as one of
+   them rather than as a second send button. */
+.attach {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.attach:hover:not(:disabled) {
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-primary);
+}
+
+.attach:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}
+
+.send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: var(--dsw-alias-button-primary-fill);
+  /* `brand-primary-invert` is NOT the inverse of `brand-primary` in this token
+     set — both resolve to the same value in each theme, so using it as the
+     glyph colour on a `brand-primary` fill drew a white arrow on white in the
+     dark theme and black on black in the light one. Only the disabled state,
+     which changes the fill, happened to stay legible. This is the pairing the
+     source harness's own primary button uses. */
+  color: var(--dsw-alias-label-primary-foreground);
+  cursor: pointer;
+  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.send:disabled {
+  background: var(--dsw-alias-button-primary-dimmed);
+  /* The dimmed fill runs the OPPOSITE way to the primary one — light in the
+     light theme, dark in the dark theme — so it needs an ordinary label colour,
+     not the foreground that pairs with the primary fill. */
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}
+
+.send:not(:disabled):hover {
+  background: var(--dsw-alias-button-primary-hover);
+}
+
+/* The contrast fill needs the inverted label with it, which is the pairing the
+   source harness uses everywhere it uses this fill. Inheriting `.send`'s
+   `brand-primary-invert` instead made the glyph invisible: in the dark theme
+   both that and `button-contrast-fill` resolve to the same near-white, so the
+   stop button rendered as a blank white circle. */
+.stop {
+  background: var(--dsw-alias-button-contrast-fill);
+  color: var(--dsw-alias-label-primary-inverted);
+}
+
+/* The run's own last line, at the end of the stream where the next row will
+   appear — not centred chrome under the input box.
+
+   It has to look alive. A static glyph beside a number that only moves when the
+   server speaks reads as a stalled app, which is the thing this line exists to
+   rule out. */
+.runningHint {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0 4px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.runningSpinner {
+  align-self: center;
+  flex: none;
+  /* Stated rather than relied on: browsers have not always defaulted an SVG's
+     transform-origin to its centre, and an arc pivoting on its top-left corner
+     orbits instead of spinning. */
+  transform-origin: 50% 50%;
+  animation: runningSpin 900ms linear infinite;
+}
+
+@keyframes runningSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Slowed for reduced motion, NOT stopped.
+   This used to be `animation: none`, and it was wrong: a spinner is a status
+   indicator, not decoration. Stopped, it becomes a static broken circle that
+   says nothing — and on Windows, where "Animation effects" is a switch people
+   turn off for performance rather than for vestibular reasons, that is what
+   most users saw. The concern behind the query is large-area and parallax
+   motion; a 16px arc turning slowly is the standard accommodation, and it
+   keeps the one thing the line exists to say: this is still going. */
+@media (prefers-reduced-motion: reduce) {
+  .runningSpinner { animation-duration: 2.4s; }
+}
+
+.runningLabel {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.runningElapsed {
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pushed to the end and dimmed: it is an instruction, not a status, and it
+   must not compete with the part that changes. */
+.runningAside {
+  margin-left: auto;
+  color: var(--dsw-alias-label-quaternary, var(--dsw-alias-label-tertiary));
+  opacity: 0.75;
+}
+
+/* A finished turn's work, folded behind one line.
+
+   The answer is what the reader came for; the tool calls are how it was
+   reached. Both used to sit at the same level, so finding the answer meant
+   scrolling past everything else. This row is deliberately quiet — tertiary
+   label, no fill, no border — because it is a way back INTO the work, not a
+   thing to read on the way to the answer. */
+.trail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trailToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 3px 8px 3px 4px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.trailToggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.trailLabel {
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The step count trails the duration and never competes with it: it is context
+   for the fold, not a second heading. */
+.trailSteps {
+  color: var(--dsw-alias-label-quaternary, var(--dsw-alias-label-tertiary));
+  opacity: 0.8;
+}
+
+.trailSteps::before {
+  content: '·';
+  margin-right: 6px;
+}
+
+/* Opened, the work is indented under its own rule, so it reads as what sits
+   BEHIND the summary rather than as more of the thread. */
+.trailBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--dsw-alias-border-l3);
+}
+
+/* Filtered to a member that has produced nothing yet. Says which member, so
+   the empty column reads as an answer rather than as a filter that broke. */
+.focusEmpty {
+  padding: 12px 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+}
+
+/* Column header: conversation title plus the two settings that decide what a
+   run can see — the workspace and the model. */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: none;
+  padding: 10px 20px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-base);
+}
+
+/*
+  Project › conversation. The conversation is the thing being read, so it holds
+  the weight; the project is the thing that decides what the run can touch, so
+  it is never off screen. When the header runs out of room the PROJECT keeps its
+  name and the title truncates — a truncated project name is the one piece of
+  this line that could be read as the wrong project.
+*/
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* Takes the header's spare width, so the crumbs are measured against the
+     HEADER and not against their own content. */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.crumbProject {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /*
+    Never the first thing to give: the title truncates, the project keeps its
+    name. A percentage here would resolve against `.crumbs` — whose width is
+    the crumbs' own — which cut the project to `AI…` on a header with a
+    thousand spare pixels. A viewport-relative ceiling is what "do not eat the
+    whole bar" actually needs, and only a genuinely long name reaches it.
+  */
+  flex: 0 0 auto;
+  max-width: min(360px, 34vw);
+  padding: 3px 7px;
+  margin-left: -7px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.crumbProject:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.crumbText {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.crumbSep {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+}
+
+.crumbTitle {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.headerMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+/* The header's one remaining button, now icon-only: the folder it used to name
+   is in the breadcrumb, where it is the location rather than a setting. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* A chip that names itself, for an action a symbol alone would not explain. */
+.chipText {
+  width: auto;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  font-size: 12px;
+}
+
+/* Team run: who wrote a row, and the roster strip above the composer. */
+/* A subagent's stretch of the transcript, drawn as one named panel.
+
+   A per-row badge was not enough: a member's rows sat at the lead's level and
+   the transcript read as one agent talking to itself. The rule and the indent
+   are what say "this part is not the orchestrator". */
+.memberBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 2px 0;
+  padding: 8px 0 8px 12px;
+  border-left: 2px solid var(--dsw-alias-border-l3);
+  border-radius: 0 12px 12px 0;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+/* The header is the fold control: a member's rows are the bulk of a team turn,
+   and a panel you cannot close is a wall with a name on it. Everything after
+   the name is context for the closed state — how much work is behind it. */
+.memberHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 8px 2px 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.memberHeader:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.memberMeta {
+  margin-left: auto;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.memberName {
+  color: var(--dsw-alias-label-secondary);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+}
+
+.memberRole {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.memberRows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.composerInner {
+  width: 100%;
+  max-width: 768px;
+  margin: 0 auto;
+}
+
+/* An in-flight notice: a retry, not a failure. Dim and inline, so it reads as
+   the run telling you what it is doing rather than as an outcome. */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.notice[data-level='warn'] {
+  color: var(--dsw-alias-state-warn-primary);
+  background: var(--dsw-alias-state-warn-tertiary);
+}

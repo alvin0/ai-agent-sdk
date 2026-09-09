@@ -37,10 +37,15 @@ Mandatory orchestration:
 2. Delegate the complete file ownership and acceptance contract below. Do not
    implement a worker-owned feature yourself and never let two agents edit the
    same file.
-3. After all spawn results return, inspect every feature, test, and handoff doc.
+3. spawn_agent returns as soon as a worker starts, WITHOUT its result. Use
+   wait_agents to wait for them; it returns within its timeout whether or not
+   they finished, so read the reported status and wait again if any are still
+   running. Each worker also reports to you when it finishes.
+4. Once all three have finished, inspect every feature, test, and handoff doc.
    Integrate them by writing src/app.js and src/styles.css. Then run both
-   npm test and npm run build with run_command.
-4. Fix integration-only defects yourself. Do not report success until dist/ is
+   npm test and npm run build with run_command. Call close_agent on each worker
+   once you have its result.
+5. Fix integration-only defects yourself. Do not report success until dist/ is
    created and host-verifiable.
 
 Worker assignments:

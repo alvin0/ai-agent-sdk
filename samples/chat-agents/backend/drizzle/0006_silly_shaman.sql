@@ -1,0 +1,1 @@
+ALTER TABLE `trace_spans` ADD `api_call` text;

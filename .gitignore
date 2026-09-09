@@ -62,6 +62,9 @@ web_modules/
 # Output of 'npm pack'
 *.tgz
 
+# Reproducible local output from the packed testkit acceptance run.
+/packages/testkit/artifacts/
+
 # Yarn Integrity file
 .yarn-integrity
 
@@ -77,6 +80,7 @@ web_modules/
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
+.wrangler/
 
 # Next.js build output
 .next
@@ -85,7 +89,10 @@ out
 # Nuxt.js build / generate output
 .nuxt
 dist
+dist-cli
 .output
+!tests/negative-fixtures/runtime-emitted-leak/packages/core/dist/
+!tests/negative-fixtures/runtime-emitted-leak/packages/core/dist/index.js
 
 # Gatsby files
 .cache/
@@ -132,6 +139,9 @@ dist
 # pnpm
 .pnpm-store
 
+# Turborepo local cache and run summaries
+.turbo/
+
 # yarn v3
 .pnp.*
 .yarn/*
@@ -155,3 +165,7 @@ vite.config.ts.timestamp-*
 
 # Reproducible reports emitted by human stress harnesses.
 /test-human/results/
+
+# Isolated chat sample live-check output
+.playwright-cli/
+.next-feedback/

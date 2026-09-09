@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parseA2AStressArgs } from '../../test-human/a2a-stress/config.ts'
 import {
+  a2aStressPaths,
   prepareA2AStressFixture,
   verifyA2AStressFixtureIntegrity,
 } from '../../test-human/a2a-stress/fixture.ts'
@@ -20,8 +21,8 @@ import {
   createA2AStressTools,
   resolveA2AStressCommand,
 } from '../../test-human/a2a-stress/security.ts'
-import type { ToolRunContext } from '../../src/agent/tool/definition.ts'
-import type { ToolCallId } from '../../src/core/primitives/brand.ts'
+import type { ToolRunContext } from '@ai-agent-sdk/core/agent'
+import type { ToolCallId } from '@ai-agent-sdk/core'
 
 const roots: string[] = []
 
@@ -30,6 +31,13 @@ afterEach(async () => {
 })
 
 describe('A2A human stress harness', () => {
+  it('resolves bundled CLI artifacts from the workspace root, not the emitted module directory', () => {
+    expect(a2aStressPaths('path-probe', 'managed')).toEqual({
+      workspace: resolve('test-human/workspaces/a2a-stress/path-probe-managed'),
+      results: resolve('test-human/results/a2a-stress/path-probe-managed'),
+    })
+  })
+
   it('parses bounded live defaults and requires models for non-Codex providers', () => {
     expect(parseA2AStressArgs('managed', [], {})).toMatchObject({
       mode: 'managed', provider: 'codex', model: 'gpt-5.6-luna',

@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { SseEvent } from '../../src/core/stream/sse.ts'
-import { translateAnthropicStream } from '../../src/providers/anthropic/translate.ts'
+import {
+  translateAnthropicStream,
+  type ProtocolSseEvent,
+} from '@ai-agent-sdk/protocol-anthropic-messages'
+import { validateUsageCounters } from '@ai-agent-sdk/core'
 
-async function* events(values: readonly object[]): AsyncIterable<SseEvent> {
+async function* events(values: readonly object[]): AsyncIterable<ProtocolSseEvent> {
   for (const value of values) yield { event: undefined, data: JSON.stringify(value) }
 }
 
@@ -63,5 +66,62 @@ describe('translateAnthropicStream native tools', () => {
       },
     })
     expect(chunks.at(-1)).toEqual({ type: 'finish', reason: { kind: 'stop' } })
+  })
+})
+
+describe('translateAnthropicStream usage normalization', () => {
+  const textEvents = (startUsage: object, deltaUsage?: object) => [
+    { type: 'message_start', message: { usage: startUsage } },
+    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ok' } },
+    { type: 'content_block_stop', index: 0 },
+    {
+      type: 'message_delta', delta: { stop_reason: 'end_turn' },
+      ...(deltaUsage === undefined ? {} : { usage: deltaUsage }),
+    },
+    { type: 'message_stop' },
+  ]
+
+  it('combines split usage and treats omitted cache buckets as authoritative zero', async () => {
+    const chunks = []
+    for await (const chunk of translateAnthropicStream(events(textEvents(
+      { input_tokens: 10 },
+      { output_tokens: 5 },
+    )), 'test')) chunks.push(chunk)
+
+    const usage = chunks.find(chunk => chunk.type === 'usage')?.usage
+    expect(usage).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })
+    expect(validateUsageCounters(usage, true)).toMatchObject({
+      complete: true,
+      invalidFields: [],
+      reported: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+    })
+  })
+
+  it('keeps a partial provider report partial instead of inventing zero output', async () => {
+    const chunks = []
+    for await (const chunk of translateAnthropicStream(events(textEvents(
+      { input_tokens: 10 },
+    )), 'test')) chunks.push(chunk)
+
+    const usage = chunks.find(chunk => chunk.type === 'usage')?.usage
+    expect(usage).toEqual({ inputTokens: 10 })
+    expect(validateUsageCounters(usage, true).complete).toBe(false)
+  })
+
+  it('retains malformed counters for the accounting boundary to reject', async () => {
+    const chunks = []
+    for await (const chunk of translateAnthropicStream(events(textEvents(
+      { input_tokens: 'not-a-counter' },
+      { output_tokens: 5 },
+    )), 'test')) chunks.push(chunk)
+
+    const usage = chunks.find(chunk => chunk.type === 'usage')?.usage
+    expect(usage).toEqual({ inputTokens: 'not-a-counter', outputTokens: 5 })
+    expect(validateUsageCounters(usage, true)).toMatchObject({
+      complete: false,
+      invalidFields: ['inputTokens'],
+      reported: { outputTokens: 5 },
+    })
   })
 })

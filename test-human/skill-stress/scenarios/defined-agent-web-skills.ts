@@ -1,9 +1,9 @@
-import { defineAgent } from '../../../src/agent/define/definition.ts'
+import { defineAgent } from '@ai-agent-sdk/core/agent'
 import {
   defineSkillProvider,
   type SkillCandidate,
   type SkillProviderListOptions,
-} from '../../../src/agent/skill/index.ts'
+} from '@ai-agent-sdk/core/agent'
 import { createOfflineRegistry } from '../agent.ts'
 import { InvariantRecorder, StressObserver } from '../observer.ts'
 import { ScriptedStressAdapter } from '../scripted-adapter.ts'

@@ -2,10 +2,12 @@
 /** Continuous real-provider coding session with safe-step live steering. */
 
 import { mkdir } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { stdin, stdout } from 'node:process'
 import { createInterface } from 'node:readline/promises'
-import type { AgentSession } from '../../src/agent/define/index.ts'
-import { createUserInputBroker } from '../../src/agent/mode/user-input.ts'
+import type { AgentSession } from '@ai-agent-sdk/core/agent'
+import { createUserInputBroker } from '@ai-agent-sdk/core/agent'
+import { HumanArtifactRecorder } from '../artifacts.ts'
 import { errorMessage, label, paint } from '../console.ts'
 import { createHumanModelRegistry } from '../providers.ts'
 import { renderHumanRun } from '../terminal.ts'
@@ -27,16 +29,33 @@ async function main(): Promise<void> {
   const model = modelFor(config)
   if (model === undefined) return
 
+  const artifact = new HumanArtifactRecorder({
+    harness: 'agentcode', resultsRoot: `${config.resultsRoot ?? resolve('test-human/results')}/agentcode`,
+    ...(config.runId === undefined ? {} : { runId: config.runId }),
+  })
+
   const tools = createAgentCodeToolRegistry(config.workdir)
   console.log(label('agentcode/config'), JSON.stringify({
     provider: config.provider, model, effort: config.effort, mode: config.mode,
     maxTurns: config.maxTurns, maxToolCalls: config.maxToolCalls, workdir: config.workdir,
     skillRoots: config.skillRoots,
     compaction: { maxInputTokens: config.maxInputTokens, retainTokens: config.retainTokens },
-    tools: tools.names(), logs: config.logs, prompt: config.prompt,
+    tools: tools.names(), logs: config.logs, prompt: `<${config.prompt?.length ?? 0} chars>`,
     conversation: config.once ? 'single-run' : 'continuous-with-steering',
   }, null, 2))
-  if (config.dryRun) return
+  const artifactConfig = {
+    provider: config.provider, model, effort: config.effort, maxTurns: config.maxTurns,
+    maxToolCalls: config.maxToolCalls, workdir: config.workdir, skillRoots: config.skillRoots,
+    maxInputTokens: config.maxInputTokens, retainTokens: config.retainTokens,
+    tools: tools.names(), logs: config.logs, prompt: config.prompt,
+    conversation: config.once ? 'single-run' : 'continuous-with-steering',
+  }
+  artifact.record('config', artifactConfig)
+  if (config.dryRun) {
+    const summary = await artifact.finish({ status: 'dry-run', config: artifactConfig })
+    console.log(label('agentcode/artifact'), summary.artifact.directory)
+    return
+  }
 
   await mkdir(config.workdir, { recursive: true })
   const registry = createHumanModelRegistry(config)
@@ -63,6 +82,10 @@ async function main(): Promise<void> {
     registry, tools, skillCwd: config.workdir, hooks: steering.hooks(() => session.history),
   })
   const discoveredSkills = await session.skills?.discover({ cwd: config.workdir }) ?? []
+  artifact.record('skills-discovered', {
+    count: discoveredSkills.length,
+    skills: discoveredSkills.map(skill => ({ id: skill.id, source: skill.source })),
+  })
   console.log(label('agentcode/skills'), discoveredSkills.length === 0
     ? 'none discovered'
     : discoveredSkills.map(skill => `${skill.id} (${skill.source})`).join(', '))
@@ -109,6 +132,9 @@ async function main(): Promise<void> {
 
   console.log(label('agentcode/ready'), 'type during a run to steer; after completion, type the next request')
   let nextInput: string | undefined = config.prompt
+  let turns = 0
+  let failedTurns = 0
+  let aborted = false
   try {
     while (!exiting) {
       if (nextInput === undefined) {
@@ -126,12 +152,18 @@ async function main(): Promise<void> {
 
       active = true
       activeController = new AbortController()
+      artifact.record('turn-start', { turn: turns + 1, prompt: input })
       console.log(label('agentcode/turn'), 'running; type a steering message and press Enter at any time')
       try {
-        await renderHumanRun(
-          session.stream(input, { signal: activeController.signal }), config, broker, terminal,
-        )
+        const stream = session.stream(input, { signal: activeController.signal })
+        await renderHumanRun(stream, config, broker, terminal)
+        const [result, report] = await Promise.all([stream.result, stream.report])
+        turns++
+        artifact.record('turn-end', { turn: turns, outcome: result.outcome, report })
       } catch (error: unknown) {
+        failedTurns++
+        aborted = activeController.signal.aborted
+        artifact.record('turn-error', { turn: turns + 1, error })
         console.error('\n' + label('error'), paint(31, errorMessage(error)))
       } finally {
         active = false
@@ -153,6 +185,14 @@ async function main(): Promise<void> {
     broker.abortAll()
     inbox.close()
     terminal.close()
+    const stats = sessionStats(session, config)
+    const summary = await artifact.finish({
+      status: aborted ? 'aborted' : failedTurns > 0 ? 'failed' : 'passed',
+      config: artifactConfig,
+      invariants: [{ name: 'all submitted coding turns completed without an unhandled error', passed: failedTurns === 0 }],
+      metrics: { ...stats, turns, failedTurns, discoveredSkills: discoveredSkills.length },
+    })
+    console.log(label('agentcode/artifact'), summary.artifact.directory)
   }
 }
 
@@ -195,6 +235,10 @@ function printMemory(session: AgentSession): void {
 }
 
 function printStats(session: AgentSession, config: AgentCodeCliConfig): void {
+  console.log(label('agentcode/stats'), JSON.stringify(sessionStats(session, config), null, 2))
+}
+
+function sessionStats(session: AgentSession, config: AgentCodeCliConfig): Record<string, unknown> {
   const entries = session.history.entries()
   const kinds = entries.map(entry => entry.event.kind)
   const summaries = entries.flatMap(entry => entry.event.kind === 'compaction-summary'
@@ -205,7 +249,7 @@ function printStats(session: AgentSession, config: AgentCodeCliConfig): void {
     (total, event) => total + event.estimatedTokensBefore - event.estimatedTokensAfter,
     0,
   )
-  console.log(label('agentcode/stats'), JSON.stringify({
+  return {
     historyEvents: kinds.length,
     compactionsStarted: kinds.filter(kind => kind === 'compaction-start').length,
     compactionsCompleted: summaries.length,
@@ -220,7 +264,7 @@ function printStats(session: AgentSession, config: AgentCodeCliConfig): void {
       entry.event.kind === 'user' && entry.event.message.source.kind === 'user').length,
     memoryItems: session.memory.items().length,
     workspace: config.workdir,
-  }, null, 2))
+  }
 }
 
 function parseConfig(): AgentCodeCliConfig | undefined {

@@ -101,7 +101,7 @@ export function agentCodeCliHelp(): string {
   return `Long-running coding acceptance test for tools, memory, and compaction
 
 Usage:
-  npm run human:agentcode -- [options] [prompt]
+  pnpm human:agentcode -- [options] [prompt]
 
 Options:
   --workdir <path>                         Default: test-human/workspaces/agentcode
@@ -114,6 +114,8 @@ Options:
   --max-input-tokens <number>              Auto-compact threshold; default: 12000
   --retain-tokens <number>                 Recent context retained; default: 3000
   --prompt <text>                          Override the Todo React/Zustand prompt
+  --run-id <safe-id>                       Stable artifact directory suffix
+  --results-root <path>                    Artifact root; default: test-human/results
   --once                                   Exit after the initial task
   --show-reasoning / --no-show-reasoning   Reasoning summaries; default: shown
   --no-logs                                Disable provider request JSONL logs

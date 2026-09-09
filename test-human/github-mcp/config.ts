@@ -1,3 +1,6 @@
+import { resolve } from 'node:path'
+import { stripCommandSeparators } from '../cli-args.ts'
+
 export const GITHUB_MCP_URL = 'https://api.githubcopilot.com/mcp/'
 
 export type GitHubMcpCommand = 'whoami' | 'read' | 'tools' | 'create-file'
@@ -27,6 +30,9 @@ export interface GitHubMcpCliConfig {
   readonly contentFile?: string
   readonly message?: string
   readonly maxOutputChars: number
+  readonly runId?: string
+  readonly resultsRoot?: string
+  readonly dryRun?: boolean
 }
 
 export interface GitHubMcpHelpConfig {
@@ -39,17 +45,18 @@ export function parseGitHubMcpArgs(
   args: readonly string[],
   env: NodeJS.ProcessEnv = process.env,
 ): ParsedGitHubMcpConfig {
-  if (args.includes('--help') || args.includes('-h')) return { help: true }
+  const input = stripCommandSeparators(args)
+  if (input.includes('--help') || input.includes('-h')) return { help: true }
 
-  const command = parseCommand(args[0])
-  const rest = command.consumed ? args.slice(1) : args
+  const command = parseCommand(input[0])
+  const rest = command.consumed ? input.slice(1) : input
   const values = new Map<string, string>()
   const switches = new Set<string>()
 
   for (let index = 0; index < rest.length; index++) {
     const item = rest[index]
     if (item === undefined) continue
-    if (item === '--confirm-write' || item === '--no-open-browser') {
+    if (item === '--confirm-write' || item === '--no-open-browser' || item === '--dry-run') {
       switches.add(item)
       continue
     }
@@ -68,6 +75,15 @@ export function parseGitHubMcpArgs(
   const url = values.get('--url') ?? firstNonEmpty(env.GITHUB_MCP_URL) ?? GITHUB_MCP_URL
   assertHttpUrl(url)
   const auth = resolveAuth(values, switches, env)
+  const runId = values.get('--run-id')
+  if (runId !== undefined && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(runId)) {
+    throw new TypeError('--run-id must be one safe path segment of at most 128 characters')
+  }
+  const artifactOptions = {
+    ...(runId === undefined ? {} : { runId }),
+    resultsRoot: resolve(values.get('--results-root') ?? 'test-human/results/github-mcp'),
+    dryRun: switches.has('--dry-run'),
+  }
   if (auth.kind === 'oauth' && new URL(url).origin !== new URL(GITHUB_MCP_URL).origin) {
     throw new TypeError('OAuth app credentials may only be sent through the official GitHub MCP origin; use PAT for a custom --url')
   }
@@ -103,6 +119,7 @@ export function parseGitHubMcpArgs(
       ...(contentFile === undefined ? {} : { contentFile }),
       message: values.get('--message') ?? 'test: add GitHub MCP human check',
       maxOutputChars,
+      ...artifactOptions,
     }
   }
 
@@ -118,6 +135,7 @@ export function parseGitHubMcpArgs(
     ...(path === undefined ? {} : { path }),
     ...(ref === undefined ? {} : { ref: normalizeRef(ref) }),
     maxOutputChars,
+    ...artifactOptions,
   }
 }
 
@@ -128,18 +146,18 @@ Authentication (PowerShell):
   # OAuth 2.1 (recommended; create/register a GitHub App or OAuth App first)
   $env:GITHUB_MCP_OAUTH_CLIENT_ID = '<client id>'
   $env:GITHUB_MCP_OAUTH_CLIENT_SECRET = '<client secret>'
-  npm run human:mcp:github -- whoami
+  pnpm human:mcp:github -- whoami
 
   # PAT fallback for CI/headless runs
   $env:GITHUB_TOKEN = '<fine-grained PAT or GitHub token>'
 
 Commands:
-  npm run human:mcp:github -- whoami
-  npm run human:mcp:github -- tools
-  npm run human:mcp:github -- read --repo github/github-mcp-server --path README.md
-  npm run human:mcp:github -- read --repo owner/repo --path src/index.ts --ref main
-  npm run human:mcp:github -- create-file --repo owner/repo --branch mcp-test --path mcp-human-test/check.md --content "hello from MCP" --confirm-write
-  npm run human:mcp:github -- create-file --repo owner/repo --branch mcp-test --path mcp-human-test/check.md --content-file ./note.md --confirm-write
+  pnpm human:mcp:github -- whoami
+  pnpm human:mcp:github -- tools
+  pnpm human:mcp:github -- read --repo github/github-mcp-server --path README.md
+  pnpm human:mcp:github -- read --repo owner/repo --path src/index.ts --ref main
+  pnpm human:mcp:github -- create-file --repo owner/repo --branch mcp-test --path mcp-human-test/check.md --content "hello from MCP" --confirm-write
+  pnpm human:mcp:github -- create-file --repo owner/repo --branch mcp-test --path mcp-human-test/check.md --content-file ./note.md --confirm-write
 
 Options:
   --auth <auto|oauth|pat>     Auto prefers PAT when present, otherwise configured OAuth
@@ -148,6 +166,9 @@ Options:
   --no-open-browser           Print the authorization URL without launching it
   --url <url>                 Override the official remote GitHub MCP endpoint
   --max-output-chars <count>  Limit displayed model-facing text (default 12000)
+  --run-id <safe-id>          Stable artifact directory suffix
+  --results-root <path>       Artifact root; default test-human/results/github-mcp
+  --dry-run                   Validate config and write an artifact without connecting
   --help                      Show this help without requiring credentials
 
 Safety:
@@ -159,6 +180,7 @@ Safety:
 const VALUE_FLAGS = new Set([
   '--repo', '--path', '--ref', '--branch', '--content', '--content-file', '--message',
   '--url', '--max-output-chars', '--auth', '--oauth-redirect-url', '--oauth-timeout-seconds',
+  '--run-id', '--results-root',
 ])
 
 function resolveAuth(

@@ -1,23 +1,49 @@
 import { describe, expect, it } from 'vitest'
-import { ToolCallId } from '../../src/core/primitives/brand.ts'
-import { ReasoningEffortId } from '../../src/core/primitives/brand.ts'
+import { ToolCallId } from '@ai-agent-sdk/core'
+import { ReasoningEffortId } from '@ai-agent-sdk/core'
 import {
   createAssistantMessage,
   createTextMessage,
   createToolResultMessage,
-} from '../../src/core/message/message.ts'
-import { serializeResponsesRequest } from '../../src/providers/responses/serialize.ts'
-import type { ResponsesDialect } from '../../src/providers/responses/wire.ts'
+} from '@ai-agent-sdk/core'
+import {
+  serializeResponsesRequest,
+  type ResponsesDialect,
+} from '@ai-agent-sdk/protocol-responses'
 import { providerRequest } from './fixtures.ts'
 
 const dialect: ResponsesDialect = {
   sampling: true,
   maxOutputTokens: true,
+  structuredOutputs: true,
   store: false,
   include: ['reasoning.encrypted_content'],
 }
 
 describe('serializeResponsesRequest', () => {
+  it('maps provider-neutral text and JSON Schema output formats', () => {
+    const text = serializeResponsesRequest(providerRequest({
+      messages: [createTextMessage('hi')], outputFormat: { type: 'text' },
+    }), dialect)
+    expect(text.text).toEqual({ format: { type: 'text' } })
+
+    const schema = {
+      type: 'object', properties: { answer: { type: 'string' } },
+      required: ['answer'], additionalProperties: false,
+    } as const
+    const json = serializeResponsesRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+      outputFormat: { type: 'json_schema', name: 'answer', schema },
+    }), dialect)
+    expect(json.text).toEqual({
+      format: { type: 'json_schema', name: 'answer', schema, strict: true },
+    })
+    expect(() => serializeResponsesRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+      outputFormat: { type: 'json_schema', name: 'answer', schema },
+    }), { ...dialect, structuredOutputs: false })).toThrow(/does not support JSON Schema output/)
+  })
+
   it('hoists the system prompt into instructions rather than a message item', () => {
     const body = serializeResponsesRequest(providerRequest({
       system: 'be terse',

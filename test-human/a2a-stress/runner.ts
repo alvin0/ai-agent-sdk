@@ -4,9 +4,9 @@ import {
   AgentTeam,
   createDefinedAgentTeam,
   createManagedAgentTeam,
-} from '../../src/agent/a2a/index.ts'
-import { defineAgent } from '../../src/agent/define/index.ts'
-import type { AgentCompactionOptions } from '../../src/agent/memory/compaction-config.ts'
+} from '@ai-agent-sdk/core/agent'
+import { defineAgent } from '@ai-agent-sdk/core/agent'
+import type { AgentCompactionOptions } from '@ai-agent-sdk/core/agent'
 import { createHumanModelRegistry } from '../providers.ts'
 import type { A2AStressConfig } from './config.ts'
 import { humanConfigForA2AStress } from './config.ts'

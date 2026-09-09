@@ -1,10 +1,10 @@
 /** Declarative code agent configured to exercise tools, durable memory, and compaction. */
 
-import { defineAgent, type DefinedAgent } from '../../src/agent/define/index.ts'
+import { defineAgent, type DefinedAgent } from '@ai-agent-sdk/core/agent'
 import {
   fileSystemSkills,
   type FileSystemSkillIoEvent,
-} from '../../src/agent/skill/filesystem.ts'
+} from '@ai-agent-sdk/skill-filesystem'
 import type { AgentCodeCliConfig } from './config.ts'
 
 export interface CreateAgentCodeAgentOptions {

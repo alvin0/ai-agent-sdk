@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -8,14 +8,14 @@ import {
   SkillCatalog,
   createSkillTools,
   resolveSkillOptions,
-} from '../../src/agent/skill/index.ts'
+} from '@ai-agent-sdk/core/agent'
 import {
   discoverFileSystemSkills,
   fileSystemSkills,
-} from '../../src/agent/skill/filesystem.ts'
-import { dispatchToolCall } from '../../src/agent/tool/pipeline.ts'
-import { ToolRegistry } from '../../src/agent/tool/registry.ts'
-import { ToolCallId } from '../../src/core/primitives/brand.ts'
+} from '@ai-agent-sdk/skill-filesystem'
+import { dispatchToolCall } from '@ai-agent-sdk/core/agent'
+import { ToolRegistry } from '@ai-agent-sdk/core/agent'
+import { ToolCallId } from '@ai-agent-sdk/core'
 
 const observedReads = vi.hoisted(() => vi.fn<(path: string, bytes: number) => void>())
 vi.mock('node:fs/promises', async importOriginal => {
@@ -86,12 +86,29 @@ describe('filesystem skill discovery', () => {
       '---', 'name: manual-only', 'description: Use only when selected.', '---', 'Do the explicit workflow.',
     ].join('\n'))
     await writeFile(join(directory, 'agents', 'openai.yaml'), [
-      'policy:', '  allow_implicit_invocation: false', '',
+      'policy:', '  allow_implicit_invocation: false # explicit invocation only', '',
     ].join('\n'))
 
     const [candidate] = await fileSystemSkills({ roots: [root] }).list({})
 
     expect(candidate?.invocation).toEqual({ modelInvocable: false, userInvocable: true })
+  })
+
+  it.each([
+    ['string value', 'policy:\n  allow_implicit_invocation: "false"\n'],
+    ['duplicate value', 'policy:\n  allow_implicit_invocation: false\n  allow_implicit_invocation: true\n'],
+    ['wrong nesting', 'allow_implicit_invocation: false\n'],
+    ['malformed mapping', 'policy:\n  allow_implicit_invocation: [false\n'],
+  ])('fails closed for %s in Codex implicit policy', async (_label, metadata) => {
+    const root = await temporaryRoot()
+    const directory = join(root, 'invalid-policy')
+    await mkdir(join(directory, 'agents'), { recursive: true })
+    await writeFile(join(directory, 'SKILL.md'), [
+      '---', 'name: invalid-policy', 'description: Invalid policy fixture.', '---', 'Instructions.',
+    ].join('\n'))
+    await writeFile(join(directory, 'agents', 'openai.yaml'), metadata)
+
+    await expect(fileSystemSkills({ roots: [root] }).list({})).rejects.toThrow(/skill metadata/)
   })
 
   it('rediscovers added folders and resolves duplicate ids by ordered root precedence', async () => {
@@ -254,7 +271,7 @@ function bytesReadFrom(path: string): number {
 }
 
 async function temporaryRoot(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'ai-agent-sdk-skills-'))
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'ai-agent-sdk-skills-')))
   cleanup.push(root)
   return root
 }

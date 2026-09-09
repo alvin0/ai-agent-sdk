@@ -1,18 +1,37 @@
 import { describe, expect, it } from 'vitest'
-import { ToolCallId } from '../../src/core/primitives/brand.ts'
+import { ToolCallId } from '@ai-agent-sdk/core'
 import {
   createAssistantMessage,
   createTextMessage,
   createToolResultMessage,
-} from '../../src/core/message/message.ts'
-import { DEFAULT_THINKING_BUDGETS } from '../../src/providers/anthropic/adapter.ts'
-import { serializeAnthropicRequest } from '../../src/providers/anthropic/serialize.ts'
-import { ReasoningEffortId } from '../../src/core/primitives/brand.ts'
+} from '@ai-agent-sdk/core'
+import {
+  DEFAULT_THINKING_BUDGETS,
+  serializeAnthropicRequest,
+} from '@ai-agent-sdk/protocol-anthropic-messages'
+import { ReasoningEffortId } from '@ai-agent-sdk/core'
 import { providerRequest } from './fixtures.ts'
 
 const options = { budgets: DEFAULT_THINKING_BUDGETS }
 
 describe('serializeAnthropicRequest', () => {
+  it('maps JSON Schema output and leaves ordinary text on the provider default', () => {
+    const schema = {
+      type: 'object', properties: { answer: { type: 'string' } },
+      required: ['answer'], additionalProperties: false,
+    } as const
+    const json = serializeAnthropicRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+      outputFormat: { type: 'json_schema', name: 'answer', schema },
+    }), options)
+    expect(json.output_config).toEqual({ format: { type: 'json_schema', schema } })
+
+    const text = serializeAnthropicRequest(providerRequest({
+      messages: [createTextMessage('hi')], outputFormat: { type: 'text' },
+    }), options)
+    expect(text).not.toHaveProperty('output_config')
+  })
+
   it('merges consecutive tool results into one user message', () => {
     // This is the parallel-tool-use case. Three separate result messages must
     // arrive as three tool_result blocks in ONE user message, or the provider

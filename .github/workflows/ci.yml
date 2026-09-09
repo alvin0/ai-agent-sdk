@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: [main, mono-package]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  boundary-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 22.18.0
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@11.25.0 --ignore-scripts
+
+      - name: Install workspace-tool prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
+          rg --version
+
+      - name: Frozen dependency install
+        run: pnpm install --frozen-lockfile
+
+      - name: Graph, runtime, type, and build gates
+        run: pnpm workspace:build && pnpm workspace:typecheck && pnpm build:cli && pnpm lint && pnpm exec tsc --noEmit
+      - name: Prove invalid boundaries are rejected
+        run: pnpm check:boundary-fixtures
+
+  functional:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 22.18.0
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@11.25.0 --ignore-scripts
+
+      - name: Install workspace-tool prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
+          rg --version
+
+      - name: Frozen dependency install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build runtime artifacts
+        run: pnpm workspace:build && pnpm build:cli
+      - name: Baseline contract and unit tests
+        run: pnpm exec vitest run
+      - name: Package-owned unit and contract suites
+        run: pnpm test:packages
+      - name: Packed package and runtime matrix
+        run: pnpm test:pack
+
+  supply-chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 22.18.0
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@11.25.0 --ignore-scripts
+
+      - name: Install workspace-tool prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
+          rg --version
+
+      - name: Frozen dependency install
+        run: pnpm install --frozen-lockfile
+
+      - name: Supply-chain and production advisory gate
+        run: pnpm check:supply-chain
+
+  deterministic:
+    if: always()
+    needs: [boundary-build, functional, supply-chain]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all independent gates
+        env:
+          BOUNDARY: ${{ needs.boundary-build.result }}
+          FUNCTIONAL: ${{ needs.functional.result }}
+          SUPPLY_CHAIN: ${{ needs.supply-chain.result }}
+        run: test "$BOUNDARY" = success && test "$FUNCTIONAL" = success && test "$SUPPLY_CHAIN" = success

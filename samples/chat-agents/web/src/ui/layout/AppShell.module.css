@@ -1,0 +1,435 @@
+.frame {
+  position: relative;
+  display: grid;
+  grid-template-rows: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-base);
+  transition: grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+.frame[data-dragging] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame {
+    transition: none;
+  }
+}
+
+.sidebarCol {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-module-platform));
+  border-right: 0.5px solid var(--dsw-alias-border-l3);
+}
+
+.sidebarHead,
+.sidebarFoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+}
+
+.sidebarBody {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 10px;
+  overflow-y: auto;
+}
+
+.sidebarFoot {
+  gap: 6px;
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.brand {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+  white-space: nowrap;
+}
+
+.sessionId {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--ds-font-family-code);
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.centerCol {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.detailsCol {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  margin-left: -4px;
+  cursor: col-resize;
+  z-index: 2;
+  touch-action: none;
+  transition: left var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+.frame[data-dragging] .handle {
+  transition: none;
+}
+
+.footNote {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--ds-font-family-code);
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.modelButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.modelButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.modelLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--ds-font-family-code);
+}
+
+/* Sections and rows -------------------------------------------------------- */
+
+.section {
+  margin-bottom: 14px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px 2px 2px;
+}
+
+/* The label folds the group: a chevron alone is a target the size of a full
+   stop, and the words next to it are what the eye goes to anyway. */
+.sectionToggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sectionToggle:hover .sectionLabel {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.sectionChevron {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  transform: rotate(180deg);
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.sectionChevronFolded {
+  transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sectionChevron {
+    transition: none;
+  }
+}
+
+.sectionLabel {
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sectionAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.sectionAction:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Holds a row and the delete button that only appears over it. */
+.rowWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/*
+  Inside a row wrapper the label button gives up its full width to the actions
+  beside it. The actions keep their space when hidden, so nothing reflows on
+  hover and a long title ellipsises clear of the icons.
+*/
+.rowWrap > .row {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* The open project and the open conversation are the two things the sidebar
+   has to answer at a glance, so selection is a fill, not a tint. */
+.rowActive {
+  background: var(--dsw-alias-bg-layer-1);
+  font-weight: 500;
+}
+
+.rowIcon {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rowActive .rowIcon {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.rowLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rowCount {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sits ON the row rather than beside it, and only while the row is hovered: a
+   list that reflows under the cursor is a list you click the wrong thing in. */
+/*
+  The project row's hover actions: new chat, then the "…" menu. They sit in one
+  absolutely-positioned cluster so the row's own label can stay a plain button,
+  and they stay shown while the menu is open.
+*/
+.rowActions {
+  display: none;
+  flex: none;
+  gap: 2px;
+}
+
+.rowWrap:hover .rowActions,
+.rowActionsOpen,
+.rowActions:focus-within {
+  display: inline-flex;
+}
+
+.rowActionItem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.rowActionItem:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.rowAction {
+  display: none;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.rowWrap:hover .rowAction,
+.rowAction:focus-visible {
+  display: inline-flex;
+}
+
+.rowAction:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/*
+  New chat: a row, not an icon. The plus on the right is decoration for the
+  row's own purpose, so it is `aria-hidden` and the row carries the label.
+*/
+.newChat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px;
+  border: none;
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.newChat:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.newChatPlus {
+  display: inline-flex;
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/*
+  The open project's conversations, indented under it. The rule down the left is
+  what says "these belong to that": indentation alone reads as a coincidence at
+  small sizes.
+*/
+.nested {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 1px 0 4px;
+  padding: 0 0 0 14px;
+  border-left: 1px solid var(--dsw-alias-border-l2);
+  margin-left: 12px;
+  list-style: none;
+}
+
+.nestedRow {
+  padding-left: 6px;
+  font-size: 13px;
+}
+
+.rowDot {
+  flex: none;
+}
+
+/* Paging, not scrolling: the recent rows are the ones being worked on, and a
+   column that runs past the fold is one nobody reads the bottom of. */
+.more {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.empty {
+  padding: 6px 8px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}

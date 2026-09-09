@@ -1,13 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
-import { cloneAgent, defineAgent } from '../../src/agent/define/index.ts'
-import type { AgentRunEvent } from '../../src/agent/mode/run-agent.ts'
-import { defineTool } from '../../src/agent/tool/definition.ts'
-import { ModelAdapter } from '../../src/core/contract/adapter.ts'
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
-import type { ResolvedModelInfo } from '../../src/core/contract/model-info.ts'
-import { ReasoningEffortId, ToolCallId } from '../../src/core/primitives/brand.ts'
-import { ModelRegistry } from '../../src/core/runtime/registry.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+import * as canonicalAgent from '@ai-agent-sdk/core/agent'
+import * as legacyAgent from '@ai-agent-sdk/core/agent'
+import { cloneAgent, defineAgent } from '@ai-agent-sdk/core/agent'
+import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
+import { defineTool } from '@ai-agent-sdk/core/agent'
+import { ModelAdapter } from '@ai-agent-sdk/core'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
+import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
+import { ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 
 class ScriptedAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []
@@ -61,13 +63,81 @@ function model(rounds: readonly (readonly StreamChunk[])[]) {
 }
 
 describe('declarative agent definitions', () => {
+  it.each([undefined, 'auto', 500_000] as const)('applies session total-token policy %s', async maxTotalTokens => {
+    const state = model([[
+      ...toolRound('inspect', 'read', { page: 1 }).slice(0, -1),
+      { type: 'usage', usage: { inputTokens: 600_000, outputTokens: 10, totalTokens: 600_010 } },
+      { type: 'finish', reason: { kind: 'tool-calls' } },
+    ], textRound('Verified report.')])
+    const executed = vi.fn(() => 'evidence')
+    const agent = defineAgent({ id: 'tokens', provider: 'test', model: 'm', instructions: 'Inspect.', maxTurns: 'auto',
+      tools: [defineTool({ name: 'read', description: 'Read.', parameters: { type: 'object' }, execute: executed })] })
+    const response = await agent.createSession({ registry: state.registry, compaction: false,
+      ...(maxTotalTokens === undefined ? {} : { runtimeLimits: { maxTotalTokens } }),
+    }).run('Inspect and report.')
+    expect(state.adapter.requests).toHaveLength(maxTotalTokens === 500_000 ? 1 : 2)
+    expect(executed).toHaveBeenCalledTimes(maxTotalTokens === 500_000 ? 0 : 1)
+    expect(response.outcome.reason.kind).toBe(maxTotalTokens === 500_000 ? 'budget-exhausted' : 'completed')
+  })
+
+  it('requests a current self-check when a follow-up refers to an earlier accepted submission', async () => {
+    const state = model([
+      toolRound('submit-first', 'submit_result', { summary: 'First task done.', evidence: ['first checked'] }),
+      textRound('First report.'),
+      textRound('My previous self-check was already accepted.'),
+      toolRound('submit-followup', 'submit_result', { summary: 'Follow-up checked.', evidence: ['scope rechecked'] }),
+      textRound('Follow-up report.'),
+    ])
+    const session = defineAgent({ id: 'followup', provider: 'test', model: 'm', instructions: 'Report findings.',
+      mode: 'deep', maxTurns: 'auto', compaction: false }).createSession({ registry: state.registry })
+    await session.run('First task.')
+    const result = await session.run('Recheck the scope and report.')
+    expect(result.text).toBe('Follow-up report.')
+    expect(result.outcome.completed).toBe(true)
+    const correction = JSON.stringify(state.adapter.requests[3]?.messages)
+    expect(correction).toContain('this run has no accepted current self-check')
+    expect(correction).toContain('an earlier instruction not to resubmit applied only to that earlier run')
+    expect(state.adapter.requests).toHaveLength(5)
+  })
+
+  it('preserves auto through cloning, sessions and run accounting', async () => {
+    const state = model([
+      ...Array.from({ length: 20 }, (_, i) => toolRound(`read-${i}`, 'read', { page: i })),
+      textRound('All pages reviewed.'),
+    ])
+    const base = defineAgent({ id: 'auto', provider: 'test', model: 'm', instructions: 'Review.', maxTurns: 'auto',
+      tools: [defineTool({ name: 'read', description: 'Read a page.', parameters: { type: 'object' }, execute: () => 'evidence' })] })
+    expect(base.with({ instructions: 'Review carefully.' }).maxTurns).toBe('auto')
+    expect(base.with({ maxTurns: 3 }).maxTurns).toBe(3)
+    expect(base.maxTurns).toBe('auto')
+    const session = base.createSession({ registry: state.registry, compaction: false })
+    const response = await session.run('Review all pages.')
+    expect(response.text).toBe('All pages reviewed.')
+    expect(state.adapter.requests).toHaveLength(21)
+  })
+
+  it.each([0, -1, 1.5, Infinity, NaN, Number.MAX_SAFE_INTEGER + 1, 'AUTO', '32'])('rejects invalid maxTurns %s', maxTurns => {
+    expect(() => defineAgent({ id: 'invalid', instructions: 'Test.', maxTurns: maxTurns as number })).toThrow(/maxTurns/)
+  })
+
+  it('keeps every legacy runtime export identical to its canonical core owner', () => {
+    expect(Object.keys(legacyAgent).sort()).toEqual(Object.keys(canonicalAgent).sort())
+    for (const name of Object.keys(legacyAgent) as (keyof typeof legacyAgent)[]) {
+      expect(legacyAgent[name], name).toBe(canonicalAgent[name])
+    }
+  })
+
   it('provides friendly Codex defaults and immutable normalized values', () => {
     const agent = defineAgent({ id: 'ada', instructions: 'Be precise.' })
 
     expect(agent).toMatchObject({
       id: 'ada', name: 'ada', provider: 'codex', model: 'gpt-5.6-luna',
-      effort: 'medium', mode: 'basic', maxTurns: 16, maxToolCalls: 64, commentary: 'concise',
+      mode: 'basic', maxTurns: 16, maxToolCalls: 64, commentary: 'concise',
     })
+    // No effort unless the author asked for one. An invented default is
+    // rejected outright by a model that declares no ladder, and silently
+    // overrides the provider's own default everywhere else.
+    expect(agent.effort).toBeUndefined()
     expect(agent.tools).toEqual([])
     expect(agent.nativeTools).toEqual([])
     expect(agent.memory).toMatchObject({ autoCaptureObjective: true, maxInjectedChars: 12_000 })
@@ -121,6 +191,35 @@ describe('declarative agent definitions', () => {
       skillIds: ['typescript-review'],
     })
     expect(base).toMatchObject({ id: 'ada', mode: 'basic', maxTurns: 16 })
+  })
+
+  it('captures, freezes, validates, and forwards the selected output format', async () => {
+    const state = model([textRound('{"answer":"yes"}')])
+    const schema = {
+      type: 'object', properties: { answer: { type: 'string' } },
+      required: ['answer'], additionalProperties: false,
+    }
+    const agent = defineAgent({
+      id: 'structured-agent', provider: 'test', model: 'scripted', instructions: 'Answer.',
+      outputFormat: { type: 'json_schema', name: 'answer', schema },
+    })
+    schema.properties.answer.type = 'number'
+
+    expect(agent.outputFormat).toEqual({
+      type: 'json_schema', name: 'answer',
+      schema: { type: 'object', properties: { answer: { type: 'string' } },
+        required: ['answer'], additionalProperties: false },
+    })
+    expect(Object.isFrozen(agent.outputFormat)).toBe(true)
+    expect(Object.isFrozen(agent.outputFormat?.type === 'json_schema'
+      ? agent.outputFormat.schema : undefined)).toBe(true)
+    await agent.createSession({ registry: state.registry }).run('Return JSON.')
+    expect(state.adapter.requests[0]?.outputFormat).toBe(agent.outputFormat)
+
+    expect(() => defineAgent({
+      id: 'bad-output', instructions: 'Answer.',
+      outputFormat: { type: 'json_schema', name: 'not valid', schema: {} },
+    })).toThrow(/outputFormat/)
   })
 
   it('validates and freezes the definition-owned skill allowlist', () => {

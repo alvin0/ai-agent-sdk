@@ -1,14 +1,14 @@
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { runTurn } from '../../src/agent/loop/run-turn.ts'
-import type { ToolRunContext } from '../../src/agent/tool/definition.ts'
-import { ModelAdapter } from '../../src/core/contract/adapter.ts'
-import { createTextMessage } from '../../src/core/message/message.ts'
-import type { ToolCallId } from '../../src/core/primitives/brand.ts'
-import { ModelRegistry } from '../../src/core/runtime/registry.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+import { runTurn } from '@ai-agent-sdk/core/agent'
+import type { ToolRunContext } from '@ai-agent-sdk/core/agent'
+import { ModelAdapter } from '@ai-agent-sdk/core'
+import { createTextMessage } from '@ai-agent-sdk/core'
+import type { ToolCallId } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 import {
   DEFAULT_AGENTCODE_PROMPT,
   parseAgentCodeCliArgs,
@@ -25,8 +25,8 @@ import { resolveAgentCodePath } from '../../test-human/agentcode/workspace.ts'
 import { AgentCodeSteeringQueue } from '../../test-human/agentcode/steering.ts'
 import { TerminalLineQueue } from '../../test-human/agentcode/line-queue.ts'
 import { summarizeToolArguments, summarizeToolResult } from '../../test-human/terminal.ts'
-import { History } from '../../src/agent/history/history.ts'
-import { SkillCatalog } from '../../src/agent/skill/index.ts'
+import { History } from '@ai-agent-sdk/core/agent'
+import { SkillCatalog } from '@ai-agent-sdk/core/agent'
 
 const temporaryDirectories: string[] = []
 
@@ -170,6 +170,11 @@ describe('agentcode live steering', () => {
       outcome: {
         reason, text: '', steps: 1, toolCalls: 0, traceId: 'trace',
         usage: { inputTokens: 0, outputTokens: 0 },
+        usageReport: {
+          reported: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          coverage: { logicalCalls: 0, attempts: 0, complete: 0, partial: 0, estimated: 0, missing: 0, notApplicable: 0, possiblyBilledAttemptsWithoutUsage: 0 },
+          authoritative: true,
+        },
       },
       snapshot: history.snapshot(),
       canContinue: false,
@@ -193,6 +198,11 @@ describe('agentcode live steering', () => {
       outcome: {
         reason: { kind: 'completed' }, text: 'stale', steps: 1, toolCalls: 0,
         traceId: 'trace', usage: { inputTokens: 0, outputTokens: 0 },
+        usageReport: {
+          reported: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          coverage: { logicalCalls: 0, attempts: 0, complete: 0, partial: 0, estimated: 0, missing: 0, notApplicable: 0, possiblyBilledAttemptsWithoutUsage: 0 },
+          authoritative: true,
+        },
       },
       snapshot: history.snapshot(),
       canContinue: true,
@@ -268,7 +278,7 @@ describe('agentcode workspace tools', () => {
     expect(await readFile(join(root, 'src/store.ts'), 'utf8')).toContain('count = 2')
 
     const listed = resultObject(await callTool(tools, 'list_files', { path: '.' }))
-    expect(listed.entries).toContain('src\\store.ts')
+    expect(listed.entries).toContain('src/store.ts')
     const grep = resultObject(await callTool(tools, 'grep_files', { pattern: 'count = 2' }))
     expect(grep.matches).toEqual(expect.arrayContaining([expect.stringContaining('store.ts')]))
   })
@@ -324,7 +334,8 @@ describe('agentcode workspace tools', () => {
     expect(cleanupInputs[0]).toMatchObject({ workspaceRoot: resolve(root) })
     expect(cleanupInputs[0]?.rootPid).toBeGreaterThan(0)
     expect(cleanupInputs[0]?.startedAtMs).toBeLessThanOrEqual(Date.now())
-  })
+  // The command itself allows 20 seconds; the test must also allow cleanup.
+  }, 25_000)
 
   it('enables live lineage tracking only for long-lived dev or e2e npm invocations', async () => {
     const root = await temporaryDirectory()
@@ -354,7 +365,10 @@ describe('agentcode workspace tools', () => {
     })
 
     expect(trackingFlags).toEqual([false, true])
-  })
+    // Two real npm processes each have a 20s deadline. The default 5s test
+    // timeout can interrupt either on a busy Windows runner and race teardown
+    // against npm's still-open workspace, producing a secondary EBUSY error.
+  }, 45_000)
 
   it('aborts post-exit cleanup when its independent deadline expires', async () => {
     const root = await temporaryDirectory()
@@ -895,7 +909,7 @@ describe('agentcode workspace tools', () => {
 })
 
 async function temporaryDirectory(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), 'ai-agent-sdk-agentcode-'))
+  const directory = await realpath(await mkdtemp(join(tmpdir(), 'ai-agent-sdk-agentcode-')))
   temporaryDirectories.push(directory)
   return directory
 }

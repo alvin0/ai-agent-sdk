@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ToolCallId } from '../../src/core/primitives/brand.ts'
-import { createApprovalBroker, fixedApprovalBroker } from '../../src/agent/tool/approval.ts'
-import { defineTool, type ToolDefinition } from '../../src/agent/tool/definition.ts'
-import { ToolError } from '../../src/agent/tool/errors.ts'
-import type { ToolRunContext } from '../../src/agent/tool/definition.ts'
+import { ToolCallId } from '@ai-agent-sdk/core'
+import { withApprovalPersistence, createApprovalRequest, createApprovalBroker, fixedApprovalBroker } from '@ai-agent-sdk/core/agent'
+import { defineTool, type ToolDefinition } from '@ai-agent-sdk/core/agent'
+import { ToolError } from '@ai-agent-sdk/core/agent'
+import type { ToolRunContext } from '@ai-agent-sdk/core/agent'
 import {
   dispatchToolCall,
   type PreToolDecision,
   type ToolCallContext,
   type ToolInterceptor,
-} from '../../src/agent/tool/pipeline.ts'
-import { ToolRegistry } from '../../src/agent/tool/registry.ts'
+} from '@ai-agent-sdk/core/agent'
+import { ToolRegistry } from '@ai-agent-sdk/core/agent'
 
 const POSITION = { turn: 1, step: 1 } as const
 
@@ -109,6 +109,26 @@ describe('dispatchToolCall: failures reach the model instead of ending the turn'
     expect(result.isError && result.error.message).toBe('cannot read x of undefined')
   })
 
+  it('preserves side-channel metadata when a tool fails', async () => {
+    const result = await run(registryWith(tool({
+      execute: () => { throw new Error('remote failure') },
+      meta: () => ({ kind: 'remote', integration: 'warehouse' }),
+    })))
+    expect(result).toMatchObject({
+      isError: true,
+      error: { message: 'remote failure' },
+      meta: { kind: 'remote', integration: 'warehouse' },
+    })
+  })
+
+  it('contains a metadata callback failure without hiding the tool failure', async () => {
+    const result = await run(registryWith(tool({
+      execute: () => { throw new Error('original failure') },
+      meta: () => { throw new Error('metadata failure') },
+    })))
+    expect(result).toMatchObject({ isError: true, error: { message: 'original failure' } })
+  })
+
   it('preserves the code of a respond-to-model ToolError', async () => {
     const result = await run(registryWith(tool({
       execute: () => {
@@ -172,7 +192,7 @@ describe('dispatchToolCall: interceptors', () => {
     expect(execute).not.toHaveBeenCalled()
   })
 
-  it('runs before-hooks even for a malformed call, so an audit sees the attempt', async () => {
+  it('does not authorize an unknown tool', async () => {
     const before = vi.fn<
       (call: ToolCallContext, next: () => Promise<PreToolDecision>) => Promise<PreToolDecision>
     >(() => Promise.resolve({ kind: 'allow' as const }))
@@ -180,9 +200,7 @@ describe('dispatchToolCall: interceptors', () => {
       toolName: 'ghost',
       interceptors: [{ name: 'audit', before }],
     })
-    expect(before).toHaveBeenCalled()
-    // `args` is undefined for a call that never parsed — interceptors must cope.
-    expect(before.mock.calls[0]?.[0]).toMatchObject({ toolName: 'ghost', tool: undefined })
+    expect(before).not.toHaveBeenCalled()
   })
 
   it('places earlier interceptors further out', async () => {
@@ -232,7 +250,8 @@ describe('dispatchToolCall: interceptors', () => {
     expect(seen).toBe(true)
   })
 
-  it('replaces what the model reads without losing the value', async () => {
+  it('replaces the complete result envelope without retaining the raw value', async () => {
+    const privateValue = 'review/raw-value-marker'
     const redact: ToolInterceptor = {
       name: 'redact',
       after: () => Promise.resolve({
@@ -240,13 +259,14 @@ describe('dispatchToolCall: interceptors', () => {
         content: [{ type: 'text', text: '[redacted]' }],
       }),
     }
-    const result = await run(registryWith(tool({ execute: () => 'secret' })), {
+    const result = await run(registryWith(tool({ execute: () => privateValue })), {
       interceptors: [redact],
     })
     expect(result.isError).toBe(false)
     if (result.isError) return
     expect(result.content).toEqual([{ type: 'text', text: '[redacted]' }])
-    expect(result.value).toBe('secret')
+    expect(result.value).toBeUndefined()
+    expect(JSON.stringify(result)).not.toContain(privateValue)
   })
 
   it('turns a blocked result into a failure carrying the feedback', async () => {
@@ -266,6 +286,19 @@ describe('dispatchToolCall: interceptors', () => {
 })
 
 describe('dispatchToolCall: approval', () => {
+  it('rejects invalid arguments before policy, approval, or execution', async () => {
+    const execute = vi.fn(() => 'ran')
+    const before = vi.fn(async () => ({ kind: 'ask' as const }))
+    const request = vi.fn(async () => 'allow' as const)
+    const result = await run(registryWith(tool({
+      parse: () => { throw new Error('expected a path') }, execute,
+    })), { interceptors: [{ name: 'approval', before }], approvals: { request } })
+    expect(result.isError && result.error.code).toBe('INVALID_ARGUMENTS')
+    expect(before).not.toHaveBeenCalled()
+    expect(request).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
+  })
+
   it('fails closed when approval is asked for but no approver exists', async () => {
     // Falling through to running the tool would be the dangerous outcome.
     const ask: ToolInterceptor = {
@@ -308,32 +341,69 @@ describe('dispatchToolCall: approval', () => {
 })
 
 describe('createApprovalBroker', () => {
+  it('journals approval before executing and fails closed if persistence fails', async () => {
+    const broker = createApprovalBroker()
+    broker.onRequest(request => broker.resolve(request.approvalRequestId, 'allow'))
+    const execute = vi.fn(() => 'ran')
+    const savePending = vi.fn(async () => undefined)
+    const saveDecision = vi.fn(async () => { throw new Error('journal write failed') })
+    await expect(run(registryWith(tool({ execute })), {
+      interceptors: [{ name: 'ask', before: async () => ({ kind: 'ask' }) }],
+      approvals: withApprovalPersistence(broker, { savePending, saveDecision }),
+    })).rejects.toThrow('journal write failed')
+    expect(savePending).toHaveBeenCalledTimes(1)
+    expect(saveDecision).toHaveBeenCalledTimes(1)
+    expect(execute).not.toHaveBeenCalled()
+    expect(broker.pending()).toHaveLength(0)
+  })
+
+  it('isolates reused provider ids across sessions and rejects late decisions', async () => {
+    const broker = createApprovalBroker()
+    const make = (conversationId: string) => createApprovalRequest({
+      callId: ToolCallId('same'), toolName: 't', args: { path: conversationId },
+      turn: 1, step: 1, conversationId, runId: conversationId + '-run',
+    })
+    const a = make('a'), b = make('b')
+    const pa = broker.request(a), pb = broker.request(b)
+    expect(broker.pending()).toHaveLength(2)
+    broker.abortSession('a')
+    await expect(pa).resolves.toBe('abort')
+    const replacement = make('a'), pc = broker.request(replacement)
+    expect(broker.resolve(a.approvalRequestId, 'allow')).toBe(false)
+    expect(broker.resolve('same', 'allow')).toBe(false)
+    expect(broker.resolve(b.approvalRequestId, 'deny')).toBe(true)
+    await expect(pb).resolves.toBe('deny')
+    broker.abortRun('a-run')
+    await expect(pc).resolves.toBe('abort')
+    await expect(broker.request(a)).rejects.toThrow(/fresh/)
+  })
+
   it('can be answered synchronously from inside its own listener', async () => {
     // Proves the waiter is registered BEFORE the request is published.
     const broker = createApprovalBroker()
-    broker.onRequest(request => void broker.resolve(request.callId, 'allow'))
-    const decision = await broker.request({
+    broker.onRequest(request => void broker.resolve(request.approvalRequestId, 'allow'))
+    const decision = await broker.request(createApprovalRequest({
       callId: ToolCallId('c1'),
       toolName: 't',
       args: {},
       turn: 1,
       step: 1,
-    })
+    }))
     expect(decision).toBe('allow')
   })
 
   it('exposes pending requests and resolves them by id', async () => {
     const broker = createApprovalBroker()
-    const pending = broker.request({
+    const pending = broker.request(createApprovalRequest({
       callId: ToolCallId('c2'),
       toolName: 'rm',
       args: { path: '/tmp' },
       turn: 1,
       step: 1,
-    })
+    }))
     expect(broker.pending()).toHaveLength(1)
     expect(broker.pending()[0]?.toolName).toBe('rm')
-    expect(broker.resolve(ToolCallId('c2'), 'deny')).toBe(true)
+    expect(broker.resolve(broker.pending()[0]!.approvalRequestId, 'deny')).toBe(true)
     await expect(pending).resolves.toBe('deny')
     expect(broker.pending()).toHaveLength(0)
   })
@@ -347,7 +417,7 @@ describe('createApprovalBroker', () => {
     const broker = createApprovalBroker()
     const controller = new AbortController()
     const pending = broker.request(
-      { callId: ToolCallId('c3'), toolName: 't', args: {}, turn: 1, step: 1 },
+      createApprovalRequest({ callId: ToolCallId('c3'), toolName: 't', args: {}, turn: 1, step: 1 }),
       controller.signal,
     )
     controller.abort()
@@ -358,15 +428,15 @@ describe('createApprovalBroker', () => {
     const controller = new AbortController()
     controller.abort()
     await expect(createApprovalBroker().request(
-      { callId: ToolCallId('c4'), toolName: 't', args: {}, turn: 1, step: 1 },
+      createApprovalRequest({ callId: ToolCallId('c4'), toolName: 't', args: {}, turn: 1, step: 1 }),
       controller.signal,
     )).resolves.toBe('abort')
   })
 
   it('aborts every outstanding request on teardown', async () => {
     const broker = createApprovalBroker()
-    const a = broker.request({ callId: ToolCallId('a'), toolName: 't', args: {}, turn: 1, step: 1 })
-    const b = broker.request({ callId: ToolCallId('b'), toolName: 't', args: {}, turn: 1, step: 1 })
+    const a = broker.request(createApprovalRequest({ callId: ToolCallId('a'), toolName: 't', args: {}, turn: 1, step: 1 }))
+    const b = broker.request(createApprovalRequest({ callId: ToolCallId('b'), toolName: 't', args: {}, turn: 1, step: 1 }))
     broker.abortAll()
     await expect(Promise.all([a, b])).resolves.toEqual(['abort', 'abort'])
   })
@@ -376,10 +446,10 @@ describe('createApprovalBroker', () => {
     broker.onRequest(() => {
       throw new Error('observer bug')
     })
-    broker.onRequest(request => void broker.resolve(request.callId, 'allow'))
-    await expect(broker.request({
+    broker.onRequest(request => void broker.resolve(request.approvalRequestId, 'allow'))
+    await expect(broker.request(createApprovalRequest({
       callId: ToolCallId('c5'), toolName: 't', args: {}, turn: 1, step: 1,
-    })).resolves.toBe('allow')
+    }))).resolves.toBe('allow')
   })
 })
 

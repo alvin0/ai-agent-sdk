@@ -1,0 +1,70 @@
+/* The pickers sit at the trailing edge of the bar, away from attach. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  padding: 4px 8px 4px 10px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.chip:hover,
+.chip[data-open] {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.chipLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--ds-font-family-code);
+}
+
+.chipHint {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/*
+  Capped and scrollable: the cap sits on the card, the model list scrolls
+  inside it, and the Effort row lives in the footer — outside the scroll
+  region — so its submenu card is never cropped by the clip.
+*/
+.menu {
+  min-width: 240px;
+  max-height: 360px;
+}
+
+/* A menu row with its current value pushed to the trailing edge. */
+.menuRow {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.menuTail {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menuValue {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+}

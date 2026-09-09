@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { AgentTeam } from '../../src/agent/a2a/team.ts'
+import type { AgentTeam } from '@ai-agent-sdk/core/agent'
 import type { A2AStressMode } from './config.ts'
 import { verifyA2AStressFixtureIntegrity, type A2AStressPaths } from './fixture.ts'
 import { A2AStressObserver } from './observer.ts'
@@ -107,9 +107,19 @@ export async function verifyA2AStress(input: {
     check('managed coordinator spawned exactly three product engineers',
       input.observer.toolCount(coordinator, 'spawn_agent') === 3,
       `spawn_agent=${input.observer.toolCount(coordinator, 'spawn_agent')}`)
-    check('all feature results returned through the coordinator tool loop',
+    // spawn_agent acknowledges a start, not a result, so the thing worth
+    // checking is that every worker actually finished and reported.
+    check('every spawn was acknowledged',
       input.observer.toolResultCount(coordinator, 'spawn_agent') === 3,
       `spawn results=${input.observer.toolResultCount(coordinator, 'spawn_agent')}`)
+    check('coordinator waited for its workers rather than answering over them',
+      input.observer.toolCount(coordinator, 'wait_agents') >= 1,
+      `wait_agents=${input.observer.toolCount(coordinator, 'wait_agents')}`)
+    for (const worker of EXPECTED_WORKERS) {
+      const member = input.team.members().find(entry => entry.name === worker)
+      check(`${worker} reported an outcome`, member?.outcome?.kind === 'completed',
+        JSON.stringify(member?.outcome))
+    }
     for (const worker of EXPECTED_WORKERS) {
       check(`managed task provenance reached ${worker}`,
         input.team.messages().some(message =>

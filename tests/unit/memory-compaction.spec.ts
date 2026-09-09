@@ -1,24 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import { defineAgent } from '../../src/agent/define/index.ts'
-import { History } from '../../src/agent/history/history.ts'
+import { defineAgent } from '@ai-agent-sdk/core/agent'
+import { History } from '@ai-agent-sdk/core/agent'
 import {
   AgentMemory,
   ContextCompactor,
   estimateMessageTokens,
   resolveCompactionConfig,
   selectCompactablePrefix,
-} from '../../src/agent/memory/index.ts'
-import { ModelAdapter } from '../../src/core/contract/adapter.ts'
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
-import type { ResolvedModelInfo } from '../../src/core/contract/model-info.ts'
+} from '@ai-agent-sdk/core/agent'
+import { ModelAdapter } from '@ai-agent-sdk/core'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
+import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
 import {
   createMessage,
   createTextMessage,
   createToolResultMessage,
-} from '../../src/core/message/message.ts'
-import { ReasoningEffortId, ToolCallId } from '../../src/core/primitives/brand.ts'
-import { ModelRegistry } from '../../src/core/runtime/registry.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+} from '@ai-agent-sdk/core'
+import { ReasoningEffortId, ToolCallId } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
 
 class ScriptedAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []
@@ -87,10 +87,11 @@ class AbortAfterTextAdapter extends ModelAdapter {
   }
 }
 
-function textRound(text: string): StreamChunk[] {
+function textRound(text: string, usage?: { inputTokens: number; outputTokens: number; totalTokens: number }): StreamChunk[] {
   return [
     { type: 'text-delta', index: 0, text },
     { type: 'block-end', index: 0, block: { type: 'text', text } },
+    ...(usage === undefined ? [] : [{ type: 'usage', usage } as const]),
     { type: 'finish', reason: { kind: 'stop' } },
   ]
 }
@@ -332,8 +333,8 @@ describe('agent context compaction', () => {
     const summary = '## Primary Request and Intent\n- Original objective\n## Next Step\n- Resume.'
     const state = setup([
       overflowRound(),
-      textRound(summary),
-      textRound('Recovered after compaction.'),
+      textRound(summary, { inputTokens: 4, outputTokens: 1, totalTokens: 5 }),
+      textRound('Recovered after compaction.', { inputTokens: 8, outputTokens: 2, totalTokens: 10 }),
     ])
     const session = compactingAgent(false).createSession({ registry: state.registry, history })
 
@@ -341,6 +342,12 @@ describe('agent context compaction', () => {
 
     expect(response.text).toBe('Recovered after compaction.')
     expect(state.adapter.requests).toHaveLength(3)
+    expect(response.report.modelCalls, JSON.stringify(response.report.modelCalls, null, 2)).toHaveLength(3)
+    expect(response.report.usage).toMatchObject({ reported: { totalTokens: 15 }, authoritative: false,
+      coverage: { logicalCalls: 3, complete: 2, missing: 1 } })
+    expect(response.report.operationCounts).toMatchObject({
+      'model-call': { total: 3 }, compaction: { total: 1, success: 1 },
+    })
     expect(session.history.generation()).toBe(1)
     expect(session.history.entries().filter(entry => entry.event.kind === 'compaction-end'))
       .toContainEqual(expect.objectContaining({ event: expect.objectContaining({ status: 'completed' }) }))

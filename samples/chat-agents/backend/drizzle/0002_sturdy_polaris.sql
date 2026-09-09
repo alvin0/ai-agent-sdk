@@ -1,0 +1,1 @@
+ALTER TABLE `agents` ADD `in_team` integer DEFAULT 0 NOT NULL;

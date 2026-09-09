@@ -10,19 +10,20 @@ import {
 import type { Client, ClientFactory } from '@a2a-js/sdk/client'
 import { ServerCallContext } from '@a2a-js/sdk/server'
 import { describe, expect, it, vi } from 'vitest'
-import { AgentTeam } from '../../src/agent/a2a/index.ts'
-import { defineAgent } from '../../src/agent/define/index.ts'
-import { createA2AAgentLink, linkA2AAgent } from '../../src/a2a/client.ts'
+import { AgentTeam } from '@ai-agent-sdk/core/agent'
+import { defineAgent } from '@ai-agent-sdk/core/agent'
+import { createA2AAgentLink, linkA2AAgent } from '@ai-agent-sdk/a2a/client'
 import {
   createAgentCardFromDefinition,
   createDefinedAgentA2AServer,
-} from '../../src/a2a/server.ts'
-import { ModelAdapter } from '../../src/core/contract/adapter.ts'
-import type { GenerateOptions } from '../../src/core/contract/generate-options.ts'
-import type { ResolvedModelInfo } from '../../src/core/contract/model-info.ts'
-import { ReasoningEffortId } from '../../src/core/primitives/brand.ts'
-import { ModelRegistry } from '../../src/core/runtime/registry.ts'
-import type { StreamChunk } from '../../src/core/stream/chunk.ts'
+} from '@ai-agent-sdk/a2a/server'
+import { ModelAdapter } from '@ai-agent-sdk/core'
+import type { GenerateOptions } from '@ai-agent-sdk/core'
+import type { ResolvedModelInfo } from '@ai-agent-sdk/core'
+import { ReasoningEffortId } from '@ai-agent-sdk/core'
+import { ModelRegistry } from '@ai-agent-sdk/core'
+import type { StreamChunk } from '@ai-agent-sdk/core'
+import { RecordingLogger, integrationOperations } from './fixtures/integration-logger.ts'
 
 class ScriptedAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []
@@ -48,7 +49,7 @@ class ScriptedAdapter extends ModelAdapter {
 
 class ThrowingAdapter extends ModelAdapter {
   async * stream(): AsyncIterable<StreamChunk> {
-    throw new Error('secret database credential: production-password')
+    throw new Error('PRIVATE_DATABASE/CREDENTIAL~SENTINEL%')
   }
 
   override resolveModel(provider: string, model: string): Promise<ResolvedModelInfo> {
@@ -186,6 +187,66 @@ describe('official A2A protocol integration', () => {
     expect(second.result?.text).toBe('remote result')
   })
 
+  it('links through a structural team and reports borrowed unlink idempotently', async () => {
+    const client = { sendMessage: vi.fn() } as unknown as Client
+    const removeLink = vi.fn()
+    const team = { linkAgent: vi.fn(() => removeLink) }
+    const linked = await linkA2AAgent(team, {
+      name: 'remote', agentId: 'remote-card-id', client, streaming: false,
+    })
+
+    expect(team.linkAgent).toHaveBeenCalledWith(expect.objectContaining({ name: 'remote', transport: linked.link }))
+    expect(linked.unlinkWithReport()).toEqual({ status: 'unlinked', alreadyUnlinked: false })
+    expect(linked.unlinkWithReport()).toEqual({ status: 'unlinked', alreadyUnlinked: true })
+    linked.unlink()
+    expect(removeLink).toHaveBeenCalledOnce()
+  })
+
+  it('keeps link lifecycle logs separate from active send correlation', async () => {
+    const lifecycleLogger = new RecordingLogger()
+    const activeLogger = new RecordingLogger()
+    const client = {
+      sendMessage: vi.fn(async (): Promise<Message> => ({
+        messageId: 'reply', contextId: 'remote-context', taskId: '', role: Role.ROLE_AGENT,
+        parts: [{ content: { $case: 'text', value: 'ok' }, mediaType: 'text/plain',
+          filename: '', metadata: undefined }],
+        metadata: undefined, extensions: [], referenceTaskIds: [],
+      })),
+    } as unknown as Client
+    const linked = await linkA2AAgent({ linkAgent: () => () => undefined }, {
+      name: 'remote', agentId: 'remote-card-id', client, streaming: false,
+      logger: lifecycleLogger,
+    })
+    await linked.link.send({
+      teamId: 'team', sender: 'lead', senderAgentId: 'lead', messageId: 'message',
+      content: [{ type: 'text', text: 'work' }], logger: activeLogger,
+    })
+    linked.unlinkWithReport()
+    expect(integrationOperations(lifecycleLogger)).toEqual(['link', 'agent-card-resolve', 'unlink'])
+    expect(integrationOperations(lifecycleLogger)).not.toContain('send')
+    expect(integrationOperations(activeLogger)).toEqual(['send'])
+  })
+
+  it('keeps unlink failures support-safe while compatibility unlink still throws', async () => {
+    const client = { sendMessage: vi.fn() } as unknown as Client
+    const sensitive = 'PRIVATE_A2A_UNLINK/token=secret'
+    const failed = await linkA2AAgent({ linkAgent: () => () => { throw new Error(sensitive) } }, {
+      name: 'remote', agentId: 'remote-card-id', client, streaming: false,
+    })
+    const first = failed.unlinkWithReport()
+    expect(first).toMatchObject({ status: 'failed', alreadyUnlinked: false,
+      error: { code: 'A2A_UNLINK_FAILED', stage: 'a2a-unlink' } })
+    expect(JSON.stringify(first)).not.toContain(sensitive)
+    expect(failed.unlinkWithReport()).toMatchObject({ status: 'failed', alreadyUnlinked: true })
+
+    const compatible = await linkA2AAgent({ linkAgent: () => () => { throw new Error(sensitive) } }, {
+      name: 'remote', agentId: 'remote-card-id', client, streaming: false,
+    })
+    expect(() => compatible.unlink()).toThrow(sensitive)
+    expect(() => compatible.unlink()).not.toThrow()
+    expect(compatible.unlinkWithReport()).toMatchObject({ status: 'failed', alreadyUnlinked: true })
+  })
+
   it('normalizes an official completed Task returned by a linked client', async () => {
     const client = {
       sendMessage: vi.fn(async (): Promise<import('@a2a-js/sdk').Task> => ({
@@ -219,8 +280,9 @@ describe('official A2A protocol integration', () => {
     const card = createAgentCardFromDefinition(definition, {
       url: 'https://agents.example.test/reviewer', tags: ['review'],
     })
+    const logger = new RecordingLogger()
     const server = createDefinedAgentA2AServer({
-      agent: definition, registry: state.registry, agentCard: card,
+      agent: definition, registry: state.registry, agentCard: card, logger,
     })
     const callContext = new ServerCallContext({ requestedVersion: A2A_PROTOCOL_VERSION })
 
@@ -252,6 +314,10 @@ describe('official A2A protocol integration', () => {
     expect(state.adapter.requests[1]?.messages.some(message =>
       message.role === 'assistant' && message.content.some(block =>
         block.type === 'text' && block.text === 'first answer'))).toBe(true)
+    await server.executor.disposeWithReport()
+    expect(integrationOperations(logger)).toEqual(['request', 'execute', 'request', 'execute', 'dispose'])
+    expect(logger.entries.filter(entry => entry.fields.integrationOperation === 'request')
+      .every(entry => entry.fields.integrationScope === 'a2a-server-request')).toBe(true)
   })
 
   it('isolates identical context ids by host-defined session owner', async () => {
@@ -317,8 +383,8 @@ describe('official A2A protocol integration', () => {
         message: { parts: [{ content: { $case: 'text', value: 'Agent execution failed' } }] },
       },
     })
-    expect(JSON.stringify(failed)).not.toContain('production-password')
-    expect(observed.some(error => String(error).includes('production-password'))).toBe(true)
+    expect(JSON.stringify(failed)).not.toContain('PRIVATE_DATABASE/CREDENTIAL~SENTINEL%')
+    expect(observed.some(error => String(error).includes('PRIVATE_DATABASE/CREDENTIAL~SENTINEL%'))).toBe(true)
   })
 
   it('bounds retained server sessions and client contexts', async () => {
@@ -390,6 +456,29 @@ describe('official A2A protocol integration', () => {
     await expect(server.executor.dispose()).resolves.toBeUndefined()
   })
 
+  it('reports executor disposal idempotently without retaining private failures', async () => {
+    const definition = localAgent('reported-dispose')
+    const server = createDefinedAgentA2AServer({
+      agent: definition, agentCard: secureCard(definition), registry: createRegistry().registry,
+    })
+    await expect(server.executor.disposeWithReport()).resolves.toEqual({
+      status: 'disposed', alreadyDisposed: false,
+    })
+    await expect(server.executor.disposeWithReport()).resolves.toEqual({
+      status: 'disposed', alreadyDisposed: true,
+    })
+
+    const privateFailure = 'PRIVATE_A2A_DISPOSE/credential'
+    const failed = createDefinedAgentA2AServer({
+      agent: definition, agentCard: secureCard(definition), registry: createRegistry().registry,
+    })
+    failed.executor.dispose = vi.fn(async () => { throw new Error(privateFailure) })
+    const report = await failed.executor.disposeWithReport()
+    expect(report).toMatchObject({ status: 'failed', alreadyDisposed: false,
+      error: { code: 'A2A_DISPOSE_FAILED', stage: 'a2a-dispose' } })
+    expect(JSON.stringify(report)).not.toContain(privateFailure)
+  })
+
   it('rejects unsafe endpoint literals and oversized remote responses', async () => {
     await expect(createA2AAgentLink({
       baseUrl: 'https://127.0.0.1:8443', allowPrivateNetwork: false,
@@ -399,6 +488,21 @@ describe('official A2A protocol integration', () => {
       baseUrl: 'http://agents.example.test', requireHttps: true,
     }))
       .rejects.toThrow(/must use https/)
+
+    const redirects: string[] = []
+    const redirectFetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      redirects.push(String(input))
+      expect(init?.redirect).toBe('manual')
+      return new Response(null, {
+        status: 307,
+        headers: { location: 'https://must-not-be-contacted.example.test/card' },
+      })
+    })
+    await expect(createA2AAgentLink({
+      baseUrl: 'https://agents.example.test', allowRedirects: false,
+      fetch: redirectFetch as typeof globalThis.fetch,
+    })).rejects.toThrow(/rejected a redirect/i)
+    expect(redirects).toHaveLength(1)
 
     const client = {
       sendMessage: vi.fn(async (): Promise<Message> => ({
@@ -429,6 +533,7 @@ describe('official A2A protocol integration', () => {
   })
 
   it('uses terminal stream status instead of reporting an initial task as success', async () => {
+    const logger = new RecordingLogger()
     const initial: Task = {
       id: 'stream-task', contextId: 'stream-context',
       status: { state: TaskState.TASK_STATE_SUBMITTED, message: undefined, timestamp: undefined },
@@ -471,13 +576,14 @@ describe('official A2A protocol integration', () => {
     })
     await expect(link.send({
       teamId: 'team', sender: 'lead', senderAgentId: 'lead', messageId: 'message',
-      content: [{ type: 'text', text: 'work' }],
+      content: [{ type: 'text', text: 'work' }], logger,
     })).resolves.toMatchObject({
       kind: 'task', succeeded: false, text: 'remote failed safely',
       state: 'TASK_STATE_FAILED',
     })
     expect(observed).toHaveLength(2)
     expect(observed.every(event => Object.isFrozen(event))).toBe(true)
+    expect(integrationOperations(logger)).toEqual(['send', 'stream'])
 
     const bounded = await createA2AAgentLink({
       client, agentId: 'bounded-stream', streaming: true, maxStreamEvents: 1,

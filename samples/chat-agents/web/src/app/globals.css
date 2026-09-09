@@ -1,0 +1,31 @@
+/* Design tokens and base skins copied from the source harness: the --dsw-*
+   alias layer is what every component in src/ui styles against. */
+@import '../styles/base.css';
+@import '../styles/design-platform.css';
+@import '../styles/gradient-shadow-text.css';
+@import '../styles/corner-shape.css';
+@import '../styles/scrollbar.css';
+@import '../styles/shiki.css';
+@import 'katex/dist/katex.min.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--dsw-font-family);
+  font-size: 14px;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app-root {
+  height: 100%;
+}

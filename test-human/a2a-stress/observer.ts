@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { AgentRunEvent } from '../../src/agent/mode/run-agent.ts'
-import type { AgentTeamEvent } from '../../src/agent/a2a/types.ts'
+import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
+import type { AgentTeamEvent } from '@ai-agent-sdk/core/agent'
 import { label, paint } from '../console.ts'
 
 interface AgentStats {

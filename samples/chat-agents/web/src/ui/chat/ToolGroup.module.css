@@ -1,0 +1,55 @@
+/* A folded run of tool calls: Codex's middle level, which this transcript was
+   missing. The turn already folds, and each call already folds its own output;
+   between them sat a flat list of a hundred rows with nothing to fold it. */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Deliberately quieter than a tool row and quieter than the turn's own summary:
+   it is a lid, and a lid that competes with what it covers is worse than none. */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 3px 8px 3px 4px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.toggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A failure inside a fold has to be visible from outside it, or the fold is
+   hiding the one thing the reader needed. */
+.failed {
+  color: var(--dsw-static-red-600);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--dsw-alias-border-l2);
+}

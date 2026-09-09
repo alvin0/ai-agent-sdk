@@ -1,0 +1,28 @@
+export const SKILL_PROVIDER_API_VERSION = 1 as const
+
+export const SKILL_PROVIDER_LIMITS = Object.freeze({
+  providers: 128,
+  identityBytes: 256,
+  revisionBytes: 1_024,
+  locatorBytes: 64 * 1_024,
+  locatorFields: 128,
+  locatorArrayItems: 1_024,
+  locatorDepth: 16,
+  locatorNodes: 8_192,
+  locatorKeyBytes: 256,
+})
+
+export const SKILL_ERROR_CODES = Object.freeze({
+  CATALOG_INVALID: 'SKILL_CATALOG_INVALID',
+  ID_CONFLICT: 'SKILL_ID_CONFLICT',
+  REFERENCE_INVALID: 'SKILL_REFERENCE_INVALID',
+  REFERENCE_UNAVAILABLE: 'SKILL_REFERENCE_UNAVAILABLE',
+} as const)
+
+export const SKILL_PROVIDER_ERROR_CODES = Object.freeze({
+  KIND_MISMATCH: 'SKILL_PROVIDER_KIND_MISMATCH',
+  API_UNSUPPORTED: 'SKILL_PROVIDER_API_UNSUPPORTED',
+  DEFINITION_INVALID: 'SKILL_PROVIDER_INVALID',
+  ID_CONFLICT: 'SKILL_PROVIDER_ID_CONFLICT',
+  ABORTED: 'RUNTIME_OPERATION_ABORTED',
+} as const)

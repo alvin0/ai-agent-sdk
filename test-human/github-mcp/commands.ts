@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
-import type { ToolExecutionResult } from '../../src/agent/tool/definition.ts'
-import type { JsonObject } from '../../src/core/primitives/json.ts'
+import type { ToolExecutionResult } from '@ai-agent-sdk/core/agent'
+import type { JsonObject } from '@ai-agent-sdk/core'
 import type { GitHubMcpCliConfig } from './config.ts'
 import type { GitHubMcpToolCaller, GitHubMcpToolName } from './tools.ts'
 

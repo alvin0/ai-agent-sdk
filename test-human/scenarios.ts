@@ -1,7 +1,7 @@
 /** Scenario-specific model controls and user-message construction. */
 
-import type { NativeToolSchema, ToolChoice } from '../src/core/contract/tool.ts'
-import { createTextMessage, createUserMessage, type UserMessage } from '../src/core/message/message.ts'
+import type { NativeToolSchema, ToolChoice } from '@ai-agent-sdk/core'
+import { createTextMessage, createUserMessage, type UserMessage } from '@ai-agent-sdk/core'
 import type { HumanCliConfig } from './config.ts'
 import { loadImageBlock } from './media.ts'
 
@@ -13,11 +13,17 @@ export interface HumanScenarioControls {
 export function scenarioControls(config: HumanCliConfig): HumanScenarioControls {
   const nativeTools: NativeToolSchema[] = config.scenario === 'web'
     ? [{ type: 'native', name: 'web-search' }]
+    : config.scenario === 'deep-research'
+      ? [config.provider === 'anthropic'
+          ? { type: 'native', name: 'web-search', maxUses: 12 }
+          : config.provider === 'openai'
+            ? { type: 'native', name: 'web-search', searchContextSize: 'high' }
+            : { type: 'native', name: 'web-search' }]
     : config.scenario === 'image-gen'
       ? [{ type: 'native', name: 'image-generation', format: 'png', partialImages: 2 }]
       : []
   if (!config.forceTool) return { nativeTools }
-  if (config.scenario === 'web') {
+  if (config.scenario === 'web' || config.scenario === 'deep-research') {
     return { nativeTools, toolChoice: { type: 'native', name: 'web-search' } }
   }
   if (config.scenario === 'image-gen') {

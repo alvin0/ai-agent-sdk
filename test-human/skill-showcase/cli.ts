@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { resolve } from 'node:path'
 import { stdout } from 'node:process'
-import type { AgentRunEvent } from '../../src/agent/mode/run-agent.ts'
+import type { AgentRunEvent } from '@ai-agent-sdk/core/agent'
 import type { HumanProvider } from '../config.ts'
+import { HumanArtifactRecorder } from '../artifacts.ts'
 import { errorMessage, label, paint } from '../console.ts'
 import { summarizeToolArguments, summarizeToolResult } from '../terminal.ts'
 import {
@@ -44,7 +45,16 @@ async function main(): Promise<void> {
     requestLogs: options.logs,
   }
   console.log(label('showcase/config'), JSON.stringify(printable, null, 2))
-  if (options.dryRun) return
+  const artifact = new HumanArtifactRecorder({
+    harness: 'skill-showcase-cli', resultsRoot: resolve('test-human/results/skill-showcase-cli'),
+    ...(options.runId === undefined ? {} : { runId: options.runId }),
+  })
+  artifact.record('config', printable)
+  if (options.dryRun) {
+    const summary = await artifact.finish({ status: 'dry-run', config: printable })
+    console.log(label('showcase/artifact'), summary.artifact.directory)
+    return
+  }
 
   console.log(label('showcase'), 'A live model will build a real website from a pinned third-party SKILL')
   console.log(label('proof'), 'the upstream body must reach model context before the first workspace write')
@@ -73,9 +83,19 @@ async function main(): Promise<void> {
     console.log(label('report'), relativeShowcasePath(result.report))
     console.log(label('repair-turns'), String(result.repairTurns))
     console.log(label('preview'), `cd "${result.workspace}"; npm start`)
+    const summary = await artifact.finish({
+      status: result.passed ? 'passed' : 'failed', config: printable,
+      invariants: result.checks, metrics: {
+        repairTurns: result.repairTurns, artifactFiles: result.artifactFiles.length,
+        toolCalls: result.toolSequence.length, report: result.report,
+      },
+    })
+    console.log(label('showcase/artifact'), summary.artifact.directory)
     if (!result.passed) process.exitCode = 1
   } catch (error: unknown) {
     renderer.flush()
+    const summary = await artifact.finish({ status: 'failed', config: printable, error })
+    console.error(label('showcase/artifact'), summary.artifact.directory)
     console.error('\n' + label('showcase/error'), paint(31, errorMessage(error)))
     process.exitCode = 1
   }
@@ -177,8 +197,8 @@ function help(): string {
     'Live skills.sh website showcase',
     '',
     'Usage:',
-    '  npm run human:skill-showcase',
-    '  npm run human:skill-showcase -- --provider codex --model gpt-5.6-luna --effort medium',
+    '  pnpm human:skill-showcase',
+    '  pnpm human:skill-showcase -- --provider codex --model gpt-5.6-luna --effort medium',
     '',
     'Options:',
     '  --provider <codex|openai|anthropic>  Default: codex',

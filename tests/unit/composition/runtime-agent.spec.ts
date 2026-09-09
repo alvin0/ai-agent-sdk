@@ -1,0 +1,445 @@
+import { describe, expect, it, vi } from 'vitest'
+import { ModelAdapter } from '../../../packages/core/src/contract/adapter.ts'
+import type { GenerateOptions } from '../../../packages/core/src/contract/generate-options.ts'
+import type { ResolvedModelInfo } from '../../../packages/core/src/contract/model-info.ts'
+import type { ModelInvocationContext } from '../../../packages/core/src/observation/report.ts'
+import type { ModelProviderRegistrar } from '../../../packages/core/src/plugin/provider-plugin.ts'
+import type { StreamChunk } from '../../../packages/core/src/stream/chunk.ts'
+import type { ComposableModelProviderPlugin } from '../../../packages/core/src/composition/provider/types.ts'
+import { createRuntimeCompositionOwner } from '../../../packages/core/src/composition/runtime/owner.ts'
+import type { RuntimeAgentRunEvent } from '../../../packages/core/src/composition/agent/types.ts'
+import { defineTool } from '../../../packages/core/src/agent/tool/definition.ts'
+import { createUserMessage } from '../../../packages/core/src/message/message.ts'
+import { ToolError } from '../../../packages/core/src/agent/tool/errors.ts'
+import { ToolCallId } from '../../../packages/core/src/primitives/brand.ts'
+
+class RuntimeAdapter extends ModelAdapter {
+  readonly requests: GenerateOptions[] = []
+  readonly contexts: ModelInvocationContext[] = []
+  async * stream(options: GenerateOptions, context?: ModelInvocationContext): AsyncIterable<StreamChunk> {
+    this.requests.push(options)
+    if (context !== undefined) this.contexts.push(context)
+    yield { type: 'text-delta', index: 0, text: 'hello' }
+    yield { type: 'block-end', index: 0, block: { type: 'text', text: 'hello' } }
+    yield { type: 'usage', usage: { inputTokens: 4, outputTokens: 1, totalTokens: 5 } }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+  override resolveModel(provider: string, id: string): Promise<ResolvedModelInfo> {
+    return Promise.resolve({ provider, id, name: id })
+  }
+}
+
+class ToolAdapter extends RuntimeAdapter {
+  constructor(private readonly requestedTool = 'lookup') { super() }
+  override async * stream(options: GenerateOptions, context?: ModelInvocationContext): AsyncIterable<StreamChunk> {
+    this.requests.push(options)
+    if (context !== undefined) this.contexts.push(context)
+    if (this.requests.length === 1) {
+      yield { type: 'block-end', index: 0, block: {
+        type: 'tool-call', id: ToolCallId('lookup-1'), name: this.requestedTool, arguments: '{}',
+      } }
+      yield { type: 'usage', usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 } }
+      yield { type: 'finish', reason: { kind: 'tool-calls' } }
+      return
+    }
+    yield* super.stream(options, context)
+  }
+}
+
+class EventSurfaceAdapter extends ModelAdapter {
+  calls = 0
+  async * stream(): AsyncIterable<StreamChunk> {
+    this.calls++
+    if (this.calls === 1) {
+      yield { type: 'text-delta', index: 0, text: 'Searching', phase: 'commentary' }
+      yield { type: 'block-end', index: 0, block: { type: 'text', text: 'Searching', phase: 'commentary' } }
+      yield { type: 'block-end', index: 1, block: {
+        type: 'native-tool-call', id: 'native-search-1', name: 'web-search', status: 'completed',
+        arguments: { query: 'runtime events' }, content: [{ type: 'text', text: 'native result' }],
+      } }
+      yield { type: 'block-end', index: 2, block: {
+        type: 'tool-call', id: ToolCallId('host-tool-1'), name: 'lookup', arguments: '{"key":"value"}',
+      } }
+      yield { type: 'usage', usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 } }
+      yield { type: 'finish', reason: { kind: 'tool-calls' } }
+      return
+    }
+    yield { type: 'text-delta', index: 0, text: 'Final answer', phase: 'final-answer' }
+    yield { type: 'block-end', index: 0, block: { type: 'text', text: 'Final answer', phase: 'final-answer' } }
+    yield { type: 'usage', usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 } }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+}
+
+function provider(adapter: ModelAdapter): ComposableModelProviderPlugin {
+  return {
+    kind: 'model-provider-plugin', apiVersion: 1, id: 'account-a', displayName: 'Account A',
+    family: 'openai', routes: ['openai-a'], defaultModel: { provider: 'openai-a', id: 'default-model' },
+    setup(registrar: ModelProviderRegistrar) { registrar.registerAdapter(['openai-a'], adapter) },
+  }
+}
+
+describe('runtime-bound agent', () => {
+  it('preserves multimodal input, output messages and public block identity', async () => {
+    const adapter = new RuntimeAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const session = runtime.agent({ id: 'images', instructions: 'describe', compaction: false }).createSession()
+    const input = createUserMessage({ source: { kind: 'user' }, content: [
+      { type: 'text', text: 'describe' }, { type: 'image', source: { kind: 'url', url: 'https://example.test/image.png' } },
+    ] })
+    const events: RuntimeAgentRunEvent[] = []
+    const result = await session.run(input, { onEvent: event => { events.push(event) } })
+    expect(adapter.requests[0]?.messages.some(message => message.content.some(block => block.type === 'image'))).toBe(true)
+    expect(result.message?.content).toContainEqual(expect.objectContaining({ type: 'text', text: 'hello' }))
+    const delta = events.find(event => event.type === 'assistant-delta')
+    expect(delta).toMatchObject({ schemaVersion: 1, index: 0, blockId: expect.any(String) })
+    expect(events.find(event => event.type === 'text-end')).toMatchObject({ blockId: delta?.type === 'assistant-delta' ? delta.blockId : '' })
+    expect(events.some(event => event.type === 'assistant-message')).toBe(true)
+    await runtime.close()
+  })
+
+  it('removes adapter-private replay state from full messages and nested blocks', async () => {
+    const adapter = new RuntimeAdapter()
+    adapter.stream = async function* () {
+      yield { type: 'block-end', index: 0, block: { type: 'text', text: 'public', annotations: [{ type: 'url-citation', url: 'https://example.test', providerState: { secret: 'PRIVATE/REPLAY~SENTINEL%' } }] } }
+      yield { type: 'block-end', index: 1, block: { type: 'reasoning', text: 'public summary', providerState: 'PRIVATE/REPLAY~SENTINEL%' } }
+      yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const response = await runtime.agent({ id: 'private-blocks', instructions: 'go', compaction: false }).generate('go', { onEvent: event => { events.push(event) } })
+    expect(JSON.stringify(response.message)).not.toContain('PRIVATE/REPLAY~SENTINEL%')
+    expect(JSON.stringify(events.filter(event => event.type === 'assistant-message'))).not.toContain('PRIVATE/REPLAY~SENTINEL%')
+    expect(response.message?.content[0]).toMatchObject({ annotations: [{ url: 'https://example.test' }] })
+    await runtime.close()
+  })
+
+  it('strict image input never dispatches to a known text-only model; projection remains opt-in compatible', async () => {
+    const adapter = new RuntimeAdapter()
+    adapter.resolveModel = async (provider, id) => ({ provider, id, name: id, inputModalities: ['text'] })
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const agent = runtime.agent({ id: 'strict-images', instructions: 'describe', compaction: false })
+    const input = createUserMessage({ source: { kind: 'user' }, content: [{ type: 'image', source: { kind: 'url', url: 'https://example.test/image.png' } }] })
+    await expect(agent.generate(input, { imagePolicy: 'strict' })).rejects.toMatchObject({ report: { status: 'error' } })
+    expect(adapter.requests).toHaveLength(0)
+    await agent.generate(input, { imagePolicy: 'project' })
+    expect(adapter.requests).toHaveLength(1)
+    expect(adapter.requests[0]?.messages.some(message => message.content.some(block => block.type === 'image'))).toBe(false)
+    await runtime.close()
+  })
+
+  it('returns validated structured output and rejects schema-invalid JSON', async () => {
+    const adapter = new RuntimeAdapter()
+    adapter.stream = async function* (options) {
+      this.requests.push(options)
+      yield { type: 'block-end', index: 0, block: { type: 'text', text: '{"amount":42}' } }
+      yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const agent = runtime.agent({ id: 'json', instructions: 'return JSON', compaction: false })
+    const parse = vi.fn((value: unknown) => {
+      if (typeof value !== 'object' || value === null || !('amount' in value) || typeof value.amount !== 'number') throw new Error('amount required')
+      return { amount: value.amount }
+    })
+    const schema = { jsonSchema: { type: 'object', properties: { amount: { type: 'number' } }, required: ['amount'], additionalProperties: false }, parse }
+    const response = await agent.generate('amount', { structuredOutput: { name: 'amount', schema } })
+    expect(response.output).toEqual({ amount: 42 })
+    expect(parse).toHaveBeenCalledTimes(1)
+    expect(adapter.requests[0]?.outputFormat).toMatchObject({ type: 'json_schema', name: 'amount' })
+    await expect(agent.generate('amount', { structuredOutput: { name: 'amount', schema: { ...schema, parse: () => { throw new Error('schema mismatch') } } } })).rejects.toMatchObject({ report: { status: 'error' } })
+    await runtime.close()
+  })
+
+  it('projects an actually unknown tool as rejected', async () => {
+    const adapter = new ToolAdapter('missing_tool')
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    await runtime.agent({
+      id: 'unknown-status', instructions: 'Use missing tool', compaction: false,
+      tools: [defineTool({ name: 'lookup', description: 'Lookup', parameters: { type: 'object' }, execute: () => 'ok' })],
+    })
+      .createSession()
+      .run('go', { onEvent: event => { events.push(event) } })
+    expect(events.find(event => event.type === 'tool-result')).toMatchObject({
+      type: 'tool-result', status: 'rejected',
+      output: { isError: true, error: { code: 'UNKNOWN_TOOL' } },
+    })
+    await runtime.close()
+  })
+
+  it.each([
+    ['TOOL_DENIED', 'rejected'],
+    ['TOOL_ABORTED', 'aborted'],
+    ['TOOL_ABORTED_BEFORE_DISPATCH', 'aborted'],
+    ['TOOL_TIMEOUT', 'failed'],
+    ['TOOL_FAILED', 'failed'],
+  ] as const)('projects %s tool results as %s', async (code, status) => {
+    const adapter = new ToolAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const session = runtime.agent({ id: `status-${status}`, instructions: 'Use lookup', tools: [
+      defineTool({ name: 'lookup', description: 'Lookup', parameters: { type: 'object' },
+        execute: () => { throw ToolError.respondToModel('classified tool result', code) } }),
+    ], compaction: false }).createSession()
+    await session.run('go', { onEvent: event => { events.push(event) } })
+    expect(events.find(event => event.type === 'tool-result')).toMatchObject({
+      type: 'tool-result', status, output: { isError: true, error: { code } },
+    })
+    await runtime.close()
+  })
+
+  it('projects a call the loop refused as declined, not as a failure', async () => {
+    // A budget decision painting a finished run red is what made a working
+    // limit look like a crash in the reported case.
+    const adapter = new ToolAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const session = runtime.agent({
+      id: 'declined-status', instructions: 'Use lookup', compaction: false,
+      tools: [defineTool({
+        name: 'lookup', description: 'Lookup', parameters: { type: 'object' }, execute: () => 'ok',
+      })],
+    }).createSession({ runtimeLimits: { maxTotalTokens: 1 } })
+    await session.run('go', { onEvent: event => { events.push(event) } })
+
+    expect(events.find(event => event.type === 'tool-result')).toMatchObject({
+      type: 'tool-result', status: 'declined',
+      output: { isError: false, meta: { declined: true, reason: 'tokens' } },
+    })
+    await runtime.close()
+  })
+
+  it('projects an approval denial as rejected without running the tool', async () => {
+    const adapter = new ToolAdapter(), execute = vi.fn(() => 'ran')
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const session = runtime.agent({ id: 'approval-denial', instructions: 'Use lookup', tools: [
+      defineTool({ name: 'lookup', description: 'Lookup', parameters: { type: 'object' }, execute }),
+    ], compaction: false }).createSession({
+      approvals: { request: () => Promise.resolve('deny') },
+      interceptors: [{ name: 'approval', before: async () => ({ kind: 'ask' }) }],
+    })
+    await session.run('go', { onEvent: event => { events.push(event) } })
+    expect(events.find(event => event.type === 'tool-result')).toMatchObject({
+      type: 'tool-result', status: 'rejected',
+      output: { isError: true, error: { code: 'TOOL_DENIED' } },
+    })
+    expect(execute).not.toHaveBeenCalled()
+    await runtime.close()
+  })
+
+  it('removes blocked additional context from model requests and public events', async () => {
+    const sentinel = 'review/BLOCKED_PRIVATE/REPLAY~SENTINEL%'
+    const adapter = new ToolAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const session = runtime.agent({ id: 'blocked-output', instructions: 'Use lookup', tools: [
+      defineTool({ name: 'lookup', description: 'Lookup', parameters: { type: 'object' },
+        execute: (_input, context) => { context.addContext(sentinel); return { private: sentinel } } }),
+    ], compaction: false }).createSession({ interceptors: [{
+      name: 'block-output', after: async () => ({
+        kind: 'block', feedback: [{ type: 'text', text: 'Blocked by policy' }],
+      }),
+    }] })
+    await session.run('go', { onEvent: event => { events.push(event) } })
+    expect(JSON.stringify(adapter.requests.slice(1).map(request => request.messages))).not.toContain(sentinel)
+    expect(JSON.stringify(events)).not.toContain(sentinel)
+    await runtime.close()
+  })
+
+  it('removes replaced raw values from public events', async () => {
+    const sentinel = 'review/REPLACED_PRIVATE/REPLAY~SENTINEL%'
+    const adapter = new ToolAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const session = runtime.agent({ id: 'replaced-output', instructions: 'Use lookup', tools: [
+      defineTool({ name: 'lookup', description: 'Lookup', parameters: { type: 'object' },
+        execute: () => ({ private: sentinel }) }),
+    ], compaction: false }).createSession({ interceptors: [{
+      name: 'replace-output', after: async () => ({
+        kind: 'replace', content: [{ type: 'text', text: '[REDACTED]' }],
+      }),
+    }] })
+    await session.run('go', { onEvent: event => { events.push(event) } })
+    expect(JSON.stringify(events)).not.toContain(sentinel)
+    await runtime.close()
+  })
+
+  it('forwards public history and runtime resource limits into the low-level session', async () => {
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(new RuntimeAdapter())] })
+    const agent = runtime.agent({ id: 'bounded', instructions: 'Bounded', compaction: false })
+    const session = agent.createSession({
+      historyLimits: { maxEntries: 1, maxEntryBytes: 1_024, maxBytes: 1_024 },
+      runtimeLimits: { maxModelRequestBytes: 1_024, maxToolResultBytes: 512 },
+    })
+    session.inject('first')
+    expect(() => session.inject('second')).toThrow(/history reached its 1-entry limit/)
+    expect(() => agent.createSession({ runtimeLimits: { maxModelRequestBytes: 0 } }))
+      .toThrow(/maxModelRequestBytes/)
+    await runtime.close()
+  })
+
+  it('resolves a configured per-route default and preserves omitted reasoning effort', async () => {
+    const adapter = new RuntimeAdapter(), plugin = provider(adapter)
+    const runtime = await createRuntimeCompositionOwner({ providers: [plugin] })
+    const agent = runtime.agent({ id: 'assistant', instructions: 'AGENT', compaction: false })
+    expect(agent.model).toEqual({ provider: 'openai-a', id: 'default-model' })
+    expect(Object.isFrozen(agent.model)).toBe(true)
+
+    const response = await agent.generate('Hi')
+    expect(response).toMatchObject({ text: 'hello', usage: { authoritative: true, reported: { totalTokens: 5 } },
+      report: { kind: 'run-terminal-record', status: 'success', delivery: { mode: 'operational', complete: true } } })
+    expect(response.report).toBe(response.report)
+    expect(adapter.requests[0]).toMatchObject({ provider: 'openai-a', model: 'default-model' })
+    expect(adapter.requests[0]).not.toHaveProperty('reasoningEffort')
+    expect(adapter.contexts[0]).toMatchObject({ terminalCheckpointOwner: 'agent-run' })
+    await runtime.close()
+  })
+
+  it('lets every agent independently select a full model target', async () => {
+    const adapter = new RuntimeAdapter(), runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const first = runtime.agent({ id: 'first', instructions: 'First', model: { provider: 'openai-a', id: 'reasoning' }, compaction: false })
+    const second = runtime.agent({ id: 'second', instructions: 'Second', model: { provider: 'openai-a' }, compaction: false })
+    expect(first.model).toEqual({ provider: 'openai-a', id: 'reasoning' })
+    expect(second.model).toEqual({ provider: 'openai-a', id: 'default-model' })
+    await first.generate('one')
+    await second.generate('two')
+    expect(adapter.requests.map(request => request.model)).toEqual(['reasoning', 'default-model'])
+    await runtime.close()
+  })
+
+  it('streams one ordered public projection with stable IDs and one terminal usage event', async () => {
+    const adapter = new RuntimeAdapter(), runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const response = await runtime.agent({ id: 'streamer', instructions: 'Stream', compaction: false }).generate('go', {
+      onEvent: event => { events.push(event) },
+    })
+    expect(events.map(event => event.type)).toEqual(['turn-start', 'step-start', 'assistant-delta', 'text-end', 'step-end', 'assistant-message', 'assistant-text', 'usage'])
+    expect(events.map(event => event.sequence)).toEqual(events.map((_, index) => index + 1))
+    expect(events.every(event => event.runId === response.runId && event.traceId === response.traceId)).toBe(true)
+    expect(events.at(-1)).toMatchObject({ type: 'usage', report: response.report })
+    await runtime.close()
+  })
+
+  it('streams commentary, native progress, host tool progress, final text and terminal usage on one surface', async () => {
+    const adapter = new EventSurfaceAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const events: RuntimeAgentRunEvent[] = []
+    const response = await runtime.agent({ id: 'event-surface', instructions: 'Use both tools', tools: [
+      defineTool({ name: 'lookup', description: 'Lookup', parameters: { type: 'object' },
+        execute: () => ({ ok: true }) }),
+    ], compaction: false }).generate('go', { onEvent: event => { events.push(event) } })
+    expect(events.map(event => event.type)).toEqual([
+      'turn-start', 'step-start', 'commentary-delta', 'text-end', 'assistant-message', 'assistant-text',
+      'assistant-native-tool', 'tool-call', 'tool-result', 'step-end', 'step-start', 'assistant-delta',
+      'text-end', 'step-end', 'assistant-message', 'assistant-text', 'usage',
+    ])
+    expect(events.map(event => event.sequence)).toEqual(events.map((_, index) => index + 1))
+    expect(events.every(event => event.runId === response.runId && event.traceId === response.traceId)).toBe(true)
+    expect(events.find(event => event.type === 'assistant-native-tool')).toMatchObject({
+      type: 'assistant-native-tool', callId: 'native-search-1', provider: 'openai-a', name: 'web-search',
+      status: 'completed', input: { query: 'runtime events' }, output: [{ type: 'text', text: 'native result' }],
+    })
+    expect(events.find(event => event.type === 'tool-call')).toMatchObject({ type: 'tool-call', callId: 'host-tool-1', name: 'lookup', input: { key: 'value' } })
+    expect(events.find(event => event.type === 'tool-result')).toMatchObject({ type: 'tool-result', callId: 'host-tool-1', name: 'lookup', status: 'completed' })
+    expect(events.at(-1)).toMatchObject({ type: 'usage', report: response.report })
+    await runtime.close()
+  })
+
+  it('injects the same run-correlated logger into model, tool and hook contexts', async () => {
+    const adapter = new ToolAdapter(), toolLoggers: unknown[] = [], hookLoggers: unknown[] = []
+    const lookup = defineTool({ name: 'lookup', description: 'Lookup', parameters: { type: 'object' },
+      execute: (_input, context) => { toolLoggers.push(context.logger); context.logger?.info('tool active'); return { ok: true } } })
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const response = await runtime.agent({ id: 'logged', instructions: 'Use tool', tools: [lookup], compaction: false }).generate('go', {
+      onEvent: () => undefined,
+    })
+    const session = runtime.agent({ id: 'hooked', instructions: 'Hook', compaction: false }).createSession({
+      hooks: { beforeStep(context) { hookLoggers.push(context.logger); context.logger?.info('hook active'); return { kind: 'proceed' } } },
+    })
+    await session.run('hook')
+    expect(adapter.contexts.every(context => context.logger !== undefined)).toBe(true)
+    expect(toolLoggers[0]).toBe(adapter.contexts[0]?.logger)
+    expect(hookLoggers[0]).toBe(adapter.contexts.at(-1)?.logger)
+    const logs = runtime.diagnostics().events.filter(event =>
+      event.name === 'sdk.log' && (event.data.message === 'tool active' || event.data.message === 'hook active'))
+    expect(logs).toHaveLength(2)
+    expect(logs[0]?.correlation.runId).toBe(response.runId)
+    await runtime.close()
+  })
+
+  it('captures direct agent and session tool literals before later mutation', async () => {
+    const adapter = new ToolAdapter(), original = vi.fn(() => ({ source: 'original' }))
+    const replacement = vi.fn(() => ({ source: 'replacement' }))
+    const schema = { type: 'object', properties: { stable: { type: 'boolean' } } }
+    const literal = { name: 'lookup', description: 'Lookup', parameters: schema, execute: original }
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const agent = runtime.agent({ id: 'captured-agent', instructions: 'Use tool', tools: [literal], compaction: false })
+    literal.execute = replacement
+    schema.type = 'changed'
+    await agent.generate('go')
+    expect(original).toHaveBeenCalledOnce()
+    expect(replacement).not.toHaveBeenCalled()
+    expect(adapter.requests[0]?.tools?.[0]).toMatchObject({ parameters: { type: 'object' } })
+
+    const secondAdapter = new ToolAdapter()
+    const secondRuntime = await createRuntimeCompositionOwner({ providers: [provider(secondAdapter)] })
+    const sessionOriginal = vi.fn(() => ({ source: 'session' }))
+    const sessionLiteral = { name: 'lookup', description: 'Lookup', parameters: { type: 'object' }, execute: sessionOriginal }
+    const session = secondRuntime.agent({ id: 'captured-session', instructions: 'Use tool', compaction: false })
+      .createSession({ tools: [sessionLiteral] })
+    sessionLiteral.execute = replacement
+    await session.run('go')
+    expect(sessionOriginal).toHaveBeenCalledOnce()
+    expect(replacement).not.toHaveBeenCalled()
+    await runtime.close()
+    await secondRuntime.close()
+  })
+
+  it('keeps snapshots readable but rejects mutation and execution after close', async () => {
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(new RuntimeAdapter())] })
+    const agent = runtime.agent({ id: 'persistent', instructions: 'Persist', compaction: false })
+    const session = agent.createSession({ conversationId: 'conversation-1' })
+    await session.run('first')
+    const before = session.snapshot()
+    await runtime.close()
+    expect(session.snapshot()).toEqual(before)
+    expect(() => session.inject('late')).toThrow(expect.objectContaining({ code: 'RUNTIME_CLOSED' }))
+    expect(() => session.reset()).toThrow(expect.objectContaining({ code: 'RUNTIME_CLOSED' }))
+    expect(() => agent.stream('late')).toThrow(expect.objectContaining({ code: 'RUNTIME_CLOSED' }))
+    expect(() => runtime.agent({ id: 'late', instructions: 'Late' })).toThrow(expect.objectContaining({ code: 'RUNTIME_CLOSED' }))
+  })
+
+  it('rejects invalid run overlays before operation admission or history mutation', async () => {
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(new RuntimeAdapter())] })
+    const session = runtime.agent({ id: 'overlay', instructions: 'Overlay', compaction: false }).createSession()
+    const generation = session.snapshot().history.entries.length
+    expect(() => session.stream('not admitted', { additionalInstructions: '  ' })).toThrow(expect.objectContaining({
+      code: 'RUN_ADDITIONAL_INSTRUCTIONS_INVALID',
+    }))
+    expect(runtime.operations.activeCount).toBe(0)
+    expect(session.snapshot().history.entries).toHaveLength(generation)
+    await runtime.close()
+  })
+
+  it('rejects an invalid run signal before operation admission or history mutation', async () => {
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(new RuntimeAdapter())] })
+    const session = runtime.agent({ id: 'invalid-signal', instructions: 'Signal', compaction: false }).createSession()
+    const before = session.snapshot()
+    expect(() => session.stream('not admitted', { signal: {} as AbortSignal })).toThrow(TypeError)
+    expect(runtime.operations.activeCount).toBe(0)
+    expect(session.snapshot()).toEqual(before)
+    await runtime.close()
+  })
+
+  it('does not invoke accessor-backed definition fields', async () => {
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(new RuntimeAdapter())] })
+    const read = vi.fn(() => 'secret')
+    const definition = { id: 'hostile', instructions: 'safe', get model() { return read() } }
+    expect(() => runtime.agent(definition as never)).toThrow('metadata must not use accessors')
+    expect(read).not.toHaveBeenCalled()
+    await runtime.close()
+  })
+})

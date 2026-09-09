@@ -1,8 +1,8 @@
-import type { ToolExecutionResult } from '../../src/agent/tool/definition.ts'
-import { dispatchToolCall } from '../../src/agent/tool/pipeline.ts'
-import type { ToolCatalog } from '../../src/agent/tool/registry.ts'
-import { ToolCallId } from '../../src/core/primitives/brand.ts'
-import type { JsonObject } from '../../src/core/primitives/json.ts'
+import type { ToolExecutionResult } from '@ai-agent-sdk/core/agent'
+import { dispatchToolCall } from '@ai-agent-sdk/core/agent'
+import type { ToolCatalog } from '@ai-agent-sdk/core/agent'
+import { ToolCallId } from '@ai-agent-sdk/core'
+import type { JsonObject } from '@ai-agent-sdk/core'
 
 export type GitHubMcpToolName = 'get_me' | 'get_file_contents' | 'create_or_update_file'
 
