@@ -4,6 +4,7 @@ import type {
   LinkAgentOptions, SendAgentMessageRequest, SendAgentMessageResult,
 } from '../../agent/team/types.ts'
 import type { TeamToolAccess } from '../../agent/team/contracts.ts'
+import type { AgentRunEvent } from '../../agent/mode/run-agent.ts'
 import type { SupportSafeError } from '../../support-safe/error.ts'
 import type { RuntimeComponentCloseReport } from '../common/errors.ts'
 
@@ -34,6 +35,8 @@ export interface RuntimeAgentTeamOptions {
   readonly operationTimeoutMs?: number
   readonly observerTimeoutMs?: number
   readonly onEvent?: (event: RuntimeAgentTeamEvent) => void
+  /** Observe raw model, tool and span events from member wake-up runs. */
+  readonly onAgentEvent?: (member: string, event: AgentRunEvent) => void | Promise<void>
 }
 
 export interface RuntimeAgentTeam {

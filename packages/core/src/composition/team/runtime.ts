@@ -177,6 +177,7 @@ export function createRuntimeAgentTeam(
       // event must wait for those too, not just the control-plane wake tasks.
       if (event.type !== 'team-disposed') emit(projectEvent(event))
     },
+    ...(options.onAgentEvent === undefined ? {} : { onAgentEvent: options.onAgentEvent }),
   }, signal => {
     const lease = host.operations.acquire('team-operation', { signal })
     return () => lease.settle()

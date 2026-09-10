@@ -6,7 +6,7 @@ import type { AgentTeamMemberInput, RuntimeAgentTeamEvent, RuntimeAgentTeamOptio
 import { RUNTIME_TEAM_LIMITS } from './config.ts'
 
 const ROOT_KEYS = new Set(['id', 'members', 'maxMessages', 'maxMessageBytes', 'operationTimeoutMs',
-  'observerTimeoutMs', 'onEvent'])
+  'observerTimeoutMs', 'onEvent', 'onAgentEvent'])
 const MEMBER_KEYS = new Set(['name', 'agent', 'description', 'instructions', 'role', 'tools', 'session'])
 
 export interface CapturedTeamMember extends AgentTeamMemberInput {
@@ -17,6 +17,7 @@ export interface CapturedTeamMember extends AgentTeamMemberInput {
 export interface CapturedRuntimeTeamOptions extends RuntimeAgentTeamOptions {
   readonly members: readonly CapturedTeamMember[]
   readonly onEvent?: (event: RuntimeAgentTeamEvent) => void
+  readonly onAgentEvent?: Exclude<RuntimeAgentTeamOptions['onAgentEvent'], undefined>
 }
 
 export function captureRuntimeTeamOptions(value: unknown): CapturedRuntimeTeamOptions {
@@ -56,9 +57,16 @@ export function captureRuntimeTeamOptions(value: unknown): CapturedRuntimeTeamOp
   if (callback !== undefined && typeof callback !== 'function') throw new TypeError('Runtime team observer is invalid')
   const onEvent = callback === undefined ? undefined
     : (event: RuntimeAgentTeamEvent): void => { Reflect.apply(callback, source, [event]) }
+  const agentCallback = ownData(source, 'onAgentEvent', false)
+  if (agentCallback !== undefined && typeof agentCallback !== 'function') throw new TypeError('Runtime team agent observer is invalid')
+  const onAgentEvent = agentCallback === undefined ? undefined
+    : (member: string, event: Parameters<NonNullable<RuntimeAgentTeamOptions['onAgentEvent']>>[1]): void | Promise<void> => (
+      Reflect.apply(agentCallback, source, [member, event])
+    )
   return Object.freeze({ id, members: Object.freeze(captured),
     ...copyPositive(source, ['maxMessages', 'maxMessageBytes', 'operationTimeoutMs', 'observerTimeoutMs']),
-    ...(onEvent === undefined ? {} : { onEvent }) })
+    ...(onEvent === undefined ? {} : { onEvent }),
+    ...(onAgentEvent === undefined ? {} : { onAgentEvent }) })
 }
 
 function optionalBounded(source: object, key: string): string | undefined {

@@ -211,7 +211,7 @@ async function start(
   options.history.append({ kind: 'tool-call', callId: call.callId, name: call.toolName, rawArguments: call.rawArguments })
   await emitEvent(options, { type: 'span-start', trace, at: now(), name: `execute_tool ${call.toolName}`, kind: 'execute_tool', attributes: {
     'gen_ai.operation.name': 'execute_tool', 'gen_ai.tool.name': call.toolName, 'gen_ai.tool.call.id': call.callId,
-  } })
+  }, input: call.rawArguments })
   await emitEvent(options, { type: 'tool-call', call, trace })
   // A tool the model may always reach: submitting, asking, delegating. Letting
   // a budget block these is what turns a spent budget into a dead run.

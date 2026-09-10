@@ -11,7 +11,7 @@ import { captureToolSources } from '../tool-source/definition.ts'
 import { captureMemoryBinding } from '../memory/definition.ts'
 import { captureRuntimeSkillSources } from '../skill-provider/definition.ts'
 
-const KEYS = new Set(['signal', 'additionalInstructions', 'onEvent', 'imagePolicy', 'structuredOutput'])
+const KEYS = new Set(['signal', 'additionalInstructions', 'onEvent', 'imagePolicy', 'structuredOutput', 'includeTraceEvents'])
 const SESSION_KEYS = new Set(['conversationId', 'tools', 'toolSources', 'skills', 'memory', 'skillCwd',
   'userInput', 'approvals', 'spillStore', 'interceptors', 'contextSections', 'hooks', 'usagePolicy', 'historyLimits',
   'ledgerLimits',
@@ -22,6 +22,7 @@ export interface CapturedInvocationOptions {
   readonly imagePolicy?: 'strict' | 'project'
   readonly signal?: AbortSignal
   readonly additionalInstructions?: string
+  readonly includeTraceEvents?: boolean
   readonly onEvent?: NonNullable<RuntimeAgentInvocationOptions['onEvent']>
 }
 
@@ -102,7 +103,10 @@ export function captureInvocationOptions(input: unknown): CapturedInvocationOpti
   const additionalInstructions = captureAdditionalInstructions(ownData(source, 'additionalInstructions', false))
   const onEvent = ownData(source, 'onEvent', false)
   if (onEvent !== undefined && typeof onEvent !== 'function') throw new TypeError('Runtime event observer must be callable')
+  const includeTraceEvents = ownData(source, 'includeTraceEvents', false)
+  if (includeTraceEvents !== undefined && typeof includeTraceEvents !== 'boolean') throw new TypeError('includeTraceEvents must be boolean')
   return Object.freeze({ ...(structuredOutput === undefined ? {} : { structuredOutput }), ...(imagePolicy === undefined ? {} : { imagePolicy }), ...(signal === undefined ? {} : { signal }),
     ...(additionalInstructions === undefined ? {} : { additionalInstructions }),
+    ...(includeTraceEvents === undefined ? {} : { includeTraceEvents }),
     ...(onEvent === undefined ? {} : { onEvent: onEvent as NonNullable<RuntimeAgentInvocationOptions['onEvent']> }) })
 }

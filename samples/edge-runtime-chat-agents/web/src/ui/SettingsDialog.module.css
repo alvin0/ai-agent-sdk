@@ -1,0 +1,327 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 460px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-layer-3, var(--dsw-alias-bg-layer-1));
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.24);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.note {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.label {
+  margin-top: 4px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.input {
+  width: 100%;
+  height: 34px;
+  padding: 0 12px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 10px;
+  outline: none;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--ds-font-family-code);
+  font-size: 13px;
+}
+
+.input:focus {
+  border-color: var(--dsw-alias-border-l4);
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.primary,
+.secondary,
+.danger {
+  height: 30px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--dsw-alias-button-primary-fill);
+  color: var(--dsw-alias-label-primary-inverted);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--dsw-alias-button-primary-hover);
+}
+
+.primary:disabled {
+  background: var(--dsw-alias-button-primary-dimmed);
+  cursor: default;
+}
+
+.secondary {
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+}
+
+.secondary:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.danger {
+  background: transparent;
+  color: var(--dsw-static-red-600);
+}
+
+.danger:hover {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+/* Settings sections -------------------------------------------------------- */
+
+.dialog {
+  max-width: 560px;
+  max-height: min(760px, 90vh);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+  overflow-y: auto;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.divider {
+  height: 0.5px;
+  margin: 16px 0;
+  background: var(--dsw-alias-border-l2);
+}
+
+.problem {
+  margin: 0;
+  color: var(--dsw-static-red-600);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* The key row keeps its field, Save and Remove on one line: the dialog no
+   longer has a footer of its own to hang them from. */
+.keyRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.keyInput {
+  composes: input;
+  flex: 1;
+  min-width: 0;
+}
+
+.action,
+.danger {
+  flex: none;
+  height: 34px;
+  padding: 0 14px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.action:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.action:disabled {
+  color: var(--dsw-alias-label-quaternary);
+  cursor: default;
+}
+
+.danger {
+  border-color: transparent;
+  color: var(--dsw-static-red-600);
+}
+
+.danger:hover {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+/* Model list --------------------------------------------------------------- */
+
+.models {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.model {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.model:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.modelId {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--ds-font-family-code);
+  font-size: 12.5px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.modelCapacity {
+  flex: none;
+  color: var(--dsw-alias-label-quaternary);
+  font-family: var(--ds-font-family-code);
+  font-size: 11px;
+}
+
+.remove {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.remove:hover {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+  color: var(--dsw-static-red-600);
+}
+
+.empty {
+  padding: 6px 8px;
+  color: var(--dsw-alias-label-quaternary);
+  font-size: 12px;
+}
+
+/* The add row: id takes the spare width, the two numbers are fixed and narrow
+   because a token count is never long. */
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.addId {
+  composes: input;
+  flex: 1;
+  min-width: 0;
+}
+
+.addNumber {
+  composes: input;
+  flex: none;
+  width: 92px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

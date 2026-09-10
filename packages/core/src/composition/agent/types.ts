@@ -112,6 +112,8 @@ export interface RuntimeAgentInvocationOptions {
   readonly imagePolicy?: 'strict' | 'project'
   readonly signal?: AbortSignal
   readonly additionalInstructions?: string
+  /** Include raw span lifecycle events in the public stream for host tracing. */
+  readonly includeTraceEvents?: boolean
   readonly onEvent?: (event: RuntimeAgentRunEvent) => void | Promise<void>
 }
 
@@ -127,8 +129,11 @@ type PublicContentEvent = AgentRunEvent extends infer E
     ? Omit<E, 'trace'> & { readonly blockId?: string } : never
   : never
 
+type PublicTraceEvent = Extract<AgentRunEvent, { type: 'span-start' | 'span-end' }>
+
 export type RuntimeAgentRunEvent = RuntimeAgentRunEventContext & (
   | PublicContentEvent
+  | PublicTraceEvent
   | { readonly type: 'commentary-delta'; readonly text: string; readonly index: number; readonly blockId: string; readonly phase: import('../../agent/loop/events.ts').StreamedAssistantTextPhase }
   | { readonly type: 'assistant-delta'; readonly text: string; readonly index: number; readonly blockId: string; readonly phase: import('../../agent/loop/events.ts').StreamedAssistantTextPhase }
   | { readonly type: 'tool-call'; readonly callId: string; readonly name: string; readonly input: unknown }

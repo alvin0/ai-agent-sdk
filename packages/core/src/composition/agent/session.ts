@@ -143,7 +143,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
     }
     const options = captureInvocationOptions(rawOptions)
     const started = this.start(input, options)
-    return runtimeHandle(started.legacy, started.report, started.result, this.nativeProvider)
+    return runtimeHandle(started.legacy, started.report, started.result, this.nativeProvider, options.includeTraceEvents === true)
   }
 
   private start(input: AgentInput | undefined, options: RuntimeAgentInvocationOptions): StartedRuntimeRun {
@@ -452,13 +452,14 @@ function combineToolSources(
 function runtimeHandle(
   source: LegacyRunHandle & { readonly traceId: string; abort(reason?: unknown): void },
   report: Promise<RuntimeRunReport>, result: Promise<RuntimeAgentResponse>, nativeProvider: string,
+  includeTraceEvents: boolean,
 ): RuntimeAgentRunHandle {
   let iterated = false
   return Object.freeze({ runId: source.runId, report, result, abort: () => source.abort(),
     [Symbol.asyncIterator](): AsyncIterator<RuntimeAgentRunEvent> {
       if (iterated) return (async function* () { throw new Error('A runtime run handle can only be iterated once') })()
       iterated = true
-      return projectEvents(source, report, nativeProvider)
+      return projectEvents(source, report, nativeProvider, includeTraceEvents)
     } })
 }
 
@@ -466,12 +467,13 @@ async function* projectEvents(
   source: LegacyRunHandle & { readonly traceId: string; abort(reason?: unknown): void },
   report: Promise<RuntimeRunReport>,
   nativeProvider: string,
+  includeTraceEvents: boolean,
 ): AsyncGenerator<RuntimeAgentRunEvent> {
   let sequence = 0, completed = false
   const context = () => ({ runId: source.runId, traceId: source.traceId, sequence: ++sequence, schemaVersion: 1 as const })
   try {
     for await (const event of source) {
-      const projected = projectEvent(event, nativeProvider)
+      const projected = projectEvent(event, nativeProvider, includeTraceEvents)
       if (projected !== undefined) yield Object.freeze({ ...context(), ...projected }) as RuntimeAgentRunEvent
     }
     const terminal = await report
@@ -493,7 +495,11 @@ async function* projectEvents(
 type WithoutEventContext<T> = T extends unknown ? Omit<T, 'runId' | 'traceId' | 'sequence' | 'schemaVersion'> : never
 type ProjectedEvent = WithoutEventContext<RuntimeAgentRunEvent>
 
-function projectEvent(event: AgentRunEvent, nativeProvider: string): ProjectedEvent | undefined {
+function projectEvent(event: AgentRunEvent, nativeProvider: string, includeTraceEvents: boolean): ProjectedEvent | undefined {
+  // Runtime consumers such as Edge hosts may persist an execution trace. Keep
+  // the SDK's span lifecycle intact; unlike transcript events, spans carry the
+  // identity and nesting needed to reconstruct the call tree.
+  if (includeTraceEvents && (event.type === 'span-start' || event.type === 'span-end')) return event
   if (event.type === 'text-delta') return {
     type: event.phase === 'commentary' ? 'commentary-delta' : 'assistant-delta',
     text: event.text, index: event.index, phase: event.phase, blockId: `${event.trace.spanId}:${event.index}`,
