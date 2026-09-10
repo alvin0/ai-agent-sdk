@@ -63,6 +63,12 @@ objective memory.
 
 Memory is inspectable and host-controlled — the model cannot silently rewrite it.
 
+> **Which session.** `.memory` is on the `defineAgent()` layer's
+> `AgentSession`. The runtime layer's `RuntimeAgentSession` — what
+> `runtime.agent().createSession()` returns — has no `.memory` accessor; bind a
+> store there and read it back through a `defineAgent()` session, or keep task
+> facts in your own state.
+
 ```ts
 session.memory.remember({
   kind: 'decision',

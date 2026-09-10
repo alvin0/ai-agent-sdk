@@ -47,14 +47,28 @@ import { defineModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
 
 export const myProviderPlugin = defineModelProviderPlugin({
   id: 'my-provider',
+  displayName: 'My Provider',
+  routes: ['my-provider'],
   setup(registrar) {
-    registrar.registerAdapter(['my-provider'], createRuntimeHttpProvider({
+    // Registrar nhận adapter TRƯỚC, rồi mới tới routes — ngược thứ tự với
+    // ModelRegistry.registerAdapter().
+    registrar.registerAdapter(createRuntimeHttpProvider({
+      displayName: 'My Provider',
       protocol: openAiResponsesProtocol,
       baseUrl: 'https://api.example.com/v1',
       auth: { kind: 'bearer', token: options.apiKey },
-    }))
+    }), ['my-provider'])
+    return undefined
   },
 })
+```
+
+Hai overload `registerAdapter` nhận tham số theo **thứ tự ngược nhau**, và không
+gì ngoài type checker sẽ nhắc bạn:
+
+```ts
+registry.registerAdapter(routes, adapter)     // ModelRegistry: routes trước
+registrar.registerAdapter(adapter, routes?)   // registrar của plugin: adapter trước
 ```
 
 Plugin khai báo yêu sách tuyến của nó ngay từ đầu, nên xung đột runtime thông

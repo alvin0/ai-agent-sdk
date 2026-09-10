@@ -64,7 +64,12 @@ Thông tin xác thực luôn được **tiêm vào**. Các package provider Univ
 bao giờ đọc biến môi trường hay tệp.
 
 ```ts
-openAiPlugin({ apiKey: () => secretStore.get('openai') })              // mọi runtime
+const apiKey = defineCredentialSource({
+  id: 'openai',
+  resolve: () => secretStore.get('openai'),
+})
+
+openAiPlugin({ apiKey })              // mọi runtime
 openAiPlugin({ apiKey: envCredential('OPENAI_API_KEY') })              // Node
 codexPlugin({ authStore: mySecretManagerStore })                       // mọi runtime
 codexNodeProviderPlugin()                                              // kho tệp trên Node

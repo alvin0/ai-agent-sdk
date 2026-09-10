@@ -15,17 +15,20 @@ pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
 
 ```ts
 import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { defineCredentialSource } from '@alvin0/ai-agent-sdk-core/provider'
 import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
-import {
-  indexedDbObservationExporter,
-  installBrowserObservabilityLifecycle,
-} from '@alvin0/ai-agent-sdk-observability-browser'
+import { indexedDbObservationExporter } from '@alvin0/ai-agent-sdk-observability-browser'
+
+const apiKey = defineCredentialSource({
+  id: 'openai',
+  resolve: () => sessionToken.get(),
+})
 
 const queue = indexedDbObservationExporter()
 
 const runtime = await createAgentRuntime({
-  providers: [openAiPlugin({ apiKey: () => sessionToken.get() })],
-  resource: { serviceName: 'studio-web', runtime: 'browser' },
+  providers: [openAiPlugin({ apiKey })],
+  resource: { serviceName: 'studio-web', environment: 'production' },
   observability: {
     mode: 'reliable',
     exporters: [{
@@ -36,10 +39,13 @@ const runtime = await createAgentRuntime({
     }],
   },
 })
-
-// Phải bật tường minh: flush khi trang ẩn và khi pagehide.
-installBrowserObservabilityLifecycle(runtime)
 ```
+
+`installBrowserObservabilityLifecycle()` flush khi tab bị ẩn và khi `pagehide`,
+và nó cần một thứ có `flush()` — tức một `Observability` từ
+`createObservability()`. **`AgentRuntime` không có `flush()`**, nên không thể
+truyền bus do runtime sở hữu vào đây: ở đó lần flush cuối xảy ra trong
+`runtime.close()`, và bạn tự chủ động khôi phục từ exporter bên dưới.
 
 Exporter dàn dựng các sự kiện đã xử lý quyền riêng tư vào IndexedDB trong lúc
 **thu thập đồng bộ**, và chỉ xác nhận `local-durable` sau khi giao dịch commit ở
@@ -51,7 +57,10 @@ store `events`, `batches`, `meta`.
 ## Khôi phục lúc khởi động
 
 ```ts
-const pending = await queue.recoverEvents()
+import { IndexedDbObservationExporter } from '@alvin0/ai-agent-sdk-observability-browser'
+
+const durable = new IndexedDbObservationExporter()
+const pending = await durable.recoverEvents()
 
 if (pending.length > 0) {
   const response = await fetch('/api/telemetry', {
@@ -62,7 +71,9 @@ if (pending.length > 0) {
 
   if (response.ok) {
     // Tới lúc này mới an toàn để bỏ chúng đi.
-    await queue.acknowledgeBatch(pending.map(event => event.eventId))
+    for (const batchId of await durable.pendingBatchIds()) {
+      await durable.acknowledgeBatch(batchId)
+    }
   }
 }
 ```

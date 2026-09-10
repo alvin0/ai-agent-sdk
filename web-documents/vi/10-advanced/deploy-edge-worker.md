@@ -16,6 +16,7 @@ Ba package. Tất cả đều Universal — không builtin Node nào lọt vào 
 
 ```ts
 import { createAgentRuntime, defineTool } from '@alvin0/ai-agent-sdk-core'
+import { defineCredentialSource } from '@alvin0/ai-agent-sdk-core/provider'
 import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 import {
   fetchObservationExporter,
@@ -55,9 +56,15 @@ export default {
       message: string
     }>()
 
+    // env is only in scope here, so the credential source is built per request.
+    const apiKey = defineCredentialSource({
+      id: 'openai',
+      resolve: () => env.OPENAI_API_KEY,
+    })
+
     const runtime = await createAgentRuntime({
-      providers: [openAiPlugin({ apiKey: () => env.OPENAI_API_KEY })],
-      resource: { serviceName: 'support-worker', runtime: 'edge' },
+      providers: [openAiPlugin({ apiKey })],
+      resource: { serviceName: 'support-worker', environment: 'production' },
       observability: {
         mode: 'operational',
         exporters: [{
@@ -132,7 +139,7 @@ export default {
 
 | Mảnh | Vì sao |
 | --- | --- |
-| `apiKey: () => env.OPENAI_API_KEY` | Thông tin xác thực được tiêm vào — provider không bao giờ tự đọc môi trường. |
+| `defineCredentialSource({ resolve: () => env.OPENAI_API_KEY })` | Thông tin xác thực được tiêm vào — provider không bao giờ tự đọc môi trường. |
 | `boundary: 'remote-acknowledged'` | Exporter nêu trung thực mức bền vững mà nó thực sự đạt được. |
 | `requirement: 'best-effort'` | Telemetry thất bại không được làm hỏng một yêu cầu của khách hàng. |
 | `handle.abort(...)` trong `cancel()` | Client ngắt kết nối thì huỷ lượt chạy, không để rò rỉ. |

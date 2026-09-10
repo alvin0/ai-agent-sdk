@@ -147,25 +147,52 @@ export {
 export { installBrowserObservabilityLifecycle, type BrowserLifecycleOptions }
 ```
 
+Factory trả về một `ObservationExporterPlugin`, đúng thứ mà điểm đăng ký ở
+**runtime** nhận:
+
 ```ts
 const queue = indexedDbObservationExporter()
 
-const observability = createObservability({
-  mode: 'reliable',
-  exporters: [{ exporter: queue, requirement: 'required', boundary: 'local-durable' }],
+const runtime = await createAgentRuntime({
+  providers,
+  observability: {
+    mode: 'reliable',
+    exporters: [{ exporter: queue, ownership: 'owned', requirement: 'required', boundary: 'local-durable' }],
+  },
 })
 ```
 
-Cơ sở dữ liệu mặc định là `ai-agent-sdk-observability`, schema phiên bản 1, với
-các store `events`, `batches`, và `meta`.
+`createObservability()` là một điểm đăng ký khác và nhận shape
+`ObservationExporter` ở mức bus (`MemoryObservationExporter`,
+`TestObservationExporter`, hoặc `defineObservationExporter()`); một plugin
+factory không assign được vào đó.
 
-Sự kiện đã lưu vẫn ở trạng thái **chưa xác nhận** cho tới khi host gọi
-`acknowledgeBatch()` sau khi sink từ xa của chính nó xác nhận đã nhận.
-`recoverEvents()` phơi ra khả năng khôi phục sau sập/mở lại mà không cần import
-một exporter mạng.
+Database mặc định là `ai-agent-sdk-observability`, schema phiên bản 1, với các
+store `events`, `batches`, `meta`.
 
-`installBrowserObservabilityLifecycle()` phải **bật tường minh**, và nó flush khi
-trang chuyển sang ẩn và khi `pagehide`. Nó **không tuyên bố bền vững lúc unload**.
+Sự kiện đã lưu vẫn **chưa được xác nhận** cho tới khi host xác nhận, và bề mặt
+khôi phục nằm trên **class cụ thể** chứ không phải plugin view — xác nhận theo
+**batch id**, không theo từng event:
+
+```ts
+const durable = new IndexedDbObservationExporter()
+
+const pending = await durable.recoverEvents()          // readonly ObservationEvent[]
+for (const batchId of await durable.pendingBatchIds()) {
+  await durable.acknowledgeBatch(batchId)              // Promise<number>
+}
+await durable.stats()                                  // BrowserQueueStats
+```
+
+```ts
+installBrowserObservabilityLifecycle(observation: Pick<Observability, 'flush'>,
+                                     options?: BrowserLifecycleOptions): () => void
+```
+
+Nó phải **bật tường minh**, trả về một hàm uninstall, và flush khi tab bị ẩn và
+khi `pagehide`. Nó **không** hứa bền vững lúc unload. Vì cần `flush()`, nó nhận
+một `Observability` từ `createObservability()` — `AgentRuntime` không có, nên
+bus do runtime sở hữu sẽ flush ở `runtime.close()`.
 
 ---
 

@@ -17,44 +17,77 @@ defineMemoryStore(definition: MemoryStoreDefinition): MemoryStore
 ```
 
 ```ts
-interface MemoryStoreDefinition {
+interface MemoryStore {
+  readonly kind: 'memory-store'
+  readonly apiVersion: 1
   readonly id: string
-  readonly apiVersion: typeof MEMORY_STORE_API_VERSION
+  readonly load: (key: string, options: MemoryStoreOptions) => Promise<MemoryLoadResult | undefined>
+  readonly commit: (input: MemoryCommitInput, options: MemoryStoreOptions) => Promise<MemoryCommitResult>
+}
 
-  load(input: { scope: MemoryScope; signal?: AbortSignal }): Promise<MemoryLoadResult>
-  commit(input: MemoryCommitInput): Promise<MemoryCommitResult>
+/** Thứ bạn truyền vào defineMemoryStore(); kind và apiVersion do SDK thêm. */
+type MemoryStoreDefinition = Omit<MemoryStore, 'kind' | 'apiVersion'>
+
+interface MemoryStoreOptions {
+  readonly signal: AbortSignal
+  readonly logger: SdkLogger
 }
 ```
+
+`load()` được định địa chỉ bằng **key**, không phải bằng scope — scope trên
+binding là thứ runtime dùng để tạo ra key đó. Trả về `undefined` nghĩa là "chưa
+lưu gì", khác với một snapshot rỗng.
 
 ```ts
 interface MemoryLoadResult {
-  readonly revision: number
-  readonly items: readonly MemoryItem[]
+  readonly snapshot: AgentMemorySnapshot
+  readonly revision: string
 }
 
 interface MemoryCommitInput {
-  readonly scope: MemoryScope
-  readonly revision: number          // revision mà load() đã trả về
-  readonly items: readonly MemoryItem[]
-  readonly signal?: AbortSignal
+  readonly key: string
+  readonly snapshot: AgentMemorySnapshot
+  readonly expectedRevision: string | null   // null ở lần ghi đầu
 }
 
-type MemoryCommitResult =
-  | { readonly status: 'committed'; readonly revision: number }
-  | { readonly status: 'conflict' }
+interface MemoryCommitResult {
+  readonly revision: string
+}
 ```
 
-Kho này **có revision**, không phải last-write-wins. `commit()` phải từ chối ghi
-nếu bản ghi đã bị đổi bên dưới và trả về `conflict`; sau đó SDK nạp lại và thử
-lại với trạng thái mới.
+Revision là một **string** do kho tự quản; SDK chỉ trả lại đúng giá trị nó đã
+nhận. Kho mang cả một `AgentMemorySnapshot`, không phải danh sách item trần.
+
+Kho này **có revision**, không phải last-write-wins: `commit()` phải tôn trọng
+`expectedRevision` và làm ghi thất bại khi bản ghi đã bị đổi bên dưới, để một
+writer song song không bị ghi đè âm thầm.
+
+```ts
+const pgMemory = defineMemoryStore({
+  id: 'pg-memory',
+  load: async (key, { signal }) => {
+    const row = await db.selectMemory(key, { signal })
+    return row === undefined ? undefined : { snapshot: row.snapshot, revision: row.revision }
+  },
+  commit: async ({ key, snapshot, expectedRevision }, { signal }) => {
+    const revision = await db.compareAndSetMemory(key, snapshot, expectedRevision, { signal })
+    return { revision }
+  },
+})
+```
 
 ## `MemoryScope`
 
 ```ts
 type MemoryScope =
-  | { readonly kind: 'conversation' }               // khoá theo conversationId của session
-  | { readonly kind: 'fixed'; readonly key: string } // dùng chung nhiều session
+  | { readonly kind: 'conversation'; readonly namespace: string }
+  | { readonly kind: 'fixed'; readonly key: string; readonly sharedAcrossSessions: true }
 ```
+
+Phạm vi `conversation` khoá theo `conversationId` của session **bên trong**
+`namespace`, nên hai tenant không thể trùng nhau. Phạm vi `fixed` buộc phải nói
+rõ `sharedAcrossSessions: true` — chia sẻ state giữa các hội thoại không bao giờ
+là thứ bạn nhận được do vô tình.
 
 **Danh tính gắn kết snapshot** được ghi lại, nên một snapshot chụp dưới một phạm
 vi không thể âm thầm khôi phục dưới phạm vi khác — đó chính là bảo đảm cô lập
@@ -64,39 +97,88 @@ giữa các tenant.
 
 ```ts
 interface MemoryBinding {
-  readonly store?: MemoryStore
-  readonly scope?: MemoryScope
-  readonly seed?: readonly MemoryItemInput[]
-  readonly autoCaptureObjective?: boolean            // mặc định true
+  readonly store: MemoryStore
+  readonly bindingId: string                          // được ghi vào snapshot
+  readonly scope: MemoryScope
+  readonly requirement: 'required' | 'best-effort'
 }
 ```
 
+Mọi field đều bắt buộc — không có binding thiếu phần, vì mỗi field đổi chính cái
+mà một snapshot khôi phục được phép làm.
+
 ```ts
 // Trên một agent
-runtime.agent({ /* … */, memory: { store, scope: { kind: 'conversation' } } })
+runtime.agent({
+  /* … */
+  memory: {
+    store: pgMemory,
+    bindingId: 'billing-memory',
+    requirement: 'required',
+    scope: { kind: 'conversation', namespace: 'tenant-42' },
+  },
+})
 
-// Theo từng session, hoặc tắt hẳn
-agent.createSession({ memory: { store, scope: { kind: 'fixed', key } } })
+// Theo từng session, hoặc tắt cho hội thoại này
+agent.createSession({
+  memory: {
+    store: pgMemory,
+    bindingId: 'team-memory',
+    requirement: 'best-effort',
+    scope: { kind: 'fixed', key: 'release-team', sharedAcrossSessions: true },
+  },
+})
 agent.createSession({ memory: false })
+```
+
+`memory: false` là tuỳ chọn của **session**; một definition nhận `MemoryBinding`
+hoặc không nhận gì.
+
+Seed và việc bắt mục tiêu **không** thuộc binding — chúng thuộc memory config
+của agent:
+
+```ts
+interface AgentMemoryConfigInput {
+  readonly autoCaptureObjective?: boolean   // mặc định true
+  readonly maxInjectedChars?: number        // mặc định 12.000
+  readonly maxItems?: number                // mặc định 1.024
+  readonly maxItemChars?: number            // mặc định 65.536
+  readonly maxStoredChars?: number          // mặc định 1 MiB
+  readonly seed?: readonly AgentMemorySeed[]
+}
 ```
 
 ## Các mục bộ nhớ
 
 ```ts
-type MemoryItemKind =
+type AgentMemoryKind =
   | 'objective' | 'constraint' | 'decision' | 'fact' | 'progress' | 'next-step'
 
-interface MemoryItemInput {
+interface AgentMemorySeed {
   readonly id?: string        // dùng lại một id sẽ CẬP NHẬT mục đó
-  readonly kind: MemoryItemKind
+  readonly kind: AgentMemoryKind
   readonly content: string
+}
+
+interface AgentMemoryItem extends AgentMemorySeed {
+  readonly id: string
+  readonly createdAt: string
+  readonly updatedAt: string
 }
 ```
 
+Accessor `.memory` nằm trên `AgentSession` của **tầng `defineAgent()`**.
+`RuntimeAgentSession` — thứ `runtime.agent().createSession()` trả về — chỉ có
+`conversationId`, `isRunning`, `run`, `stream`, `inject`, `snapshot`, `compact`,
+`reset` và `whenIdle`.
+
 ```ts
+const session = ada.createSession({ registry })
+
 session.memory.remember({ kind: 'decision', content: 'Use a transactional outbox.' })
 session.memory.forget('release-constraint')
 session.memory.items()
+session.memory.render(12_000)
 ```
 
 Việc kết xuất có chặn trên và ưu tiên mục tiêu, ràng buộc, quyết định. Bộ nhớ đến

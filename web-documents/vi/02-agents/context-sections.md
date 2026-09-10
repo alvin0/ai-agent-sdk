@@ -127,7 +127,10 @@ const agent = defineAgent({
 việc, một tenant:
 
 ```ts
-const session = runtime.agent(agent).createSession({
+// Ở đây definition sở hữu session; runtime.agent() nhận một binding input,
+// không phải DefinedAgent — shape `model` của hai bên khác nhau.
+const session = agent.createSession({
+  registry,
   contextSections: [createProjectInstructionsSection({ cwd: workspaceDir })],
 })
 ```

@@ -12,6 +12,7 @@ pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-mcp
 ```ts
 // app/api/mcp/route.ts
 import { defineTool } from '@alvin0/ai-agent-sdk-core'
+import { ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
 import { createSdkMcpHandler } from '@alvin0/ai-agent-sdk-mcp/server'
 
 const lookupInvoice = defineTool({
@@ -28,10 +29,15 @@ const lookupInvoice = defineTool({
   timeoutMs: 15_000,
 })
 
+// A ToolCatalog, not an array: the handler consumes the same catalog
+// abstraction the agent loop does.
+const catalog = new ToolRegistry()
+catalog.register(lookupInvoice)   // register() keeps the tool's argument type
+
 const mcp = createSdkMcpHandler({
   name: 'orders-api',
   version: '1.0.0',
-  tools: [lookupInvoice],
+  tools: catalog,
 })
 
 export async function POST(request: Request): Promise<Response> {
@@ -105,9 +111,8 @@ import { createMcpServer } from '@alvin0/ai-agent-sdk-mcp-server'
 import { serveMcpStdio } from '@alvin0/ai-agent-sdk-mcp-node-server'
 
 const server = createMcpServer({
-  name: 'local-tools',
-  version: '1.0.0',
-  tools,
+  id: 'local-tools',
+  tools: catalog,
 })
 
 const handle = serveMcpStdio(server, { closeTimeoutMs: 10_000, logger })
@@ -128,20 +133,22 @@ available.
 
 ```ts
 import {
-  toNodeHandler,
+  toNodeMcpHandler,
   localhostHostValidation,
   localhostOriginValidation,
 } from '@alvin0/ai-agent-sdk-mcp-node-server'
 import { createServer } from 'node:http'
 
-const handler = toNodeHandler(server)
+const handler = toNodeMcpHandler(server)
+
+// Both validators are factories: call them once, then run the returned
+// predicate per request. A rejection answers the request itself.
+const validateHost = localhostHostValidation()
+const validateOrigin = localhostOriginValidation()
 
 createServer((req, res) => {
   // Apply BEFORE the handler.
-  if (!localhostHostValidation(req) || !localhostOriginValidation(req)) {
-    res.writeHead(403).end()
-    return
-  }
+  if (!validateHost(req, res) || !validateOrigin(req, res)) return
   handler(req, res)
 }).listen(8765, '127.0.0.1')
 ```

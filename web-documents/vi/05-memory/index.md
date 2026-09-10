@@ -79,6 +79,11 @@ bị âm thầm nâng lên thành chỉ dẫn hệ thống/lập trình viên.
 Model cũng không thể viết lại nó: bộ nhớ có thể kiểm tra được và do host điều
 khiển.
 
+> **Session nào.** `.memory` nằm trên `AgentSession` của tầng `defineAgent()`.
+> `RuntimeAgentSession` ở tầng runtime — thứ `runtime.agent().createSession()`
+> trả về — không có accessor `.memory`; hãy gắn store ở đó rồi đọc lại qua một
+> session `defineAgent()`, hoặc tự giữ các fact của tác vụ trong state của bạn.
+
 ```ts
 session.memory.remember({ kind: 'decision', content: 'Use the incremental path.' })
 session.memory.forget('release-constraint')

@@ -7,6 +7,9 @@ export default defineConfig({
   title: 'AI Agent SDK',
   description: 'Provider-neutral TypeScript SDK for building AI agents.',
   lang: 'en-US',
+  // GitHub Pages serves this repository at /ai-agent-sdk/. Override with
+  // DOCS_BASE=/ when publishing to a domain root.
+  base: process.env.DOCS_BASE ?? '/ai-agent-sdk/',
   cleanUrls: true,
   lastUpdated: true,
   metaChunk: true,
@@ -58,6 +61,11 @@ export default defineConfig({
   },
 
   themeConfig: {
+    socialLinks: [{ icon: 'github', link: 'https://github.com/alvin0/ai-agent-sdk' }],
+    editLink: {
+      pattern: 'https://github.com/alvin0/ai-agent-sdk/edit/main/web-documents/:path',
+      text: 'Edit this page on GitHub',
+    },
     search: {
       provider: 'local',
       options: {

@@ -97,6 +97,11 @@ Xem [Context Sections](/vi/02-agents/context-sections).
 Message user thật đầu tiên tự động trở thành bộ nhớ `original-objective`, nằm
 ngoài phần bản ghi bị nén.
 
+> **Session nào.** `.memory` nằm trên `AgentSession` của tầng `defineAgent()`.
+> `RuntimeAgentSession` ở tầng runtime — thứ `runtime.agent().createSession()`
+> trả về — không có accessor `.memory`; hãy gắn store ở đó rồi đọc lại qua một
+> session `defineAgent()`, hoặc tự giữ các fact của tác vụ trong state của bạn.
+
 ```ts
 session.memory.remember({ kind: 'decision', content: 'Use the incremental migration path.' })
 session.memory.forget('release-constraint')

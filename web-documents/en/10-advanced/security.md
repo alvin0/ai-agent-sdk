@@ -63,7 +63,12 @@ Credentials are always **injected**. Universal provider packages never read
 environment variables or files.
 
 ```ts
-openAiPlugin({ apiKey: () => secretStore.get('openai') })              // any runtime
+const apiKey = defineCredentialSource({
+  id: 'openai',
+  resolve: () => secretStore.get('openai'),
+})
+
+openAiPlugin({ apiKey })              // any runtime
 openAiPlugin({ apiKey: envCredential('OPENAI_API_KEY') })              // Node
 codexPlugin({ authStore: mySecretManagerStore })                       // any runtime
 codexNodeProviderPlugin()                                              // Node file store

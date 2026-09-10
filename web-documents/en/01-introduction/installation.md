@@ -59,7 +59,12 @@ is borrowed by the provider — it has no close lifecycle.
 **Anywhere else, from your own secret store:**
 
 ```ts
-openAiPlugin({ apiKey: () => secretStore.get('openai') })
+const apiKey = defineCredentialSource({
+  id: 'openai',
+  resolve: () => secretStore.get('openai'),
+})
+
+openAiPlugin({ apiKey })
 ```
 
 **Codex, project-local device-code login:**

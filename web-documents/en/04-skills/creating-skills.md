@@ -75,9 +75,46 @@ const scopedSkills = defineSkillProvider({
 
 | Method | Returns | Called |
 | --- | --- | --- |
-| `list({ allowedSkillIds })` | Metadata + an **opaque locator** | At the start of each turn |
-| `load(candidate)` | The selected body + a resource manifest | After `load_skill` |
-| `readResource(candidate, path)` | One resource | After `read_skill_resource` |
+| `list(options)` | `readonly SkillCandidate[]` — metadata plus an **opaque locator** | At the start of each turn |
+| `load(candidate, options)` | `SkillDefinitionInput \| undefined` — the same shape `defineSkill()` takes | After `load_skill` |
+| `readResource(candidate, path, options)` | `string \| undefined` — the resource **text** | After `read_skill_resource` |
+
+A candidate is a discovery row, and three of its fields are easy to forget
+because they are required:
+
+```ts
+interface SkillCandidate {
+  readonly id: string
+  readonly name: string
+  readonly description: string
+  readonly whenToUse?: string
+  readonly invocation: SkillInvocationPolicy      // { modelInvocable, userInvocable }
+  readonly source: string                          // origin label
+  readonly provider: string                        // this provider's id
+  readonly resourceBase?: SkillResourceBase
+  readonly locator?: unknown
+  readonly path?: string
+  readonly metadata?: Readonly<Record<string, unknown>>
+}
+```
+
+`load()` returns a definition **input**, so `id`, `description`, and
+`instructions` are all required on it; `invocation` there is a
+`Partial<SkillInvocationPolicy>` whose flags default to `true`.
+
+### The revisioned variant
+
+`defineSkillProviderPlugin()` from `@alvin0/ai-agent-sdk-core/skills` implements
+the same three phases against a **revisioned catalog** instead. Its `list()`
+returns `{ revision, candidates }`, its `load()` and `readResource()` receive a
+`SkillReference` carrying `catalogRevision` rather than a candidate, and its
+options give `signal` and `logger` as required fields. It does **not** take
+`kind` or `apiVersion` — those are added for you, unlike
+`defineSkillProvider()` above, where `kind: 'skill-provider'` is part of the
+interface you pass in.
+
+`skills: [...]` accepts either form: `RuntimeSkillSource` is
+`SkillDefinition | SkillProvider | SkillProviderPlugin`.
 
 The locator is opaque to the SDK — it is your primary key, URL, or path. Two
 guarantees are worth relying on:

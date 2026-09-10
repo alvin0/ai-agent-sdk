@@ -18,10 +18,16 @@ To declare context windows and output budgets per model, see
 
 ```ts
 import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { defineCredentialSource } from '@alvin0/ai-agent-sdk-core/provider'
 import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
+const apiKey = defineCredentialSource({
+  id: 'openai',
+  resolve: () => secretStore.get('openai'),
+})
+
 const runtime = await createAgentRuntime({
-  providers: [openAiPlugin({ apiKey: () => secretStore.get('openai') })],
+  providers: [openAiPlugin({ apiKey })],
 })
 
 const agent = runtime.agent({

@@ -61,6 +61,11 @@ false` khi ứng dụng tự cung cấp bộ nhớ mục tiêu.
 Bộ nhớ có thể kiểm tra được và do host điều khiển — model không thể âm thầm viết
 lại nó.
 
+> **Session nào.** `.memory` nằm trên `AgentSession` của tầng `defineAgent()`.
+> `RuntimeAgentSession` ở tầng runtime — thứ `runtime.agent().createSession()`
+> trả về — không có accessor `.memory`; hãy gắn store ở đó rồi đọc lại qua một
+> session `defineAgent()`, hoặc tự giữ các fact của tác vụ trong state của bạn.
+
 ```ts
 session.memory.remember({
   kind: 'decision',

@@ -32,7 +32,7 @@ interface AgentRuntime {
 | `providers` | `readonly ComposableModelProviderPlugin[]` | **Required** |
 | `defaultProvider` | `string` | Route used when an agent omits `model.provider` |
 | `signal` | `AbortSignal` | Aborts startup |
-| `resource` | `RuntimeObservationResourceInput` | `serviceName`, runtime label |
+| `resource` | `RuntimeObservationResourceInput` | `serviceName`, `serviceVersion`, `environment`, `attributes`. The runtime label (`node`/`edge`/`browser`) is **detected**, not passed. |
 | `observability` | `RuntimeOwnerObservabilityOptions` | See [Observability](/en/13-api-reference/observability) |
 | `closeTimeoutMs` | `number` | Quiescence deadline for `close()` |
 | `startupTimeoutMs` | `number` | Deadline for provider `ready()` boundaries |

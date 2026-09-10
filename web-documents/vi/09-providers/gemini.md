@@ -19,10 +19,16 @@ pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-gemini
 
 ```ts
 import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { defineCredentialSource } from '@alvin0/ai-agent-sdk-core/provider'
 import { geminiPlugin } from '@alvin0/ai-agent-sdk-provider-gemini'
 
+const apiKey = defineCredentialSource({
+  id: 'gemini',
+  resolve: () => secretStore.get('gemini'),
+})
+
 const runtime = await createAgentRuntime({
-  providers: [geminiPlugin({ apiKey: () => secretStore.get('gemini') })],
+  providers: [geminiPlugin({ apiKey })],
 })
 
 const agent = runtime.agent({

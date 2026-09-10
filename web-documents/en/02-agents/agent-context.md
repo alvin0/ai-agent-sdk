@@ -97,6 +97,12 @@ See [Context Sections](/en/02-agents/context-sections).
 The first real user message automatically becomes `original-objective` memory,
 outside the compactable transcript.
 
+> **Which session.** `.memory` is on the `defineAgent()` layer's
+> `AgentSession`. The runtime layer's `RuntimeAgentSession` — what
+> `runtime.agent().createSession()` returns — has no `.memory` accessor; bind a
+> store there and read it back through a `defineAgent()` session, or keep task
+> facts in your own state.
+
 ```ts
 session.memory.remember({ kind: 'decision', content: 'Use the incremental migration path.' })
 session.memory.forget('release-constraint')

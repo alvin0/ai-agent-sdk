@@ -166,7 +166,9 @@ import { ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
 import { createSdkMcpHandler } from '@alvin0/ai-agent-sdk-mcp/server'
 
 const catalog = new ToolRegistry()
-catalog.registerAll([lookupInvoice])      // all-or-nothing; register() returns a disposer
+catalog.register(lookupInvoice)   // returns a disposer; keeps the argument type
+// registerAll() is typed ToolDefinition<never>[] — it rejects a typed tool,
+// so register() per tool is the path that compiles.
 
 const mcp = createSdkMcpHandler({
   name: 'orders-api',

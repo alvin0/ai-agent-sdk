@@ -9,12 +9,21 @@ errors, and correlated application logs — with `content: 'none'` as the defaul
 ```ts
 import { createObservability, MemoryObservationExporter } from '@alvin0/ai-agent-sdk-core/observability'
 
+// Bus-level registration takes an ObservationExporter.
 const exporter = new MemoryObservationExporter()  // test/local inspection only
 const observation = createObservability({
   exporters: [{ exporter, requirement: 'best-effort', boundary: 'none' }],
 })
 
-const runtime = await createAgentRuntime({ providers, observability: { exporters: [...] } })
+// Runtime-level registration takes an ObservationExporterPlugin — the package
+// factories (fetch/jsonl/indexedDb). The two shapes are not interchangeable.
+const runtime = await createAgentRuntime({
+  providers,
+  observability: {
+    exporters: [{ exporter: jsonlObservationExporter({ rootDir: './observations' }),
+                  ownership: 'owned', requirement: 'required', boundary: 'local-durable' }],
+  },
+})
 
 runtime.logger({ fields: { component: 'checkout-agent' } }).info('agent initialized')
 ```
@@ -47,21 +56,35 @@ durable exporter package.
 Every event is versioned and JSON-safe:
 
 ```ts
-interface ObservationEnvelope<TName extends string, TData> {
-  schemaVersion: 1
-  eventId: string          // deduplicates exporter retries
-  sequence: number         // monotonic; a gap means a lost event
-  name: TName
-  occurredAt: string       // source time, not exporter receipt time
-  severity: 'debug' | 'info' | 'warn' | 'error'
-  priority: 'critical' | 'normal' | 'verbose'
-  trace: { traceId: string; spanId: string; parentSpanId: string | null }
-  resource: { sdkName: string; sdkVersion: string; serviceName?: string
-              runtime?: 'edge' | 'browser' | 'node' | 'other' }
-  correlation: CorrelationContext
-  data: TData
+interface ObservationEvent<Name extends ObservationEventName, Data extends JsonObject> {
+  readonly schemaVersion: 1
+  readonly eventId: string        // deduplicates exporter retries
+  readonly sequence: number       // monotonic; a gap means a lost event
+  readonly name: Name
+  readonly phase: 'start' | 'end' | 'point'
+  readonly occurredAt: string     // source time, not exporter receipt time
+  readonly monotonicMs: number
+  readonly priority: 'critical' | 'normal' | 'verbose'
+  readonly resource: ObservationResource
+  readonly correlation: CorrelationContext
+  readonly data: Data
+}
+
+interface ObservationResource {
+  readonly sdkName: 'ai-agent-sdk'
+  readonly sdkVersion: string
+  readonly serviceName?: string
+  readonly serviceVersion?: string
+  readonly runtime: 'browser' | 'edge' | 'node' | 'unknown'   // detected
+  readonly runtimeId?: string
+  readonly environment?: string
+  readonly attributes?: Readonly<Record<string, JsonValue>>
 }
 ```
+
+Trace identity lives on `correlation`, not on a separate `trace` field, and
+there is no `severity` on the event — log severity travels inside the `sdk.log`
+payload.
 
 `priority` controls sampling, buffering, and backpressure. **Critical events are
 never sampled**, and every start has exactly one terminal event.
@@ -260,7 +283,7 @@ is git-ignored but should still be treated as sensitive local data.
 ```ts
 const runtime = await createAgentRuntime({
   providers,
-  resource: { serviceName: 'checkout-api', runtime: 'node' },
+  resource: { serviceName: 'checkout-api', environment: 'production' },
   observability: {
     mode: 'reliable',
     content: 'none',

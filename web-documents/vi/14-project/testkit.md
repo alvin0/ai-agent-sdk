@@ -9,7 +9,7 @@ các package năng lực.
 > cục bộ hoặc tarball; việc publish cố ý không được cấu hình.
 >
 > ```bash
-> pnpm add -D ./artifacts/ai-agent-sdk-testkit-0.1.0.tgz
+> pnpm add -D ./artifacts/alvin0-ai-agent-sdk-testkit-0.1.0.tgz
 > ```
 
 ## Export

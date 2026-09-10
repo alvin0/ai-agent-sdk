@@ -103,6 +103,9 @@ All three are **scheduler barriers**, so `load_skill` followed by
 A host UI can inspect the catalog and activate a skill itself, without the model
 choosing:
 
+> **Which session.** `.skills` is on the `defineAgent()` layer's
+> `AgentSession`; `RuntimeAgentSession` does not expose it.
+
 ```ts
 const summaries = session.skills?.summaries()
 const invocable = summaries?.filter(s => s.userInvocable)

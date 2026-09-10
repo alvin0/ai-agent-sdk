@@ -59,7 +59,12 @@ mượn — nó không có vòng đời đóng.
 **Ở mọi nơi khác, lấy từ kho secret của bạn:**
 
 ```ts
-openAiPlugin({ apiKey: () => secretStore.get('openai') })
+const apiKey = defineCredentialSource({
+  id: 'openai',
+  resolve: () => secretStore.get('openai'),
+})
+
+openAiPlugin({ apiKey })
 ```
 
 **Codex, đăng nhập device-code cục bộ theo dự án:**

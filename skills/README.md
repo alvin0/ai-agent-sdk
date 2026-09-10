@@ -9,7 +9,7 @@ documentation into a prompt.
 ```
 skills/ai-agent-sdk/
   SKILL.md                        entry point: the five rules, one working
-                                  program, and a routing table
+                                  program, a trap index, and a routing table
   references/
     packages.md                   package matrix, runtime tiers, credentials, limits
     runtime-and-agents.md         createAgentRuntime, agents, both session layers
@@ -19,10 +19,16 @@ skills/ai-agent-sdk/
     skills.md                     progressive disclosure, both provider contracts
     memory.md                     task memory, compaction, snapshots
     orchestration.md              flows, modes, teams, gates
+    providers.md                  dialects, auth schemes, authoring a provider
+    context-and-instructions.md   authority model, context sections, AGENTS.md
+    messages-and-content.md       message model, content blocks, images
+    budgets-and-usage.md          limits, usage coverage, spill store
     mcp.md                        consume and publish MCP
     a2a.md                        remote agents, agent cards, team roster
     observability.md              bus, exporters, correlation ids
     errors.md                     error codes, retry policy
+    testing.md                    testing an agent with no live provider
+    troubleshooting.md            symptom to cause, including type errors
     deploy.md                     Node CLI, Edge/Worker, browser
 ```
 

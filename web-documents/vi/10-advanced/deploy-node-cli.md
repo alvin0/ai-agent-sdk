@@ -48,7 +48,7 @@ const runShellCommand = defineTool({
 
 const runtime = await createAgentRuntime({
   providers: [codexNodeProviderPlugin()],
-  resource: { serviceName: 'coding-cli', runtime: 'node' },
+  resource: { serviceName: 'coding-cli', environment: 'production' },
   observability: {
     mode: 'reliable',
     exporters: [{

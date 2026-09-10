@@ -147,25 +147,53 @@ export {
 export { installBrowserObservabilityLifecycle, type BrowserLifecycleOptions }
 ```
 
+The factory returns an `ObservationExporterPlugin`, which is what the **runtime**
+registration point accepts:
+
 ```ts
 const queue = indexedDbObservationExporter()
 
-const observability = createObservability({
-  mode: 'reliable',
-  exporters: [{ exporter: queue, requirement: 'required', boundary: 'local-durable' }],
+const runtime = await createAgentRuntime({
+  providers,
+  observability: {
+    mode: 'reliable',
+    exporters: [{ exporter: queue, ownership: 'owned', requirement: 'required', boundary: 'local-durable' }],
+  },
 })
 ```
+
+`createObservability()` is a different registration point and takes the
+bus-level `ObservationExporter` shape (`MemoryObservationExporter`,
+`TestObservationExporter`, or `defineObservationExporter()`); a plugin factory
+is not assignable to it.
 
 Database defaults to `ai-agent-sdk-observability`, schema version 1, with
 `events`, `batches`, and `meta` stores.
 
-Stored events remain **unacknowledged** until the host calls
-`acknowledgeBatch()` after its own remote sink confirms delivery.
-`recoverEvents()` exposes crash/reopen recovery without importing a network
-exporter.
+Stored events remain **unacknowledged** until the host acknowledges them, and
+the recovery surface lives on the **concrete class** rather than the plugin
+view — acknowledgement is per **batch id**, not per event:
 
-`installBrowserObservabilityLifecycle()` is **opt-in** and flushes on hidden
-visibility and `pagehide`. It makes **no unload-durability claim**.
+```ts
+const durable = new IndexedDbObservationExporter()
+
+const pending = await durable.recoverEvents()          // readonly ObservationEvent[]
+for (const batchId of await durable.pendingBatchIds()) {
+  await durable.acknowledgeBatch(batchId)              // Promise<number>
+}
+await durable.stats()                                  // BrowserQueueStats
+```
+
+```ts
+installBrowserObservabilityLifecycle(observation: Pick<Observability, 'flush'>,
+                                     options?: BrowserLifecycleOptions): () => void
+```
+
+It is **opt-in**, returns an uninstall function, and flushes on hidden
+visibility and `pagehide`. It makes **no unload-durability claim**. Because it
+needs `flush()`, it takes an `Observability` from `createObservability()` —
+`AgentRuntime` has none, so a runtime-owned bus flushes at `runtime.close()`
+instead.
 
 ---
 

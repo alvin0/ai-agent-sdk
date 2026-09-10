@@ -16,6 +16,7 @@ Three packages. All Universal — no Node built-ins reach the bundle.
 
 ```ts
 import { createAgentRuntime, defineTool } from '@alvin0/ai-agent-sdk-core'
+import { defineCredentialSource } from '@alvin0/ai-agent-sdk-core/provider'
 import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 import {
   fetchObservationExporter,
@@ -55,9 +56,15 @@ export default {
       message: string
     }>()
 
+    // env is only in scope here, so the credential source is built per request.
+    const apiKey = defineCredentialSource({
+      id: 'openai',
+      resolve: () => env.OPENAI_API_KEY,
+    })
+
     const runtime = await createAgentRuntime({
-      providers: [openAiPlugin({ apiKey: () => env.OPENAI_API_KEY })],
-      resource: { serviceName: 'support-worker', runtime: 'edge' },
+      providers: [openAiPlugin({ apiKey })],
+      resource: { serviceName: 'support-worker', environment: 'production' },
       observability: {
         mode: 'operational',
         exporters: [{
@@ -132,7 +139,7 @@ export default {
 
 | Piece | Why |
 | --- | --- |
-| `apiKey: () => env.OPENAI_API_KEY` | Credentials are injected — the provider never reads an environment itself. |
+| `defineCredentialSource({ resolve: () => env.OPENAI_API_KEY })` | Credentials are injected — the provider never reads an environment itself. |
 | `boundary: 'remote-acknowledged'` | The exporter honestly states the durability it achieves. |
 | `requirement: 'best-effort'` | A telemetry failure must not fail a customer request. |
 | `handle.abort(...)` in `cancel()` | Client disconnect cancels the run instead of leaking it. |

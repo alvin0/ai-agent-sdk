@@ -72,11 +72,47 @@ const scopedSkills = defineSkillProvider({
 })
 ```
 
-| Phương thức | Trả về | Được gọi |
+| Phương thức | Trả về | Được gọi khi |
 | --- | --- | --- |
-| `list({ allowedSkillIds })` | Metadata + một **locator mờ đục** | Ở đầu mỗi lượt |
-| `load(candidate)` | Phần thân được chọn + manifest tài nguyên | Sau `load_skill` |
-| `readResource(candidate, path)` | Một tài nguyên | Sau `read_skill_resource` |
+| `list(options)` | `readonly SkillCandidate[]` — metadata kèm **locator mờ** | Đầu mỗi lượt |
+| `load(candidate, options)` | `SkillDefinitionInput \| undefined` — đúng shape mà `defineSkill()` nhận | Sau `load_skill` |
+| `readResource(candidate, path, options)` | `string \| undefined` — **text** của resource | Sau `read_skill_resource` |
+
+Candidate là một dòng discovery, và ba field dưới đây dễ bị quên vì chúng bắt
+buộc:
+
+```ts
+interface SkillCandidate {
+  readonly id: string
+  readonly name: string
+  readonly description: string
+  readonly whenToUse?: string
+  readonly invocation: SkillInvocationPolicy      // { modelInvocable, userInvocable }
+  readonly source: string                          // nhãn nguồn gốc
+  readonly provider: string                        // id của provider này
+  readonly resourceBase?: SkillResourceBase
+  readonly locator?: unknown
+  readonly path?: string
+  readonly metadata?: Readonly<Record<string, unknown>>
+}
+```
+
+`load()` trả về definition **input**, nên `id`, `description` và `instructions`
+đều bắt buộc; `invocation` ở đó là `Partial<SkillInvocationPolicy>` với cả hai
+cờ mặc định `true`.
+
+### Biến thể có revision
+
+`defineSkillProviderPlugin()` trong `@alvin0/ai-agent-sdk-core/skills` hiện thực
+đúng ba pha đó nhưng trên một **catalog có revision**. `list()` của nó trả về
+`{ revision, candidates }`, `load()` và `readResource()` nhận một
+`SkillReference` mang `catalogRevision` thay vì candidate, và options cho
+`signal` cùng `logger` ở dạng bắt buộc. Nó **không** nhận `kind` hay
+`apiVersion` — SDK tự thêm, khác với `defineSkillProvider()` ở trên, nơi
+`kind: 'skill-provider'` là phần của interface bạn truyền vào.
+
+`skills: [...]` nhận cả hai dạng: `RuntimeSkillSource` là
+`SkillDefinition | SkillProvider | SkillProviderPlugin`.
 
 Locator mờ đục với SDK — nó là khoá chính, URL, hay đường dẫn của bạn. Có hai bảo
 đảm đáng dựa vào:

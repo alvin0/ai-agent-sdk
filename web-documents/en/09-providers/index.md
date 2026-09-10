@@ -35,8 +35,13 @@ removes:
 ```ts
 import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
+const apiKey = defineCredentialSource({
+  id: 'openai',
+  resolve: () => secretStore.get('openai'),
+})
+
 const runtime = await createAgentRuntime({
-  providers: [openAiPlugin({ apiKey: () => secretStore.get('openai') })],
+  providers: [openAiPlugin({ apiKey })],
 })
 ```
 

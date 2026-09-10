@@ -79,10 +79,16 @@ Load only the file the task needs. Each is self-contained.
 | Progressive-disclosure skills the model loads on demand | [references/skills.md](references/skills.md) |
 | Task memory, compaction, snapshots, resume | [references/memory.md](references/memory.md) |
 | Multi-step flows, agent teams, `mode: 'deep'`, human gates | [references/orchestration.md](references/orchestration.md) |
+| Point the SDK at a new endpoint, or author a provider | [references/providers.md](references/providers.md) |
+| Instructions, always-on moving context, `AGENTS.md` files | [references/context-and-instructions.md](references/context-and-instructions.md) |
+| Messages, content blocks, images and vision | [references/messages-and-content.md](references/messages-and-content.md) |
+| Turn limits, token budgets, usage coverage, oversized tool output | [references/budgets-and-usage.md](references/budgets-and-usage.md) |
 | Consume or publish MCP tools | [references/mcp.md](references/mcp.md) |
 | Remote agents over A2A, agent cards | [references/a2a.md](references/a2a.md) |
-| Traces, logs, usage accounting, exporters | [references/observability.md](references/observability.md) |
+| Traces, logs, exporters, correlation ids | [references/observability.md](references/observability.md) |
 | Error codes, retry policy, what each failure means | [references/errors.md](references/errors.md) |
+| Test an agent without a live provider | [references/testing.md](references/testing.md) |
+| Something is wrong and you want the cause | [references/troubleshooting.md](references/troubleshooting.md) |
 | Ship to Node CLI, Edge/Worker, or browser | [references/deploy.md](references/deploy.md) |
 
 ## Import routes
@@ -103,6 +109,23 @@ views over the same implementation, never copies.
 Application code should reach for `AgentRuntime` rather than the low-level
 registry/plugin assembly that remains reachable at the root.
 
+## Traps that cost the most time
+
+Each of these is a real type error, not a style preference. The reference files
+carry the fix; this is the index.
+
+| Symptom | Where |
+| --- | --- |
+| `apiKey: () => token` gives an unassignable plugin | references/packages.md |
+| `registerAdapter` argument order differs by receiver | references/providers.md |
+| `runtime.agent(definedAgent)` does not type-check | references/context-and-instructions.md |
+| `resource: { runtime: 'edge' }` is not a field | references/observability.md |
+| `session.memory` / `session.skills` missing | references/runtime-and-agents.md |
+| Memory `revision` is a string; scope needs `namespace` | references/memory.md |
+| Two different skill-provider contracts | references/skills.md |
+| Two different exporter shapes | references/observability.md |
+| `createSdkMcpHandler({ tools })` wants a `ToolCatalog` | references/mcp.md |
+
 ## Where the prose docs and the typings disagree
 
 `web-documents/en/**` (81 pages, mirrored in `vi/`) carries the reasoning behind
@@ -110,6 +133,7 @@ the design. These references carry what compiles: every imported name here is
 checked against the built `.d.ts` files and the code paths are compiled under
 `--strict`. In a handful of places the narrative docs describe an older shape —
 memory stores and scopes, the two skill-provider contracts, the credential
-overloads, `resource`, `McpCloseReport`, the browser observability lifecycle.
-The references follow the **typings** there and flag the difference inline.
-Trust these files over the prose when writing code.
+overloads, `resource`, `McpCloseReport`, the browser observability lifecycle,
+`registerAdapter` argument order, and `runtime.agent(definedAgent)`. The
+references follow the **typings** there and flag the difference inline. Trust
+these files over the prose when writing code.

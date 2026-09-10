@@ -102,6 +102,9 @@ Cả ba đều là **rào chắn của bộ lập lịch**, nên `load_skill` r�
 Giao diện host có thể xem danh mục và tự kích hoạt một skill, không cần model
 chọn:
 
+> **Session nào.** `.skills` nằm trên `AgentSession` của tầng `defineAgent()`;
+> `RuntimeAgentSession` không phơi ra nó.
+
 ```ts
 const summaries = session.skills?.summaries()
 const invocable = summaries?.filter(s => s.userInvocable)

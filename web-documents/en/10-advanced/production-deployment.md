@@ -3,9 +3,14 @@
 ## Startup
 
 ```ts
+const apiKey = defineCredentialSource({
+  id: 'openai',
+  resolve: () => secrets.get('openai'),
+})
+
 const runtime = await createAgentRuntime({
-  providers: [openAiPlugin({ apiKey: () => secrets.get('openai') })],
-  resource: { serviceName: 'checkout-api', runtime: 'node' },
+  providers: [openAiPlugin({ apiKey })],
+  resource: { serviceName: 'checkout-api', environment: 'production' },
   observability: { mode: 'reliable', exporters: [/* … */] },
   startupTimeoutMs: 10_000,
   closeTimeoutMs: 30_000,
@@ -72,7 +77,7 @@ runtime after all active runs settle; a **borrowed** one is yours.
 ### Node service
 
 ```text
-[ ] resource.serviceName + runtime: 'node'
+[ ] resource.serviceName + environment
 [ ] jsonlObservationExporter → ownership 'owned', requirement 'required',
     boundary 'local-durable'
 [ ] SIGTERM handler → await runtime.close(), then close connections
@@ -93,7 +98,7 @@ process.on('SIGTERM', async () => {
 ```text
 [ ] Universal packages only — no auth-node, mcp-node, skill-filesystem,
     observability-node, a2a
-[ ] resource.runtime: 'edge'
+[ ] resource.serviceName + environment
 [ ] fetchObservationExporter → boundary 'remote-acknowledged',
     requirement 'best-effort'
 [ ] flush handed to the platform's explicit waitUntil — never assume a global

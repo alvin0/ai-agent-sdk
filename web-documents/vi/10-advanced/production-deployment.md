@@ -3,9 +3,14 @@
 ## Khởi động
 
 ```ts
+const apiKey = defineCredentialSource({
+  id: 'openai',
+  resolve: () => secrets.get('openai'),
+})
+
 const runtime = await createAgentRuntime({
-  providers: [openAiPlugin({ apiKey: () => secrets.get('openai') })],
-  resource: { serviceName: 'checkout-api', runtime: 'node' },
+  providers: [openAiPlugin({ apiKey })],
+  resource: { serviceName: 'checkout-api', environment: 'production' },
   observability: { mode: 'reliable', exporters: [/* … */] },
   startupTimeoutMs: 10_000,
   closeTimeoutMs: 30_000,
@@ -73,7 +78,7 @@ sau khi mọi lượt chạy đang hoạt động lắng xuống; cái **đang m
 ### Dịch vụ Node
 
 ```text
-[ ] resource.serviceName + runtime: 'node'
+[ ] resource.serviceName + environment
 [ ] jsonlObservationExporter → ownership 'owned', requirement 'required',
     boundary 'local-durable'
 [ ] handler SIGTERM → await runtime.close(), rồi đóng các kết nối
@@ -94,7 +99,7 @@ process.on('SIGTERM', async () => {
 ```text
 [ ] chỉ package Universal — không auth-node, mcp-node, skill-filesystem,
     observability-node, a2a
-[ ] resource.runtime: 'edge'
+[ ] resource.serviceName + environment
 [ ] fetchObservationExporter → boundary 'remote-acknowledged',
     requirement 'best-effort'
 [ ] flush đưa cho waitUntil tường minh của nền tảng — đừng giả định có biến toàn cục

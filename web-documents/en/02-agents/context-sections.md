@@ -128,7 +128,10 @@ Session-level when the content depends on the environment — a working
 directory, a working tree, a tenant:
 
 ```ts
-const session = runtime.agent(agent).createSession({
+// The definition owns the session here; runtime.agent() takes a binding
+// input, not a DefinedAgent — their `model` shapes differ.
+const session = agent.createSession({
+  registry,
   contextSections: [createProjectInstructionsSection({ cwd: workspaceDir })],
 })
 ```

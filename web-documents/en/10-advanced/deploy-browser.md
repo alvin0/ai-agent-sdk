@@ -15,17 +15,20 @@ pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
 
 ```ts
 import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { defineCredentialSource } from '@alvin0/ai-agent-sdk-core/provider'
 import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
-import {
-  indexedDbObservationExporter,
-  installBrowserObservabilityLifecycle,
-} from '@alvin0/ai-agent-sdk-observability-browser'
+import { indexedDbObservationExporter } from '@alvin0/ai-agent-sdk-observability-browser'
+
+const apiKey = defineCredentialSource({
+  id: 'openai',
+  resolve: () => sessionToken.get(),
+})
 
 const queue = indexedDbObservationExporter()
 
 const runtime = await createAgentRuntime({
-  providers: [openAiPlugin({ apiKey: () => sessionToken.get() })],
-  resource: { serviceName: 'studio-web', runtime: 'browser' },
+  providers: [openAiPlugin({ apiKey })],
+  resource: { serviceName: 'studio-web', environment: 'production' },
   observability: {
     mode: 'reliable',
     exporters: [{
@@ -36,10 +39,13 @@ const runtime = await createAgentRuntime({
     }],
   },
 })
-
-// Opt-in: flush on hidden visibility and pagehide.
-installBrowserObservabilityLifecycle(runtime)
 ```
+
+`installBrowserObservabilityLifecycle()` flushes on hidden visibility and
+`pagehide`, and it needs something with `flush()` — an `Observability` from
+`createObservability()`. **`AgentRuntime` has no `flush()`**, so a
+runtime-owned bus cannot be handed to it: there, the final flush happens inside
+`runtime.close()` and you drive recovery explicitly from the exporter below.
 
 The exporter stages privacy-processed events in IndexedDB during **synchronous
 capture** and confirms `local-durable` only after the transaction commits at
@@ -51,7 +57,10 @@ Database defaults: `ai-agent-sdk-observability`, schema version 1, stores
 ## Recover on startup
 
 ```ts
-const pending = await queue.recoverEvents()
+import { IndexedDbObservationExporter } from '@alvin0/ai-agent-sdk-observability-browser'
+
+const durable = new IndexedDbObservationExporter()
+const pending = await durable.recoverEvents()
 
 if (pending.length > 0) {
   const response = await fetch('/api/telemetry', {
@@ -62,7 +71,9 @@ if (pending.length > 0) {
 
   if (response.ok) {
     // Only now is it safe to drop them.
-    await queue.acknowledgeBatch(pending.map(event => event.eventId))
+    for (const batchId of await durable.pendingBatchIds()) {
+      await durable.acknowledgeBatch(batchId)
+    }
   }
 }
 ```

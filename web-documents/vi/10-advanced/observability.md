@@ -10,12 +10,21 @@ thực/danh mục, lỗi đã làm sạch, và log ứng dụng có tương quan
 ```ts
 import { createObservability, MemoryObservationExporter } from '@alvin0/ai-agent-sdk-core/observability'
 
+// Đăng ký ở mức bus nhận một ObservationExporter.
 const exporter = new MemoryObservationExporter()  // chỉ để kiểm tra cục bộ / trong test
 const observation = createObservability({
   exporters: [{ exporter, requirement: 'best-effort', boundary: 'none' }],
 })
 
-const runtime = await createAgentRuntime({ providers, observability: { exporters: [...] } })
+// Đăng ký ở mức runtime nhận một ObservationExporterPlugin — các factory của
+// package (fetch/jsonl/indexedDb). Hai shape này không thay thế nhau được.
+const runtime = await createAgentRuntime({
+  providers,
+  observability: {
+    exporters: [{ exporter: jsonlObservationExporter({ rootDir: './observations' }),
+                  ownership: 'owned', requirement: 'required', boundary: 'local-durable' }],
+  },
+})
 
 runtime.logger({ fields: { component: 'checkout-agent' } }).info('agent initialized')
 ```
@@ -48,21 +57,34 @@ Giao nhận trong bộ nhớ không bao giờ tuyên bố tính bền vững. Ch
 Mọi sự kiện đều có phiên bản và an toàn JSON:
 
 ```ts
-interface ObservationEnvelope<TName extends string, TData> {
-  schemaVersion: 1
-  eventId: string          // khử trùng lặp khi exporter thử lại
-  sequence: number         // tăng đơn điệu; có khoảng trống nghĩa là mất sự kiện
-  name: TName
-  occurredAt: string       // thời điểm phát sinh, không phải lúc exporter nhận
-  severity: 'debug' | 'info' | 'warn' | 'error'
-  priority: 'critical' | 'normal' | 'verbose'
-  trace: { traceId: string; spanId: string; parentSpanId: string | null }
-  resource: { sdkName: string; sdkVersion: string; serviceName?: string
-              runtime?: 'edge' | 'browser' | 'node' | 'other' }
-  correlation: CorrelationContext
-  data: TData
+interface ObservationEvent<Name extends ObservationEventName, Data extends JsonObject> {
+  readonly schemaVersion: 1
+  readonly eventId: string        // chống trùng khi exporter retry
+  readonly sequence: number       // tăng đơn điệu; thiếu số nghĩa là mất event
+  readonly name: Name
+  readonly phase: 'start' | 'end' | 'point'
+  readonly occurredAt: string     // thời điểm tại nguồn, không phải lúc exporter nhận
+  readonly monotonicMs: number
+  readonly priority: 'critical' | 'normal' | 'verbose'
+  readonly resource: ObservationResource
+  readonly correlation: CorrelationContext
+  readonly data: Data
+}
+
+interface ObservationResource {
+  readonly sdkName: 'ai-agent-sdk'
+  readonly sdkVersion: string
+  readonly serviceName?: string
+  readonly serviceVersion?: string
+  readonly runtime: 'browser' | 'edge' | 'node' | 'unknown'   // SDK tự phát hiện
+  readonly runtimeId?: string
+  readonly environment?: string
+  readonly attributes?: Readonly<Record<string, JsonValue>>
 }
 ```
+
+Danh tính trace nằm trên `correlation`, không phải một field `trace` riêng, và
+event không có `severity` — mức severity của log đi trong payload `sdk.log`.
 
 `priority` điều khiển việc lấy mẫu, đệm, và backpressure. **Sự kiện critical
 không bao giờ bị lấy mẫu**, và mỗi sự kiện bắt đầu có đúng một sự kiện kết thúc.
@@ -262,7 +284,7 @@ liệu cục bộ nhạy cảm.
 ```ts
 const runtime = await createAgentRuntime({
   providers,
-  resource: { serviceName: 'checkout-api', runtime: 'node' },
+  resource: { serviceName: 'checkout-api', environment: 'production' },
   observability: {
     mode: 'reliable',
     content: 'none',

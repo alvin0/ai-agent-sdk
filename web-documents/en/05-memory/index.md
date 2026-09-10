@@ -80,6 +80,12 @@ being silently promoted to developer/system instructions.
 
 The model also cannot rewrite it: memory is inspectable and host-controlled.
 
+> **Which session.** `.memory` is on the `defineAgent()` layer's
+> `AgentSession`. The runtime layer's `RuntimeAgentSession` — what
+> `runtime.agent().createSession()` returns — has no `.memory` accessor; bind a
+> store there and read it back through a `defineAgent()` session, or keep task
+> facts in your own state.
+
 ```ts
 session.memory.remember({ kind: 'decision', content: 'Use the incremental path.' })
 session.memory.forget('release-constraint')

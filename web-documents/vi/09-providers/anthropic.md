@@ -15,10 +15,16 @@ Nhắm tới **Anthropic Messages API** thông qua
 
 ```ts
 import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { defineCredentialSource } from '@alvin0/ai-agent-sdk-core/provider'
 import { anthropicPlugin } from '@alvin0/ai-agent-sdk-provider-anthropic'
 
+const apiKey = defineCredentialSource({
+  id: 'anthropic',
+  resolve: () => secretStore.get('anthropic'),
+})
+
 const runtime = await createAgentRuntime({
-  providers: [anthropicPlugin({ apiKey: () => secretStore.get('anthropic') })],
+  providers: [anthropicPlugin({ apiKey })],
 })
 
 const agent = runtime.agent({
@@ -64,10 +70,16 @@ export {
 
 ```ts
 import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
+import { defineCredentialSource } from '@alvin0/ai-agent-sdk-core/provider'
 import { anthropicPlugin } from '@alvin0/ai-agent-sdk-provider-anthropic'
 
+const apiKey = defineCredentialSource({
+  id: 'anthropic',
+  resolve: () => secretStore.get('anthropic'),
+})
+
 const registry = new ModelRegistry()
-registry.install(anthropicPlugin({ apiKey: () => secretStore.get('anthropic') }))
+registry.install(anthropicPlugin({ apiKey }))
 ```
 
 ## Suy luận ánh xạ sang ngân sách suy nghĩ

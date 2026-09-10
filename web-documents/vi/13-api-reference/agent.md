@@ -32,7 +32,7 @@ interface AgentRuntime {
 | `providers` | `readonly ComposableModelProviderPlugin[]` | **Bắt buộc** |
 | `defaultProvider` | `string` | Tuyến dùng khi agent bỏ trống `model.provider` |
 | `signal` | `AbortSignal` | Huỷ quá trình khởi động |
-| `resource` | `RuntimeObservationResourceInput` | `serviceName`, nhãn runtime |
+| `resource` | `RuntimeObservationResourceInput` | `serviceName`, `serviceVersion`, `environment`, `attributes`. Nhãn runtime (`node`/`edge`/`browser`) do SDK **tự phát hiện**, không truyền vào. |
 | `observability` | `RuntimeOwnerObservabilityOptions` | Xem [Observability](/vi/13-api-reference/observability) |
 | `closeTimeoutMs` | `number` | Deadline làm lắng cho `close()` |
 | `startupTimeoutMs` | `number` | Deadline cho ranh giới `ready()` của provider |

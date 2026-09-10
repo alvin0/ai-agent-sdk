@@ -191,7 +191,7 @@ try {
   await runtime.close()
 } finally {
   const report = await mcp.closeWithReport()
-  if (report.unsettledRequests > 0) console.warn('MCP left work unsettled', report)
+  if (report.unsettledOperations > 0) console.warn('MCP left work unsettled', report)
 }
 ```
 
