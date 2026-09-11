@@ -1,0 +1,68 @@
+{
+  "name": "@alvin0/ai-agent-sdk-provider-copilot",
+  "author": {
+    "name": "alvin0 - chaulamdinhai",
+    "email": "chaulamdinhai@gmail.com"
+  },
+  "version": "0.1.0",
+  "description": "Universal GitHub Copilot adapter, OAuth device flow, token exchange, and provider plugin for ai-agent-sdk",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alvin0/ai-agent-sdk.git",
+    "directory": "packages/provider-copilot"
+  },
+  "homepage": "https://github.com/alvin0/ai-agent-sdk/tree/main/packages/provider-copilot#readme",
+  "bugs": { "url": "https://github.com/alvin0/ai-agent-sdk/issues" },
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "README.md", "LICENSE"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('artifacts',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "pack": "pnpm pack --pack-destination artifacts",
+    "test:pack": "node ../../scripts/test-packed-provider.mts provider-copilot",
+    "check:publint": "publint",
+    "check:types": "attw --profile esm-only --pack ."
+  },
+  "dependencies": {
+    "@alvin0/ai-agent-sdk-protocol-openai-chat-completions": "workspace:^",
+    "@alvin0/ai-agent-sdk-protocol-responses": "workspace:^",
+    "@alvin0/ai-agent-sdk-provider-http": "workspace:^"
+  },
+  "peerDependencies": {
+    "@alvin0/ai-agent-sdk-core": "workspace:^"
+  },
+  "devDependencies": {
+    "@alvin0/ai-agent-sdk-core": "workspace:^",
+    "@alvin0/ai-agent-sdk-testkit": "workspace:^",
+    "@arethetypeswrong/cli": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  },
+  "aiAgentSdk": {
+    "runtime": "universal",
+    "coreApi": 1,
+    "roles": ["model-provider"]
+  }
+}

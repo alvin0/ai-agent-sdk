@@ -89,6 +89,58 @@ automatic compaction may compact and retry once (`maxOverflowRetries`).
 | `INVALID_ARGUMENTS` | A tool's `parse` threw — reported to the model, which can correct it |
 | `CONTEXT_SECTION_INVALID` | A context section broke its id/size contract |
 
+## Copilot codes
+
+A provider may own codes for failures no other provider has. Copilot has
+**fourteen**, exported as `COPILOT_ERROR_CODES` from
+`@alvin0/ai-agent-sdk-provider-copilot` — frozen flat strings, not a TS enum, for
+the reason the core taxonomy is: the value has to survive serialization into a
+log line.
+
+Credential path:
+
+| Code | Meaning | Do this |
+| --- | --- | --- |
+| `COPILOT_CREDENTIAL_REJECTED` | Token exchange refused the credential (401 or 403) | Run `npm run provider:copilot:login-device`. A personal access token, or an OAuth App off GitHub's allowlist, can never work here |
+| `COPILOT_TOKEN_EXCHANGE_FAILED` | Exchange failed for a reason that is not the credential | Read `kind`: `transient` (5xx, 429) is worth retrying, `permanent` is not |
+| `COPILOT_TOKEN_MALFORMED` | Exchange response was not JSON, or carried no readable `expires_at` | Protocol drift — check the changelog; retrying will not help |
+| `COPILOT_TENANT_UNSUPPORTED` | `ghe.com` or a host under it; no token-exchange surface exists there | Unsupported. Use a non-data-residency account, or a first-party provider |
+| `COPILOT_CREDENTIAL_REVISION_CONFLICT` | A commit found a revision other than the expected one — another writer won | Re-read the credential and retry the operation |
+
+Device flow:
+
+| Code | Meaning | Do this |
+| --- | --- | --- |
+| `COPILOT_DEVICE_LOGIN_DENIED` | The user declined the request | Run the login again and approve it |
+| `COPILOT_DEVICE_LOGIN_EXPIRED` | The code expired server-side | Run the login again and enter the code sooner |
+| `COPILOT_DEVICE_LOGIN_TIMEOUT` | The absolute 15-minute bound passed without approval | Run the login again |
+| `COPILOT_DEVICE_LOGIN_FAILED` | Ended without a token for any other reason | Inspect `cause`; check egress to `github.com` |
+
+Request path:
+
+| Code | Meaning | Do this |
+| --- | --- | --- |
+| `COPILOT_EDITOR_HEADERS_MISSING` | Endpoint rejected the request for a missing editor header | Restore the header, or set `editorHeaders` — the message names both |
+| `COPILOT_ENDPOINT_ORIGIN_INVALID` | Target URL was not on the configured issuer/base origin | Fix `baseUrl` or `githubApiBaseUrl`; a bearer token is never sent cross-origin |
+| `COPILOT_REDIRECT_REJECTED` | Response was a redirect, which this SDK does not follow | Point the config at the final URL yourself |
+| `COPILOT_CATALOG_MALFORMED` | `/models` was the wrong shape structurally | Protocol drift; pass an explicit `models` list to unblock |
+| `COPILOT_ENDPOINT_OVERRIDE_INVALID` | `endpointOverrides` pinned a nonexistent endpoint | Use `'responses'` or `'chat-completions'`. Thrown at construction, not at dispatch |
+
+### Three situations reuse an existing code
+
+A second code for a situation the SDK already names forces every consumer to
+write a second branch for it, so Copilot deliberately does not mint one:
+
+- **No credential at all** — `MISSING_CREDENTIAL`, with a message naming the
+  login command.
+- **Abort** — `ABORTED`. `CopilotDeviceLoginError` with `reason: 'aborted'` maps
+  to it rather than minting a Copilot abort code, which is why `reason` has five
+  values and the code table above has four device rows.
+- **HTTP failures of the generation and embedding endpoints** —
+  `MODEL_ERROR_CODES` plus `HTTP_PROVIDER_ERROR_CODES`, same classification and
+  same `retry-after` handling as every other provider. In particular there is no
+  `COPILOT_RATE_LIMIT`: a 429 from Copilot is `RATE_LIMIT`.
+
 ## Retry policy
 
 ```ts

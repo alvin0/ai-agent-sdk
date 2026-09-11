@@ -13,8 +13,8 @@ entrypoints, the exports that matter, and a usage shape.
 | --- | --- | --- |
 | [core](/en/13-api-reference/core) | `@alvin0/ai-agent-sdk-core` and its 6 subpaths | Universal |
 | [Agent](/en/13-api-reference/agent) · [Tool](/en/13-api-reference/tool) · [Workflow](/en/13-api-reference/workflow) · [Memory](/en/13-api-reference/memory) · [Types](/en/13-api-reference/types) | Per-concept reference | Universal |
-| [Providers](/en/09-providers/) | `provider-openai`, `provider-anthropic`, `provider-codex`, `provider-gemini`, `provider-http` | Universal |
-| [Protocols](/en/09-providers/protocols) | `protocol-responses`, `protocol-anthropic-messages`, `protocol-gemini-interactions` | Universal |
+| [Providers](/en/09-providers/) | `provider-openai`, `provider-anthropic`, `provider-codex`, `provider-copilot`, `provider-gemini`, `provider-http` | Universal |
+| [Protocols](/en/09-providers/protocols) | `protocol-responses`, `protocol-anthropic-messages`, `protocol-gemini-interactions`, `protocol-openai-chat-completions` | Universal |
 | [Observability](/en/13-api-reference/observability) | `observability-fetch`, `-otel`, `-browser`, `-node` | mixed |
 | [MCP](/en/07-mcp/mcp-client) | `mcp`, `mcp-server`, `mcp-node`, `mcp-node-server` | mixed |
 | [A2A](/en/08-a2a/remote-agents) | `a2a` | Node |

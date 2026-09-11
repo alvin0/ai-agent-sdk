@@ -12,15 +12,16 @@ invents error codes.
 (`@alvin0/ai-agent-sdk-protocol-responses`) and differ only by a dialect record:
 base URL, auth, and which optional fields the endpoint accepts.
 
-## Three protocols ship today
+## Four protocols ship today
 
 | Protocol | Package |
 | --- | --- |
 | OpenAI Responses / Codex | `@alvin0/ai-agent-sdk-protocol-responses` |
+| OpenAI Chat Completions | `@alvin0/ai-agent-sdk-protocol-openai-chat-completions` |
 | Anthropic Messages | `@alvin0/ai-agent-sdk-protocol-anthropic-messages` |
 | Gemini Interactions | `@alvin0/ai-agent-sdk-protocol-gemini-interactions` |
 
-All three are Universal, own no endpoint or credentials, and depend only on
+All four are Universal, own no endpoint or credentials, and depend only on
 `@alvin0/ai-agent-sdk-core`.
 
 ## The registerAdapter trap
@@ -169,11 +170,126 @@ eligible. `mode: 'always'` is accepted only when the request carries an
 | `openai` | Responses API | injected `apiKey` | prefer for production |
 | `codex` | ChatGPT-backed Codex | injected `CodexAuthStore` | discovers its catalog from the endpoint, because available models depend on the account plan |
 | `gemini` | Gemini Interactions | injected `apiKey` | — |
+| `copilot` | Copilot subscription surface, **both** Responses and Chat Completions | injected `CopilotCredentialStore` | discovers its catalog, and picks the endpoint per model |
 
 The Codex endpoint serves the Codex CLI and identifies its client with an
 `originator` header; the adapter defaults to the CLI's value so requests are
 accepted. On Node, `@alvin0/ai-agent-sdk-auth-node/codex` adds project-local
 device-code login.
+
+## GitHub Copilot
+
+### Setup
+
+```bash
+npm run provider:copilot:login-device   # OAuth device flow; writes the credential
+npm run provider:copilot:status         # credential state + one trial token exchange
+npm run provider:copilot:models         # catalog, with the endpoint chosen per model
+```
+
+The login writes a long-lived GitHub user token to
+`.providers/.copilot/auth.json`, a project-local file this SDK owns, beside
+`.providers/.codex/auth.json`. `AI_AGENT_SDK_COPILOT_AUTH` overrides the path;
+precedence is explicit argument (`--path`) → environment → default, and a
+relative path resolves against `cwd`.
+
+`--status` is worth knowing about: the short-lived Copilot API token is never
+persisted, so status performs **one real exchange** rather than reading a token
+off disk. That is the only honest answer to "will a request work right now" — a
+stored user token says nothing about whether the account still carries a Copilot
+subscription, and the exchange surface is the thing that knows.
+
+Then compose:
+
+```ts
+import { copilotNodeProviderPlugin } from '@alvin0/ai-agent-sdk-auth-node/copilot'
+
+runtime.use(copilotNodeProviderPlugin())   // defaults authStore to the file store
+```
+
+`copilotNodeProviderPlugin` is the Node path and is deliberately thin: the only
+thing it adds is defaulting `authStore` to `fileCopilotCredentialStore()`.
+`copilotPlugin` from `@alvin0/ai-agent-sdk-provider-copilot` is the Universal
+one and takes `authStore` as a **required** injected option, because paths, the
+filesystem and the environment belong to the Node package. It accepts only the
+compare-and-swap store variant — transactional registration and a store with no
+revisions are a poor pair.
+
+### A personal access token does not work here
+
+The Copilot API is reached through a two-tier credential: the GitHub user token
+is exchanged at `copilot_internal/v2/token` for a short-lived API token, and
+that exchange accepts **only** a token minted by an OAuth App on GitHub's
+allowlist. A PAT is refused there with HTTP 403 — as is a token from a
+non-allowlisted OAuth App, and the response does not distinguish the two. The
+device flow is the supported way to get an accepted credential.
+
+### `*.ghe.com` is out of scope
+
+Data-residency tenants have no token-exchange surface at all, so the provider
+refuses `ghe.com` and any host under it with `COPILOT_TENANT_UNSUPPORTED`
+**before** sending anything. The match is on domain labels, not a substring, so
+`notghe.com` and `ghe.com.evil.tld` are ordinary hosts. A 404 from the exchange
+path is classified the same way, because a missing exchange surface is a missing
+exchange surface however it is discovered.
+
+### Endpoint selection per model
+
+Copilot serves two wire protocols, and which models accept `/responses` depends
+on the account. The router decides **once per model id**, in this order:
+
+| Order | Source | Decision |
+| --- | --- | --- |
+| 1 | `override` | `endpointOverrides[modelId]`, pinned by the application |
+| 2 | `catalog` | the discovered catalog disclosed an endpoint |
+| 3 | `allowlist` | model id matches `COPILOT_RESPONSES_MODEL_PREFIXES` ⇒ `/responses` |
+| 4 | `default` | `/chat/completions` |
+
+There is deliberately **no probe**. Trying `/responses` to find out whether a
+model accepts it is a real request that spends real quota, so it would have an
+observable side effect on the account purely to answer a metadata question.
+
+The default leans to `/chat/completions` because guessing wrong is asymmetric:
+sending Chat Completions to a Responses-capable model works and loses only
+Responses-specific features, while sending Responses to a model that lacks it is
+an HTTP 400 and a dead request. That asymmetry is also why the prefix allowlist
+is short — an absent prefix is the cheaper error.
+
+**Careful:** decisions are **append-only** for the lifetime of the adapter
+instance. Nothing rewrites a recorded decision, including a later catalog
+refresh that now disagrees, because a catalog TTL expiring between two retries
+would otherwise split one logical call across two wire protocols. The cost is
+that a model misclassified on its first call stays that way:
+
+```ts
+copilotNodeProviderPlugin({
+  endpointOverrides: { 'some-model': 'responses' },  // the instant fix
+  responsesModelPrefixes: ['my-prefix-'],            // ADDS to the shipped list
+  onEndpointDecision: d => console.log(d.model, d.endpoint, d.source),
+})
+```
+
+`responsesModelPrefixes` adds to `COPILOT_RESPONSES_MODEL_PREFIXES` rather than
+replacing it, so an override cannot silently drop a shipped prefix. An override
+naming an endpoint that does not exist fails at provider construction with
+`COPILOT_ENDPOINT_OVERRIDE_INVALID`, not at the first request to that model.
+`--models` is the discovery path — it prints each model's chosen endpoint **and**
+the `source` that decided it — and rebuilding the runtime is the reset.
+
+### Client identity
+
+Every request carries `Editor-Version` and `Editor-Plugin-Version`; both are
+mandatory, and a missing one is an HTTP 400 surfacing as
+`COPILOT_EDITOR_HEADERS_MISSING`. `editorHeaders` overrides them per field, so
+overriding one keeps the other's default rather than dropping the header. The
+shipped defaults were confirmed accepted against a live Copilot account on
+2026-09-10.
+
+`COPILOT_OAUTH_CLIENT_ID` is **not** confirmed. That live run was handed an
+existing user token out of band, so it exercised the exchange without ever
+running the device flow that would put this client id on the wire. What is
+established is that the exchange surface and its allowlist check are reachable;
+what is untested is whether they accept a token minted by this particular app.
 
 ## Multiple accounts of one family
 

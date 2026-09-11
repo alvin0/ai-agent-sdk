@@ -7,11 +7,11 @@
 | Version | `0.1.0` |
 | License | MIT |
 | Node requirement | 22.18+ for workspace tooling; 22.12+ for installed Node capability packages |
-| Registry publication | **Published** — 21 packages under `@alvin0` |
+| Registry publication | **Published** — 23 packages under `@alvin0` |
 
 ## Registry publication
 
-All 21 publishable packages are on npm under the `@alvin0` scope, named
+All 23 publishable packages are on npm under the `@alvin0` scope, named
 `@alvin0/ai-agent-sdk-<capability>`. The scope `@ai-agent-sdk` belongs to a
 different account, which is why the published names carry the project as a name
 prefix rather than as the scope.

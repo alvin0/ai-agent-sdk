@@ -1,0 +1,5 @@
+{
+  "error": "access_denied",
+  "error_description": "The authorization request was denied.",
+  "error_uri": "https://docs.github.com/developers/apps/troubleshooting-oauth-app-access-token-request-errors"
+}

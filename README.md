@@ -20,7 +20,7 @@ pnpm build:cli
 
 Workspace tooling and Node capability packages require Node 22.12 or newer.
 
-All 21 packages are published on npm under the `@alvin0` scope, built and signed
+All 23 packages are published on npm under the `@alvin0` scope, built and signed
 from CI with SLSA provenance.
 
 Choose the smallest runtime closure you need:

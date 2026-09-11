@@ -32,7 +32,7 @@ nào phải giữ đồng bộ.
 Schema v5 đóng băng các baseline này một cách tường minh, **để một nhãn runtime
 không thể qua cửa chỉ vì phần import nhìn có vẻ sạch**.
 
-## 21 package đích
+## 23 package đích
 
 | Package | Tầng | Vai trò |
 | --- | --- | --- |
@@ -41,9 +41,11 @@ không thể qua cửa chỉ vì phần import nhìn có vẻ sạch**.
 | `protocol-responses` | universal | wire-protocol |
 | `protocol-anthropic-messages` | universal | wire-protocol |
 | `protocol-gemini-interactions` | universal | wire-protocol |
+| `protocol-openai-chat-completions` | universal | wire-protocol |
 | `provider-openai` | universal | model-provider |
 | `provider-anthropic` | universal | model-provider |
 | `provider-codex` | universal | model-provider |
+| `provider-copilot` | universal | model-provider |
 | `provider-gemini` | universal | model-provider |
 | `mcp` | universal | mcp-client, tool-source |
 | `mcp-server` | universal | mcp-server |
@@ -68,17 +70,19 @@ Năm package có nhiều hơn một điểm vào công khai:
 | Package | Điểm vào |
 | --- | --- |
 | `core` | `.` `./agent` `./memory` `./provider` `./skills` `./tools` `./observability` |
-| `auth-node` | `.` `./env` `./codex` |
+| `auth-node` | `.` `./env` `./codex` `./copilot` |
 | `a2a` | `.` `./client` `./server` |
 | `mcp` | `.` `./client` `./server` |
 | `observability-node` | `.` `./journal` `./diagnostic` |
 
-MCP `/server` và auth `/codex` là **khung nhìn theo peer tuỳ chọn**; các tuyến
-danh tính được ghi riêng.
+MCP `/server`, auth `/codex` và auth `/copilot` là **khung nhìn theo peer tuỳ
+chọn**; các tuyến danh tính được ghi riêng.
+
+Trên 23 package, tổng cộng là 38 định danh công khai.
 
 ## Quy tắc manifest
 
-Cả 21 package:
+Cả 23 package:
 
 - **cấm tuyến wildcard và tuyến `require`**;
 - có export `"./package.json"` tường minh;
@@ -89,7 +93,8 @@ Metadata đó **chỉ là metadata tài liệu và phát hành**. Mã runtime kh
 quét nó và không bao giờ tự nạp plugin từ nó.
 
 Chính sách manifest cũng giữ lại các bề mặt cài đặt không phải TypeScript: các
-tệp đóng gói thông dụng, binary đăng nhập Codex và thư mục `bin` của `auth-node`,
+tệp đóng gói thông dụng, hai binary đăng nhập Codex và Copilot cùng thư mục `bin`
+của `auth-node`,
 các bản phản chiếu `main`/`types` ở root, và metadata engine chỉ dành cho Node.
 
 ## Phân loại phụ thuộc

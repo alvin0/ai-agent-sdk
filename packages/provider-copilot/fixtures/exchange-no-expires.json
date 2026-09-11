@@ -1,0 +1,16 @@
+{
+  "token": "tid=fixture3333333333333333333333333;ol=fixture-org;sku=monthly_subscriber;st=dotcom;chat=1;cit=1;malfil=1;ndsc=1;8kp=1:fixturesignature333333333333333333333333333333333333333333333333",
+  "refresh_in": 1500,
+  "sku": "monthly_subscriber",
+  "individual": true,
+  "chat_enabled": true,
+  "annotations_enabled": false,
+  "code_quote_enabled": true,
+  "copilotignore_enabled": false,
+  "nes_enabled": true,
+  "prompt_8k": true,
+  "public_suggestions": "disabled",
+  "telemetry": "disabled",
+  "tracking_id": "fixture-tracking-id-3333",
+  "trigger_completion_after_accept": true
+}

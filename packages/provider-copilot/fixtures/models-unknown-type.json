@@ -1,0 +1,111 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "gpt-4o",
+      "name": "GPT-4o",
+      "object": "model",
+      "vendor": "OpenAI",
+      "version": "gpt-4o-2024-11-20",
+      "preview": false,
+      "model_picker_enabled": true,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "gpt-4o",
+        "tokenizer": "o200k_base",
+        "limits": {
+          "max_context_window_tokens": 128000,
+          "max_output_tokens": 16384,
+          "max_prompt_tokens": 128000
+        },
+        "supports": {
+          "streaming": true,
+          "tool_calls": true,
+          "structured_outputs": true,
+          "vision": true
+        }
+      }
+    },
+    {
+      "id": "code-davinci-002",
+      "name": "Codex completions",
+      "object": "model",
+      "vendor": "OpenAI",
+      "version": "code-davinci-002",
+      "preview": false,
+      "model_picker_enabled": false,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "completions",
+        "family": "code-davinci-002",
+        "tokenizer": "cl100k_base",
+        "limits": {
+          "max_prompt_tokens": 8192,
+          "max_output_tokens": 1024
+        }
+      }
+    },
+    {
+      "id": "copilot-audio-preview",
+      "name": "Copilot audio preview",
+      "object": "model",
+      "vendor": "OpenAI",
+      "version": "copilot-audio-preview",
+      "preview": true,
+      "model_picker_enabled": false,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": ["chat", "audio"],
+        "family": "copilot-audio-preview",
+        "tokenizer": "o200k_base"
+      }
+    },
+    {
+      "id": "copilot-untyped-preview",
+      "name": "Copilot untyped preview",
+      "object": "model",
+      "vendor": "OpenAI",
+      "version": "copilot-untyped-preview",
+      "preview": true,
+      "model_picker_enabled": false,
+      "capabilities": {
+        "object": "model_capabilities",
+        "family": "copilot-untyped-preview",
+        "tokenizer": "o200k_base",
+        "limits": {
+          "max_context_window_tokens": 64000
+        }
+      }
+    },
+    {
+      "name": "Model with no id",
+      "object": "model",
+      "vendor": "OpenAI",
+      "version": "unreleased",
+      "preview": true,
+      "model_picker_enabled": false,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "unreleased",
+        "tokenizer": "o200k_base"
+      }
+    },
+    {
+      "id": "",
+      "name": "Model with empty id",
+      "object": "model",
+      "vendor": "OpenAI",
+      "version": "unreleased-2",
+      "preview": true,
+      "model_picker_enabled": false,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "unreleased-2",
+        "tokenizer": "o200k_base"
+      }
+    }
+  ]
+}

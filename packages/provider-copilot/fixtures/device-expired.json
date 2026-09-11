@@ -1,0 +1,5 @@
+{
+  "error": "expired_token",
+  "error_description": "The device code has expired. Please run the device flow again to request a new code.",
+  "error_uri": "https://docs.github.com/developers/apps/troubleshooting-oauth-app-access-token-request-errors"
+}

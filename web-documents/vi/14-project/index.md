@@ -7,11 +7,11 @@
 | Phiên bản | `0.1.0` |
 | Giấy phép | MIT |
 | Yêu cầu Node | 22.18+ cho công cụ workspace; 22.12+ cho package năng lực Node đã cài |
-| Publish lên registry | **Đã publish** — 21 package dưới scope `@alvin0` |
+| Publish lên registry | **Đã publish** — 23 package dưới scope `@alvin0` |
 
 ## Publish lên registry
 
-Cả 21 package publish được đều đã lên npm dưới scope `@alvin0`, tên
+Cả 23 package publish được đều đã lên npm dưới scope `@alvin0`, tên
 `@alvin0/ai-agent-sdk-<capability>`. Scope `@ai-agent-sdk` thuộc một account
 khác, nên tên đã publish mang tên dự án ở dạng tiền tố thay vì ở scope.
 

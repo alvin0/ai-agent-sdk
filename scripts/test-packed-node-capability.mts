@@ -7,7 +7,10 @@ import { fileURLToPath } from 'node:url'
 const workspaceRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const capability = process.argv[2]
 const dependencyNames: Readonly<Record<string, readonly string[]>> = {
-  'auth-node': ['core', 'provider-http', 'protocol-responses', 'provider-codex', 'auth-node'],
+  'auth-node': [
+    'core', 'provider-http', 'protocol-responses', 'protocol-openai-chat-completions',
+    'provider-codex', 'provider-copilot', 'auth-node',
+  ],
   'skill-filesystem': ['core', 'skill-filesystem'],
   'instructions-node': ['core', 'instructions-node'],
   'mcp-node': ['core', 'mcp', 'mcp-node'],
@@ -48,8 +51,13 @@ function testAuthEnvOnly(packages: ReadonlyMap<string, string>): void {
       required(packages, 'core'), required(packages, 'auth-node'),
     ], temporary)
     run(process.execPath, ['smoke.mjs'], temporary)
-    const providerPath = join(temporary, 'node_modules', '@alvin0', 'ai-agent-sdk-provider-codex')
-    if (existsSync(providerPath)) throw new Error('env-only auth closure installed provider-codex')
+    // Both providers are OPTIONAL peers, so an `/env`-only closure must pull in
+    // neither of them; a required peer would make the smallest install drag a
+    // whole provider along.
+    for (const provider of ['provider-codex', 'provider-copilot'] as const) {
+      const providerPath = join(temporary, 'node_modules', '@alvin0', `ai-agent-sdk-${provider}`)
+      if (existsSync(providerPath)) throw new Error(`env-only auth closure installed ${provider}`)
+    }
   } finally {
     rmSync(temporary, { recursive: true, force: true })
   }

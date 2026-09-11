@@ -11,7 +11,7 @@
 
 ## Install
 
-All 21 packages are published on npm under the `@alvin0` scope, built and
+All 23 packages are published on npm under the `@alvin0` scope, built and
 signed from CI with SLSA provenance.
 
 Choose the smallest runtime closure you need.

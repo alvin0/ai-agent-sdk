@@ -249,6 +249,10 @@
           "link": "/en/09-providers/gemini"
         },
         {
+          "text": "Copilot",
+          "link": "/en/09-providers/copilot"
+        },
+        {
           "text": "Custom Provider",
           "link": "/en/09-providers/custom-provider"
         },
@@ -647,6 +651,10 @@
         {
           "text": "Gemini",
           "link": "/vi/09-providers/gemini"
+        },
+        {
+          "text": "Copilot",
+          "link": "/vi/09-providers/copilot"
         },
         {
           "text": "Custom Provider",

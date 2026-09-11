@@ -1,0 +1,58 @@
+{
+  "minimal": {
+    "token": "tid=fixture0000000000000000000000000;ol=fixture-org;exp=1741006800;sku=monthly_subscriber;st=dotcom;chat=1;cit=1;malfil=1;ndsc=1;8kp=1:fixturesignature000000000000000000000000000000000000000000000000",
+    "expires_at": 1741006800,
+    "sku": "monthly_subscriber",
+    "individual": true,
+    "chat_enabled": true,
+    "annotations_enabled": false,
+    "code_quote_enabled": true,
+    "copilotignore_enabled": false,
+    "nes_enabled": true,
+    "prompt_8k": true,
+    "public_suggestions": "disabled",
+    "telemetry": "disabled",
+    "tracking_id": "fixture-tracking-id-0000",
+    "trigger_completion_after_accept": true
+  },
+  "withRefreshIn": {
+    "token": "tid=fixture1111111111111111111111111;ol=fixture-org;exp=1741006800;sku=monthly_subscriber;st=dotcom;chat=1;cit=1;malfil=1;ndsc=1;8kp=1:fixturesignature111111111111111111111111111111111111111111111111",
+    "expires_at": 1741006800,
+    "refresh_in": 1500,
+    "sku": "monthly_subscriber",
+    "individual": true,
+    "chat_enabled": true,
+    "annotations_enabled": false,
+    "code_quote_enabled": true,
+    "copilotignore_enabled": false,
+    "nes_enabled": true,
+    "prompt_8k": true,
+    "public_suggestions": "disabled",
+    "telemetry": "disabled",
+    "tracking_id": "fixture-tracking-id-1111",
+    "trigger_completion_after_accept": true
+  },
+  "withDivergentEndpoint": {
+    "token": "tid=fixture2222222222222222222222222;ol=fixture-org;exp=1741006800;sku=monthly_subscriber;proxy-ep=copilot-proxy.githubusercontent.com;st=dotcom;chat=1;cit=1;malfil=1;ndsc=1;8kp=1:fixturesignature222222222222222222222222222222222222222222222222",
+    "expires_at": 1741006800,
+    "refresh_in": 1500,
+    "endpoints": {
+      "api": "https://copilot-proxy.githubusercontent.com",
+      "proxy": "https://copilot-proxy.githubusercontent.com",
+      "origin-tracker": "https://origin-tracker.githubusercontent.com",
+      "telemetry": "https://copilot-telemetry.githubusercontent.com"
+    },
+    "sku": "monthly_subscriber",
+    "individual": true,
+    "chat_enabled": true,
+    "annotations_enabled": false,
+    "code_quote_enabled": true,
+    "copilotignore_enabled": false,
+    "nes_enabled": true,
+    "prompt_8k": true,
+    "public_suggestions": "disabled",
+    "telemetry": "disabled",
+    "tracking_id": "fixture-tracking-id-2222",
+    "trigger_completion_after_accept": true
+  }
+}

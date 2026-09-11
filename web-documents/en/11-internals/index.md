@@ -5,7 +5,7 @@ user-facing docs do not explain.
 
 | Page | Covers |
 | --- | --- |
-| [Package topology](/en/11-internals/package-topology) | 21 target packages, 35 specifiers, runtime tiers, dependency rules |
+| [Package topology](/en/11-internals/package-topology) | 23 target packages, 38 specifiers, runtime tiers, dependency rules |
 | [Adapter pipeline](/en/11-internals/adapter-pipeline) | What a provider supplies and what the base class owns |
 
 ## The two structural rules

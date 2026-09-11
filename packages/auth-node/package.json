@@ -23,9 +23,13 @@
     ".": { "types": "./dist/index.d.mts", "import": "./dist/index.mjs", "default": "./dist/index.mjs" },
     "./env": { "types": "./dist/env.d.mts", "import": "./dist/env.mjs", "default": "./dist/env.mjs" },
     "./codex": { "types": "./dist/codex.d.mts", "import": "./dist/codex.mjs", "default": "./dist/codex.mjs" },
+    "./copilot": { "types": "./dist/copilot.d.mts", "import": "./dist/copilot.mjs", "default": "./dist/copilot.mjs" },
     "./package.json": "./package.json"
   },
-  "bin": { "ai-agent-sdk-codex-login": "./bin/ai-agent-sdk-codex-login.mjs" },
+  "bin": {
+    "ai-agent-sdk-codex-login": "./bin/ai-agent-sdk-codex-login.mjs",
+    "ai-agent-sdk-copilot-login": "./bin/ai-agent-sdk-copilot-login.mjs"
+  },
   "publishConfig": { "access": "public", "provenance": true },
   "scripts": {
     "build": "tsdown",
@@ -39,14 +43,17 @@
   },
   "peerDependencies": {
     "@alvin0/ai-agent-sdk-core": "workspace:^",
-    "@alvin0/ai-agent-sdk-provider-codex": "workspace:^"
+    "@alvin0/ai-agent-sdk-provider-codex": "workspace:^",
+    "@alvin0/ai-agent-sdk-provider-copilot": "workspace:^"
   },
   "peerDependenciesMeta": {
-    "@alvin0/ai-agent-sdk-provider-codex": { "optional": true }
+    "@alvin0/ai-agent-sdk-provider-codex": { "optional": true },
+    "@alvin0/ai-agent-sdk-provider-copilot": { "optional": true }
   },
   "devDependencies": {
     "@alvin0/ai-agent-sdk-core": "workspace:^",
     "@alvin0/ai-agent-sdk-provider-codex": "workspace:^",
+    "@alvin0/ai-agent-sdk-provider-copilot": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",
     "@types/node": "catalog:",
     "publint": "catalog:",

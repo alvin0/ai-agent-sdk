@@ -17,7 +17,9 @@ that forgets attribution headers, mishandles abort, or invents error codes.
 | `@alvin0/ai-agent-sdk-provider-openai` | Responses API | injected `apiKey` |
 | `@alvin0/ai-agent-sdk-provider-codex` | ChatGPT-backed Codex | injected `CodexAuthStore` |
 | `@alvin0/ai-agent-sdk-provider-gemini` | Gemini Interactions API | injected `apiKey` |
+| `@alvin0/ai-agent-sdk-provider-copilot` | Copilot subscription surface | injected `CopilotCredentialStore` |
 | `@alvin0/ai-agent-sdk-auth-node/codex` | Codex on Node | project-local device-code login |
+| `@alvin0/ai-agent-sdk-auth-node/copilot` | Copilot on Node | project-local device-code login |
 
 `openai` and `codex` share **one** Responses implementation
 (`@alvin0/ai-agent-sdk-protocol-responses`) and differ only by a small dialect record:
@@ -200,6 +202,6 @@ supply their own cancellation boundary.
 
 ## Read next
 
-- [OpenAI](/en/09-providers/openai) · [Anthropic](/en/09-providers/anthropic) · [Codex](/en/09-providers/codex) · [Gemini](/en/09-providers/gemini)
+- [OpenAI](/en/09-providers/openai) · [Anthropic](/en/09-providers/anthropic) · [Codex](/en/09-providers/codex) · [Gemini](/en/09-providers/gemini) · [Copilot](/en/09-providers/copilot)
 - [Custom Provider](/en/09-providers/custom-provider) — any other endpoint
 - [Adapter pipeline](/en/11-internals/adapter-pipeline) — what the base class owns

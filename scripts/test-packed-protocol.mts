@@ -7,9 +7,15 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
 const packageName = process.argv[2]
-if (packageName !== 'protocol-anthropic-messages' && packageName !== 'protocol-responses'
-  && packageName !== 'protocol-gemini-interactions') {
-  throw new Error('expected protocol-anthropic-messages, protocol-responses, or protocol-gemini-interactions')
+const PROTOCOL_IDS = new Map<string, string>([
+  ['protocol-anthropic-messages', 'anthropic-messages'],
+  ['protocol-responses', 'openai-responses'],
+  ['protocol-gemini-interactions', 'gemini-interactions'],
+  ['protocol-openai-chat-completions', 'openai-chat-completions'],
+])
+const expectedProtocol = packageName === undefined ? undefined : PROTOCOL_IDS.get(packageName)
+if (packageName === undefined || expectedProtocol === undefined) {
+  throw new Error(`expected one of ${[...PROTOCOL_IDS.keys()].join(', ')}`)
 }
 const workspaceRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const packageRoot = join(workspaceRoot, 'packages', packageName)
@@ -125,11 +131,6 @@ async function testWorker(consumer: string): Promise<void> {
 
 function assertFixture(value: unknown, runtime: string): void {
   const result = value as Record<string, unknown>
-  const expectedProtocol = packageName === 'protocol-anthropic-messages'
-    ? 'anthropic-messages'
-    : packageName === 'protocol-gemini-interactions'
-      ? 'gemini-interactions'
-      : 'openai-responses'
   if (result.protocol !== expectedProtocol || result.model !== 'packed-model'
     || result.inputTokens !== 6 || result.outputTokens !== 2 || result.totalTokens !== 12
     || result.buffer !== 'undefined' || result.process !== 'undefined') {

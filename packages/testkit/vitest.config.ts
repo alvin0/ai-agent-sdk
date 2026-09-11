@@ -8,6 +8,12 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['../../tests/unit/provider-testkit.spec.ts'],
+    include: [
+      '../../tests/unit/provider-testkit.spec.ts',
+      // Property 41 at the harness layer: drives the assembled Copilot adapter
+      // against an existing provider using this package's Copilot harness data
+      // and its token-exchange responder.
+      '../../tests/unit/copilot-cross-provider-errors.spec.ts',
+    ],
   },
 })

@@ -17,7 +17,9 @@ header quy kết, xử lý sai abort, hoặc bịa mã lỗi.
 | `@alvin0/ai-agent-sdk-provider-openai` | Responses API | `apiKey` tiêm vào |
 | `@alvin0/ai-agent-sdk-provider-codex` | Codex nền ChatGPT | `CodexAuthStore` tiêm vào |
 | `@alvin0/ai-agent-sdk-provider-gemini` | Gemini Interactions API | `apiKey` tiêm vào |
+| `@alvin0/ai-agent-sdk-provider-copilot` | Bề mặt subscription Copilot | `CopilotCredentialStore` tiêm vào |
 | `@alvin0/ai-agent-sdk-auth-node/codex` | Codex trên Node | đăng nhập device-code cục bộ theo dự án |
+| `@alvin0/ai-agent-sdk-auth-node/copilot` | Copilot trên Node | đăng nhập device-code cục bộ theo dự án |
 
 `openai` và `codex` dùng chung **một** hiện thực Responses
 (`@alvin0/ai-agent-sdk-protocol-responses`) và chỉ khác nhau ở một bản ghi phương ngữ
@@ -202,6 +204,6 @@ ranh giới huỷ của mình.
 
 ## Đọc tiếp
 
-- [OpenAI](/vi/09-providers/openai) · [Anthropic](/vi/09-providers/anthropic) · [Codex](/vi/09-providers/codex) · [Gemini](/vi/09-providers/gemini)
+- [OpenAI](/vi/09-providers/openai) · [Anthropic](/vi/09-providers/anthropic) · [Codex](/vi/09-providers/codex) · [Gemini](/vi/09-providers/gemini) · [Copilot](/vi/09-providers/copilot)
 - [Custom Provider](/vi/09-providers/custom-provider) — mọi endpoint khác
 - [Đường ống adapter](/vi/11-internals/adapter-pipeline) — lớp cơ sở sở hữu gì

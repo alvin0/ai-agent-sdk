@@ -1,5 +1,16 @@
 import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import * as provider from './provider.mjs'
 import { createPlugin, expectedCredential, frames, providerId } from './provider.mjs'
+
+/**
+ * How many `sdk.credential.operation` events one run is expected to emit.
+ *
+ * One credential operation, opened and closed, is two events — the shape every
+ * single-tier provider has. A provider whose credential path performs a second
+ * operation declares its own count in `provider.mjs`; Copilot does, because the
+ * token exchange is an operation of its own inside the resolve.
+ */
+const expectedCredentialEvents = provider.expectedCredentialEvents ?? 2
 
 export async function runPackedProviderFixture() {
   const originalFetch = globalThis.fetch
@@ -47,6 +58,7 @@ export async function runPackedProviderFixture() {
         attempts: modelCall?.attempts.length,
         dispatchState: modelCall?.attempts[0]?.dispatchState,
         credentialEvents: events.filter(event => event.name === 'sdk.credential.operation').length,
+        expectedCredentialEvents,
         safeEvents: !serialized.includes(expectedCredential),
         buffer: typeof globalThis.Buffer,
         process: typeof globalThis.process,
