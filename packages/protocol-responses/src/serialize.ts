@@ -13,7 +13,7 @@
 
 import type { ProtocolRequest } from './contract.ts'
 import { MODEL_ERROR_CODES, ModelError } from '@alvin0/ai-agent-sdk-core'
-import type { ContentBlock, ImageBlock, TextBlock } from '@alvin0/ai-agent-sdk-core'
+import type { ContentBlock, DocumentBlock, ImageBlock, TextBlock } from '@alvin0/ai-agent-sdk-core'
 import type { Message } from '@alvin0/ai-agent-sdk-core'
 import {
   isNativeToolSchema,
@@ -83,6 +83,21 @@ function imagePart(block: ImageBlock): WireContentPart {
   return { type: 'input_image', image_url, ...detail === undefined ? {} : { detail } }
 }
 
+/** Fallback file name for an inline document, since the API infers type from it. */
+const DEFAULT_DOCUMENT_FILENAME = 'document.pdf'
+
+function documentPart(block: DocumentBlock): WireContentPart {
+  if (block.source.kind === 'file') return { type: 'input_file', file_id: block.source.fileId }
+  if (block.source.kind === 'url') return { type: 'input_file', file_url: block.source.url }
+  return {
+    type: 'input_file',
+    // The API reads the file type from the extension here, so a name is required
+    // rather than optional; a neutral default beats a rejected request.
+    filename: block.filename ?? DEFAULT_DOCUMENT_FILENAME,
+    file_data: `data:${block.source.mediaType};base64,${block.source.data}`,
+  }
+}
+
 /** Convert one content block to a request-side content part. */
 function contentPart(block: ContentBlock, role: 'user' | 'assistant'): WireContentPart | undefined {
   if (block.type === 'text') {
@@ -96,13 +111,14 @@ function contentPart(block: ContentBlock, role: 'user' | 'assistant'): WireConte
     }
   }
   if (block.type === 'image') return imagePart(block)
+  if (block.type === 'document') return documentPart(block)
   return undefined
 }
 
 /** Render a tool result's blocks as the wire's polymorphic `output` value. */
 function toolResultOutput(blocks: readonly ContentBlock[]): string | WireContentPart[] {
-  const hasImage = blocks.some(block => block.type === 'image')
-  if (!hasImage) {
+  const hasBinary = blocks.some(block => block.type === 'image' || block.type === 'document')
+  if (!hasBinary) {
     // The common case. A plain string keeps the payload small and is what the
     // API documents first.
     return blocks
@@ -143,7 +159,8 @@ function appendMessage(message: Message, items: WireInputItem[], dialectMessageP
   for (const block of message.content) {
     switch (block.type) {
       case 'text':
-      case 'image': {
+      case 'image':
+      case 'document': {
         if (block.type === 'text' && block.phase !== undefined && phase !== undefined && phase !== block.phase) flush()
         if (block.type === 'text' && block.phase !== undefined) phase = block.phase
         const part = contentPart(block, role)

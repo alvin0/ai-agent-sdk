@@ -22,10 +22,11 @@ import {
   type ToolSchema,
 } from '@alvin0/ai-agent-sdk-core'
 import { MODEL_ERROR_CODES, ModelError } from '@alvin0/ai-agent-sdk-core'
-import type { ContentBlock, ImageSource } from '@alvin0/ai-agent-sdk-core'
+import type { ContentBlock, DocumentSource, ImageSource } from '@alvin0/ai-agent-sdk-core'
 import type { Message } from '@alvin0/ai-agent-sdk-core'
 import type { ProtocolRequest } from './contract.ts'
 import type {
+  WireDocumentSource,
   WireImageSource,
   WireCitation,
   WireMessage,
@@ -77,6 +78,18 @@ function imageSource(source: ImageSource): WireImageSource {
     'Anthropic image inputs support URL or base64 sources, not file ids',
     MODEL_ERROR_CODES.INVALID_REQUEST,
   )
+}
+
+/**
+ * Map a document source onto this API's tagged source object.
+ *
+ * All three variants are supported here, including the file id that
+ * {@link imageSource} has to reject.
+ */
+function documentSource(source: DocumentSource): WireDocumentSource {
+  if (source.kind === 'url') return { type: 'url', url: source.url }
+  if (source.kind === 'file') return { type: 'file', file_id: source.fileId }
+  return { type: 'base64', media_type: source.mediaType, data: source.data }
 }
 
 /** Restrict tool-result content to the block types this API accepts there. */
@@ -161,6 +174,18 @@ function requestBlocks(block: ContentBlock): WireRequestBlock[] {
     }
     case 'image':
       return [{ type: 'image', source: imageSource(block.source) }]
+    case 'document': {
+      // `title` is what a citation is attributed to, so the file name is a much
+      // better fallback than leaving it unset.
+      const title = block.title ?? block.filename
+      return [{
+        type: 'document',
+        source: documentSource(block.source),
+        ...title === undefined ? {} : { title },
+        ...block.context === undefined ? {} : { context: block.context },
+        ...block.citations === undefined ? {} : { citations: { enabled: block.citations } },
+      }]
+    }
     case 'tool-call':
       return [{
         type: 'tool_use',

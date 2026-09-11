@@ -177,6 +177,80 @@ describe('serializeResponsesRequest', () => {
     })
   })
 
+  it('encodes an inline PDF as an input_file data URL with a file name', () => {
+    const body = serializeResponsesRequest(providerRequest({
+      messages: [{
+        ...createTextMessage('summarize'),
+        content: [{
+          type: 'document',
+          source: { kind: 'base64', mediaType: 'application/pdf', data: 'JVBER' },
+          filename: 'report-q3.pdf',
+        }],
+      }],
+    }), dialect)
+    const item = body.input[0]
+    if (item?.type !== 'message') throw new Error('expected a message item')
+    expect(item.content[0]).toEqual({
+      type: 'input_file',
+      filename: 'report-q3.pdf',
+      file_data: 'data:application/pdf;base64,JVBER',
+    })
+  })
+
+  it('defaults the document file name, because the API infers type from it', () => {
+    const body = serializeResponsesRequest(providerRequest({
+      messages: [{
+        ...createTextMessage('summarize'),
+        content: [{
+          type: 'document',
+          source: { kind: 'base64', mediaType: 'application/pdf', data: 'JVBER' },
+        }],
+      }],
+    }), dialect)
+    const item = body.input[0]
+    if (item?.type !== 'message') throw new Error('expected a message item')
+    expect(item.content[0]).toEqual({
+      type: 'input_file', filename: 'document.pdf', file_data: 'data:application/pdf;base64,JVBER',
+    })
+  })
+
+  it('maps file-backed and URL-backed documents onto their own wire fields', () => {
+    const body = serializeResponsesRequest(providerRequest({
+      messages: [{
+        ...createTextMessage('compare'),
+        content: [
+          { type: 'document', source: { kind: 'file', fileId: 'file_doc_1' } },
+          { type: 'document', source: { kind: 'url', url: 'https://example.com/a.pdf' } },
+        ],
+      }],
+    }), dialect)
+    const item = body.input[0]
+    if (item?.type !== 'message') throw new Error('expected a message item')
+    expect(item.content).toEqual([
+      { type: 'input_file', file_id: 'file_doc_1' },
+      { type: 'input_file', file_url: 'https://example.com/a.pdf' },
+    ])
+  })
+
+  it('switches a tool result to structured parts when it carries a document', () => {
+    const body = serializeResponsesRequest(providerRequest({
+      messages: [createToolResultMessage({
+        callId: ToolCallId('call_1'),
+        content: [
+          { type: 'text', text: 'here it is' },
+          { type: 'document', source: { kind: 'file', fileId: 'file_doc_1' } },
+        ],
+        isError: false,
+      })],
+    }), dialect)
+    const item = body.input[0]
+    if (item?.type !== 'function_call_output') throw new Error('expected a function_call_output item')
+    expect(item.output).toEqual([
+      { type: 'input_text', text: 'here it is' },
+      { type: 'input_file', file_id: 'file_doc_1' },
+    ])
+  })
+
   it('maps reasoning effort and provider-native tools', () => {
     const body = serializeResponsesRequest(providerRequest({
       messages: [createTextMessage('find and illustrate the latest result')],

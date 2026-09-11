@@ -151,6 +151,7 @@ const catalog = await runtime.modelCatalog('gemini')
 | Bộ lọc web-search (`allowedDomains`, `blockedDomains`, `searchContextSize`, `userLocation`, `maxUses`) | ✗ | `INVALID_REQUEST` có kiểu |
 | Sinh ảnh native | ✗ không phơi ra dưới dạng native tool của SDK | `INVALID_REQUEST` có kiểu |
 | Ảnh đầu vào — base64, URL, file id | ✓ | — |
+| Tài liệu (PDF) — base64, URL, file uri | ✓ khai `inputModalities: ['text', 'image', 'document']` | bị chiếu thành text |
 | `toolChoice`, kể cả buộc dùng web search | ✓ | — |
 
 ### Web search là được-tất-hoặc-không

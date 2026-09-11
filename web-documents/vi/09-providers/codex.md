@@ -115,6 +115,22 @@ Codex **khám phá danh mục từ chính endpoint**, vì model khả dụng ph�
 dịch vụ của tài khoản. Đó là lý do `model: { provider: 'codex' }` không kèm `id`
 lại có ý nghĩa ở đây, theo cách mà nó không có với một danh mục tĩnh.
 
+### Discovery báo thiếu khả năng đọc tài liệu
+
+Discovery chỉ báo `input_modalities` gồm `text` và `image`, kể cả với model thật
+sự nhận được PDF. Vì một modality bị bỏ trống được hiểu là khai báo phủ định, tài
+liệu đầu vào sẽ bị chiếu thành text trừ khi bạn tự override entry đó:
+
+```ts
+codexNodeAdapter({
+  authStore,
+  models: [{ id: 'gpt-5.6-luna', inputModalities: ['text', 'image', 'document'] }],
+})
+```
+
+Một entry `models` tường minh sẽ thay thế discovery cho id đó. Xem
+[TÃ i liá»u Äáº§u vÃ o](/vi/03-tools/native-tools#tai-lieu-pdf-đau-vao).
+
 ## Hai điều cần biết trước khi dùng
 
 > **Endpoint này phục vụ Codex CLI.** Nó nhận diện client bằng header

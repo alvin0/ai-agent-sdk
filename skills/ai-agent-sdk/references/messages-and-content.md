@@ -1,4 +1,4 @@
-# Messages, content blocks, images
+# Messages, content blocks, images, documents
 
 ## One message model everywhere
 
@@ -32,7 +32,7 @@ type AgentInput = string | UserMessage
 ```
 
 So a plain string is fine, and a full `UserMessage` is how you attach images or
-set an explicit source.
+PDFs, or set an explicit source.
 
 ## Constructors
 
@@ -53,6 +53,7 @@ interface ContentBlockMap {
   'text': TextBlock
   'reasoning': ReasoningBlock
   'image': ImageBlock
+  'document': DocumentBlock
   'native-tool-call': NativeToolCallBlock
   'tool-call': ToolCallBlock
   'tool-result': ToolResultBlock
@@ -124,6 +125,79 @@ known text-only models instead of silently converting, and `'project'` permits
 the lossy conversion. Content a model cannot accept otherwise fails with
 `UNSUPPORTED_CONTENT`.
 
+### `document`
+
+PDF input. Providers read a PDF with **vision**, not plain text extraction: each
+page is rasterized alongside its extracted text, so charts and tables survive.
+That is why this is its own block rather than sugar over `ImageBlock` — the
+provider owns the page splitting.
+
+```ts
+type DocumentMediaType = 'application/pdf'
+
+type DocumentSource =
+  | { kind: 'base64'; mediaType: DocumentMediaType; data: string }
+  | { kind: 'url'; url: string }
+  | { kind: 'file'; fileId: string }
+
+interface DocumentBlock {
+  type: 'document'
+  source: DocumentSource
+  filename?: string   // Responses infers the file type from it; a default is substituted
+  title?: string      // Anthropic attributes citations to it; falls back to filename
+  context?: string    // extra context, passed through where supported
+  citations?: boolean // native citations, ignored by providers that have none
+  pages?: number      // LOCAL only — never serialized; see token estimation below
+}
+```
+
+PDF only, deliberately: all three provider families document PDF as a native
+vision-backed input, while the other file types each accepts differ per provider.
+A caller with a DOCX extracts text and sends text.
+
+```ts
+import { createUserMessage } from '@alvin0/ai-agent-sdk-core'
+
+await agent.generate(createUserMessage({
+  content: [
+    { type: 'document',
+      source: { kind: 'base64', mediaType: 'application/pdf', data: base64Pdf },
+      filename: 'inquiry.pdf', pages: 72 },
+    { type: 'text', text: 'Summarize the open items.' },
+  ],
+  source: { kind: 'app', producer: 'support-ui' },
+}))
+```
+
+All three source kinds work on all three protocols — unlike images, where
+Anthropic rejects `{ kind: 'file' }`. Anthropic's Files API id is in fact the
+recommended path for a PDF large enough to strain its 32 MB request cap.
+
+**A model must declare the `document` modality or the PDF is silently projected
+to text.** An omitted modality is a negative capability claim, and this bites
+hardest on Codex, whose discovery reports only `text` and `image` even for models
+that do accept PDFs:
+
+```ts
+codexNodeAdapter({
+  authStore,
+  models: [{ id: 'gpt-5.6-luna', inputModalities: ['text', 'image', 'document'] }],
+})
+```
+
+Gemini ships no built-in catalog, so declare it there too. `documentPolicy:
+'strict'` on an invocation fails loudly instead of degrading the PDF — use it
+whenever the answer depends on the file actually arriving.
+
+#### Token estimation and `pages`
+
+Providers bill a PDF **per page**, so `pages` is what lets compaction cost it
+correctly. Measured against a real 72-page PDF: OpenAI billed 214,019 input
+tokens (~2,970/page) and Gemini 38,350 (~533/page). With `pages` set, the
+estimator came within 1%; without it, it assumes 8 pages and under-states that
+document by ~9x. Set it whenever you can — it is local metadata and no adapter
+sends it.
+
 ### `tool-call` and `tool-result`
 
 ```ts
@@ -170,8 +244,14 @@ what `generate()` uses under the hood. Reach for it with
 ## Helpers worth knowing
 
 ```ts
-contentHasImage(content)            // does this content carry an image block
-projectImagesForTextModel(content)  // the lossy text-only projection
-textOnlyImageText                   // the placeholder that projection substitutes
-freezeMessage(message)              // deep-freeze one message
+contentHasImage(content)               // does this content carry an image block
+contentHasDocument(content)            // does this content carry a document block
+projectImagesForTextModel(messages)    // the lossy text-only projection
+projectDocumentsForTextModel(messages) // same, for documents
+textOnlyImageText                      // the placeholder that projection substitutes
+textOnlyDocumentText                   // same, for documents; prefers the filename
+freezeMessage(message)                 // deep-freeze one message
 ```
+
+Both `contentHas*` helpers recurse into `tool-result` and `native-tool-call`, so a
+tool that returns a screenshot or a generated PDF is not missed by a shallow scan.

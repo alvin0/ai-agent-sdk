@@ -11,7 +11,8 @@ import { captureToolSources } from '../tool-source/definition.ts'
 import { captureMemoryBinding } from '../memory/definition.ts'
 import { captureRuntimeSkillSources } from '../skill-provider/definition.ts'
 
-const KEYS = new Set(['signal', 'additionalInstructions', 'onEvent', 'imagePolicy', 'structuredOutput', 'includeTraceEvents'])
+const KEYS = new Set(['signal', 'additionalInstructions', 'onEvent', 'imagePolicy', 'documentPolicy',
+  'structuredOutput', 'includeTraceEvents'])
 const SESSION_KEYS = new Set(['conversationId', 'tools', 'toolSources', 'skills', 'memory', 'skillCwd',
   'userInput', 'approvals', 'spillStore', 'interceptors', 'contextSections', 'hooks', 'usagePolicy', 'historyLimits',
   'ledgerLimits',
@@ -20,6 +21,7 @@ const SESSION_KEYS = new Set(['conversationId', 'tools', 'toolSources', 'skills'
 export interface CapturedInvocationOptions {
   readonly structuredOutput?: NonNullable<RuntimeAgentInvocationOptions['structuredOutput']>
   readonly imagePolicy?: 'strict' | 'project'
+  readonly documentPolicy?: 'strict' | 'project'
   readonly signal?: AbortSignal
   readonly additionalInstructions?: string
   readonly includeTraceEvents?: boolean
@@ -99,13 +101,16 @@ export function captureInvocationOptions(input: unknown): CapturedInvocationOpti
   }
   const imagePolicy = ownData(source, 'imagePolicy', false)
   if (imagePolicy !== undefined && imagePolicy !== 'strict' && imagePolicy !== 'project') throw new TypeError('imagePolicy must be strict or project')
+  const documentPolicy = ownData(source, 'documentPolicy', false)
+  if (documentPolicy !== undefined && documentPolicy !== 'strict' && documentPolicy !== 'project') throw new TypeError('documentPolicy must be strict or project')
   const signal = optionalAbortSignal(ownData(source, 'signal', false))
   const additionalInstructions = captureAdditionalInstructions(ownData(source, 'additionalInstructions', false))
   const onEvent = ownData(source, 'onEvent', false)
   if (onEvent !== undefined && typeof onEvent !== 'function') throw new TypeError('Runtime event observer must be callable')
   const includeTraceEvents = ownData(source, 'includeTraceEvents', false)
   if (includeTraceEvents !== undefined && typeof includeTraceEvents !== 'boolean') throw new TypeError('includeTraceEvents must be boolean')
-  return Object.freeze({ ...(structuredOutput === undefined ? {} : { structuredOutput }), ...(imagePolicy === undefined ? {} : { imagePolicy }), ...(signal === undefined ? {} : { signal }),
+  return Object.freeze({ ...(structuredOutput === undefined ? {} : { structuredOutput }), ...(imagePolicy === undefined ? {} : { imagePolicy }),
+    ...(documentPolicy === undefined ? {} : { documentPolicy }), ...(signal === undefined ? {} : { signal }),
     ...(additionalInstructions === undefined ? {} : { additionalInstructions }),
     ...(includeTraceEvents === undefined ? {} : { includeTraceEvents }),
     ...(onEvent === undefined ? {} : { onEvent: onEvent as NonNullable<RuntimeAgentInvocationOptions['onEvent']> }) })

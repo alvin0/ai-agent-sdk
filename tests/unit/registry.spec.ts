@@ -242,6 +242,76 @@ describe('ModelRegistry middleware and modality handling', () => {
     expect(block.text).toContain('image omitted')
   })
 
+  it('projects documents to text for a model that declares no document support', async () => {
+    let seen: GenerateOptions | undefined
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['fake'], new FakeAdapter(
+      (options) => {
+        seen = options
+        return textStream()
+      },
+      { inputModalities: ['text', 'image'] },
+    ))
+
+    await drain(registry.stream(request({
+      messages: [{
+        ...createTextMessage('summarize'),
+        content: [{
+          type: 'document',
+          source: { kind: 'base64', mediaType: 'application/pdf', data: 'JVBER' },
+          filename: 'report.pdf',
+        }],
+      }],
+    })))
+
+    const block = seen?.messages[0]?.content[0]
+    expect(block?.type).toBe('text')
+    if (block?.type !== 'text') return
+    expect(block.text).toContain('document omitted')
+    expect(block.text).toContain('report.pdf')
+  })
+
+  it('keeps documents intact for a model that declares document support', async () => {
+    let seen: GenerateOptions | undefined
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['fake'], new FakeAdapter(
+      (options) => {
+        seen = options
+        return textStream()
+      },
+      { inputModalities: ['text', 'document'] },
+    ))
+
+    await drain(registry.stream(request({
+      messages: [{
+        ...createTextMessage('summarize'),
+        content: [{ type: 'document', source: { kind: 'file', fileId: 'file_1' } }],
+      }],
+    })))
+
+    expect(seen?.messages[0]?.content[0]?.type).toBe('document')
+  })
+
+  it('rejects a document under a strict policy instead of projecting it', async () => {
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['fake'], new FakeAdapter(
+      () => textStream(),
+      { inputModalities: ['text'] },
+    ))
+
+    const chunks = await drain(registry.stream(request({
+      documentPolicy: 'strict',
+      messages: [{
+        ...createTextMessage('summarize'),
+        content: [{ type: 'document', source: { kind: 'file', fileId: 'file_1' } }],
+      }],
+    })))
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'finish',
+      reason: { kind: 'error', failure: { code: 'UNSUPPORTED_DOCUMENT_INPUT' } },
+    })
+  })
+
   it('rejects a prepared call dispatched twice', async () => {
     const registry = new ModelRegistry()
     registry.registerAdapter(['fake'], new FakeAdapter(textStream))

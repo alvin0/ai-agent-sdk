@@ -151,6 +151,7 @@ export async function modelRound(
       ? { toolChoice: 'none' as const }
       : options.toolChoice === undefined ? {} : { toolChoice: options.toolChoice },
     ...options.imagePolicy === undefined ? {} : { imagePolicy: options.imagePolicy },
+    ...options.documentPolicy === undefined ? {} : { documentPolicy: options.documentPolicy },
     ...outputFormat === undefined ? {} : { outputFormat },
   }
   const checkpointRequest: GenerateOptions = { ...requestBase, signal }

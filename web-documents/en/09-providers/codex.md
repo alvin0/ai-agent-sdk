@@ -115,6 +115,23 @@ Codex **discovers its catalog from the endpoint**, because the available models
 depend on the account's plan. That is why `model: { provider: 'codex' }` with no
 `id` is meaningful here in a way it is not for a static catalog.
 
+### Discovery under-reports document input
+
+Discovery reports `input_modalities` as `text` and `image` only, even for models
+that do accept PDF input. Because an omitted modality is read as a negative
+capability claim, document input is projected to text unless you override the
+entry yourself:
+
+```ts
+codexNodeAdapter({
+  authStore,
+  models: [{ id: 'gpt-5.6-luna', inputModalities: ['text', 'image', 'document'] }],
+})
+```
+
+An explicit `models` entry replaces discovery for that id. See
+[Document input](/en/03-tools/native-tools#document-pdf-input).
+
 ## Two things to know before using it
 
 > **This endpoint serves the Codex CLI.** It identifies its client with an

@@ -536,6 +536,10 @@ function sanitizeBlock(
       type: 'text', text: boundedText(`[Reasoning summary] ${block.text}`, maxChars, budget),
     }]
     case 'image': return [{ type: 'text', text: boundedText(`[Image input: ${block.source.kind}]`, maxChars, budget) }]
+    case 'document': return [{
+      type: 'text',
+      text: boundedText(`[Document input: ${block.filename ?? block.source.kind}]`, maxChars, budget),
+    }]
     case 'tool-call': return [{
       ...block, arguments: boundedToolArguments(block.arguments, maxChars, budget),
     } satisfies ToolCallBlock]

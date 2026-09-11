@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ReasoningEffortId, createTextMessage } from '@alvin0/ai-agent-sdk-core'
 import { defineCredentialSource } from '@alvin0/ai-agent-sdk-core/provider'
 import { ModelAdapter, ModelRegistry } from '@alvin0/ai-agent-sdk-core'
-import { OBSERVATION_ERROR_CODES, createCoreSpan, withRetry } from '@alvin0/ai-agent-sdk-core'
+import { MODEL_ERROR_CODES, OBSERVATION_ERROR_CODES, createCoreSpan, withRetry } from '@alvin0/ai-agent-sdk-core'
 import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
 import type { CaptureReceipt, ObservationEvent, ObservationPort } from '@alvin0/ai-agent-sdk-core'
 import {
@@ -1152,6 +1152,58 @@ describe('createHttpProvider: catalog and errors', () => {
     controller.abort(new Error('catalog caller cancelled'))
     await expect(pending).rejects.toThrow('catalog caller cancelled')
     expect(signalSeen?.aborted).toBe(true)
+  })
+
+  it('refuses document input for a model that does not declare it, and sends it for one that does', async () => {
+    const documentMessage = {
+      ...createTextMessage('summarize'),
+      content: [{
+        type: 'document' as const,
+        source: { kind: 'base64' as const, mediaType: 'application/pdf' as const, data: 'JVBER' },
+        filename: 'report.pdf',
+      }],
+    }
+
+    const textOnly = createHttpProvider({
+      displayName: 'Text only', protocol: openAiResponsesProtocol,
+      baseUrl: 'https://text-only.invalid', auth: { kind: 'none' },
+      models: [{ id: 'm', inputModalities: ['text', 'image'] }],
+    })
+    // Reaching the transport at all would mean the gate failed, so no fetch is stubbed.
+    await expect(drain(textOnly.stream({
+      provider: 'text-only', model: 'm', messages: [documentMessage],
+    }))).rejects.toMatchObject({
+      code: MODEL_ERROR_CODES.UNSUPPORTED_CONTENT,
+      message: /does not accept document input/,
+    })
+
+    // An uncatalogued model defaults to text-only, so it is refused too.
+    const uncatalogued = createHttpProvider({
+      displayName: 'Uncatalogued', protocol: openAiResponsesProtocol,
+      baseUrl: 'https://uncatalogued.invalid', auth: { kind: 'none' },
+    })
+    await expect(drain(uncatalogued.stream({
+      provider: 'uncatalogued', model: 'm', messages: [documentMessage],
+    }))).rejects.toMatchObject({ code: MODEL_ERROR_CODES.UNSUPPORTED_CONTENT })
+
+    const captured = stubFetch([() => sseResponse(RESPONSES_OK)])
+    const capable = createHttpProvider({
+      displayName: 'Document capable', protocol: openAiResponsesProtocol,
+      baseUrl: 'https://document-capable.invalid', auth: { kind: 'none' },
+      models: [{ id: 'm', inputModalities: ['text', 'document'] }],
+    })
+    await drain(capable.stream({
+      provider: 'document-capable', model: 'm', messages: [documentMessage],
+    }))
+    expect(captured[0]?.body).toMatchObject({
+      input: [{
+        type: 'message',
+        content: [{
+          type: 'input_file', filename: 'report.pdf',
+          file_data: 'data:application/pdf;base64,JVBER',
+        }],
+      }],
+    })
   })
 
   it('feeds a discovered catalog into model resolution and memoizes it', async () => {

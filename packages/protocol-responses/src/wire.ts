@@ -21,6 +21,13 @@ export type WireContentPart =
   | { type: 'input_text'; text: string }
   | { type: 'input_image'; image_url: string; detail?: WireImageDetail }
   | { type: 'input_image'; file_id: string; detail?: WireImageDetail }
+  /**
+   * An inline file. `file_data` is a DATA URL, and `filename` is what the API
+   * reads the type from, so both travel together.
+   */
+  | { type: 'input_file'; filename: string; file_data: string }
+  | { type: 'input_file'; file_id: string }
+  | { type: 'input_file'; file_url: string }
   | { type: 'output_text'; text: string; annotations?: WireTextAnnotation[] }
 
 export interface WireTextAnnotation {

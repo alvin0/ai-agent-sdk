@@ -20,6 +20,8 @@ export interface RunTurnOptions {
   readonly validateOutput?: (value: unknown) => void
   /** strict rejects known text-only models when request history contains images; project permits lossy conversion. */
   readonly imagePolicy?: 'strict' | 'project'
+  /** strict rejects models that decline document input when history contains documents; project permits lossy conversion. */
+  readonly documentPolicy?: 'strict' | 'project'
   readonly registry: ModelRegistry
   readonly config: CallConfig
   readonly history: History

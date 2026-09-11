@@ -28,6 +28,7 @@ import {
   defineModelProviderPlugin,
   type ComposableModelProviderPlugin,
   type CredentialOperationOptions,
+  type ModelModality,
   type ModelTarget,
   type SdkLogger,
 } from '@alvin0/ai-agent-sdk-core/provider'
@@ -93,6 +94,22 @@ interface WireCatalogModel {
   }>
 }
 
+/**
+ * Keep only the modalities this SDK has a vocabulary for.
+ *
+ * Discovery is the sole source of Codex capability data, so an unrecognized value
+ * has to be dropped rather than guessed at — but `file` is accepted as a spelling
+ * of `document`, because the upstream catalog names the PDF modality that way and
+ * dropping it would silently strip every document from the request.
+ */
+function catalogModalities(values: readonly string[] | undefined): readonly ModelModality[] {
+  return (values ?? []).flatMap((value): ModelModality[] => {
+    if (value === 'text' || value === 'image' || value === 'document') return [value]
+    if (value === 'file' || value === 'pdf') return ['document']
+    return []
+  })
+}
+
 /** Options for {@link codexAdapter}. */
 export interface CodexAdapterOptions {
   /**
@@ -113,6 +130,11 @@ export interface CodexAdapterOptions {
    * {@link CODEX_CLIENT_VERSION}, so no hardcoded list could be correct for
    * everyone. Discovery also supplies `input_modalities`, without which every model
    * would be assumed text-only and image input silently stripped.
+   *
+   * One known gap: discovery currently reports only `text` and `image`, even for
+   * models that do accept PDF input. Since an omitted modality is read as a
+   * negative claim, document input is projected to text unless you override the
+   * entry here with `inputModalities: ['text', 'image', 'document']`.
    */
   models?: readonly ProviderCatalogModel[]
   /** Client version used for catalog discovery; defaults to {@link CODEX_CLIENT_VERSION}. */
@@ -197,10 +219,8 @@ async function discoverCodexModels(
   }
   return models.flatMap((entry) => {
     if (typeof entry.slug !== 'string' || entry.slug.length === 0) return []
-    const modalities = (entry.input_modalities ?? [])
-      .filter((value): value is 'text' | 'image' => value === 'text' || value === 'image')
-    const outputModalities = (entry.output_modalities ?? [])
-      .filter((value): value is 'text' | 'image' => value === 'text' || value === 'image')
+    const modalities = catalogModalities(entry.input_modalities)
+    const outputModalities = catalogModalities(entry.output_modalities)
     const efforts = (entry.supported_reasoning_levels ?? []).flatMap((candidate) => {
       if (typeof candidate.effort !== 'string' || candidate.effort.length === 0) return []
       return [{

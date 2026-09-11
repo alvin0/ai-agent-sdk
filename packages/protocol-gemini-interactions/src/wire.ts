@@ -19,7 +19,15 @@ export interface WireImageContent {
   resolution?: 'low' | 'medium' | 'high' | 'ultra_high'
 }
 
-export type WireContent = WireTextContent | WireImageContent
+/** An inline or uploaded document, read with native vision rather than as text. */
+export interface WireDocumentContent {
+  type: 'document'
+  data?: string
+  uri?: string
+  mime_type?: string
+}
+
+export type WireContent = WireTextContent | WireImageContent | WireDocumentContent
 
 export type WireStep =
   | { type: 'user_input'; content: WireContent[] }

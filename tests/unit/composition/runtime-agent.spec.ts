@@ -129,6 +129,32 @@ describe('runtime-bound agent', () => {
     await runtime.close()
   })
 
+  it('strict document input never dispatches to a model that declines documents; projection remains opt-in compatible', async () => {
+    const adapter = new RuntimeAdapter()
+    adapter.resolveModel = async (provider, id) => ({ provider, id, name: id, inputModalities: ['text', 'image'] })
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const agent = runtime.agent({ id: 'strict-documents', instructions: 'summarize', compaction: false })
+    const input = createUserMessage({
+      source: { kind: 'user' },
+      content: [{ type: 'document', source: { kind: 'url', url: 'https://example.test/report.pdf' } }],
+    })
+    await expect(agent.generate(input, { documentPolicy: 'strict' })).rejects.toMatchObject({ report: { status: 'error' } })
+    expect(adapter.requests).toHaveLength(0)
+    await agent.generate(input, { documentPolicy: 'project' })
+    expect(adapter.requests).toHaveLength(1)
+    expect(adapter.requests[0]?.messages.some(message => message.content.some(block => block.type === 'document'))).toBe(false)
+    await runtime.close()
+  })
+
+  it('rejects an invalid documentPolicy at the option boundary', async () => {
+    const adapter = new RuntimeAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const agent = runtime.agent({ id: 'bad-document-policy', instructions: 'go', compaction: false })
+    await expect(agent.generate('go', { documentPolicy: 'lossy' } as never))
+      .rejects.toThrow(/documentPolicy must be strict or project/)
+    await runtime.close()
+  })
+
   it('returns validated structured output and rejects schema-invalid JSON', async () => {
     const adapter = new RuntimeAdapter()
     adapter.stream = async function* (options) {

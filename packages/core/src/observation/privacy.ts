@@ -32,7 +32,7 @@ const EVENT_NAMES = new Set<ObservationEventName>([
 const PHASES = new Set<ObservationPhase>(['start', 'end', 'point'])
 const PRIORITIES = new Set<ObservationPriority>(['critical', 'normal', 'verbose'])
 const CONTENT_KEYS = new Set([
-  'answer', 'arguments', 'body', 'completion', 'content', 'filecontent', 'image',
+  'answer', 'arguments', 'body', 'completion', 'content', 'document', 'filecontent', 'filedata', 'image',
   'input', 'messages', 'output', 'prompt', 'reasoning', 'requestbody', 'responsebody',
   'result', 'text', 'toolarguments', 'toolresult',
 ])

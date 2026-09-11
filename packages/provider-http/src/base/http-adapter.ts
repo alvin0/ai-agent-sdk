@@ -31,7 +31,7 @@ import type {
 import type { ResolvedRetryPolicy } from '@alvin0/ai-agent-sdk-core'
 import type { NativeToolName } from '@alvin0/ai-agent-sdk-core'
 import { MODEL_ERROR_CODES, ModelError } from '@alvin0/ai-agent-sdk-core'
-import { contentHasImage } from '@alvin0/ai-agent-sdk-core'
+import { contentHasDocument, contentHasImage } from '@alvin0/ai-agent-sdk-core'
 import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
 import type { ModelInvocationContext } from '@alvin0/ai-agent-sdk-core'
 import type {
@@ -396,6 +396,13 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       && model.inputModalities?.includes('image') !== true) {
       throw new ModelError(
         `${this.displayName} model "${options.model}" does not accept image input`,
+        MODEL_ERROR_CODES.UNSUPPORTED_CONTENT,
+      )
+    }
+    if (options.messages.some(message => contentHasDocument(message.content))
+      && model.inputModalities?.includes('document') !== true) {
+      throw new ModelError(
+        `${this.displayName} model "${options.model}" does not accept document input`,
         MODEL_ERROR_CODES.UNSUPPORTED_CONTENT,
       )
     }

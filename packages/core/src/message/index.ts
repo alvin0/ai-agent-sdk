@@ -5,6 +5,9 @@ export type {
   ContentBlockMap,
   ContentBlockType,
   AssistantTextPhase,
+  DocumentBlock,
+  DocumentMediaType,
+  DocumentSource,
   ImageBlock,
   ImageDetail,
   ImageMediaType,
@@ -39,7 +42,10 @@ export {
   type UserMessage,
 } from './message.ts'
 export {
+  contentHasDocument,
   contentHasImage,
+  projectDocumentsForTextModel,
   projectImagesForTextModel,
+  textOnlyDocumentText,
   textOnlyImageText,
 } from './projection.ts'

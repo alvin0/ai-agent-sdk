@@ -1,4 +1,4 @@
-import { contentHasImage } from '../../message/projection.ts'
+import { contentHasDocument, contentHasImage } from '../../message/projection.ts'
 import { ModelError } from '../../errors/model-error.ts'
 import { type ToolCatalog } from '../tool/registry.ts'
 import { History } from '../history/history.ts'
@@ -379,6 +379,14 @@ export class AgentSession {
             throw new ModelError(`model ${model.id} does not support required image input`, 'UNSUPPORTED_IMAGE_INPUT')
           }
         }
+        // Same preflight for documents, for the same reason.
+        if (invocation.documentPolicy === 'strict' && this.history.messages().some(message => contentHasDocument(message.content))) {
+          const config = this.callConfig()
+          const model = await this.options.registry.resolveModelInfo(config.provider, config.model, signal)
+          if (model.inputModalities !== undefined && !model.inputModalities.includes('document')) {
+            throw new ModelError(`model ${model.id} does not support required document input`, 'UNSUPPORTED_DOCUMENT_INPUT')
+          }
+        }
         for await (const event of this.runDefinition({ ...invocation, signal }, ledger)) {
           accountTraceEvent(ledger, spanOperations, event)
           if (event.type === 'agent-end') outcome = event.outcome
@@ -542,6 +550,7 @@ export class AgentSession {
       ...definition.nativeTools.length === 0 ? {} : { nativeTools: definition.nativeTools },
       ...definition.toolChoice === undefined ? {} : { toolChoice: definition.toolChoice },
       ...invocation.imagePolicy === undefined ? {} : { imagePolicy: invocation.imagePolicy },
+      ...invocation.documentPolicy === undefined ? {} : { documentPolicy: invocation.documentPolicy },
       ...outputFormat === undefined ? {} : { outputFormat },
       ...(invocation.validateOutput === undefined ? {} : { validateOutput: invocation.validateOutput }),
       system: this.systemInstructions(this.activeAdditionalInstructions),

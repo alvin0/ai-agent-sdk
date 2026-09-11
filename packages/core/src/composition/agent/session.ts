@@ -170,7 +170,8 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
             if (!isJsonValue(parsed)) throw new TypeError('structured output parser must return lossless JSON synchronously')
             output = detachedFrozen(parsed)
           },
-        }), ...(options.imagePolicy === undefined ? {} : { imagePolicy: options.imagePolicy }) }, options.additionalInstructions)
+        }), ...(options.imagePolicy === undefined ? {} : { imagePolicy: options.imagePolicy }),
+        ...(options.documentPolicy === undefined ? {} : { documentPolicy: options.documentPolicy }) }, options.additionalInstructions)
     } catch (error) { lease.settle(); this.finishOperation(operation); throw error }
     const abort = (): void => legacy.abort()
     lease.signal.addEventListener('abort', abort, { once: true })

@@ -86,6 +86,7 @@ registry.registerAdapter(['openai'], openAiAdapter({ apiKey }))
 | Native image generation | ✓ |
 | Image input by URL / base64 | ✓ |
 | Image input by `fileId` | ✓ |
+| Document (PDF) input by URL / base64 / `fileId` | ✓ |
 | `detail: 'original'` | ✓ |
 | Reasoning effort | ✓ — validated against the model's declared efforts |
 | Replay state | ✓ |

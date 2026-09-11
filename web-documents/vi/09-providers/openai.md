@@ -86,6 +86,7 @@ registry.registerAdapter(['openai'], openAiAdapter({ apiKey }))
 | Sinh ảnh native | ✓ |
 | Ảnh đầu vào qua URL / base64 | ✓ |
 | Ảnh đầu vào qua `fileId` | ✓ |
+| Tài liệu (PDF) qua URL / base64 / `fileId` | ✓ |
 | `detail: 'original'` | ✓ |
 | Mức nỗ lực suy luận | ✓ — đối chiếu với các mức model khai báo |
 | Trạng thái phát lại | ✓ |

@@ -241,6 +241,46 @@ describe('serializeAnthropicRequest', () => {
     }), options)).toThrow(/URL or base64/i)
   })
 
+  it('maps a base64 PDF to a document block, titled by its file name', () => {
+    const body = serializeAnthropicRequest(providerRequest({
+      messages: [{
+        ...createTextMessage('summarize'),
+        content: [{
+          type: 'document',
+          source: { kind: 'base64', mediaType: 'application/pdf', data: 'JVBER' },
+          filename: 'report-q3.pdf',
+          citations: true,
+        }],
+      }],
+    }), options)
+    expect(body.messages[0]?.content[0]).toEqual({
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: 'JVBER' },
+      title: 'report-q3.pdf',
+      citations: { enabled: true },
+    })
+  })
+
+  it('accepts file-id document sources, which the image block cannot', () => {
+    const body = serializeAnthropicRequest(providerRequest({
+      messages: [{
+        ...createTextMessage('summarize'),
+        content: [
+          { type: 'document', source: { kind: 'file', fileId: 'file_doc_1' }, context: 'quarterly filing' },
+          { type: 'document', source: { kind: 'url', url: 'https://example.com/a.pdf' } },
+        ],
+      }],
+    }), options)
+    expect(body.messages[0]?.content).toEqual([
+      {
+        type: 'document',
+        source: { type: 'file', file_id: 'file_doc_1' },
+        context: 'quarterly filing',
+      },
+      { type: 'document', source: { type: 'url', url: 'https://example.com/a.pdf' } },
+    ])
+  })
+
   it('drops sampling knobs when extended thinking is enabled', () => {
     // Sending both is rejected by this API.
     const body = serializeAnthropicRequest(providerRequest({

@@ -3,6 +3,7 @@ import {
   MODEL_ERROR_CODES,
   ModelError,
   type ContentBlock,
+  type DocumentBlock,
   type ImageBlock,
   type Message,
   type ModelOutputFormat,
@@ -41,6 +42,19 @@ function imageContent(block: ImageBlock): WireContent {
   }
 }
 
+function documentContent(block: DocumentBlock): WireContent {
+  if (block.source.kind === 'base64') {
+    return { type: 'document', data: block.source.data, mime_type: block.source.mediaType }
+  }
+  // This API collapses "remote URL" and "uploaded file" into one `uri`, exactly as
+  // it does for images.
+  return {
+    type: 'document',
+    uri: block.source.kind === 'url' ? block.source.url : block.source.fileId,
+    mime_type: 'application/pdf',
+  }
+}
+
 function annotationOf(annotation: TextAnnotation) {
   if (annotation.type !== 'url-citation') return undefined
   return {
@@ -62,6 +76,7 @@ function contentOf(block: ContentBlock): WireContent | undefined {
     }
   }
   if (block.type === 'image') return imageContent(block)
+  if (block.type === 'document') return documentContent(block)
   return undefined
 }
 
@@ -142,7 +157,7 @@ function appendAssistantMessage(message: Message, output: WireStep[]): void {
     content = []
   }
   for (const block of message.content) {
-    if (block.type === 'text' || block.type === 'image') {
+    if (block.type === 'text' || block.type === 'image' || block.type === 'document') {
       const mapped = contentOf(block)
       if (mapped !== undefined) content.push(mapped)
       continue

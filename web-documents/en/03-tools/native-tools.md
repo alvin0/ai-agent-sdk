@@ -64,9 +64,14 @@ provider I/O:
 | Image input by URL / base64 | ✓ | ✓ |
 | Image input by `fileId` | ✓ | ✗ — typed `INVALID_REQUEST` |
 | `detail: 'original'` | ✓ | ✗ |
+| Document (PDF) input by URL / base64 / `fileId` | ✓ | ✓ |
+| Document citations (`citations: true`) | ✗ — ignored | ✓ |
 
 Anthropic reports unsupported selections as typed errors rather than silently
 dropping them.
+
+Gemini Interactions accepts document input by base64 and by URI (a remote URL or
+a Files API uri) on the same terms.
 
 ## Image input
 
@@ -85,6 +90,52 @@ const message = createUserMessage({
 URL and base64 sources are portable across providers. The registry projects image
 input away only for models that **explicitly** declare no vision modality — it
 does not guess.
+
+## Document (PDF) input
+
+A PDF is a `DocumentBlock`, not an image. Providers read it with native vision:
+each page is rasterized alongside its extracted text, so charts and tables
+survive. The provider owns the page splitting.
+
+```ts
+const message = createUserMessage({
+  content: [
+    { type: 'document',
+      source: { kind: 'base64', mediaType: 'application/pdf', data: base64Pdf },
+      filename: 'inquiry.pdf',
+      pages: 72 },
+    { type: 'text', text: 'Summarize the open items.' },
+  ],
+  source: { kind: 'user' },
+})
+```
+
+### The model must declare the modality
+
+An omitted modality is a **negative capability claim**, so a model that does not
+list `document` gets the PDF replaced by a textual stand-in. This is easy to trip
+over on Codex, whose discovery reports only `text` and `image` even for models
+that do accept PDFs:
+
+```ts
+codexNodeAdapter({
+  authStore,
+  models: [{ id: 'gpt-5.6-luna', inputModalities: ['text', 'image', 'document'] }],
+})
+```
+
+Gemini ships no built-in catalog, so declare the modality there as well. Use
+`documentPolicy: 'strict'` on an invocation to fail with
+`UNSUPPORTED_DOCUMENT_INPUT` instead of silently degrading the file — worth doing
+whenever the answer depends on the PDF actually arriving.
+
+### `pages` and token cost
+
+Providers bill a PDF per page, so `pages` is what lets compaction cost it
+correctly. Measured on a real 72-page PDF: OpenAI billed 214,019 input tokens
+(~2,970/page) and Gemini 38,350 (~533/page). With `pages` set the estimate landed
+within 1%; without it the estimator assumes 8 pages and under-states a long
+document badly. It is local metadata — no adapter serializes it.
 
 ## Generated images
 
@@ -116,5 +167,5 @@ have to correlate a generic "tool started" event by name.
 
 ## Read next
 
-- [`Types` API reference](/en/13-api-reference/types) — `ImageBlock`, `StreamChunk`
+- [`Types` API reference](/en/13-api-reference/types) — `ImageBlock`, `DocumentBlock`, `StreamChunk`
 - [Providers](/en/09-providers/) — what each provider supports

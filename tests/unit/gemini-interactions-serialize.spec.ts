@@ -120,6 +120,27 @@ describe('serializeGeminiInteractionsRequest', () => {
     }])
   })
 
+  it('maps inline, URL, and file-backed PDFs to document content', () => {
+    const body = serializeGeminiInteractionsRequest(providerRequest({
+      messages: [{
+        ...createTextMessage('Summarize these.'),
+        content: [
+          { type: 'document', source: { kind: 'base64', mediaType: 'application/pdf', data: 'JVBER' } },
+          { type: 'document', source: { kind: 'url', url: 'https://example.com/a.pdf' } },
+          { type: 'document', source: { kind: 'file', fileId: 'files/abc123' } },
+        ],
+      }],
+    }), dialect)
+    expect(body.input).toEqual([{
+      type: 'user_input',
+      content: [
+        { type: 'document', data: 'JVBER', mime_type: 'application/pdf' },
+        { type: 'document', uri: 'https://example.com/a.pdf', mime_type: 'application/pdf' },
+        { type: 'document', uri: 'files/abc123', mime_type: 'application/pdf' },
+      ],
+    }])
+  })
+
   it('supports bare Google Search but fails closed for unsupported options and image generation', () => {
     const search = serializeGeminiInteractionsRequest(providerRequest({
       messages: [createTextMessage('Search.')],

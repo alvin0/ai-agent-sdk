@@ -1,0 +1,62 @@
+{
+  "name": "@alvin0/ai-agent-sdk-protocol-openai-chat-completions",
+  "author": {
+    "name": "alvin0 - chaulamdinhai",
+    "email": "chaulamdinhai@gmail.com"
+  },
+  "version": "0.1.0",
+  "description": "Universal OpenAI Chat Completions wire schema, serializer, translator, and dialect for ai-agent-sdk",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alvin0/ai-agent-sdk.git",
+    "directory": "packages/protocol-openai-chat-completions"
+  },
+  "homepage": "https://github.com/alvin0/ai-agent-sdk/tree/main/packages/protocol-openai-chat-completions#readme",
+  "bugs": { "url": "https://github.com/alvin0/ai-agent-sdk/issues" },
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "README.md", "LICENSE"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('artifacts',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "pack": "pnpm pack --pack-destination artifacts",
+    "test:pack": "node ../../scripts/test-packed-protocol.mts protocol-openai-chat-completions",
+    "check:publint": "publint",
+    "check:types": "attw --profile esm-only --pack ."
+  },
+  "peerDependencies": {
+    "@alvin0/ai-agent-sdk-core": "workspace:^"
+  },
+  "devDependencies": {
+    "@alvin0/ai-agent-sdk-core": "workspace:^",
+    "@arethetypeswrong/cli": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  },
+  "aiAgentSdk": {
+    "runtime": "universal",
+    "coreApi": 1,
+    "roles": ["wire-protocol"]
+  }
+}

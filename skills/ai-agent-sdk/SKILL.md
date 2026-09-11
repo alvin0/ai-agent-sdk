@@ -81,7 +81,7 @@ Load only the file the task needs. Each is self-contained.
 | Multi-step flows, agent teams, `mode: 'deep'`, human gates | [references/orchestration.md](references/orchestration.md) |
 | Point the SDK at a new endpoint, or author a provider | [references/providers.md](references/providers.md) |
 | Instructions, always-on moving context, `AGENTS.md` files | [references/context-and-instructions.md](references/context-and-instructions.md) |
-| Messages, content blocks, images and vision | [references/messages-and-content.md](references/messages-and-content.md) |
+| Messages, content blocks, images and vision, PDF/document input | [references/messages-and-content.md](references/messages-and-content.md) |
 | Turn limits, token budgets, usage coverage, oversized tool output | [references/budgets-and-usage.md](references/budgets-and-usage.md) |
 | Consume or publish MCP tools | [references/mcp.md](references/mcp.md) |
 | Remote agents over A2A, agent cards | [references/a2a.md](references/a2a.md) |

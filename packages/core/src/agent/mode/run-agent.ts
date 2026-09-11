@@ -200,6 +200,7 @@ async function driveAgent(
     ...options.nativeTools === undefined ? {} : { nativeTools: options.nativeTools },
     ...options.toolChoice === undefined ? {} : { toolChoice: options.toolChoice },
     ...options.imagePolicy === undefined ? {} : { imagePolicy: options.imagePolicy },
+    ...options.documentPolicy === undefined ? {} : { documentPolicy: options.documentPolicy },
     ...(options.validateOutput === undefined ? {} : { validateOutput: options.validateOutput }),
     ...options.outputFormat === undefined ? {} : { outputFormat: options.outputFormat },
     system: joinSystem(options.system, modeSystem(mode, broker !== undefined)),

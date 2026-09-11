@@ -14,10 +14,28 @@ export type WireImageSource =
   | { type: 'base64'; media_type: string; data: string }
   | { type: 'url'; url: string }
 
+/**
+ * Document bytes as the Messages API accepts them.
+ *
+ * Unlike {@link WireImageSource}, this one DOES accept a Files API id, which is
+ * the recommended path for a PDF large enough to strain the 32 MB request cap.
+ */
+export type WireDocumentSource =
+  | { type: 'base64'; media_type: string; data: string }
+  | { type: 'url'; url: string }
+  | { type: 'file'; file_id: string }
+
 /** A request-side content block. */
 export type WireRequestBlock =
   | { type: 'text'; text: string; citations?: WireCitation[] }
   | { type: 'image'; source: WireImageSource }
+  | {
+    type: 'document'
+    source: WireDocumentSource
+    title?: string
+    context?: string
+    citations?: { enabled: boolean }
+  }
   | { type: 'tool_use'; id: string; name: string; input: unknown }
   | {
     type: 'tool_result'

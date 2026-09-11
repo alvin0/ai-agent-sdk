@@ -110,6 +110,8 @@ export interface RuntimeAgentInvocationOptions {
   }
   /** strict rejects known text-only models when request history contains images; project permits lossy conversion. */
   readonly imagePolicy?: 'strict' | 'project'
+  /** strict rejects models that decline document input when history contains documents; project permits lossy conversion. */
+  readonly documentPolicy?: 'strict' | 'project'
   readonly signal?: AbortSignal
   readonly additionalInstructions?: string
   /** Include raw span lifecycle events in the public stream for host tracing. */

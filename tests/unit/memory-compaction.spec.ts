@@ -235,16 +235,51 @@ describe('agent task memory', () => {
     })).toThrow(/duplicate agent memory seed id/)
   })
 
-  it('estimates large base64 image payloads instead of assigning a fixed small cost', () => {
-    const message = createMessage({
+  it('costs an image by its detail budget, not by its payload size', () => {
+    // Providers bill an image by pixel area, never by bytes, so a big payload must
+    // not inflate the estimate: 40 KB of base64 can be a 512x512 screenshot.
+    const image = (data: string, detail?: 'low' | 'high' | 'original') => createMessage({
       role: 'user', source: { kind: 'user' },
       content: [{
-        type: 'image', source: {
-          kind: 'base64', mediaType: 'image/png', data: 'A'.repeat(40_000),
-        },
+        type: 'image',
+        source: { kind: 'base64', mediaType: 'image/png', data },
+        ...(detail === undefined ? {} : { detail }),
       }],
     })
-    expect(estimateMessageTokens(message)).toBeGreaterThanOrEqual(10_000)
+    expect(estimateMessageTokens(image('A'.repeat(40_000))))
+      .toBe(estimateMessageTokens(image('A'.repeat(400))))
+
+    // The detail level is the one sizing fact a block carries, and it bounds cost.
+    const low = estimateMessageTokens(image('A', 'low'))
+    const high = estimateMessageTokens(image('A', 'high'))
+    const original = estimateMessageTokens(image('A', 'original'))
+    expect(low).toBeLessThan(high)
+    expect(high).toBeLessThan(original)
+    // Anthropic caps an image near 1,600 tokens and OpenAI's high budget is
+    // 2,500 patches x 1.2; a high-detail image must land in that neighbourhood
+    // rather than the tens of thousands a byte-derived estimate produced.
+    expect(high).toBeGreaterThan(1_000)
+    expect(high).toBeLessThan(4_000)
+  })
+
+  it('costs a document per page, exactly when the page count is declared', () => {
+    const document = (pages?: number) => createMessage({
+      role: 'user', source: { kind: 'user' },
+      content: [{
+        type: 'document',
+        source: { kind: 'base64', mediaType: 'application/pdf', data: 'A'.repeat(40_000) },
+        ...(pages === undefined ? {} : { pages }),
+      }],
+    })
+    const onePage = estimateMessageTokens(document(1))
+    const tenPages = estimateMessageTokens(document(10))
+    expect(tenPages - 4).toBe((onePage - 4) * 10)
+    // A 200-page PDF must dominate a 1-page one, which a byte-derived estimate
+    // could not express at all: both can be the same number of bytes.
+    expect(estimateMessageTokens(document(200))).toBeGreaterThan(tenPages)
+    // Without a declared count the estimate is a documented assumption, and must
+    // still be substantial rather than a token floor.
+    expect(estimateMessageTokens(document())).toBeGreaterThan(onePage)
   })
 })
 

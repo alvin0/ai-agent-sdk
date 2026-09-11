@@ -201,7 +201,8 @@ Root re-export toàn bộ từ vựng trung lập:
 
 | Nhóm | Export đáng chú ý |
 | --- | --- |
-| Message | `createTextMessage`, `createUserMessage`, `Message`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `ContentBlock`, `TextBlock`, `ImageBlock`, `ReasoningBlock`, `ToolCallBlock`, `ToolResultBlock`, `NativeToolCallBlock`, `MessageSource` |
+| Message | `createTextMessage`, `createUserMessage`, `Message`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `ContentBlock`, `TextBlock`, `ImageBlock`, `DocumentBlock`, `ReasoningBlock`, `ToolCallBlock`, `ToolResultBlock`, `NativeToolCallBlock`, `MessageSource` |
+| Chiếu nội dung | `contentHasImage`, `contentHasDocument`, `projectImagesForTextModel`, `projectDocumentsForTextModel`, `textOnlyImageText`, `textOnlyDocumentText` |
 | Stream | `BlockAssembler`, `StreamChunk`, `FinishReason`, `FinishReasonMap`, `TokenUsage`, `ReplayEnvelope` |
 | Registry | `ModelRegistry`, `ModelAdapter`, `withRetry`, `RetryPolicyConfig`, `ResolvedRetryPolicy`, `ModelInfo`, `ResolvedModelInfo`, `GenerateOptions`, `ToolChoice`, `NativeToolSchema` |
 | Lỗi | `AgentSdkError`, `MODEL_ERROR_CODES`, `REGISTRY_ERROR_CODES`, `ModelFailure`, `SupportSafeError`, `CapabilityIdentityConflict` |

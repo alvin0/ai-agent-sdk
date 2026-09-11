@@ -2,13 +2,14 @@
 
 ## Content blocks
 
-A message's `content` is an array of typed blocks. Six block types exist:
+A message's `content` is an array of typed blocks. Seven block types exist:
 
 | Block | Purpose |
 | --- | --- |
 | `TextBlock` | Visible text. Assistant text also carries an `AssistantTextPhase`. |
 | `ReasoningBlock` | Reasoning summary or content the provider actually emitted. |
 | `ImageBlock` | Image input or generated output. |
+| `DocumentBlock` | PDF input, read by the provider with native vision. |
 | `ToolCallBlock` | A host tool the scheduler must execute. |
 | `ToolResultBlock` | The result of a host tool call, correlated by call id. |
 | `NativeToolCallBlock` | A provider-executed tool. The scheduler never runs it. |
@@ -24,6 +25,35 @@ A message's `content` is an array of typed blocks. Six block types exist:
 `base64` and `url` are portable across providers. `{ kind: 'file', fileId }` and
 `detail: 'original'` are accepted by the Responses API only; Anthropic reports
 them as a typed `INVALID_REQUEST` error rather than silently dropping them.
+
+### Document sources
+
+```ts
+interface DocumentBlock {
+  type: 'document'
+  source:
+    | { kind: 'base64'; mediaType: 'application/pdf'; data: string }
+    | { kind: 'url'; url: string }
+    | { kind: 'file'; fileId: string }
+  filename?: string   // Responses infers the file type from it
+  title?: string      // Anthropic attributes citations to it
+  context?: string
+  citations?: boolean
+  pages?: number      // local metadata for token estimation; never serialized
+}
+```
+
+All three source kinds are portable here — unlike images, Anthropic accepts a
+Files API `fileId` for documents, and it is the recommended path for a PDF large
+enough to strain its 32 MB request cap.
+
+The media type is PDF only, deliberately. All three provider families document
+PDF as a native vision-backed input; the other file types each provider accepts
+differ per provider, so admitting them would let a request typecheck against a
+provider that rejects it. A caller with a DOCX extracts text and sends text.
+
+See [Document input](/en/03-tools/native-tools#document-pdf-input) for the
+capability declaration a model needs before a PDF will reach it.
 
 ## Messages are immutable
 

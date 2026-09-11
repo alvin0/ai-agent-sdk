@@ -200,7 +200,8 @@ The root re-exports the whole neutral vocabulary:
 
 | Group | Notable exports |
 | --- | --- |
-| Messages | `createTextMessage`, `createUserMessage`, `Message`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `ContentBlock`, `TextBlock`, `ImageBlock`, `ReasoningBlock`, `ToolCallBlock`, `ToolResultBlock`, `NativeToolCallBlock`, `MessageSource` |
+| Messages | `createTextMessage`, `createUserMessage`, `Message`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `ContentBlock`, `TextBlock`, `ImageBlock`, `DocumentBlock`, `ReasoningBlock`, `ToolCallBlock`, `ToolResultBlock`, `NativeToolCallBlock`, `MessageSource` |
+| Content projection | `contentHasImage`, `contentHasDocument`, `projectImagesForTextModel`, `projectDocumentsForTextModel`, `textOnlyImageText`, `textOnlyDocumentText` |
 | Streams | `BlockAssembler`, `StreamChunk`, `FinishReason`, `FinishReasonMap`, `TokenUsage`, `ReplayEnvelope` |
 | Registry | `ModelRegistry`, `ModelAdapter`, `withRetry`, `RetryPolicyConfig`, `ResolvedRetryPolicy`, `ModelInfo`, `ResolvedModelInfo`, `GenerateOptions`, `ToolChoice`, `NativeToolSchema` |
 | Errors | `AgentSdkError`, `MODEL_ERROR_CODES`, `REGISTRY_ERROR_CODES`, `ModelFailure`, `SupportSafeError`, `CapabilityIdentityConflict` |

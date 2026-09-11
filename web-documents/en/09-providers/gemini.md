@@ -151,6 +151,7 @@ const catalog = await runtime.modelCatalog('gemini')
 | Web-search filters (`allowedDomains`, `blockedDomains`, `searchContextSize`, `userLocation`, `maxUses`) | ✗ | typed `INVALID_REQUEST` |
 | Native image generation | ✗ not exposed as an SDK native tool | typed `INVALID_REQUEST` |
 | Image input — base64, URL, file id | ✓ | — |
+| Document (PDF) input — base64, URL, file uri | ✓ declare `inputModalities: ['text', 'image', 'document']` | projected to text |
 | `toolChoice` including forcing web search | ✓ | — |
 
 ### Web search is all-or-nothing

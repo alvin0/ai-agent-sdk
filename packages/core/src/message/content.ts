@@ -82,6 +82,71 @@ export interface ImageBlock {
   detail?: ImageDetail
 }
 
+/**
+ * Document media types every supported provider accepts as a first-class file.
+ *
+ * PDF only, deliberately. All three provider families document PDF as a native
+ * vision-backed input; the other types each provider accepts are different per
+ * provider, and admitting them here would let a request typecheck against a
+ * provider that rejects it. A caller with a DOCX extracts text and sends text.
+ */
+export type DocumentMediaType = 'application/pdf'
+
+/**
+ * Where a document's bytes come from.
+ *
+ * Identical variants to {@link ImageSource}, and not by coincidence: OpenAI
+ * Responses (`input_file`), Anthropic Messages (`document`), and Gemini
+ * Interactions (`document`) each accept inline base64, a remote URL, and a
+ * provider-side uploaded file id.
+ */
+export type DocumentSource =
+  | { kind: 'base64'; mediaType: DocumentMediaType; data: string }
+  | { kind: 'url'; url: string }
+  | { kind: 'file'; fileId: string }
+
+/**
+ * A document (PDF), valid in user content and echoed in assistant content.
+ *
+ * Providers read a PDF with vision, not plain text extraction: each page is
+ * rasterized alongside its extracted text, so charts and tables survive. That is
+ * also why a document is its own block rather than sugar over {@link ImageBlock}
+ * — the provider owns the page splitting, and doing it here would lose the text
+ * layer.
+ */
+export interface DocumentBlock {
+  type: 'document'
+  source: DocumentSource
+  /**
+   * Display file name.
+   *
+   * Required on the wire by OpenAI for inline base64, which infers the type from
+   * the extension. Adapters substitute a neutral default when it is absent, so
+   * setting it is optional here but always worth doing.
+   */
+  filename?: string
+  /** Short human title for the document, when the provider surfaces one. */
+  title?: string
+  /**
+   * Page count, when the caller knows it.
+   *
+   * LOCAL metadata: no provider accepts it on the wire, and no adapter sends it.
+   * It exists because providers bill a PDF per page, so this is the one fact that
+   * lets the context estimator cost a document accurately instead of assuming.
+   * Absent it, the estimator falls back to a documented assumption.
+   */
+  pages?: number
+  /** Extra context about the document, passed through where supported. */
+  context?: string
+  /**
+   * Ask the provider to emit verifiable citations into this document.
+   *
+   * Honored only by providers with a native citation feature; ignored elsewhere
+   * rather than emulated, because a fabricated page reference is worse than none.
+   */
+  citations?: boolean
+}
+
 /** A tool the provider ran internally, such as web search or image generation. */
 export interface NativeToolCallBlock {
   type: 'native-tool-call'
@@ -130,6 +195,7 @@ export interface ContentBlockMap {
   'text': TextBlock
   'reasoning': ReasoningBlock
   'image': ImageBlock
+  'document': DocumentBlock
   'native-tool-call': NativeToolCallBlock
   'tool-call': ToolCallBlock
   'tool-result': ToolResultBlock

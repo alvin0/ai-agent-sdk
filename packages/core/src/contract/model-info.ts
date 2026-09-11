@@ -20,6 +20,7 @@ export interface ProviderInfo {
 export interface ModelModalityMap {
   text: 'text'
   image: 'image'
+  document: 'document'
 }
 
 /** Any declared model input modality. */
@@ -45,7 +46,8 @@ export interface ModelInfo {
    * Accepted request modalities.
    *
    * Absent means UNKNOWN; an explicit list that omits a modality is a negative
-   * capability claim, and the registry acts on it by projecting images to text.
+   * capability claim, and the registry acts on it by projecting images and
+   * documents to text.
    */
   inputModalities?: readonly ModelModality[]
   /** Modalities this model route may return, directly or through native tools. */

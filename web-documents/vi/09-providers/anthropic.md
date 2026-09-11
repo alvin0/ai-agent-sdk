@@ -119,6 +119,8 @@ việc phát lại.
 | Sinh ảnh native | ✗ | `INVALID_REQUEST` có kiểu |
 | Ảnh đầu vào qua URL / base64 | ✓ | — |
 | Ảnh đầu vào qua `fileId` | ✗ | `INVALID_REQUEST` có kiểu |
+| Tài liệu (PDF) qua URL / base64 / `fileId` | ✓ | — |
+| Trích dẫn tài liệu (`citations: true`) | ✓ | — |
 | `detail: 'original'` | ✗ | `INVALID_REQUEST` có kiểu |
 | Suy luận dưới dạng ngân sách suy nghĩ | ✓ | — |
 

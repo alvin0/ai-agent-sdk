@@ -118,6 +118,8 @@ replay.
 | Native image generation | ✗ | typed `INVALID_REQUEST` |
 | Image input by URL / base64 | ✓ | — |
 | Image input by `fileId` | ✗ | typed `INVALID_REQUEST` |
+| Document (PDF) input by URL / base64 / `fileId` | ✓ | — |
+| Document citations (`citations: true`) | ✓ | — |
 | `detail: 'original'` | ✗ | typed `INVALID_REQUEST` |
 | Reasoning as thinking budget | ✓ | — |
 

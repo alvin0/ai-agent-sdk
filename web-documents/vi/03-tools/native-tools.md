@@ -64,9 +64,14 @@ khi có I/O tới nhà cung cấp:
 | Ảnh đầu vào qua URL / base64 | ✓ | ✓ |
 | Ảnh đầu vào qua `fileId` | ✓ | ✗ — lỗi `INVALID_REQUEST` có kiểu |
 | `detail: 'original'` | ✓ | ✗ |
+| Tài liệu (PDF) qua URL / base64 / `fileId` | ✓ | ✓ |
+| Trích dẫn tài liệu (`citations: true`) | ✗ — bỏ qua | ✓ |
 
 Anthropic báo các lựa chọn không hỗ trợ thành lỗi có kiểu, chứ không âm thầm bỏ
 qua.
+
+Gemini Interactions chấp nhận tài liệu đầu vào qua base64 và qua URI (URL từ xa
+hoặc uri của Files API) trên cùng điều kiện.
 
 ## Ảnh đầu vào
 
@@ -85,6 +90,52 @@ const message = createUserMessage({
 Nguồn URL và base64 dùng được với mọi nhà cung cấp. Registry chỉ chiếu bỏ ảnh đầu
 vào với những model khai báo **tường minh** là không có phương thức thị giác — nó
 không đoán.
+
+## Tài liệu (PDF) đầu vào
+
+PDF là một `DocumentBlock`, không phải ảnh. Nhà cung cấp đọc nó bằng thị giác
+thuần: mỗi trang được render thành ảnh kèm phần text trích xuất, nên biểu đồ và
+bảng đều được giữ lại. Việc tách trang do nhà cung cấp lo.
+
+```ts
+const message = createUserMessage({
+  content: [
+    { type: 'document',
+      source: { kind: 'base64', mediaType: 'application/pdf', data: base64Pdf },
+      filename: 'inquiry.pdf',
+      pages: 72 },
+    { type: 'text', text: 'Tóm tắt các mục còn tồn.' },
+  ],
+  source: { kind: 'user' },
+})
+```
+
+### Model phải khai báo modality
+
+Một modality bị bỏ trống được hiểu là **khai báo phủ định**, nên model không liệt
+kê `document` sẽ nhận PDF đã bị thay bằng một chuỗi văn bản đại diện. Chỗ này rất
+dễ sập với Codex, vì discovery của nó chỉ báo `text` và `image` ngay cả với model
+thực sự nhận được PDF:
+
+```ts
+codexNodeAdapter({
+  authStore,
+  models: [{ id: 'gpt-5.6-luna', inputModalities: ['text', 'image', 'document'] }],
+})
+```
+
+Gemini không ship catalog sẵn nên cũng phải khai ở đó. Dùng `documentPolicy:
+'strict'` trên một lần gọi để fail bằng `UNSUPPORTED_DOCUMENT_INPUT` thay vì âm
+thầm hạ cấp file — nên bật khi câu trả lời phụ thuộc vào việc PDF thật sự tới được
+model.
+
+### `pages` và chi phí token
+
+Nhà cung cấp tính tiền PDF theo trang, nên `pages` là thứ giúp compaction định giá
+đúng. Đo trên một PDF 72 trang thật: OpenAI tính 214.019 input token (~2.970/trang)
+và Gemini 38.350 (~533/trang). Có `pages`, ước lượng lệch dưới 1%; không có,
+estimator giả định 8 trang và tính thiếu nghiêm trọng với tài liệu dài. Đây là
+metadata cục bộ — không adapter nào serialize nó.
 
 ## Ảnh được sinh ra
 

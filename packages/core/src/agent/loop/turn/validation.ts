@@ -102,6 +102,22 @@ export function validateContentBlock(root: ContentBlock, maxNodes: number): void
           throw new TypeError('image source kind is invalid')
         }
         break
+      case 'document':
+        if (!record(value.source) || typeof value.source.kind !== 'string') {
+          throw new TypeError('document block source is invalid')
+        }
+        if (value.source.kind === 'base64') {
+          if (typeof value.source.data !== 'string' || typeof value.source.mediaType !== 'string') {
+            throw new TypeError('base64 document source is invalid')
+          }
+        } else if (value.source.kind === 'url') {
+          if (typeof value.source.url !== 'string') throw new TypeError('URL document source is invalid')
+        } else if (value.source.kind === 'file') {
+          if (typeof value.source.fileId !== 'string') throw new TypeError('file document source is invalid')
+        } else {
+          throw new TypeError('document source kind is invalid')
+        }
+        break
       case 'tool-call':
         if (typeof value.id !== 'string' || value.id.length === 0
           || typeof value.name !== 'string' || value.name.length === 0

@@ -6,7 +6,9 @@ import type { ProviderInfo, ResolvedModelInfo } from '../contract/model-info.ts'
 import type { ResolvedRetryPolicy } from '../contract/retry-policy.ts'
 import { normalizeModelFailure } from '../errors/failure.ts'
 import { MODEL_ERROR_CODES, ModelError, REGISTRY_ERROR_CODES } from '../errors/model-error.ts'
-import { contentHasImage, projectImagesForTextModel } from '../message/projection.ts'
+import {
+  contentHasDocument, contentHasImage, projectDocumentsForTextModel, projectImagesForTextModel,
+} from '../message/projection.ts'
 import type { ModelInvocationContext } from '../observation/report.ts'
 import type { StreamChunk } from '../stream/chunk.ts'
 import { waitForSettlement } from '../async/settlement.ts'
@@ -55,13 +57,23 @@ export async function* streamAdapter(input: AdapterStreamInput): AsyncGenerator<
     const hasUnsupportedImages = prepared.modelInfo.inputModalities !== undefined
       && !prepared.modelInfo.inputModalities.includes('image')
       && withConfig.messages.some(message => contentHasImage(message.content))
+    const hasUnsupportedDocuments = prepared.modelInfo.inputModalities !== undefined
+      && !prepared.modelInfo.inputModalities.includes('document')
+      && withConfig.messages.some(message => contentHasDocument(message.content))
     if (withConfig.imagePolicy !== undefined && withConfig.imagePolicy !== 'strict' && withConfig.imagePolicy !== 'project') throw new ModelError('invalid image policy', 'INVALID_IMAGE_POLICY')
+    if (withConfig.documentPolicy !== undefined && withConfig.documentPolicy !== 'strict' && withConfig.documentPolicy !== 'project') throw new ModelError('invalid document policy', 'INVALID_DOCUMENT_POLICY')
     if (hasUnsupportedImages && withConfig.imagePolicy === 'strict') throw new ModelError(
       `model ${prepared.modelInfo.id} does not support required image input`, 'UNSUPPORTED_IMAGE_INPUT',
     )
-    const projected = hasUnsupportedImages
+    if (hasUnsupportedDocuments && withConfig.documentPolicy === 'strict') throw new ModelError(
+      `model ${prepared.modelInfo.id} does not support required document input`, 'UNSUPPORTED_DOCUMENT_INPUT',
+    )
+    const withImages = hasUnsupportedImages
       ? { ...withConfig, messages: projectImagesForTextModel(withConfig.messages) }
       : withConfig
+    const projected = hasUnsupportedDocuments
+      ? { ...withImages, messages: projectDocumentsForTextModel(withImages.messages) }
+      : withImages
     validateNativeTools(projected, prepared.modelInfo)
     input.onDispatch()
     iterator = prepared.dispatch(projectReplayForAdapter(

@@ -259,6 +259,22 @@ export function validateContentBlock(
       if (typeof value.text !== 'string') throw new TypeError(`${path}.text must be a string`)
       return
     case 'image': validateImageSource(value.source, `${path}.source`); return
+    case 'document':
+      validateDocumentSource(value.source, `${path}.source`)
+      for (const field of ['filename', 'title', 'context'] as const) {
+        if (value[field] !== undefined && typeof value[field] !== 'string') {
+          throw new TypeError(`${path}.${field} must be a string`)
+        }
+      }
+      if (value.citations !== undefined && typeof value.citations !== 'boolean') {
+        throw new TypeError(`${path}.citations must be a boolean`)
+      }
+      if (value.pages !== undefined) {
+        if (!Number.isSafeInteger(value.pages) || (value.pages as number) <= 0) {
+          throw new TypeError(`${path}.pages must be a positive integer`)
+        }
+      }
+      return
     case 'native-tool-call':
       {
         const id = nonEmptyString(value.id, `${path}.id`)
@@ -322,6 +338,21 @@ export function validateImageSource(value: unknown, path: string): void {
     if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(String(value.mediaType))) {
       throw new TypeError(`${path}.mediaType is invalid`)
     }
+    if (typeof value.data !== 'string') throw new TypeError(`${path}.data must be a string`)
+  } else if (kind === 'url') {
+    nonEmptyString(value.url, `${path}.url`)
+  } else if (kind === 'file') {
+    nonEmptyString(value.fileId, `${path}.fileId`)
+  } else {
+    throw new TypeError(`${path}.kind is invalid`)
+  }
+}
+
+export function validateDocumentSource(value: unknown, path: string): void {
+  if (!isRecord(value)) throw new TypeError(`${path} must be an object`)
+  const kind = nonEmptyString(value.kind, `${path}.kind`)
+  if (kind === 'base64') {
+    if (String(value.mediaType) !== 'application/pdf') throw new TypeError(`${path}.mediaType is invalid`)
     if (typeof value.data !== 'string') throw new TypeError(`${path}.data must be a string`)
   } else if (kind === 'url') {
     nonEmptyString(value.url, `${path}.url`)

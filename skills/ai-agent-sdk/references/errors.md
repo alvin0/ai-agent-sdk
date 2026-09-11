@@ -82,6 +82,9 @@ automatic compaction may compact and retry once (`maxOverflowRetries`).
 | --- | --- |
 | `UNSUPPORTED_REASONING_EFFORT` | Effort the model does not declare |
 | `UNSUPPORTED_NATIVE_TOOL` | Native tool the model does not support |
+| `UNSUPPORTED_IMAGE_INPUT` | `imagePolicy: 'strict'` and the model declares no image modality |
+| `UNSUPPORTED_DOCUMENT_INPUT` | `documentPolicy: 'strict'` and the model declares no document modality |
+| `INVALID_IMAGE_POLICY` / `INVALID_DOCUMENT_POLICY` | Policy value was neither `'strict'` nor `'project'` |
 | `OUTPUT_TOKEN_LIMIT_EXCEEDED` | Output selection above the model's hard ceiling |
 | `INVALID_ARGUMENTS` | A tool's `parse` threw — reported to the model, which can correct it |
 | `CONTEXT_SECTION_INVALID` | A context section broke its id/size contract |
