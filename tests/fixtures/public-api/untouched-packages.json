@@ -71,6 +71,11 @@
           "DocumentMediaType",
           "DocumentSource",
           "EMPTY_RESPONSE_CODE",
+          "EmbeddingManyResult",
+          "EmbeddingModelHandle",
+          "EmbeddingModelOptions",
+          "EmbeddingResult",
+          "EmbeddingUsageReport",
           "EndProviderAttemptInput",
           "FinishReason",
           "FinishReasonMap",
@@ -366,7 +371,7 @@
           "withIdleTimeout",
           "withRetry"
         ],
-        "declarationSha256": "c8404400675527ea7ee9bf8c096308d47ed6ac75dde8ed76c691b1f59ab82b04"
+        "declarationSha256": "dd8c07d3ef87e523064ff1b07c24a26102f95f011013e719056cfcdbe9f67065"
       },
       "./agent": {
         "exports": [
@@ -682,8 +687,11 @@
           "AdapterRegistrationHandle",
           "AgentSdkError",
           "CREDENTIAL_CAPABILITY_API_VERSION",
+          "ComposableEmbeddingProviderPlugin",
+          "ComposableEmbeddingProviderRegistrar",
           "ComposableModelProviderPlugin",
           "ComposableModelProviderRegistrar",
+          "ComposableRuntimeProviderPlugin",
           "CredentialCommitInput",
           "CredentialCommitResult",
           "CredentialInput",
@@ -692,6 +700,9 @@
           "CredentialSource",
           "CredentialStore",
           "CredentialStoreDefinition",
+          "EMBEDDING_PROVIDER_PLUGIN_API_VERSION",
+          "EmbeddingProviderPluginDefinition",
+          "EmbeddingProviderRegistrar",
           "EndProviderAttemptInput",
           "GenerateOptions",
           "ModelAdapter",
@@ -727,9 +738,10 @@
           "WebSearchLocation",
           "defineCredentialSource",
           "defineCredentialStore",
+          "defineEmbeddingProviderPlugin",
           "defineModelProviderPlugin"
         ],
-        "declarationSha256": "58c23ca16d5a721bc87207fd33e6d8d791fd24419658f2b27052aeac5b9260cc"
+        "declarationSha256": "1b56bef4aef63a10a8777cb79db6bd421700bcfaf3cefd296a9b27086a6c120b"
       },
       "./skills": {
         "exports": [
@@ -975,7 +987,7 @@
           "resolveDialect",
           "retryAfterMs"
         ],
-        "declarationSha256": "074a66687aefdbdc35da74c2d9ddb13943d7b086531235e5b4913f9970fdade7"
+        "declarationSha256": "36779475b6fddae3fa1c9998cd6299248fb5c9918e11af88e96775266f50aa7d"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-responses": {

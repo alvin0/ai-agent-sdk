@@ -2,8 +2,8 @@
  * Internal barrel for the shared HTTP transport layer.
  *
  * Not re-exported from the package root yet: nothing outside this package consumes
- * the transport directly, and the JSON pipeline that will (`transportJson`) does not
- * exist yet.
+ * the transport directly. The JSON pipeline (`transportJson`) lives here and will be
+ * reached through this barrel once the embedding adapters land.
  *
  * @module ai-agent-sdk/providers/transport
  */
@@ -44,6 +44,11 @@ export {
   resolveTransportLimits,
   type ResolvedTransportLimits,
 } from './limits.ts'
+export {
+  isJsonMediaType,
+  transportJson,
+  JSON_MEDIA_TYPES,
+} from './json.ts'
 export {
   withTransportSession,
   type HttpTransportRequestInput,

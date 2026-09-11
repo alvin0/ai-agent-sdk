@@ -1,5 +1,14 @@
 {
-  "pbtResults": {},
+  "pbtResults": {
+    "4.2 Viết property test cho `Json_Pipeline`": {
+      "status": "passed",
+      "lastRunTimestamp": 1789105393593
+    },
+    "9.9 Viết property test cho usage honesty": {
+      "status": "passed",
+      "lastRunTimestamp": 1789118904116
+    }
+  },
   "executionHistory": {
     "1.1 Ghi golden oracle cho đường generation TRƯỚC khi sửa `http-adapter.ts`": [
       {
@@ -54,6 +63,763 @@
         "executionId": "5102f53b-2797-413e-807b-67e11a14b890",
         "chatSessionId": "sess_22ddb7b4-6d85-493f-b1d1-756aa94e7619",
         "timestamp": 1789091254226
+      }
+    ],
+    "2.1 Viết lại `HttpModelAdapter.run()` trên `transportStream`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093429224
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093446774
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789096837386
+      }
+    ],
+    "2.2 Viết property test tương đương SSE so với golden oracle": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093429330
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789096843225
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789100024859
+      }
+    ],
+    "2.3 Chạy regression generation cho bốn provider mà không sửa một test nào": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093429441
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789100031050
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789100748396
+      }
+    ],
+    "3. Checkpoint - đảm bảo đường generation không đổi hành vi": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093429555
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789100759110
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789100768108
+      }
+    ],
+    "4.1 Viết `transport/json.ts` với `transportJson`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093429676
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789100775689
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789104915175
+      }
+    ],
+    "4.2 Viết property test cho `Json_Pipeline`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093429752
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789105110467
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789109065526
+      }
+    ],
+    "5.1 Viết request, result và purpose type": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093429840
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789100782179
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789104916282
+      }
+    ],
+    "5.2 Viết `Embedding_Profile`, dẫn xuất `Space_Id` và profile default": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093430024
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789104925856
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789105090873
+      }
+    ],
+    "5.3 Viết property test cho `Embedding_Profile`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093430123
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789109156611
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789109432228
+      }
+    ],
+    "5.4 Viết `Embedding_Catalog` và giới hạn batch": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093430210
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789105104043
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789109149991
+      }
+    ],
+    "5.5 Viết property test cho `Embedding_Catalog`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093430293
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789109162794
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789109438820
+      }
+    ],
+    "5.6 Viết kiểu usage riêng cho embedding": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093430371
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789104932259
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789105097085
+      }
+    ],
+    "5.7 Viết error code và error class embedding": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093430442
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789100788240
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789105084058
+      }
+    ],
+    "6.1 Viết `EmbeddingAdapter` và `PreparedEmbeddingCall`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093430521
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789109170374
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789109446076
+      }
+    ],
+    "6.2 Viết validation tiền-dispatch và validation response": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093430609
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789109453246
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789109948220
+      }
+    ],
+    "6.3 Viết property test cho validation tiền-dispatch": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093430699
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789112069625
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789113439132
+      }
+    ],
+    "6.4 Khai báo bề mặt công khai và entry point mới": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093430788
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789109953884
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789112061710
+      }
+    ],
+    "6.5 Viết test cấu trúc cho bề mặt embedding": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093430877
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789112084113
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789114979505
+      }
+    ],
+    "6.6 Viết fixture và negative fixture cho embedding": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093430955
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789112076440
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789113445135
+      }
+    ],
+    "6.7 Viết bộ contract test cho `Embedding_Adapter`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093431041
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789113451105
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789114986888
+      }
+    ],
+    "7. Checkpoint - `Json_Pipeline` và `Embedding_Contract` hoàn chỉnh, độc lập": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093431121
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789115002948
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789115561584
+      }
+    ],
+    "8.1 Viết plugin type và `defineEmbeddingProviderPlugin`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093431203
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789115571718
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789117490219
+      }
+    ],
+    "8.2 Viết `EmbeddingRegistry` phân giải theo route + operation + model id": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093431292
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789117979687
+      }
+    ],
+    "8.3 Mở rộng `Startup_Preflight` để thu mọi lỗi": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093431371
+      }
+    ],
+    "8.4 Mở rộng activation và rollback dùng chung hai plugin kind": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093431455
+      }
+    ],
+    "8.5 Viết property test cho plugin registrar và preflight": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093431548
+      }
+    ],
+    "9.1 Viết batch planner lười": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093431631
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789115578352
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789117496038
+      }
+    ],
+    "9.2 Viết property test cho batch planner và limiter": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093431705
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789117993878
+      }
+    ],
+    "9.3 Viết concurrency limiter": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093431794
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789115585498
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789117502700
+      }
+    ],
+    "9.4 Viết tầng retry duy nhất": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093431871
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789117986933
+      }
+    ],
+    "9.5 Viết property test cho retry và chi phí": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093431955
+      }
+    ],
+    "9.6 Viết `Embedding_Cache` tùy chọn": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093432112
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789117517999
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789117965358
+      }
+    ],
+    "9.7 Viết property test cho cache key và space guard của cache": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093432221
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789118009442
+      }
+    ],
+    "9.8 Viết tổng hợp usage giữ tính trung thực": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093432308
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789117524879
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789117971756
+      }
+    ],
+    "9.9 Viết property test cho usage honesty": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093432375
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789118000934
+      }
+    ],
+    "10.1 Thêm operation kind embedding và tích hợp `close()`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093432470
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789115593250
+      },
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789117509497
+      }
+    ],
+    "10.2 Triển khai `embed()` và `embedMany()`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093432557
+      }
+    ],
+    "10.3 Viết property test cho khôi phục thứ tự": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093432650
+      }
+    ],
+    "10.4 Viết `RuntimeEmbedding` manager": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093432739
+      }
+    ],
+    "10.5 Thêm `embeddingModel()` vào bề mặt `Agent_Runtime`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093432819
+      }
+    ],
+    "10.6 Phát dữ liệu quan sát ba mức": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093432908
+      }
+    ],
+    "10.7 Viết property test cho `Embedding_Model_Handle`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093433004
+      }
+    ],
+    "10.8 Viết property test cho cancellation và close": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093433094
+      }
+    ],
+    "10.9 Viết property test cho snapshot cấu hình": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093433196
+      }
+    ],
+    "10.10 Viết property test cho quan sát và privacy": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093433338
+      }
+    ],
+    "11. Checkpoint - `Embedding_Runtime` chạy được với fake adapter": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093433454
+      }
+    ],
+    "12.1 Định nghĩa cấu hình route embedding dùng chung trong `provider-http`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093433576
+      }
+    ],
+    "12.2 Viết adapter và plugin factory": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093433686
+      }
+    ],
+    "12.3 Viết validation response OpenAI theo đúng năm bước": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093433771
+      }
+    ],
+    "12.4 Viết property test cho `OpenAI_Embedding_Adapter`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093433867
+      }
+    ],
+    "12.5 Dựng integration test embedding OpenAI": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093433957
+      }
+    ],
+    "13.1 Viết adapter và plugin factory": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093434059
+      }
+    ],
+    "13.2 Xử lý mapping theo vị trí và usage vắng mặt của Gemini": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093434157
+      }
+    ],
+    "13.3 Viết property test cho `Gemini_Embedding_Adapter`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093434251
+      }
+    ],
+    "13.4 Dựng integration test embedding Gemini": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093434336
+      }
+    ],
+    "14.1 Thêm scenario và check id embedding": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093434416
+      }
+    ],
+    "14.2 Chạy hai fixture OpenAI và Gemini qua cùng bộ check": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093434557
+      }
+    ],
+    "14.3 Viết meta-test cho harness": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093434622
+      }
+    ],
+    "15.1 Chạy kiểm tra kiến trúc và snapshot bề mặt API": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093434709
+      }
+    ],
+    "15.2 Cập nhật tài liệu bắt buộc": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093434792
+      }
+    ],
+    "15.3 Cập nhật các hướng dẫn mở rộng": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093434875
+      }
+    ],
+    "16. Final checkpoint - toàn bộ suite và conformance pass": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789093434943
+      }
+    ],
+    "2. Chuyển `Sse_Pipeline` sang `Http_Transport` (đơn vị kiểm chứng b)": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789100748460
+      }
+    ],
+    "4. Thêm `Json_Pipeline` (đơn vị kiểm chứng c)": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789109065621
+      }
+    ],
+    "5. Định nghĩa kiểu dữ liệu `Embedding_Contract`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789109438924
+      }
+    ],
+    "6. Viết `EmbeddingAdapter`, validation và entry point `./embedding`": [
+      {
+        "executionId": "0dc69d7c-8507-4d79-96b8-d7862973737a",
+        "chatSessionId": "sess_8005ba24-e46b-44b7-9126-dba2a06c54cd",
+        "timestamp": 1789114987324
       }
     ]
   }

@@ -12,15 +12,17 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import {
-  MODEL_ERROR_CODES,
-  ModelError,
-  resolveRetryPolicy,
-  type EndProviderAttemptInput,
-  type ModelInvocationContext,
-  type ProviderAttemptHandle,
-  type StartProviderAttemptInput,
-} from '../../../packages/core/src/index.ts'
+// Core arrives through the package entry, exactly as `provider-http` imports it.
+// Reaching into `packages/core/src` instead would give this spec a SECOND copy of
+// every branded type and error class, and the attempt context built here would no
+// longer be the one the transport chain accepts.
+import { MODEL_ERROR_CODES, ModelError, resolveRetryPolicy } from '@alvin0/ai-agent-sdk-core'
+import type {
+  EndProviderAttemptInput,
+  ModelInvocationContext,
+  ProviderAttemptHandle,
+  StartProviderAttemptInput,
+} from '@alvin0/ai-agent-sdk-core/provider'
 import { HTTP_PROVIDER_ERROR_CODES } from '../../../packages/provider-http/src/common/config.ts'
 import type { HttpTransportConnection } from '../../../packages/provider-http/src/transport/connection.ts'
 import { transportStream } from '../../../packages/provider-http/src/transport/stream.ts'

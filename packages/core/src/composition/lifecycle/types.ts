@@ -1,5 +1,9 @@
+/**
+ * Append-only. `RuntimeOperations.beginClose()` reads `operations[0]` as the source of
+ * `activeRunsAtClose` / `abortedRuns` / `unsettledRuns`, so `'agent-run'` must stay first.
+ */
 export const RUNTIME_OPERATION_KINDS = Object.freeze([
-  'agent-run', 'model-catalog', 'manual-compaction', 'team-operation',
+  'agent-run', 'model-catalog', 'manual-compaction', 'team-operation', 'embedding-call',
 ] as const)
 
 export type RuntimeOperationKind = typeof RUNTIME_OPERATION_KINDS[number]

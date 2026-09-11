@@ -50,6 +50,11 @@
       "import": "./dist/tools.js",
       "default": "./dist/tools.js"
     },
+    "./embedding": {
+      "types": "./dist/embedding.d.ts",
+      "import": "./dist/embedding.js",
+      "default": "./dist/embedding.js"
+    },
     "./observability": {
       "types": "./dist/observability.d.ts",
       "import": "./dist/observability.js",

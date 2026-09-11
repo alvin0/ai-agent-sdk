@@ -45,8 +45,8 @@ Mọi property test mang tag theo định dạng **Feature: embedding-support, P
     - **Property 36: Redirect guard, error mapping và teardown luôn được áp dụng**
     - **Validates: Requirements 13.3, 13.4, 13.5, 13.6**
 
-- [ ] 2. Chuyển `Sse_Pipeline` sang `Http_Transport` (đơn vị kiểm chứng b)
-  - [ ] 2.1 Viết lại `HttpModelAdapter.run()` trên `transportStream`
+- [x] 2. Chuyển `Sse_Pipeline` sang `Http_Transport` (đơn vị kiểm chứng b)
+  - [x] 2.1 Viết lại `HttpModelAdapter.run()` trên `transportStream`
     - `packages/provider-http/src/base/http-adapter.ts`: `run()` (private) trở thành lời gọi `transportStream` với `decode` chứa đúng phần SSE
     - `decodeSse` giữ `accept: text/event-stream`, kiểm tra `STREAM_MEDIA_TYPE_INVALID`, `parseSseBounded` với `maxSseEvents`/`maxSseEventChars`, `createStreamIdleDeadline`, `requireTerminalFinish`, `translate(events, request)`, `validateUsageCounters(chunk.usage, true)` theo từng chunk
     - Giữ nguyên toàn bộ bề mặt mà provider hiện có phụ thuộc, đúng theo visibility hiện tại: `protected abstract` `connect`, `endpointPath`, `buildBody`, `translate`; `protected` có default `baseHeaders`, `observeRequest`, `providerErrorCode`, `modelInfoFor`, `decorateModel`; `public` `providerInfo`, `listModels`, `resolveModel`, `prepareCall`, `stream`
@@ -54,42 +54,42 @@ Mọi property test mang tag theo định dạng **Feature: embedding-support, P
     - Kiểm tra modality giữ nguyên vị trí, trước mọi hoạt động transport
     - _Requirements: 13.7, 13.10_
 
-  - [ ] 2.2 Viết property test tương đương SSE so với golden oracle
+  - [x] 2.2 Viết property test tương đương SSE so với golden oracle
     - `packages/provider-http/tests/contract/sse-equivalence.spec.ts`
     - **Property 37: Sse_Pipeline sau refactor tương đương pipeline trước refactor**
     - So khớp từng byte bản chuẩn hoá với fixture ghi ở task 1.1
     - **Validates: Requirements 13.7, 13.9**
 
-  - [ ] 2.3 Chạy regression generation cho bốn provider mà không sửa một test nào
+  - [x] 2.3 Chạy regression generation cho bốn provider mà không sửa một test nào
     - `pnpm test` của `packages/provider-http`, `provider-openai`, `provider-gemini`, `provider-anthropic`, `provider-codex`
     - Chạy lại 19 check id hiện có của `ProviderConformanceReport` cho bốn provider fixture
     - Bất kỳ test phải sửa để pass là tín hiệu regression, xử lý như bug chứ không như test lỗi thời
     - _Requirements: 13.9_
 
-- [ ] 3. Checkpoint - đảm bảo đường generation không đổi hành vi
+- [x] 3. Checkpoint - đảm bảo đường generation không đổi hành vi
   - Barrier: không task nào sau đây được bắt đầu trước khi task 1.x và 2.x hoàn thành.
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Thêm `Json_Pipeline` (đơn vị kiểm chứng c)
-  - [ ] 4.1 Viết `transport/json.ts` với `transportJson`
+- [x] 4. Thêm `Json_Pipeline` (đơn vị kiểm chứng c)
+  - [x] 4.1 Viết `transport/json.ts` với `transportJson`
     - `JSON_MEDIA_TYPES`, kiểm tra media type JSON, đọc body trong giới hạn `maxResponseBytes`, `JSON.parse` và map lỗi parse thành protocol error
     - Thêm một entry vào `HTTP_PROVIDER_ERROR_CODES` theo convention hiện tại của `common/config.ts`: key `JSON_MEDIA_TYPE_INVALID`, value `'HTTP_JSON_MEDIA_TYPE_INVALID'` — đối xứng với `STREAM_MEDIA_TYPE_INVALID: 'HTTP_STREAM_MEDIA_TYPE_INVALID'` đang có
     - Body vượt giới hạn dùng `MODEL_ERROR_CODES.TRANSPORT`
     - _Requirements: 13.8_
 
-  - [ ] 4.2 Viết property test cho `Json_Pipeline`
+  - [x] 4.2 Viết property test cho `Json_Pipeline`
     - `packages/provider-http/tests/unit/transport/json.spec.ts`
     - **Property 38: Json_Pipeline kiểm tra media type và giới hạn body**
     - **Validates: Requirements 13.8**
 
-- [ ] 5. Định nghĩa kiểu dữ liệu `Embedding_Contract`
-  - [ ] 5.1 Viết request, result và purpose type
+- [x] 5. Định nghĩa kiểu dữ liệu `Embedding_Contract`
+  - [x] 5.1 Viết request, result và purpose type
     - `packages/core/src/embedding/request.ts`: `EmbeddingContentPart`, `EmbeddingItem` (index là chỉ số trong `Logical_Call`), `EmbeddingTruncation`, `EmbeddingBatchRequest` với mặc định `truncation: 'reject'`
     - `packages/core/src/embedding/result.ts`: `EmbeddingVector`, `EmbeddingBatchResult`, `EmbeddingWarning`, `EmbeddingResult`, `EmbeddingManyResult` — không tham chiếu `StreamChunk`, message, tool call hay text delta
     - `packages/core/src/embedding/purpose.ts`: `EmbeddingPurpose` đúng hai giá trị, `EmbeddingPurposeHandling` ba dạng `wire-parameter` / `adapter-prefix` / `none`
     - _Requirements: 1.3, 7.1, 8.5, 8.8, 9.7_
 
-  - [ ] 5.2 Viết `Embedding_Profile`, dẫn xuất `Space_Id` và profile default
+  - [x] 5.2 Viết `Embedding_Profile`, dẫn xuất `Space_Id` và profile default
     - `packages/core/src/embedding/profile.ts`: `EmbeddingRepresentation`, `EmbeddingNormalization`, `EmbeddingPostProcessing`, `EmbeddingProfile`, `EmbeddingSpaceId` (branded type)
     - `deriveSpaceId` là hàm **đồng bộ** trả về canonical string, KHÔNG dùng `crypto.subtle` và không băm (DD-11): ghép `compatibilityIdentity`, `dimensions`, `representation`, `normalization`, `postProcessing` (kind + revision), `profileRevision` theo thứ tự cố định, mỗi thành phần escape ký tự `|` và `\` trước khi ghép
     - **Loại** `documentRecipeRevision` và `queryRecipeRevision` khỏi dẫn xuất (DD-7)
@@ -97,7 +97,7 @@ Mọi property test mang tag theo định dạng **Feature: embedding-support, P
     - `defaultEmbeddingProfile(model, request)`: default dùng được cho `EmbeddingAdapter.embeddingProfile()` — `compatibilityIdentity` dẫn xuất từ `${route}:${modelId}` khi catalog không khai báo, normalization `'unknown'`, không post-processing (DD-13)
     - _Requirements: 1.2, 6.1, 6.3, 6.4, 7.4_
 
-  - [ ] 5.3 Viết property test cho `Embedding_Profile`
+  - [x] 5.3 Viết property test cho `Embedding_Profile`
     - `packages/core/tests/unit/embedding/profile.spec.ts`
     - **Property 14: Tương thích space quyết định bởi compatibility identity**
     - **Property 17: Space_Id bất biến khi chỉ purpose thay đổi**
@@ -105,7 +105,7 @@ Mọi property test mang tag theo định dạng **Feature: embedding-support, P
     - Property 22 **không** ở file này: nó so vector provider trả về với vector trả ra ngoài, nên cần một adapter và một response — xem task 6.7, 12.4, 13.3
     - **Validates: Requirements 6.3, 6.4, 7.4, 14.6**
 
-  - [ ] 5.4 Viết `Embedding_Catalog` và giới hạn batch
+  - [x] 5.4 Viết `Embedding_Catalog` và giới hạn batch
     - `packages/core/src/embedding/catalog.ts`: `EmbeddingCapability<T>` ba state, `EmbeddingInputType` (đúng `'text'`), `EmbeddingModelInfo`, `ResolvedEmbeddingModelInfo`, `unknownEmbeddingModel`
     - Phạm vi v1 khai báo bằng kiểu: `EmbeddingInputType` chỉ có `'text'` và `EmbeddingRepresentation` chỉ có `'dense-float32'` — một dense vector cho mỗi item, không sparse, không multi-vector, không multimodal
     - `packages/core/src/embedding/limits.ts`: `EMBEDDING_BATCH_DEFAULTS` (`maxItems: 96`, `maxTokens: 100_000`, `maxBytes: 1MiB`), `ResolvedEmbeddingBatchLimits`, `resolveBatchLimits`, `estimateTokens` mặc định `ceil(utf8Bytes / 4)`
@@ -115,43 +115,43 @@ Mọi property test mang tag theo định dạng **Feature: embedding-support, P
     - Giữ `ResolvedModelInfo` trong `contract/model-info.ts` không thêm trường embedding nào
     - _Requirements: 8.6, 10.1, 10.2, 10.4, 10.5_
 
-  - [ ] 5.5 Viết property test cho `Embedding_Catalog`
+  - [x] 5.5 Viết property test cho `Embedding_Catalog`
     - `packages/core/tests/unit/embedding/catalog.spec.ts`
     - **Property 24: Capability không khai báo là `unknown`, `supported` cần khai báo tường minh**
     - **Property 25: Catalog là advisory**
     - Kèm test cấu trúc cho phạm vi v1: `EmbeddingInputType` và `EmbeddingRepresentation` không nhận giá trị nào ngoài `'text'` và `'dense-float32'`
     - **Validates: Requirements 8.6, 10.3, 10.4, 10.5**
 
-  - [ ] 5.6 Viết kiểu usage riêng cho embedding
+  - [x] 5.6 Viết kiểu usage riêng cho embedding
     - `packages/core/src/embedding/usage.ts`: `EmbeddingTokenUsage` (`inputTokens` bắt buộc, `totalTokens` tùy chọn — không có `outputTokens`), `EmbeddingUsageReport` với `status`/`batches`/`batchesWithUsage`/`providerAttempts`/`inputsFromCache`/`inputsFromProvider`
     - `validateEmbeddingUsage` là bản đối ứng của `validateUsageCounters`; không nhánh nào gán giá trị 0 (DD-5)
     - _Requirements: 16.2, 16.3_
 
-  - [ ] 5.7 Viết error code và error class embedding
+  - [x] 5.7 Viết error code và error class embedding
     - `packages/core/src/embedding/errors.ts`: `EMBEDDING_ERROR_CODES` đủ 15 giá trị theo design, `EmbeddingError extends AgentSdkError` với `itemIndexes`, `limit`, `provider`, `model`, `space`
     - _Requirements: 3.5, 8.2, 8.3, 9.1, 9.2_
 
-- [ ] 6. Viết `EmbeddingAdapter`, validation và entry point `./embedding`
-  - [ ] 6.1 Viết `EmbeddingAdapter` và `PreparedEmbeddingCall`
+- [x] 6. Viết `EmbeddingAdapter`, validation và entry point `./embedding`
+  - [x] 6.1 Viết `EmbeddingAdapter` và `PreparedEmbeddingCall`
     - `packages/core/src/embedding/adapter.ts`: abstract class độc lập, **không** kế thừa `ModelAdapter`, **đúng một** abstract method `embedBatch()`
     - Default hoạt động được cho `providerInfo`, `providerRetryPolicy`, `listEmbeddingModels`, `resolveEmbeddingModel`, `prepareEmbeddingCall`, và cho `embeddingProfile()` — `embeddingProfile()` gọi `defaultEmbeddingProfile()` của task 5.2, KHÔNG phải abstract member thứ hai (DD-13)
     - `prepareEmbeddingCall` gắn metadata, profile, `spaceId` và `limits` với hàm dispatch trong **cùng một lần capture**, trả object đã `freeze`; gọi `deriveSpaceId` đồng bộ và `resolveBatchLimits` của `embedding/limits.ts`
     - Giữ nguyên `ModelAdapter.stream()` và `PreparedAdapterCall`, giữ `PROVIDER_PLUGIN_API_VERSION` ở `1`
     - _Requirements: 1.1, 1.2, 1.5, 2.1, 4.1_
 
-  - [ ] 6.2 Viết validation tiền-dispatch và validation response
+  - [x] 6.2 Viết validation tiền-dispatch và validation response
     - `packages/core/src/embedding/validation.ts`: `validatePreDispatch` (purpose, values/contentParts rỗng, dimensions, max input tokens, `expectedSpace`, truncation) và `validateBatchResult`
     - `estimateTokens` **không** định nghĩa ở file này; validation import nó qua `limits.estimateTokens` của `PreparedEmbeddingCall`, cùng hàm mà planner dùng
     - Chỉ từ chối khi capability tương ứng là `supported` và giá trị vi phạm; capability `unknown` không được biến thành lý do từ chối (DD-6)
     - Mọi lỗi tiền-dispatch xảy ra với 0 `Provider_Attempt`, kèm `itemIndexes` và `limit`
     - _Requirements: 3.6, 9.1, 9.2, 10.3_
 
-  - [ ] 6.3 Viết property test cho validation tiền-dispatch
+  - [x] 6.3 Viết property test cho validation tiền-dispatch
     - `packages/core/tests/unit/embedding/validation.spec.ts`
     - **Property 2: Vi phạm khai báo bị từ chối trước khi có bất kỳ Provider_Attempt**
     - **Validates: Requirements 3.6, 7.2, 9.1, 9.2, 9.7**
 
-  - [ ] 6.4 Khai báo bề mặt công khai và entry point mới
+  - [x] 6.4 Khai báo bề mặt công khai và entry point mới
     - `packages/core/src/embedding/handle.ts`: `EmbeddingModelOptions`, `EmbedOneInput`, `EmbedManyInput`, `EmbeddingModelHandle` — type-only, không phụ thuộc `composition/`; `batchLimits?: Partial<ResolvedEmbeddingBatchLimits>` lấy kiểu từ `embedding/limits.ts`
     - `packages/core/src/embedding/index.ts`: barrel công khai của entry point `./embedding`, export cả `EMBEDDING_BATCH_DEFAULTS`, `ResolvedEmbeddingBatchLimits`, `resolveBatchLimits`, `estimateTokens`, `defaultEmbeddingProfile`
     - `packages/core/package.json`: thêm `"./embedding"` vào `exports`
@@ -159,29 +159,29 @@ Mọi property test mang tag theo định dạng **Feature: embedding-support, P
     - Root entry `.` re-export chỉ type của bề mặt runtime: `EmbeddingModelHandle`, `EmbeddingModelOptions`, `EmbeddingResult`, `EmbeddingManyResult`, `EmbeddingUsageReport`
     - _Requirements: 1.4, 19.5_
 
-  - [ ] 6.5 Viết test cấu trúc cho bề mặt embedding
+  - [x] 6.5 Viết test cấu trúc cho bề mặt embedding
     - `packages/core/tests/unit/embedding/surface.spec.ts`
     - Type test và API surface snapshot: `EmbeddingAdapter` không kế thừa `ModelAdapter`, **đúng một** abstract method (`embedBatch`, và `embeddingProfile` có default nên không tính), kết quả không chứa `StreamChunk`, `ResolvedModelInfo` không thêm trường embedding, `ModelProviderRegistrar` giữ đúng hai method, `PROVIDER_PLUGIN_API_VERSION === 1`
     - Smoke test: entry `./embedding` phân giải được, phần generation của entry `.` không đổi
     - _Requirements: 1.1, 1.2, 1.3, 1.5, 6.1, 8.5, 8.6, 8.8, 10.1, 10.2, 11.1, 11.2, 11.3, 11.4, 12.1, 19.4_
 
-  - [ ] 6.6 Viết fixture và negative fixture cho embedding
+  - [x] 6.6 Viết fixture và negative fixture cho embedding
     - `packages/core/tests/fixtures/embedding/fake-adapter.ts`: adapter điều khiển được lỗi, delay, permutation thứ tự vector, usage vắng mặt/sai định dạng, và vector do "provider" trả về để so sánh trung thực
     - `packages/core/tests/negative-fixtures/embedding/`: `bad-mapping.ts`, `bad-vector.ts`, `bad-usage.ts`, `bad-plugin.ts`
     - _Requirements: 17.11_
 
-  - [ ] 6.7 Viết bộ contract test cho `Embedding_Adapter`
+  - [x] 6.7 Viết bộ contract test cho `Embedding_Adapter`
     - `packages/core/tests/contract/embedding/adapter-contract.spec.ts`
     - Bộ tiêu chí mà mọi `Embedding_Adapter` phải đạt: đúng một `Provider_Attempt` mỗi lần gọi, tôn trọng `batch.signal`, gắn chỉ số input gốc, phát protocol error thay vì suy diễn
     - **Property 22: Vector trả ra trung thực với vector provider trả về** — dùng fake adapter của task 6.6: không post-processing thì vector khớp từng phần tử, có post-processing thì biến đổi đúng bằng bước ghi trong profile
     - **Validates: Requirements 4.1, 4.3, 9.8, 14.8, 17.11**
 
-- [ ] 7. Checkpoint - `Json_Pipeline` và `Embedding_Contract` hoàn chỉnh, độc lập
+- [x] 7. Checkpoint - `Json_Pipeline` và `Embedding_Contract` hoàn chỉnh, độc lập
   - Barrier: không task nào sau đây được bắt đầu trước khi task 4.x, 5.x và 6.x hoàn thành.
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 8. Dựng plugin kind riêng, registry và startup preflight
-  - [ ] 8.1 Viết plugin type và `defineEmbeddingProviderPlugin`
+  - [x] 8.1 Viết plugin type và `defineEmbeddingProviderPlugin`
     - `packages/core/src/composition/embedding/plugin-types.ts`: `EMBEDDING_PROVIDER_PLUGIN_API_VERSION = 1`, `EmbeddingProviderRegistrar`, `ComposableEmbeddingProviderPlugin` với `kind: 'embedding-provider-plugin'`, `ComposableEmbeddingProviderRegistrar`, union `ComposableRuntimeProviderPlugin`
     - `packages/core/src/composition/embedding/definition.ts`: `defineEmbeddingProviderPlugin` đóng marker `kind` + `apiVersion`, trao registrar view chỉ đăng ký trong phạm vi `routes` đã khai báo
     - Export qua entry point `./provider` cạnh `defineModelProviderPlugin`
@@ -214,7 +214,7 @@ Mọi property test mang tag theo định dạng **Feature: embedding-support, P
     - **Validates: Requirements 11.5, 11.6, 11.7, 11.10**
 
 - [ ] 9. Dựng tầng điều phối: planner, limiter, retry, cache, usage
-  - [ ] 9.1 Viết batch planner lười
+  - [x] 9.1 Viết batch planner lười
     - `packages/core/src/composition/embedding/planner.ts`: generator `planEmbeddingBatches` đóng batch khi thêm item tiếp theo vượt bất kỳ một trong ba giới hạn items/tokens/bytes
     - Planner **import** `ResolvedEmbeddingBatchLimits` từ `embedding/limits.ts` và không định nghĩa kiểu giới hạn nào của riêng nó (DD-12)
     - Bất biến: mỗi batch ≤ mọi giới hạn, mỗi item xuất hiện đúng một lần trong đúng một batch
@@ -228,7 +228,7 @@ Mọi property test mang tag theo định dạng **Feature: embedding-support, P
     - **Property 6: Số batch chạy đồng thời không vượt cấu hình**
     - **Validates: Requirements 4.4, 4.5, 17.4**
 
-  - [ ] 9.3 Viết concurrency limiter
+  - [x] 9.3 Viết concurrency limiter
     - `packages/core/src/composition/embedding/limiter.ts`: giới hạn số `Physical_Batch` đang bay theo giá trị concurrency cấu hình, bộ nhớ payload đỉnh bị chặn bởi `concurrency × maxBytes`
     - _Requirements: 4.5, 17.4_
 
@@ -245,7 +245,7 @@ Mọi property test mang tag theo định dạng **Feature: embedding-support, P
     - **Property 10: Timeout được ghi là dispatch không xác định**
     - **Validates: Requirements 4.3, 4.7, 4.8, 16.6**
 
-  - [ ] 9.6 Viết `Embedding_Cache` tùy chọn
+  - [x] 9.6 Viết `Embedding_Cache` tùy chọn
     - `packages/core/src/composition/embedding/cache.ts`: `EmbeddingCacheOptions` với `scope` **bắt buộc, không có default** — thiếu `scope` là `EMBEDDING_CONFIGURATION_INVALID` (DD-8)
     - `embeddingCacheKey` là hàm **async** và là chỗ duy nhất trong spec cần digest: băm năm thành phần bằng `crypto.subtle.digest('SHA-256')` — security scope, model/profile revision, purpose + recipe revision, dimensions + post-processing, hash input hiệu lực. Nó nén nội dung input không bị chặn thành khoá độ dài cố định, khác `deriveSpaceId` vốn đồng bộ và không băm (DD-11)
     - Cache mặc định tắt, nên `crypto.subtle` không nằm trên đường đi bắt buộc của `packages/core`
@@ -259,7 +259,7 @@ Mọi property test mang tag theo định dạng **Feature: embedding-support, P
     - **Property 13: Số liệu cache và provider cộng đủ tổng input**
     - **Validates: Requirements 5.2, 5.3, 5.4**
 
-  - [ ] 9.8 Viết tổng hợp usage giữ tính trung thực
+  - [x] 9.8 Viết tổng hợp usage giữ tính trung thực
     - `packages/core/src/composition/embedding/usage.ts`: `complete` khi mọi batch gửi provider trả usage đọc được, `partial` khi một phần, `missing` khi không batch nào; usage sai định dạng sinh warning `usage-malformed`
     - Tách `inputsFromCache` và `inputsFromProvider`, tổng hai số bằng số input của `Logical_Call`
     - `providerAttempts` bằng tổng attempt của `Logical_Call`; không nhánh nào gán giá trị 0
@@ -271,7 +271,7 @@ Mọi property test mang tag theo định dạng **Feature: embedding-support, P
     - **Validates: Requirements 13.10, 16.2, 16.3**
 
 - [ ] 10. Nối bề mặt runtime và lifecycle
-  - [ ] 10.1 Thêm operation kind embedding và tích hợp `close()`
+  - [x] 10.1 Thêm operation kind embedding và tích hợp `close()`
     - `packages/core/src/composition/lifecycle/types.ts`: **append** `'embedding-call'` vào cuối `RUNTIME_OPERATION_KINDS`, không prepend (DD-4)
     - Thêm assertion tường minh `RUNTIME_OPERATION_KINDS[0] === 'agent-run'` để giữ nguồn của `activeRunsAtClose`/`abortedRuns`/`unsettledRuns`
     - Xác nhận `RuntimeCloseReport.operations` tự có `RuntimeOperationCloseSummary` cho embedding qua `beginClose()`; lease signal fuse root controller + caller signal
@@ -418,7 +418,7 @@ Mọi property test mang tag theo định dạng **Feature: embedding-support, P
     - Phủ đủ chín nhóm: mapping/validation, batching, cancellation/close, retry/chi phí, cache, compatibility, plugin compatibility, privacy, usage honesty
     - _Requirements: 14.8, 17.3, 17.4, 17.5, 17.6, 17.7, 17.8, 17.9, 17.10_
 
-  - [ ]* 14.3 Viết meta-test cho harness
+  - [ ] 14.3 Viết meta-test cho harness
     - `packages/testkit/tests/unit/embedding-harness.spec.ts`: harness phát hiện đúng vi phạm khi chạy với negative fixture
     - Tùy chọn vì Yêu cầu 17.1 và 17.2 đã được task 14.1 và task 6.5 phủ; đây là lớp kiểm chứng bổ trợ cho chính harness
     - _Requirements: 17.1, 17.2_

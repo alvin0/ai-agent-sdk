@@ -16,6 +16,14 @@
  * request, HTTP error mapping, `retry-after`, request ids, SSE decoding, the idle
  * bound, and teardown — is shared and happens exactly once, here.
  *
+ * The risky half of that list — signal fusion, request bounds, the diagnostic
+ * observer, attempt accounting, redirect refusal, status mapping, teardown — now
+ * lives in {@link ../transport/session.withTransportSession} so a second pipeline
+ * cannot reimplement it slightly differently. What stays in this file is what is
+ * genuinely generation's: the modality guard, the catalog, the serialized-body
+ * cache for one prepared call, and {@link HttpModelAdapter.decodeSse} — the SSE
+ * half, unchanged, applied to a response that already cleared every guard.
+ *
  * @module ai-agent-sdk/providers/base/http-adapter
  */
 
@@ -33,12 +41,7 @@ import { MODEL_ERROR_CODES, ModelError } from '@alvin0/ai-agent-sdk-core'
 import { contentHasDocument, contentHasImage } from '@alvin0/ai-agent-sdk-core'
 import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
 import type { ModelInvocationContext } from '@alvin0/ai-agent-sdk-core'
-import type {
-  ProviderAttemptHandle,
-  SafeErrorRecord,
-  TokenUsage,
-  UsageCounters,
-} from '@alvin0/ai-agent-sdk-core'
+import type { TokenUsage } from '@alvin0/ai-agent-sdk-core'
 import { validateUsageCounters } from '@alvin0/ai-agent-sdk-core'
 import { parseSseBounded } from '../stream/parser.ts'
 import type { SseEvent } from '../stream/sse.ts'
@@ -47,33 +50,16 @@ import { createStreamIdleDeadline } from '../stream/idle-deadline.ts'
 import { requireTerminalFinish } from '../stream/terminal.ts'
 import type { ProviderProtocolChunk } from '../stream/types.ts'
 import { HTTP_PROVIDER_ERROR_CODES } from '../common/config.ts'
-import { normalizeHttpBoundaryError } from '../common/failure.ts'
 import { captureTransportConnection, type HttpTransportConnection } from '../transport/connection.ts'
+import { positiveInteger } from '../transport/limits.ts'
+import type { HttpTransportSession, PreparedWireBody } from '../transport/session.ts'
+import { transportStream } from '../transport/stream.ts'
+import { httpErrorCode } from './http-errors.ts'
 import {
-  DEFAULT_MAX_ERROR_BODY_BYTES,
-  DEFAULT_MAX_REQUEST_BYTES,
-  DEFAULT_MAX_RESPONSE_BYTES,
-  DEFAULT_MAX_RESPONSE_CHUNKS,
-  DEFAULT_REQUEST_LOGGER_TIMEOUT_MS,
-  DEFAULT_REQUEST_TIMEOUT_MS,
-  positiveFinite,
-  positiveInteger,
-} from '../transport/limits.ts'
-import { httpErrorCode, parseErrorBody, requestIdFrom, retryAfterMs } from './http-errors.ts'
-import {
-  abortError,
   boundedResponseBody,
-  cancelResponseBody,
   catalogModelInfo,
-  endpointUrl,
   raceWithSignal,
-  readBoundedText,
-  redactHeaders,
-  rejectProviderRedirect,
   resolvedCatalogModelInfo,
-  requestLogId,
-  safeProviderFailure,
-  withAbortSignal,
 } from './transport.ts'
 
 export { redactHeaders } from './transport.ts'
@@ -182,14 +168,46 @@ export type ProviderRequestLogger = (
   record: ProviderRequestLogRecord,
 ) => Promise<void> | void
 
-interface PreparedWireBody {
-  readonly value: unknown
-  readonly encoded: string
-  readonly bytes: number
-}
-
+/**
+ * The serialized body of ONE prepared call, kept across repeated `stream()` calls.
+ *
+ * This stays with the pipeline rather than moving into the transport: the transport
+ * issues one request and has no notion of a prepared call to cache against, and a
+ * cache that outlived a request would be a way for one call's body to reach another
+ * call's wire.
+ */
 interface PreparedWireBodyCache {
   prepared?: Promise<PreparedWireBody>
+}
+
+/** The decoding bounds the SSE pipeline adds on top of the transport's. */
+interface ResolvedSseLimits {
+  /** Maximum decoded SSE events accepted from one response. */
+  readonly maxEvents: number
+  /** Maximum characters accepted in one decoded SSE event. */
+  readonly maxEventChars: number
+}
+
+/**
+ * Resolve the SSE bounds before any transport work starts.
+ *
+ * Deliberately validated in the pipeline and not inside `decodeSse`: an
+ * unusable bound is a configuration error, and configuration errors must not
+ * arrive after a provider attempt has been opened and a request sent.
+ * @param connection - the snapshot this call is bound to.
+ * @returns defaulted, validated event bounds.
+ */
+function resolveSseLimits(connection: HttpConnection): ResolvedSseLimits {
+  return Object.freeze({
+    maxEvents: positiveInteger(
+      connection.maxSseEvents ?? DEFAULT_MAX_SSE_EVENTS,
+      'maxSseEvents',
+    ),
+    maxEventChars: positiveInteger(
+      connection.maxSseEventChars ?? DEFAULT_MAX_SSE_EVENT_CHARS,
+      'maxSseEventChars',
+    ),
+  })
 }
 
 /** Base for every HTTP provider adapter in this package. */
@@ -348,7 +366,12 @@ export abstract class HttpModelAdapter extends ModelAdapter {
   }
 
   /**
-   * The shared pipeline: guard, build, send, classify, decode, bound, translate.
+   * The generation pipeline: guard the modalities, then hand one request to the
+   * shared transport chain with SSE decoding as its only pipeline-specific part.
+   *
+   * Still a generator, and deliberately so: the modality guard, the body
+   * serialization and every transport step stay lazy until a consumer pulls, which
+   * is the behaviour every existing caller of `stream()` already relies on.
    */
   private async * run(
     options: GenerateOptions,
@@ -380,280 +403,123 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       maxTokens: options.maxTokens ?? model.defaultMaxTokens ?? connection.defaultMaxTokens,
     }
 
-    // One controller for our own teardown, fused with the caller's. Aborting ours
-    // in `finally` is what tears down an in-flight response when the consumer
-    // stops reading early, instead of leaking the connection.
-    const consumer = new AbortController()
-    const requestTimeoutMs = positiveFinite(
-      connection.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
-      'requestTimeoutMs',
-    )
-    const timeout = AbortSignal.timeout(requestTimeoutMs)
-    const signal = AbortSignal.any([
-      consumer.signal,
-      timeout,
-      ...options.signal === undefined ? [] : [options.signal],
-    ])
-    const maxRequestBytes = positiveInteger(
-      connection.maxRequestBytes ?? DEFAULT_MAX_REQUEST_BYTES,
-      'maxRequestBytes',
-    )
-    const maxResponseBytes = positiveInteger(
-      connection.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
-      'maxResponseBytes',
-    )
-    const maxResponseChunks = positiveInteger(
-      connection.maxResponseChunks ?? DEFAULT_MAX_RESPONSE_CHUNKS,
-      'maxResponseChunks',
-    )
-    const maxSseEvents = positiveInteger(
-      connection.maxSseEvents ?? DEFAULT_MAX_SSE_EVENTS,
-      'maxSseEvents',
-    )
-    const maxSseEventChars = positiveInteger(
-      connection.maxSseEventChars ?? DEFAULT_MAX_SSE_EVENT_CHARS,
-      'maxSseEventChars',
-    )
-    const maxErrorBodyBytes = positiveInteger(
-      connection.maxErrorBodyBytes ?? DEFAULT_MAX_ERROR_BODY_BYTES,
-      'maxErrorBodyBytes',
-    )
-    const requestLoggerTimeoutMs = positiveFinite(
-      connection.requestLoggerTimeoutMs ?? DEFAULT_REQUEST_LOGGER_TIMEOUT_MS,
-      'requestLoggerTimeoutMs',
-    )
+    const sseLimits = resolveSseLimits(connection)
+    const adapter = this
+    yield* transportStream<StreamChunk>({
+      connection,
+      displayName: this.displayName,
+      provider: options.provider,
+      model: options.model,
+      accept: 'text/event-stream',
+      /**
+       * Read by the transport AFTER the body is prepared, which is exactly where
+       * the pipeline used to call it. A provider whose path computation fails
+       * therefore still fails inside the transport's classification, and a
+       * protocol that reports its routing decision from `endpointPath` still
+       * reports it once, in the same place in the sequence, as before.
+       */
+      get path(): string {
+        return adapter.endpointPath(request)
+      },
+      // The transport bounds and rejects this body; the cache that keeps it across
+      // repeated `stream()` calls on one prepared call belongs to the pipeline.
+      body: signal => wireBodyCache.prepared ??= this.prepareWireBody(request, signal),
+      ...options.signal === undefined ? {} : { signal: options.signal },
+      ...context === undefined ? {} : { context },
+      errorCode: (status, detail) => this.providerErrorCode(status, detail),
+      observeRequest: record => this.observeRequest(record),
+    }, session => this.decodeSse(session, request, sseLimits))
+  }
 
-    let admissionFailure: { readonly value: unknown } | undefined
-    let ownedResponse: Response | undefined
-    try {
-      signal.throwIfAborted()
-      const preparedBody = await (wireBodyCache.prepared ??= this.prepareWireBody(
-        request,
-        maxRequestBytes,
-        signal,
-      ))
-      const wireBody = preparedBody.value
-      const body = preparedBody.encoded
-      const bodyBytes = preparedBody.bytes
-      const endpoint = endpointUrl(
-        connection.baseUrl,
-        this.endpointPath(request),
-        connection.allowInsecureHttp ?? false,
+  /**
+   * The SSE half: media type, bounds, idle deadline, translation, usage honesty.
+   *
+   * Everything this sees has already cleared the transport's guards — 2xx, no
+   * redirect, attempt open, teardown owned — so what remains is only the format.
+   * Abort racing is not repeated here: {@link transportStream} already iterates
+   * this generator under the fused signal.
+   * @param session - the guarded response and its attempt-evidence hooks.
+   * @param request - the request this response answers.
+   * @param sse - event bounds resolved before any transport work began.
+   * @returns the provider's chunks, with incomplete usage held back.
+   */
+  private async * decodeSse(
+    session: HttpTransportSession,
+    request: ProviderRequest,
+    sse: ResolvedSseLimits,
+  ): AsyncGenerator<StreamChunk> {
+    const response = session.response
+    const mediaType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
+    if (mediaType !== session.accept) {
+      throw new ModelError(
+        `${this.displayName} response is not text/event-stream`,
+        HTTP_PROVIDER_ERROR_CODES.STREAM_MEDIA_TYPE_INVALID,
       )
-      const url = endpoint.href
-      const origin = endpoint.origin
-      const headers = connection.headers
+    }
+    if (response.body === null) {
+      throw new ModelError(
+        `${this.displayName} returned no response body`,
+        MODEL_ERROR_CODES.STREAM_CLOSED,
+      )
+    }
 
-      // Logging is deliberately best-effort. A full disk or broken debug sink
-      // must not turn a valid provider request into an application outage.
-      try {
-        const loggerSignal = AbortSignal.any([signal, AbortSignal.timeout(requestLoggerTimeoutMs)])
-        await raceWithSignal(Promise.resolve(this.observeRequest({
-          schemaVersion: 1,
-          type: 'provider-request',
-          id: requestLogId(),
-          timestamp: new Date().toISOString(),
-          provider: options.provider,
-          model: options.model,
-          method: 'POST',
-          url,
-          headers: redactHeaders(headers, connection.sensitiveHeaderNames),
-          body: wireBody,
-          bodyBytes,
-        })), loggerSignal)
-      } catch {
-        // Contained by contract; see `observeRequest` above.
+    const maxResponseBytes = session.limits.maxResponseBytes
+    const declaredLength = response.headers.get('content-length')
+    if (declaredLength !== null && /^\d+$/.test(declaredLength)
+      && Number(declaredLength) > maxResponseBytes) {
+      throw new ModelError(
+        `${this.displayName} response exceeds the ${maxResponseBytes}-byte limit`,
+        MODEL_ERROR_CODES.TRANSPORT,
+      )
+    }
+    const idleDeadline = createStreamIdleDeadline(
+      request.connection.streamIdleTimeoutMs,
+      this.displayName,
+      30_000,
+    )
+    const events = parseSseBounded(boundedResponseBody(
+      response.body,
+      maxResponseBytes,
+      session.limits.maxResponseChunks,
+      this.displayName,
+      session.signal,
+    ), idleDeadline.activity, 30_000, {
+      maxEvents: sse.maxEvents,
+      maxEventChars: sse.maxEventChars,
+    })
+    const translated = requireTerminalFinish(this.translate(events, request), this.displayName)
+    for await (const chunk of idleDeadline.guard(translated)) {
+      if (chunk.type === 'usage') {
+        session.reportUsage(chunk.usage)
+        const validated = validateUsageCounters(chunk.usage, true)
+        // Partial and malformed reports remain provider-attempt evidence but
+        // never escape as the SDK's exact TokenUsage contract.
+        if (!validated.complete) continue
+        yield { type: 'usage', usage: validated.reported as TokenUsage }
+        continue
       }
-
-      let attempt: ProviderAttemptHandle | undefined
-      let dispatchState: 'not-sent' | 'sent' | 'unknown' = 'not-sent'
-      let httpStatus: number | undefined
-      let providerRequestId: string | undefined
-      let attemptStatus: 'success' | 'error' | 'aborted' | 'unknown' = 'unknown'
-      let attemptUsage: UsageCounters | undefined
-      let attemptError: SafeErrorRecord | undefined
-      try {
-        signal.throwIfAborted()
-        try {
-          attempt = await context?.startProviderAttempt?.({
-            provider: options.provider,
-            model: options.model,
-            method: 'POST',
-            origin,
-          }, signal)
-        } catch (error: unknown) {
-          admissionFailure = { value: error }
-          throw error
-        }
-        signal.throwIfAborted()
-        dispatchState = 'unknown'
-        const fetchImplementation = connection.fetch ?? globalThis.fetch
-        const pendingResponse = fetchImplementation(url, {
-          method: 'POST',
-          headers,
-          body,
-          signal,
-          redirect: 'manual',
-        })
-        // Retain cleanup ownership even if an injected fetch ignores abort.
-        void pendingResponse.then(response => {
-          if (signal.aborted) return cancelResponseBody(response)
-          return undefined
-        }, () => undefined)
-        const response = await raceWithSignal(pendingResponse, signal)
-        ownedResponse = response
-        signal.throwIfAborted()
-        dispatchState = 'sent'
-        httpStatus = response.status
-        providerRequestId = requestIdFrom(response.headers)
-        await rejectProviderRedirect(response, url)
-
-        if (!response.ok) throw await this.httpFailure(response, origin, maxErrorBodyBytes, signal)
-        const mediaType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
-        if (mediaType !== 'text/event-stream') {
-          throw new ModelError(
-            `${this.displayName} response is not text/event-stream`,
-            HTTP_PROVIDER_ERROR_CODES.STREAM_MEDIA_TYPE_INVALID,
-          )
-        }
-        if (response.body === null) {
-          throw new ModelError(
-            `${this.displayName} returned no response body`,
-            MODEL_ERROR_CODES.STREAM_CLOSED,
-          )
-        }
-
-        const declaredLength = response.headers.get('content-length')
-        if (declaredLength !== null && /^\d+$/.test(declaredLength)
-          && Number(declaredLength) > maxResponseBytes) {
-          throw new ModelError(
-            `${this.displayName} response exceeds the ${maxResponseBytes}-byte limit`,
-            MODEL_ERROR_CODES.TRANSPORT,
-          )
-        }
-        const idleDeadline = createStreamIdleDeadline(
-          connection.streamIdleTimeoutMs,
-          this.displayName,
-          30_000,
-        )
-        const events = parseSseBounded(boundedResponseBody(
-          response.body,
-          maxResponseBytes,
-          maxResponseChunks,
-          this.displayName,
-          signal,
-        ), idleDeadline.activity, 30_000, {
-          maxEvents: maxSseEvents,
-          maxEventChars: maxSseEventChars,
-        })
-        const translated = requireTerminalFinish(this.translate(events, request), this.displayName)
-        for await (const chunk of withAbortSignal(idleDeadline.guard(translated), signal)) {
-          if (chunk.type === 'usage') {
-            attemptUsage = chunk.usage
-            const validated = validateUsageCounters(chunk.usage, true)
-            // Partial and malformed reports remain provider-attempt evidence but
-            // never escape as the SDK's exact TokenUsage contract.
-            if (!validated.complete) continue
-            yield { type: 'usage', usage: validated.reported as TokenUsage }
-            continue
-          }
-          if (chunk.type === 'finish') {
-            attemptStatus = chunk.reason.kind === 'aborted' ? 'aborted'
-              : chunk.reason.kind === 'error' ? 'error' : 'success'
-            if (chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted') {
-              attemptError = safeProviderFailure(chunk.reason.failure)
-            }
-          }
-          yield chunk
-        }
-      } catch (error: unknown) {
-        if (admissionFailure !== undefined && error === admissionFailure.value) throw error
-        const mapped = timeout.aborted && options.signal?.aborted !== true
-          ? new ModelError(
-            `${this.displayName} request exceeded its ${requestTimeoutMs}ms time limit`,
-            MODEL_ERROR_CODES.TIMEOUT,
-            { cause: error },
-          )
-          : signal.aborted
-            ? abortError(this.displayName, error)
-            : normalizeHttpBoundaryError(
-              error,
-              `${this.displayName} request to ${origin} failed`,
-            )
-        attemptStatus = mapped.code === MODEL_ERROR_CODES.ABORTED ? 'aborted' : 'error'
-        attemptError = safeProviderFailure(mapped.failure)
-        throw mapped
-      } finally {
-        attempt?.end({
-          status: attemptStatus,
-          dispatchState,
-          ...attemptUsage === undefined ? {} : { reported: attemptUsage },
-          ...httpStatus === undefined ? {} : { httpStatus },
-          ...providerRequestId === undefined ? {} : { providerRequestId },
-          ...attemptError === undefined ? {} : { error: attemptError },
-        })
-      }
-    } catch (error: unknown) {
-      if (options.signal?.aborted === true) throw abortError(this.displayName, error)
-      if (timeout.aborted) {
-        throw new ModelError(
-          `${this.displayName} request exceeded its ${requestTimeoutMs}ms time limit`,
-          MODEL_ERROR_CODES.TIMEOUT,
-          { cause: error },
+      if (chunk.type === 'finish') {
+        const status = chunk.reason.kind === 'aborted' ? 'aborted'
+          : chunk.reason.kind === 'error' ? 'error' : 'success'
+        session.reportOutcome(
+          status,
+          chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted'
+            ? chunk.reason.failure
+            : undefined,
         )
       }
-      if (admissionFailure !== undefined && error === admissionFailure.value) throw error
-      throw normalizeHttpBoundaryError(error, `${this.displayName} stream failed`)
-    } finally {
-      consumer.abort(new Error(`${this.displayName} stream consumer stopped`))
-      if (ownedResponse !== undefined) await cancelResponseBody(ownedResponse)
+      yield chunk
     }
   }
 
   private async prepareWireBody(
     request: ProviderRequest,
-    maxRequestBytes: number,
     signal: AbortSignal,
   ): Promise<PreparedWireBody> {
     signal.throwIfAborted()
     const value = await raceWithSignal(Promise.resolve(this.buildBody(request)), signal)
     const encoded = JSON.stringify(value)
     const bytes = new TextEncoder().encode(encoded).byteLength
-    if (bytes > maxRequestBytes) {
-      throw new ModelError(
-        `${this.displayName} request exceeds the ${maxRequestBytes}-byte limit`,
-        MODEL_ERROR_CODES.INVALID_REQUEST,
-      )
-    }
     return Object.freeze({ value, encoded, bytes })
-  }
-
-  /** Turn a non-2xx response into a fully populated {@link ModelError}. */
-  private async httpFailure(
-    response: Response,
-    url: string,
-    maxBytes: number,
-    signal: AbortSignal,
-  ): Promise<ModelError> {
-    let raw = ''
-    try {
-      raw = await readBoundedText(response, maxBytes, signal)
-    } catch {
-      // A truncated error body must not replace the status, which is the more
-      // reliable signal anyway.
-    }
-    const { message, detail } = parseErrorBody(raw)
-    const delay = retryAfterMs(response.headers.get('retry-after'))
-    const id = requestIdFrom(response.headers)
-    return new ModelError(
-      message ?? `${this.displayName} error (HTTP ${response.status}) from ${url}`,
-      this.providerErrorCode(response.status, detail),
-      {
-        cause: new Error(raw.length > 0 ? raw : `HTTP ${response.status}`),
-        status: response.status,
-        ...delay === undefined ? {} : { providerRetryAfterMs: delay },
-        ...id === undefined ? {} : { requestId: id },
-      },
-    )
   }
 }

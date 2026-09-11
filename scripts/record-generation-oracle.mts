@@ -45,6 +45,17 @@ const manifest = `${JSON.stringify({
 }, undefined, 2)}\n`
 written.set('index.json', manifest)
 
+/**
+ * Records are serialized with `\n`, but a checkout with `core.autocrlf=true`
+ * hands them back with `\r\n`. Comparing the raw text would make this gate fail
+ * on every platform that rewrites line endings, for a reason that has nothing to
+ * do with pipeline behaviour. The oracle claim is about record content, so the
+ * comparison is byte-exact once the line endings are put back on one footing.
+ */
+function normalizeEol(contents: string): string {
+  return contents.replace(/\r\n/gu, '\n')
+}
+
 if (check) {
   const failures: string[] = []
   let existing: readonly string[] = []
@@ -58,8 +69,10 @@ if (check) {
       failures.push(`${name}: recorded case has no stored oracle`)
       continue
     }
-    const stored = readFileSync(join(outputDir, name), 'utf8')
-    if (stored !== written.get(name)) failures.push(`${name}: stored oracle differs from replay`)
+    const stored = normalizeEol(readFileSync(join(outputDir, name), 'utf8'))
+    if (stored !== normalizeEol(written.get(name) ?? '')) {
+      failures.push(`${name}: stored oracle differs from replay`)
+    }
   }
   for (const name of existing) {
     if (!written.has(name)) failures.push(`${name}: stored oracle has no recorded case`)
