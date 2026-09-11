@@ -975,7 +975,7 @@
           "resolveDialect",
           "retryAfterMs"
         ],
-        "declarationSha256": "cfbd9e3c294bf107d1daa777fa9f87989406cef6fdaea5dbf41567db323e86f6"
+        "declarationSha256": "074a66687aefdbdc35da74c2d9ddb13943d7b086531235e5b4913f9970fdade7"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-responses": {

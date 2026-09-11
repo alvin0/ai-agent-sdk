@@ -1,0 +1,60 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Ghi golden oracle cho đường generation TRƯỚC khi sửa `http-adapter.ts`": [
+      {
+        "executionId": "5102f53b-2797-413e-807b-67e11a14b890",
+        "chatSessionId": "sess_22ddb7b4-6d85-493f-b1d1-756aa94e7619",
+        "timestamp": 1789088093759
+      },
+      {
+        "executionId": "5102f53b-2797-413e-807b-67e11a14b890",
+        "chatSessionId": "sess_22ddb7b4-6d85-493f-b1d1-756aa94e7619",
+        "timestamp": 1789088780398
+      }
+    ],
+    "1.2 Tách `HttpTransportConnection` và transport limits": [
+      {
+        "executionId": "5102f53b-2797-413e-807b-67e11a14b890",
+        "chatSessionId": "sess_22ddb7b4-6d85-493f-b1d1-756aa94e7619",
+        "timestamp": 1789088786984
+      },
+      {
+        "executionId": "5102f53b-2797-413e-807b-67e11a14b890",
+        "chatSessionId": "sess_22ddb7b4-6d85-493f-b1d1-756aa94e7619",
+        "timestamp": 1789089461940
+      }
+    ],
+    "1.3 Viết chuỗi an toàn dùng chung `transport/session.ts` và `transportStream`": [
+      {
+        "executionId": "5102f53b-2797-413e-807b-67e11a14b890",
+        "chatSessionId": "sess_22ddb7b4-6d85-493f-b1d1-756aa94e7619",
+        "timestamp": 1789089468010
+      },
+      {
+        "executionId": "5102f53b-2797-413e-807b-67e11a14b890",
+        "chatSessionId": "sess_22ddb7b4-6d85-493f-b1d1-756aa94e7619",
+        "timestamp": 1789090289150
+      }
+    ],
+    "1.4 Viết property test cho `Http_Transport` session": [
+      {
+        "executionId": "5102f53b-2797-413e-807b-67e11a14b890",
+        "chatSessionId": "sess_22ddb7b4-6d85-493f-b1d1-756aa94e7619",
+        "timestamp": 1789090295859
+      },
+      {
+        "executionId": "5102f53b-2797-413e-807b-67e11a14b890",
+        "chatSessionId": "sess_22ddb7b4-6d85-493f-b1d1-756aa94e7619",
+        "timestamp": 1789091254174
+      }
+    ],
+    "1. Ghi golden oracle và dựng module `transport/` (đơn vị kiểm chứng a)": [
+      {
+        "executionId": "5102f53b-2797-413e-807b-67e11a14b890",
+        "chatSessionId": "sess_22ddb7b4-6d85-493f-b1d1-756aa94e7619",
+        "timestamp": 1789091254226
+      }
+    ]
+  }
+}

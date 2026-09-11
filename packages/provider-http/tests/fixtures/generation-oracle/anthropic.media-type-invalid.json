@@ -1,0 +1,35 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "errorCode": "HTTP_STREAM_MEDIA_TYPE_INVALID",
+      "httpStatus": 200,
+      "method": "POST",
+      "origin": "https://api.anthropic.com",
+      "status": "error"
+    }
+  ],
+  "chunks": [],
+  "errorCodes": [
+    "HTTP_STREAM_MEDIA_TYPE_INVALID"
+  ],
+  "model": "claude-conformance",
+  "provider": "anthropic",
+  "redactedHeaderNames": [
+    "x-api-key"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "anthropic-version",
+    "content-type",
+    "user-agent",
+    "x-api-key"
+  ],
+  "scenario": "media-type-invalid",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "HTTP_STREAM_MEDIA_TYPE_INVALID"
+  }
+}

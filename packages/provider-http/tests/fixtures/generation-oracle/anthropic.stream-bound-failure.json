@@ -1,0 +1,35 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "errorCode": "HTTP_SSE_LIMIT_EXCEEDED",
+      "httpStatus": 200,
+      "method": "POST",
+      "origin": "https://api.anthropic.com",
+      "status": "error"
+    }
+  ],
+  "chunks": [],
+  "errorCodes": [
+    "HTTP_SSE_LIMIT_EXCEEDED"
+  ],
+  "model": "claude-conformance",
+  "provider": "anthropic",
+  "redactedHeaderNames": [
+    "x-api-key"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "anthropic-version",
+    "content-type",
+    "user-agent",
+    "x-api-key"
+  ],
+  "scenario": "stream-bound-failure",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "HTTP_SSE_LIMIT_EXCEEDED"
+  }
+}

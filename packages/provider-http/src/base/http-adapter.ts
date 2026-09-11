@@ -28,7 +28,6 @@ import type {
   ProviderInfo,
   ResolvedModelInfo,
 } from '@alvin0/ai-agent-sdk-core'
-import type { ResolvedRetryPolicy } from '@alvin0/ai-agent-sdk-core'
 import type { NativeToolName } from '@alvin0/ai-agent-sdk-core'
 import { MODEL_ERROR_CODES, ModelError } from '@alvin0/ai-agent-sdk-core'
 import { contentHasDocument, contentHasImage } from '@alvin0/ai-agent-sdk-core'
@@ -49,8 +48,17 @@ import { requireTerminalFinish } from '../stream/terminal.ts'
 import type { ProviderProtocolChunk } from '../stream/types.ts'
 import { HTTP_PROVIDER_ERROR_CODES } from '../common/config.ts'
 import { normalizeHttpBoundaryError } from '../common/failure.ts'
-import { mergeHeaderLayers } from '../common/header-layers.ts'
-import { attributionHeaders } from '@alvin0/ai-agent-sdk-core'
+import { captureTransportConnection, type HttpTransportConnection } from '../transport/connection.ts'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  DEFAULT_MAX_REQUEST_BYTES,
+  DEFAULT_MAX_RESPONSE_BYTES,
+  DEFAULT_MAX_RESPONSE_CHUNKS,
+  DEFAULT_REQUEST_LOGGER_TIMEOUT_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  positiveFinite,
+  positiveInteger,
+} from '../transport/limits.ts'
 import { httpErrorCode, parseErrorBody, requestIdFrom, retryAfterMs } from './http-errors.ts'
 import {
   abortError,
@@ -58,8 +66,6 @@ import {
   cancelResponseBody,
   catalogModelInfo,
   endpointUrl,
-  positiveFinite,
-  positiveInteger,
   raceWithSignal,
   readBoundedText,
   redactHeaders,
@@ -71,21 +77,17 @@ import {
 } from './transport.ts'
 
 export { redactHeaders } from './transport.ts'
+export {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  DEFAULT_MAX_REQUEST_BYTES,
+  DEFAULT_MAX_RESPONSE_BYTES,
+  DEFAULT_MAX_RESPONSE_CHUNKS,
+  DEFAULT_REQUEST_LOGGER_TIMEOUT_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+} from '../transport/limits.ts'
 
 /** Default idle bound: five minutes without a single byte is a hung stream. */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
-/** Default end-to-end bound once provider request construction begins. */
-export const DEFAULT_REQUEST_TIMEOUT_MS = 10 * 60_000
-/** Default serialized request ceiling. */
-export const DEFAULT_MAX_REQUEST_BYTES = 32 * 1024 * 1024
-/** Default cumulative successful response-body ceiling. */
-export const DEFAULT_MAX_RESPONSE_BYTES = 32 * 1024 * 1024
-/** Default number of raw response chunks accepted from one request. */
-export const DEFAULT_MAX_RESPONSE_CHUNKS = 100_000
-/** Default error body retained for classification and diagnostics. */
-export const DEFAULT_MAX_ERROR_BODY_BYTES = 1024 * 1024
-/** Default diagnostic observer deadline; logging must never gate dispatch indefinitely. */
-export const DEFAULT_REQUEST_LOGGER_TIMEOUT_MS = 5_000
 
 /** One model a provider's configuration advertises. */
 export interface ProviderCatalogModel {
@@ -110,49 +112,26 @@ export interface ProviderCatalogModel {
 }
 
 /**
- * Everything needed to issue ONE request, captured as a single snapshot.
+ * Everything needed to issue ONE generation request, captured as a single snapshot.
  *
- * The snapshot exists to close a specific gap: if the endpoint and the credential
- * were read separately, a configuration change between the two reads would send
- * one generation's secret to another generation's URL. Reading them together, once
- * per call, makes that impossible.
+ * The transport half — endpoint, headers, bounds, retry policy — is
+ * {@link HttpTransportConnection} and is shared with every other pipeline in this
+ * package. What this interface adds is the part only generation has: the SSE
+ * decoding bounds and the advisory model catalog. The field set and the optionality
+ * of every field are unchanged from before the split, so existing provider
+ * configurations satisfy it exactly as they did.
+ *
+ * The catalog stays here deliberately. Embedding routes carry a catalog with
+ * different semantics, and folding the two into one shape is precisely the
+ * conflation this split avoids.
  */
-export interface HttpConnection {
-  /** Endpoint base; the provider's {@link HttpModelAdapter.endpointPath} is appended. */
-  readonly baseUrl: string
-  /**
-   * Every header for the request, INCLUDING authorization.
-   *
-   * Resolved in `connect()` so the credential travels with the endpoint it will
-   * be sent to. The base pipeline adds attribution and `accept` on top.
-   */
-  readonly headers: Readonly<Record<string, string>>
-  /** Auth-produced names that must be redacted regardless of spelling. */
-  readonly sensitiveHeaderNames?: readonly string[]
+export interface HttpConnection extends HttpTransportConnection {
   /** Maximum idle interval while a read is outstanding. */
   readonly streamIdleTimeoutMs: number
-  /** End-to-end request/stream timeout. */
-  readonly requestTimeoutMs?: number
-  /** Maximum serialized outbound request bytes. */
-  readonly maxRequestBytes?: number
-  /** Maximum cumulative successful response bytes. */
-  readonly maxResponseBytes?: number
-  /** Maximum raw chunks accepted from a successful response. */
-  readonly maxResponseChunks?: number
   /** Maximum decoded SSE events accepted from one response. */
   readonly maxSseEvents?: number
   /** Maximum characters accepted in one decoded SSE event. */
   readonly maxSseEventChars?: number
-  /** Maximum bytes read from a non-success response. */
-  readonly maxErrorBodyBytes?: number
-  /** Maximum time granted to the optional request logger. */
-  readonly requestLoggerTimeoutMs?: number
-  /** Permit cleartext HTTP explicitly, for trusted local development endpoints only. */
-  readonly allowInsecureHttp?: boolean
-  /** Captured fetch implementation; omission uses the platform global. */
-  readonly fetch?: typeof globalThis.fetch
-  /** Retry policy this route owns. */
-  readonly retryPolicy: ResolvedRetryPolicy
   /** Advisory catalog; requests are never restricted to it. */
   readonly models: readonly ProviderCatalogModel[]
   /** Output cap applied when neither the caller nor the model entry names one. */
@@ -365,20 +344,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
 
   /** Capture legacy subclass transport/auth layers once; configured adapters already return all five. */
   private captureConnection(connection: HttpConnection): HttpConnection {
-    const transport = this.baseHeaders()
-    if (Reflect.ownKeys(transport).length === 0) return connection
-    const merged = mergeHeaderLayers([
-      { layer: 'transport', headers: transport },
-      { layer: 'sdk-attribution', headers: attributionHeaders() },
-      { layer: 'auth', headers: connection.headers },
-    ])
-    return Object.freeze({
-      ...connection,
-      headers: merged.headers,
-      sensitiveHeaderNames: Object.freeze([
-        ...new Set([...(connection.sensitiveHeaderNames ?? []), ...merged.sensitiveHeaderNames]),
-      ]),
-    })
+    return captureTransportConnection(connection, this.baseHeaders())
   }
 
   /**

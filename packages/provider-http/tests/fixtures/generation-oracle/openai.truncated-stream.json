@@ -1,0 +1,53 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "errorCode": "STREAM_CLOSED",
+      "httpStatus": 200,
+      "method": "POST",
+      "origin": "https://api.openai.com",
+      "status": "error"
+    }
+  ],
+  "chunks": [
+    {
+      "blockType": "text",
+      "index": 0,
+      "type": "block-start"
+    },
+    {
+      "index": 0,
+      "text": "ok",
+      "type": "text-delta"
+    },
+    {
+      "block": {
+        "text": "ok",
+        "type": "text"
+      },
+      "index": 0,
+      "type": "block-end"
+    }
+  ],
+  "errorCodes": [
+    "STREAM_CLOSED"
+  ],
+  "model": "gpt-conformance",
+  "provider": "openai",
+  "redactedHeaderNames": [
+    "authorization"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "authorization",
+    "content-type",
+    "user-agent"
+  ],
+  "scenario": "truncated-stream",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "STREAM_CLOSED"
+  }
+}

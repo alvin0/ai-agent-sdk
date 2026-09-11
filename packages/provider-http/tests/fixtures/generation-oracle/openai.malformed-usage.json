@@ -1,0 +1,53 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "httpStatus": 200,
+      "method": "POST",
+      "origin": "https://api.openai.com",
+      "status": "success"
+    }
+  ],
+  "chunks": [
+    {
+      "blockType": "text",
+      "index": 0,
+      "type": "block-start"
+    },
+    {
+      "index": 0,
+      "text": "ok",
+      "type": "text-delta"
+    },
+    {
+      "block": {
+        "text": "ok",
+        "type": "text"
+      },
+      "index": 0,
+      "type": "block-end"
+    },
+    {
+      "reason": {
+        "kind": "stop"
+      },
+      "type": "finish"
+    }
+  ],
+  "errorCodes": [],
+  "model": "gpt-conformance",
+  "provider": "openai",
+  "redactedHeaderNames": [
+    "authorization"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "authorization",
+    "content-type",
+    "user-agent"
+  ],
+  "scenario": "malformed-usage",
+  "schemaVersion": 1
+}

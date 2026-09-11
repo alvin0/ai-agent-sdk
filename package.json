@@ -40,6 +40,8 @@
     "check:boundary-fixtures": "node scripts/check-negative-fixtures.mts",
     "workspace:build": "turbo run build --filter='./packages/*'",
     "workspace:typecheck": "turbo run typecheck --filter='./packages/*'",
+    "oracle:generation": "node scripts/record-generation-oracle.mts",
+    "oracle:generation:check": "node scripts/record-generation-oracle.mts --check",
     "test:unit": "vitest run tests/unit",
     "test:contract": "vitest run tests/contract",
     "test:packages": "pnpm -r --filter './packages/*' test",

@@ -15,29 +15,29 @@ Mọi property test mang tag theo định dạng **Feature: embedding-support, P
 
 ## Tasks
 
-- [ ] 1. Ghi golden oracle và dựng module `transport/` (đơn vị kiểm chứng a)
-  - [ ] 1.1 Ghi golden oracle cho đường generation TRƯỚC khi sửa `http-adapter.ts`
+- [x] 1. Ghi golden oracle và dựng module `transport/` (đơn vị kiểm chứng a)
+  - [x] 1.1 Ghi golden oracle cho đường generation TRƯỚC khi sửa `http-adapter.ts`
     - Viết script ghi oracle replay toàn bộ fixture SSE hiện có của `provider-openai`, `provider-gemini`, `provider-anthropic`, `provider-codex`
     - Lưu kết quả vào `packages/provider-http/tests/fixtures/generation-oracle/`
     - Nội dung mỗi bản ghi: chuỗi `StreamChunk` đã chuẩn hoá, tập error code, `dispatchState` từng attempt, số lần `attempt.end`, tập header đã redact
     - Ràng buộc thứ tự cứng: task này hoàn thành trước mọi thay đổi trong `packages/provider-http/src/base/http-adapter.ts`
     - _Requirements: 13.7, 13.9_
 
-  - [ ] 1.2 Tách `HttpTransportConnection` và transport limits
+  - [x] 1.2 Tách `HttpTransportConnection` và transport limits
     - `packages/provider-http/src/transport/connection.ts`: `HttpTransportConnection`, `captureTransportConnection`
     - `packages/provider-http/src/transport/limits.ts`: `DEFAULT_*` + `resolveTransportLimits`
     - Sửa `HttpConnection` thành `extends HttpTransportConnection`, giữ `streamIdleTimeoutMs`, `maxSseEvents`, `maxSseEventChars`, `models`, `defaultMaxTokens`, `defaultContextWindow` ở phía generation để cấu hình provider hiện có tiếp tục compile
     - Task này **không** tạo `EmbeddingHttpConnection`: kiểu đó cần vocabulary của `Embedding_Catalog` và entry point `./embedding`, nên nó thuộc task 12.1
     - _Requirements: 13.1, 13.2_
 
-  - [ ] 1.3 Viết chuỗi an toàn dùng chung `transport/session.ts` và `transportStream`
+  - [x] 1.3 Viết chuỗi an toàn dùng chung `transport/session.ts` và `transportStream`
     - `withTransportSession`: fuse signal (caller + teardown controller + request timeout), kiểm tra `maxRequestBytes`, `observeRequest` best-effort với `redactHeaders` và `requestLoggerTimeoutMs`, `startProviderAttempt`, `fetch(redirect: 'manual')`, `rejectProviderRedirect`, map non-2xx kèm `retry-after` + request id, `finally` gọi `attempt.end` đúng một lần + `consumer.abort` + `cancelResponseBody`
     - Giữ nguyên thứ tự phân loại lỗi: `timeout.aborted && caller.signal?.aborted !== true` ⇒ `TIMEOUT`; `signal.aborted` ⇒ `ABORTED`; còn lại ⇒ `normalizeHttpBoundaryError`
     - `admissionFailure` từ `startProviderAttempt` được ném nguyên trạng, không bọc qua `normalizeHttpBoundaryError`
     - `transportStream` giữ attempt mở suốt thời gian stream được tiêu thụ
     - _Requirements: 13.1, 13.3, 13.4, 13.5, 13.6_
 
-  - [ ] 1.4 Viết property test cho `Http_Transport` session
+  - [x] 1.4 Viết property test cho `Http_Transport` session
     - `packages/provider-http/tests/unit/transport/session.spec.ts`
     - **Property 33: Signal hợp nhất bao phủ cả ba nguồn abort**
     - **Property 34: Observer wire-request là best-effort và không rò rỉ credential**

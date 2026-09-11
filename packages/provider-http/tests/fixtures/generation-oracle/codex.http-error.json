@@ -1,0 +1,42 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "errorCode": "SERVER",
+      "httpStatus": 503,
+      "method": "POST",
+      "origin": "https://chatgpt.com",
+      "providerRequestId": "oracle-request-id",
+      "status": "error"
+    }
+  ],
+  "chunks": [],
+  "errorCodes": [
+    "SERVER"
+  ],
+  "model": "gpt-codex-conformance",
+  "provider": "codex",
+  "redactedHeaderNames": [
+    "authorization",
+    "originator",
+    "session-id"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "authorization",
+    "content-type",
+    "originator",
+    "session-id",
+    "user-agent"
+  ],
+  "scenario": "http-error",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "SERVER",
+    "providerRetryAfterMs": 2000,
+    "requestId": "oracle-request-id",
+    "status": 503
+  }
+}

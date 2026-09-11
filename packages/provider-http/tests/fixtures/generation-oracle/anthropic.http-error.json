@@ -1,0 +1,39 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "errorCode": "SERVER",
+      "httpStatus": 503,
+      "method": "POST",
+      "origin": "https://api.anthropic.com",
+      "providerRequestId": "oracle-request-id",
+      "status": "error"
+    }
+  ],
+  "chunks": [],
+  "errorCodes": [
+    "SERVER"
+  ],
+  "model": "claude-conformance",
+  "provider": "anthropic",
+  "redactedHeaderNames": [
+    "x-api-key"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "anthropic-version",
+    "content-type",
+    "user-agent",
+    "x-api-key"
+  ],
+  "scenario": "http-error",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "SERVER",
+    "providerRetryAfterMs": 2000,
+    "requestId": "oracle-request-id",
+    "status": 503
+  }
+}

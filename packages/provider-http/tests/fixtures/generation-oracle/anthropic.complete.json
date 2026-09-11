@@ -1,0 +1,62 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "httpStatus": 200,
+      "method": "POST",
+      "origin": "https://api.anthropic.com",
+      "status": "success"
+    }
+  ],
+  "chunks": [
+    {
+      "blockType": "text",
+      "index": 0,
+      "type": "block-start"
+    },
+    {
+      "index": 0,
+      "text": "ok",
+      "type": "text-delta"
+    },
+    {
+      "block": {
+        "text": "ok",
+        "type": "text"
+      },
+      "index": 0,
+      "type": "block-end"
+    },
+    {
+      "type": "usage",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 2,
+        "totalTokens": 5
+      }
+    },
+    {
+      "reason": {
+        "kind": "stop"
+      },
+      "type": "finish"
+    }
+  ],
+  "errorCodes": [],
+  "model": "claude-conformance",
+  "provider": "anthropic",
+  "redactedHeaderNames": [
+    "x-api-key"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "anthropic-version",
+    "content-type",
+    "user-agent",
+    "x-api-key"
+  ],
+  "scenario": "complete",
+  "schemaVersion": 1
+}

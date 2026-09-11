@@ -1,0 +1,57 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "errorCode": "STREAM_CLOSED",
+      "httpStatus": 200,
+      "method": "POST",
+      "origin": "https://chatgpt.com",
+      "status": "error"
+    }
+  ],
+  "chunks": [
+    {
+      "blockType": "text",
+      "index": 0,
+      "type": "block-start"
+    },
+    {
+      "index": 0,
+      "text": "ok",
+      "type": "text-delta"
+    },
+    {
+      "block": {
+        "text": "ok",
+        "type": "text"
+      },
+      "index": 0,
+      "type": "block-end"
+    }
+  ],
+  "errorCodes": [
+    "STREAM_CLOSED"
+  ],
+  "model": "gpt-codex-conformance",
+  "provider": "codex",
+  "redactedHeaderNames": [
+    "authorization",
+    "originator",
+    "session-id"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "authorization",
+    "content-type",
+    "originator",
+    "session-id",
+    "user-agent"
+  ],
+  "scenario": "truncated-stream",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "STREAM_CLOSED"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "errorCode": "HTTP_STREAM_MEDIA_TYPE_INVALID",
+      "httpStatus": 200,
+      "method": "POST",
+      "origin": "https://chatgpt.com",
+      "status": "error"
+    }
+  ],
+  "chunks": [],
+  "errorCodes": [
+    "HTTP_STREAM_MEDIA_TYPE_INVALID"
+  ],
+  "model": "gpt-codex-conformance",
+  "provider": "codex",
+  "redactedHeaderNames": [
+    "authorization",
+    "originator",
+    "session-id"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "authorization",
+    "content-type",
+    "originator",
+    "session-id",
+    "user-agent"
+  ],
+  "scenario": "media-type-invalid",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "HTTP_STREAM_MEDIA_TYPE_INVALID"
+  }
+}

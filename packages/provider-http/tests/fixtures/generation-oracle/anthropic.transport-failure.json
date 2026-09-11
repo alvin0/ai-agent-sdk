@@ -1,0 +1,34 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "unknown",
+      "errorCode": "TRANSPORT",
+      "method": "POST",
+      "origin": "https://api.anthropic.com",
+      "status": "error"
+    }
+  ],
+  "chunks": [],
+  "errorCodes": [
+    "TRANSPORT"
+  ],
+  "model": "claude-conformance",
+  "provider": "anthropic",
+  "redactedHeaderNames": [
+    "x-api-key"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "anthropic-version",
+    "content-type",
+    "user-agent",
+    "x-api-key"
+  ],
+  "scenario": "transport-failure",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "TRANSPORT"
+  }
+}
