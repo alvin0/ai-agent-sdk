@@ -2,10 +2,9 @@
 /**
  * Write the generation golden oracle for the four official SSE providers.
  *
- * Run this BEFORE `packages/provider-http/src/base/http-adapter.ts` is refactored
- * onto the shared transport layer. The records it emits are the reference the
- * post-refactor equivalence suite compares against, so they must be produced by
- * the untouched pipeline.
+ * The records it emits are the approved observable contract compared by the
+ * equivalence suite. Regenerate them only when a deliberate public protocol
+ * change has corresponding focused coverage and the baseline change is reviewed.
  *
  * Usage:
  *   node scripts/record-generation-oracle.mts           # write records
@@ -35,7 +34,7 @@ for (const entry of cases) {
 
 const manifest = `${JSON.stringify({
   schemaVersion: 1,
-  purpose: 'Pre-refactor generation (SSE) behaviour oracle for provider-http.',
+  purpose: 'Approved generation (SSE) behaviour oracle for provider-http.',
   recordedBy: 'scripts/record-generation-oracle.mts',
   cases: cases.map(entry => ({
     provider: entry.provider,

@@ -5,7 +5,7 @@
  *
  * **Validates: Requirements 13.7, 13.9**
  *
- * Task 1.1 froze the observable behaviour of the pre-refactor
+ * Task 1.1 initially froze the observable behaviour of the pre-refactor
  * `packages/provider-http/src/base/http-adapter.ts` into
  * `packages/provider-http/tests/fixtures/generation-oracle/`. Task 2.1 then rewrote
  * `run()` on top of `transportStream`. This file is the gate between the two: it
@@ -13,7 +13,8 @@
  * normalized record byte for byte against the stored oracle. A single differing
  * byte means the refactor changed something a caller can observe — the chunk
  * sequence, an error code, a `dispatchState`, the number of `attempt.end` calls, or
- * the redacted header set — and is a regression rather than a stale fixture.
+ * the redacted header set — and is a regression unless an intentional public
+ * protocol change updates the affected records through the oracle recorder.
  *
  * ## Why the file lives here and not where the task named it
  *

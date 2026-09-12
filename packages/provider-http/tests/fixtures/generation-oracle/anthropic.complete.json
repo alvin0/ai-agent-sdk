@@ -12,6 +12,13 @@
   ],
   "chunks": [
     {
+      "attemptId": "oracle-attempt-1",
+      "type": "usage-progress",
+      "usage": {
+        "inputTokens": 3
+      }
+    },
+    {
       "blockType": "text",
       "index": 0,
       "type": "block-start"
@@ -28,6 +35,15 @@
       },
       "index": 0,
       "type": "block-end"
+    },
+    {
+      "attemptId": "oracle-attempt-1",
+      "type": "usage-progress",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 2,
+        "totalTokens": 5
+      }
     },
     {
       "type": "usage",

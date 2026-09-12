@@ -7,19 +7,22 @@
 | Version | `0.1.1` |
 | License | MIT |
 | Node requirement | 22.18+ for workspace tooling; 22.12+ for installed Node capability packages |
-| Registry publication | **Published** — 23 packages under `@alvin0` |
+| Registry publication | `0.1.1` release candidate — 23 packages under `@alvin0` |
 
 ## Registry publication
 
-All 23 publishable packages are on npm under the `@alvin0` scope, named
+The 23 publishable packages use the `@alvin0` scope and are named
 `@alvin0/ai-agent-sdk-<capability>`. The scope `@ai-agent-sdk` belongs to a
-different account, which is why the published names carry the project as a name
-prefix rather than as the scope.
+different account, which is why the registry names carry the project as a name
+prefix rather than as the scope. Availability of a specific version remains a
+registry fact until the release workflow completes.
 
-Releases run from `.github/workflows/release.yml` on a `v*` tag: the CI gates
-run, `pnpm pack` resolves `workspace:^` and `catalog:` specifiers into real
-ranges, and each tarball is published with `npm publish --provenance`, so every
-version carries a SLSA provenance attestation.
+After a merge to `main`, `.github/workflows/release.yml` repeats the build, test,
+package, boundary, and supply-chain gates. Only then does `pnpm pack` resolve
+`workspace:^` and `catalog:` specifiers into real ranges and publish each
+unpublished tarball with `npm publish --provenance`, so every version carries a
+SLSA provenance attestation. Re-running a release safely skips package versions
+already on npm.
 
 `@alvin0/ai-agent-sdk-testkit` stays private — it is only ever a devDependency
 of the provider packages.

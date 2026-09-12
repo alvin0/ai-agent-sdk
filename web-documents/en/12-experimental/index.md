@@ -51,15 +51,16 @@ not hide in a health UI.
 | Property | Status |
 | --- | --- |
 | Version | `0.1.1` |
-| npm publication | **Published** as `@alvin0/ai-agent-sdk-*` |
-| Release path | Tagged CI release with package and provenance gates |
+| npm publication | `0.1.1` release candidate under `@alvin0/ai-agent-sdk-*` |
+| Release path | A `main` merge triggers guarded npm publication with provenance |
 
 ```bash
 pnpm add ./artifacts/ai-agent-sdk-core-0.1.1.tgz
 ```
 
-Every `pnpm add @alvin0/ai-agent-sdk-...` command in this documentation names the
-published package directly. Local tarballs remain available for pre-release validation.
+Every `pnpm add @alvin0/ai-agent-sdk-...` command in this documentation uses the
+intended registry package name. Use local tarballs for pre-release validation until
+the requested version is available on npm.
 
 `@alvin0/ai-agent-sdk-testkit` is additionally **private** and is exercised through
 local workspace or tarball installs; publishing is intentionally not configured

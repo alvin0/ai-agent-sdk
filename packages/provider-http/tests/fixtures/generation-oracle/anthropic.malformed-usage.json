@@ -30,6 +30,13 @@
       "type": "block-end"
     },
     {
+      "attemptId": "oracle-attempt-1",
+      "type": "usage-progress",
+      "usage": {
+        "outputTokens": 2
+      }
+    },
+    {
       "reason": {
         "kind": "stop"
       },

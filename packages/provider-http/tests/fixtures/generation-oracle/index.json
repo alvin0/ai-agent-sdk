@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "purpose": "Pre-refactor generation (SSE) behaviour oracle for provider-http.",
+  "purpose": "Approved generation (SSE) behaviour oracle for provider-http.",
   "recordedBy": "scripts/record-generation-oracle.mts",
   "cases": [
     {

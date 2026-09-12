@@ -17,6 +17,7 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 - Reworked `@alvin0/ai-agent-sdk-provider-http` around shared connection, session, JSON, and streaming transport primitives with bounded redirects, timeouts, abort handling, media-type validation, and credential-safe observations.
 - Extended provider and testkit contracts to cover embedding and Copilot conformance, generation-oracle fixtures, and SSE/JSON transport equivalence.
+- Updated the approved Anthropic SSE oracle for cumulative `usage-progress` snapshots and made main-branch releases gated, lockstep-checked, and safe to retry when a package version is already present on npm.
 - Improved provider documentation and model limit guidance in English and Vietnamese.
 
 ### Release scope

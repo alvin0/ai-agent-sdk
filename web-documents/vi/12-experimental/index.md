@@ -53,15 +53,16 @@ HTTP**, và phương án dự phòng cố ý quan sát được để một tri�
 | Thuộc tính | Trạng thái |
 | --- | --- |
 | Phiên bản | `0.1.1` |
-| Publish npm | **Đã publish** dưới tên `@alvin0/ai-agent-sdk-*` |
-| Quy trình release | CI theo tag với các gate package và provenance |
+| Publish npm | Bản release candidate `0.1.1` dưới tên `@alvin0/ai-agent-sdk-*` |
+| Quy trình release | Merge vào `main` kích hoạt publish npm có gate và provenance |
 
 ```bash
 pnpm add ./artifacts/ai-agent-sdk-core-0.1.1.tgz
 ```
 
-Mọi lệnh `pnpm add @alvin0/ai-agent-sdk-...` trong tài liệu này trỏ trực tiếp
-tới package đã publish. Tarball cục bộ vẫn dùng được để kiểm chứng trước release.
+Mọi lệnh `pnpm add @alvin0/ai-agent-sdk-...` trong tài liệu này dùng đúng tên
+package dự kiến trên registry. Hãy dùng tarball cục bộ để kiểm chứng trước release
+cho tới khi version cần dùng đã có trên npm.
 
 `@alvin0/ai-agent-sdk-testkit` còn ở trạng thái **private** và được chạy qua cài đặt
 workspace cục bộ hoặc tarball; việc publish cố ý không được cấu hình cho nó.
