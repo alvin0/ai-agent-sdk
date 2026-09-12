@@ -279,3 +279,59 @@ If you publish a Universal package on top of this SDK, test it the way the SDK
 tests itself: pack the tarball and import it in the target runtime. A Node
 built-in that sneaks into a Universal package fails at the edge, not in your
 unit tests.
+
+## Live Copilot embedding probe
+
+`pnpm provider:copilot:embedding` is an opt-in integration test against the real
+Copilot `/embeddings` endpoint. It discovers the embedding models available to
+the signed-in account, then checks response shape, index fidelity, optional
+dimension handling, and semantic similarity. It spends remote quota and is
+excluded from the normal Vitest suite.
+
+This probe uses raw HTTP after the Copilot token exchange. It is evidence about
+the endpoint, not an SDK embedding adapter: there is no
+`copilotEmbeddingPlugin`, and `runtime.embeddingModel({ provider: 'copilot',
+... })` is not supported. Use `openAiEmbeddingPlugin()` or
+`geminiEmbeddingPlugin()` for embedding through the runtime.
+
+## Repository CI and release gate
+
+The current workspace release line is `0.1.1`. Every
+`packages/*/package.json`, including the private testkit, must carry the same
+version before release. The Release workflow packs only non-private packages.
+
+For a local equivalent of the PR CI gates, run:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm workspace:build
+pnpm workspace:typecheck
+pnpm build:cli
+pnpm lint
+pnpm exec tsc --noEmit
+pnpm check:boundary-fixtures
+pnpm exec vitest run
+pnpm test:packages
+pnpm test:pack
+pnpm check:supply-chain
+```
+
+Keep documentation and recorded protocol evidence separate from those three CI
+jobs and validate them when they changed:
+
+```bash
+pnpm check:docs
+pnpm oracle:generation:check
+npm --prefix web-documents run build
+```
+
+`.github/workflows/release.yml` runs on every push to `main`, on `v*` tags, and
+by manual dispatch. A manual dispatch is a dry run by default; a push publishes
+after the build, boundary, type, functional, package, supply-chain, lockstep,
+and packed-dependency checks pass. A version already present on npm is skipped,
+so a partially completed release can be retried without republishing the
+successful packages. A tag must equal the core package version.
+
+Local success proves only the checkout. Do not report a release as complete
+until the hosted Release workflow succeeds and the expected package versions
+are observable on npm.

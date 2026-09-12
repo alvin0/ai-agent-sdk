@@ -1,13 +1,14 @@
 ---
 name: ai-agent-sdk
-description: Build AI agents with the @alvin0/ai-agent-sdk-* TypeScript SDK — runtime composition, agents, sessions, streaming, tools, structured output, progressive-disclosure skills, task memory and compaction, multi-agent orchestration, MCP, A2A, observability, and deployment to Node, Edge/Worker, or the browser. Use when writing or reviewing code that imports any @alvin0/ai-agent-sdk-* package, or when choosing which of those packages an app needs.
+description: Build and maintain applications with the @alvin0/ai-agent-sdk-* TypeScript SDK — generation and embeddings, runtime composition, agents, sessions, streaming, tools, structured output, progressive-disclosure skills, task memory and compaction, multi-agent orchestration, MCP, A2A, observability, testing, releases, and deployment to Node, Edge/Worker, or the browser. Use when writing or reviewing code that imports any @alvin0/ai-agent-sdk-* package, choosing an install profile, or validating this SDK repository for release.
 ---
 
 # ai-agent-sdk
 
-Provider-neutral TypeScript SDK for AI agents. One message model, one streaming
-protocol, one error taxonomy across Anthropic Messages, OpenAI Responses,
-ChatGPT-backed Codex, and Gemini Interactions.
+Provider-neutral TypeScript SDK for generation and embedding workloads. One
+message model, one public streaming protocol, and stable error taxonomies across
+Anthropic Messages, OpenAI Responses, OpenAI Chat Completions, ChatGPT-backed
+Codex, GitHub Copilot, and Gemini Interactions.
 
 ## Read this first — five facts that prevent most wrong code
 
@@ -88,7 +89,8 @@ Load only the file the task needs. Each is self-contained.
 | Remote agents over A2A, agent cards | [references/a2a.md](references/a2a.md) |
 | Traces, logs, exporters, correlation ids | [references/observability.md](references/observability.md) |
 | Error codes, retry policy, what each failure means | [references/errors.md](references/errors.md) |
-| Test an agent without a live provider | [references/testing.md](references/testing.md) |
+| Test an agent or embedding provider without a live endpoint | [references/testing.md](references/testing.md) |
+| Validate repository CI, package versions, tarballs, or a release | [references/testing.md](references/testing.md) |
 | Something is wrong and you want the cause | [references/troubleshooting.md](references/troubleshooting.md) |
 | Ship to Node CLI, Edge/Worker, or browser | [references/deploy.md](references/deploy.md) |
 

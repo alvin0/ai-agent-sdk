@@ -70,9 +70,12 @@ not share a credential file with an editor that rotates the same token.
 > **`@alvin0/ai-agent-sdk-provider-copilot/embedding` does not exist.**
 > `@alvin0/ai-agent-sdk-core/embedding` is a core export now, but no Copilot
 > embedding adapter has been written against it. `provider-copilot` ships `"."`
-> only. Do not write an import against that specifier; it will not resolve. The
-> two adapters that do exist are `openAiEmbeddingPlugin()` and
-> `geminiEmbeddingPlugin()`, both from their provider package's `"."`.
+> only. The repository's Copilot embedding integration test calls the remote
+> `/embeddings` endpoint directly; it does not make that endpoint available via
+> `runtime.embeddingModel()`. Do not write an import against that specifier; it
+> will not resolve. The two SDK-integrated adapters are
+> `openAiEmbeddingPlugin()` and `geminiEmbeddingPlugin()`, both from their
+> provider package's `"."`.
 
 ## Where the embedding code lives
 
