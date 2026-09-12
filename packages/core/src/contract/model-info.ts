@@ -58,8 +58,16 @@ export interface ModelInfo {
 
 /** Provider-owned context capacity for one exact model route. */
 export interface ModelContext {
-  /** Maximum combined request and response tokens. */
+  /** Operating budget for combined request and response tokens. */
   contextWindow: number
+  /** Known technical ceiling, independent of the operating budget. */
+  maxContextWindow?: number
+  /** Provider/model operating default before an explicit override. */
+  defaultContextWindow?: number
+  /** Input-token threshold above which long-context pricing may apply. */
+  standardPriceInputTokens?: number
+  /** Advisory warning, not a prediction of actual billed token counts. */
+  pricingWarning?: 'extended-context-may-cost-more'
 }
 
 /** Display metadata for one adapter-owned reasoning effort. */

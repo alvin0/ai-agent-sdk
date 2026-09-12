@@ -306,6 +306,9 @@ importers:
       '@alvin0/ai-agent-sdk-provider-codex':
         specifier: workspace:^
         version: link:../provider-codex
+      '@alvin0/ai-agent-sdk-provider-copilot':
+        specifier: workspace:^
+        version: link:../provider-copilot
       '@arethetypeswrong/cli':
         specifier: 'catalog:'
         version: 0.18.5
@@ -662,6 +665,33 @@ importers:
         specifier: 'catalog:'
         version: 4.127.1
 
+  packages/protocol-openai-chat-completions:
+    devDependencies:
+      '@alvin0/ai-agent-sdk-core':
+        specifier: workspace:^
+        version: link:../core
+      '@arethetypeswrong/cli':
+        specifier: 'catalog:'
+        version: 0.18.5
+      playwright:
+        specifier: 'catalog:'
+        version: 1.62.1
+      publint:
+        specifier: 'catalog:'
+        version: 0.3.24
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.24)(tsx@4.23.13)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-playwright@4.1.11)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.1)(tsx@4.23.13)(yaml@2.9.0))
+      wrangler:
+        specifier: 'catalog:'
+        version: 4.127.1
+
   packages/protocol-responses:
     devDependencies:
       '@alvin0/ai-agent-sdk-core':
@@ -728,6 +758,46 @@ importers:
 
   packages/provider-codex:
     dependencies:
+      '@alvin0/ai-agent-sdk-protocol-responses':
+        specifier: workspace:^
+        version: link:../protocol-responses
+      '@alvin0/ai-agent-sdk-provider-http':
+        specifier: workspace:^
+        version: link:../provider-http
+    devDependencies:
+      '@alvin0/ai-agent-sdk-core':
+        specifier: workspace:^
+        version: link:../core
+      '@alvin0/ai-agent-sdk-testkit':
+        specifier: workspace:^
+        version: link:../testkit
+      '@arethetypeswrong/cli':
+        specifier: 'catalog:'
+        version: 0.18.5
+      playwright:
+        specifier: 'catalog:'
+        version: 1.62.1
+      publint:
+        specifier: 'catalog:'
+        version: 0.3.24
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.24)(tsx@4.23.13)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-playwright@4.1.11)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.1)(tsx@4.23.13)(yaml@2.9.0))
+      wrangler:
+        specifier: 'catalog:'
+        version: 4.127.1
+
+  packages/provider-copilot:
+    dependencies:
+      '@alvin0/ai-agent-sdk-protocol-openai-chat-completions':
+        specifier: workspace:^
+        version: link:../protocol-openai-chat-completions
       '@alvin0/ai-agent-sdk-protocol-responses':
         specifier: workspace:^
         version: link:../protocol-responses

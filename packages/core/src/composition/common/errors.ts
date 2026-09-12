@@ -5,6 +5,8 @@ export type RuntimeConstructionFailureCode =
   | 'CAPABILITY_API_UNSUPPORTED'
   | 'CAPABILITY_ID_CONFLICT'
   | 'PROVIDER_ROUTE_CONFLICT'
+  /** Two plugins of the SAME operation claim one route (Requirement 11.6). */
+  | 'PROVIDER_OPERATION_CONFLICT'
   | 'PROVIDER_SETUP_ASYNC_UNSUPPORTED'
   | 'OBSERVATION_BOUNDARY_UNSUPPORTED'
   | 'CAPABILITY_STARTUP_FAILED'
@@ -25,6 +27,24 @@ export interface RuntimeComponentCloseReport {
   readonly error?: { readonly code: string; readonly stage: string; readonly message: string }
 }
 
+/**
+ * One entry of a whole-input failure sweep.
+ *
+ * Declared here rather than beside the preflight that produces it so
+ * {@link ConstructionFailure} can carry it without importing a composition
+ * phase. `ProviderPreflightFailure` narrows `code` to the subset a provider
+ * sweep can produce.
+ */
+export interface RuntimeConstructionAggregateEntry {
+  /** Position in the caller's input list. */
+  readonly index: number
+  readonly code: RuntimeConstructionFailureCode
+  /** Present only when the id was readable as inert, bounded data. */
+  readonly pluginId?: string
+  /** The earlier index this entry collides with, for conflict codes. */
+  readonly conflictsWithIndex?: number
+}
+
 export interface ConstructionFailure {
   readonly failureCode: RuntimeConstructionFailureCode
   readonly stage: 'preflight' | 'provider-setup' | 'exporter-ready' | 'activation'
@@ -32,6 +52,13 @@ export interface ConstructionFailure {
   readonly component?: RuntimeConstructionComponent
   readonly conflict?: CapabilityIdentityConflict
   readonly cleanup?: readonly RuntimeComponentCloseReport[]
+  /**
+   * Every failure the sweep found, not just the reported one.
+   *
+   * `failureCode` stays the FIRST failure's code so existing assertions keep
+   * their meaning; this list is purely additive (DD-3).
+   */
+  readonly aggregate?: readonly RuntimeConstructionAggregateEntry[]
 }
 
 /** Support-safe envelope: deliberately carries no raw input, exception or cause. */
@@ -43,6 +70,8 @@ export class AgentRuntimeConstructionError extends Error {
   readonly component?: RuntimeConstructionComponent
   readonly conflict?: CapabilityIdentityConflict
   readonly cleanup: readonly RuntimeComponentCloseReport[]
+  /** Empty unless the failure came from a whole-input sweep. */
+  readonly aggregate: readonly RuntimeConstructionAggregateEntry[]
 
   constructor(failure: ConstructionFailure) {
     super('Agent runtime construction did not complete')
@@ -56,6 +85,7 @@ export class AgentRuntimeConstructionError extends Error {
       ...row,
       ...(row.error === undefined ? {} : { error: Object.freeze({ ...row.error }) }),
     })))
+    this.aggregate = Object.freeze((failure.aggregate ?? []).map(entry => Object.freeze({ ...entry })))
   }
 }
 

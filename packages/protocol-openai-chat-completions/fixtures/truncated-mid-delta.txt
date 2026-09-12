@@ -1,0 +1,7 @@
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"role":"assistant","content":""},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"content":"Thời tiết "},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"content":"ở Hà Nội "},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"content":"hôm 

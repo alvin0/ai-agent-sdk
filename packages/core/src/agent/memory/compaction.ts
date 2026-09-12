@@ -42,7 +42,15 @@ export interface CompactionResult {
 
 export interface ContextCompactorOptions {
   readonly registry: ModelRegistry
-  readonly config: CallConfig
+  /**
+   * The call configuration in force RIGHT NOW, not when the compactor was built.
+   *
+   * A supplier rather than a value because a run may target a different model
+   * than the session it belongs to: the context window a checkpoint is budgeted
+   * against, and the model a summary is written by, both have to follow that
+   * override or compaction would reason about a window nobody is calling.
+   */
+  readonly config: () => CallConfig
   readonly history: () => History
   readonly system: () => string
   readonly pinnedMessages?: () => readonly Message[]
@@ -95,10 +103,11 @@ export class ContextCompactor {
   private overflowTurn = -1
   private overflowRetries = 0
   private recoveringOverflow = false
+  /** Keyed by route + model + output reserve: an override changes all three. */
   private modelBudget: {
-    readonly contextWindow: number
-    readonly outputReserve: number
-  } | null | undefined
+    readonly key: string
+    readonly budget: { readonly contextWindow: number; readonly outputReserve: number } | null
+  } | undefined
   private pressureCooldown = 0
 
   constructor(input: ContextCompactorOptions) {
@@ -335,30 +344,32 @@ export class ContextCompactor {
 
   private async resolveBudget(totalTokens: number, signal: AbortSignal): Promise<ResolvedBudget | null> {
     const policy = this.input.policy
-    if (this.modelBudget === undefined) {
+    const config = this.input.config()
+    const key = `${config.provider}\u0000${config.model}\u0000${String(config.maxTokens ?? '')}`
+    if (this.modelBudget?.key !== key) {
       try {
         const info = await raceWithSignal(this.input.registry.resolveModelInfo(
-          this.input.config.provider, this.input.config.model, signal,
+          config.provider, config.model, signal,
         ), signal)
         const contextWindow = info.context?.contextWindow
-        this.modelBudget = contextWindow === undefined
+        this.modelBudget = { key, budget: contextWindow === undefined
           ? null
           : {
               contextWindow,
-              outputReserve: this.input.config.maxTokens
+              outputReserve: config.maxTokens
                 ?? info.defaultMaxTokens
                 ?? info.maxOutputTokens
                 ?? 0,
-            }
+            } }
       } catch {
         if (policy.maxInputTokens === undefined) return null
-        this.modelBudget = null
+        this.modelBudget = { key, budget: null }
       }
     }
-    const contextWindow = this.modelBudget?.contextWindow
+    const contextWindow = this.modelBudget?.budget?.contextWindow
     const inputWindow = contextWindow === undefined
       ? undefined
-      : Math.max(1, contextWindow - (this.modelBudget?.outputReserve ?? 0))
+      : Math.max(1, contextWindow - (this.modelBudget?.budget?.outputReserve ?? 0))
     const ratioThreshold = contextWindow === undefined
       ? undefined
       : Math.floor(contextWindow * policy.thresholdRatio)
@@ -393,8 +404,9 @@ export class ContextCompactor {
     signal: AbortSignal,
   ): Promise<{ summary: string; provider: string; model: string; usage?: TokenUsage }> {
     const policy = this.input.policy
-    const provider = policy.summarizationProvider ?? this.input.config.provider
-    const model = policy.summarizationModel ?? this.input.config.model
+    const active = this.input.config()
+    const provider = policy.summarizationProvider ?? active.provider
+    const model = policy.summarizationModel ?? active.model
     const accounting = compactionAccounting(this)
     assertUsageAdmission(accounting)
     const summaryInfo = await raceWithSignal(

@@ -461,6 +461,17 @@ export async function answer(
  *   under; ignored for scope `once`, and defaults to the narrowest rule.
  * @returns Whether a parked call was actually released.
  */
+/**
+ * Runs a newer prompt took over, marked at the moment of takeover.
+ *
+ * A `WeakSet` rather than a flag on the session: the displaced run needs the
+ * answer about ITSELF, long after the session has moved on to another run.
+ */
+const displacedRuns = new WeakSet<AbortController>()
+// Cancellation clears the public abort slot before its stream has unwound.
+// Retain ownership independently so a subsequent prompt still supersedes it.
+const runOwners = new WeakMap<ChatSession, AbortController>()
+
 export async function approve(
   id: string,
   callId: string,
@@ -504,7 +515,9 @@ export async function steer(
 ): Promise<boolean> {
   const live = await session(id)
   const trimmed = text.trim()
-  if (live.steerRun === undefined || trimmed === '') return false
+  const steerRun = live.steerRun
+  const owner = runOwners.get(live)
+  if (steerRun === undefined || trimmed === '') return false
   // `/` means the same thing mid-run as it does at the start. Steering was the
   // one path where the composer offered the menu and the mention then arrived
   // as bare text the model had no reason to act on.
@@ -521,7 +534,7 @@ export async function steer(
   const forModel = mentioned.directive === undefined
     ? trimmed
     : `${mentioned.directive}\n\n${trimmed}`
-  if (!live.steerRun(forModel)) return false
+  if (live.steerRun !== steerRun || runOwners.get(live) !== owner || !steerRun(forModel)) return false
   live.steerUnread = true
   // The transcript shows what was typed; the directive was for the model.
   live.outbox.push({
@@ -670,8 +683,40 @@ export async function* runPrompt(
   // first. Two runs on one conversation share its history and its transcript
   // counter, so leaving both alive splices two dialogues into one and neither
   // is readable afterwards — and the session shapes refuse the second outright.
-  live.abort?.abort(new Error('a newer prompt took the conversation over'))
+  if (live.abort !== undefined) {
+    // Marked HERE, where the displacement actually happens, and not inferred
+    // later from whoever holds the slot: the displaced run can still be
+    // unwinding after this one has finished and cleared the slot, and a check
+    // made at that point sees an idle conversation and concludes, wrongly, that
+    // nothing replaced it.
+    displacedRuns.add(live.abort)
+    live.abort.abort(new Error('a newer prompt took the conversation over'))
+    // Tell the MODEL that the earlier request was withdrawn.
+    //
+    // Aborting ends the run, but the instruction it was carrying out stays in
+    // history as the last thing the user asked for, and the next prompt lands
+    // right after it. A model reading two consecutive user messages reasonably
+    // does the first one — which is how "count to twenty", cancelled and
+    // replaced, still came back as a count to twenty. The note is written once,
+    // between the withdrawn request and the one replacing it, and is attributed
+    // to the app rather than to the user, who did not type it.
+    live.history.append({
+      kind: 'user',
+      message: createUserMessage({
+        content: [{
+          type: 'text',
+          text: 'Note from the application: the user withdrew the previous request before it was '
+            + 'answered, and replaced it with the message that follows. Do not carry out the '
+            + 'withdrawn request. Answer only the new one.',
+        }],
+        source: { kind: 'app', producer: 'chat-agents.takeover' },
+      }),
+    })
+  }
   const controller = new AbortController()
+  const previousOwner = runOwners.get(live)
+  if (previousOwner !== undefined) displacedRuns.add(previousOwner)
+  runOwners.set(live, controller)
   live.abort = controller
   const runId = `run_${Date.now().toString(36)}`
 
@@ -985,14 +1030,13 @@ export async function* runPrompt(
       })
     }
   }
-  yield { t: 'run-start', runId, members: handles.members }
 
   // A permission answer arrives on its own HTTP request while this generator
   // is parked on the tool call it releases, so it is folded in here — the
   // approved call's own result is the next lead event, which puts the decision
   // row immediately before it.
   const drainOutbox = async function* (): AsyncGenerator<WireEvent> {
-    while (live.outbox.length > 0) {
+    while (!displacedRuns.has(controller) && live.outbox.length > 0) {
       const entry = live.outbox.shift() as OutboxEntry
       if (entry.node !== undefined) await persist(entry.node)
       if (entry.wire !== undefined) yield entry.wire
@@ -1035,6 +1079,8 @@ export async function* runPrompt(
   }
 
   try {
+    // A client may close immediately after this frame; cleanup must already own it.
+    yield { t: 'run-start', runId, members: handles.members }
     for await (const step of runSteps(handles.events[Symbol.asyncIterator](), wake)) {
       // Activity is recorded BEFORE the silence is judged. The other order
       // measures the gap the arriving event just ended and reports it as a
@@ -1146,6 +1192,13 @@ export async function* runPrompt(
     if (live.abort !== controller) {
       await persist({ kind: 'notice', id: `n_${String(live.seq)}`, level: 'warn', message })
       yield { t: 'notice', level: 'warn', message }
+      // Still terminal, and it has to SAY so. A displaced or cancelled run ends
+      // here, and the notice alone leaves the stream stopping on an ordinary
+      // mid-run frame: a reader that waits for an end frame waits forever, and
+      // one that treats the closed connection as an end cannot tell a finished
+      // run from a dropped one. The browser survives it because it clears its
+      // own state when the body closes; nothing else should have to.
+      yield { t: 'run-end', reason: 'aborted', text: '' }
     } else {
       await persist({ kind: 'error', id: `e_${String(live.seq)}`, message })
       yield { t: 'error', message }
@@ -1153,17 +1206,34 @@ export async function* runPrompt(
   } finally {
     clearInterval(heartbeat)
     unwatchOutput()
+    // Whether a NEWER prompt displaced this run.
+    //
+    // Not the same as being cancelled: a cancel leaves the conversation idle,
+    // so whatever this run had still belongs at the end of the transcript. A
+    // displaced run's late content has nowhere to go. The transcript is append-only and the newer run has
+    // already written into it, so persisting here files the answer to the
+    // ABANDONED prompt underneath the answer to the current one, and the
+    // conversation reads as though the assistant replied twice, second reply
+    // first. The prompt it belonged to was withdrawn; the notice above already
+    // records that this run was replaced, and usage is accounted separately, so
+    // nothing billed is lost by dropping the text nobody asked for any more.
+    const superseded = displacedRuns.has(controller)
     // An answer that landed as the run was tearing down still belongs in the
     // transcript, even though there is no longer a stream to yield it on.
-    for (const entry of live.outbox.splice(0)) {
-      if (entry.node !== undefined) await persist(entry.node)
+    const outbox = superseded ? [] : live.outbox.splice(0)
+    if (!superseded) {
+      for (const entry of outbox) {
+        if (entry.node !== undefined) await persist(entry.node)
+      }
+      for (const node of project.flush()) await persist(node)
+      for (const node of project.settled()) await persist(node)
     }
-    for (const node of project.flush()) await persist(node)
-    for (const node of project.settled()) await persist(node)
     await saveHistory(id, live.history)
     await handles.close()
-    live.steerRun = undefined
-    live.notify = undefined
+    if (!displacedRuns.has(controller)) {
+      live.steerRun = undefined
+      live.notify = undefined
+    }
     // Reached only when a worker is STILL going after all that — the client
     // disconnected, or a new prompt took the conversation over. Its report is
     // written to the transcript so a reload shows it; it is deliberately not
@@ -1178,7 +1248,7 @@ export async function* runPrompt(
     // subagent, which is what put a finished report inside a worker's panel
     // and made the run look abandoned.
     const closing = new EventProjector()
-    live.workerSink = (member, event) => {
+    if (!displacedRuns.has(controller)) live.workerSink = (member, event) => {
       if (member === LEAD_NAME) {
         for (const _wire of closing.forLead(event)) { /* nobody is listening */ }
       } else {

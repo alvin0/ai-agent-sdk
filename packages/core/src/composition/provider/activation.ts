@@ -34,11 +34,30 @@ export interface ProviderActivationDeadlines {
   readonly rollback: () => ProviderCleanupDeadline
 }
 
-const lifecycleError = () => new AgentSdkError('Provider registration is outside setup or cleanup', 'PROVIDER_REGISTRAR_SEALED')
-const claimError = () => new AgentSdkError('Provider registration must cover its declared routes exactly once', 'PROVIDER_CLAIMS_INVALID')
+/**
+ * The ONE rollback list, shared across both provider plugin kinds.
+ *
+ * Generation and embedding plugins are separate objects with separate `install()`
+ * calls, so no registry transaction spans them. What makes startup look atomic
+ * from outside is that both activations append to the same `installed` array and
+ * every failure path rolls back that whole array in reverse order — a generation
+ * registration is released when a LATER embedding plugin fails, and the other way
+ * round (Requirement 11.7).
+ *
+ * Omit it and an activation owns a private list, which is what a single-kind
+ * caller wants.
+ */
+export interface SharedProviderActivation {
+  readonly installed: ProviderRegistration[]
+}
+
+export const providerLifecycleError = () => new AgentSdkError('Provider registration is outside setup or cleanup', 'PROVIDER_REGISTRAR_SEALED')
+export const providerClaimError = () => new AgentSdkError('Provider registration must cover its declared routes exactly once', 'PROVIDER_CLAIMS_INVALID')
+const lifecycleError = providerLifecycleError
+const claimError = providerClaimError
 
 /** Reject and observe asynchronous returns without reading a then property a second time. */
-function asynchronous(value: unknown): boolean {
+export function asynchronous(value: unknown): boolean {
   if ((typeof value !== 'object' || value === null) && typeof value !== 'function') return false
   let then: unknown
   try { then = Reflect.get(value, 'then') } catch { return true }
@@ -47,9 +66,9 @@ function asynchronous(value: unknown): boolean {
   return true
 }
 
-type CleanupCode = 'CAPABILITY_CLEANUP_FAILED' | 'PROVIDER_CLEANUP_ASYNC_UNSUPPORTED' | 'CAPABILITY_CLEANUP_TIMEOUT'
+export type CleanupCode = 'CAPABILITY_CLEANUP_FAILED' | 'PROVIDER_CLEANUP_ASYNC_UNSUPPORTED' | 'CAPABILITY_CLEANUP_TIMEOUT'
 
-function closeRow(id: string, code?: CleanupCode): RuntimeComponentCloseReport {
+export function closeRow(id: string, code?: CleanupCode): RuntimeComponentCloseReport {
   return Object.freeze({
     kind: 'provider-registration', id,
     status: code === undefined ? 'closed' : code === 'CAPABILITY_CLEANUP_TIMEOUT' ? 'timed-out' : 'failed',
@@ -59,19 +78,30 @@ function closeRow(id: string, code?: CleanupCode): RuntimeComponentCloseReport {
   })
 }
 
-/** Activate already-captured providers. The caller owns bus/exporter startup and the overall deadline. */
+/**
+ * Activate already-captured providers. The caller owns bus/exporter startup and the overall deadline.
+ *
+ * @param shared - the cross-kind rollback list; omit for a private one.
+ * @returns every registration in `shared.installed`, this activation's included,
+ *   so the caller can hand one list to the runtime regardless of how many kinds
+ *   contributed to it.
+ */
 export function activateProviders(
   registry: ModelRegistry,
   providers: readonly CapturedProvider[],
   logger: SdkLogger,
   signal?: AbortSignal,
   deadlines?: ProviderActivationDeadlines,
+  shared?: SharedProviderActivation,
 ): readonly ProviderRegistration[] {
   checkPreflightAbort(signal)
-  const installed: ProviderRegistration[] = []
+  const installed: ProviderRegistration[] = shared?.installed ?? []
+  // Report ids stay positional in the COMBINED list, so `provider-N` means the
+  // same registration to activation rollback and to the runtime close report.
+  const idOffset = installed.length
   for (const [index, provider] of providers.entries()) {
     const setupOperation = beginCoreCapabilityOperation(
-      logger.child({ providerIndex: index }), 'core-provider', 'setup',
+      logger.child({ providerIndex: idOffset + index }), 'core-provider', 'setup',
     )
     let phase: 'setup' | 'sealed' | 'cleanup' | 'closed' = 'setup'
     let failureCode: RuntimeConstructionFailureCode = 'CAPABILITY_STARTUP_FAILED'
@@ -82,7 +112,7 @@ export function activateProviders(
     let cleanupDeadline: ProviderCleanupDeadline | undefined
     let failureWasAbort: boolean | undefined
     // Support reports do not echo an arbitrary user-supplied identity.
-    const reportId = `provider-${index}`
+    const reportId = `provider-${idOffset + index}`
     const finishCleanup = (): RuntimeComponentCloseReport => {
       if (cleaned) return failureCleanup ?? closeRow(reportId)
       if (!committed) failureWasAbort ??= signal?.aborted === true
@@ -221,5 +251,6 @@ export function activateProviders(
       })
     }
   }
-  return Object.freeze(installed)
+  // A copy: the shared list must stay appendable for the next kind.
+  return Object.freeze([...installed])
 }

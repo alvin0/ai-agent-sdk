@@ -97,8 +97,11 @@ describe('operation admission and settlement', () => {
 })
 
 describe('quiescence, shared close deadline and sealed generations', () => {
-  it('always reports all four kinds, including zero counts, and requires quiescence before final cleanup', async () => {
+  it('always reports every kind, including zero counts, and requires quiescence before final cleanup', async () => {
     const { resources, operations } = fixture()
+    // `beginClose()` derives `activeRunsAtClose`/`abortedRuns`/`unsettledRuns` from
+    // `operations[0]`, so the first kind is load-bearing: new kinds are appended.
+    expect(RUNTIME_OPERATION_KINDS[0]).toBe('agent-run')
     expect(() => operations.finishClose()).toThrow('not quiesced')
     expect(() => operations.remainingCloseMs()).toThrow('not started')
     const report = await operations.beginClose({ timeoutMs: 50 })

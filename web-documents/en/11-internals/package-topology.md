@@ -32,7 +32,7 @@ ledger to keep in sync.
 Schema v5 freezes these baselines explicitly, **so a runtime label cannot pass
 merely because the imports look clean**.
 
-## The 21 target packages
+## The 23 target packages
 
 | Package | Tier | Roles |
 | --- | --- | --- |
@@ -41,9 +41,11 @@ merely because the imports look clean**.
 | `protocol-responses` | universal | wire-protocol |
 | `protocol-anthropic-messages` | universal | wire-protocol |
 | `protocol-gemini-interactions` | universal | wire-protocol |
+| `protocol-openai-chat-completions` | universal | wire-protocol |
 | `provider-openai` | universal | model-provider |
 | `provider-anthropic` | universal | model-provider |
 | `provider-codex` | universal | model-provider |
+| `provider-copilot` | universal | model-provider |
 | `provider-gemini` | universal | model-provider |
 | `mcp` | universal | mcp-client, tool-source |
 | `mcp-server` | universal | mcp-server |
@@ -67,17 +69,19 @@ Five packages have more than one public entrypoint:
 | Package | Entrypoints |
 | --- | --- |
 | `core` | `.` `./agent` `./memory` `./provider` `./skills` `./tools` `./observability` |
-| `auth-node` | `.` `./env` `./codex` |
+| `auth-node` | `.` `./env` `./codex` `./copilot` |
 | `a2a` | `.` `./client` `./server` |
 | `mcp` | `.` `./client` `./server` |
 | `observability-node` | `.` `./journal` `./diagnostic` |
 
-MCP `/server` and auth `/codex` are **optional-peer views**; identity routes are
-recorded separately.
+MCP `/server`, auth `/codex` and auth `/copilot` are **optional-peer views**;
+identity routes are recorded separately.
+
+Across the 23 packages that is 38 public specifiers.
 
 ## Manifest rules
 
-All 21 packages:
+All 23 packages:
 
 - **forbid wildcard and `require` routes**;
 - include an explicit `"./package.json"` export;
@@ -88,7 +92,8 @@ That metadata is **documentation and release metadata only**. Runtime code never
 scans it and never auto-loads a plugin from it.
 
 Manifest policy also preserves non-TypeScript install surfaces: common packed
-files, `auth-node`'s Codex-login binary and `bin` directory, root `main`/`types`
+files, `auth-node`'s Codex-login and Copilot-login binaries and its `bin`
+directory, root `main`/`types`
 mirrors, and Node-only engine metadata.
 
 ## Dependency classification

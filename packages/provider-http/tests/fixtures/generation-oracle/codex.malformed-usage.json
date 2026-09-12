@@ -1,0 +1,57 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "httpStatus": 200,
+      "method": "POST",
+      "origin": "https://chatgpt.com",
+      "status": "success"
+    }
+  ],
+  "chunks": [
+    {
+      "blockType": "text",
+      "index": 0,
+      "type": "block-start"
+    },
+    {
+      "index": 0,
+      "text": "ok",
+      "type": "text-delta"
+    },
+    {
+      "block": {
+        "text": "ok",
+        "type": "text"
+      },
+      "index": 0,
+      "type": "block-end"
+    },
+    {
+      "reason": {
+        "kind": "stop"
+      },
+      "type": "finish"
+    }
+  ],
+  "errorCodes": [],
+  "model": "gpt-codex-conformance",
+  "provider": "codex",
+  "redactedHeaderNames": [
+    "authorization",
+    "originator",
+    "session-id"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "authorization",
+    "content-type",
+    "originator",
+    "session-id",
+    "user-agent"
+  ],
+  "scenario": "malformed-usage",
+  "schemaVersion": 1
+}

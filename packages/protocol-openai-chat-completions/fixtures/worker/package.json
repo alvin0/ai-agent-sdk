@@ -1,0 +1,5 @@
+{
+  "name": "protocol-openai-chat-completions-worker-consumer",
+  "private": true,
+  "type": "module"
+}

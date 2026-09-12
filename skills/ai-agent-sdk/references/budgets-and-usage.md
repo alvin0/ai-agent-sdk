@@ -83,6 +83,104 @@ const session = agent.createSession({ usagePolicy: { onMissing: 'estimate', esti
 An estimate is labelled `coverage: 'estimated'` — it never masquerades as
 reported truth.
 
+## Embedding accounts at three levels
+
+One call to `embed()` or `embedMany()` can become several requests, and a
+request can be attempted more than once. Those are three different things, and
+embedding usage names all three rather than collapsing them into "a call":
+
+| Level | What it is | Where it shows up |
+| --- | --- | --- |
+| `Logical_Call` | One `embed()` or `embedMany()`, however many inputs it carries | The `usage` on `EmbeddingResult` / `EmbeddingManyResult` |
+| `Physical_Batch` | One group of items after splitting under the batch bounds | `batches`, `batchesWithUsage` |
+| `Provider_Attempt` | One `embedBatch()` call on the adapter, retries included | `providerAttempts` |
+
+The runtime owns retry, and an adapter performs exactly one attempt per
+`embedBatch()`. That is what makes the third level countable: the attempts a
+caller was billed for equals the number of times the runtime called the adapter.
+A batch that succeeded is never re-sent by a later retry pass of the same
+logical call. Embedding also holds a lease under the `'embedding-call'` runtime
+operation kind, so `runtime.close()` reports it beside `'agent-run'`.
+
+```ts
+interface EmbeddingUsageReport {
+  readonly status: 'complete' | 'partial' | 'missing'
+  readonly tokens?: EmbeddingTokenUsage     // present ONLY when status === 'complete'
+  readonly batches: number                  // dispatched; cache hits are not batches
+  readonly batchesWithUsage: number
+  readonly providerAttempts: number
+  readonly inputsFromCache: number
+  readonly inputsFromProvider: number
+}
+```
+
+`inputsFromCache + inputsFromProvider` equals the input count by construction —
+both are derived from the same evidence rather than kept in step by hand.
+
+### The status is coverage of the batches that were sent
+
+| `status` | When | `tokens` |
+| --- | --- | --- |
+| `complete` | Every dispatched batch returned readable usage | Published |
+| `partial` | At least one batch reported readable usage, at least one did not | Absent |
+| `missing` | No dispatched batch reported readable usage — including a call served entirely from cache, which reports `batches: 0` | Absent |
+
+A cache-only call reporting `missing` is deliberate: it did not incur a cost, so
+claiming complete knowledge of one would be a different lie from the usual.
+`totalTokens` is summed only when **every** readable batch reported one, because
+a partial sum of totals understates the call.
+
+Absence is also said out loud, per batch:
+
+| Warning code | Meaning |
+| --- | --- |
+| `usage-unreported` | The batch was dispatched and came back with no usage at all |
+| `usage-malformed` | Usage arrived but could not be read as embedding token counts |
+
+A counter past `Number.MAX_SAFE_INTEGER` is treated as unreadable, not as a
+large number — precision lost is authority lost, so it may not enter a published
+total. Gemini's `batchEmbedContents` reports no usage by design, so a Gemini call
+routinely lands on `missing` plus one `usage-unreported` per batch. That is the
+honest report, not a defect.
+
+### `EmbeddingTokenUsage` is not `TokenUsage`
+
+```ts
+interface EmbeddingTokenUsage {
+  readonly inputTokens: number      // required
+  readonly totalTokens?: number
+}
+```
+
+There is no `outputTokens`, and embedding does not reuse `UsageCounters` or
+`validateUsageCounters` to fake one. Those treat a report as `complete` only once
+`outputTokens` is present, which for embedding could be satisfied only by
+inventing a `0` — and a fabricated zero is indistinguishable from a provider that
+charged nothing. Reusing the generation shape without the zero would instead
+leave every embedding report permanently short of `complete`, making the signal
+meaningless. So embedding has its own counter shape, `inputTokens` required and
+`totalTokens` optional, and a report with an unreadable input bucket publishes
+nothing at all.
+
+### Batch bounds and concurrency
+
+`EmbeddingModelOptions` carries `batchLimits` and `concurrency`; the bounds
+resolve **override → catalog → default**, so they are always finite and a model
+id outside the catalog is still batchable rather than rejected:
+
+```ts
+const EMBEDDING_BATCH_DEFAULTS = { maxItems: 96, maxTokens: 100_000, maxBytes: 1024 * 1024 }
+```
+
+An `unknown` catalog capability feeds batching but never validation — batching
+needs a finite ceiling or one logical call's memory is unbounded, while an
+undeclared capability is not a reason to refuse a request. `estimateTokens` is
+one shared heuristic, `ceil(utf8Bytes / 4)` by default, used both to split
+batches and to check an input against a declared `maxInputTokens`; a single owner
+is why a split and a length check can never disagree about the size of the same
+text. An adapter with a closer estimator passes it through
+`limits.estimateTokens`.
+
 ## Turn and run limits
 
 Definition-level:

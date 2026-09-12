@@ -2,6 +2,7 @@ name: Release
 
 on:
   push:
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
     inputs:
@@ -15,6 +16,10 @@ permissions:
 
 env:
   TURBO_TELEMETRY_DISABLED: '1'
+
+concurrency:
+  group: release-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -47,14 +52,25 @@ jobs:
       - name: Frozen dependency install
         run: pnpm install --frozen-lockfile
 
-      - name: Graph and runtime boundary gates
-        run: pnpm lint
-
       - name: Build publishable packages
         run: pnpm workspace:build
 
-      - name: Package export and type gates
-        run: pnpm -r --filter './packages/*' check:publint && pnpm -r --filter './packages/*' check:types
+      - name: Boundary and type gates
+        run: pnpm workspace:typecheck && pnpm build:cli && pnpm lint && pnpm exec tsc --noEmit && pnpm check:boundary-fixtures
+
+      - name: Functional and supply-chain gates
+        run: pnpm exec vitest run && pnpm test:packages && pnpm test:pack && pnpm check:supply-chain
+
+      - name: Assert lockstep package versions
+        run: |
+          version="$(node -p "require('./packages/core/package.json').version")"
+          for manifest in packages/*/package.json; do
+            package_version="$(node -p "require('./${manifest}').version")"
+            test "$package_version" = "$version" || {
+              echo "$manifest has version $package_version; expected $version" >&2
+              exit 1
+            }
+          done
 
       # `pnpm pack` is what resolves `workspace:^` and `catalog:` specifiers into
       # real semver ranges. `npm publish <tarball>` then uploads that resolved
@@ -105,13 +121,19 @@ jobs:
           done
 
       - name: Publish to npm with provenance
-        if: startsWith(github.ref, 'refs/tags/v') || inputs.dry-run == false
+        if: github.event_name == 'push' || inputs.dry-run == false
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           # The "./" prefix is required: npm reads a bare relative path as a
           # GitHub owner/repo shorthand and tries to clone it over ssh.
           for tarball in artifacts/*.tgz; do
+            name="$(tar xzOf "$tarball" package/package.json | node -p "JSON.parse(require('node:fs').readFileSync(0, 'utf8')).name")"
+            version="$(tar xzOf "$tarball" package/package.json | node -p "JSON.parse(require('node:fs').readFileSync(0, 'utf8')).version")"
+            if npm view "$name@$version" version --json >/dev/null 2>&1; then
+              echo "== already published $name@$version; skipping"
+              continue
+            fi
             echo "== publishing $tarball"
             npm publish "./$tarball" --provenance --access public
           done

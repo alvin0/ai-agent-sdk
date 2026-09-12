@@ -1,0 +1,37 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "unknown",
+      "errorCode": "TRANSPORT",
+      "method": "POST",
+      "origin": "https://chatgpt.com",
+      "status": "error"
+    }
+  ],
+  "chunks": [],
+  "errorCodes": [
+    "TRANSPORT"
+  ],
+  "model": "gpt-codex-conformance",
+  "provider": "codex",
+  "redactedHeaderNames": [
+    "authorization",
+    "originator",
+    "session-id"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "authorization",
+    "content-type",
+    "originator",
+    "session-id",
+    "user-agent"
+  ],
+  "scenario": "transport-failure",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "TRANSPORT"
+  }
+}

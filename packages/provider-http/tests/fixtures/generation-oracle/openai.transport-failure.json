@@ -1,0 +1,33 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "unknown",
+      "errorCode": "TRANSPORT",
+      "method": "POST",
+      "origin": "https://api.openai.com",
+      "status": "error"
+    }
+  ],
+  "chunks": [],
+  "errorCodes": [
+    "TRANSPORT"
+  ],
+  "model": "gpt-conformance",
+  "provider": "openai",
+  "redactedHeaderNames": [
+    "authorization"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "authorization",
+    "content-type",
+    "user-agent"
+  ],
+  "scenario": "transport-failure",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "TRANSPORT"
+  }
+}

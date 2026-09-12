@@ -4,7 +4,7 @@
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
   },
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Universal contracts and runtime primitives for ai-agent-sdk",
   "license": "MIT",
   "repository": {
@@ -49,6 +49,11 @@
       "types": "./dist/tools.d.ts",
       "import": "./dist/tools.js",
       "default": "./dist/tools.js"
+    },
+    "./embedding": {
+      "types": "./dist/embedding.d.ts",
+      "import": "./dist/embedding.js",
+      "default": "./dist/embedding.js"
     },
     "./observability": {
       "types": "./dist/observability.d.ts",

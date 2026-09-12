@@ -4,7 +4,9 @@ import { timeoutValue } from '../platform/config.ts'
 import type { ModelRegistry } from '../runtime/registry.ts'
 import { AgentRuntimeConstructionError, checkPreflightAbort } from './common/errors.ts'
 import { RuntimeExporters } from './exporter/lifecycle.ts'
-import { activateProviders, type ProviderRegistration } from './provider/activation.ts'
+import { activateRuntimeProviders } from './embedding/activation.ts'
+import { EmbeddingRegistry } from './embedding/registry.ts'
+import type { ProviderRegistration } from './provider/activation.ts'
 import type { RuntimeCapabilityPlan } from './preflight.ts'
 
 export interface CapabilityStartupOptions {
@@ -13,11 +15,19 @@ export interface CapabilityStartupOptions {
   readonly signal?: AbortSignal
 }
 
+export interface ActivatedRuntimeCapabilities {
+  /** Generation AND embedding registrations, in installation order (Requirement 11.7). */
+  readonly providers: readonly ProviderRegistration[]
+  /** Owned here so it exists even when no embedding plugin was supplied. */
+  readonly embeddingRegistry: EmbeddingRegistry
+  readonly exporters: RuntimeExporters
+}
+
 /** Transactional inner startup; the composition root supplies its canonical registry, logger and resources. */
 export async function activateRuntimeCapabilities(
   plan: RuntimeCapabilityPlan, registry: ModelRegistry, logger: SdkLogger,
   resources: RuntimeResources, options: CapabilityStartupOptions,
-): Promise<{ readonly providers: readonly ProviderRegistration[]; readonly exporters: RuntimeExporters }> {
+): Promise<ActivatedRuntimeCapabilities> {
   const startupTimeoutMs = timeoutValue(options.startupTimeoutMs)
   const rollbackTimeoutMs = timeoutValue(options.rollbackTimeoutMs)
   const signal = options.signal
@@ -29,10 +39,16 @@ export async function activateRuntimeCapabilities(
     return { at: rollbackDeadlineAt, now: () => resources.platform.monotonicNow() }
   }
   const exporters = new RuntimeExporters(plan.exporters, resources)
+  const embeddingRegistry = new EmbeddingRegistry()
   let providers: readonly ProviderRegistration[] = []
   try {
-    providers = activateProviders(registry, plan.providers, logger, signal, {
-      startup: { at: deadlineAt, now: () => resources.platform.monotonicNow() }, rollback: rollbackDeadline,
+    providers = activateRuntimeProviders({
+      registry, embeddingRegistry, providers: plan.providers,
+      embeddingProviders: plan.embeddingProviders, logger,
+      ...(signal === undefined ? {} : { signal }),
+      deadlines: {
+        startup: { at: deadlineAt, now: () => resources.platform.monotonicNow() }, rollback: rollbackDeadline,
+      },
     })
     await exporters.ready(deadlineAt, signal)
     if (signal?.aborted) throw new AgentRuntimeConstructionError({
@@ -41,7 +57,7 @@ export async function activateRuntimeCapabilities(
     if (resources.platform.monotonicNow() >= deadlineAt) throw new AgentRuntimeConstructionError({
       failureCode: 'CAPABILITY_STARTUP_TIMEOUT', stage: 'activation', reason: 'timed-out',
     })
-    return Object.freeze({ providers, exporters })
+    return Object.freeze({ providers, embeddingRegistry, exporters })
   } catch (error) {
     // Capture the primary classification before cleanup can abort the caller or throw.
     const failure = error instanceof AgentRuntimeConstructionError ? error : new AgentRuntimeConstructionError({
@@ -53,7 +69,8 @@ export async function activateRuntimeCapabilities(
     throw new AgentRuntimeConstructionError({
       failureCode: failure.failureCode, stage: failure.stage, reason: failure.reason,
       ...(failure.component === undefined ? {} : { component: failure.component }),
-      ...(failure.conflict === undefined ? {} : { conflict: failure.conflict }), cleanup,
+      ...(failure.conflict === undefined ? {} : { conflict: failure.conflict }),
+      ...(failure.aggregate.length === 0 ? {} : { aggregate: failure.aggregate }), cleanup,
     })
   }
 }

@@ -14,6 +14,8 @@ import type { ToolExecutionResult } from '../../agent/tool/definition.ts'
 import { TOOL_ERROR_CODES } from '../../agent/tool/errors.ts'
 import { AgentSdkError } from '../../errors/agent-sdk-error.ts'
 import type { ModelRegistry } from '../../runtime/registry.ts'
+import type { ProviderSelection } from '../provider/types.ts'
+import type { ReasoningEffortId } from '../../primitives/brand.ts'
 import { atDeadline } from '../lifecycle/bounded.ts'
 import type { RuntimeOperations } from '../lifecycle/operations.ts'
 import type { RuntimeObservationPort } from '../observation/port.ts'
@@ -28,7 +30,7 @@ import type { ToolSourceRunReference } from '../tool-source/types.ts'
 import { createRuntimeMemoryPersistence } from '../memory/run.ts'
 import { validateMemoryResumeBinding } from '../memory/resume.ts'
 import type { BoundRuntimeAgentDefinition } from './definition.ts'
-import { captureInvocationOptions, captureRuntimeSessionOptions } from './options.ts'
+import { captureInvocationOptions, captureRuntimeSessionOptions, type CapturedInvocationOptions } from './options.ts'
 import { projectNativeToolEvent } from './native-event.ts'
 import type {
   RuntimeAgent, RuntimeAgentInvocationOptions, RuntimeAgentResponse, RuntimeAgentRunEvent,
@@ -41,6 +43,13 @@ import { assertAgentIdentitySnapshot } from '../identity/agent.ts'
 
 export interface RuntimeAgentHost {
   readonly registry: ModelRegistry
+  /**
+   * The runtime's captured provider routes.
+   *
+   * Held so a per-invocation model override resolves against exactly the same
+   * configuration the agent binding used, rather than a second view of it.
+   */
+  readonly selection: ProviderSelection
   readonly operations: RuntimeOperations
   readonly observation: RuntimeObservationPort
   readonly resource: RuntimeObservationResource
@@ -141,12 +150,12 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
       if (input === null || typeof input !== 'object' || input.role !== 'user') throw new TypeError('Runtime input must be text or a user message')
       input = freezeMessage(input)
     }
-    const options = captureInvocationOptions(rawOptions)
+    const options = captureInvocationOptions(rawOptions, this.host.selection)
     const started = this.start(input, options)
     return runtimeHandle(started.legacy, started.report, started.result, this.nativeProvider, options.includeTraceEvents === true)
   }
 
-  private start(input: AgentInput | undefined, options: RuntimeAgentInvocationOptions): StartedRuntimeRun {
+  private start(input: AgentInput | undefined, options: CapturedInvocationOptions): StartedRuntimeRun {
     const operation = this.beginOperation()
     let lease: ReturnType<RuntimeOperations['acquire']>
     try {
@@ -162,8 +171,9 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
     let legacy: RuntimeSessionRunHandle
     try {
       legacy = input === undefined
-        ? streamPendingRuntimeSession(this.session, { signal: lease.signal })
-        : streamRuntimeSession(this.session, input, { signal: lease.signal, ...(structured === undefined ? {} : {
+        ? streamPendingRuntimeSession(this.session, { signal: lease.signal, ...modelOverlay(options) })
+        : streamRuntimeSession(this.session, input, { signal: lease.signal, ...modelOverlay(options),
+          ...(structured === undefined ? {} : {
           outputFormat: { type: 'json_schema' as const, name: structured.name, schema: structured.schema.jsonSchema },
           validateOutput: (value: unknown) => {
             const parsed = structured.schema.parse(value)
@@ -192,7 +202,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
   }
 
   async run(input: AgentInput, rawOptions?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse> {
-    const options = captureInvocationOptions(rawOptions)
+    const options = captureInvocationOptions(rawOptions, this.host.selection)
     const handle = this.stream(input, options)
     try {
       for await (const event of handle) {
@@ -225,7 +235,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
   snapshot(): RuntimeAgentSessionSnapshot { return this.session.snapshot() }
 
   compact(rawOptions?: RuntimeAgentInvocationOptions): Promise<CompactionResult | null> {
-    const options = captureInvocationOptions(rawOptions)
+    const options = captureInvocationOptions(rawOptions, this.host.selection)
     const operation = this.beginOperation()
     let pending: Promise<CompactionResult | null>
     try {
@@ -234,7 +244,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
           ? options.signal === undefined ? {} : { signal: options.signal }
           : { signal: options.signal === undefined ? this.ownerSignal : AbortSignal.any([options.signal, this.ownerSignal]) }),
       }, async lease => {
-        const outcome = await compactRuntimeSession(this.session, { signal: lease.signal })
+        const outcome = await compactRuntimeSession(this.session, { signal: lease.signal, ...modelOverlay(options) })
         const record = createRunTerminalRecord(outcome.report)
         const terminal = await this.host.observation.checkpointTerminal(record, lease.signal)
         const report = finalizeRuntimeRunReport(record, outcome.report.delivery, terminal,
@@ -423,6 +433,19 @@ function createRuntimeSession(
   )
 }
 
+/** Project one captured invocation onto the low-level per-run model overlay. */
+function modelOverlay(options: CapturedInvocationOptions): {
+  readonly model?: { readonly provider: string; readonly model: string }
+  readonly reasoningEffort?: ReturnType<typeof ReasoningEffortId>
+  readonly maxTokens?: number
+} {
+  return {
+    ...(options.model === undefined ? {} : { model: { provider: options.model.provider, model: options.model.id } }),
+    ...(options.effort === undefined ? {} : { reasoningEffort: options.effort }),
+    ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
+  }
+}
+
 interface SessionOperation {
   readonly done: Promise<void>
   readonly resolve: () => void
@@ -497,6 +520,8 @@ type WithoutEventContext<T> = T extends unknown ? Omit<T, 'runId' | 'traceId' | 
 type ProjectedEvent = WithoutEventContext<RuntimeAgentRunEvent>
 
 function projectEvent(event: AgentRunEvent, nativeProvider: string, includeTraceEvents: boolean): ProjectedEvent | undefined {
+  if (event.type === 'usage-progress') return { type: 'usage-progress', usage: event.usage,
+    ...(event.attemptId === undefined ? {} : { attemptId: event.attemptId }) }
   // Runtime consumers such as Edge hosts may persist an execution trace. Keep
   // the SDK's span lifecycle intact; unlike transcript events, spans carry the
   // identity and nesting needed to reconstruct the call tree.

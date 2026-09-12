@@ -300,7 +300,7 @@ describe('agent context compaction', () => {
       }),
     })
     const compactor = new ContextCompactor({
-      registry, config: { provider: 'test', model: 'm' }, history: () => history,
+      registry, config: () => ({ provider: 'test', model: 'm' }), history: () => history,
       system: () => '', tools: () => [],
       policy: resolveCompactionConfig({ auto: false, thresholdRatio: 0.8, retainTokens: 10 }),
     })
@@ -485,7 +485,7 @@ describe('agent context compaction', () => {
     ])
     const compactor = new ContextCompactor({
       registry: state.registry,
-      config: { provider: 'test', model: 'scripted' },
+      config: () => ({ provider: 'test', model: 'scripted' }),
       history: () => history,
       system: () => '',
       tools: () => [],
@@ -527,7 +527,7 @@ describe('agent context compaction', () => {
     const state = setup([textRound('## Primary Request and Intent\n- Objective\n## Next Step\n- Continue.')])
     const compactor = new ContextCompactor({
       registry: state.registry,
-      config: { provider: 'test', model: 'scripted' },
+      config: () => ({ provider: 'test', model: 'scripted' }),
       history: () => history,
       system: () => '',
       tools: () => [],
@@ -566,7 +566,7 @@ describe('agent context compaction', () => {
     const events: Array<{ type: string; backoffReason?: string }> = []
     const compactor = new ContextCompactor({
       registry: state.registry,
-      config: { provider: 'test', model: 'scripted' },
+      config: () => ({ provider: 'test', model: 'scripted' }),
       history: () => history,
       system: () => '',
       tools: () => [],
@@ -654,7 +654,7 @@ describe('agent context compaction', () => {
     })
     const compactor = new ContextCompactor({
       registry,
-      config: { provider: 'test', model: 'scripted' },
+      config: () => ({ provider: 'test', model: 'scripted' }),
       history: () => history,
       system: () => '',
       tools: () => [],
@@ -694,7 +694,7 @@ describe('agent context compaction', () => {
     const state = setup([overflowRound()])
     const compactor = new ContextCompactor({
       registry: state.registry,
-      config: { provider: 'test', model: 'scripted' },
+      config: () => ({ provider: 'test', model: 'scripted' }),
       history: () => history,
       system: () => '',
       tools: () => [],
@@ -735,7 +735,7 @@ describe('agent context compaction', () => {
     ])
     const compactor = new ContextCompactor({
       registry: state.registry,
-      config: { provider: 'test', model: 'scripted' },
+      config: () => ({ provider: 'test', model: 'scripted' }),
       history: () => history,
       system: () => '',
       tools: () => [],
@@ -788,7 +788,7 @@ describe('agent context compaction', () => {
     registry.registerAdapter(['test'], adapter)
     const compactor = new ContextCompactor({
       registry,
-      config: { provider: 'test', model: 'scripted' },
+      config: () => ({ provider: 'test', model: 'scripted' }),
       history: () => history,
       system: () => '',
       tools: () => [],
@@ -818,7 +818,7 @@ describe('agent context compaction', () => {
     registry.registerAdapter(['test'], adapter)
     const compactor = new ContextCompactor({
       registry,
-      config: { provider: 'test', model: 'scripted' },
+      config: () => ({ provider: 'test', model: 'scripted' }),
       history: () => history,
       system: () => '',
       tools: () => [],
@@ -848,7 +848,7 @@ describe('agent context compaction', () => {
     })
     const registry = {
       resolveModelInfo: () => Promise.resolve({ context: { contextWindow: 2_000 } }),
-      prepareCall: (config: { provider: string; model: string; maxTokens?: number }) => Promise.resolve({
+      prepareCall: (config: () => ({ provider: string; model: string; maxTokens?: number })) => Promise.resolve({
         config,
         stream: () => ({
           async * [Symbol.asyncIterator]() { await new Promise<void>(() => {}) },
@@ -856,7 +856,7 @@ describe('agent context compaction', () => {
       }),
     } as unknown as ModelRegistry
     const compactor = new ContextCompactor({
-      registry, config: { provider: 'test', model: 'm' }, history: () => history,
+      registry, config: () => ({ provider: 'test', model: 'm' }), history: () => history,
       system: () => '', tools: () => [],
       policy: resolveCompactionConfig({
         auto: false, maxInputTokens: 100, retainTokens: 1,

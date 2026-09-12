@@ -1,0 +1,38 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "errorCode": "HTTP_SSE_LIMIT_EXCEEDED",
+      "httpStatus": 200,
+      "method": "POST",
+      "origin": "https://chatgpt.com",
+      "status": "error"
+    }
+  ],
+  "chunks": [],
+  "errorCodes": [
+    "HTTP_SSE_LIMIT_EXCEEDED"
+  ],
+  "model": "gpt-codex-conformance",
+  "provider": "codex",
+  "redactedHeaderNames": [
+    "authorization",
+    "originator",
+    "session-id"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "authorization",
+    "content-type",
+    "originator",
+    "session-id",
+    "user-agent"
+  ],
+  "scenario": "stream-bound-failure",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "HTTP_SSE_LIMIT_EXCEEDED"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "errorCode": "SERVER",
+      "httpStatus": 503,
+      "method": "POST",
+      "origin": "https://api.openai.com",
+      "providerRequestId": "oracle-request-id",
+      "status": "error"
+    }
+  ],
+  "chunks": [],
+  "errorCodes": [
+    "SERVER"
+  ],
+  "model": "gpt-conformance",
+  "provider": "openai",
+  "redactedHeaderNames": [
+    "authorization"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "authorization",
+    "content-type",
+    "user-agent"
+  ],
+  "scenario": "http-error",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "SERVER",
+    "providerRetryAfterMs": 2000,
+    "requestId": "oracle-request-id",
+    "status": 503
+  }
+}

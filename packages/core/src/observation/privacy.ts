@@ -24,6 +24,7 @@ const REDACTED = '[REDACTED]'
 
 const EVENT_NAMES = new Set<ObservationEventName>([
   'sdk.agent.run', 'sdk.agent.turn', 'sdk.model.call', 'sdk.provider.attempt',
+  'sdk.embedding.call', 'sdk.embedding.batch',
   'sdk.provider.retry.scheduled', 'sdk.tool.call', 'sdk.compaction', 'sdk.hook.call',
   'sdk.user.input.wait', 'sdk.skill.operation', 'sdk.memory.operation',
   'sdk.credential.operation', 'sdk.integration.request', 'sdk.observer.failure',

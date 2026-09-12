@@ -8,6 +8,12 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['../../tests/unit/provider-gemini.spec.ts'],
+    // Specs live in the ROOT `tests/` tree; this package has no `tests/`
+    // directory, so listing them here is what makes them run under
+    // `pnpm --filter provider-gemini test` as well as the root suite.
+    include: [
+      '../../tests/unit/provider-gemini.spec.ts',
+      '../../tests/unit/provider-gemini-embedding.spec.ts',
+    ],
   },
 })

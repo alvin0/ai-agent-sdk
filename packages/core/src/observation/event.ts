@@ -27,6 +27,8 @@ export type ObservationEventName =
   | 'sdk.agent.run'
   | 'sdk.agent.turn'
   | 'sdk.model.call'
+  | 'sdk.embedding.call'
+  | 'sdk.embedding.batch'
   | 'sdk.provider.attempt'
   | 'sdk.provider.retry.scheduled'
   | 'sdk.tool.call'

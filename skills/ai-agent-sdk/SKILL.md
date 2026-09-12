@@ -1,13 +1,14 @@
 ---
 name: ai-agent-sdk
-description: Build AI agents with the @alvin0/ai-agent-sdk-* TypeScript SDK — runtime composition, agents, sessions, streaming, tools, structured output, progressive-disclosure skills, task memory and compaction, multi-agent orchestration, MCP, A2A, observability, and deployment to Node, Edge/Worker, or the browser. Use when writing or reviewing code that imports any @alvin0/ai-agent-sdk-* package, or when choosing which of those packages an app needs.
+description: Build and maintain applications with the @alvin0/ai-agent-sdk-* TypeScript SDK — generation and embeddings, runtime composition, agents, sessions, streaming, tools, structured output, progressive-disclosure skills, task memory and compaction, multi-agent orchestration, MCP, A2A, observability, testing, releases, and deployment to Node, Edge/Worker, or the browser. Use when writing or reviewing code that imports any @alvin0/ai-agent-sdk-* package, choosing an install profile, or validating this SDK repository for release.
 ---
 
 # ai-agent-sdk
 
-Provider-neutral TypeScript SDK for AI agents. One message model, one streaming
-protocol, one error taxonomy across Anthropic Messages, OpenAI Responses,
-ChatGPT-backed Codex, and Gemini Interactions.
+Provider-neutral TypeScript SDK for generation and embedding workloads. One
+message model, one public streaming protocol, and stable error taxonomies across
+Anthropic Messages, OpenAI Responses, OpenAI Chat Completions, ChatGPT-backed
+Codex, GitHub Copilot, and Gemini Interactions.
 
 ## Read this first — five facts that prevent most wrong code
 
@@ -80,6 +81,7 @@ Load only the file the task needs. Each is self-contained.
 | Task memory, compaction, snapshots, resume | [references/memory.md](references/memory.md) |
 | Multi-step flows, agent teams, `mode: 'deep'`, human gates | [references/orchestration.md](references/orchestration.md) |
 | Point the SDK at a new endpoint, or author a provider | [references/providers.md](references/providers.md) |
+| `runtime.embeddingModel()`, `embed()`, `embedMany()`, embedding providers, `Space_Id` | [references/providers.md](references/providers.md) |
 | Instructions, always-on moving context, `AGENTS.md` files | [references/context-and-instructions.md](references/context-and-instructions.md) |
 | Messages, content blocks, images and vision, PDF/document input | [references/messages-and-content.md](references/messages-and-content.md) |
 | Turn limits, token budgets, usage coverage, oversized tool output | [references/budgets-and-usage.md](references/budgets-and-usage.md) |
@@ -87,7 +89,8 @@ Load only the file the task needs. Each is self-contained.
 | Remote agents over A2A, agent cards | [references/a2a.md](references/a2a.md) |
 | Traces, logs, exporters, correlation ids | [references/observability.md](references/observability.md) |
 | Error codes, retry policy, what each failure means | [references/errors.md](references/errors.md) |
-| Test an agent without a live provider | [references/testing.md](references/testing.md) |
+| Test an agent or embedding provider without a live endpoint | [references/testing.md](references/testing.md) |
+| Validate repository CI, package versions, tarballs, or a release | [references/testing.md](references/testing.md) |
 | Something is wrong and you want the cause | [references/troubleshooting.md](references/troubleshooting.md) |
 | Ship to Node CLI, Edge/Worker, or browser | [references/deploy.md](references/deploy.md) |
 
@@ -104,6 +107,7 @@ views over the same implementation, never copies.
 | `.../core/tools` | Tool-source authors |
 | `.../core/skills` | Skill-provider authors |
 | `.../core/memory` | Memory-store authors |
+| `.../core/embedding` | Embedding adapter authors, and callers who need the contract beyond the handle: request/result vocabulary, profile and `Space_Id`, catalog, batch limits, `EMBEDDING_ERROR_CODES` |
 | `.../core/observability` | Observation bus and exporter authors |
 
 Application code should reach for `AgentRuntime` rather than the low-level

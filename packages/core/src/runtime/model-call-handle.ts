@@ -319,7 +319,7 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
       const validated = validateUsageCounters(endInput.reported, true)
       const coverage: UsageCoverage = endInput.dispatchState === 'not-sent'
         ? 'not-applicable'
-        : validated.complete ? 'complete'
+        : validated.complete && endInput.usageFinal !== false ? 'complete'
           : Object.keys(validated.reported).length > 0 ? 'partial' : 'missing'
       const invalidError = validated.invalidFields.length > 0 || validated.overflow
         ? Object.freeze({

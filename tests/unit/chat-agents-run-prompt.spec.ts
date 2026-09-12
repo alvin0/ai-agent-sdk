@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
 import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
 
@@ -73,6 +73,69 @@ async function prompt(id: string, message: string): Promise<Wire[]> {
 afterEach(() => { resetMock() })
 
 describe('runPrompt end to end', () => {
+  it('rejects steering if the run ends while conversation metadata is loading', async () => {
+    const id = await conversation()
+    setMockScript(() => text('done'))
+    const stream = runPrompt(id, 'hello', 'default')
+    while ((await stream.next()).value?.t !== 'run-start') { /* start */ }
+    const module = await import('../../samples/chat-agents/backend/src/conversations.ts')
+    const saved = await module.getConversation(id)
+    let entered!: () => void
+    const reading = new Promise<void>(resolve => { entered = resolve })
+    let release!: () => void
+    const held = new Promise<void>(resolve => { release = resolve })
+    const spy = vi.spyOn(module, 'getConversation').mockImplementationOnce(async () => {
+      entered()
+      await held
+      return saved
+    })
+    try {
+      const pending = steer(id, 'a correction arriving too late')
+      await reading
+      await stream.return(undefined)
+      release()
+      await expect(pending).resolves.toBe(false)
+    } finally {
+      release()
+      spy.mockRestore()
+      await stream.return(undefined)
+    }
+  })
+
+  it('releases a run when the client disconnects immediately after run-start', async () => {
+    const id = await conversation()
+    setMockScript(() => text('done'))
+    const stream = runPrompt(id, 'hello', 'default')
+    while ((await stream.next()).value?.t !== 'run-start') { /* start */ }
+    await stream.return(undefined)
+    expect(await abortRun(id)).toBe(false)
+  })
+
+  it.each([false, true])('keeps replacement steering after late close (cancel first: %s)', async (cancelFirst) => {
+    const id = await conversation()
+    setMockScript(request => [
+      { type: 'text-delta', index: 0, text: 'working' },
+      { type: 'hang', signal: request.signal, ms: 200 } as unknown as StreamChunk,
+      ...text('done'),
+    ])
+    const first = runPrompt(id, 'first', 'default')
+    const second = runPrompt(id, 'second', 'default')
+    try {
+      while ((await first.next()).value?.t !== 'run-start') { /* start */ }
+      await first.next() // Suspend inside the try/finally, emulating a slow SSE reader.
+      if (cancelFirst) expect(await abortRun(id)).toBe(true)
+      while ((await second.next()).value?.t !== 'run-start') { /* replace */ }
+      expect(await steer(id, 'retain this correction')).toBe(true)
+      await first.return(undefined)
+      expect(await steer(id, 'retain this second correction')).toBe(true)
+      for await (const _event of second) { /* drain */ }
+      expect(JSON.stringify(await readMessages(id))).toContain('retain this correction')
+    } finally {
+      await first.return(undefined)
+      await second.return(undefined)
+    }
+  }, 30_000)
+
   it('answers, streams, and writes a transcript that reloads', async () => {
     const id = await conversation()
     setMockScript(() => text('the offline answer'))
@@ -120,6 +183,15 @@ describe('runPrompt end to end', () => {
     const takeover = firstWires.find(wire => wire.t === 'notice')
     expect(JSON.stringify(takeover)).toContain('took the conversation over')
     expect(firstWires.some(wire => wire.t === 'error')).toBe(false)
+    // Still a TERMINAL stream. `runPrompt` promises every run ends with
+    // `run-end` or `error`; a displaced one that stopped on the notice left a
+    // reader waiting for an end frame that never came.
+    expect(firstWires.at(-1)?.t).toBe('run-end')
+    // The other half of a takeover — that the displaced run's late answer is
+    // not filed UNDERNEATH the answer that replaced it — is guarded in
+    // `tests/integration/chat-agents-sample-live.spec.ts`. It needs the
+    // displaced run to still be unwinding after the newer one has written, and
+    // a scripted adapter finishes far too promptly for that to happen here.
     expect(second.some(wire => wire.t === 'run-end')).toBe(true)
     const stored = await readMessages(id)
     const kinds = stored.map(node => (node as { kind: string }).kind)

@@ -1,0 +1,29 @@
+{
+  "intervalNumber": {
+    "device_code": "3584d83530557fdd1f46af8289938c8ef79f9dc5",
+    "user_code": "WDJB-MJHT",
+    "verification_uri": "https://github.com/login/device",
+    "expires_in": 899,
+    "interval": 5
+  },
+  "intervalNumericString": {
+    "device_code": "6f4c3a1b2d8e7f905a3c1e4b8d7f0a2c6e9b4d31",
+    "user_code": "QXZT-BNML",
+    "verification_uri": "https://github.com/login/device",
+    "expires_in": 899,
+    "interval": "5"
+  },
+  "intervalAbsent": {
+    "device_code": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+    "user_code": "HRKD-VPWS",
+    "verification_uri": "https://github.com/login/device",
+    "expires_in": 899
+  },
+  "intervalUnparseable": {
+    "device_code": "0f9e8d7c6b5a49382716f5e4d3c2b1a098765432",
+    "user_code": "TFGN-CJYQ",
+    "verification_uri": "https://github.com/login/device",
+    "expires_in": 899,
+    "interval": "as soon as possible"
+  }
+}

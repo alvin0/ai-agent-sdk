@@ -7,21 +7,34 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 import { assertSingleInstalledPackage } from './contracts/installed-tree.mts'
 
-type ProviderPackageName = 'provider-anthropic' | 'provider-openai' | 'provider-codex' | 'provider-gemini'
+type ProviderPackageName =
+  | 'provider-anthropic'
+  | 'provider-openai'
+  | 'provider-codex'
+  | 'provider-copilot'
+  | 'provider-gemini'
+
+/**
+ * The protocol packages each provider tarball needs installed beside it.
+ *
+ * Copilot is the only entry with two: it serves one route with two wire protocols
+ * and picks between them per model, so both tarballs travel with it.
+ */
+const PROTOCOL_PACKAGES: Readonly<Record<ProviderPackageName, readonly string[]>> = {
+  'provider-anthropic': ['protocol-anthropic-messages'],
+  'provider-openai': ['protocol-responses'],
+  'provider-codex': ['protocol-responses'],
+  'provider-copilot': ['protocol-responses', 'protocol-openai-chat-completions'],
+  'provider-gemini': ['protocol-gemini-interactions'],
+}
 
 const requestedPackage = process.argv[2]
-if (requestedPackage !== 'provider-anthropic'
-  && requestedPackage !== 'provider-openai'
-  && requestedPackage !== 'provider-codex'
-  && requestedPackage !== 'provider-gemini') {
-  throw new Error('expected provider-anthropic, provider-openai, provider-codex, or provider-gemini')
+if (requestedPackage === undefined
+  || !Object.hasOwn(PROTOCOL_PACKAGES, requestedPackage)) {
+  throw new Error(`expected one of ${Object.keys(PROTOCOL_PACKAGES).join(', ')}`)
 }
-const packageName: ProviderPackageName = requestedPackage
-const protocolName = packageName === 'provider-anthropic'
-  ? 'protocol-anthropic-messages'
-  : packageName === 'provider-gemini'
-    ? 'protocol-gemini-interactions'
-  : 'protocol-responses'
+const packageName = requestedPackage as ProviderPackageName
+const protocolNames = PROTOCOL_PACKAGES[packageName]
 
 const workspaceRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const packageRoot = join(workspaceRoot, 'packages', packageName)
@@ -33,7 +46,7 @@ mkdirSync(artifacts, { recursive: true })
 const tarballs = [
   pack(join(workspaceRoot, 'packages', 'core'), artifacts),
   pack(join(workspaceRoot, 'packages', 'provider-http'), artifacts),
-  pack(join(workspaceRoot, 'packages', protocolName), artifacts),
+  ...protocolNames.map(name => pack(join(workspaceRoot, 'packages', name), artifacts)),
   pack(packageRoot, artifacts),
 ]
 const temporaryRoot = mkdtempSync(join(tmpdir(), `ai-agent-sdk-${packageName}-pack-`))
@@ -137,7 +150,11 @@ function assertFixture(value: unknown, runtime: string): void {
   if (result.provider !== packageName.replace('provider-', '')
     || result.text !== 'packed provider completed' || result.totalTokens !== 12
     || result.attempts !== 1 || result.dispatchState !== 'sent'
-    || result.credentialEvents !== 2 || result.safeEvents !== true
+    // The count each provider fixture declares — two events per credential
+    // operation, and Copilot performs a second one for the token exchange.
+    || typeof result.expectedCredentialEvents !== 'number'
+    || result.expectedCredentialEvents < 2
+    || result.credentialEvents !== result.expectedCredentialEvents || result.safeEvents !== true
     || result.buffer !== 'undefined' || result.process !== 'undefined') {
     throw new Error(`${runtime} fixture returned invalid evidence: ${JSON.stringify(result)}`)
   }

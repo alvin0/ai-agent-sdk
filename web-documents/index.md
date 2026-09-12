@@ -19,7 +19,7 @@ features:
   - title: Streaming-only by design
     details: No separate non-streaming path that could drift from the streaming one. When you want a single value, you await the assembled message.
   - title: Capability packages, not a monolith
-    details: Twenty-one published packages, each with a declared runtime tier. An Edge worker installs three; a Node coding harness installs six.
+    details: Twenty-three published packages, each with a declared runtime tier. An Edge worker installs three; a Node coding harness installs six.
   - title: A real agent loop
     details: Immutable history, staged tool dispatch, bounded parallel scheduling, approvals, durability checkpoints, and a backpressured event stream.
   - title: Missing data stays missing

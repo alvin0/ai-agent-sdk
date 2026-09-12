@@ -10,6 +10,13 @@ export {
   type GeminiProviderOptions,
 } from './adapter.ts'
 export {
+  GEMINI_EMBEDDING_BASE_URL,
+  GEMINI_EMBEDDING_MODELS,
+  geminiEmbeddingAdapter,
+  geminiEmbeddingPlugin,
+  type GeminiEmbeddingProviderOptions,
+} from './embedding.ts'
+export {
   geminiInteractionsProtocol,
   type GeminiInteractionsDialect,
 } from '@alvin0/ai-agent-sdk-protocol-gemini-interactions'

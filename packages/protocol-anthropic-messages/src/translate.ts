@@ -7,7 +7,8 @@
  *   blocks contiguously from zero in emission order, which is already exactly
  *   what our protocol wants, so no remapping is needed.
  * - Usage arrives in TWO places: input counts on `message_start`, output counts on
- *   `message_delta`. They are accumulated and emitted once, before the finish.
+ *   `message_delta`. Cumulative snapshots are emitted as usage-progress; the
+ *   final usage is emitted once at message_stop, before the finish.
  * - `input_tokens` here already EXCLUDES cached tokens, so unlike the Responses
  *   translation nothing is subtracted. Getting this backwards would under-report
  *   input on every cached call.
@@ -238,6 +239,8 @@ export async function* translateAnthropicStream(
     switch (event.type) {
       case 'message_start': {
         absorbUsage(usage, event.message.usage)
+        const progress = finalUsage(usage)
+        if (progress !== undefined) yield { type: 'usage-progress', usage: progress }
         break
       }
 
@@ -345,6 +348,8 @@ export async function* translateAnthropicStream(
       case 'message_delta': {
         stop = event.delta.stop_reason
         absorbUsage(usage, event.usage)
+        const progress = finalUsage(usage)
+        if (progress !== undefined) yield { type: 'usage-progress', usage: progress }
         break
       }
 

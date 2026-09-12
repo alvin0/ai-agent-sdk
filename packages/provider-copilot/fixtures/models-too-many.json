@@ -1,0 +1,209 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "gpt-4o",
+      "name": "GPT-4o",
+      "object": "model",
+      "vendor": "OpenAI",
+      "version": "gpt-4o-2024-11-20",
+      "preview": false,
+      "model_picker_enabled": true,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "gpt-4o",
+        "tokenizer": "o200k_base",
+        "limits": { "max_context_window_tokens": 128000, "max_output_tokens": 16384 },
+        "supports": { "streaming": true, "tool_calls": true }
+      }
+    },
+    {
+      "id": "gpt-4o-mini",
+      "name": "GPT-4o mini",
+      "object": "model",
+      "vendor": "OpenAI",
+      "version": "gpt-4o-mini-2024-07-18",
+      "preview": false,
+      "model_picker_enabled": false,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "gpt-4o-mini",
+        "tokenizer": "o200k_base",
+        "limits": { "max_context_window_tokens": 128000, "max_output_tokens": 4096 },
+        "supports": { "streaming": true, "tool_calls": true }
+      }
+    },
+    {
+      "id": "gpt-4.1",
+      "name": "GPT-4.1",
+      "object": "model",
+      "vendor": "OpenAI",
+      "version": "gpt-4.1-2025-04-14",
+      "preview": false,
+      "model_picker_enabled": true,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "gpt-4.1",
+        "tokenizer": "o200k_base",
+        "limits": { "max_context_window_tokens": 1047576, "max_output_tokens": 32768 },
+        "supports": { "streaming": true, "tool_calls": true }
+      }
+    },
+    {
+      "id": "gpt-4.1-mini",
+      "name": "GPT-4.1 mini",
+      "object": "model",
+      "vendor": "OpenAI",
+      "version": "gpt-4.1-mini-2025-04-14",
+      "preview": false,
+      "model_picker_enabled": false,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "gpt-4.1-mini",
+        "tokenizer": "o200k_base",
+        "limits": { "max_context_window_tokens": 1047576, "max_output_tokens": 32768 },
+        "supports": { "streaming": true, "tool_calls": true }
+      }
+    },
+    {
+      "id": "o1",
+      "name": "o1",
+      "object": "model",
+      "vendor": "OpenAI",
+      "version": "o1-2024-12-17",
+      "preview": false,
+      "model_picker_enabled": true,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "o1",
+        "tokenizer": "o200k_base",
+        "limits": { "max_context_window_tokens": 200000, "max_output_tokens": 100000 },
+        "supports": { "streaming": false, "tool_calls": true, "responses": true }
+      }
+    },
+    {
+      "id": "o3-mini",
+      "name": "o3-mini",
+      "object": "model",
+      "vendor": "OpenAI",
+      "version": "o3-mini-2025-01-31",
+      "preview": false,
+      "model_picker_enabled": true,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "o3-mini",
+        "tokenizer": "o200k_base",
+        "limits": { "max_context_window_tokens": 200000, "max_output_tokens": 100000 },
+        "supports": { "streaming": true, "tool_calls": true, "responses": true }
+      }
+    },
+    {
+      "id": "o4-mini",
+      "name": "o4-mini",
+      "object": "model",
+      "vendor": "OpenAI",
+      "version": "o4-mini-2025-04-16",
+      "preview": true,
+      "model_picker_enabled": true,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "o4-mini",
+        "tokenizer": "o200k_base",
+        "limits": { "max_context_window_tokens": 200000, "max_output_tokens": 100000 },
+        "supports": { "streaming": true, "tool_calls": true, "responses": true }
+      }
+    },
+    {
+      "id": "claude-3.5-sonnet",
+      "name": "Claude Sonnet 3.5",
+      "object": "model",
+      "vendor": "Anthropic",
+      "version": "claude-3.5-sonnet",
+      "preview": false,
+      "model_picker_enabled": true,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "claude-3.5-sonnet",
+        "tokenizer": "o200k_base",
+        "limits": { "max_context_window_tokens": 90000, "max_output_tokens": 8192 },
+        "supports": { "streaming": true, "tool_calls": true }
+      }
+    },
+    {
+      "id": "claude-3.7-sonnet",
+      "name": "Claude Sonnet 3.7",
+      "object": "model",
+      "vendor": "Anthropic",
+      "version": "claude-3.7-sonnet",
+      "preview": false,
+      "model_picker_enabled": true,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "claude-3.7-sonnet",
+        "tokenizer": "o200k_base",
+        "limits": { "max_context_window_tokens": 200000, "max_output_tokens": 16384 },
+        "supports": { "streaming": true, "tool_calls": true }
+      }
+    },
+    {
+      "id": "claude-sonnet-4",
+      "name": "Claude Sonnet 4",
+      "object": "model",
+      "vendor": "Anthropic",
+      "version": "claude-sonnet-4",
+      "preview": true,
+      "model_picker_enabled": true,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "claude-sonnet-4",
+        "tokenizer": "o200k_base",
+        "limits": { "max_context_window_tokens": 200000, "max_output_tokens": 16384 },
+        "supports": { "streaming": true, "tool_calls": true }
+      }
+    },
+    {
+      "id": "gemini-2.0-flash-001",
+      "name": "Gemini 2.0 Flash",
+      "object": "model",
+      "vendor": "Google",
+      "version": "gemini-2.0-flash-001",
+      "preview": false,
+      "model_picker_enabled": true,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "gemini-2.0-flash",
+        "tokenizer": "o200k_base",
+        "limits": { "max_context_window_tokens": 1000000, "max_output_tokens": 8192 },
+        "supports": { "streaming": true, "tool_calls": true }
+      }
+    },
+    {
+      "id": "gemini-2.5-pro",
+      "name": "Gemini 2.5 Pro",
+      "object": "model",
+      "vendor": "Google",
+      "version": "gemini-2.5-pro-preview-05-06",
+      "preview": true,
+      "model_picker_enabled": true,
+      "capabilities": {
+        "object": "model_capabilities",
+        "type": "chat",
+        "family": "gemini-2.5-pro",
+        "tokenizer": "o200k_base",
+        "limits": { "max_context_window_tokens": 1000000, "max_output_tokens": 65536 },
+        "supports": { "streaming": true, "tool_calls": true }
+      }
+    }
+  ]
+}

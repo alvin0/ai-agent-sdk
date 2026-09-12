@@ -4,21 +4,24 @@
 
 | Mục | Giá trị |
 | --- | --- |
-| Phiên bản | `0.1.0` |
+| Phiên bản | `0.1.1` |
 | Giấy phép | MIT |
 | Yêu cầu Node | 22.18+ cho công cụ workspace; 22.12+ cho package năng lực Node đã cài |
-| Publish lên registry | **Đã publish** — 21 package dưới scope `@alvin0` |
+| Publish lên registry | Release candidate `0.1.1` — 23 package dưới scope `@alvin0` |
 
 ## Publish lên registry
 
-Cả 21 package publish được đều đã lên npm dưới scope `@alvin0`, tên
+Cả 23 package có thể publish đều dùng scope `@alvin0`, với tên
 `@alvin0/ai-agent-sdk-<capability>`. Scope `@ai-agent-sdk` thuộc một account
-khác, nên tên đã publish mang tên dự án ở dạng tiền tố thay vì ở scope.
+khác, nên tên trên registry mang tên dự án ở dạng tiền tố thay vì ở scope. Một
+version chỉ được xem là có sẵn sau khi workflow release hoàn tất trên registry.
 
-Release chạy từ `.github/workflows/release.yml` khi push tag `v*`: các gate CI
-chạy, `pnpm pack` giải `workspace:^` và `catalog:` thành range thật, rồi từng
-tarball được publish bằng `npm publish --provenance`, nên mỗi version đều có
-attestation provenance SLSA.
+Sau khi merge vào `main`, `.github/workflows/release.yml` chạy lại các gate build,
+test, package, boundary và supply-chain. Chỉ sau đó `pnpm pack` mới giải
+`workspace:^` và `catalog:` thành range thật rồi publish từng tarball chưa tồn
+tại trên npm bằng `npm publish --provenance`, nên mỗi version đều có attestation
+provenance SLSA. Khi chạy lại release, các version đã có trên npm sẽ được bỏ qua
+an toàn.
 
 `@alvin0/ai-agent-sdk-testkit` vẫn private — nó chỉ là devDependency của các
 package provider.
@@ -26,13 +29,13 @@ package provider.
 Nếu muốn cài từ tarball cục bộ:
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.0.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.1.tgz
 ```
 
 ## Đánh phiên bản
 
-Hiện mọi package đều `private` và phiên bản được đặt trực tiếp trong từng
-manifest. Repo không có công cụ sinh ghi chú phát hành.
+Phiên bản package được đặt trực tiếp trong từng manifest và phát hành đồng bộ.
+Ghi chú phát hành được duy trì trong file `CHANGELOG.md` của repository.
 
 Đồ thị package được cưỡng chế bởi `PACKAGE_RULES` trong
 `scripts/package-policy.mts`, kiểm bởi các cổng graph và runtime-boundary trong

@@ -1,0 +1,33 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "unknown",
+      "errorCode": "TRANSPORT",
+      "method": "POST",
+      "origin": "https://generativelanguage.googleapis.com",
+      "status": "error"
+    }
+  ],
+  "chunks": [],
+  "errorCodes": [
+    "TRANSPORT"
+  ],
+  "model": "gemini-conformance",
+  "provider": "gemini",
+  "redactedHeaderNames": [
+    "x-goog-api-key"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "content-type",
+    "user-agent",
+    "x-goog-api-key"
+  ],
+  "scenario": "transport-failure",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "TRANSPORT"
+  }
+}

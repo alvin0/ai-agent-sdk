@@ -64,6 +64,8 @@ export type ObservationSpanName =
   | 'sdk.agent.run'
   | 'sdk.agent.turn'
   | 'sdk.model.call'
+  | 'sdk.embedding.call'
+  | 'sdk.embedding.batch'
   | 'sdk.provider.attempt'
   | 'sdk.tool.call'
   | 'sdk.compaction'

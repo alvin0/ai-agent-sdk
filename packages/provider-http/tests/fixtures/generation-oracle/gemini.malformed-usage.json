@@ -1,0 +1,53 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "httpStatus": 200,
+      "method": "POST",
+      "origin": "https://generativelanguage.googleapis.com",
+      "status": "success"
+    }
+  ],
+  "chunks": [
+    {
+      "blockType": "text",
+      "index": 0,
+      "type": "block-start"
+    },
+    {
+      "index": 0,
+      "text": "ok",
+      "type": "text-delta"
+    },
+    {
+      "block": {
+        "text": "ok",
+        "type": "text"
+      },
+      "index": 0,
+      "type": "block-end"
+    },
+    {
+      "reason": {
+        "kind": "stop"
+      },
+      "type": "finish"
+    }
+  ],
+  "errorCodes": [],
+  "model": "gemini-conformance",
+  "provider": "gemini",
+  "redactedHeaderNames": [
+    "x-goog-api-key"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "content-type",
+    "user-agent",
+    "x-goog-api-key"
+  ],
+  "scenario": "malformed-usage",
+  "schemaVersion": 1
+}

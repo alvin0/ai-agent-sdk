@@ -173,6 +173,29 @@ activation, and restores definition-level memory seeds.
 A session has no `close()`. Persist it with `snapshot()`; discard it by dropping
 the reference.
 
+### Per-call model, effort, and ceiling
+
+`run()`, `stream()`, and `compact()` accept `model`, `effort`, and `maxTokens`
+for that call alone:
+
+```ts
+await session.run('draft it')                                  // the bound model
+await session.run('check it', { effort: 'high' })              // same model, more effort
+await session.run('summarize', { model: { provider: 'codex', id: 'gpt-reserve' } })
+await session.run('continue')                                  // back to the bound model
+```
+
+`agent.model` never changes. The override resolves against the configured routes
+before the run acquires anything, so `MODEL_ROUTE_UNAVAILABLE`,
+`MODEL_DEFAULT_MISSING`, and `MODEL_TARGET_INVALID` cost no request; `{ provider }`
+alone takes that route's default model. Changing model **drops** an inherited
+effort and output ceiling unless the same call restates them, because both belong
+to the model that published them.
+
+No failover: a failure on the chosen model reaches the caller, and retries stay
+on that model. `embeddingModel()` has no per-call override at all — a handle keeps
+its embedding space for its lifetime.
+
 ## `createSession()` options
 
 ```ts

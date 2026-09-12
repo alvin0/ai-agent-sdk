@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Approved generation (SSE) behaviour oracle for provider-http.",
+  "recordedBy": "scripts/record-generation-oracle.mts",
+  "cases": [
+    {
+      "provider": "openai",
+      "scenario": "complete",
+      "file": "openai.complete.json"
+    },
+    {
+      "provider": "openai",
+      "scenario": "missing-usage",
+      "file": "openai.missing-usage.json"
+    },
+    {
+      "provider": "openai",
+      "scenario": "malformed-usage",
+      "file": "openai.malformed-usage.json"
+    },
+    {
+      "provider": "openai",
+      "scenario": "stream-bound-failure",
+      "file": "openai.stream-bound-failure.json"
+    },
+    {
+      "provider": "openai",
+      "scenario": "truncated-stream",
+      "file": "openai.truncated-stream.json"
+    },
+    {
+      "provider": "openai",
+      "scenario": "media-type-invalid",
+      "file": "openai.media-type-invalid.json"
+    },
+    {
+      "provider": "openai",
+      "scenario": "http-error",
+      "file": "openai.http-error.json"
+    },
+    {
+      "provider": "openai",
+      "scenario": "transport-failure",
+      "file": "openai.transport-failure.json"
+    },
+    {
+      "provider": "gemini",
+      "scenario": "complete",
+      "file": "gemini.complete.json"
+    },
+    {
+      "provider": "gemini",
+      "scenario": "missing-usage",
+      "file": "gemini.missing-usage.json"
+    },
+    {
+      "provider": "gemini",
+      "scenario": "malformed-usage",
+      "file": "gemini.malformed-usage.json"
+    },
+    {
+      "provider": "gemini",
+      "scenario": "stream-bound-failure",
+      "file": "gemini.stream-bound-failure.json"
+    },
+    {
+      "provider": "gemini",
+      "scenario": "truncated-stream",
+      "file": "gemini.truncated-stream.json"
+    },
+    {
+      "provider": "gemini",
+      "scenario": "media-type-invalid",
+      "file": "gemini.media-type-invalid.json"
+    },
+    {
+      "provider": "gemini",
+      "scenario": "http-error",
+      "file": "gemini.http-error.json"
+    },
+    {
+      "provider": "gemini",
+      "scenario": "transport-failure",
+      "file": "gemini.transport-failure.json"
+    },
+    {
+      "provider": "anthropic",
+      "scenario": "complete",
+      "file": "anthropic.complete.json"
+    },
+    {
+      "provider": "anthropic",
+      "scenario": "missing-usage",
+      "file": "anthropic.missing-usage.json"
+    },
+    {
+      "provider": "anthropic",
+      "scenario": "malformed-usage",
+      "file": "anthropic.malformed-usage.json"
+    },
+    {
+      "provider": "anthropic",
+      "scenario": "stream-bound-failure",
+      "file": "anthropic.stream-bound-failure.json"
+    },
+    {
+      "provider": "anthropic",
+      "scenario": "truncated-stream",
+      "file": "anthropic.truncated-stream.json"
+    },
+    {
+      "provider": "anthropic",
+      "scenario": "media-type-invalid",
+      "file": "anthropic.media-type-invalid.json"
+    },
+    {
+      "provider": "anthropic",
+      "scenario": "http-error",
+      "file": "anthropic.http-error.json"
+    },
+    {
+      "provider": "anthropic",
+      "scenario": "transport-failure",
+      "file": "anthropic.transport-failure.json"
+    },
+    {
+      "provider": "codex",
+      "scenario": "complete",
+      "file": "codex.complete.json"
+    },
+    {
+      "provider": "codex",
+      "scenario": "missing-usage",
+      "file": "codex.missing-usage.json"
+    },
+    {
+      "provider": "codex",
+      "scenario": "malformed-usage",
+      "file": "codex.malformed-usage.json"
+    },
+    {
+      "provider": "codex",
+      "scenario": "stream-bound-failure",
+      "file": "codex.stream-bound-failure.json"
+    },
+    {
+      "provider": "codex",
+      "scenario": "truncated-stream",
+      "file": "codex.truncated-stream.json"
+    },
+    {
+      "provider": "codex",
+      "scenario": "media-type-invalid",
+      "file": "codex.media-type-invalid.json"
+    },
+    {
+      "provider": "codex",
+      "scenario": "http-error",
+      "file": "codex.http-error.json"
+    },
+    {
+      "provider": "codex",
+      "scenario": "transport-failure",
+      "file": "codex.transport-failure.json"
+    }
+  ]
+}

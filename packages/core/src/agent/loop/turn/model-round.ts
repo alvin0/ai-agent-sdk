@@ -288,6 +288,7 @@ export async function modelRound(
           mediaType: chunk.mediaType, ...chunk.partialIndex === undefined ? {} : { partialIndex: chunk.partialIndex }, trace,
         })
         else if (chunk.type === 'usage') await emit({ type: 'usage', usage: chunk.usage, trace })
+        else if (chunk.type === 'usage-progress') await emit({ ...chunk, trace })
       }
     } catch (error: unknown) {
       if (!(error instanceof StreamAbortError)) throw error

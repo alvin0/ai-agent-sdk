@@ -67,6 +67,14 @@ export type {
   RuntimeObservationExporterRegistration,
 } from './composition/exporter/types.ts'
 export type { LogLevel, SdkLogger } from './observability/types.ts'
+// Embedding: root carries ONLY the type surface of `AgentRuntime.embeddingModel()`,
+// because that method is declared here. The rest of `Embedding_Contract` — adapter,
+// batch request/result, profile, catalog, limits, errors, validation — is reached
+// through the `./embedding` entry point.
+export type {
+  EmbeddingManyResult, EmbeddingModelHandle, EmbeddingModelOptions, EmbeddingResult,
+  EmbeddingUsageReport,
+} from './embedding/index.ts'
 export { defineTool } from './agent/tool/definition.ts'
 export type { ToolDefinition, ToolRunContext } from './agent/tool/definition.ts'
 export { createApprovalRequest, createApprovalBroker, fixedApprovalBroker } from './agent/tool/approval.ts'

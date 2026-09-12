@@ -6,6 +6,19 @@ import {
 } from '@alvin0/ai-agent-sdk-core'
 import type { ComposableModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
 import { PROVIDER_CONFORMANCE_DEFAULTS } from './config.ts'
+import { collectEmbeddingConformanceChecks } from './embedding/runner.ts'
+import {
+  ProviderConformanceError,
+  assembleReport,
+  assert,
+  createCheckCollector,
+  failedMessage,
+  passedMessage,
+  required,
+  resolveTimeouts,
+  within,
+  type ResolvedConformanceTimeouts,
+} from './report.ts'
 import type {
   ProviderConformanceCase,
   ProviderConformanceCheck,
@@ -14,7 +27,7 @@ import type {
   ProviderConformanceFixture,
   ProviderConformanceOptions,
   ProviderConformanceReport,
-  ProviderConformanceScenario,
+  ProviderGenerationScenario,
 } from './types.ts'
 
 interface ExecutedCase {
@@ -27,42 +40,24 @@ interface ExecutedCase {
   readonly afterClose: ProviderConformanceControlSnapshot
 }
 
-interface ResolvedOptions {
-  readonly caseTimeoutMs: number
-  readonly startupTimeoutMs: number
-  readonly closeTimeoutMs: number
-}
+type ResolvedOptions = ResolvedConformanceTimeouts
 
-class ConformanceAssertionError extends Error {
-  constructor(message: string) { super(message); this.name = 'ConformanceAssertionError' }
-}
+export { ProviderConformanceError } from './report.ts'
 
-/** Failure containing the complete support-safe result of a conformance run. */
-export class ProviderConformanceError extends Error {
-  readonly report: ProviderConformanceReport
-  constructor(report: ProviderConformanceReport) {
-    const failed = report.checks.filter(check => check.status === 'failed').map(check => check.message).join('; ')
-    super(`Provider conformance failed: ${failed}`)
-    this.name = 'ProviderConformanceError'
-    this.report = report
-  }
-}
-
-/** Execute the provider-author contract without depending on a test framework. */
+/**
+ * Execute the provider-author contract without depending on a test framework.
+ *
+ * Supply `options.embedding` and the embedding contract runs too, appending its
+ * sixteen checks to the SAME `checks` array of the SAME report: one
+ * `schemaVersion`, one status, one pass/fail count (Requirement 17.2).
+ */
 export async function runProviderConformanceSuite(
   fixture: ProviderConformanceFixture,
   options: ProviderConformanceOptions = {},
 ): Promise<ProviderConformanceReport> {
-  const resolved = resolveOptions(options)
-  const checks: ProviderConformanceCheck[] = []
-  const check = async (id: ProviderConformanceCheckId, task: () => Promise<void> | void): Promise<void> => {
-    try {
-      await task()
-      checks.push(Object.freeze({ id, status: 'passed', message: passedMessage(id) }))
-    } catch (error) {
-      checks.push(Object.freeze({ id, status: 'failed', message: failedMessage(id, error) }))
-    }
-  }
+  const resolved = resolveTimeouts(options)
+  const collector = createCheckCollector()
+  const { checks, check } = collector
 
   await check('inert-construction', () => {
     const candidate = createCase(fixture, 'success', 'inert', 'inert-route')
@@ -160,15 +155,12 @@ export async function runProviderConformanceSuite(
     })
   })
 
-  const failed = checks.filter(row => row.status === 'failed').length
-  const report: ProviderConformanceReport = Object.freeze({
-    schemaVersion: 1,
-    status: failed === 0 ? 'passed' : 'failed',
-    checks: Object.freeze([...checks]),
-    passed: checks.length - failed,
-    failed,
-  })
-  if (failed > 0) throw new ProviderConformanceError(report)
+  if (options.embedding !== undefined) {
+    checks.push(...await collectEmbeddingConformanceChecks(options.embedding, resolved))
+  }
+
+  const report = assembleReport(checks)
+  if (report.failed > 0) throw new ProviderConformanceError(report)
   return report
 }
 
@@ -188,7 +180,7 @@ async function capture(
 }
 
 async function execute(
-  fixture: ProviderConformanceFixture, scenario: ProviderConformanceScenario, options: ResolvedOptions,
+  fixture: ProviderConformanceFixture, scenario: ProviderGenerationScenario, options: ResolvedOptions,
 ): Promise<ExecutedCase> {
   const candidate = createCase(fixture, scenario, `case-${scenario}`, `route-${scenario}`)
   let output!: Omit<ExecutedCase, 'candidate' | 'sameCloseReport' | 'afterClose'>
@@ -256,7 +248,7 @@ async function rejectsConstruction(
 }
 
 function createCase(
-  fixture: ProviderConformanceFixture, scenario: ProviderConformanceScenario, id: string, route: string,
+  fixture: ProviderConformanceFixture, scenario: ProviderGenerationScenario, id: string, route: string,
 ): ProviderConformanceCase {
   const value = fixture.create({
     scenario, id, route, privateSentinel: PROVIDER_CONFORMANCE_DEFAULTS.failureSentinel,
@@ -341,39 +333,4 @@ function assertSnapshot(
     'provider lifecycle counters differ')
 }
 
-function resolveOptions(options: ProviderConformanceOptions): ResolvedOptions {
-  return Object.freeze({
-    caseTimeoutMs: positive(options.caseTimeoutMs ?? PROVIDER_CONFORMANCE_DEFAULTS.caseTimeoutMs),
-    startupTimeoutMs: positive(options.startupTimeoutMs ?? PROVIDER_CONFORMANCE_DEFAULTS.startupTimeoutMs),
-    closeTimeoutMs: positive(options.closeTimeoutMs ?? PROVIDER_CONFORMANCE_DEFAULTS.closeTimeoutMs),
-  })
-}
 
-function positive(value: number): number {
-  if (!Number.isFinite(value) || value <= 0) throw new TypeError('Conformance timeouts must be positive finite numbers')
-  return value
-}
-
-async function within<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  const signal = AbortSignal.timeout(timeoutMs)
-  return await new Promise<T>((resolve, reject) => {
-    const abort = () => reject(new Error('conformance case timed out'))
-    signal.addEventListener('abort', abort, { once: true })
-    void promise.then(value => { signal.removeEventListener('abort', abort); resolve(value) },
-      error => { signal.removeEventListener('abort', abort); reject(error) })
-  })
-}
-
-function required<T>(value: T | undefined): T {
-  if (value === undefined) throw new Error('dependent conformance case failed')
-  return value
-}
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new ConformanceAssertionError(message)
-}
-
-function passedMessage(id: ProviderConformanceCheckId): string { return `${id} passed` }
-function failedMessage(id: ProviderConformanceCheckId, error: unknown): string {
-  return error instanceof ConformanceAssertionError ? `${id} failed: ${error.message}` : `${id} failed`
-}

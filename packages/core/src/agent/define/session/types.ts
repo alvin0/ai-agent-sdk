@@ -200,6 +200,21 @@ export interface AgentResumeSessionOptions
 }
 
 export interface AgentInvocationOptions {
+  /**
+   * Model for THIS run only; the session binding is untouched and the next run
+   * without an override returns to it.
+   *
+   * Resolved and validated before the run acquires anything, and frozen for the
+   * duration of that run: every step of one turn reaches the same model, so a
+   * mid-turn tool result is never answered by a model that did not see the
+   * request that produced it. Switching model drops an inherited effort and
+   * output ceiling — see `sessionCallConfig`.
+   */
+  readonly model?: { readonly provider: string; readonly model: string }
+  /** Reasoning effort for this run only. Alone, it keeps the session's model. */
+  readonly reasoningEffort?: import('../../../primitives/brand.ts').ReasoningEffortId
+  /** Output ceiling for this run only. */
+  readonly maxTokens?: number
   readonly outputFormat?: import('../../../contract/index.ts').ModelOutputFormat
   readonly validateOutput?: (value: unknown) => void
   /** strict rejects known text-only models when request history contains images; project permits lossy conversion. */

@@ -11,7 +11,7 @@
 
 ## Cài đặt
 
-Cả 21 package đã publish trên npm dưới scope `@alvin0`, build và ký từ CI kèm
+Cả 23 package đã publish trên npm dưới scope `@alvin0`, build và ký từ CI kèm
 provenance SLSA.
 
 Chọn tập runtime nhỏ nhất bạn cần.

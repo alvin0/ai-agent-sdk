@@ -10,6 +10,11 @@ export {
   type OpenAiProviderOptions,
 } from './adapter.ts'
 export {
+  openAiEmbeddingAdapter,
+  openAiEmbeddingPlugin,
+  type OpenAiEmbeddingProviderOptions,
+} from './embedding.ts'
+export {
   openAiResponsesProtocol,
   type ResponsesDialect,
 } from '@alvin0/ai-agent-sdk-protocol-responses'

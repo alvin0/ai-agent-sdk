@@ -89,6 +89,15 @@ export function normalizeResolvedModelInfo(
     && (!Number.isSafeInteger(info.defaultMaxTokens) || info.defaultMaxTokens <= 0)) {
     throw invalidModel(provider, model, 'a non-positive defaultMaxTokens')
   }
+  for (const value of [info.context?.maxContextWindow, info.context?.defaultContextWindow, info.context?.standardPriceInputTokens]) {
+    if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0)) {
+      throw invalidModel(provider, model, 'invalid context policy')
+    }
+  }
+  if (info.context?.maxContextWindow !== undefined && (
+    info.context.contextWindow > info.context.maxContextWindow
+    || (info.context.defaultContextWindow ?? 0) > info.context.maxContextWindow
+  )) throw invalidModel(provider, model, 'contextWindow above maxContextWindow')
   if (info.maxOutputTokens !== undefined
     && (!Number.isSafeInteger(info.maxOutputTokens) || info.maxOutputTokens <= 0)) {
     throw invalidModel(provider, model, 'a non-positive maxOutputTokens')
@@ -102,7 +111,7 @@ export function normalizeResolvedModelInfo(
     throw invalidModel(provider, model, 'no input headroom')
   }
   if (info.context !== undefined && info.maxOutputTokens !== undefined
-    && info.maxOutputTokens >= info.context.contextWindow) {
+    && info.maxOutputTokens >= (info.context.maxContextWindow ?? info.context.contextWindow)) {
     throw invalidModel(provider, model, 'no input headroom')
   }
   validateReasoning(provider, model, info)

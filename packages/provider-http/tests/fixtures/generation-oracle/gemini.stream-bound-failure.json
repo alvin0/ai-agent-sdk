@@ -1,0 +1,34 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "errorCode": "HTTP_SSE_LIMIT_EXCEEDED",
+      "httpStatus": 200,
+      "method": "POST",
+      "origin": "https://generativelanguage.googleapis.com",
+      "status": "error"
+    }
+  ],
+  "chunks": [],
+  "errorCodes": [
+    "HTTP_SSE_LIMIT_EXCEEDED"
+  ],
+  "model": "gemini-conformance",
+  "provider": "gemini",
+  "redactedHeaderNames": [
+    "x-goog-api-key"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "content-type",
+    "user-agent",
+    "x-goog-api-key"
+  ],
+  "scenario": "stream-bound-failure",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "HTTP_SSE_LIMIT_EXCEEDED"
+  }
+}

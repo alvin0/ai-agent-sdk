@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>OpenAI Chat Completions protocol browser tarball fixture</title>
+<script type="importmap">
+{
+  "imports": {
+    "@alvin0/ai-agent-sdk-core": "/node_modules/@alvin0/ai-agent-sdk-core/dist/index.js",
+    "@alvin0/ai-agent-sdk-protocol-openai-chat-completions": "/node_modules/@alvin0/ai-agent-sdk-protocol-openai-chat-completions/dist/index.js"
+  }
+}
+</script>
+<script type="module">
+  import { runPackedProtocolFixture } from './fixture.mjs'
+  globalThis.__protocolFixture = await runPackedProtocolFixture()
+</script>

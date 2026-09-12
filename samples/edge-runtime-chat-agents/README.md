@@ -60,8 +60,11 @@ pre-fills empty and runs on the adapter's defaults until someone types the real
 values.
 
 The catalog rides along with each run, because the server has no store to keep
-one in. Correcting a capacity rebuilds the session: capacities are baked into
-the provider when the runtime is built, not applied per request.
+one in. Every model in it is declared to the provider, not only the one selected
+right now — that is what lets a later turn switch to another of them without
+rebuilding anything. Correcting a capacity still rebuilds the session:
+capacities are baked into the provider when the runtime is built, not applied
+per request.
 
 `EDGE_CHAT_MODELS` still seeds an empty catalog on a first visit.
 
@@ -73,9 +76,16 @@ GPT-4.1 show no levels. Picking a level adds the complete reasoning capability
 list to that model's catalog entry, since the SDK validates the selected effort
 against the model's declared capabilities.
 
-Changing either replaces the session, and the model-side history goes with the
-old one. That is the honest outcome — the history belongs to the model that
-produced it — and the menu says so while a conversation is in progress.
+Changing either keeps the conversation. Model and effort are sent **per turn**:
+`session.stream()` takes a `model` and an `effort` that apply to that call only,
+so the warm session, its history and its compactor stay exactly where they were
+and the next turn simply runs somewhere else. The agent's own binding never
+moves, and a turn that names no effort sends none rather than inheriting the
+level some earlier turn picked.
+
+Two things still replace the session, because neither is a per-call decision: a
+corrected capacity, which is baked into the provider when the runtime is built,
+and a team roster, whose members bind their models when the members are built.
 
 ## One agent, a fixed team, or Team Auto
 

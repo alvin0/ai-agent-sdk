@@ -1,0 +1,61 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "errorCode": "STREAM_CLOSED",
+      "httpStatus": 200,
+      "method": "POST",
+      "origin": "https://api.anthropic.com",
+      "status": "error"
+    }
+  ],
+  "chunks": [
+    {
+      "attemptId": "oracle-attempt-1",
+      "type": "usage-progress",
+      "usage": {
+        "inputTokens": 3
+      }
+    },
+    {
+      "blockType": "text",
+      "index": 0,
+      "type": "block-start"
+    },
+    {
+      "index": 0,
+      "text": "ok",
+      "type": "text-delta"
+    },
+    {
+      "block": {
+        "text": "ok",
+        "type": "text"
+      },
+      "index": 0,
+      "type": "block-end"
+    }
+  ],
+  "errorCodes": [
+    "STREAM_CLOSED"
+  ],
+  "model": "claude-conformance",
+  "provider": "anthropic",
+  "redactedHeaderNames": [
+    "x-api-key"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "anthropic-version",
+    "content-type",
+    "user-agent",
+    "x-api-key"
+  ],
+  "scenario": "truncated-stream",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "STREAM_CLOSED"
+  }
+}

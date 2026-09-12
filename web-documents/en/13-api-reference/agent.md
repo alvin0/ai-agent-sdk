@@ -176,6 +176,9 @@ no ceiling to reserve against).
 
 ```ts
 interface RuntimeAgentInvocationOptions {
+  model?: { provider: string; id?: string }   // this call only; the agent keeps its binding
+  effort?: string                             // this call only
+  maxTokens?: number                          // this call only
   signal?: AbortSignal
   additionalInstructions?: string
   onEvent?: (event: RuntimeAgentRunEvent) => void | Promise<void>
@@ -195,6 +198,37 @@ interface RuntimeAgentRunHandle extends AsyncIterable<RuntimeAgentRunEvent> {
   readonly report: Promise<RuntimeRunReport>
   abort(reason?: unknown): void
 }
+```
+
+### Per-call model selection
+
+`model`, `effort`, and `maxTokens` retarget **one** call. `agent.model` still
+reports the bound target, and the next call without an override uses it again,
+so successive turns of one session can run on different models.
+
+The target is resolved against the same configured routes as the binding, with
+the same failures (`MODEL_ROUTE_UNAVAILABLE`, `MODEL_DEFAULT_MISSING`,
+`MODEL_TARGET_INVALID`), and it is resolved **before** the run acquires
+anything — an unusable target costs no request. `{ provider }` alone takes that
+route's configured default model.
+
+Switching model **drops** an inherited `effort` and `maxTokens` unless the same
+call restates them: both belong to the model that offered them, and carrying an
+effort onto a different ladder fails at dispatch. `effort` alone keeps the
+session's model.
+
+There is no error-time failover. When the chosen model fails, the failure
+reaches the caller; retries follow the route's retry policy on the same model.
+Embedding model selection is not per-call at all — a handle from
+`embeddingModel()` stays in its space for its lifetime, so a retrieval index
+cannot be silently queried with vectors from another model.
+
+```ts
+const session = agent.createSession()
+await session.run('draft it')                                     // the bound model
+await session.run('now check it', { effort: 'high' })             // same model, more effort
+await session.run('summarize', { model: { provider: 'codex', id: 'gpt-reserve' } })
+await session.run('continue')                                     // back to the bound model
 ```
 
 ### `RuntimeAgentRunEvent`

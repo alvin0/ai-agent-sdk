@@ -7,18 +7,25 @@ import {
   captureTurnHooks, captureUsagePolicy, captureUserInputBroker,
 } from './policy.ts'
 import type { RuntimeAgentInvocationOptions, RuntimeAgentSessionOptions } from './types.ts'
+import { ReasoningEffortId } from '../../primitives/brand.ts'
+import { resolveAgentModel } from '../provider/model-selection.ts'
+import type { ModelTarget, ProviderSelection } from '../provider/types.ts'
 import { captureToolSources } from '../tool-source/definition.ts'
 import { captureMemoryBinding } from '../memory/definition.ts'
 import { captureRuntimeSkillSources } from '../skill-provider/definition.ts'
 
 const KEYS = new Set(['signal', 'additionalInstructions', 'onEvent', 'imagePolicy', 'documentPolicy',
-  'structuredOutput', 'includeTraceEvents'])
+  'structuredOutput', 'includeTraceEvents', 'model', 'effort', 'maxTokens'])
 const SESSION_KEYS = new Set(['conversationId', 'tools', 'toolSources', 'skills', 'memory', 'skillCwd',
   'userInput', 'approvals', 'spillStore', 'interceptors', 'contextSections', 'hooks', 'usagePolicy', 'historyLimits',
   'ledgerLimits',
   'eventBufferLimits', 'runtimeLimits', 'compaction'])
 
 export interface CapturedInvocationOptions {
+  /** Already resolved against the configured routes; a full target, never route-only. */
+  readonly model?: ModelTarget
+  readonly effort?: ReturnType<typeof ReasoningEffortId>
+  readonly maxTokens?: number
   readonly structuredOutput?: NonNullable<RuntimeAgentInvocationOptions['structuredOutput']>
   readonly imagePolicy?: 'strict' | 'project'
   readonly documentPolicy?: 'strict' | 'project'
@@ -81,7 +88,20 @@ export function captureRuntimeSessionOptions(input: unknown): RuntimeAgentSessio
   })
 }
 
-export function captureInvocationOptions(input: unknown): CapturedInvocationOptions {
+/**
+ * Capture one invocation's options, resolving any model override eagerly.
+ *
+ * The resolution happens HERE, at the entry of `run`/`stream`, so an unknown
+ * route or a route with no default fails before an operation lease, a history
+ * append, or a single byte of provider traffic — the same guarantee the agent
+ * binding gives, on the same error codes.
+ * @param input - caller-supplied invocation options.
+ * @param selection - configured provider routes to resolve an override against.
+ */
+export function captureInvocationOptions(
+  input: unknown,
+  selection?: ProviderSelection,
+): CapturedInvocationOptions {
   if (input === undefined) return Object.freeze({})
   const source = objectValue(input)
   if (Reflect.ownKeys(source).some(key => typeof key !== 'string' || !KEYS.has(key))) {
@@ -109,7 +129,22 @@ export function captureInvocationOptions(input: unknown): CapturedInvocationOpti
   if (onEvent !== undefined && typeof onEvent !== 'function') throw new TypeError('Runtime event observer must be callable')
   const includeTraceEvents = ownData(source, 'includeTraceEvents', false)
   if (includeTraceEvents !== undefined && typeof includeTraceEvents !== 'boolean') throw new TypeError('includeTraceEvents must be boolean')
-  return Object.freeze({ ...(structuredOutput === undefined ? {} : { structuredOutput }), ...(imagePolicy === undefined ? {} : { imagePolicy }),
+  const requested = ownData(source, 'model', false)
+  if (requested !== undefined && selection === undefined) {
+    throw new TypeError('Runtime invocation model override is unavailable on this session')
+  }
+  const model = requested === undefined ? undefined : resolveAgentModel(selection!, requested)
+  const rawEffort = ownData(source, 'effort', false)
+  if (rawEffort !== undefined && typeof rawEffort !== 'string') throw new TypeError('Runtime invocation effort must be a string')
+  const effort = rawEffort === undefined ? undefined : ReasoningEffortId(rawEffort)
+  const maxTokens = ownData(source, 'maxTokens', false)
+  if (maxTokens !== undefined && (!Number.isSafeInteger(maxTokens) || (maxTokens as number) < 1)) {
+    throw new TypeError('Runtime invocation maxTokens must be a positive safe integer')
+  }
+  return Object.freeze({ ...(model === undefined ? {} : { model }),
+    ...(effort === undefined ? {} : { effort }),
+    ...(maxTokens === undefined ? {} : { maxTokens: maxTokens as number }),
+    ...(structuredOutput === undefined ? {} : { structuredOutput }), ...(imagePolicy === undefined ? {} : { imagePolicy }),
     ...(documentPolicy === undefined ? {} : { documentPolicy }), ...(signal === undefined ? {} : { signal }),
     ...(additionalInstructions === undefined ? {} : { additionalInstructions }),
     ...(includeTraceEvents === undefined ? {} : { includeTraceEvents }),

@@ -4,6 +4,7 @@ export default libraryBuild({
   entry: {
     index: 'src/index.ts',
     observability: 'src/observability/index.ts',
+    embedding: 'src/embedding/index.ts',
     agent: 'src/agent-public.ts',
     memory: 'src/memory.ts',
     provider: 'src/provider.ts',

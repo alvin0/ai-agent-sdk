@@ -20,7 +20,7 @@ pnpm build:cli
 
 Workspace tooling and Node capability packages require Node 22.12 or newer.
 
-All 21 packages are published on npm under the `@alvin0` scope, built and signed
+All 23 packages are published on npm under the `@alvin0` scope, built and signed
 from CI with SLSA provenance.
 
 Choose the smallest runtime closure you need:
@@ -44,6 +44,22 @@ All three profiles share the same Universal core and agent loop. Importing a Nod
 capability elevates only that application's reachable graph; it does not swap in a
 different harness implementation. Applications import the scoped core and exact
 capability packages directly.
+
+## Agent skill
+
+[![skills.sh](https://skills.sh/b/alvin0/ai-agent-sdk)](https://skills.sh/alvin0/ai-agent-sdk/ai-agent-sdk)
+
+Install the repository's `ai-agent-sdk` skill into the current project:
+
+```bash
+npx skills add https://github.com/alvin0/ai-agent-sdk --skill ai-agent-sdk
+```
+
+Add `--global` to share it across projects. Pull the latest version later with:
+
+```bash
+npx skills update ai-agent-sdk
+```
 
 ## Quick start
 

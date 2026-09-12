@@ -67,7 +67,6 @@ See [Getting Started](/en/01-introduction/getting-started) for how to choose.
 
 ## Status
 
-Version `0.1.0`, licensed under MIT. Registry publication is intentionally
-deferred while npm ownership is being arranged — see
-[Experimental](/en/12-experimental/) and
-[Project Information](/en/14-project/).
+Version `0.1.1`, licensed under MIT. The public packages are released under the
+`@alvin0` scope — see [Project Information](/en/14-project/) and the repository
+changelog for release details.

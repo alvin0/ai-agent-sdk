@@ -64,6 +64,8 @@ export class AgentSession {
   private pendingSkillActivations: readonly AgentSessionActivatedSkillSnapshot[] = Object.freeze([])
   private active = false
   private activeAdditionalInstructions: string | undefined
+  /** The overlay of the run that owns the session, so maintenance follows the same model. */
+  private activeInvocation: AgentInvocationOptions | undefined
   private readonly idleWaiters = new Set<() => void>()
 
   constructor(definition: AgentDefinition, options: AgentSessionOptions) {
@@ -220,6 +222,7 @@ export class AgentSession {
   async compact(invocation: AgentInvocationOptions = {}): Promise<CompactionResult | null> {
     if (this.active) throw new Error('cannot compact an agent session while a run is active')
     this.active = true
+    this.activeInvocation = invocation
     try {
       await this.prepareSkills(invocation.signal)
       return await this.compactor?.compactNow(invocation.signal) ?? null
@@ -236,6 +239,7 @@ export class AgentSession {
     if (this.active) throw new Error('cannot compact an agent session while a run is active')
     const ledger = this.createLedger()
     this.active = true
+    this.activeInvocation = invocation
     if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, ledger)
     if (this.skillCatalog !== undefined) bindSkillProviderLogger(this.skillCatalog, ledger.modelInvocation.logger)
     try { return await runRuntimeCompaction({
@@ -334,6 +338,7 @@ export class AgentSession {
     }
     this.active = true
     this.activeAdditionalInstructions = additionalInstructions
+    this.activeInvocation = invocation
     const spanOperations = new Map<string, string>()
     const task = (async (): Promise<void> => {
       let failure: unknown
@@ -373,7 +378,7 @@ export class AgentSession {
         }
         // Preflight before compaction can turn a required image into a summary.
         if (invocation.imagePolicy === 'strict' && this.history.messages().some(message => contentHasImage(message.content))) {
-          const config = this.callConfig()
+          const config = this.callConfig(invocation)
           const model = await this.options.registry.resolveModelInfo(config.provider, config.model, signal)
           if (model.inputModalities !== undefined && !model.inputModalities.includes('image')) {
             throw new ModelError(`model ${model.id} does not support required image input`, 'UNSUPPORTED_IMAGE_INPUT')
@@ -381,7 +386,7 @@ export class AgentSession {
         }
         // Same preflight for documents, for the same reason.
         if (invocation.documentPolicy === 'strict' && this.history.messages().some(message => contentHasDocument(message.content))) {
-          const config = this.callConfig()
+          const config = this.callConfig(invocation)
           const model = await this.options.registry.resolveModelInfo(config.provider, config.model, signal)
           if (model.inputModalities !== undefined && !model.inputModalities.includes('document')) {
             throw new ModelError(`model ${model.id} does not support required document input`, 'UNSUPPORTED_DOCUMENT_INPUT')
@@ -515,6 +520,7 @@ export class AgentSession {
   private releaseRun(): void {
     this.active = false
     this.activeAdditionalInstructions = undefined
+    this.activeInvocation = undefined
     this.activeRuntimeCatalog = undefined
     if (this.skillCatalog !== undefined) bindSkillProviderLogger(this.skillCatalog, undefined)
     if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, undefined)
@@ -544,7 +550,7 @@ export class AgentSession {
     const outputFormat = invocation.outputFormat ?? definition.outputFormat
     const common = {
       registry: this.options.registry,
-      config: this.callConfig(),
+      config: this.callConfig(invocation),
       history: this.history,
       ...catalog === undefined ? {} : { tools: catalog },
       ...definition.nativeTools.length === 0 ? {} : { nativeTools: definition.nativeTools },
@@ -649,7 +655,7 @@ export class AgentSession {
     if (configured === false) return undefined
     return new ContextCompactor({
       registry: this.options.registry,
-      config: this.callConfig(),
+      config: () => this.callConfig(this.activeInvocation),
       history: () => this.currentHistory,
       system: () => this.systemInstructions(this.activeAdditionalInstructions),
       pinnedMessages: () => renderRuntimeMemory(
@@ -707,7 +713,9 @@ export class AgentSession {
     }
   }
 
-  private callConfig() { return sessionCallConfig(this.definition, runtimeSessionConfiguration(this)) }
+  private callConfig(invocation?: AgentInvocationOptions) {
+    return sessionCallConfig(this.definition, runtimeSessionConfiguration(this), invocation)
+  }
 
   private systemInstructions(additionalInstructions?: string): string {
     const base = this.skillCatalog === undefined

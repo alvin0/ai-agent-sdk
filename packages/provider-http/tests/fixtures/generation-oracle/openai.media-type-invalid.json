@@ -1,0 +1,34 @@
+{
+  "attemptEndCalls": 1,
+  "attempts": [
+    {
+      "attemptNumber": 1,
+      "dispatchState": "sent",
+      "errorCode": "HTTP_STREAM_MEDIA_TYPE_INVALID",
+      "httpStatus": 200,
+      "method": "POST",
+      "origin": "https://api.openai.com",
+      "status": "error"
+    }
+  ],
+  "chunks": [],
+  "errorCodes": [
+    "HTTP_STREAM_MEDIA_TYPE_INVALID"
+  ],
+  "model": "gpt-conformance",
+  "provider": "openai",
+  "redactedHeaderNames": [
+    "authorization"
+  ],
+  "requestHeaderNames": [
+    "accept",
+    "authorization",
+    "content-type",
+    "user-agent"
+  ],
+  "scenario": "media-type-invalid",
+  "schemaVersion": 1,
+  "thrown": {
+    "code": "HTTP_STREAM_MEDIA_TYPE_INVALID"
+  }
+}

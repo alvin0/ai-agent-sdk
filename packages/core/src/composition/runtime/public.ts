@@ -7,6 +7,7 @@ export async function createAgentRuntime(options: AgentRuntimeOptions): Promise<
   const facade: AgentRuntime = {
     providers: () => owner.providers(),
     modelCatalog: (route, catalogOptions) => owner.modelCatalog(route, catalogOptions),
+    embeddingModel: embeddingOptions => owner.embeddingModel(embeddingOptions),
     agent: definition => owner.agent(definition),
     team: teamOptions => owner.team(teamOptions),
     logger: context => owner.logger(context),

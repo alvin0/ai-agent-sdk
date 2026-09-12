@@ -4,7 +4,7 @@
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
   },
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Durable Node JSONL observation journal, recovery, lifecycle, and opt-in wire diagnostics",
   "license": "MIT",
   "repository": {
