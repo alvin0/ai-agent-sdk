@@ -62,6 +62,34 @@ import {
 } from '../../../packages/core/src/embedding/limits.ts'
 import type { EmbeddingItem } from '../../../packages/core/src/embedding/request.ts'
 
+it('does not dispatch an async batch that arrives after abort', async () => {
+  const controller = new AbortController()
+  let started = 0
+  let closed = false
+  async function* source() {
+    try {
+      controller.abort()
+      yield 1
+    } finally { closed = true }
+  }
+  const result = await runBatchesWithConcurrency(source(), () => { started++ }, {
+    signal: controller.signal, concurrency: 1,
+  })
+  expect(started).toBe(0)
+  expect(result).toEqual({ started: 0, aborted: true })
+  expect(closed).toBe(true)
+})
+
+it('measures the concatenated wire text across part boundaries', () => {
+  const items: EmbeddingItem[] = [{ index: 0, contentParts: [...'abcd'].map(text => ({ type: 'text', text })) }]
+  const limits = { maxItems: 10, maxTokens: 100, maxBytes: 100, estimateTokens }
+  expect([...planEmbeddingBatches(items, limits)][0]?.estimatedTokens).toBe(estimateTokens('abcd'))
+  const unicode: EmbeddingItem[] = [{ index: 0, contentParts: [
+    { type: 'text', text: '\ud83d' }, { type: 'text', text: '\ude00' },
+  ] }]
+  expect([...planEmbeddingBatches(unicode, limits)][0]?.bytes).toBe(4)
+})
+
 // ---------------------------------------------------------------------------
 // Seeded generation
 // ---------------------------------------------------------------------------
@@ -95,16 +123,12 @@ const ENCODER = new TextEncoder()
 
 /** UTF-8 size of an item, measured independently of the planner. */
 function bytesOf(item: EmbeddingItem): number {
-  let total = 0
-  for (const part of item.contentParts) total += ENCODER.encode(part.text).byteLength
-  return total
+  return ENCODER.encode(item.contentParts.map(part => part.text).join('')).byteLength
 }
 
 /** Token size of an item under the limits the case was planned with. */
 function tokensOf(item: EmbeddingItem, limits: ResolvedEmbeddingBatchLimits): number {
-  let total = 0
-  for (const part of item.contentParts) total += limits.estimateTokens(part.text)
-  return total
+  return limits.estimateTokens(item.contentParts.map(part => part.text).join(''))
 }
 
 /**
@@ -333,7 +357,10 @@ describe('Feature: embedding-support, Property 6: Số batch chạy đồng th�
           inFlight -= 1
           settled += 1
         },
-        { concurrency: configured },
+        // Spread conditionally: "option absent" and "option present as
+        // undefined" are different inputs under exactOptionalPropertyTypes, and
+        // this case deliberately exercises the absent one.
+        configured === undefined ? {} : { concurrency: configured },
       )
 
       expect(peakInFlight, `peak in-flight (${context})`).toBeLessThanOrEqual(limit)

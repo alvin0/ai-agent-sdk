@@ -13,7 +13,9 @@
  * 1. Nothing is invented. A batch whose provider reported no readable usage
  *    contributes no tokens, and its absence downgrades the whole call to
  *    `partial` or `missing` rather than being counted as a zero
- *    (Requirements 16.2, 16.3).
+ *    (Requirements 16.2, 16.3). The absence is also stated out loud: a batch that
+ *    reported nothing raises `usage-unreported`, one whose report could not be
+ *    read raises `usage-malformed`.
  * 2. Cache and provider input counts are derived from the same evidence, so
  *    `inputsFromCache + inputsFromProvider === inputCount` holds by
  *    construction rather than by a caller remembering to keep them in step
@@ -85,6 +87,24 @@ function malformedWarning(itemIndexes: readonly number[]): EmbeddingWarning {
 }
 
 /**
+ * Raised for a batch that was dispatched and came back with no usage at all.
+ *
+ * This is the absence half of Requirement 16.2, and it belongs here rather than
+ * in an adapter: `status: 'missing'`/`'partial'` and the warning that explains it
+ * are the same statement about the same evidence, and only the aggregator knows
+ * a batch was dispatched. An endpoint that reports nothing by design — Gemini's
+ * `batchEmbedContents` — therefore needs no per-provider warning code, and no
+ * provider can report a `0` in place of the silence and have it pass unremarked.
+ */
+function unreportedWarning(itemIndexes: readonly number[]): EmbeddingWarning {
+  return Object.freeze<EmbeddingWarning>({
+    code: 'usage-unreported',
+    ...(itemIndexes.length === 0 ? {} : { itemIndexes: Object.freeze([...itemIndexes]) }),
+    message: 'provider reported no usage for this batch; no token count was assumed',
+  })
+}
+
+/**
  * Counts the distinct inputs the provider actually saw.
  *
  * Indexes outside the `Logical_Call` range are ignored rather than trusted:
@@ -126,7 +146,10 @@ export function aggregateEmbeddingUsage(input: EmbeddingUsageAggregationInput): 
   for (const batch of batches) {
     providerAttempts += Number.isSafeInteger(batch.attempts) && batch.attempts > 0 ? batch.attempts : 0
     const reading = readBatch(batch)
-    if (reading.malformed) warnings.push(malformedWarning(batch.itemIndexes))
+    // Absence and unreadability are different facts about the provider, so they
+    // carry different codes; neither one contributes a token count.
+    if (batch.usage === undefined) warnings.push(unreportedWarning(batch.itemIndexes))
+    else if (reading.malformed) warnings.push(malformedWarning(batch.itemIndexes))
     if (reading.reported === undefined) continue
     batchesWithUsage += 1
     inputTokens += reading.reported.inputTokens

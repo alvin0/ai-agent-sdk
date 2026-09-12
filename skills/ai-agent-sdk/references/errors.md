@@ -89,6 +89,105 @@ automatic compaction may compact and retry once (`maxOverflowRetries`).
 | `INVALID_ARGUMENTS` | A tool's `parse` threw — reported to the model, which can correct it |
 | `CONTEXT_SECTION_INVALID` | A context section broke its id/size contract |
 
+## Embedding codes
+
+Embedding has its own taxonomy, `EMBEDDING_ERROR_CODES`, exported from
+`@alvin0/ai-agent-sdk-core/embedding` together with the `EmbeddingError` class.
+Fifteen codes, frozen flat strings for the same reason the model codes are.
+
+The split is deliberate: transport faults keep using `MODEL_ERROR_CODES`, so
+"the provider is rate limiting us" (`RATE_LIMIT`) stays distinguishable from
+"the provider returned a vector of the wrong width"
+(`EMBEDDING_VECTOR_DIMENSIONS_MISMATCH`) without parsing a message. Both the
+OpenAI and Gemini adapters emit the **same** embedding codes for mapping,
+dimension and vector faults — that is what lets one contract suite run against
+both.
+
+Raised by the runtime **before** any request goes out:
+
+| Code | Meaning | Do this |
+| --- | --- | --- |
+| `EMBEDDING_ADAPTER_MISSING` | No embedding adapter registered for the requested route/model | Install an embedding plugin for that route |
+| `EMBEDDING_REQUEST_INVALID` | Malformed at the SDK boundary: missing `purpose`, empty `values`, empty item | Fix the call |
+| `EMBEDDING_DIMENSIONS_UNSUPPORTED` | `dimensions` is not a width the route declares | Use a declared width, or declare it in the route's `models` |
+| `EMBEDDING_INPUT_TOO_LARGE` | Input exceeds the declared `maxInputTokens`; carries `itemIndexes` and `limit` | Chunk or drop the named items |
+| `EMBEDDING_SPACE_INCOMPATIBLE` | The `expectedSpace` you passed is not compatible with the resolved call | Re-embed the index, or point at the space it was built in |
+| `EMBEDDING_PURPOSE_UNSUPPORTED` | The route cannot express the purpose and the caller demands the distinction | Choose a route with a purpose mechanism |
+| `EMBEDDING_TRUNCATION_UNSUPPORTED` | `truncation` requested where the provider has no equivalent parameter | Truncate upstream; SDK default is `'reject'` |
+| `EMBEDDING_CONFIGURATION_INVALID` | Invalid handle configuration — cache enabled without `scope`, fallback outside the group | Fix the `embeddingModel()` options |
+
+Raised by an adapter while it **validates a response**:
+
+| Code | Meaning | Do this |
+| --- | --- | --- |
+| `EMBEDDING_VECTOR_COUNT_MISMATCH` | Response carried a different number of vectors than inputs sent | Protocol drift — check the changelog |
+| `EMBEDDING_VECTOR_INDEX_INVALID` | A vector index is duplicated, missing, or out of range | Protocol drift |
+| `EMBEDDING_VECTOR_VALUE_INVALID` | A vector contains `NaN` or `Infinity` | Provider fault; retry, then escalate |
+| `EMBEDDING_VECTOR_DIMENSIONS_MISMATCH` | A vector's width differs from the requested `dimensions` | Check the route's declared widths |
+| `EMBEDDING_RESPONSE_MALFORMED` | Response does not satisfy the embedding contract structurally | Protocol drift |
+
+And two that belong to neither phase:
+
+| Code | Meaning |
+| --- | --- |
+| `EMBEDDING_ABORTED` | The caller's signal, or a runtime close, aborted the call |
+| `EMBEDDING_UNKNOWN` | Nothing in this taxonomy classified the failure |
+
+`EmbeddingError` carries the facts a caller would otherwise re-derive:
+`itemIndexes` (frozen, only when the fault is attributable to specific inputs),
+`limit`, `provider`, `model`, `space`. No field carries raw input text or vector
+values — redaction keeps those out of errors and traces alike.
+
+```ts
+import { EMBEDDING_ERROR_CODES, EmbeddingError } from '@alvin0/ai-agent-sdk-core/embedding'
+
+try {
+  await embeddings.embedMany({ values: chunks, purpose: 'retrieval-document' })
+} catch (error) {
+  if (error instanceof EmbeddingError
+    && error.code === EMBEDDING_ERROR_CODES.INPUT_TOO_LARGE) {
+    return rechunk(error.itemIndexes ?? [], error.limit)
+  }
+  throw error
+}
+```
+
+The constructor validates rather than trusts: a negative `itemIndexes` entry or
+a non-positive `limit` throws, because a nonsense bound in an authoritative
+message is worse than a crash at the point that computed it.
+
+## JSON transport code
+
+The shared `Http_Transport` in `@alvin0/ai-agent-sdk-provider-http` grew one
+code when the JSON pipeline landed beside the SSE one:
+`HTTP_JSON_MEDIA_TYPE_INVALID`, in `HTTP_PROVIDER_ERROR_CODES`. It is the JSON
+counterpart of `HTTP_STREAM_MEDIA_TYPE_INVALID` — a 200 whose `Content-Type` is
+not JSON, which usually means a proxy or captive portal answered instead of the
+provider. Refusing it is the point: parsing an HTML error page as though it were
+the provider's answer is how a proxy outage becomes a mysterious schema error
+further up. It is not in the default retryable set — fix the endpoint or the
+egress path.
+
+## Route–operation conflicts at construction
+
+Generation and embedding plugins are **namespaced by operation**, so
+`openAiPlugin()` and `openAiEmbeddingPlugin()` may both claim route `openai`.
+Two plugins of the *same* operation claiming one route is a construction
+failure, and the two operations have separate codes on
+`AgentRuntimeConstructionError.failureCode`:
+
+| Failure code | Raised when |
+| --- | --- |
+| `PROVIDER_ROUTE_CONFLICT` | Two **generation** plugins claim one route |
+| `PROVIDER_OPERATION_CONFLICT` | Two **embedding** plugins claim one route |
+
+Both surface as `AgentRuntimeConstructionError` with `code:
+'RUNTIME_CONSTRUCTION_FAILED'` and `stage: 'preflight'`. Startup preflight
+sweeps the whole `providers` list before committing any plugin, so
+`failureCode` is the first failure while `aggregate` lists every one of them,
+each entry naming its `index`, `pluginId` and the `conflictsWithIndex` it
+collides with. Nothing is installed and no `setup()` runs when the sweep fails.
+
 ## Copilot codes
 
 A provider may own codes for failures no other provider has. Copilot has

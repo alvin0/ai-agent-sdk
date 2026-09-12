@@ -52,6 +52,37 @@ describe('per-agent model selection from captured provider configuration', () =>
     }
   })
 
+  it('names the competing routes and both ways out in the ambiguity message', () => {
+    // The code is what a host routes on, but a person reads the message, and
+    // "defaults are ambiguous" on its own says neither which routes collided nor
+    // that `defaultProvider` exists to settle it.
+    const plan = preflightProviderIdentities([
+      provider('a', { provider: 'a', id: 'one' }),
+      provider('b', { provider: 'b', id: 'two' }),
+    ])
+    const message = (() => {
+      try { resolveAgentModel(plan); return '' } catch (error) { return (error as Error).message }
+    })()
+    expect(message).toContain('"a"')
+    expect(message).toContain('"b"')
+    expect(message).toContain('defaultProvider')
+    expect(message).toContain('{ provider, id }')
+  })
+
+  it('names the configured routes when a target is unroutable or has no default', () => {
+    const plan = preflightProviderIdentities([provider('configured')])
+    const unroutable = (() => {
+      try { resolveAgentModel(plan, { provider: 'absent' }); return '' } catch (error) { return (error as Error).message }
+    })()
+    expect(unroutable).toContain('"absent"')
+    expect(unroutable).toContain('"configured"')
+    const missing = (() => {
+      try { resolveAgentModel(plan, { provider: 'configured' }); return '' } catch (error) { return (error as Error).message }
+    })()
+    expect(missing).toContain('"configured"')
+    expect(missing).toContain('defaultModel')
+  })
+
   it('allows providers without defaults but requires a full agent target', () => {
     const plan = preflightProviderIdentities([provider('a'), provider('b')])
     expect(resolveAgentModel(plan, { provider: 'b', id: 'model/with/slashes' }))

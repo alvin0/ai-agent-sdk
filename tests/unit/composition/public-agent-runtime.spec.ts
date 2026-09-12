@@ -24,7 +24,7 @@ describe('public AgentRuntime facade', () => {
     }] })
     expect(Object.isFrozen(runtime)).toBe(true)
     expect(Object.keys(runtime).sort()).toEqual([
-      'agent', 'close', 'diagnostics', 'logger', 'modelCatalog', 'providers', 'team',
+      'agent', 'close', 'diagnostics', 'embeddingModel', 'logger', 'modelCatalog', 'providers', 'team',
     ])
     expect(runtime).not.toHaveProperty('registry')
     expect(runtime).not.toHaveProperty('operations')

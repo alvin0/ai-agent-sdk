@@ -45,6 +45,7 @@ capability boundary, so the smaller import pulls in less:
 
 | Specifier | Tier | Contents |
 | --- | --- | --- |
+| `@alvin0/ai-agent-sdk-core/embedding` | Universal | The whole embedding contract: `EmbeddingAdapter`, request/result vocabulary, profile and `Space_Id`, purpose, embedding catalog, batch limits, `EMBEDDING_ERROR_CODES` + `EmbeddingError`, validation helpers |
 | `@alvin0/ai-agent-sdk-auth-node/codex` | Node | `codexNodeProviderPlugin()` + the Universal Codex surface |
 | `@alvin0/ai-agent-sdk-auth-node/copilot` | Node | `copilotNodeProviderPlugin()`, `fileCopilotCredentialStore()`, `resolveCopilotAuthPath()` + the Universal Copilot surface |
 | `@alvin0/ai-agent-sdk-mcp/server` | Universal | Inert MCP server host |
@@ -66,12 +67,45 @@ Override the path with `AI_AGENT_SDK_COPILOT_AUTH`, or read the resolved locatio
 with `resolveCopilotAuthPath()`. Same isolation reasoning as Codex: the SDK does
 not share a credential file with an editor that rotates the same token.
 
-> **`@alvin0/ai-agent-sdk-provider-copilot/embedding` does not exist yet.**
-> Copilot's embedding adapter is blocked on the `embedding-support` spec —
-> `@alvin0/ai-agent-sdk-core/embedding` is not a core export today, so there is
-> nothing for a Copilot embedding entry point to build on. `provider-copilot`
-> ships `"."` only. Do not write an import against that specifier; it will not
-> resolve.
+> **`@alvin0/ai-agent-sdk-provider-copilot/embedding` does not exist.**
+> `@alvin0/ai-agent-sdk-core/embedding` is a core export now, but no Copilot
+> embedding adapter has been written against it. `provider-copilot` ships `"."`
+> only. Do not write an import against that specifier; it will not resolve. The
+> two adapters that do exist are `openAiEmbeddingPlugin()` and
+> `geminiEmbeddingPlugin()`, both from their provider package's `"."`.
+
+## Where the embedding code lives
+
+The embedding capability sits beside generation under the same runtime, in three
+places — and the dependency between the first two runs one way only, checked by
+the `no-circular` rule in `.dependency-cruiser.cjs`:
+
+| Location | Owns |
+| --- | --- |
+| `packages/core/src/embedding/` | The contract, published as `@alvin0/ai-agent-sdk-core/embedding`. Imports nothing from `composition/` |
+| `packages/core/src/composition/embedding/` | The runtime that consumes the contract: batching, concurrency, retry, optional cache, usage aggregation, order restoration, the embedding plugin kind and its startup preflight. Not published as its own specifier — its type surface reaches callers through `runtime.embeddingModel()` at the root entry point |
+| `packages/provider-http/src/transport/` | The shared `Http_Transport` chain plus the JSON pipeline the embedding adapters dispatch through, next to the SSE pipeline generation uses. Exported from `provider-http`'s `"."` |
+
+The provider adapters themselves stay in their provider packages
+(`packages/provider-openai/src/embedding.ts`,
+`packages/provider-gemini/src/embedding.ts`) and register through a distinct
+plugin kind, `'embedding-provider-plugin'`. Nothing was added to
+`ModelProviderRegistrar` and `PROVIDER_PLUGIN_API_VERSION` did not move, so an
+app that only generates carries no embedding configuration:
+
+```ts
+import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
+import { openAiPlugin, openAiEmbeddingPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
+
+const runtime = await createAgentRuntime({
+  // Route claims are namespaced by operation, so both may claim 'openai'.
+  providers: [openAiPlugin({ apiKey }), openAiEmbeddingPlugin({ apiKey })],
+})
+```
+
+Two plugins of the *same* operation claiming one route fails construction:
+`PROVIDER_ROUTE_CONFLICT` for generation, `PROVIDER_OPERATION_CONFLICT` for
+embedding.
 
 ## Reusing the Chat Completions protocol for a non-Copilot endpoint
 

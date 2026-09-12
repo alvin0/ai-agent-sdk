@@ -97,6 +97,7 @@ export async function runBatchesWithConcurrency<Batch>(
 ): Promise<ConcurrencyLimitOutcome> {
   const limit = resolveEmbeddingConcurrency(options?.concurrency)
   const signal = options?.signal
+  const isAborted = (): boolean => signal?.aborted === true
   const iterator = openIterator(source)
 
   let started = 0
@@ -109,7 +110,7 @@ export async function runBatchesWithConcurrency<Batch>(
   const worker = async (): Promise<void> => {
     for (;;) {
       if (failure !== undefined || exhausted) return
-      if (signal?.aborted === true) {
+      if (isAborted()) {
         aborted = true
         return
       }
@@ -117,14 +118,19 @@ export async function runBatchesWithConcurrency<Batch>(
       // Claim the next batch under the pull lock: one item, one owner, and the
       // source is advanced exactly as far as there is capacity to run it.
       const claimed = pull.then(async (): Promise<Claim<Batch> | undefined> => {
-        if (failure !== undefined || exhausted || signal?.aborted === true) return undefined
+        if (failure !== undefined || exhausted || isAborted()) return undefined
         const next = await iterator.next()
+        // Cancellation or another worker's failure can happen during an async pull.
+        if (isAborted()) {
+          aborted = true
+          return undefined
+        }
+        if (failure !== undefined) return undefined
         if (next.done === true) {
           exhausted = true
           return undefined
         }
-        const claim: Claim<Batch> = { batch: next.value, ordinal: started }
-        started += 1
+        const claim: Claim<Batch> = { batch: next.value }
         return claim
       })
       pull = claimed.then(() => undefined, () => undefined)
@@ -137,9 +143,14 @@ export async function runBatchesWithConcurrency<Batch>(
         return
       }
       if (work === undefined) continue
+      if (failure !== undefined) return
+      if (isAborted()) {
+        aborted = true
+        return
+      }
 
       try {
-        await run(work.batch, work.ordinal)
+        await run(work.batch, started++)
       } catch (error) {
         failure ??= { error }
         return
@@ -165,7 +176,6 @@ export async function runBatchesWithConcurrency<Batch>(
 /** One batch a worker owns for the duration of its slot. */
 interface Claim<Batch> {
   readonly batch: Batch
-  readonly ordinal: number
 }
 
 /** Normalises a sync or async iterable to one async-shaped iterator. */

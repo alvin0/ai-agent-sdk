@@ -163,7 +163,14 @@ export function createEdgeChatApp(basePath = '/api') {
       return streamAutoRun(managed.lead.stream(message.trim(), { signal: abort.signal }), abort, context)
     }
     const session = entry.session as RuntimeAgentSession
-    return streamRun(session.stream(message.trim(), { includeTraceEvents: true }), context)
+    // The model and effort for THIS turn, not for the session. The visitor can
+    // change either between turns and keep the conversation: the agent's own
+    // binding is untouched, and a turn that names neither runs on it again.
+    return streamRun(session.stream(message.trim(), {
+      includeTraceEvents: true,
+      model: { provider: 'openai', id: config.model },
+      ...(config.effort === undefined ? {} : { effort: config.effort }),
+    }), context)
   })
 
   app.post('/close', async (c) => {

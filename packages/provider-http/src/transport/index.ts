@@ -1,9 +1,10 @@
 /**
  * Internal barrel for the shared HTTP transport layer.
  *
- * Not re-exported from the package root yet: nothing outside this package consumes
- * the transport directly. The JSON pipeline (`transportJson`) lives here and will be
- * reached through this barrel once the embedding adapters land.
+ * Mostly internal: the session, stream and JSON pipelines are consumed from inside
+ * this package. The exception is the embedding route configuration, which the
+ * embedding adapters in other packages declare against, so it is re-exported from
+ * the package root as well.
  *
  * @module ai-agent-sdk/providers/transport
  */
@@ -12,6 +13,12 @@ export {
   captureTransportConnection,
   type HttpTransportConnection,
 } from './connection.ts'
+export {
+  embeddingCatalogModelInfo,
+  resolvedEmbeddingCatalogModelInfo,
+  type EmbeddingCatalogModel,
+  type EmbeddingHttpConnection,
+} from './embedding-connection.ts'
 export {
   httpErrorCode,
   parseErrorBody,

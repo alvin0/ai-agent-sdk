@@ -176,6 +176,9 @@ nào để dự trữ).
 
 ```ts
 interface RuntimeAgentInvocationOptions {
+  model?: { provider: string; id?: string }   // chỉ lời gọi này; agent giữ nguyên binding
+  effort?: string                             // chỉ lời gọi này
+  maxTokens?: number                          // chỉ lời gọi này
   signal?: AbortSignal
   additionalInstructions?: string
   onEvent?: (event: RuntimeAgentRunEvent) => void | Promise<void>
@@ -195,6 +198,35 @@ interface RuntimeAgentRunHandle extends AsyncIterable<RuntimeAgentRunEvent> {
   readonly report: Promise<RuntimeRunReport>
   abort(reason?: unknown): void
 }
+```
+
+### Chọn model theo từng lời gọi
+
+`model`, `effort`, `maxTokens` chỉ đổi hướng **một** lời gọi. `agent.model` vẫn
+báo target đã bind, và lời gọi kế tiếp không override sẽ dùng lại nó, nên các
+lượt liên tiếp trong cùng một session có thể chạy trên các model khác nhau.
+
+Target được phân giải trên đúng tập route đã cấu hình như lúc bind, với cùng bộ
+lỗi (`MODEL_ROUTE_UNAVAILABLE`, `MODEL_DEFAULT_MISSING`, `MODEL_TARGET_INVALID`),
+và phân giải **trước** khi run chiếm bất kỳ tài nguyên nào — target không dùng
+được thì không tốn request nào. Chỉ `{ provider }` thì lấy default model của
+route đó.
+
+Đổi model sẽ **bỏ** `effort` và `maxTokens` kế thừa trừ khi chính lời gọi đó nêu
+lại: cả hai thuộc về model đã cung cấp chúng, mang effort sang ladder khác sẽ lỗi
+lúc dispatch. Chỉ `effort` thì giữ nguyên model của session.
+
+Không có failover khi lỗi. Model đã chọn lỗi thì lỗi nổi lên tới caller; retry đi
+theo retry policy của route trên cùng model đó. Phía embedding không có override
+theo lời gọi: handle từ `embeddingModel()` giữ nguyên space suốt vòng đời, nên
+một index retrieval không thể bị truy vấn âm thầm bằng vector của model khác.
+
+```ts
+const session = agent.createSession()
+await session.run('soạn đi')                                      // model đã bind
+await session.run('kiểm lại', { effort: 'high' })                 // cùng model, effort cao hơn
+await session.run('tóm tắt', { model: { provider: 'codex', id: 'gpt-reserve' } })
+await session.run('tiếp tục')                                     // trở lại model đã bind
 ```
 
 ### `RuntimeAgentRunEvent`

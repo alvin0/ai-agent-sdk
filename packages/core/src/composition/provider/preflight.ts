@@ -17,6 +17,37 @@ function conflict(namespace: CapabilityIdentityConflict['namespace'], firstIndex
     capabilityIdentityConflict(namespace, firstIndex, secondIndex))
 }
 
+/**
+ * Read the inert identity of one plugin object.
+ *
+ * Shared with the embedding kind: both kinds declare the same identity shape, so
+ * duplicating this reader is how one of the two copies would eventually forget a
+ * bound. Throws a generic `invalidPreflight()` on any shape violation.
+ */
+export function readProviderMetadata(source: object): ProviderMetadata {
+  return metadata(source)
+}
+
+/**
+ * Freeze a generation plan from ALREADY validated metadata and register its
+ * sources for {@link captureProviderMethods}.
+ *
+ * Exists so a whole-input sweep can validate every kind first and still hand the
+ * generation subset to the existing capture phase (Requirement 11.6).
+ */
+export function createProviderIdentityPlan(
+  providers: readonly ProviderMetadata[],
+  sources: readonly object[],
+  defaultProvider?: string,
+): ProviderIdentityPlan {
+  const plan: ProviderIdentityPlan = Object.freeze({
+    providers: Object.freeze([...providers]),
+    ...(defaultProvider === undefined ? {} : { defaultProvider }),
+  })
+  sourcesByPlan.set(plan, Object.freeze([...sources]))
+  return plan
+}
+
 function metadata(source: object): ProviderMetadata {
   const id = boundedText(ownData(source, 'id'), COMPOSITION_LIMITS.identityBytes)
   const displayName = boundedText(ownData(source, 'displayName'), COMPOSITION_LIMITS.displayNameBytes)

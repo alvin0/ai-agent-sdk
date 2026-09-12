@@ -150,7 +150,8 @@ export interface HttpTransportSession {
    * Evidence only: whether a report is complete enough to leave the SDK as
    * `TokenUsage` is a pipeline decision, and this hook does not make it.
    */
-  reportUsage(usage: UsageCounters): void
+  readonly attemptId?: string
+  reportUsage(usage: UsageCounters, final?: boolean): void
   /** Record the terminal outcome the decoded stream reported. */
   reportOutcome(status: TransportAttemptStatus, failure?: ModelFailure): void
 }
@@ -236,6 +237,7 @@ export async function* withTransportSession<T>(
     let providerRequestId: ProviderRequestId | undefined
     let attemptStatus: TransportAttemptStatus = 'unknown'
     let attemptUsage: UsageCounters | undefined
+    let usageFinal = true
     let attemptError: SafeErrorRecord | undefined
     try {
       signal.throwIfAborted()
@@ -286,9 +288,11 @@ export async function* withTransportSession<T>(
         accept: input.accept,
         limits,
         ...providerRequestId === undefined ? {} : { providerRequestId },
-        reportUsage(usage: UsageCounters) {
+        reportUsage(usage: UsageCounters, final = true) {
           attemptUsage = usage
+          usageFinal = final
         },
+        ...(attempt === undefined ? {} : { attemptId: attempt.attemptId }),
         reportOutcome(status: TransportAttemptStatus, failure?: ModelFailure) {
           attemptStatus = status
           if (failure !== undefined) attemptError = safeProviderFailure(failure)
@@ -317,6 +321,7 @@ export async function* withTransportSession<T>(
         status: attemptStatus,
         dispatchState,
         ...attemptUsage === undefined ? {} : { reported: attemptUsage },
+        ...usageFinal ? {} : { usageFinal: false },
         ...httpStatus === undefined ? {} : { httpStatus },
         ...providerRequestId === undefined ? {} : { providerRequestId },
         ...attemptError === undefined ? {} : { error: attemptError },

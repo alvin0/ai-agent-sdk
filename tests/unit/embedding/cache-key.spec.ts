@@ -605,6 +605,21 @@ describe('resolveEmbeddingCache', () => {
 })
 
 describe('cache store faults', () => {
+  it('treats corrupt payloads as misses and detaches valid cache values', async () => {
+    const space = spaceOf('emb:1|test')
+    for (const entry of [null, { space, values: [NaN] }, { space, values: [Infinity] },
+      { space, values: [] }, { space, values: new Array(2) }, { space, values: 'bad' }]) {
+      const cache = cacheOf('tenant-a', { get: () => entry as unknown as EmbeddingCacheEntry, set() {} })
+      await expect(readEmbeddingCacheEntry(cache, 'key', space)).resolves.toBeUndefined()
+    }
+    const values = [1, 2]
+    const cache = cacheOf('tenant-a', { get: () => ({ space, values }), set() {} })
+    const hit = await readEmbeddingCacheEntry(cache, 'key', space)
+    values[0] = 99
+    expect(hit?.values).toEqual([1, 2])
+    expect(Object.isFrozen(hit?.values)).toBe(true)
+  })
+
   it('treats a throwing get as a miss and a throwing set as a no-op', async () => {
     const faulty: EmbeddingCacheStore = {
       get: () => {

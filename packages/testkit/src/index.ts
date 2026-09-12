@@ -22,6 +22,24 @@ export type {
   CopilotConformanceRegistry,
   CopilotGenerationRun,
 } from './provider/copilot/index.ts'
+export {
+  EMBEDDING_CONFORMANCE_CHECK_IDS,
+  EMBEDDING_CONFORMANCE_DEFAULTS,
+  EMBEDDING_CONFORMANCE_SCENARIOS,
+  collectEmbeddingConformanceChecks,
+  embeddingConformanceInputs,
+  runEmbeddingConformanceSuite,
+} from './provider/embedding/index.ts'
+export type {
+  EmbeddingConformanceCase,
+  EmbeddingConformanceCaseInput,
+  EmbeddingConformanceCheckId,
+  EmbeddingConformanceControl,
+  EmbeddingConformanceControlSnapshot,
+  EmbeddingConformanceDispatch,
+  EmbeddingConformanceFixture,
+  EmbeddingConformanceScenario,
+} from './provider/embedding/index.ts'
 export { PROVIDER_CONFORMANCE_REGISTRY } from './provider/registry.ts'
 export type { ProviderConformanceRegistry } from './provider/registry.ts'
 export type {
@@ -35,4 +53,5 @@ export type {
   ProviderConformanceOptions,
   ProviderConformanceReport,
   ProviderConformanceScenario,
+  ProviderGenerationScenario,
 } from './provider/types.ts'

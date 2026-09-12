@@ -283,7 +283,9 @@ function checkVectorValues(
         { provider: batch.provider, model: batch.model, itemIndexes: [vector.index] },
       )
     }
-    if (vector.values.some(value => typeof value !== 'number' || !Number.isFinite(value))) {
+    // Array.prototype.some skips holes; adapters can return sparse JS arrays.
+    for (const value of vector.values) {
+      if (typeof value === 'number' && Number.isFinite(value)) continue
       throw new EmbeddingError(
         'Provider returned a vector containing a non-finite value',
         EMBEDDING_ERROR_CODES.VECTOR_VALUE_INVALID,

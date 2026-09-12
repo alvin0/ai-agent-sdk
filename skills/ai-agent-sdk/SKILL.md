@@ -80,6 +80,7 @@ Load only the file the task needs. Each is self-contained.
 | Task memory, compaction, snapshots, resume | [references/memory.md](references/memory.md) |
 | Multi-step flows, agent teams, `mode: 'deep'`, human gates | [references/orchestration.md](references/orchestration.md) |
 | Point the SDK at a new endpoint, or author a provider | [references/providers.md](references/providers.md) |
+| `runtime.embeddingModel()`, `embed()`, `embedMany()`, embedding providers, `Space_Id` | [references/providers.md](references/providers.md) |
 | Instructions, always-on moving context, `AGENTS.md` files | [references/context-and-instructions.md](references/context-and-instructions.md) |
 | Messages, content blocks, images and vision, PDF/document input | [references/messages-and-content.md](references/messages-and-content.md) |
 | Turn limits, token budgets, usage coverage, oversized tool output | [references/budgets-and-usage.md](references/budgets-and-usage.md) |
@@ -104,6 +105,7 @@ views over the same implementation, never copies.
 | `.../core/tools` | Tool-source authors |
 | `.../core/skills` | Skill-provider authors |
 | `.../core/memory` | Memory-store authors |
+| `.../core/embedding` | Embedding adapter authors, and callers who need the contract beyond the handle: request/result vocabulary, profile and `Space_Id`, catalog, batch limits, `EMBEDDING_ERROR_CODES` |
 | `.../core/observability` | Observation bus and exporter authors |
 
 Application code should reach for `AgentRuntime` rather than the low-level

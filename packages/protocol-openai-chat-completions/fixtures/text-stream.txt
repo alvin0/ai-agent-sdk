@@ -1,0 +1,26 @@
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"role":"assistant","content":""},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"content":"Thời "},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"content":"tiết "},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"content":"ở "},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"content":"Hà N"},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"content":"ội "},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"content":"hôm nay "},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"content":"nắng nhẹ "},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"content":"\ud83c"},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"content":"\udf24"},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{"content":"."},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":1718204350,"model":"gpt-4o-2024-11-20","usage":null,"choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}
+
+data: [DONE]
+

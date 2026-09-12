@@ -54,6 +54,8 @@ export interface EndProviderAttemptInput {
   readonly status: OperationStatus
   readonly dispatchState: DispatchState
   readonly reported?: UsageCounters
+  /** False for a provisional snapshot, even when every counter is present. */
+  readonly usageFinal?: boolean
   readonly httpStatus?: number
   readonly providerRequestId?: string
   /** Must already be safe for support reports; raw response bodies are forbidden. */

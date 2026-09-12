@@ -85,8 +85,16 @@ export interface ProviderCatalogModel {
   description?: string
   /** Combined request/response capacity, when known. */
   contextWindow?: number
+  /** Standard-price operating budget before a contextWindow override. */
+  defaultContextWindow?: number
+  /** Known technical ceiling; overrides cannot exceed it. */
+  maxContextWindow?: number
+  /** Input-token threshold for long-context pricing, when known. */
+  standardPriceInputTokens?: number
   /** Per-request output cap for this model. */
   maxTokens?: number
+  /** Default output budget, independently of the ceiling. Falls back to maxTokens. */
+  defaultMaxTokens?: number
   /** Accepted request modalities; omission is treated as text-only. */
   inputModalities?: readonly ModelModality[]
   /** Modalities this model route may return. */
@@ -489,6 +497,15 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     })
     const translated = requireTerminalFinish(this.translate(events, request), this.displayName)
     for await (const chunk of idleDeadline.guard(translated)) {
+      if (chunk.type === 'usage-progress') {
+        session.reportUsage(chunk.usage, false)
+        const validated = validateUsageCounters(chunk.usage, true)
+        if (Object.keys(validated.reported).length > 0) {
+          yield { type: 'usage-progress', usage: validated.reported,
+            ...(session.attemptId === undefined ? {} : { attemptId: session.attemptId }) }
+        }
+        continue
+      }
       if (chunk.type === 'usage') {
         session.reportUsage(chunk.usage)
         const validated = validateUsageCounters(chunk.usage, true)

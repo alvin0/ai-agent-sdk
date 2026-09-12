@@ -62,6 +62,15 @@ interface OpenText {
   phase: string
   member: string | undefined
   incomplete?: true
+  /**
+   * When this block opened, across text AND reasoning.
+   *
+   * The two kinds live in separate maps, so draining one map and then the other
+   * files them in map order rather than in the order they were spoken — which
+   * is what put a turn's reasoning UNDERNEATH its answer on reload, while the
+   * live stream had shown it above.
+   */
+  opened: number
 }
 
 /** Per-source position, so ids stay stable while two agents interleave. */
@@ -89,6 +98,8 @@ export class EventProjector {
   private readonly openText = new Map<string, OpenText>()
   private readonly openReasoning = new Map<string, OpenText>()
   private readonly openTools = new Map<string, { name: string; args: string; member?: string }>()
+  /** Monotonic open counter; see {@link OpenText.opened}. */
+  private opens = 0
   private readonly pending: StoredNode[] = []
 
   constructor(options: EventProjectorOptions = {}) {
@@ -129,23 +140,29 @@ export class EventProjector {
    * @returns The nodes those blocks settle into.
    */
   settled(): readonly StoredNode[] {
-    const nodes: StoredNode[] = []
-    for (const [id, entry] of this.openText) {
-      nodes.push({
-        kind: 'text', id, text: entry.text, phase: entry.phase, streaming: false,
-        ...entry.incomplete ? { incomplete: true as const } : {},
-        ...entry.member === undefined ? {} : { member: entry.member },
-      })
-    }
+    const nodes = this.drain([...this.openText].map(entry => ({ id: entry[0], entry: entry[1], reasoning: false }))
+      .concat([...this.openReasoning].map(entry => ({ id: entry[0], entry: entry[1], reasoning: true }))))
     this.openText.clear()
-    for (const [id, entry] of this.openReasoning) {
-      nodes.push({
-        kind: 'reasoning', id, text: entry.text,
-        ...entry.member === undefined ? {} : { member: entry.member },
-      })
-    }
     this.openReasoning.clear()
     return nodes
+  }
+
+  /** Project open blocks into nodes, oldest first, whatever kind each one is. */
+  private drain(
+    open: readonly { readonly id: string; readonly entry: OpenText; readonly reasoning: boolean }[],
+  ): StoredNode[] {
+    return [...open]
+      .sort((left, right) => left.entry.opened - right.entry.opened)
+      .map(({ id, entry, reasoning }) => reasoning
+        ? {
+            kind: 'reasoning' as const, id, text: entry.text,
+            ...entry.member === undefined ? {} : { member: entry.member },
+          }
+        : {
+            kind: 'text' as const, id, text: entry.text, phase: entry.phase, streaming: false,
+            ...entry.incomplete ? { incomplete: true as const } : {},
+            ...entry.member === undefined ? {} : { member: entry.member },
+          })
   }
 
   /**
@@ -188,26 +205,24 @@ export class EventProjector {
    * transcript nodes sharing one id.
    */
   private closeText(member: string | undefined): WireEvent[] {
-    const events: WireEvent[] = []
+    const closing: { id: string; entry: OpenText; reasoning: boolean }[] = []
     for (const [id, entry] of [...this.openText]) {
       if (entry.member !== member) continue
       this.openText.delete(id)
-      this.pending.push({
-        kind: 'text', id, text: entry.text, phase: entry.phase, streaming: false,
-        ...entry.incomplete ? { incomplete: true as const } : {},
-        ...entry.member === undefined ? {} : { member: entry.member },
-      })
-      events.push({ t: 'text-end', id })
+      closing.push({ id, entry, reasoning: false })
     }
     for (const [id, entry] of [...this.openReasoning]) {
       if (entry.member !== member) continue
       this.openReasoning.delete(id)
-      this.pending.push({
-        kind: 'reasoning', id, text: entry.text,
-        ...entry.member === undefined ? {} : { member: entry.member },
-      })
+      closing.push({ id, entry, reasoning: true })
     }
-    return events
+    for (const node of this.drain(closing)) this.pending.push(node)
+    // `text-end` belongs to the text blocks only, and stays in the order those
+    // blocks were opened.
+    return closing
+      .filter(item => !item.reasoning)
+      .sort((left, right) => left.entry.opened - right.entry.opened)
+      .map(item => ({ t: 'text-end' as const, id: item.id }))
   }
 
   private project(event: AgentRunEvent, member: string | undefined): readonly WireEvent[] {
@@ -227,19 +242,22 @@ export class EventProjector {
         const phase = event.phase === 'commentary' || event.phase === 'final-answer'
           ? event.phase
           : current?.phase ?? 'unknown'
-        this.openText.set(id, { text: (current?.text ?? '') + event.text, phase, member })
+        this.openText.set(id, { text: (current?.text ?? '') + event.text, phase, member,
+          opened: current?.opened ?? this.opens++ })
         return [{ t: 'text-delta', id, text: event.text, phase: phase as 'commentary' | 'final-answer' | 'unknown', ...tag }]
       }
       case 'text-end': {
         const id = this.key(source, 't', event.index)
         const partial = event.incomplete ? { incomplete: true as const } : {}
-        this.openText.set(id, { text: event.text, phase: event.phase, member, ...partial })
+        this.openText.set(id, { text: event.text, phase: event.phase, member, ...partial,
+          opened: this.openText.get(id)?.opened ?? this.opens++ })
         return [{ t: 'text-end', id, text: event.text, phase: event.phase, ...tag, ...partial }]
       }
       case 'reasoning-delta': {
         const id = this.key(source, 'r', event.index)
         const current = this.openReasoning.get(id)
-        this.openReasoning.set(id, { text: (current?.text ?? '') + event.text, phase: 'reasoning', member })
+        this.openReasoning.set(id, { text: (current?.text ?? '') + event.text, phase: 'reasoning', member,
+          opened: current?.opened ?? this.opens++ })
         return [{ t: 'reasoning-delta', id, text: event.text, ...tag }]
       }
       case 'step-end':

@@ -106,16 +106,17 @@ id nằm trong allowlist **cộng** hai header editor.
 
 ## Embedding
 
-> **Chưa có.** `copilotEmbeddingPlugin` và entry point
-> `@alvin0/ai-agent-sdk-provider-copilot/embedding` **không tồn tại**. Adapter
-> embedding của Copilot đang bị chặn bởi phần `embedding-support`:
-> `@alvin0/ai-agent-sdk-core/embedding` hiện chưa là một export của core, nên
-> chưa có embedding runtime nào để một adapter Copilot đăng ký vào.
+> **Chưa có cho Copilot.** `copilotEmbeddingPlugin` và entry point
+> `@alvin0/ai-agent-sdk-provider-copilot/embedding` **không tồn tại**.
 
-`provider-copilot` hiện chỉ export `"."`. Danh mục Copilot đã tách các model
-embedding khỏi danh sách generation (`CopilotEmbeddingModel`), nên phía catalog đã
-sẵn sàng — nhưng chưa có gì để đăng ký. Cách đăng ký, và khác biệt usage so với
-các provider embedding khác, sẽ được ghi ở đây khi phần đó xong.
+Bản thân năng lực embedding đã có:
+[`@alvin0/ai-agent-sdk-core/embedding`](/vi/09-providers/embeddings) là một entry
+point của core, và cả OpenAI lẫn Gemini đều đã có embedding adapter. Thứ còn
+thiếu là một adapter cho Copilot. `provider-copilot` hiện chỉ export `"."`, và
+danh mục Copilot đã tách các model embedding khỏi danh sách generation
+(`CopilotEmbeddingModel`), nên phía catalog đã sẵn sàng — nhưng chưa có gì để
+đăng ký. Cách đăng ký, và khác biệt usage so với các provider embedding khác, sẽ
+được ghi ở đây khi phần đó xong.
 
 ## Đọc tiếp
 

@@ -29,6 +29,11 @@ Every provider package is Universal and requires an explicit credential. It neve
 reads environment variables or files — environment lookup belongs to a Node
 wrapper such as `@alvin0/ai-agent-sdk-auth-node`.
 
+The table above is the **generation** lineup. Embedding is a separate capability
+with its own plugin kind: `openAiEmbeddingPlugin()` and
+`geminiEmbeddingPlugin()` install beside a generation plugin on the same runtime.
+See [Embeddings](/en/09-providers/embeddings).
+
 ## Two registration styles
 
 **Plugin (recommended).** A transactional registration the runtime activates and
@@ -82,6 +87,51 @@ combined window.
 
 ## Configure context and output limits
 
+The SDK defaults to a standard-price operating context for verified model IDs on
+official endpoints. This is a working budget, not the model's technical maximum.
+Current built-in policies (reviewed 2026-09-13):
+
+| Route/model | Default operating context | Known combined technical ceiling |
+| --- | ---: | ---: |
+| OpenAI GPT-5.6 Luna, Sol, Terra | 272,000 | 1,050,000 |
+| Anthropic Opus 4.6/4.7/4.8/5, Sonnet 4.6/5, Fable 5/5.1, Mythos 5/5.1/Preview | 1,000,000 | 1,000,000 |
+| Gemini 2.5 Pro, 3.1 Pro Preview (including customtools) | 200,000 | Unknown: separate input/output limits |
+| Gemini 2.5 Flash, 3 Flash Preview | 1,000,000 | Unknown: separate input/output limits |
+| Unknown OpenAI / Anthropic / Gemini model | 128,000 / 200,000 / 200,000 | Unknown |
+
+Sources: [OpenAI Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna),
+[Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol),
+[Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra),
+[Claude context](https://platform.claude.com/docs/en/build-with-claude/context-windows),
+[Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing).
+These exact-ID policies do not advertise model availability or capabilities.
+Unknown aliases and custom base URLs do not inherit official endpoint policies.
+
+Precedence: explicit `models[].contextWindow`, then explicit provider
+`defaultContextWindow`, then the model's `defaultContextWindow`, then the provider
+fallback. `models[].defaultContextWindow`, `maxContextWindow`, and
+`standardPriceInputTokens` can describe a custom model policy. An override cannot
+raise a known official technical ceiling. Invalid numbers and windows above a
+known ceiling fail rather than being silently clamped.
+
+To deliberately opt into a larger context:
+
+```ts
+openAiPlugin({
+  apiKey,
+  models: [{ id: 'gpt-5.6-luna', contextWindow: 800_000 }],
+})
+```
+
+Resolved `ModelContext` exposes the effective `contextWindow`, known
+`defaultContextWindow`, `maxContextWindow`, and `standardPriceInputTokens`.
+When the operating window exceeds a known price threshold it also exposes
+`pricingWarning: 'extended-context-may-cost-more'`. This is an advisory metadata
+warning for hosts to display, not a console log or an assertion that this request
+will incur a surcharge. Unknown thresholds remain unknown. Compaction uses the
+effective operating window and the output reserve, with its existing safety ratio;
+this is not an exact-token billing guard and cannot guarantee the invoice.
+
 Declare these limits when creating the provider plugin or adapter. The built-in
 HTTP-based providers accept `models`, `defaultContextWindow`, and
 `defaultMaxTokens`. Model IDs and numbers below are illustrative, not a catalog
@@ -113,10 +163,14 @@ const agent = runtime.agent({
 
 | Setting | Meaning |
 | --- | --- |
-| `models[].contextWindow` | Combined input/output capacity for that exact model ID. |
-| `models[].maxTokens` | Both the default output budget and the SDK output ceiling for that model. |
-| `defaultContextWindow` | Fallback when the selected model has no declared context window. |
-| `defaultMaxTokens` | Fallback default and output ceiling when the selected model has no declared `maxTokens`. |
+| `models[].contextWindow` | Explicit combined input/output operating budget for that exact model ID. |
+| `models[].defaultContextWindow` | Model operating default before an explicit override. |
+| `models[].maxContextWindow` | Known technical ceiling, independent of the operating budget. |
+| `models[].standardPriceInputTokens` | Known input-token price threshold; not a combined context limit. |
+| `models[].maxTokens` | SDK output ceiling; also the default unless `models[].defaultMaxTokens` is set. |
+| `models[].defaultMaxTokens` | Default output budget for that exact model, independently of its ceiling. |
+| `defaultContextWindow` | Explicit provider operating override; built-in policies apply when omitted. |
+| `defaultMaxTokens` | Fallback output budget, not evidence of a model's hard output ceiling. |
 | Agent `maxTokens` | Output budget for the agent; may be lower than the model ceiling. |
 
 Fallback is per field, not just for models missing from the catalog. If provider
@@ -128,11 +182,41 @@ resolved default. Exceeding the declared ceiling rejects with
 `OUTPUT_TOKEN_LIMIT_EXCEEDED`; the SDK does not silently clamp the request.
 The output reservation must also be smaller than the combined context window.
 
-**Current catalog limitation:** `ProviderCatalogModel` has only `maxTokens`,
-not separate `defaultMaxTokens` and `maxOutputTokens` per model. Internally it
-populates both. A provider-level `defaultMaxTokens: 8192` does not lower the
-default for a model declaring `maxTokens: 16384`; set the agent's `maxTokens`
-to request less output.
+Use `models[].defaultMaxTokens` to keep a modest default while declaring a larger
+`maxTokens` ceiling. Without a declared ceiling, the SDK leaves it unknown;
+explicit larger requests remain subject to the context reservation check and
+server-side validation. Existing catalog entries with only `maxTokens` retain
+their previous default and ceiling.
+
+### Standard-price context versus extended context
+
+Do not automatically replace the operating context window with a model's largest
+advertised window. Extended context can have a higher price. Research checked
+on 2026-09-13: [OpenAI's GPT-5.6 Luna API model page](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
+lists 1,050,000 context tokens and 128,000 maximum output tokens, but input above
+272,000 tokens costs 2x input and 1.5x output for the full request.
+For a standard-price configuration on this API route, use:
+
+```ts
+models: [{
+  id: 'gpt-5.6-luna',
+  contextWindow: 272_000, // Operating budget, not the extended model maximum.
+  maxTokens: 128_000,
+  defaultMaxTokens: 32_000,
+}]
+```
+
+This example deliberately does not opt into extended context. The Codex endpoint
+is distinct: a live catalog check reported `context_window: 272000` and
+`max_context_window: 872000` for both Luna and `gpt-reserve`. Codex discovery uses
+the former, not the extended maximum; its unchanged fallback is 272,000. That
+catalog did not advertise an output ceiling, so do not copy the OpenAI API's
+128,000 ceiling to Codex. The Codex dialect does not send `max_output_tokens`.
+Copilot limits likewise come from its own catalog, not the upstream model page.
+
+The SDK's token estimates and compaction are not a billing guarantee. Keep a
+margin below the price threshold and do not disable compaction for a growing
+history when standard-price operation is required.
 
 When auto-compaction is enabled, the default pressure threshold is
 `min(contextWindow * 0.8, contextWindow - outputReserve)`. The reserve uses
@@ -143,6 +227,25 @@ an exact per-model tokenizer; overflow can still occur. Declaring these values
 does not increase server limits or make an unsupported wire parameter supported.
 
 ## Model discovery
+
+### Streaming usage snapshots
+
+Anthropic emits `usage-progress` from `message_start` and `message_delta` usage.
+These are cumulative snapshots for one attempt, not increments: replace the
+previous snapshot; do not add them together. Provider-attempt accounting supplies
+an `attemptId` when available, including across retries. The event is also exposed
+by agent sessions. Only the final `usage` event is a finalized token report.
+
+If the stream is aborted or truncated before `message_stop`, the last received
+snapshot remains in the attempt report with `coverage: 'partial'`, even if it
+contains input, output, and total counters. It cannot satisfy mandatory complete
+usage policies. A pre-content retry can still occur after usage progress; retries
+have distinct attempt IDs and are accounted separately.
+
+OpenAI Responses and Gemini Interactions continue to publish usage from terminal
+provider events. No provisional counts are fabricated for providers that do not
+send them. Usage progress does not become final message usage or increase final
+totals more than once.
 
 ```ts
 const catalog = await runtime.modelCatalog('openai')
@@ -203,5 +306,6 @@ supply their own cancellation boundary.
 ## Read next
 
 - [OpenAI](/en/09-providers/openai) · [Anthropic](/en/09-providers/anthropic) · [Codex](/en/09-providers/codex) · [Gemini](/en/09-providers/gemini) · [Copilot](/en/09-providers/copilot)
+- [Embeddings](/en/09-providers/embeddings) — the separate embedding capability
 - [Custom Provider](/en/09-providers/custom-provider) — any other endpoint
 - [Adapter pipeline](/en/11-internals/adapter-pipeline) — what the base class owns

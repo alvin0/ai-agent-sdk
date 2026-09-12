@@ -19,13 +19,19 @@
  *    published `inputTokens` must equal that independent sum — a `0` invented
  *    for an unreported batch would break the equality, while an honest `0`
  *    passes.
- * 3. Malformed usage is still evidence of a `Provider_Attempt`: the attempts of
+ * 3. Unreadable usage is still evidence of a `Provider_Attempt`: the attempts of
  *    a batch whose usage could not be read must still appear in
- *    `providerAttempts`, and the batch must raise exactly one `usage-malformed`
- *    warning rather than being dropped silently.
+ *    `providerAttempts`, and the batch must raise exactly one warning rather than
+ *    being dropped silently — `usage-malformed` when the provider reported
+ *    something unreadable, `usage-unreported` when it reported nothing at all.
+ *    The two codes are counted separately, so a batch that reported nothing can
+ *    neither be silent nor be described as having sent a malformed report.
  * 4. `inputsFromCache + inputsFromProvider === inputCount` holds for every
  *    generated shape, including batches that name indexes outside the
  *    `Logical_Call` range.
+ * 5. The generation path keeps its current behaviour: the real SSE pipeline of
+ *    `packages/provider-http` emits a `usage` chunk only for a complete report
+ *    (Requirement 13.10). See the last describe block.
  *
  * The raw payloads come from the shared negative fixture
  * `tests/negative-fixtures/embedding/bad-usage.ts` rather than being restated
@@ -54,6 +60,8 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
+import { createRuntimeHttpProvider, defineWireProtocol } from '@alvin0/ai-agent-sdk-provider-http'
 import {
   aggregateEmbeddingUsage,
   type EmbeddingBatchUsageEvidence,
@@ -180,6 +188,7 @@ interface ExpectedAggregate {
   readonly providerAttempts: number
   readonly inputsFromProvider: number
   readonly malformedBatches: number
+  readonly unreportedBatches: number
   readonly inputTokens: number
   readonly everyReadableBatchHasTotal: boolean
   readonly totalTokens: number
@@ -189,6 +198,7 @@ function expectedOf(batches: readonly GeneratedBatch[], inputCount: number): Exp
   let batchesWithUsage = 0
   let providerAttempts = 0
   let malformedBatches = 0
+  let unreportedBatches = 0
   let inputTokens = 0
   let totalTokens = 0
   let everyReadableBatchHasTotal = true
@@ -201,8 +211,9 @@ function expectedOf(batches: readonly GeneratedBatch[], inputCount: number): Exp
     }
     const reported = batch.expectedReported
     // A present payload warns whenever anything about it was unreadable, even if
-    // a good bucket survived. Absence is silence here, not a warning.
-    if (!batch.absent && (reported === undefined || batch.rejectedFields)) malformedBatches += 1
+    // a good bucket survived. Absence warns too, under its own code.
+    if (batch.absent) unreportedBatches += 1
+    else if (reported === undefined || batch.rejectedFields) malformedBatches += 1
     if (reported === undefined) continue
     batchesWithUsage += 1
     inputTokens += reported.inputTokens
@@ -218,6 +229,7 @@ function expectedOf(batches: readonly GeneratedBatch[], inputCount: number): Exp
     providerAttempts,
     inputsFromProvider: seen.size,
     malformedBatches,
+    unreportedBatches,
     inputTokens,
     everyReadableBatchHasTotal,
     totalTokens,
@@ -270,8 +282,21 @@ describe('Property 39: incomplete usage never escapes as a published number', ()
 
       // Half 3: unreadable usage stays evidence of a Provider_Attempt.
       expect(report.providerAttempts).toBe(expected.providerAttempts)
-      expect(warnings).toHaveLength(expected.malformedBatches)
-      for (const warning of warnings) expect(warning.code).toBe('usage-malformed')
+      expect(warnings).toHaveLength(expected.malformedBatches + expected.unreportedBatches)
+      const codes = { malformed: 0, unreported: 0 }
+      for (const warning of warnings) {
+        expect(['usage-malformed', 'usage-unreported']).toContain(warning.code)
+        if (warning.code === 'usage-malformed') codes.malformed += 1
+        else codes.unreported += 1
+      }
+      // Each batch that produced no publishable count says why, in its own terms:
+      // silence from the provider is never reported as a malformed payload.
+      expect({ ...context, ...codes })
+        .toEqual({
+          ...context,
+          malformed: expected.malformedBatches,
+          unreported: expected.unreportedBatches,
+        })
 
       // Half 4: the two input buckets always reconstruct the call.
       expect(report.inputsFromProvider).toBe(expected.inputsFromProvider)
@@ -298,8 +323,10 @@ describe('Property 39: incomplete usage never escapes as a published number', ()
       // The failed batch is still counted: its attempts survive.
       expect({ name: badCase.name, attempts: report.providerAttempts })
         .toEqual({ name: badCase.name, attempts: 5 })
-      if (!publishable && badCase.payload !== undefined) {
-        expect(warnings.map(warning => warning.code)).toEqual(['usage-malformed'])
+      if (!publishable) {
+        // Same absence of a publishable count, two different provider facts.
+        expect(warnings.map(warning => warning.code))
+          .toEqual([badCase.payload === undefined ? 'usage-unreported' : 'usage-malformed'])
         expect(warnings[0]?.itemIndexes).toEqual([1])
       }
     }
@@ -344,6 +371,28 @@ describe('aggregateEmbeddingUsage against the shared status fixture', () => {
     })
   }
 
+  it('reports missing plus usage-unreported for a provider that reports no usage at all', () => {
+    // Gemini's `batchEmbedContents` is exactly this shape: every dispatched batch
+    // comes back without usage.
+    const { report, warnings } = aggregateEmbeddingUsage({
+      inputCount: 3,
+      batches: [
+        { itemIndexes: [0, 1], attempts: 1 },
+        { itemIndexes: [2], attempts: 2 },
+      ],
+    })
+    expect(report.status).toBe('missing')
+    expect(report).not.toHaveProperty('tokens')
+    expect(report.batchesWithUsage).toBe(0)
+    // The absence is not free: the attempts it cost are still reported.
+    expect(report.providerAttempts).toBe(3)
+    expect(report.inputsFromProvider).toBe(3)
+    expect(report.inputsFromCache).toBe(0)
+    expect(warnings.map(warning => warning.code))
+      .toEqual(['usage-unreported', 'usage-unreported'])
+    expect(warnings.map(warning => warning.itemIndexes)).toEqual([[0, 1], [2]])
+  })
+
   it('reports missing with no tokens for a call served entirely from cache', () => {
     const { report, warnings } = aggregateEmbeddingUsage({ inputCount: 4, batches: [] })
     expect(report.status).toBe('missing')
@@ -360,5 +409,130 @@ describe('aggregateEmbeddingUsage against the shared status fixture', () => {
     expect(classifyEmbeddingUsageStatus(2, 0)).toBe('missing')
     expect(classifyEmbeddingUsageStatus(2, 1)).toBe('partial')
     expect(classifyEmbeddingUsageStatus(2, 2)).toBe('complete')
+  })
+})
+// ---------------------------------------------------------------------------
+// Property 39, generation half
+// ---------------------------------------------------------------------------
+
+/**
+ * The fourth half of the claim: the generation path keeps its current behaviour
+ * of not emitting a `TokenUsage` while usage is incomplete (Requirement 13.10).
+ *
+ * This runs the real SSE pipeline of `packages/provider-http` — a wire protocol
+ * that turns each event's JSON into a `usage` chunk — so the gate under test is
+ * the one in `base/http-adapter.ts`, not a re-description of it.
+ *
+ * The oracle is the generator's own table, not `validateUsageCounters`: each
+ * payload declares what the pipeline is allowed to publish, so a change that
+ * loosened the gate could not be masked by the validator agreeing with itself.
+ *
+ * The other side of Requirement 13.10 — an incomplete report still being
+ * evidence of a `Provider_Attempt` — is covered end to end by
+ * `tests/unit/provider-http/final-review-accounting.spec.ts`, which asserts a
+ * `{ inputTokens: 100 }` attempt survives in the ledger while never becoming an
+ * authoritative total. It is not restated here.
+ */
+interface GenerationUsageCase {
+  readonly name: string
+  readonly payload: unknown
+  /** Absent when the pipeline must publish nothing at all. */
+  readonly published?: Readonly<Record<string, number>>
+}
+
+const GENERATION_USAGE_CASES: readonly GenerationUsageCase[] = Object.freeze([
+  {
+    name: 'both buckets with a consistent total',
+    payload: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+    published: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+  },
+  {
+    name: 'both buckets, total derived',
+    payload: { inputTokens: 5, outputTokens: 2 },
+    published: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+  },
+  {
+    // An honest zero is publishable. This is why "no fabricated 0" cannot be
+    // tested by asserting the absence of zeros.
+    name: 'honest zeros',
+    payload: { inputTokens: 0, outputTokens: 0 },
+    published: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+  },
+  {
+    name: 'cache buckets included in the derived total',
+    payload: { inputTokens: 5, outputTokens: 2, cacheReadTokens: 3 },
+    published: { inputTokens: 5, outputTokens: 2, cacheReadTokens: 3, totalTokens: 10 },
+  },
+  { name: 'input bucket only', payload: { inputTokens: 5 } },
+  { name: 'output bucket only', payload: { outputTokens: 5 } },
+  { name: 'no counters at all', payload: {} },
+  { name: 'string counter', payload: { inputTokens: '5', outputTokens: 2 } },
+  { name: 'negative counter', payload: { inputTokens: -1, outputTokens: 2 } },
+  { name: 'fractional counter', payload: { inputTokens: 1.5, outputTokens: 2 } },
+  { name: 'null counter', payload: { inputTokens: 5, outputTokens: null } },
+  { name: 'total below the disjoint buckets', payload: { inputTokens: 5, outputTokens: 2, totalTokens: 3 } },
+  { name: 'reasoning above output', payload: { inputTokens: 5, outputTokens: 2, reasoningTokens: 9 } },
+  {
+    name: 'counter past safe-integer precision',
+    payload: { inputTokens: Number.MAX_SAFE_INTEGER, outputTokens: 2 },
+  },
+])
+
+const usageProtocol = defineWireProtocol({
+  id: 'usage-honesty',
+  defaultDialect: {},
+  endpointPath: () => '/stream',
+  serialize: () => ({}),
+  async *translate(events) {
+    for await (const event of events) {
+      if (event.data === 'finish') {
+        yield { type: 'finish' as const, reason: { kind: 'stop' as const } }
+        continue
+      }
+      yield { type: 'usage' as const, usage: JSON.parse(event.data) as never }
+    }
+  },
+})
+
+async function streamUsageChunks(payload: unknown): Promise<StreamChunk[]> {
+  const adapter = createRuntimeHttpProvider({
+    displayName: 'Usage honesty',
+    protocol: usageProtocol,
+    baseUrl: 'https://usage-honesty.invalid',
+    auth: { kind: 'none' },
+    fetch: async () => new Response(
+      `data: ${JSON.stringify(payload)}\n\ndata: finish\n\n`,
+      { headers: { 'content-type': 'text/event-stream' } },
+    ),
+  })
+  const chunks: StreamChunk[] = []
+  for await (const chunk of adapter.stream({ provider: 'usage-honesty', model: 'model', messages: [] })) {
+    chunks.push(chunk)
+  }
+  return chunks
+}
+
+describe('Property 39: the generation path publishes no TokenUsage while usage is incomplete', () => {
+  it(`holds for ${RUNS} generated streams`, async () => {
+    for (let run = 0; run < RUNS; run += 1) {
+      const seed = 0x39_1000 + run
+      const rng = rngOf(seed)
+      const usageCase = pick(rng, GENERATION_USAGE_CASES)
+      const chunks = await streamUsageChunks(usageCase.payload)
+      const published = chunks.filter(chunk => chunk.type === 'usage')
+      const context = { seed, case: usageCase.name }
+
+      expect({ ...context, count: published.length })
+        .toEqual({ ...context, count: usageCase.published === undefined ? 0 : 1 })
+      // The stream stays intact either way: the gate drops the report, not the turn.
+      expect({ ...context, terminal: chunks.at(-1)?.type }).toEqual({ ...context, terminal: 'finish' })
+
+      if (usageCase.published !== undefined) {
+        // Exact equality, so a bucket the provider never reported cannot appear
+        // as a 0 and a reported bucket cannot be silently dropped.
+        expect({ ...context, usage: (published[0] as { usage: unknown }).usage })
+          .toEqual({ ...context, usage: usageCase.published })
+      }
+    }
   })
 })

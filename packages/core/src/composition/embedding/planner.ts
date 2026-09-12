@@ -44,13 +44,8 @@ function measure(
   item: EmbeddingItem,
   estimateTokens: (text: string) => number,
 ): { tokens: number; bytes: number } {
-  let tokens = 0
-  let bytes = 0
-  for (const part of item.contentParts) {
-    tokens += estimateTokens(part.text)
-    bytes += ENCODER.encode(part.text).byteLength
-  }
-  return { tokens, bytes }
+  const text = item.contentParts.map(part => part.text).join('')
+  return { tokens: estimateTokens(text), bytes: ENCODER.encode(text).byteLength }
 }
 
 /**

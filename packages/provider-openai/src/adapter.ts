@@ -30,6 +30,7 @@ import {
   openAiResponsesProtocol,
   type ResponsesDialect,
 } from '@alvin0/ai-agent-sdk-protocol-responses'
+import { openAiContextPolicy } from './context-policy.ts'
 
 /** The OpenAI API base. */
 export const OPENAI_BASE_URL = 'https://api.openai.com/v1'
@@ -94,6 +95,7 @@ export function openAiAdapter(options: OpenAiAdapterOptions): HttpModelAdapter {
 
   return createHttpProvider({
     displayName: 'OpenAI',
+    describeModel: openAiContextPolicy(options),
     protocol: openAiResponsesProtocol,
     baseUrl: options.baseUrl ?? OPENAI_BASE_URL,
     auth: {
@@ -171,6 +173,7 @@ function legacyOpenAiPlugin(options: OpenAiPluginOptions): ModelProviderPlugin {
 
 function createRuntimeOpenAiAdapter(options: OpenAiProviderOptions): HttpModelAdapter {
   return createRuntimeHttpProvider({
+    describeModel: openAiContextPolicy(options),
     displayName: 'OpenAI',
     protocol: openAiResponsesProtocol,
     baseUrl: options.baseUrl ?? OPENAI_BASE_URL,

@@ -125,6 +125,7 @@ export type AgentEvent = TraceEvent
   | ({ readonly type: 'tool-result'; readonly call: ToolCallRequest; readonly result: ToolExecutionResult } & Traced)
   | ({ readonly type: 'approval-request'; readonly request: ApprovalRequest } & Traced)
   | ({ readonly type: 'usage'; readonly usage: TokenUsage } & Traced)
+  | ({ readonly type: 'usage-progress'; readonly usage: import('../../observation/usage.ts').UsageCounters; readonly attemptId?: string } & Traced)
   | ({ readonly type: 'step-end'; readonly turn: number; readonly step: number } & Traced)
   | ({ readonly type: 'turn-end'; readonly outcome: TurnOutcome } & Traced)
 

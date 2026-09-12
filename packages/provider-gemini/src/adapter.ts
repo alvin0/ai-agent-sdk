@@ -19,6 +19,7 @@ import {
   geminiInteractionsProtocol,
   type GeminiInteractionsDialect,
 } from '@alvin0/ai-agent-sdk-protocol-gemini-interactions'
+import { geminiContextPolicy } from './context-policy.ts'
 
 /** Google Gemini API v1beta base. The protocol appends only `/interactions`. */
 export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
@@ -30,7 +31,7 @@ export interface GeminiAdapterOptions {
   apiKey: GeminiCredential
   /** Endpoint base; defaults to {@link GEMINI_BASE_URL}. */
   baseUrl?: string
-  /** Advisory catalog. No model ids are built in, so the list cannot become stale. */
+  /** Advisory catalog; built-in context policies do not advertise model availability. */
   models?: readonly ProviderCatalogModel[]
   /** Whether Google may retain interactions. Defaults to false. */
   store?: boolean
@@ -53,6 +54,7 @@ export interface GeminiAdapterOptions {
 export function geminiAdapter(options: GeminiAdapterOptions): HttpModelAdapter {
   return createHttpProvider({
     displayName: 'Gemini',
+    describeModel: geminiContextPolicy(options),
     protocol: geminiInteractionsProtocol,
     baseUrl: options.baseUrl ?? GEMINI_BASE_URL,
     auth: {
@@ -62,7 +64,7 @@ export function geminiAdapter(options: GeminiAdapterOptions): HttpModelAdapter {
     dialect: dialectOf(options),
     ...(options.models === undefined ? {} : { models: options.models }),
     defaultMaxTokens: options.defaultMaxTokens ?? 8_192,
-    defaultContextWindow: options.defaultContextWindow ?? 1_000_000,
+    defaultContextWindow: options.defaultContextWindow ?? 200_000,
     ...(options.streamIdleTimeoutMs === undefined ? {} : { streamIdleTimeoutMs: options.streamIdleTimeoutMs }),
     ...transportLimits(options),
     ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),
@@ -119,6 +121,7 @@ function legacyGeminiPlugin(options: GeminiPluginOptions): ModelProviderPlugin {
 
 function createRuntimeGeminiAdapter(options: GeminiProviderOptions): HttpModelAdapter {
   return createRuntimeHttpProvider({
+    describeModel: geminiContextPolicy(options),
     displayName: 'Gemini',
     protocol: geminiInteractionsProtocol,
     baseUrl: options.baseUrl ?? GEMINI_BASE_URL,
@@ -129,7 +132,7 @@ function createRuntimeGeminiAdapter(options: GeminiProviderOptions): HttpModelAd
     dialect: dialectOf(options),
     ...(options.models === undefined ? {} : { models: options.models }),
     defaultMaxTokens: options.defaultMaxTokens ?? 8_192,
-    defaultContextWindow: options.defaultContextWindow ?? 1_000_000,
+    defaultContextWindow: options.defaultContextWindow ?? 200_000,
     ...(options.streamIdleTimeoutMs === undefined ? {} : { streamIdleTimeoutMs: options.streamIdleTimeoutMs }),
     ...transportLimits(options),
     ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),

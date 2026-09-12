@@ -43,6 +43,11 @@ export function validateStreamChunk(chunk: StreamChunk, maxBlockNodes: number): 
       }
       validateContentBlock(chunk.block, maxBlockNodes)
       return
+    case 'usage-progress':
+      for (const key of ['inputTokens', 'outputTokens', 'totalTokens', 'cacheReadTokens', 'cacheWriteTokens', 'reasoningTokens'] as const) {
+        if (chunk.usage[key] !== undefined) validateUsageCount(chunk.usage[key], key)
+      }
+      return
     case 'usage':
       validateUsageCount(chunk.usage.inputTokens, 'inputTokens')
       validateUsageCount(chunk.usage.outputTokens, 'outputTokens')

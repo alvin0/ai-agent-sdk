@@ -39,6 +39,7 @@ import type {
 } from '@alvin0/ai-agent-sdk-provider-http'
 import {
   createHttpProvider,
+  createModelContextPolicy,
   createRuntimeHttpProvider,
   observeCredentialOperation,
   type ModelDiscoveryContext,
@@ -86,7 +87,10 @@ interface WireCatalogModel {
   description?: string
   input_modalities?: string[]
   output_modalities?: string[]
+  // Use the route's operating window, never the optional max_context_window:
+  // extended context can enter a higher-priced tier and must be an explicit choice.
   context_window?: number
+  max_context_window?: number
   default_reasoning_level?: string
   supported_reasoning_levels?: Array<{
     effort?: string
@@ -240,8 +244,11 @@ async function discoverCodexModels(
       ...modalities.length > 0 ? { inputModalities: modalities } : {},
       ...outputModalities.length > 0 ? { outputModalities } : {},
       ...typeof entry.context_window === 'number' && Number.isSafeInteger(entry.context_window) && entry.context_window > 0
-        ? { contextWindow: entry.context_window }
+        ? { defaultContextWindow: entry.context_window }
         : {},
+      ...typeof entry.max_context_window === 'number' && Number.isSafeInteger(entry.max_context_window)
+        && entry.max_context_window >= (entry.context_window ?? 1)
+        ? { maxContextWindow: entry.max_context_window } : {},
       ...efforts.length === 0 ? {} : {
         reasoning: {
           efforts,
@@ -298,6 +305,7 @@ function legacyCodexAdapter(
   }
 
   return createHttpProvider({
+    describeModel: createModelContextPolicy({}, options.models, options.defaultContextWindow),
     displayName: 'Codex',
     protocol: openAiResponsesProtocol,
     baseUrl: options.baseUrl ?? CODEX_BASE_URL,
@@ -389,6 +397,7 @@ function runtimeCodexAdapter(
   }
 
   return createRuntimeHttpProvider({
+    describeModel: createModelContextPolicy({}, options.models, options.defaultContextWindow),
     displayName: 'Codex',
     protocol: openAiResponsesProtocol,
     baseUrl: options.baseUrl ?? CODEX_BASE_URL,

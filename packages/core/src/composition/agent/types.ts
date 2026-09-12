@@ -103,6 +103,33 @@ export interface RuntimeAgentSessionOptions {
 }
 
 export interface RuntimeAgentInvocationOptions {
+  /**
+   * Model for THIS invocation only.
+   *
+   * The agent's bound target is unchanged — `agent.model` still reports it, and
+   * the next call without an override uses it again — so one session can put
+   * successive turns on different models without becoming a different agent.
+   * Resolved against the same configured routes as the binding, with the same
+   * failures (`MODEL_ROUTE_UNKNOWN`, `MODEL_DEFAULT_MISSING`), and resolved
+   * before the run acquires anything, so a bad target costs no I/O. Route-only
+   * (`{ provider }`) takes that route's configured default model.
+   *
+   * The target is frozen for the run it starts: every step of that turn reaches
+   * the same model. There is deliberately no fallback to another model when the
+   * chosen one fails — the failure is raised to the caller.
+   */
+  readonly model?: { readonly provider: string; readonly id?: string }
+  /**
+   * Reasoning effort for this invocation only.
+   *
+   * Alone it re-runs the agent's own model at a different effort. With `model`
+   * it applies to that model. Omitted alongside a `model` that differs from the
+   * binding, the agent's effort is NOT carried over: an effort belongs to the
+   * ladder of the model that offers it, and the route decides the default.
+   */
+  readonly effort?: string
+  /** Output ceiling for this invocation only; dropped like `effort` on a model switch. */
+  readonly maxTokens?: number
   /** One schema adapter supplies the provider schema and a synchronous runtime validator. */
   readonly structuredOutput?: {
     readonly name: string
@@ -149,6 +176,7 @@ export type RuntimeAgentRunEvent = RuntimeAgentRunEventContext & (
   | { readonly type: 'user-input-request'; readonly request: UserInputRequest }
   | { readonly type: 'user-input-response'; readonly requestId: string; readonly response: UserInputDecision }
   | { readonly type: 'usage'; readonly usage: RuntimeRunReport['usage']; readonly report: RuntimeRunReport }
+  | { readonly type: 'usage-progress'; readonly usage: import('../../observation/usage.ts').UsageCounters; readonly attemptId?: string }
   | { readonly type: 'error'; readonly error: RuntimeRunReport['errors'][number]; readonly report: RuntimeRunReport }
 )
 

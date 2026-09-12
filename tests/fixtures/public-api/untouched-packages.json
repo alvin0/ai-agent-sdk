@@ -371,7 +371,7 @@
           "withIdleTimeout",
           "withRetry"
         ],
-        "declarationSha256": "dd8c07d3ef87e523064ff1b07c24a26102f95f011013e719056cfcdbe9f67065"
+        "declarationSha256": "7a3e72047edec5b0c2ef36ce7976fd4200e2ed74d141cd4d5dbfff826b68594d"
       },
       "./agent": {
         "exports": [
@@ -741,7 +741,7 @@
           "defineEmbeddingProviderPlugin",
           "defineModelProviderPlugin"
         ],
-        "declarationSha256": "1b56bef4aef63a10a8777cb79db6bd421700bcfaf3cefd296a9b27086a6c120b"
+        "declarationSha256": "920201eef7636882b38c13fc69a149bb9d6366040c9d02a83ce8bf8f880eb421"
       },
       "./skills": {
         "exports": [
@@ -950,14 +950,23 @@
           "DEFAULT_REQUEST_LOGGER_TIMEOUT_MS",
           "DEFAULT_REQUEST_TIMEOUT_MS",
           "DEFAULT_STREAM_IDLE_TIMEOUT_MS",
+          "EmbeddingCatalogModel",
+          "EmbeddingHttpConnection",
           "HTTP_PROTOCOL_API_VERSION",
           "HTTP_PROVIDER_ERROR_CODES",
           "HttpAuthResolveOptions",
           "HttpConnection",
           "HttpModelAdapter",
           "HttpProviderOptions",
+          "HttpTransportConnection",
+          "HttpTransportRequestInput",
+          "HttpTransportSession",
+          "JSON_MEDIA_TYPES",
+          "ModelContextPolicy",
+          "ModelContextPolicyOptions",
           "ModelDiscoveryContext",
           "ParsedErrorBody",
+          "PreparedWireBody",
           "ProtocolRequest",
           "ProtocolSseEvent",
           "ProtocolStreamChunk",
@@ -965,19 +974,26 @@
           "ProviderRequest",
           "ProviderRequestLogRecord",
           "ProviderRequestLogger",
+          "ResolvedTransportLimits",
           "RuntimeAuthScheme",
           "RuntimeCredentialSource",
           "RuntimeHttpProviderOptions",
           "RuntimeModelDiscoveryContext",
           "RuntimeWireProtocol",
           "SseEvent",
+          "WireBodySource",
           "WireProtocol",
           "WireProtocolChunk",
           "WireProtocolDefinition",
+          "applyModelContextPolicy",
+          "captureTransportConnection",
           "createHttpProvider",
+          "createModelContextPolicy",
           "createRuntimeHttpProvider",
           "defineWireProtocol",
+          "embeddingCatalogModelInfo",
           "httpErrorCode",
+          "isJsonMediaType",
           "observeCredentialOperation",
           "observeModelCatalogOperation",
           "parseErrorBody",
@@ -985,9 +1001,12 @@
           "redactHeaders",
           "requestIdFrom",
           "resolveDialect",
-          "retryAfterMs"
+          "resolveTransportLimits",
+          "resolvedEmbeddingCatalogModelInfo",
+          "retryAfterMs",
+          "transportJson"
         ],
-        "declarationSha256": "36779475b6fddae3fa1c9998cd6299248fb5c9918e11af88e96775266f50aa7d"
+        "declarationSha256": "0e4284daa41894c6ca89c21325eba1bcdad973388f83862933932de18271c129"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-responses": {
@@ -1117,30 +1136,38 @@
           "OPENAI_BASE_URL",
           "OpenAiAdapterOptions",
           "OpenAiCredential",
+          "OpenAiEmbeddingProviderOptions",
           "OpenAiPluginOptions",
           "OpenAiProviderOptions",
           "ResponsesDialect",
           "openAiAdapter",
+          "openAiEmbeddingAdapter",
+          "openAiEmbeddingPlugin",
           "openAiPlugin",
           "openAiResponsesProtocol"
         ],
-        "declarationSha256": "a3f8bc602a0e4a72d97866fd0374155fe906f5d0c40ceeb1c576c3d0e03c4435"
+        "declarationSha256": "35f61bb3857491cb123f8990b2f6e7332e0707c87df46299cd5a4c2e98460274"
       }
     },
     "@alvin0/ai-agent-sdk-provider-gemini": {
       ".": {
         "exports": [
           "GEMINI_BASE_URL",
+          "GEMINI_EMBEDDING_BASE_URL",
+          "GEMINI_EMBEDDING_MODELS",
           "GeminiAdapterOptions",
           "GeminiCredential",
+          "GeminiEmbeddingProviderOptions",
           "GeminiInteractionsDialect",
           "GeminiPluginOptions",
           "GeminiProviderOptions",
           "geminiAdapter",
+          "geminiEmbeddingAdapter",
+          "geminiEmbeddingPlugin",
           "geminiInteractionsProtocol",
           "geminiPlugin"
         ],
-        "declarationSha256": "a90639066f40741ec8bc22d3197e029b9ec61fa3394781227c01d0306f071b8c"
+        "declarationSha256": "069653a75d06857c4e109c8424b7ca1eaf5452a51539ceaf65c66fc90d1a5534"
       }
     }
   }

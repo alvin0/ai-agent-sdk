@@ -29,6 +29,7 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('artifacts',{recursive:true,force:true})\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "pack": "pnpm pack --pack-destination artifacts",
     "test:pack": "node ../../scripts/test-packed-provider.mts provider-gemini",
     "check:publint": "publint",

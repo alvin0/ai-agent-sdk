@@ -153,16 +153,23 @@ export async function readEmbeddingCacheEntry(
   cache: EmbeddingCacheOptions,
   key: string,
   space: EmbeddingSpaceId,
+  dimensions?: number,
 ): Promise<EmbeddingCacheEntry | undefined> {
-  let entry: EmbeddingCacheEntry | undefined
   try {
-    entry = await cache.store.get(key)
+    const entry = await cache.store.get(key)
+    if (entry === null || typeof entry !== 'object' || entry.space !== space) return undefined
+    const values = entry.values
+    if (!Array.isArray(values) || values.length === 0
+      || (dimensions !== undefined && dimensions > 0 && values.length !== dimensions)) return undefined
+    const snapshot: number[] = []
+    for (const value of values) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+      snapshot.push(value)
+    }
+    return Object.freeze({ space, values: Object.freeze(snapshot) })
   } catch {
     return undefined
   }
-  if (entry === undefined) return undefined
-  if (entry.space !== space) return undefined
-  return entry
 }
 
 /**
@@ -178,7 +185,7 @@ export async function writeEmbeddingCacheEntry(
   entry: EmbeddingCacheEntry,
 ): Promise<void> {
   try {
-    await cache.store.set(key, entry)
+    await cache.store.set(key, Object.freeze({ space: entry.space, values: Object.freeze([...entry.values]) }))
   } catch {
     // Intentionally ignored: the vector is already computed and returned.
   }

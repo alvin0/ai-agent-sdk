@@ -13,6 +13,7 @@
 
 import type { ModelInfo, ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core'
 import type { ProviderCatalogModel } from './http-adapter.ts'
+import { applyModelContextPolicy } from './context-policy.ts'
 
 /** Shared HTTP primitives live in the transport; re-exported for existing callers. */
 export {
@@ -52,14 +53,14 @@ export function resolvedCatalogModelInfo(
   defaultContextWindow: number,
 ): ResolvedModelInfo {
   const configured = models.find(entry => entry.id === modelId)
-  return {
+  return applyModelContextPolicy({
     ...(configured === undefined
       ? { provider, id: modelId, name: modelId, inputModalities: ['text' as const] }
       : catalogModelInfo(provider, configured)),
     context: { contextWindow: configured?.contextWindow ?? defaultContextWindow },
-    defaultMaxTokens: configured?.maxTokens ?? defaultMaxTokens,
-    maxOutputTokens: configured?.maxTokens ?? defaultMaxTokens,
+    defaultMaxTokens: configured?.defaultMaxTokens ?? configured?.maxTokens ?? defaultMaxTokens,
+    ...(configured?.maxTokens === undefined ? {} : { maxOutputTokens: configured.maxTokens }),
     ...(configured?.reasoning === undefined ? {} : { reasoning: configured.reasoning }),
     ...(configured?.outputModalities === undefined ? {} : { outputModalities: configured.outputModalities }),
-  }
+  }, undefined, configured)
 }

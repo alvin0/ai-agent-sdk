@@ -108,14 +108,14 @@ client id **and** two editor headers.
 
 ## Embedding
 
-> **Not available yet.** `copilotEmbeddingPlugin` and the
+> **Not available for Copilot.** `copilotEmbeddingPlugin` and the
 > `@alvin0/ai-agent-sdk-provider-copilot/embedding` entry point **do not exist**.
-> The Copilot embedding adapter is blocked on the `embedding-support` work:
-> `@alvin0/ai-agent-sdk-core/embedding` is not a core export today, so there is no
-> embedding runtime for a Copilot adapter to register against.
 
-`provider-copilot` currently exports `"."` only. Copilot's catalog already
-partitions embedding models out of the generation lineup
+The embedding capability itself shipped:
+[`@alvin0/ai-agent-sdk-core/embedding`](/en/09-providers/embeddings) is a core
+entry point, and OpenAI and Gemini both have embedding adapters. What is missing
+is a Copilot one. `provider-copilot` exports `"."` only, and Copilot's catalog
+already partitions embedding models out of the generation lineup
 (`CopilotEmbeddingModel`), so the catalog side is in place — but there is nothing
 to register yet. Registration, and how Copilot's usage differs from the other
 embedding providers, gets documented here once that lands.

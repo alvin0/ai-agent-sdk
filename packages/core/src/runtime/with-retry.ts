@@ -7,8 +7,8 @@
  * and holds its attempt count in the call's own closure.
  *
  * That relocation brings one hard constraint, and it is the thing to understand
- * about this module: a retry may only happen while NOTHING has been yielded
- * downstream yet. Once a text delta has reached the consumer, re-running the
+ * about this module: a retry may only happen before response content is yielded.
+ * Provisional usage snapshots are the only exception. Once a text delta has reached the consumer, re-running the
  * request would replay those tokens and the consumer would render them twice.
  * So a failure that arrives mid-stream is forwarded, not retried  Erecovering
  * from it requires re-running the whole turn, which only the caller can decide.
@@ -185,7 +185,7 @@ class RetryingAdapter extends ModelAdapter {
     let retries = 0
 
     while (true) {
-      const attempt = await this.runAttempt(options, dispatch)
+      const attempt = yield* this.runAttempt(options, dispatch)
       if (attempt.kind === 'forward') {
         yield* attempt.chunks
         return
@@ -245,17 +245,17 @@ class RetryingAdapter extends ModelAdapter {
   }
 
   /**
-   * Run one attempt WITHOUT yielding anything downstream.
+   * Run one attempt, forwarding only provisional usage before committing content.
    *
    * Buffering is what makes retry safe: until the attempt either produces its
-   * first chunk or fails, nothing has been committed to the consumer. Once a
+   * first non-progress chunk or fails, no content has been committed. Once that
    * chunk exists the attempt is no longer retryable, so it switches to
    * `forward` and streams the rest through untouched.
    */
-  private async runAttempt(
+  private async *runAttempt(
     options: GenerateOptions,
     dispatch: (request: GenerateOptions) => AsyncIterable<StreamChunk>,
-  ): Promise<
+  ): AsyncGenerator<StreamChunk,
     | { kind: 'forward'; chunks: AsyncIterable<StreamChunk> }
     | { kind: 'retryable'; failure: ModelFailure }
   > {
@@ -269,6 +269,18 @@ class RetryingAdapter extends ModelAdapter {
     let first: IteratorResult<StreamChunk>
     try {
       first = await iterator.next()
+      // Provisional accounting is not response content: preserve pre-content
+      // retries while allowing the caller to observe usage as it arrives.
+      while (!first.done && first.value.type === 'usage-progress') {
+        let resumed = false
+        try {
+          yield first.value
+          resumed = true
+        } finally {
+          if (!resumed) await closeIterator(iterator, this.options.teardownTimeoutMs ?? 30_000)
+        }
+        first = await iterator.next()
+      }
     } catch (error: unknown) {
       await closeIterator(iterator, this.options.teardownTimeoutMs ?? 30_000)
       return { kind: 'retryable', failure: normalizeModelFailure(error) }

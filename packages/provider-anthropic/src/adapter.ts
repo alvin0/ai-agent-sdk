@@ -10,6 +10,7 @@
 
 import type { ModelReasoningInfo } from '@alvin0/ai-agent-sdk-core'
 import type { ModelProviderPlugin, ModelProviderRegistrar, RetryPolicyConfig } from '@alvin0/ai-agent-sdk-core'
+import { anthropicContextPolicy } from './context-policy.ts'
 import { ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
 import {
   defineModelProviderPlugin,
@@ -108,6 +109,7 @@ export interface AnthropicAdapterOptions {
  * @returns the adapter, ready to register.
  */
 export function anthropicAdapter(options: AnthropicAdapterOptions): HttpModelAdapter {
+  const contextPolicy = anthropicContextPolicy(options)
   const budgets = options.thinkingBudgets ?? DEFAULT_THINKING_BUDGETS
   const dialect: Partial<AnthropicDialect> = {
     budgets,
@@ -128,7 +130,7 @@ export function anthropicAdapter(options: AnthropicAdapterOptions): HttpModelAda
     },
     dialect,
     describeModel: (info, effective) => ({
-      ...info,
+      ...contextPolicy(info),
       reasoning: info.reasoning ?? reasoningInfo(effective.budgets),
     }),
     ...options.models === undefined ? {} : { models: options.models },
@@ -193,6 +195,7 @@ function legacyAnthropicPlugin(options: AnthropicPluginOptions): ModelProviderPl
 }
 
 function createRuntimeAnthropicAdapter(options: AnthropicProviderOptions): HttpModelAdapter {
+  const contextPolicy = anthropicContextPolicy(options)
   const budgets = options.thinkingBudgets ?? DEFAULT_THINKING_BUDGETS
   const dialect: Partial<AnthropicDialect> = {
     budgets,
@@ -211,7 +214,7 @@ function createRuntimeAnthropicAdapter(options: AnthropicProviderOptions): HttpM
     },
     dialect,
     describeModel: (info, effective) => ({
-      ...info,
+      ...contextPolicy(info),
       reasoning: info.reasoning ?? reasoningInfo(effective.budgets),
     }),
     ...(options.models === undefined ? {} : { models: options.models }),

@@ -104,6 +104,8 @@ export type StreamChunk =
   | { type: 'tool-call-delta'; index: number; id: ToolCallId; name?: string; argumentsDelta: string }
   | { type: 'block-end'; index: number; block: ContentBlock }
   | { type: 'usage'; usage: TokenUsage }
+  /** Cumulative snapshot for this attempt, never an additive or final report. */
+  | { type: 'usage-progress'; usage: Partial<TokenUsage>; attemptId?: string }
   | {
     type: 'finish'
     reason: FinishReason

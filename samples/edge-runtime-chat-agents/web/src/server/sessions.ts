@@ -30,8 +30,16 @@ export interface WarmSession {
    * the lead in a team run.
    */
   readonly session: RuntimeAgentSession | AgentSession
-  readonly model: string
-  readonly effort: string | undefined
+  /**
+   * The selection the most recent turn ran with.
+   *
+   * Mutable for the single-agent modes, where a model or effort change is an
+   * override on the next `stream()` call rather than a new session. The team
+   * modes bind a model per member at construction, so for them this still
+   * describes how the session was built and a change rebuilds it.
+   */
+  model: string
+  effort: string | undefined
   /** Present only in a team run, and then it owns every member's session. */
   readonly team: RuntimeAgentTeam | undefined
   /** Present only in Team Auto; owns the lead and every generated worker. */
@@ -115,12 +123,22 @@ export async function acquireSession(
   const slot = await slotKey(conversationId, config.apiKey)
   const existing = warm.get(slot)
   const rosterKey = rosterSignature(config)
-  // A model, effort, mode or roster the visitor just changed must not keep
-  // answering from a session built around the previous one, so that session is
-  // discarded. The conversation's history goes with it, which is the honest
-  // outcome: the history belongs to the agents that produced it.
-  if (existing !== undefined && existing.model === config.model
-    && existing.effort === config.effort && existing.rosterKey === rosterKey) {
+  // A mode or roster the visitor just changed must not keep answering from a
+  // session built around the previous one, so that session is discarded and its
+  // history goes with it: the history belongs to the agents that produced it.
+  //
+  // A MODEL or EFFORT change no longer costs the conversation. In the
+  // single-agent modes the selection is applied per call — `run`/`stream` take
+  // a `model` and an `effort` for that turn alone — so the session, its history
+  // and its compactor stay, and the next turn simply goes elsewhere. The team
+  // modes still rebuild: a member's model is bound when the member is built,
+  // and no per-call override reaches inside a team.
+  const teamShaped = config.mode === 'team' || config.mode === 'team-auto'
+  const reusable = existing !== undefined && existing.rosterKey === rosterKey
+    && (!teamShaped || (existing.model === config.model && existing.effort === config.effort))
+  if (reusable) {
+    existing.model = config.model
+    existing.effort = config.effort
     existing.touchedAt = Date.now()
     return existing
   }
@@ -242,10 +260,14 @@ async function createSession(
   }
 
   if (config.mode !== 'team') {
+    // Bound with NO effort on purpose. Every turn states its own model and
+    // effort when it runs, so a level baked in here would be the level of
+    // whichever turn happened to build the session — and a later turn that
+    // deselects effort would silently inherit it. Omission has to mean
+    // omission, which it only does if the binding carries none.
     const agent = runtime.agent({
       id: 'edge-chat',
       model: { provider: 'openai', id: config.model },
-      ...(config.effort === undefined ? {} : { effort: config.effort }),
       instructions: config.instructions,
       tools: createEdgeTools(),
       maxTurns: config.maxTurns,
@@ -461,9 +483,10 @@ function memberEffort(member: WireMember, config: EdgeChatConfig): string | unde
 function rosterSignature(config: EdgeChatConfig): string {
   // The catalog is part of it: capacities are baked into the provider when the
   // runtime is built, so a corrected context window has to rebuild the session
-  // rather than apply from the next turn onward.
+  // rather than apply from the next turn onward. It is NOT filtered by the
+  // selected model, so selecting a different one from the same catalog leaves
+  // this signature unchanged and the warm session is kept.
   const catalog = config.catalog
-    .filter(entry => inPlay(entry.id, config))
     .map(entry => [
       entry.id,
       entry.contextWindow ?? 0,
@@ -549,12 +572,13 @@ function providerCatalog(config: EdgeChatConfig) {
     if (level !== undefined) efforts.set(member.model ?? config.model, level)
   }
 
-  // Then capacities, for every model this turn could actually call. A model
-  // with neither an effort nor a capacity contributes no entry at all.
+  // Then capacities, for every model the visitor offered — not only the one
+  // selected right now. A later turn may override the model per call, and it
+  // can only do that on a route that already declares that model's ladder and
+  // capacities. A model with neither an effort nor a capacity contributes no
+  // entry at all.
   const capacities = new Map<string, WireModel>()
-  for (const entry of config.catalog) {
-    if (inPlay(entry.id, config)) capacities.set(entry.id, entry)
-  }
+  for (const entry of config.catalog) capacities.set(entry.id, entry)
 
   const ids = new Set([...efforts.keys(), ...capacities.keys()])
   return [...ids].map((id) => {
@@ -578,12 +602,6 @@ function providerCatalog(config: EdgeChatConfig) {
         }),
     }
   })
-}
-
-/** Whether some agent in this run would actually call that model. */
-function inPlay(id: string, config: EdgeChatConfig): boolean {
-  if (id === config.model) return true
-  return config.team.some(member => member.model === id)
 }
 
 /** Drop idle sessions so one isolate does not hold every conversation it ever saw. */

@@ -98,9 +98,9 @@ otherwise the hardest class of flake to trace.
 
 ## Conformance suite for capability authors
 
-Writing a provider, credential source, tool source, skill provider, memory
-store, or exporter? `@alvin0/ai-agent-sdk-testkit` drives a fixture through the
-contract instead of leaving you to guess it.
+Writing a provider, embedding provider, credential source, tool source, skill
+provider, memory store, or exporter? `@alvin0/ai-agent-sdk-testkit` drives a
+fixture through the contract instead of leaving you to guess it.
 
 ```ts
 import { runProviderConformanceSuite } from '@alvin0/ai-agent-sdk-testkit'
@@ -185,12 +185,85 @@ that would make the package that validates providers depend on one of them. The
 adapter is injected by the caller; the testkit supplies frames, endpoint pins,
 and the exchange responder.
 
-> **The Copilot-specific scenario groups are not shipped yet.** Embedding, and
-> the four Copilot-specific groups (model-driven endpoint selection, missing
-> editor headers, credential rejection at exchange, proactive refresh before
-> expiry) are still pending. `COPILOT_CONFORMANCE_REGISTRY` is a record rather
-> than a bare array so those groups can be asked for by name when they land;
-> today it has one key, `generation`.
+### Embedding: sixteen checks over twelve scenarios
+
+An embedding provider has its own entry point, because a fixture that scripts
+`data[i].index` has nothing in common with one that scripts a stream:
+
+```ts
+import {
+  runEmbeddingConformanceSuite,
+  EMBEDDING_CONFORMANCE_SCENARIOS,   // the twelve, as data
+  EMBEDDING_CONFORMANCE_CHECK_IDS,   // the sixteen, in report order
+} from '@alvin0/ai-agent-sdk-testkit'
+
+const report = await runEmbeddingConformanceSuite(fixture, { caseTimeoutMs: 2_000 })
+expect(report).toMatchObject({ schemaVersion: 1, status: 'passed', passed: 16, failed: 0 })
+```
+
+**The report shape is unchanged.** Embedding results are
+`ProviderConformanceCheck`es in the same `checks` array of the same
+`ProviderConformanceReport`, and `schemaVersion` stays `1`. A capability that
+needed its own report shape would not be conforming to the same contract as the
+others. Like the generation runner, a failing check is recorded with a
+support-safe message and the remaining checks still run, so one report explains
+everything that is wrong rather than the first thing.
+
+The sixteen ids group exactly as the nine contract-test groups:
+
+| Group | Check ids |
+| --- | --- |
+| Mapping and validation | `embedding-mapping-index-faithful`, `embedding-mapping-invalid-rejected`, `embedding-vector-validation` |
+| Batching | `embedding-batch-limits-respected`, `embedding-batch-memory-bounded` |
+| Cancellation and close | `embedding-abort-stops-unsent`, `embedding-close-covers-operation` |
+| Retry cost | `embedding-retry-no-resend`, `embedding-timeout-dispatch-unknown` |
+| Cache | `embedding-cache-key-composition` |
+| Compatibility | `embedding-space-guard`, `embedding-no-model-fallback` |
+| Plugin compatibility | `embedding-plugin-generation-only`, `embedding-plugin-embedding-only` |
+| Privacy | `embedding-trace-privacy` |
+| Usage honesty | `embedding-usage-honesty` |
+
+The scenarios are `embedding-success`, `embedding-reordered-response`,
+`embedding-invalid-index`, `embedding-invalid-vector`, `embedding-batch-limits`,
+`embedding-abort-in-flight`, `embedding-retry-cost`,
+`embedding-missing-usage`, `embedding-cache-key`, `embedding-space-mismatch`,
+`embedding-only-runtime` and `generation-only-plugin` — the last of which hands
+over a `model-provider-plugin` on purpose, since the claim being checked is that
+the two kinds do not stand in for each other.
+
+Three things about the split of labour are load-bearing:
+
+- **The runner knows no endpoint, and owns the corpus.** Every provider-specific
+  fact — the plugin, the model id, the scripted response, the declared batch
+  bounds, the expected error code — arrives through
+  `EmbeddingConformanceFixture.create()`, which is handed the exact texts to
+  embed. Holding both providers to the same inputs is what makes "the same error
+  codes on both" a checkable claim. It also gives the privacy check something it
+  *knows* must never appear in a trace: every input carries
+  `EMBEDDING_CONFORMANCE_DEFAULTS.contentSentinel`, so "the trace carries no raw
+  document content" is a substring test rather than an inspection.
+- **Index fidelity is checked against the provider's output, not the SDK's.**
+  `control.providerVectors()` reports what the provider returned per item index,
+  before any post-processing the profile records, and the harness compares
+  element-wise with what the SDK published. Comparing the SDK's result against
+  the SDK's result agrees even under a permutation.
+- **Abort is a fact, not a race.** `control.waitForDispatch()` resolves once the
+  fixture has entered its first dispatch, so "abort while a batch is on the wire"
+  is arranged rather than hoped for. The batching scenarios likewise must declare
+  `maxItems` below `inputs.length`: a case that fits in one batch exercises no
+  bound and proves nothing about memory.
+
+`EmbeddingConformanceControlSnapshot` is where a fixture reports what it actually
+served — one `dispatches` entry per `Provider_Attempt` with its model id, item
+indexes and payload bytes, plus `peakInFlight` and `peakInFlightBytes`. The model
+id is how `embedding-no-model-fallback` is checked: a silent fallback shows up as
+a different value.
+
+> **Four Copilot-specific scenario groups are still pending** — model-driven
+> endpoint selection, missing editor headers, credential rejection at exchange,
+> and proactive refresh before expiry. `COPILOT_CONFORMANCE_REGISTRY` is a record
+> rather than a bare array so those groups can be asked for by name when they
+> land; today it has one key, `generation`.
 
 **The testkit is a private package** — it is a devDependency of the provider
 packages and is not published to npm. Consume it from a workspace or a local

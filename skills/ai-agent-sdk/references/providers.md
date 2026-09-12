@@ -162,6 +162,111 @@ assigns a stable `code` at the wire boundary; **policy** decides which codes are
 eligible. `mode: 'always'` is accepted only when the request carries an
 `AbortSignal`. See references/errors.md for the code table.
 
+## Embedding is a separate plugin kind
+
+An embedding provider is **not** a model provider with an extra flag. Its `kind`
+is `'embedding-provider-plugin'` and it carries its own contract version, so a
+generation host never mistakes one for the other and no existing generation
+plugin needed a version bump to make room for it:
+
+```ts
+import {
+  defineEmbeddingProviderPlugin,
+  EMBEDDING_PROVIDER_PLUGIN_API_VERSION,   // 1, independent of PROVIDER_PLUGIN_API_VERSION
+} from '@alvin0/ai-agent-sdk-core/provider'
+
+export const myEmbeddingPlugin = defineEmbeddingProviderPlugin({
+  id: 'my-embedding',
+  displayName: 'My Embedding',
+  routes: ['my-embedding'],          // claims declared up front, same as generation
+  defaultModel: { provider: 'my-embedding', id: 'my-embed-1' },   // optional
+  setup(registrar) {
+    const remove = registrar.registerEmbeddingAdapter(myEmbeddingAdapter(options))
+    return () => { remove(); return undefined }
+  },
+})
+```
+
+```ts
+interface ComposableEmbeddingProviderRegistrar {
+  readonly logger: SdkLogger
+  registerEmbeddingAdapter(
+    adapter: EmbeddingAdapter,
+    options?: { readonly routes?: readonly string[]; readonly models?: readonly string[] },
+  ): AdapterRegistrationHandle
+}
+```
+
+**The registerAdapter trap has an embedding twin.** The host-side registrar
+handed to a raw `ComposableEmbeddingProviderPlugin.setup` takes routes first;
+the helper-scoped one `defineEmbeddingProviderPlugin` gives you takes the
+adapter first and routes as an option:
+
+```ts
+registrar.registerEmbeddingAdapter(routes, adapter, models?)          // host registrar
+registrar.registerEmbeddingAdapter(adapter, { routes, models })       // scoped registrar
+```
+
+Both kinds go into the same `RuntimeOwnerOptions.providers` list, and conflict
+detection is on the route–**operation** pair. So one route may host a generation
+plugin and an embedding plugin at once — that is the point of resolving by route
+plus operation plus model id — while two plugins claiming the same operation on
+one route are refused at startup. Rollback across the two kinds is sequential
+rather than a real two-phase commit; the preflight sweep rejects every conflict
+before any plugin is committed, so from outside it still holds that either every
+plugin is live or none is.
+
+A provider offering both capabilities therefore exports **two** factories, and
+the application passes two entries:
+
+```ts
+import { openAiPlugin, openAiEmbeddingPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
+
+const runtime = createAgentRuntime({
+  providers: [
+    openAiPlugin({ apiKey }),
+    openAiEmbeddingPlugin({ apiKey }),
+  ],
+})
+
+const embeddings = runtime.embeddingModel({ provider: 'openai', model: 'text-embedding-3-small' })
+```
+
+`geminiEmbeddingPlugin` is the Gemini equivalent, and both ship an
+`…EmbeddingAdapter` factory (`openAiEmbeddingAdapter`, `geminiEmbeddingAdapter`)
+for registering onto a route you own. Like generation factories they are
+complete and **inert** — the credential is resolved per operation, so
+constructing one performs no I/O.
+
+Retry is not a decorator here. An `EmbeddingAdapter` performs exactly **one**
+`Provider_Attempt` per `embedBatch()` and never retries inside; the embedding
+runtime owns retry, which is what makes attempts countable. See
+references/budgets-and-usage.md.
+
+### Where the two shipped adapters differ
+
+Both are held to one error taxonomy and one mapping contract by the same
+conformance checks, so what is left below is genuinely the endpoint's semantics,
+not each adapter's taste:
+
+| | `openAiEmbeddingPlugin` — `POST /embeddings` | `geminiEmbeddingPlugin` — `batchEmbedContents` |
+| --- | --- | --- |
+| Purpose | No wire parameter. `retrieval-query` and `retrieval-document` send the caller's text **verbatim**; no `"query: "` prefix is invented | `taskType`, but only where the route declares `purposeHandling: { kind: 'wire-parameter', parameter: 'taskType' }` ⇒ `RETRIEVAL_QUERY` / `RETRIEVAL_DOCUMENT` |
+| Narrower vector | `dimensions`, sent only when the route **declares** the widths it supports | `outputDimensionality`, same declaration rule |
+| Normalization | Reported only where the route declared it — never inferred from OpenAI's reputation for unit vectors | A narrower-than-native width declares `postProcessing: { kind: 'l2-renormalize', revision: '1' }` and the adapter performs exactly that. No slicing, no padding |
+| `truncation: 'allow'` | Refused with `EMBEDDING_TRUNCATION_UNSUPPORTED` — the endpoint has no parameter for it | Refused the same way, for the same reason |
+| Index mapping | The response carries `data[i].index`; it must be a permutation of `0..N-1` or the batch is refused | The response carries no index, so mapping is **positional** and the count is checked first |
+| Usage | `prompt_tokens` / `total_tokens` map onto `inputTokens` / `totalTokens` | Reports none at all ⇒ `status: 'missing'` and a `usage-unreported` warning |
+| Catalog | **Empty** by default, like the generation adapter: declare `models` to reach `dimensions` on the wire and to state the embedding space | `GEMINI_EMBEDDING_MODELS` — `gemini-embedding-001`, widths 3072/1536/768, identity `google:gemini-embedding-001` |
+| Space identity fallback | `openai:${model.id}` — keyed on the model **line**, not the route, so a mirror route is not a different space | `google:${model.id}`, naming the generation so a future `gemini-embedding-2` is detected as incompatible at equal width |
+| Default plugin id / route | `'openai'` | `'gemini-embedding'` |
+| `baseUrl` | Points at a self-hosted OpenAI-compatible endpoint. Compatibility is a profile someone **declared** through `models`, never read off the path, and cleartext `http://` still needs `allowInsecureHttp` | Defaults to `GEMINI_EMBEDDING_BASE_URL` (v1beta) |
+
+An `unknown` catalog capability is never a licence to send a parameter: both
+adapters put `dimensions`/`outputDimensionality` on the wire only against a
+declared width, because a capability nobody declared says nothing and a
+compatible endpoint answers HTTP 400.
+
 ## Per-provider notes
 
 | Route | Endpoint | Credential | Notes |

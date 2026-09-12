@@ -41,7 +41,7 @@ Mọi property test mang tag theo định dạng **Feature: github-copilot-provi
     - `tools` + `tool_choice`, `response_format` dạng `json_schema` với `strict: true`, `stream_options.include_usage` theo cờ
     - _Requirements: 10.2, 10.4, 10.5, 10.7_
 
-  - [x] 1.4 Ghi bảy fixture SSE
+  - [ ] 1.4 Ghi bảy fixture SSE
     - `fixtures/text-stream.txt`, `tool-call-split-args.txt`, `structured-output.txt`, `truncated-mid-delta.txt`, `truncated-mid-args.txt`, `done-without-finish.txt`, `usage-after-finish.txt`
     - `tool-call-split-args.txt` phải có mảnh cắt giữa một escape sequence JSON **và** mảnh cắt giữa một ký tự UTF-8 nhiều byte — hai vị trí cắt làm parse sớm thất bại
     - `done-without-finish.txt` có `[DONE]` mà không có `finish_reason` nào; `usage-after-finish.txt` có chunk `choices: []` mang `usage` sau terminal finish

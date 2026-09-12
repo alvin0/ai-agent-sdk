@@ -94,6 +94,8 @@ export class BlockAssembler {
         this._usage = chunk.usage
         return
       }
+      case 'usage-progress':
+        return
       case 'finish': {
         this._finish = chunk.reason
         this._replayState = chunk.replayState
