@@ -4,7 +4,7 @@
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
   },
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Universal fetch, SSE, configurable provider, and provider-attempt accounting for ai-agent-sdk",
   "license": "MIT",
   "repository": {

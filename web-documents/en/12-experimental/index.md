@@ -46,20 +46,20 @@ not hide in a health UI.
 **What to do:** publish `state.protocol` in your health surface, and set
 `legacySse: false` once every server you talk to has migrated.
 
-## 3. Registry publication is deferred
+## 3. Registry packages use the `@alvin0` scope
 
 | Property | Status |
 | --- | --- |
-| Version | `0.1.0` |
-| npm publication | **Intentionally deferred** while scope ownership is arranged |
-| Current validation | Generated tarballs, or the workspace directly |
+| Version | `0.1.1` |
+| npm publication | **Published** as `@alvin0/ai-agent-sdk-*` |
+| Release path | Tagged CI release with package and provenance gates |
 
 ```bash
-pnpm add ./artifacts/ai-agent-sdk-core-0.1.0.tgz
+pnpm add ./artifacts/ai-agent-sdk-core-0.1.1.tgz
 ```
 
-Every `pnpm add @alvin0/ai-agent-sdk-...` command in this documentation describes the
-**intended** install profile for a future registry release.
+Every `pnpm add @alvin0/ai-agent-sdk-...` command in this documentation names the
+published package directly. Local tarballs remain available for pre-release validation.
 
 `@alvin0/ai-agent-sdk-testkit` is additionally **private** and is exercised through
 local workspace or tarball installs; publishing is intentionally not configured

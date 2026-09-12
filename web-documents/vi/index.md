@@ -67,7 +67,6 @@ Xem [Getting Started](/vi/01-introduction/getting-started) để biết cách ch
 
 ## Trạng thái
 
-Phiên bản `0.1.0`, giấy phép MIT. Việc publish lên registry đang hoãn có
-chủ ý trong lúc thu xếp quyền sở hữu trên npm — xem
-[Experimental](/vi/12-experimental/) và
-[Thông tin dự án](/vi/14-project/).
+Phiên bản `0.1.1`, giấy phép MIT. Các package công khai được phát hành dưới
+scope `@alvin0` — xem [Thông tin dự án](/vi/14-project/) và changelog của
+repository để biết chi tiết từng bản phát hành.

@@ -270,7 +270,7 @@ packages and is not published to npm. Consume it from a workspace or a local
 tarball:
 
 ```bash
-pnpm add -D ./artifacts/alvin0-ai-agent-sdk-testkit-0.1.0.tgz
+pnpm add -D ./artifacts/alvin0-ai-agent-sdk-testkit-0.1.1.tgz
 ```
 
 ## Runtime-tier checks

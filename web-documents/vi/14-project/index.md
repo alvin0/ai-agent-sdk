@@ -4,7 +4,7 @@
 
 | Mục | Giá trị |
 | --- | --- |
-| Phiên bản | `0.1.0` |
+| Phiên bản | `0.1.1` |
 | Giấy phép | MIT |
 | Yêu cầu Node | 22.18+ cho công cụ workspace; 22.12+ cho package năng lực Node đã cài |
 | Publish lên registry | **Đã publish** — 23 package dưới scope `@alvin0` |
@@ -26,13 +26,13 @@ package provider.
 Nếu muốn cài từ tarball cục bộ:
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.0.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.1.tgz
 ```
 
 ## Đánh phiên bản
 
-Hiện mọi package đều `private` và phiên bản được đặt trực tiếp trong từng
-manifest. Repo không có công cụ sinh ghi chú phát hành.
+Phiên bản package được đặt trực tiếp trong từng manifest và phát hành đồng bộ.
+Ghi chú phát hành được duy trì trong file `CHANGELOG.md` của repository.
 
 Đồ thị package được cưỡng chế bởi `PACKAGE_RULES` trong
 `scripts/package-policy.mts`, kiểm bởi các cổng graph và runtime-boundary trong

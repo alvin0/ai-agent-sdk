@@ -4,7 +4,7 @@
 
 | Item | Value |
 | --- | --- |
-| Version | `0.1.0` |
+| Version | `0.1.1` |
 | License | MIT |
 | Node requirement | 22.18+ for workspace tooling; 22.12+ for installed Node capability packages |
 | Registry publication | **Published** — 23 packages under `@alvin0` |
@@ -27,13 +27,13 @@ of the provider packages.
 To install from a local tarball instead:
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.0.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.1.tgz
 ```
 
 ## Versioning
 
-Every package is currently `private` and versions are set directly in each
-manifest. There is no release-notes tool in the repository.
+Package versions are set directly in each manifest and released in lockstep.
+Release notes are maintained in the repository `CHANGELOG.md`.
 
 The package graph is enforced by `PACKAGE_RULES` in `scripts/package-policy.mts`,
 checked by the CI graph and runtime-boundary gates. Preservation is the default:

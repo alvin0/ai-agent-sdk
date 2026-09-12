@@ -48,20 +48,20 @@ HTTP**, và phương án dự phòng cố ý quan sát được để một tri�
 **Cần làm gì:** hãy hiển thị `state.protocol` trong bề mặt sức khoẻ của bạn, và
 đặt `legacySse: false` khi mọi server bạn nói chuyện đã di trú xong.
 
-## 3. Việc publish lên registry đang hoãn
+## 3. Package trên registry dùng scope `@alvin0`
 
 | Thuộc tính | Trạng thái |
 | --- | --- |
-| Phiên bản | `0.1.0` |
-| Publish npm | **Hoãn có chủ ý** trong lúc thu xếp quyền sở hữu scope |
-| Kiểm chứng hiện tại | Tarball tự sinh, hoặc dùng thẳng workspace |
+| Phiên bản | `0.1.1` |
+| Publish npm | **Đã publish** dưới tên `@alvin0/ai-agent-sdk-*` |
+| Quy trình release | CI theo tag với các gate package và provenance |
 
 ```bash
-pnpm add ./artifacts/ai-agent-sdk-core-0.1.0.tgz
+pnpm add ./artifacts/ai-agent-sdk-core-0.1.1.tgz
 ```
 
-Mọi lệnh `pnpm add @alvin0/ai-agent-sdk-...` trong tài liệu này mô tả cấu hình cài đặt
-**dự kiến** cho một bản phát hành registry trong tương lai.
+Mọi lệnh `pnpm add @alvin0/ai-agent-sdk-...` trong tài liệu này trỏ trực tiếp
+tới package đã publish. Tarball cục bộ vẫn dùng được để kiểm chứng trước release.
 
 `@alvin0/ai-agent-sdk-testkit` còn ở trạng thái **private** và được chạy qua cài đặt
 workspace cục bộ hoặc tarball; việc publish cố ý không được cấu hình cho nó.
