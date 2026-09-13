@@ -4,7 +4,7 @@
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
   },
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "packageManager": "pnpm@11.25.0",
   "description": "Private workspace orchestration for ai-agent-sdk packages",

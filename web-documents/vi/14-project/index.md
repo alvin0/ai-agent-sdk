@@ -4,10 +4,10 @@
 
 | Mục | Giá trị |
 | --- | --- |
-| Phiên bản | `0.1.1` |
+| Phiên bản | `0.1.2` |
 | Giấy phép | MIT |
 | Yêu cầu Node | 22.18+ cho công cụ workspace; 22.12+ cho package năng lực Node đã cài |
-| Publish lên registry | Release candidate `0.1.1` — 23 package dưới scope `@alvin0` |
+| Publish lên registry | Release candidate `0.1.2` — 23 package dưới scope `@alvin0` |
 
 ## Publish lên registry
 
@@ -29,7 +29,7 @@ package provider.
 Nếu muốn cài từ tarball cục bộ:
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.1.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.2.tgz
 ```
 
 ## Đánh phiên bản

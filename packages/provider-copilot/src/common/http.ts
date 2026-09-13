@@ -278,7 +278,10 @@ export async function readCopilotResponseText(
  * @returns the pending value, when it arrives first.
  */
 export function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(abortReason(signal))
+  if (signal.aborted) {
+    void pending.catch(() => undefined)
+    return Promise.reject(abortReason(signal))
+  }
   return new Promise<T>((resolve, reject) => {
     const abort = () => { cleanup(); reject(abortReason(signal)) }
     const cleanup = () => signal.removeEventListener('abort', abort)

@@ -36,6 +36,8 @@ See [Embeddings](/en/09-providers/embeddings).
 
 ## Two registration styles
 
+New in 0.1.2: [Compatible gateways and database credentials](/en/09-providers/gateways-and-credentials).
+
 **Plugin (recommended).** A transactional registration the runtime activates and
 removes:
 

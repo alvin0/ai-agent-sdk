@@ -23,6 +23,7 @@ import type {
 } from '@alvin0/ai-agent-sdk-provider-http'
 import {
   createHttpProvider,
+  endpointHeaders,
   createRuntimeHttpProvider,
   type CredentialSource,
 } from '@alvin0/ai-agent-sdk-provider-http'
@@ -48,6 +49,10 @@ export interface OpenAiAdapterOptions {
    * Point this at a compatible gateway to reuse this provider wholesale.
    */
   baseUrl?: string
+  /** Extra endpoint headers, captured once per operation. Reserved names and collisions fail. */
+  headers?: Readonly<Record<string, string>> | (() => Readonly<Record<string, string>>)
+  /** Permit cleartext HTTP explicitly for trusted local gateways. */
+  allowInsecureHttp?: boolean
   /** Organization to bill, when the key belongs to several. */
   organization?: string
   /** Project to attribute usage to. */
@@ -104,12 +109,12 @@ export function openAiAdapter(options: OpenAiAdapterOptions): HttpModelAdapter {
       label: 'the `apiKey` option',
     },
     dialect,
-    headers: {
+    headers: endpointHeaders(options.headers, {
       ...options.organization === undefined
         ? {}
         : { 'openai-organization': options.organization },
       ...options.project === undefined ? {} : { 'openai-project': options.project },
-    },
+    }),
     ...options.models === undefined ? {} : { models: options.models },
     defaultMaxTokens: options.defaultMaxTokens ?? 32_000,
     defaultContextWindow: options.defaultContextWindow ?? 128_000,
@@ -179,10 +184,10 @@ function createRuntimeOpenAiAdapter(options: OpenAiProviderOptions): HttpModelAd
     baseUrl: options.baseUrl ?? OPENAI_BASE_URL,
     auth: { kind: 'bearer', token: options.apiKey, label: 'the `apiKey` option' },
     dialect: options.store === undefined ? {} : { store: options.store },
-    headers: {
+    headers: endpointHeaders(options.headers, {
       ...(options.organization === undefined ? {} : { 'openai-organization': options.organization }),
       ...(options.project === undefined ? {} : { 'openai-project': options.project }),
-    },
+    }),
     ...(options.models === undefined ? {} : { models: options.models }),
     defaultMaxTokens: options.defaultMaxTokens ?? 32_000,
     defaultContextWindow: options.defaultContextWindow ?? 128_000,
@@ -215,6 +220,7 @@ function runtimeDefaultModel(
 
 function transportLimits(options: OpenAiAdapterOptions | OpenAiProviderOptions) {
   return {
+    ...(options.allowInsecureHttp === undefined ? {} : { allowInsecureHttp: options.allowInsecureHttp }),
     ...options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs },
     ...options.maxRequestBytes === undefined ? {} : { maxRequestBytes: options.maxRequestBytes },
     ...options.maxResponseBytes === undefined ? {} : { maxResponseBytes: options.maxResponseBytes },

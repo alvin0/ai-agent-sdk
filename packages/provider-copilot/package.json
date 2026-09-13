@@ -4,7 +4,7 @@
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
   },
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Universal GitHub Copilot adapter, OAuth device flow, token exchange, and provider plugin for ai-agent-sdk",
   "license": "MIT",
   "repository": {

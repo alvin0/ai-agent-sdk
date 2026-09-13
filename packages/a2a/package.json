@@ -4,7 +4,7 @@
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
   },
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Node-elevated official A2A client/server bridge for ai-agent-sdk",
   "license": "MIT",
   "repository": {

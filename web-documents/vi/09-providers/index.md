@@ -36,6 +36,8 @@ một plugin generation trên cùng runtime. Xem
 
 ## Hai kiểu đăng ký
 
+Mới trong 0.1.2: [Gateway tương thích và credential trong database](/vi/09-providers/gateways-and-credentials).
+
 **Plugin (khuyến nghị).** Một đăng ký có giao dịch mà runtime kích hoạt và gỡ bỏ:
 
 ```ts

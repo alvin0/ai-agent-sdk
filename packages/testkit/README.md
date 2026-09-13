@@ -9,7 +9,7 @@ installs; publishing is intentionally not configured.
 Until registry publication is configured, install the locally packed artifact:
 
 ```sh
-pnpm add -D ./artifacts/ai-agent-sdk-testkit-0.1.1.tgz
+pnpm add -D ./artifacts/alvin0-ai-agent-sdk-testkit-0.1.2.tgz
 ```
 
 `runProviderConformanceSuite(fixture)` drives a fresh provider fixture through

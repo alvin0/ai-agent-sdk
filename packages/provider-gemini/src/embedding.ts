@@ -66,6 +66,7 @@ import {
 } from '@alvin0/ai-agent-sdk-core/provider'
 import {
   captureTransportConnection,
+  endpointHeaders,
   embeddingCatalogModelInfo,
   resolvedEmbeddingCatalogModelInfo,
   transportJson,
@@ -137,6 +138,8 @@ export const GEMINI_EMBEDDING_MODELS: readonly EmbeddingCatalogModel[] = Object.
 export interface GeminiEmbeddingProviderOptions {
   /** Injected key or credential source; universal packages never read the environment. */
   readonly apiKey: CredentialInput
+  /** Extra endpoint headers, captured once per logical call; reserved names fail. */
+  readonly headers?: Readonly<Record<string, string>> | (() => Readonly<Record<string, string>>)
   /** Endpoint base; defaults to {@link GEMINI_EMBEDDING_BASE_URL}. */
   readonly baseUrl?: string
   /** Plugin id; defaults to `'gemini-embedding'`. */
@@ -183,12 +186,14 @@ interface GeminiEmbedRequest {
  */
 class GeminiEmbeddingAdapter extends EmbeddingAdapter {
   readonly #options: GeminiEmbeddingProviderOptions
+  readonly #headers: () => Readonly<Record<string, string>>
   readonly #models: readonly EmbeddingCatalogModel[]
   readonly #retryPolicy: ResolvedRetryPolicy
 
   constructor(options: GeminiEmbeddingProviderOptions) {
     super()
     this.#options = Object.freeze({ ...options })
+    this.#headers = endpointHeaders(options.headers)
     this.#models = Object.freeze([...(options.models ?? GEMINI_EMBEDDING_MODELS)])
     this.#retryPolicy = resolveRetryPolicy(options.retryPolicy, 'retryPolicy')
   }
@@ -301,6 +306,7 @@ class GeminiEmbeddingAdapter extends EmbeddingAdapter {
     context?: ModelInvocationContext,
   ): Promise<EmbeddingHttpConnection> {
     const options = this.#options
+    const extraHeaders = this.#headers()
     const apiKey = assertUsableApiKey(
       await resolveCredential(options.apiKey, signal, context),
       DISPLAY_NAME,
@@ -310,7 +316,7 @@ class GeminiEmbeddingAdapter extends EmbeddingAdapter {
     // can forget them (Requirement 14.7).
     return captureTransportConnection<EmbeddingHttpConnection>({
       baseUrl: options.baseUrl ?? GEMINI_EMBEDDING_BASE_URL,
-      headers: Object.freeze({ 'x-goog-api-key': apiKey }),
+      headers: Object.freeze({ ...extraHeaders, 'x-goog-api-key': apiKey }),
       models: this.#models,
       retryPolicy: this.#retryPolicy,
       ...(options.allowInsecureHttp === undefined

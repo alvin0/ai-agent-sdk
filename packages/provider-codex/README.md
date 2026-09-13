@@ -8,6 +8,14 @@ pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-codex
 
 Universal Codex adapter, OAuth flows, memory/custom auth stores, and transactional provider plugin. A `CodexAuthStore` must be injected; filesystem and environment defaults belong to the Node auth package.
 
+For normal runtime composition use a revisioned `CodexCredentialStore`, created
+with `defineCredentialStore<CodexAuthFile>({ id, label, read, commit })`.
+`getCodexTokens(store)` reads tokens and refreshes/commits when due;
+`getCodexTokens(store, { refreshIfNeeded: false })` reads only.
+`refreshCodexTokens(store)` explicitly refreshes and commits the rotated tokens.
+These APIs and device login accept database stores without filesystem access.
+See the [working database example](../../samples/credential-database/README.md).
+
 ```ts
 import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
 import { codexPlugin } from '@alvin0/ai-agent-sdk-provider-codex'

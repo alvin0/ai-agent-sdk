@@ -25,6 +25,7 @@ import type {
 } from '@alvin0/ai-agent-sdk-provider-http'
 import {
   createHttpProvider,
+  endpointHeaders,
   createRuntimeHttpProvider,
   type CredentialSource,
 } from '@alvin0/ai-agent-sdk-provider-http'
@@ -65,6 +66,10 @@ export interface AnthropicAdapterOptions {
   apiKey: AnthropicCredential
   /** Endpoint base; defaults to {@link ANTHROPIC_BASE_URL}. */
   baseUrl?: string
+  /** Extra endpoint headers, captured once per operation. Reserved names and collisions fail. */
+  headers?: Readonly<Record<string, string>> | (() => Readonly<Record<string, string>>)
+  /** Permit cleartext HTTP explicitly for trusted local gateways. */
+  allowInsecureHttp?: boolean
   /** API version header; defaults to {@link ANTHROPIC_VERSION}. */
   version?: string
   /** Opt-in beta features, sent as `anthropic-beta`. */
@@ -249,6 +254,8 @@ function runtimeDefaultModel(
 
 function transportLimits(options: AnthropicAdapterOptions | AnthropicProviderOptions) {
   return {
+    ...(options.allowInsecureHttp === undefined ? {} : { allowInsecureHttp: options.allowInsecureHttp }),
+    headers: endpointHeaders(options.headers),
     ...options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs },
     ...options.maxRequestBytes === undefined ? {} : { maxRequestBytes: options.maxRequestBytes },
     ...options.maxResponseBytes === undefined ? {} : { maxResponseBytes: options.maxResponseBytes },

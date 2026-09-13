@@ -2,6 +2,14 @@
 
 Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
 
+Compatible gateways can configure `baseUrl`, `models`, `fetch`, and `headers`
+(a string record or synchronous function returning one per operation).
+Generation uses the Messages protocol.
+Header names are case-insensitive; collisions and reserved auth/transport headers
+are rejected. Supply credentials with `apiKey`; use `version` and `beta` for
+Anthropic protocol headers. Static records are copied.
+Trusted local HTTP gateways require `allowInsecureHttp: true`.
+
 ```sh
 pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-anthropic
 ```

@@ -108,7 +108,7 @@ describe('core observation identities and model-call handles', () => {
 
     expect(observed.events.map(event => [event.phase, event.sequence])).toEqual([['start', 1], ['end', 2]])
     expect(observed.events.every(event => Object.isFrozen(event))).toBe(true)
-    expect(observed.events[0]?.resource.sdkVersion).toBe('0.1.1')
+    expect(observed.events[0]?.resource.sdkVersion).toBe('0.1.2')
     expect(report).toMatchObject({ status: 'success', coverage: 'complete', authoritative: true })
     expect(report.reported).toEqual({ inputTokens: 3, outputTokens: 2, reasoningTokens: 1, totalTokens: 5 })
     expect(observed.ended).toHaveBeenCalledTimes(1)

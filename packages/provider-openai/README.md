@@ -2,6 +2,15 @@
 
 Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
 
+Compatible gateways can configure `baseUrl`, `models`, `fetch`, and `headers`
+(a string record or synchronous function returning one per operation).
+Generation uses Responses; embedding uses the OpenAI embeddings protocol.
+The embedding adapter/plugin also supports custom headers.
+Header names are case-insensitive; collisions and reserved auth/transport headers
+are rejected. Supply credentials with `apiKey`. Static records are copied;
+prepared embedding calls keep the same header snapshot across all batches.
+Trusted local HTTP gateways require `allowInsecureHttp: true`.
+
 ```sh
 pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai
 ```

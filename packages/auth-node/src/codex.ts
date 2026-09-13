@@ -81,6 +81,8 @@ export {
   memoryCodexCredentialStore,
   readJwtClaims,
   refreshCodexTokens,
+  getCodexTokens,
+  type GetCodexTokensOptions,
   requestDeviceCode,
   requireTokens,
   resolveAccountId,

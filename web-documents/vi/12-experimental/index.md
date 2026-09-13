@@ -52,12 +52,12 @@ HTTP**, và phương án dự phòng cố ý quan sát được để một tri�
 
 | Thuộc tính | Trạng thái |
 | --- | --- |
-| Phiên bản | `0.1.1` |
-| Publish npm | Bản release candidate `0.1.1` dưới tên `@alvin0/ai-agent-sdk-*` |
+| Phiên bản | `0.1.2` |
+| Publish npm | Bản release candidate `0.1.2` dưới tên `@alvin0/ai-agent-sdk-*` |
 | Quy trình release | Merge vào `main` kích hoạt publish npm có gate và provenance |
 
 ```bash
-pnpm add ./artifacts/ai-agent-sdk-core-0.1.1.tgz
+pnpm add ./artifacts/ai-agent-sdk-core-0.1.2.tgz
 ```
 
 Mọi lệnh `pnpm add @alvin0/ai-agent-sdk-...` trong tài liệu này dùng đúng tên

@@ -8,6 +8,7 @@ export type * from './configurable/runtime-types.ts'
 export * from './observation/operations.ts'
 export * from './protocol/protocol.ts'
 export * from './stream/sse.ts'
+export { endpointHeaders } from './common/endpoint-headers.ts'
 /** Embedding route configuration; the provider embedding adapters declare against it. */
 export * from './transport/embedding-connection.ts'
 /**

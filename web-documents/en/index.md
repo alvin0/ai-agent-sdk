@@ -67,6 +67,6 @@ See [Getting Started](/en/01-introduction/getting-started) for how to choose.
 
 ## Status
 
-Version `0.1.1`, licensed under MIT. The public packages are released under the
+Version `0.1.2`, licensed under MIT. The public packages are released under the
 `@alvin0` scope — see [Project Information](/en/14-project/) and the repository
 changelog for release details.

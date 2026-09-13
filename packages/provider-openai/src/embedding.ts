@@ -64,6 +64,7 @@ import {
 } from '@alvin0/ai-agent-sdk-core/provider'
 import {
   captureTransportConnection,
+  endpointHeaders,
   embeddingCatalogModelInfo,
   resolvedEmbeddingCatalogModelInfo,
   transportJson,
@@ -115,6 +116,8 @@ const NULL_LOGGER: SdkLogger = Object.freeze({
 export interface OpenAiEmbeddingProviderOptions {
   /** Injected API key or credential source; universal packages never read the environment. */
   readonly apiKey: CredentialInput
+  /** Extra endpoint headers, captured once per logical call; reserved names fail. */
+  readonly headers?: Readonly<Record<string, string>> | (() => Readonly<Record<string, string>>)
   /**
    * Endpoint base; defaults to {@link OPENAI_BASE_URL}.
    *
@@ -163,9 +166,14 @@ class OpenAiEmbeddingAdapter extends EmbeddingAdapter {
   private readonly baseUrl: string
   private readonly models: readonly EmbeddingCatalogModel[]
   private readonly retry: ResolvedRetryPolicy
+  private readonly headers: () => Readonly<Record<string, string>>
 
   constructor(private readonly options: OpenAiEmbeddingProviderOptions) {
     super()
+    this.headers = endpointHeaders(options.headers, {
+      ...(options.organization === undefined ? {} : { 'openai-organization': options.organization }),
+      ...(options.project === undefined ? {} : { 'openai-project': options.project }),
+    })
     this.baseUrl = (options.baseUrl ?? OPENAI_BASE_URL).replace(/\/+$/, '')
     this.models = Object.freeze([...(options.models ?? [])])
     this.retry = resolveRetryPolicy(options.retryPolicy, 'openAiEmbedding.retryPolicy')
@@ -279,17 +287,12 @@ class OpenAiEmbeddingAdapter extends EmbeddingAdapter {
     signal?: AbortSignal,
     context?: ModelInvocationContext,
   ): Promise<EmbeddingHttpConnection> {
+    const extraHeaders = this.headers()
     const token = await resolveApiKey(this.options.apiKey, signal, context)
     // The credential and the endpoint-scoped account headers travel together as
     // the auth layer; the transport merges its own layer and attribution on top,
     // which is what makes attribution unforgettable (Requirement 14.7).
-    const headers: Record<string, string> = { authorization: `Bearer ${token}` }
-    if (this.options.organization !== undefined) {
-      headers['openai-organization'] = this.options.organization
-    }
-    if (this.options.project !== undefined) {
-      headers['openai-project'] = this.options.project
-    }
+    const headers: Record<string, string> = { ...extraHeaders, authorization: `Bearer ${token}` }
     return Object.freeze({
       baseUrl: this.baseUrl,
       headers: Object.freeze(headers),

@@ -36,6 +36,22 @@ registrar.registerAdapter(adapter, routes?)   // plugin registrar: adapter FIRST
 
 ## Level 1 — configuration only
 
+Since 0.1.2, OpenAI/Anthropic/Gemini generation and OpenAI/Gemini embedding
+adapters/plugins accept `headers` as a record or synchronous resolver. Header
+names are case-insensitive; reserved auth/transport names and collisions fail.
+Prepared embedding batches share one snapshot. Use `allowInsecureHttp: true`
+only for trusted local gateways. The wire protocol still has to match.
+
+Codex/Copilot stores can use `defineCredentialStore({ id, label, read, commit })`
+with database-backed atomic revision checks. `getCodexTokens(store)` refreshes
+and commits when due; `refreshIfNeeded: false` reads only.
+`refreshCodexTokens(store)` forces refresh. `getCopilotToken(store, { tokenCache })`
+shares the cache used by `copilotPlugin`; `forceRefresh: true` invalidates its
+entry but may reuse an in-flight exchange. Without a cache, each helper call
+exchanges anew. Custom caches implement `acquire`/`invalidate`.
+Codex refreshers across workers still need account-level coordination.
+See `samples/credential-database/` for the tested SQLite store and full usage.
+
 For any endpoint speaking a protocol the SDK already implements, adding it is
 configuration. No new file, no SDK edit.
 

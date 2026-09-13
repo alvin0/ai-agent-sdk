@@ -75,6 +75,8 @@ export {
   credentialFailure,
   discoverCopilotModels,
   exchangeCopilotToken,
+  getCopilotToken,
+  type GetCopilotTokenOptions,
   memoryCopilotAuthStore,
   memoryCopilotCredentialStore,
   partitionCopilotCatalog,

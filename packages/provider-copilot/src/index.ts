@@ -20,6 +20,7 @@ export {
   type CopilotPluginOptions,
   type CopilotProviderOptions,
 } from './adapter.ts'
+export { getCopilotToken, type GetCopilotTokenOptions } from './token.ts'
 export {
   COPILOT_LOGIN_COMMAND,
   COPILOT_TOKEN_EXCHANGE_MARGIN_MS,

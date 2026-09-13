@@ -12,6 +12,14 @@ contract, Copilot token exchange, model-driven endpoint routing across
 provider plugin. A `CopilotCredentialStore` must be injected; filesystem and
 environment defaults belong to the Node auth package.
 
+Use `defineCredentialStore<CopilotAuthFile>({ id, label, read, commit })` to
+persist GitHub credentials in your database. `getCopilotToken(store, { tokenCache })`
+acquires a short-lived API token; `forceRefresh: true` invalidates its cached entry.
+Share `tokenCache` with `copilotPlugin`, or implement its `acquire`/`invalidate`
+methods to own database caching and exchange. `exchangeCopilotToken` remains
+available for standalone exchange. The GitHub credential does not rotate.
+See the [working database example](../../samples/credential-database/README.md).
+
 ```ts
 import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
 import { copilotPlugin, memoryCopilotCredentialStore } from '@alvin0/ai-agent-sdk-provider-copilot'

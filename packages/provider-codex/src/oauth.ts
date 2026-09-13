@@ -21,6 +21,8 @@ import { waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 import type { CredentialOperationOptions, SdkLogger } from '@alvin0/ai-agent-sdk-core/provider'
 import {
   readJwtClaims,
+  requireTokens,
+  shouldRefresh,
   resolveAccountId,
   type CodexAuthFile,
   type CodexAuthStore,
@@ -78,6 +80,33 @@ export interface CodexOAuthOptions {
   maxResponseChunks?: number
   /** Permit an http:// issuer for a trusted local test endpoint. Defaults to false. */
   allowInsecureIssuer?: boolean
+}
+
+/** Settings for reading credentials from any store and optionally refreshing them. */
+export interface GetCodexTokensOptions extends CodexOAuthOptions {
+  /** Defaults to true. Set false to read the stored tokens without refreshing. */
+  readonly refreshIfNeeded?: boolean
+}
+
+/**
+ * Read Codex tokens from an injected store, refreshing and committing when due.
+ * Database stores implement read/commit; no filesystem or environment is consulted.
+ * For an unconditional refresh use refreshCodexTokens with the same store.
+ */
+export async function getCodexTokens(
+  store: CodexCredentialStore | CodexAuthStore,
+  options: GetCodexTokensOptions = {},
+): Promise<CodexTokens> {
+  const operation = credentialOperation(options.signal)
+  operation.signal.throwIfAborted()
+  const captured = captureCodexStore(store)
+  const snapshot = await readStore(captured, operation)
+  operation.signal.throwIfAborted()
+  const tokens = requireTokens(snapshot.file, captured.label)
+  if (options.refreshIfNeeded !== false && snapshot.file !== undefined && shouldRefresh(snapshot.file)) {
+    return refreshCodexTokensWithOperation(store, options, operation)
+  }
+  return tokens
 }
 
 /** A pending device authorization the user has to approve. */
@@ -172,7 +201,10 @@ async function readResponseText(response: Response, options: CodexOAuthOptions):
 }
 
 function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(signal.reason ?? new Error('Codex OAuth operation aborted'))
+  if (signal.aborted) {
+    void pending.catch(() => undefined)
+    return Promise.reject(signal.reason ?? new Error('Codex OAuth operation aborted'))
+  }
   return new Promise<T>((resolve, reject) => {
     const abort = () => { cleanup(); reject(signal.reason ?? new Error('Codex OAuth operation aborted')) }
     const cleanup = () => signal.removeEventListener('abort', abort)
@@ -513,6 +545,7 @@ export async function refreshCodexTokensWithOperation(
   const captured = captureCodexStore(store)
   const snapshot = await readStore(captured, operation)
   const file = snapshot.file
+  operation.signal.throwIfAborted()
   const current = file?.tokens
   if (current === undefined || current === null || current.refresh_token.length === 0) {
     throw new CodexRefreshError(
@@ -553,6 +586,15 @@ export async function refreshCodexTokensWithOperation(
   }
 
   const parsed = await readJson(response, 'the token endpoint', options)
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new CodexRefreshError('token refresh returned an invalid payload', 'transient')
+  }
+  for (const field of ['id_token', 'access_token', 'refresh_token'] as const) {
+    const value = parsed[field]
+    if (value !== undefined && (typeof value !== 'string' || value.trim().length === 0)) {
+      throw new CodexRefreshError('token refresh returned an invalid token field', 'transient')
+    }
+  }
   // Every field is optional on refresh; keep the current value when one is absent
   // rather than clobbering it with undefined.
   const next: CodexTokens = {
@@ -560,7 +602,7 @@ export async function refreshCodexTokensWithOperation(
     access_token: typeof parsed.access_token === 'string' ? parsed.access_token : current.access_token,
     refresh_token: typeof parsed.refresh_token === 'string' ? parsed.refresh_token : current.refresh_token,
   }
-  const accountId = resolveAccountId(next)
+  const accountId = parsed.id_token === undefined ? resolveAccountId(current) : resolveAccountId(next)
   const updated: CodexTokens = { ...next, account_id: accountId ?? null }
   const nextFile: CodexAuthFile = {
     ...file,
@@ -591,12 +633,14 @@ async function readStore(
   operation: CredentialOperationOptions,
 ): Promise<CodexStoreSnapshot> {
   if (captured.kind === 'versioned') {
-    const record = await captured.store.read(operation)
+    operation.signal.throwIfAborted()
+    const record = await raceAbort(captured.store.read(operation), operation.signal)
     return record === undefined
       ? { file: undefined, revision: null }
       : { file: record.value, revision: record.revision }
   }
-  return { file: await captured.store.read(), revision: null }
+  operation.signal.throwIfAborted()
+  return { file: await raceAbort(captured.store.read(), operation.signal), revision: null }
 }
 
 async function commitStore(

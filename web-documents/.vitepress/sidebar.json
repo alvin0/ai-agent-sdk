@@ -257,6 +257,10 @@
           "link": "/en/09-providers/embeddings"
         },
         {
+          "text": "Gateways & Database Credentials",
+          "link": "/en/09-providers/gateways-and-credentials"
+        },
+        {
           "text": "Custom Provider",
           "link": "/en/09-providers/custom-provider"
         },
@@ -663,6 +667,10 @@
         {
           "text": "Embeddings",
           "link": "/vi/09-providers/embeddings"
+        },
+        {
+          "text": "Gateway & Credential Database",
+          "link": "/vi/09-providers/gateways-and-credentials"
         },
         {
           "text": "Custom Provider",

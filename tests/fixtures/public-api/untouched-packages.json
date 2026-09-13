@@ -992,6 +992,7 @@
           "createRuntimeHttpProvider",
           "defineWireProtocol",
           "embeddingCatalogModelInfo",
+          "endpointHeaders",
           "httpErrorCode",
           "isJsonMediaType",
           "observeCredentialOperation",
@@ -1006,7 +1007,7 @@
           "retryAfterMs",
           "transportJson"
         ],
-        "declarationSha256": "0e4284daa41894c6ca89c21325eba1bcdad973388f83862933932de18271c129"
+        "declarationSha256": "66fa1d9665b70b1632d8612f95bf4c46828e0fb13436d0e86178ea762565b97f"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-responses": {
@@ -1146,7 +1147,7 @@
           "openAiPlugin",
           "openAiResponsesProtocol"
         ],
-        "declarationSha256": "35f61bb3857491cb123f8990b2f6e7332e0707c87df46299cd5a4c2e98460274"
+        "declarationSha256": "d028d6969915983c4ed5f7b146a8626664c72b24619d1ba5e409912a3ac3028f"
       }
     },
     "@alvin0/ai-agent-sdk-provider-gemini": {
@@ -1167,7 +1168,7 @@
           "geminiInteractionsProtocol",
           "geminiPlugin"
         ],
-        "declarationSha256": "069653a75d06857c4e109c8424b7ca1eaf5452a51539ceaf65c66fc90d1a5534"
+        "declarationSha256": "866fa9d349c799f9c68b49e9db49e4bf4327cdc09964003e737f02c1b35409c4"
       }
     }
   }

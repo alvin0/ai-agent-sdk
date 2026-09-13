@@ -32,6 +32,8 @@ export {
   CodexRefreshError,
   DEFAULT_CODEX_ISSUER,
   refreshCodexTokens,
+  getCodexTokens,
+  type GetCodexTokensOptions,
   requestDeviceCode,
   runDeviceCodeLogin,
   type CodexDeviceCode,

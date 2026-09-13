@@ -4,7 +4,7 @@
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
   },
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Universal OpenTelemetry API bridge for correlated ai-agent-sdk spans, metrics, and logs",
   "license": "MIT",
   "repository": {

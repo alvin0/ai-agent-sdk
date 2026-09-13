@@ -98,6 +98,39 @@ retired model.
 
 ## Providers
 
+OpenAI, Anthropic, and Gemini adapters/plugins accept `baseUrl`, an advisory
+`models` catalog, custom `fetch`, and `headers` as a string record or synchronous
+function returning a string record. OpenAI and Gemini embedding adapters/plugins
+accept the same header option. Dynamic headers are captured once per operation;
+embedding batches within a prepared logical call share that snapshot.
+
+```ts
+import { openAiEmbeddingPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
+
+const embeddings = openAiEmbeddingPlugin({
+  apiKey: 'gateway-key', // or a CredentialSource
+  baseUrl: 'https://gateway.example/v1',
+  headers: () => ({ 'x-tenant': currentTenantId }),
+  models: [{ id: 'custom-embedding', compatibilityIdentity: 'gateway:custom-embedding' }],
+})
+```
+
+Header names are case-insensitive. Collisions fail instead of overwriting existing
+headers. Supply credentials through `apiKey`; authentication headers and transport
+headers (including `content-type`, `accept`, and SDK attribution) are reserved.
+Use `organization`/`project` for OpenAI account headers and `version`/`beta` for
+Anthropic protocol headers. Static header records are copied; dynamic resolvers
+must return the headers for the current operation. Trusted local HTTP gateways
+require explicit `allowInsecureHttp: true`.
+
+Compatibility means the same wire protocol: OpenAI generation uses Responses
+(`/responses`), Anthropic uses Messages (`/v1/messages`), and Gemini generation
+uses Interactions (`/interactions`). A gateway offering only OpenAI Chat
+Completions or Gemini `generateContent` cannot use those generation plugins
+unchanged. OpenAI embeddings use `/embeddings`; Gemini embeddings use
+`models/{model}:batchEmbedContents`. Arbitrary model IDs are accepted, but the
+endpoint must support the selected protocol and capabilities.
+
 | Entry point | Endpoint | Credential |
 | --- | --- | --- |
 | `@alvin0/ai-agent-sdk-provider-anthropic` | Messages API | injected `apiKey` |
@@ -110,6 +143,15 @@ and differ only by a small dialect record — base URL, auth, and which optional
 fields the endpoint accepts.
 
 ### Codex: project-local login
+
+For server applications, Codex and Copilot can use database-backed credentials
+through `authStore: defineCredentialStore({ read, commit, ... })`; filesystem
+storage is only the Node wrapper default. Use `getCodexTokens(store)` to read
+and refresh when needed, `refreshCodexTokens(store)` for explicit refresh, and
+`getCopilotToken(store, { tokenCache })` for Copilot API-token acquisition.
+The same stores work with device login and provider plugins. See the
+[database credential example](samples/credential-database/README.md) for a tested
+SQLite store, tenant scoping, revision-safe commits, and custom token-cache hooks.
 
 ```bash
 pnpm exec ai-agent-sdk-codex-login             # sign in
