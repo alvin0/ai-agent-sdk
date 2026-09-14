@@ -70,6 +70,31 @@ Precedence is fixed: an approved explicit mode outranks the session's mode,
 which outranks the deployment default. A session's cwd is its `workspace-write`
 boundary; the configured root is the fallback for agentless calls.
 
+## Network reach
+
+`SandboxMode` governs file effects and says so. Reachability is a second,
+independent axis on the same policy, because folding it into the mode would
+make the mode claim something it does not decide — and because the two are
+enforced by different mechanisms, so a host can provide one without the other.
+
+| Reach | Meaning |
+| --- | --- |
+| `deny` | No network at all |
+| `loopback` | Loopback only — for a proxy or language server the deployment runs |
+| `allow-all` | Unrestricted (the default, and what this package did before the seam) |
+
+```ts
+resolveSandboxPolicy({ cwd, network: 'deny' }, { mode: 'read-only', workspaceRoot, network: 'deny' })
+```
+
+Reach narrows exactly like authority does: a request may tighten its own, never
+loosen it, and only a minted approval widens it. A deployment running anything
+untrusted should default to `deny` and widen per call.
+
+Unix sockets are **not** governed by this axis — they are filesystem objects,
+so a host daemon socket is closed by a `deny` entry, not by a network mode. The
+two seams compose; neither substitutes for the other.
+
 ## Nested carve-outs
 
 A single writable root is not enough. An agent that may write in a repository

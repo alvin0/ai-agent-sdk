@@ -8,7 +8,9 @@
  * convenience: without it, procfs magic links reach outside the mounts.
  */
 
-import type { RunnerFailureRule, SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
+import type {
+  NetworkEnforcement, NetworkMode, RunnerFailureRule, SandboxPolicy,
+} from '@alvin0/ai-agent-sdk-sandbox'
 import type { WritableRootOptions } from '@alvin0/ai-agent-sdk-sandbox'
 import { grantLayers, pathDepth } from '@alvin0/ai-agent-sdk-sandbox'
 import { isDirectory, nodePathResolver } from '../fs/resolver.ts'
@@ -39,8 +41,13 @@ export type BwrapVariant = 'full' | 'restricted'
 export const BWRAP_STATUS_FD = 3
 
 /** The namespace and capability arguments shared by the profile and its probe. */
-function baseArgs(variant: BwrapVariant): string[] {
+function baseArgs(variant: BwrapVariant, network: NetworkMode = 'allow-all'): string[] {
   return [
+    // A network namespace is all-or-nothing here: it leaves the sandbox with
+    // its own loopback and no route anywhere else. `deny` and `loopback`
+    // therefore enforce identically on this backend, which the enforcement
+    // report states rather than papering over.
+    ...(network === 'allow-all' ? [] : ['--unshare-net']),
     '--ro-bind', '/', '/',
     '--dev', '/dev',
     ...(variant === 'full' ? ['--proc', '/proc'] : []),
@@ -94,7 +101,7 @@ export async function bwrapProfileArgs(
   variant: BwrapVariant = 'full',
 ): Promise<readonly string[]> {
   const resolver = nodePathResolver()
-  const args: string[] = baseArgs(variant)
+  const args: string[] = baseArgs(variant, policy.network ?? 'allow-all')
   const sealReadOnly: string[] = []
 
   for (const layer of grantLayers(policy, options)) {
@@ -144,4 +151,12 @@ export async function bwrapProfileArgs(
  */
 export function bwrapProbeArgs(workspaceRoot: string, variant: BwrapVariant): readonly string[] {
   return Object.freeze([...baseArgs(variant), '--chdir', workspaceRoot, '--', 'true'])
+}
+
+/**
+ * What this backend achieves for a network mode. A namespace removes every
+ * route, so `deny` is met exactly and `loopback` is met by construction.
+ */
+export function bwrapNetworkEnforcement(network: NetworkMode): NetworkEnforcement {
+  return network === 'allow-all' ? 'none' : 'full'
 }

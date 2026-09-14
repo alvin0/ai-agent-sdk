@@ -13,9 +13,12 @@ import type {
   WritableRootOptions,
 } from '@alvin0/ai-agent-sdk-sandbox'
 import { createFsFence, SandboxUnavailableError } from '@alvin0/ai-agent-sdk-sandbox'
-import { bwrapProfileArgs, BWRAP_DENIAL_SIGNATURES, BWRAP_STATUS_FD } from './backends/bwrap.ts'
 import {
-  seatbeltProfileAccepted, seatbeltProfileArgs, SEATBELT_VALIDATED_FAILURE_RULES,
+  bwrapNetworkEnforcement, bwrapProfileArgs, BWRAP_DENIAL_SIGNATURES, BWRAP_STATUS_FD,
+} from './backends/bwrap.ts'
+import {
+  seatbeltNetworkEnforcement, seatbeltProfileAccepted, seatbeltProfileArgs,
+  SEATBELT_VALIDATED_FAILURE_RULES,
 } from './backends/seatbelt.ts'
 import { WINDOWS_UNAVAILABLE_REASON } from './backends/windows.ts'
 import { sandboxEnv } from './env.ts'
@@ -137,6 +140,7 @@ export function localSandbox(options: LocalSandboxOptions = {}): SandboxProvider
             Object.freeze({ fatalSignatures: options.runnerFailureSignatures ?? [] }),
           ]),
           env: sandboxEnv('custom', policy.mode),
+          networkEnforcement: bwrapNetworkEnforcement(policy.network ?? 'allow-all'),
           statusFd: BWRAP_STATUS_FD,
         })
       }
@@ -159,6 +163,9 @@ export function localSandbox(options: LocalSandboxOptions = {}): SandboxProvider
           ? SEATBELT_VALIDATED_FAILURE_RULES
           : descriptor.runnerFailureRules,
         env: sandboxEnv(descriptor.id, policy.mode),
+        networkEnforcement: runner === 'seatbelt'
+          ? seatbeltNetworkEnforcement(policy.network ?? 'allow-all')
+          : bwrapNetworkEnforcement(policy.network ?? 'allow-all'),
         ...(runner === 'seatbelt' ? {} : { statusFd: BWRAP_STATUS_FD }),
       })
     },
@@ -179,8 +186,8 @@ export { openConfinedWrite, writeConfinedFile } from './open.ts'
 export type { ConfinedOpenOptions } from './open.ts'
 export { sandboxChildStarted, sandboxSpawnOptions } from './spawn.ts'
 export type { SandboxSpawnInput, SandboxSpawnOptions } from './spawn.ts'
-export { BWRAP_STATUS_FD } from './backends/bwrap.ts'
-export { SEATBELT_RUNNER_FAILURE_RULES, seatbeltProfileAccepted } from './backends/seatbelt.ts'
+export { bwrapNetworkEnforcement, BWRAP_STATUS_FD } from './backends/bwrap.ts'
+export { SEATBELT_RUNNER_FAILURE_RULES, seatbeltNetworkEnforcement, seatbeltProfileAccepted } from './backends/seatbelt.ts'
 export { PLATFORM_CHAINS, platformChain, probeRunner, runnerDescriptor } from './select.ts'
 export type { RunnerDescriptor, RunnerId } from './select.ts'
 export type { BwrapVariant } from './backends/bwrap.ts'

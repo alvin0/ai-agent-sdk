@@ -54,6 +54,7 @@ try {
   await checkFence()
   await checkNestedCarveOut()
   await checkEnvironment()
+  await checkNetwork()
   await checkInheritedCapabilities()
   if (report.backend === undefined) await checkFailsClosed()
   else await checkConfinement()
@@ -150,6 +151,49 @@ async function checkAuthorizationBoundary(): Promise<void> {
     { cwd: workspace, approval: approveSandboxEscalation({ mode: 'workspace-write' }) }, defaults,
   )
   expect('a minted approval is the path that works', approved.mode, 'workspace-write')
+}
+
+/**
+ * Network reach is a second axis, enforced by a different mechanism than the
+ * mounts, so it has to be exercised on its own — a host can provide the file
+ * boundary and not this one.
+ */
+async function checkNetwork(): Promise<void> {
+  process.stdout.write('\nnetwork reach\n')
+  if (report.backend === undefined) {
+    const confined = await provider.confine([process.execPath, '-e', ''], networkPolicy('deny'))
+      .catch(() => undefined)
+    expect('no backend means no network enforcement either', confined, undefined)
+    return
+  }
+  const probe = [process.execPath, '-e',
+    "const n=require('node:net');const c=n.connect({host:'1.1.1.1',port:443});"
+    + "c.on('connect',()=>{console.log('REACHED');process.exit(0)});"
+    + "c.on('error',()=>{console.log('blocked');process.exit(0)});"
+    + "setTimeout(()=>{console.log('blocked');process.exit(0)},5000)"] as const
+
+  for (const [reach, wanted] of [['deny', 'blocked'], ['loopback', 'blocked']] as const) {
+    const confined = await provider.confine(probe, networkPolicy(reach))
+    expect(`${reach} reports full network enforcement`, confined.networkEnforcement, 'full')
+    const options = sandboxSpawnOptions(confined)
+    const result = spawnSync(confined.argv[0] ?? '', confined.argv.slice(1), {
+      cwd: workspace, encoding: 'utf8', windowsHide: true, timeout: 20_000,
+      stdio: [...options.stdio], env: { ...options.env },
+    })
+    expect(`${reach} really cannot reach a public address`,
+      (result.stdout ?? '').trim().split('\n')[0], wanted)
+  }
+
+  const open = await provider.confine(probe, networkPolicy('allow-all'))
+  expect('allow-all reports no network enforcement', open.networkEnforcement, 'none')
+}
+
+/** A policy that differs from the others only in the reach it permits. */
+function networkPolicy(reach: 'deny' | 'loopback' | 'allow-all'): SandboxPolicy {
+  return resolveSandboxPolicy(
+    { cwd: workspace },
+    { mode: 'workspace-write', workspaceRoot: workspace, network: reach },
+  ) as SandboxPolicy
 }
 
 /**

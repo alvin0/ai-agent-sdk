@@ -118,6 +118,28 @@ kill are swept. A process that double-forks *between* the sample and the kill
 still escapes; closing that needs fork notifications from the kernel, which
 Node does not expose.
 
+## Network reach
+
+| Reach | linux (bubblewrap) | macOS (Seatbelt) | Windows |
+| --- | --- | --- | --- |
+| `deny` | `--unshare-net` | `(deny network*)` | ✗ |
+| `loopback` | `--unshare-net` | `(deny network*)` + a localhost rule | ✗ |
+| `allow-all` | nothing | nothing | — |
+
+Measured: a TCP connection to a public address returns `ENETUNREACH` under
+bubblewrap and `EPERM` under Seatbelt, and succeeds under `allow-all`.
+
+The two backends differ in what `loopback` means, and the difference matters.
+Seatbelt denies the operation class and re-allows `localhost`, so the command
+reaches a proxy running on the **host**. A network namespace has no such notion:
+it gives the sandbox its own loopback, so `loopback` reaches services the
+command itself started and nothing the host runs. Reaching a host proxy from
+inside a namespace needs a Unix socket bridged in and a forwarder inside — not
+built here.
+
+`confine()` reports `networkEnforcement` separately from `enforcement`, because
+a host can give you the file boundary and not this one.
+
 ## Requiring a boundary
 
 `partial` is a state, not a caveat: a bubblewrap rung without its own `/proc`
@@ -177,9 +199,11 @@ under a real backend on macOS and Linux.
   carries another name, but bubblewrap and Seatbelt cannot see the alias, so a
   spawned process writing through it is not stopped. A confined process cannot
   create such a link — `link()` is denied — so it needs one placed beforehand.
-- **No network confinement.** File effects only. A confined command reaches the
-  internet: a TCP connection to a public address succeeds. Only paths listed as
-  denied are closed to outbound Unix-socket connections.
+- **`loopback` does not reach a host proxy on Linux.** A network namespace gives
+  the sandbox its own loopback. See *Network reach*.
+- **No allow-list by hostname.** Reach is all, loopback, or nothing; permitting
+  `github.com` and refusing everything else needs a proxy the sandbox can reach
+  and a bridge into the namespace, which is not built here.
 - **No resource limits.** No rlimit, no cgroup, no accounting: 150 processes,
   2 GB of memory, and 20 000 files were all created without resistance. That
   belongs to its own seam — cgroup v2 on Linux, a Job Object on Windows — and

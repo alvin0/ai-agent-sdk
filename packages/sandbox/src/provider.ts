@@ -2,6 +2,7 @@
 
 import type { RunnerFailureRule } from './classify.ts'
 import type { SandboxEnforcement } from './mode.ts'
+import type { NetworkEnforcement } from './network.ts'
 import type { SandboxPolicy } from './policy.ts'
 
 /** The argv to spawn in place of the caller's own, plus how to read its result. */
@@ -10,6 +11,13 @@ export interface ConfinedArgv {
   readonly argv: readonly string[]
   /** How completely the selected backend enforces this policy's file effects. */
   readonly enforcement: SandboxEnforcement
+  /**
+   * How completely it enforces the policy's network reach. `none` means the
+   * command can reach whatever the host can, whatever the policy asked for —
+   * a separate fact from file enforcement, because a host can provide one
+   * mechanism and not the other.
+   */
+  readonly networkEnforcement: NetworkEnforcement
   /** Identifier of the backend that produced this wrap. */
   readonly backend: string
   /**

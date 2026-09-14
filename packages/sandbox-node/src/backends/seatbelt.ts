@@ -8,7 +8,9 @@
  * a grant written the other way silently matches nothing.
  */
 
-import type { RunnerFailureRule, SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
+import type {
+  NetworkEnforcement, NetworkMode, RunnerFailureRule, SandboxPolicy,
+} from '@alvin0/ai-agent-sdk-sandbox'
 import type { WritableRootOptions } from '@alvin0/ai-agent-sdk-sandbox'
 import { grantLayers } from '@alvin0/ai-agent-sdk-sandbox'
 import { spawnSync } from 'node:child_process'
@@ -61,6 +63,15 @@ export async function seatbeltProfileArgs(
     '(deny file-write*)',
     `(allow file-write* (literal ${sbplString('/dev/null')}))`,
   ]
+
+  // Network is its own operation class in SBPL, so denying it is independent of
+  // every file rule above — and a loopback carve-out is a rule, not a weaker
+  // denial: the command reaches a proxy the deployment runs and nothing else.
+  const network = policy.network ?? 'allow-all'
+  if (network !== 'allow-all') {
+    forms.push('(deny network*)')
+    if (network === 'loopback') forms.push('(allow network* (remote ip "localhost:*"))')
+  }
 
   for (const layer of grantLayers(policy, options)) {
     // Seatbelt matches resolved paths — `/tmp` IS `/private/tmp` — so a rule
@@ -118,6 +129,14 @@ export function seatbeltProfileAccepted(profile: string): boolean {
 export const SEATBELT_VALIDATED_FAILURE_RULES: readonly RunnerFailureRule[] = Object.freeze([
   Object.freeze({ fatalSignatures: Object.freeze(['sandbox_init', 'sandbox_apply']) }),
 ])
+
+/**
+ * What this backend achieves for a network mode. Seatbelt distinguishes the two
+ * confining modes exactly, because the policy language does.
+ */
+export function seatbeltNetworkEnforcement(network: NetworkMode): NetworkEnforcement {
+  return network === 'allow-all' ? 'none' : 'full'
+}
 
 /** The read-only profile used to probe whether Seatbelt accepts a policy. */
 export function seatbeltProbeArgs(): readonly string[] {

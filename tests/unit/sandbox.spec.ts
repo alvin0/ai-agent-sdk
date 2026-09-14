@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   accessFor, accessInLayers, annotateStderr, approveSandboxEscalation, classifyOutcome,
   confiningPolicy, containsPath, dedupeRoots, grantLayers, isSandboxApproval, narrowPolicy,
-  normalizePath, PROTECTED_SUBPATHS, resolveSandboxPolicy, sandboxViolation, SandboxPolicyError,
-  unreadablePaths, writableRoots,
+  narrowNetwork, networkAuthority, normalizePath, PROTECTED_SUBPATHS, resolveSandboxPolicy,
+  sandboxViolation, SandboxPolicyError, unreadablePaths, writableRoots,
 } from '@alvin0/ai-agent-sdk-sandbox'
 import type { SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
 
@@ -281,5 +281,46 @@ describe('platform-hidden paths', () => {
     expect(accessInLayers('/home/u/.ssh/id_rsa', hidden)).toBe('deny')
     expect(accessInLayers('/var/run/docker.sock', hidden)).toBe('deny')
     expect(accessInLayers('/repo/src/x', hidden)).toBe('write')
+  })
+})
+
+describe('network reach is its own axis', () => {
+  const defaults = { mode: 'read-only' as const, workspaceRoot: '/repo' }
+
+  it('is independent of the file-effect mode', () => {
+    const resolved = resolveSandboxPolicy({ cwd: '/repo' }, { ...defaults, network: 'deny' })
+    expect(resolved.mode).toBe('read-only')
+    expect(resolved.network).toBe('deny')
+  })
+
+  it('defaults to what this package did before the seam existed', () => {
+    expect(resolveSandboxPolicy({ cwd: '/repo' }, defaults).network).toBe('allow-all')
+  })
+
+  it('lets a request narrow its own reach', () => {
+    expect(resolveSandboxPolicy(
+      { cwd: '/repo', network: 'deny' }, { ...defaults, network: 'allow-all' },
+    ).network).toBe('deny')
+  })
+
+  it('refuses a request that tries to widen its reach', () => {
+    // Same rule as the file-effect mode: a model-authored payload may tighten
+    // its own execution and never loosen it.
+    expect(resolveSandboxPolicy(
+      { cwd: '/repo', network: 'allow-all' }, { ...defaults, network: 'deny' },
+    ).network).toBe('deny')
+  })
+
+  it('lets a minted approval widen it', () => {
+    const approval = approveSandboxEscalation({ network: 'allow-all' })
+    expect(resolveSandboxPolicy({ cwd: '/repo', approval }, { ...defaults, network: 'deny' }).network)
+      .toBe('allow-all')
+  })
+
+  it('ranks reach so narrowing is decidable', () => {
+    expect(networkAuthority('deny')).toBeLessThan(networkAuthority('loopback'))
+    expect(networkAuthority('loopback')).toBeLessThan(networkAuthority('allow-all'))
+    expect(narrowNetwork('loopback', 'allow-all')).toBe('loopback')
+    expect(narrowNetwork('allow-all', 'deny')).toBe('deny')
   })
 })

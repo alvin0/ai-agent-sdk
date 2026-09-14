@@ -13,6 +13,8 @@ import type { FileSystemEntry } from './entries.ts'
 import { orderEntries } from './entries.ts'
 import { SandboxPolicyError } from './errors.ts'
 import type { ConfinedSandboxMode, SandboxMode } from './mode.ts'
+import type { NetworkMode } from './network.ts'
+import { narrowNetwork } from './network.ts'
 import { isConfinedMode, isSandboxMode, modeAuthority } from './mode.ts'
 import { isAbsolutePath, normalizePath } from './path.ts'
 
@@ -24,6 +26,11 @@ export interface SandboxExecutionPolicy {
   readonly workspaceRoot: string
   /** Nested carve-outs layered over the mode's base grant. */
   readonly entries?: readonly FileSystemEntry[]
+  /**
+   * What this execution may reach over the network. Independent of
+   * {@link SandboxExecutionPolicy.mode}, which governs file effects only.
+   */
+  readonly network?: NetworkMode
   /** Opaque calling-session identity; backends key per-session state off it. */
   readonly sessionId?: string
 }
@@ -62,6 +69,8 @@ export interface SandboxPolicyRequest {
    * `~/.ssh` defeats the boundary just as completely as raising the mode.
    */
   readonly entries?: readonly FileSystemEntry[]
+  /** The network reach the caller asks for; honoured only when it narrows. */
+  readonly network?: NetworkMode
   /** An approval minted by `approveSandboxEscalation`; the only way to widen. */
   readonly approval?: SandboxApproval
   /** Opaque calling-session identity. */
@@ -76,6 +85,12 @@ export interface SandboxPolicyDefaults {
   readonly workspaceRoot: string
   /** Carve-outs that always apply, before request-supplied ones. */
   readonly entries?: readonly FileSystemEntry[]
+  /**
+   * Network reach for calls that do not narrow it. Defaults to `allow-all`,
+   * which is what this package did before the seam existed; a deployment
+   * running anything untrusted should set `deny` and widen per call.
+   */
+  readonly network?: NetworkMode
 }
 
 /**
@@ -129,8 +144,12 @@ export function resolveSandboxPolicy(
   const entries = orderEntries([
     ...(defaults.entries ?? []), ...(request.entries ?? []), ...(approval?.entries ?? []),
   ])
+  // Reach narrows the same way authority does, and widens only with approval.
+  const network = approval?.network
+    ?? narrowNetwork(defaults.network ?? 'allow-all', request.network)
+
   return Object.freeze({
-    mode, workspaceRoot,
+    mode, workspaceRoot, network,
     ...(entries.length === 0 ? {} : { entries }),
     ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
   })

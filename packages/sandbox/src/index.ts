@@ -12,6 +12,8 @@ export type { FileSystemAccess, FileSystemEntry } from './entries.ts'
 export { SandboxDeniedError, SandboxPolicyError, SandboxUnavailableError } from './errors.ts'
 export { createFsFence } from './fence.ts'
 export { isConfinedMode, isSandboxMode, modeAuthority, SANDBOX_MODES } from './mode.ts'
+export { isNetworkMode, narrowNetwork, networkAuthority, NETWORK_MODES } from './network.ts'
+export type { NetworkEnforcement, NetworkMode } from './network.ts'
 export type { ConfinedSandboxMode, SandboxEnforcement, SandboxMode } from './mode.ts'
 export {
   ancestorPaths, containsPath, dedupeRoots, detectFlavor, isAbsolutePath,

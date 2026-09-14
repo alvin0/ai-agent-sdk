@@ -597,3 +597,47 @@ describe('tearing down everything the command started', () => {
     expect([...descendantsOf(process.pid, 'win32')]).toEqual([])
   })
 })
+
+describe('backends express network reach', () => {
+  function networkPolicy(root: string, network: 'deny' | 'loopback' | 'allow-all'): SandboxPolicy {
+    return resolveSandboxPolicy(
+      { cwd: root }, { mode: 'workspace-write', workspaceRoot: root, network },
+    ) as SandboxPolicy
+  }
+
+  it('unshares the network namespace unless everything is allowed', async () => {
+    const root = await workspace()
+    const provider = localSandbox({ platform: 'linux', probe: false })
+    expect((await provider.confine(['true'], networkPolicy(root, 'deny'))).argv)
+      .toContain('--unshare-net')
+    expect((await provider.confine(['true'], networkPolicy(root, 'loopback'))).argv)
+      .toContain('--unshare-net')
+    expect((await provider.confine(['true'], networkPolicy(root, 'allow-all'))).argv)
+      .not.toContain('--unshare-net')
+  })
+
+  it('denies the Seatbelt network class, re-allowing loopback only when asked', async () => {
+    const root = await workspace()
+    const provider = localSandbox({ platform: 'darwin', probe: false })
+    const denied = (await provider.confine(['true'], networkPolicy(root, 'deny'))).argv[2] ?? ''
+    expect(denied).toContain('(deny network*)')
+    expect(denied).not.toContain('(allow network*')
+
+    const loopback = (await provider.confine(['true'], networkPolicy(root, 'loopback'))).argv[2] ?? ''
+    expect(loopback.indexOf('(allow network* (remote ip "localhost:*"))'))
+      .toBeGreaterThan(loopback.indexOf('(deny network*)'))
+
+    const open = (await provider.confine(['true'], networkPolicy(root, 'allow-all'))).argv[2] ?? ''
+    expect(open).not.toContain('network*')
+  })
+
+  it('reports network enforcement separately from file enforcement', async () => {
+    const root = await workspace()
+    const provider = localSandbox({ platform: 'linux', probe: false })
+    const confined = await provider.confine(['true'], networkPolicy(root, 'deny'))
+    expect(confined.enforcement).toBe('full')
+    expect(confined.networkEnforcement).toBe('full')
+    expect((await provider.confine(['true'], networkPolicy(root, 'allow-all'))).networkEnforcement)
+      .toBe('none')
+  })
+})

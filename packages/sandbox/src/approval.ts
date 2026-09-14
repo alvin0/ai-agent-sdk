@@ -16,6 +16,7 @@
 import type { FileSystemEntry } from './entries.ts'
 import { SandboxPolicyError } from './errors.ts'
 import type { SandboxMode } from './mode.ts'
+import type { NetworkMode } from './network.ts'
 
 /** What an approval permits, beyond what the session already allows. */
 export interface SandboxApprovalGrant {
@@ -23,6 +24,8 @@ export interface SandboxApprovalGrant {
   readonly mode?: SandboxMode
   /** Entries the approval may add, including widening ones. */
   readonly entries?: readonly FileSystemEntry[]
+  /** Network reach the approval raises this call to. */
+  readonly network?: NetworkMode
   /** Free-text reason, carried for audit; never interpreted. */
   readonly justification?: string
 }
