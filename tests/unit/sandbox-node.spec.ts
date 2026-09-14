@@ -318,3 +318,18 @@ describe('a narrower grant beneath a denial reaches every layer', () => {
     expect(reopened).toBeGreaterThan(denied)
   })
 })
+
+describe('a protected subpath enforced by a mount reports as a denial', () => {
+  // bubblewrap enforces a protected subpath by bind-mounting it, and removing a
+  // mount point reports EBUSY rather than a permission error. Measured on 0.8.0:
+  // `rm -rf .git` yields "EBUSY: resource busy or locked, rmdir". Reading that
+  // as an ordinary command failure would tell a model its command was broken
+  // when the sandbox is precisely what stopped it.
+  it('classifies a busy mount point as denied, not as a command failure', async () => {
+    const root = await workspace()
+    const provider = localSandbox({ platform: 'linux', probe: false })
+    const confined = await provider.confine(['true'], policyFor(root))
+    const stderr = `Error: EBUSY: resource busy or locked, rmdir '${join(root, '.git')}'`
+    expect(classifyOutcome({ exitCode: 1, stderr }, confined).kind).toBe('denied')
+  })
+})

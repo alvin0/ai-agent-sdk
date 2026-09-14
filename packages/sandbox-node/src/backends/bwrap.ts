@@ -39,9 +39,17 @@ function baseArgs(variant: BwrapVariant): string[] {
   ]
 }
 
-/** Stderr substrings a file effect denied by bubblewrap's binds produces. */
+/**
+ * Stderr substrings a file effect denied by bubblewrap's binds produces.
+ *
+ * `EBUSY` belongs here: a protected subpath is enforced by bind-mounting it, and
+ * removing a mount point reports "resource busy" rather than a permission
+ * error. Without it, `rm -rf .git` reads as an ordinary command failure even
+ * though the sandbox is exactly what stopped it.
+ */
 export const BWRAP_DENIAL_SIGNATURES: readonly string[] = Object.freeze([
   'read-only file system', 'permission denied', 'operation not permitted',
+  'resource busy or locked', 'device or resource busy',
 ])
 
 /**

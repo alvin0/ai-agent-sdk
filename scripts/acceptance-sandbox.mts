@@ -144,6 +144,13 @@ async function checkConfinement(): Promise<void> {
     await run('read-only', write(join(workspace, 'nope.txt'))), 'denied')
   expect('reads still work under read-only',
     await run('read-only', read(join(workspace, 'readable.txt'))), 'success')
+  const remove = (target: string): readonly string[] =>
+    [process.execPath, '-e', `require('node:fs').rmSync(${JSON.stringify(target)}, { recursive: true, force: true })`]
+  expect('deleting a tree outside the workspace is denied',
+    await run('workspace-write', remove(outside)), 'denied')
+  expect('deleting the repository metadata directory is denied',
+    await run('workspace-write', remove(join(workspace, '.git'))), 'denied')
+
   expect('a genuinely missing program is not reported as a denial',
     await run('read-only', ['definitely-not-a-real-program-xyz']), 'command-failure')
 }
