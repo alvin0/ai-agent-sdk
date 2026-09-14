@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { link, mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { link, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -9,7 +10,7 @@ import {
 import type { SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
 import {
   checkSandboxDependencies, insideSandbox, localSandbox, platformChain,
-  runnerDescriptor, SANDBOX_ENV_VAR, sandboxChildStarted, sandboxSpawnOptions,
+  runnerDescriptor, SANDBOX_ENV_VAR, sandboxChildStarted, sandboxSpawnOptions, writeConfinedFile,
   SEATBELT_RUNNER_FAILURE_RULES,
   sandboxUnavailableReason,
 } from '@alvin0/ai-agent-sdk-sandbox-node'
@@ -143,14 +144,22 @@ describe('confined argv', () => {
   })
 
   it('hides credential stores and daemon sockets even under read-only', async () => {
+    // Asserted through the fence, not the generated argv: a kernel profile only
+    // carries a mount for a path that exists on the host, and a CI runner has
+    // no `~/.ssh`. The policy hides it either way, which is the property here.
     const root = await workspace()
-    const provider = localSandbox({ platform: 'linux', probe: false })
-    const { argv } = await provider.confine(['bash', '-c', 'true'], policyFor(root, 'read-only'))
-    const profile = argv.join(' ')
-    expect(profile).toContain(normalizePath(join(homedir(), '.ssh')))
-    // The path is emitted canonically, and `/var` is a symlink on macOS.
-    expect(profile).toContain('docker.sock')
-    expect(argv).not.toContain('--bind')
+    const fence = localSandbox({ probe: false }).fence(policyFor(root, 'read-only'))
+    expect(await fence.isReadable(join(homedir(), '.ssh', 'id_rsa'))).toBe(false)
+    expect(await fence.isReadable(join(homedir(), '.aws', 'credentials'))).toBe(false)
+    expect(await fence.isReadable('/var/run/docker.sock')).toBe(false)
+    expect(await fence.isReadable(join(root, 'README.md'))).toBe(true)
+  })
+
+  it('leaves them alone when a deployment opts out of hardening', async () => {
+    const root = await workspace()
+    const fence = localSandbox({ probe: false, hardenDefaults: false })
+      .fence(policyFor(root, 'read-only'))
+    expect(await fence.isReadable(join(homedir(), '.ssh', 'id_rsa'))).toBe(true)
   })
 
   it('builds an allow-default Seatbelt profile that denies writes by default', async () => {
@@ -436,5 +445,32 @@ describe('a command cannot claim the sandbox failed', () => {
       .confine(['true'], policyFor(root))
     expect(sandboxChildStarted(confined, [null, '', '', '{"child-pid":42}\n'])).toBe(true)
     expect(sandboxChildStarted(confined, [null, '', '', ''])).toBe(false)
+  })
+})
+
+describe('check-then-write is not a boundary under concurrency', () => {
+  // `assertWritable(path)` answers a question about a path, and the answer is
+  // stale the moment it returns. Measured over twenty thousand rounds against a
+  // process swapping a symlink, writes landed outside the workspace. The check
+  // and the open have to be one step whose result is a descriptor.
+  it('refuses to open a final component that is a symlink', async () => {
+    const root = await workspace()
+    const outside = await workspace()
+    const target = join(root, 'target')
+    await symlink(join(outside, 'canary.txt'), target)
+    const fence = localSandbox({ probe: false, tempRoots: [] }).fence(policyFor(root))
+
+    // The path itself still looks writable — it is inside the workspace.
+    expect(await fence.isWritable(join(root, 'ordinary.txt'))).toBe(true)
+    await expect(writeConfinedFile(fence, target, 'RACED'))
+      .rejects.toBeInstanceOf(SandboxDeniedError)
+    expect(existsSync(join(outside, 'canary.txt'))).toBe(false)
+  })
+
+  it('opens an ordinary path inside the workspace', async () => {
+    const root = await workspace()
+    const fence = localSandbox({ probe: false, tempRoots: [] }).fence(policyFor(root))
+    await writeConfinedFile(fence, join(root, 'written.txt'), 'ok')
+    expect(await readFile(join(root, 'written.txt'), 'utf8')).toBe('ok')
   })
 })

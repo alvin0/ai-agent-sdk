@@ -9,7 +9,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -18,6 +18,7 @@ import {
 } from '@alvin0/ai-agent-sdk-sandbox'
 import {
   checkSandboxDependencies, localSandbox, sandboxChildStarted, sandboxSpawnOptions,
+  writeConfinedFile,
 } from '@alvin0/ai-agent-sdk-sandbox-node'
 
 // Deliberately NOT canonicalized: a real cwd routinely arrives through a
@@ -100,6 +101,19 @@ async function checkFence(): Promise<void> {
 
   const readOnly = provider.fence(policyFor('read-only'))
   expect('refuses every write under read-only', await readOnly.isWritable(join(workspace, 'note.txt')), false)
+
+  // A verdict about a path is stale the moment it is returned; only a
+  // descriptor obtained in the same step carries the check with it.
+  const raced = join(workspace, 'raced-target')
+  try {
+    symlinkSync(join(outside, 'raced-canary.txt'), raced)
+    let refused = false
+    try { await writeConfinedFile(writable, raced, 'RACED') } catch { refused = true }
+    expect('refuses to open a symlinked final component', refused, true)
+    expect('and nothing was written outside', existsSync(join(outside, 'raced-canary.txt')), false)
+  } catch {
+    process.stdout.write('  skip symlinked open: this host does not permit creating symlinks\n')
+  }
 }
 
 /**

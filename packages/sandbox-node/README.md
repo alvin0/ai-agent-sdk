@@ -115,6 +115,14 @@ IS `/private/tmp`, and a grant written the other way matches nothing.
 Measured, not assumed — each item below was reproduced by running the attack
 under a real backend on macOS and Linux.
 
+- **A path verdict is stale the moment it returns.** `assertWritable(path)`
+  answers a question about a name, and another process can replace that name
+  with a symlink before the write happens — measured over twenty thousand
+  rounds, writes landed outside the workspace. Use `openConfinedWrite` or
+  `writeConfinedFile`, which check and open in one step and refuse to follow a
+  symlink on the final component. A hostile swap of a *directory* component is
+  still not defeated; closing that needs `openat2(RESOLVE_BENEATH)`, which Node
+  does not expose.
 - **The caller must use `sandboxSpawnOptions`.** A file descriptor opened before
   the wrap is a capability the kernel already granted, and no mount revokes it:
   a child handed an extra descriptor reads and writes through it regardless of
