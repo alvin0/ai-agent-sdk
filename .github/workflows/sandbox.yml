@@ -38,16 +38,28 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Both architectures per platform: a sandbox is a kernel boundary, and
+          # the kernel differs across them — Landlock/seccomp ABI on arm64
+          # Linux, Rosetta and the x86_64 Seatbelt image on macOS, and a wholly
+          # separate Windows build for arm64.
           - os: ubuntu-24.04
-            label: linux (bubblewrap)
+            label: linux x64 (bubblewrap)
+          - os: ubuntu-24.04-arm
+            label: linux arm64 (bubblewrap)
           - os: ubuntu-22.04
-            label: linux (bubblewrap, older kernel policy)
+            label: linux x64 (bubblewrap, older kernel policy)
+          - os: ubuntu-22.04-arm
+            label: linux arm64 (bubblewrap, older kernel policy)
           - os: macos-15
-            label: macos (seatbelt)
+            label: macos arm64 (seatbelt)
+          - os: macos-15-intel
+            label: macos x64 (seatbelt)
           - os: macos-14
-            label: macos (seatbelt, older)
+            label: macos arm64 (seatbelt, older)
           - os: windows-2025
-            label: windows (fence only, fails closed)
+            label: windows x64 (fence only, fails closed)
+          - os: windows-11-arm
+            label: windows arm64 (fence only, fails closed)
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -104,9 +116,17 @@ jobs:
   # restricted bubblewrap rung instead of failing outright. The VM legs above
   # never exercise it, so it is covered here against a real container kernel.
   containerized:
-    name: linux (bubblewrap, restricted /proc)
-    runs-on: ubuntu-24.04
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            label: linux x64 (bubblewrap, restricted /proc)
+          - os: ubuntu-24.04-arm
+            label: linux arm64 (bubblewrap, restricted /proc)
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

@@ -4,7 +4,7 @@ import { realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  SandboxDeniedError, SandboxUnavailableError, classifyOutcome, resolveSandboxPolicy,
+  SandboxDeniedError, SandboxUnavailableError, classifyOutcome, normalizePath, resolveSandboxPolicy,
 } from '@alvin0/ai-agent-sdk-sandbox'
 import type { SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
 import {
@@ -113,17 +113,22 @@ describe('confined argv', () => {
     const root = await workspace()
     const provider = localSandbox({ platform: 'linux', probe: false, tempRoots: [] })
     const { argv } = await provider.confine(['bash', '-c', 'true'], policyFor(root))
+    // The profile carries normalized paths: a Windows host spells the same root
+    // `C:\\...` through `node:path` and `C:/...` through the contract, and a
+    // comparison in the host's spelling would pass on POSIX and fail there.
+    const bound = normalizePath(root)
     expect(argv[0]).toBe('bwrap')
     expect(argv.join(' ')).toContain('--ro-bind / /')
-    expect(argv.join(' ')).toContain(`--bind ${root} ${root}`)
+    expect(argv.join(' ')).toContain(`--bind ${bound} ${bound}`)
   })
 
   it('re-denies protected subpaths after the grant that would expose them', async () => {
     const root = await workspace()
     const provider = localSandbox({ platform: 'linux', probe: false, tempRoots: [] })
     const { argv } = await provider.confine(['bash', '-c', 'true'], policyFor(root))
-    const grantIndex = argv.indexOf(root)
-    const denyIndex = argv.indexOf(join(root, '.git'))
+    const grantIndex = argv.indexOf(normalizePath(root))
+    const denyIndex = argv.indexOf(normalizePath(join(root, '.git')))
+    expect(grantIndex).toBeGreaterThanOrEqual(0)
     expect(denyIndex).toBeGreaterThan(grantIndex)
   })
 

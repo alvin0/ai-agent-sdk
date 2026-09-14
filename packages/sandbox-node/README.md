@@ -115,6 +115,9 @@ IS `/private/tmp`, and a grant written the other way matches nothing.
 - **Symlinks created inside a granted root after wrapping** are not masked by
   the kernel profile; the fence resolves them per call, the profile does not.
 
-Verified on every supported platform by `.github/workflows/sandbox.yml`, which
-runs real confined commands and asserts the outcome rather than trusting that
-the argv was well-formed.
+Verified by `.github/workflows/sandbox.yml`, which runs real confined commands
+and asserts the outcome rather than trusting that the argv was well-formed. It
+covers **both architectures on every platform** — linux, macOS and Windows on
+x64 and arm64 — because a sandbox is a kernel boundary and the kernel is what
+differs across them, plus a containerized leg for the restricted bubblewrap
+rung.

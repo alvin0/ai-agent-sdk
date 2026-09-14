@@ -30,7 +30,7 @@ const provider = localSandbox()
 const report = checkSandboxDependencies(workspace)
 const failures: string[] = []
 
-process.stdout.write(`platform: ${report.platform}\n`)
+process.stdout.write(`platform: ${report.platform}/${process.arch}\n`)
 process.stdout.write(`backend: ${report.backend ?? '(none — fence only)'}\n`)
 process.stdout.write(`enforcement: ${report.enforcement ?? 'fence-only'}\n`)
 for (const error of report.errors) process.stdout.write(`  error: ${error}\n`)
