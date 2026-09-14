@@ -3,27 +3,17 @@
  *
  * A process sandbox only governs what a *child process* does. Tools that read,
  * write, or edit files inside the agent host bypass it entirely, so those calls
- * are fenced here against the same {@link writableRoots} the kernel profiles
- * are built from. The logic is pure; the filesystem facts it needs arrive
- * through an injected {@link PathResolver}.
+ * are fenced here against the same {@link grantLayers} the kernel profiles are
+ * built from. The logic is pure; the filesystem facts it needs arrive through an
+ * injected {@link PathResolver}.
  */
 
-import type { FileSystemEntry } from './entries.ts'
-import { accessFor } from './entries.ts'
 import { SandboxDeniedError } from './errors.ts'
-import { ancestorPaths, containsPath, normalizePath } from './path.ts'
+import { ancestorPaths, normalizePath } from './path.ts'
 import type { SandboxPolicy } from './policy.ts'
 import type { FsFence, PathResolver } from './provider.ts'
-import type { WritableRootOptions } from './roots.ts'
-import { unreadablePaths, writableRoots } from './roots.ts'
-
-/** One policy's grants with every path resolved through the filesystem. */
-interface CanonicalGrants {
-  readonly roots: readonly string[]
-  readonly denied: readonly string[]
-  readonly unreadable: readonly string[]
-  readonly entries: readonly FileSystemEntry[]
-}
+import type { GrantLayer, WritableRootOptions } from './roots.ts'
+import { accessInLayers, grantLayers } from './roots.ts'
 
 /**
  * Build the fence for one policy.
@@ -36,47 +26,39 @@ export function createFsFence(
   resolver: PathResolver,
   options: WritableRootOptions = {},
 ): FsFence {
-  const grants = writableRoots(policy, options)
-  const unreadable = unreadablePaths(policy)
-  const entries = policy.entries ?? []
+  const layers = grantLayers(policy, options)
 
   /**
-   * Grants are canonicalized too, not just the target.
+   * Layer paths are canonicalized too, not just the target.
    *
    * A workspace root is routinely reached through a symlink — `/tmp` IS
    * `/private/tmp` on macOS, and `/home` is often a link. Canonicalizing only
-   * the target would then compare a resolved path against an unresolved root
+   * the target would then compare a resolved path against an unresolved layer
    * and refuse writes inside the very workspace that was granted. Resolved once
    * and reused, because a fence is built per call.
    */
-  let canonical: Promise<CanonicalGrants> | undefined
-  function grantsOnce(): Promise<CanonicalGrants> {
-    canonical ??= (async (): Promise<CanonicalGrants> => Object.freeze({
-      roots: await Promise.all(grants.roots.map(root => canonicalize(root, resolver))),
-      denied: await Promise.all(grants.denied.map(root => canonicalize(root, resolver))),
-      unreadable: await Promise.all(unreadable.map(root => canonicalize(root, resolver))),
-      entries: await Promise.all(entries.map(async entry => Object.freeze({
-        path: await canonicalize(entry.path, resolver), access: entry.access,
-      }))),
-    }))()
+  let canonical: Promise<readonly GrantLayer[]> | undefined
+  function layersOnce(): Promise<readonly GrantLayer[]> {
+    canonical ??= Promise.all(layers.map(async layer => Object.freeze({
+      ...layer, path: await canonicalize(layer.path, resolver),
+    })))
     return canonical
   }
 
   async function permits(path: string, want: 'write' | 'read'): Promise<boolean> {
-    const [target, resolved] = await Promise.all([canonicalize(path, resolver), grantsOnce()])
-    if (want === 'read') return !resolved.unreadable.some(root => containsPath(root, target))
-    if (resolved.denied.some(root => containsPath(root, target))) return false
-    if (!resolved.roots.some(root => containsPath(root, target))) return false
-    return accessFor(target, resolved.entries, 'write') === 'write'
+    const [target, resolved] = await Promise.all([canonicalize(path, resolver), layersOnce()])
+    const access = accessInLayers(target, resolved)
+    return want === 'write' ? access === 'write' : access !== 'deny'
   }
 
   return Object.freeze({
-    writableRoots: grants.roots,
+    writableRoots: Object.freeze(layers.filter(layer => layer.access === 'write').map(layer => layer.path)),
     isWritable: (path: string) => permits(path, 'write'),
     isReadable: (path: string) => permits(path, 'read'),
     async assertWritable(path: string): Promise<void> {
       if (await permits(path, 'write')) return
-      throw new SandboxDeniedError(normalizePath(path), policy.mode, grants.roots)
+      const writable = layers.filter(layer => layer.access === 'write').map(layer => layer.path)
+      throw new SandboxDeniedError(normalizePath(path), policy.mode, writable)
     },
   })
 }

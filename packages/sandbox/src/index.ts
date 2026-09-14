@@ -26,7 +26,9 @@ export type {
   SandboxExecutionPolicy, SandboxPolicy, SandboxPolicyDefaults, SandboxPolicyRequest,
 } from './policy.ts'
 export type { ConfinedArgv, FsFence, PathResolver, SandboxProvider } from './provider.ts'
-export { PROTECTED_SUBPATHS, unreadablePaths, writableRoots } from './roots.ts'
-export type { WritableRootOptions, WritableRootSet } from './roots.ts'
+export {
+  accessInLayers, BASELINE_ACCESS, grantLayers, PROTECTED_SUBPATHS, unreadablePaths, writableRoots,
+} from './roots.ts'
+export type { GrantLayer, GrantOrigin, WritableRootOptions, WritableRootSet } from './roots.ts'
 export { sandboxViolation } from './violation.ts'
 export type { SandboxViolation, SandboxViolationBackend, SandboxViolationReason } from './violation.ts'

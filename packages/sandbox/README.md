@@ -63,11 +63,30 @@ const entries = [
 // /repo/x → write · /repo/a/x → deny · /repo/a/b/x → write
 ```
 
-`writableRoots(policy)` turns a policy into the grants *and* the re-denials that
-must follow them. `PROTECTED_SUBPATHS` (`.git`, `.ssh`, `.aws`, `.netrc`, …) is
-appended under every granted root automatically.
+`grantLayers(policy)` resolves a policy into exactly that: an ordered stack of
+layers, broadest first, each overriding the ones beneath it for its own subtree.
+Order is the semantics, and it is why the model is a stack rather than a pair of
+sets — a set of "granted roots" has nowhere to record a grant that lives *inside*
+something denied, so the third line above would silently vanish.
 
-This one function is what both enforcement layers read — the kernel profiles and
+```ts
+grantLayers(policy)
+//  write  mode       /repo
+//  read   protected  /repo/.git        ← and .ssh, .aws, .netrc, …
+//  deny   entry      /repo/vendor
+//  write  entry      /repo/vendor/cache
+```
+
+`PROTECTED_SUBPATHS` (`.git`, `.ssh`, `.aws`, `.netrc`, …) is layered under every
+granted root automatically. They are `read`, not `deny`: this is a write
+boundary, so they stay readable. An explicit entry at the same depth outranks a
+generated one, so a deployment can deliberately reopen one.
+
+A layer that would not change the access already in force is dropped, so the
+result carries no rule that does nothing. `writableRoots(policy)` flattens the
+same layers for callers that only want the two lists.
+
+This one function is what every enforcement path reads — the kernel profiles and
 the in-process fence. Deriving them separately is how a profile and a fence
 silently drift into disagreeing about what is writable.
 

@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   classifyOutcome, resolveSandboxPolicy, SandboxUnavailableError,
-  type SandboxMode, type SandboxOutcomeKind, type SandboxPolicy,
+  type FileSystemEntry, type SandboxMode, type SandboxOutcomeKind, type SandboxPolicy,
 } from '@alvin0/ai-agent-sdk-sandbox'
 import { checkSandboxDependencies, localSandbox } from '@alvin0/ai-agent-sdk-sandbox-node'
 
@@ -24,7 +24,15 @@ import { checkSandboxDependencies, localSandbox } from '@alvin0/ai-agent-sdk-san
 const workspace = mkdtempSync(join(tmpdir(), 'sandbox-acceptance-'))
 const outside = mkdtempSync(join(tmpdir(), 'sandbox-outside-'))
 mkdirSync(join(workspace, '.git'), { recursive: true })
+mkdirSync(join(workspace, 'vendor', 'cache'), { recursive: true })
 writeFileSync(join(workspace, 'readable.txt'), 'content')
+writeFileSync(join(workspace, 'vendor', 'secret.txt'), 'hidden')
+
+/** A denied subtree with a narrower grant reopened inside it. */
+const nested: readonly FileSystemEntry[] = Object.freeze([
+  Object.freeze({ path: join(workspace, 'vendor'), access: 'deny' as const }),
+  Object.freeze({ path: join(workspace, 'vendor', 'cache'), access: 'write' as const }),
+])
 
 const provider = localSandbox()
 const report = checkSandboxDependencies(workspace)
@@ -38,6 +46,7 @@ for (const warning of report.warnings) process.stdout.write(`  warning: ${warnin
 
 try {
   await checkFence()
+  await checkNestedCarveOut()
   if (report.backend === undefined) await checkFailsClosed()
   else await checkConfinement()
 } finally {
@@ -53,8 +62,11 @@ if (failures.length > 0) {
   process.stdout.write(`\nsandbox acceptance passed on ${report.platform}\n`)
 }
 
-function policyFor(mode: SandboxMode): SandboxPolicy {
-  return resolveSandboxPolicy({ cwd: workspace, mode }, { mode, workspaceRoot: workspace }) as SandboxPolicy
+function policyFor(mode: SandboxMode, entries?: readonly FileSystemEntry[]): SandboxPolicy {
+  return resolveSandboxPolicy(
+    { cwd: workspace, mode, ...(entries === undefined ? {} : { entries }) },
+    { mode, workspaceRoot: workspace },
+  ) as SandboxPolicy
 }
 
 function expect(label: string, actual: unknown, wanted: unknown): void {
@@ -81,6 +93,28 @@ async function checkFence(): Promise<void> {
 
   const readOnly = provider.fence(policyFor('read-only'))
   expect('refuses every write under read-only', await readOnly.isWritable(join(workspace, 'note.txt')), false)
+}
+
+/**
+ * A denied subtree with a narrower grant inside it must behave as written at
+ * every layer. Flattening layers into granted-versus-denied sets loses the
+ * inner grant, and nothing in a generated argv looks wrong when it does.
+ */
+async function checkNestedCarveOut(): Promise<void> {
+  process.stdout.write('\nnested carve-out\n')
+  const policy = policyFor('workspace-write', nested)
+  const fence = provider.fence(policy)
+  expect('fence permits the reopened subtree', await fence.isWritable(join(workspace, 'vendor', 'cache', 'x')), true)
+  expect('fence refuses the denied parent', await fence.isWritable(join(workspace, 'vendor', 'x')), false)
+  expect('fence hides the denied parent', await fence.isReadable(join(workspace, 'vendor', 'secret.txt')), false)
+
+  if (report.backend === undefined) return
+  const write = (target: string): readonly string[] =>
+    [process.execPath, '-e', `require('node:fs').writeFileSync(${JSON.stringify(target)}, 'x')`]
+  expect('the reopened subtree really is writable',
+    await run('workspace-write', write(join(workspace, 'vendor', 'cache', 'written.txt')), nested), 'success')
+  expect('the denied parent really is not',
+    await run('workspace-write', write(join(workspace, 'vendor', 'escaped.txt')), nested), 'denied')
 }
 
 /** A platform without a backend must refuse to wrap, never pass argv through. */
@@ -115,8 +149,12 @@ async function checkConfinement(): Promise<void> {
 }
 
 /** Spawn one confined argv and classify what came back. */
-async function run(mode: SandboxMode, argv: readonly string[]): Promise<SandboxOutcomeKind> {
-  const confined = await provider.confine(argv, policyFor(mode))
+async function run(
+  mode: SandboxMode,
+  argv: readonly string[],
+  entries?: readonly FileSystemEntry[],
+): Promise<SandboxOutcomeKind> {
+  const confined = await provider.confine(argv, policyFor(mode, entries))
   const [program, ...args] = confined.argv
   if (program === undefined) throw new Error('confine returned an empty argv')
   const result = spawnSync(program, args, {

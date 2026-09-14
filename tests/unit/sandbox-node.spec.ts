@@ -271,3 +271,50 @@ describe('a host that refuses a fresh /proc', () => {
     if (fallback?.backend === 'bwrap-restricted') expect(fallback.argv).not.toContain('--proc')
   })
 })
+
+describe('a narrower grant beneath a denial reaches every layer', () => {
+  async function nested(): Promise<{ root: string; policy: SandboxPolicy }> {
+    const root = await workspace()
+    await mkdir(join(root, 'vendor', 'cache'), { recursive: true })
+    const base = policyFor(root)
+    return {
+      root,
+      policy: {
+        ...base,
+        entries: [
+          { path: join(root, 'vendor'), access: 'deny' },
+          { path: join(root, 'vendor', 'cache'), access: 'write' },
+        ],
+      },
+    }
+  }
+
+  it('the fence permits the reopened path and still refuses its denied parent', async () => {
+    const { root, policy } = await nested()
+    const fence = localSandbox({ probe: false, tempRoots: [] }).fence(policy)
+    expect(await fence.isWritable(join(root, 'vendor', 'cache', 'x'))).toBe(true)
+    expect(await fence.isWritable(join(root, 'vendor', 'x'))).toBe(false)
+    expect(await fence.isReadable(join(root, 'vendor', 'x'))).toBe(false)
+    expect(await fence.isReadable(join(root, 'vendor', 'cache', 'x'))).toBe(true)
+  })
+
+  it('bubblewrap binds the reopened path after the mount that denied it', async () => {
+    const { root, policy } = await nested()
+    const { argv } = await localSandbox({ platform: 'linux', probe: false }).confine(['true'], policy)
+    const denied = argv.indexOf(normalizePath(join(root, 'vendor')))
+    const reopened = argv.indexOf(normalizePath(join(root, 'vendor', 'cache')))
+    expect(denied).toBeGreaterThanOrEqual(0)
+    expect(reopened).toBeGreaterThan(denied)
+    expect(argv[reopened - 1]).toBe('--bind')
+  })
+
+  it('Seatbelt allows the reopened path after the rule that denied it', async () => {
+    const { root, policy } = await nested()
+    const { argv } = await localSandbox({ platform: 'darwin', probe: false }).confine(['true'], policy)
+    const profile = argv[2] ?? ''
+    const denied = profile.indexOf(`(deny file-write* (subpath "${normalizePath(join(root, 'vendor'))}")`)
+    const reopened = profile.indexOf(`(allow file-write* (subpath "${normalizePath(join(root, 'vendor', 'cache'))}")`)
+    expect(denied).toBeGreaterThanOrEqual(0)
+    expect(reopened).toBeGreaterThan(denied)
+  })
+})

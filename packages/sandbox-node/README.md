@@ -89,10 +89,13 @@ Confined children receive `AI_AGENT_SDK_SANDBOX` (the backend id) and
 
 ## Backend profiles
 
-**bubblewrap** binds the host root read-only, layers writable roots back on top,
-then re-applies every protected subpath and deny carve-out *after* its broader
-grant — bind order is what makes `/repo = write, /repo/.git = deny` behave as
-written. A private PID namespace is part of the boundary, not a convenience:
+**bubblewrap** binds the host root read-only, then emits one mount per grant
+layer in order — bind order is what makes `/repo = write, /repo/vendor = deny,
+/repo/vendor/cache = write` behave as written. A denied directory becomes an
+empty `tmpfs`, which hides its contents; the `--remount-ro` that makes the
+denial real is deferred to the end, because sealing it in place would leave
+bubblewrap unable to create the mount point for a grant reopened inside it
+(`Can't mkdir ...: Read-only file system`). A private PID namespace is part of the boundary, not a convenience:
 without it, procfs magic links reach outside the mounts.
 
 Some hosts refuse to mount a private `/proc` at all — a container whose `/proc`

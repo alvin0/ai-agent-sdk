@@ -9,7 +9,7 @@
  */
 
 import type { RunnerFailureRule, SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
-import { unreadablePaths, writableRoots } from '@alvin0/ai-agent-sdk-sandbox'
+import { grantLayers } from '@alvin0/ai-agent-sdk-sandbox'
 import { nodePathResolver } from '../fs/resolver.ts'
 
 /** Program name; ships with macOS. */
@@ -41,13 +41,18 @@ function sbplString(path: string): string {
   return `"${path.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`
 }
 
-/** Build the `sandbox-exec` arguments and SBPL profile for one policy. */
+/**
+ * Build the `sandbox-exec` arguments and SBPL profile for one policy.
+ *
+ * Layers are emitted in the order the contract resolved them, because SBPL
+ * resolves by last match: a narrower rule only overrides a broader one if it
+ * comes after it.
+ */
 export async function seatbeltProfileArgs(
   policy: SandboxPolicy,
   tempRoots: readonly string[],
 ): Promise<readonly string[]> {
   const resolver = nodePathResolver()
-  const grants = writableRoots(policy, { tempRoots })
   const forms: string[] = [
     '(version 1)',
     '(allow default)',
@@ -55,20 +60,13 @@ export async function seatbeltProfileArgs(
     `(allow file-write* (literal ${sbplString('/dev/null')}))`,
   ]
 
-  const roots = await Promise.all(grants.roots.map(root => resolver.realpath(root)))
-  if (roots.length > 0) {
-    forms.push(`(allow file-write* ${roots.map(root => `(subpath ${sbplString(root)})`).join(' ')})`)
-  }
-
-  // SBPL resolves by last match, so the re-denials must follow their grant.
-  const denied = await Promise.all(grants.denied.map(path => resolver.realpath(path)))
-  if (denied.length > 0) {
-    forms.push(`(deny file-write* ${denied.map(path => `(subpath ${sbplString(path)})`).join(' ')})`)
-  }
-
-  const hidden = await Promise.all(unreadablePaths(policy).map(path => resolver.realpath(path)))
-  if (hidden.length > 0) {
-    forms.push(`(deny file-read* ${hidden.map(path => `(subpath ${sbplString(path)})`).join(' ')})`)
+  for (const layer of grantLayers(policy, { tempRoots })) {
+    // Seatbelt matches resolved paths — `/tmp` IS `/private/tmp` — so a rule
+    // written the other way silently matches nothing.
+    const subpath = `(subpath ${sbplString(await resolver.realpath(layer.path))})`
+    if (layer.access === 'write') forms.push(`(allow file-write* ${subpath})`)
+    else forms.push(`(deny file-write* ${subpath})`)
+    if (layer.access === 'deny') forms.push(`(deny file-read* ${subpath})`)
   }
 
   return Object.freeze(['-p', forms.join(' ')])

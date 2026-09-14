@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  accessFor, annotateStderr, classifyOutcome, confiningPolicy, containsPath, dedupeRoots,
-  narrowPolicy, normalizePath, PROTECTED_SUBPATHS, resolveSandboxPolicy, sandboxViolation,
-  SandboxPolicyError, unreadablePaths, writableRoots,
+  accessFor, accessInLayers, annotateStderr, classifyOutcome, confiningPolicy, containsPath,
+  dedupeRoots, grantLayers, narrowPolicy, normalizePath, PROTECTED_SUBPATHS, resolveSandboxPolicy,
+  sandboxViolation, SandboxPolicyError, unreadablePaths, writableRoots,
 } from '@alvin0/ai-agent-sdk-sandbox'
 import type { SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
 
@@ -157,5 +157,63 @@ describe('outcome classification', () => {
     )
     const violation = sandboxViolation(classification, 'bwrap', 'read-only')
     expect(violation).toMatchObject({ backend: 'bwrap', reason: 'read-only-filesystem', path: '/etc/hosts' })
+  })
+})
+
+describe('layered grants', () => {
+  const nested = policy({
+    entries: [
+      { path: '/repo/vendor', access: 'deny' },
+      { path: '/repo/vendor/cache', access: 'write' },
+    ],
+  })
+
+  it('orders layers broadest first so a later one can override', () => {
+    const paths = grantLayers(nested).map(layer => layer.path)
+    expect(paths.indexOf('/repo')).toBeLessThan(paths.indexOf('/repo/vendor'))
+    expect(paths.indexOf('/repo/vendor')).toBeLessThan(paths.indexOf('/repo/vendor/cache'))
+  })
+
+  it('KEEPS a narrower grant that reopens a denied parent', () => {
+    // The defect this replaced flattened layers into "granted roots" plus
+    // "denied paths", and a set of granted roots has nowhere to record a grant
+    // that lives *inside* something denied — so this path silently vanished
+    // from every profile while the policy still claimed it was writable.
+    expect(writableRoots(nested).roots).toContain('/repo/vendor/cache')
+  })
+
+  it('reports the reopened grant after the denial it overrides', () => {
+    const roots = writableRoots(nested)
+    const layers = grantLayers(nested).map(layer => layer.path)
+    expect(roots.denied).toContain('/repo/vendor')
+    expect(layers.indexOf('/repo/vendor/cache')).toBeGreaterThan(layers.indexOf('/repo/vendor'))
+  })
+
+  it('resolves access by the last layer that covers the path', () => {
+    const layers = grantLayers(nested)
+    expect(accessInLayers('/repo/src/x', layers)).toBe('write')
+    expect(accessInLayers('/repo/vendor/x', layers)).toBe('deny')
+    expect(accessInLayers('/repo/vendor/cache/x', layers)).toBe('write')
+    expect(accessInLayers('/elsewhere/x', layers)).toBe('read')
+  })
+
+  it('keeps protected subpaths readable rather than hidden', () => {
+    const layers = grantLayers(policy())
+    expect(accessInLayers('/repo/.git/config', layers)).toBe('read')
+    expect(unreadablePaths(policy())).not.toContain('/repo/.git')
+  })
+
+  it('lets an explicit entry reopen a protected subpath at the same depth', () => {
+    const reopened = policy({ entries: [{ path: '/repo/.git', access: 'write' }] })
+    expect(accessInLayers('/repo/.git/config', grantLayers(reopened))).toBe('write')
+  })
+
+  it('emits no layer that would not change the access already in force', () => {
+    const redundant = policy({ entries: [{ path: '/repo/src', access: 'write' }] })
+    expect(grantLayers(redundant).map(layer => layer.path)).not.toContain('/repo/src')
+  })
+
+  it('grants nothing and protects nothing under read-only', () => {
+    expect(grantLayers(policy({ mode: 'read-only' }))).toEqual([])
   })
 })

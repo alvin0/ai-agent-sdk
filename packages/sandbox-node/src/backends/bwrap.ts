@@ -9,7 +9,7 @@
  */
 
 import type { RunnerFailureRule, SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
-import { writableRoots, unreadablePaths } from '@alvin0/ai-agent-sdk-sandbox'
+import { grantLayers, pathDepth } from '@alvin0/ai-agent-sdk-sandbox'
 import { isDirectory, nodePathResolver } from '../fs/resolver.ts'
 
 /** Program name looked up on `PATH`. */
@@ -60,7 +60,14 @@ export const BWRAP_RUNNER_FAILURE_RULES: readonly RunnerFailureRule[] = Object.f
   }),
 ])
 
-/** Build the bubblewrap profile arguments for one policy. */
+/**
+ * Build the bubblewrap profile arguments for one policy.
+ *
+ * Layers are emitted in the order the contract resolved them — broadest first —
+ * because bind order IS the semantics here: a later mount overrides an earlier
+ * one for its own subtree. That is what lets `/repo` be writable, `/repo/vendor`
+ * denied, and `/repo/vendor/cache` writable again.
+ */
 export async function bwrapProfileArgs(
   policy: SandboxPolicy,
   tempRoots: readonly string[],
@@ -68,30 +75,32 @@ export async function bwrapProfileArgs(
 ): Promise<readonly string[]> {
   const resolver = nodePathResolver()
   const args: string[] = baseArgs(variant)
+  const sealReadOnly: string[] = []
 
-  const grants = writableRoots(policy, { tempRoots })
-  if (policy.mode === 'workspace-write') {
-    for (const root of grants.roots) {
-      // Bind the canonical location: a symlinked workspace root would otherwise
-      // grant write access to whatever the link happens to point at.
-      const real = await resolver.realpath(root)
+  for (const layer of grantLayers(policy, { tempRoots })) {
+    // Bind the canonical location: a layer named through a symlink would
+    // otherwise govern whatever the link happens to point at.
+    const real = await resolver.realpath(layer.path)
+    if (layer.access === 'write') {
       args.push('--bind', real, real)
-      if (real !== root) args.push('--bind', real, root)
+    } else if (layer.access === 'read') {
+      args.push('--ro-bind-try', real, real)
+    } else if (await isDirectory(real)) {
+      // An empty tmpfs hides the contents, but a bare tmpfs is writable, so the
+      // denial is only real once it is remounted read-only. That remount is
+      // deferred: sealing it here would leave bubblewrap unable to create the
+      // mount point for a narrower grant reopened inside this subtree
+      // ("Can't mkdir ...: Read-only file system").
+      args.push('--tmpfs', real)
+      sealReadOnly.push(real)
+    } else {
+      args.push('--ro-bind-try', '/dev/null', real)
     }
   }
 
-  // Re-deny after the grants so the narrower rule is the one that survives.
-  // Canonical paths throughout: the grant above was bound at its real location,
-  // so a re-denial written through a symlink would land somewhere else.
-  for (const denied of grants.denied) {
-    const real = await resolver.realpath(denied)
-    args.push('--ro-bind-try', real, real)
-  }
-
-  for (const hidden of unreadablePaths(policy)) {
-    const real = await resolver.realpath(hidden)
-    if (await isDirectory(real)) args.push('--tmpfs', real)
-    else args.push('--ro-bind-try', '/dev/null', real)
+  // Deepest first, so sealing a parent never precedes sealing its own child.
+  for (const sealed of [...sealReadOnly].sort((left, right) => pathDepth(right) - pathDepth(left))) {
+    args.push('--remount-ro', sealed)
   }
 
   args.push('--chdir', await resolver.realpath(policy.workspaceRoot))
