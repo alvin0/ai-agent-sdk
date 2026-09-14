@@ -43,6 +43,7 @@
     "oracle:generation": "node scripts/record-generation-oracle.mts",
     "oracle:generation:check": "node scripts/record-generation-oracle.mts --check",
     "test:sandbox": "node --experimental-strip-types scripts/acceptance-sandbox.mts",
+    "test:sandbox:fuzz": "node --experimental-strip-types scripts/fuzz-sandbox.mts",
     "test:unit": "vitest run tests/unit",
     "test:contract": "vitest run tests/contract",
     "test:packages": "pnpm -r --filter './packages/*' test",

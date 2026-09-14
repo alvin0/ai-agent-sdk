@@ -12,6 +12,7 @@ on:
       - 'packages/sandbox/**'
       - 'packages/sandbox-node/**'
       - 'scripts/acceptance-sandbox.mts'
+      - 'scripts/fuzz-sandbox.mts'
       - 'scripts/test-packed-sandbox.mts'
       - 'tests/unit/sandbox*.spec.ts'
       - '.github/workflows/sandbox.yml'
@@ -20,6 +21,7 @@ on:
       - 'packages/sandbox/**'
       - 'packages/sandbox-node/**'
       - 'scripts/acceptance-sandbox.mts'
+      - 'scripts/fuzz-sandbox.mts'
       - 'scripts/test-packed-sandbox.mts'
       - 'tests/unit/sandbox*.spec.ts'
       - '.github/workflows/sandbox.yml'
@@ -110,6 +112,13 @@ jobs:
 
       - name: Enforced-behaviour acceptance
         run: node --experimental-strip-types scripts/acceptance-sandbox.mts
+
+      # Hand-written cases test what their author suspected; every defect that
+      # reached this package was one nobody wrote a case for. The fuzzer
+      # generates policies and paths instead, and requires the layer algebra,
+      # the in-process fence and the kernel profile to agree.
+      - name: Differential policy fuzzing
+        run: node --experimental-strip-types scripts/fuzz-sandbox.mts --algebra=20000 --backend=150
 
       - name: Packed consumer fixtures
         run: pnpm --filter @alvin0/ai-agent-sdk-sandbox test:pack && pnpm --filter @alvin0/ai-agent-sdk-sandbox-node test:pack
