@@ -19,7 +19,7 @@ import {
   type FileSystemEntry, type SandboxMode, type SandboxOutcomeKind, type SandboxPolicy,
 } from '@alvin0/ai-agent-sdk-sandbox'
 import {
-  checkSandboxDependencies, localSandbox, SANDBOX_ENV_VAR, sandboxChildStarted,
+  checkSandboxDependencies, confinedEnv, localSandbox, SANDBOX_ENV_VAR, sandboxChildStarted,
   sandboxSpawnOptions, writeConfinedFile,
 } from '@alvin0/ai-agent-sdk-sandbox-node'
 
@@ -161,9 +161,13 @@ async function checkAuthorizationBoundary(): Promise<void> {
 async function checkNetwork(): Promise<void> {
   process.stdout.write('\nnetwork reach\n')
   if (report.backend === undefined) {
-    const confined = await provider.confine([process.execPath, '-e', ''], networkPolicy('deny'))
-      .catch(() => undefined)
-    expect('no backend means no network enforcement either', confined, undefined)
+    // No process backend means no network mechanism either: the policy still
+    // resolves, and nothing enforces it.
+    expect('the policy still carries the reach it was given',
+      networkPolicy('deny').network, 'deny')
+    expect('and confining still fails closed',
+      await refusesAsync(() => provider.confine([process.execPath, '-e', ''], networkPolicy('deny'))),
+      true)
     return
   }
   const probe = [process.execPath, '-e',
@@ -232,25 +236,33 @@ function refuses(call: () => unknown): boolean {
   try { call(); return false } catch { return true }
 }
 
+/** The same question for a call that answers asynchronously. */
+async function refusesAsync(call: () => Promise<unknown>): Promise<boolean> {
+  try { await call(); return false } catch { return true }
+}
+
 /**
  * A confined command must not receive the caller's credentials. The boundary is
  * about file effects, and an inherited `GITHUB_TOKEN` walks straight past it.
  */
 async function checkEnvironment(): Promise<void> {
   process.stdout.write('\nenvironment\n')
+  // The allow-list is decided before any backend is consulted, so it is checked
+  // without one — a platform that cannot confine a process still hands an
+  // environment to whatever it spawns.
+  const caller = { ...process.env, GITHUB_TOKEN: 'canary', AWS_SECRET_ACCESS_KEY: 'canary' }
+  const handed = confinedEnv({ [SANDBOX_ENV_VAR]: 'probe' }, { env: caller })
+  expect('the token is not in the environment handed over',
+    Object.hasOwn(handed, 'GITHUB_TOKEN'), false)
+  expect('nor is the cloud credential', Object.hasOwn(handed, 'AWS_SECRET_ACCESS_KEY'), false)
+  expect('the marker is', handed[SANDBOX_ENV_VAR] !== undefined, true)
+
+  if (report.backend === undefined) return
   const confined = await provider.confine(
     [process.execPath, '-e', "console.log(Object.keys(process.env).sort().join(','))"],
     policyFor('read-only'),
   )
-  const options = sandboxSpawnOptions(confined, {
-    env: { ...process.env, GITHUB_TOKEN: 'canary', AWS_SECRET_ACCESS_KEY: 'canary' },
-  })
-  expect('the token is not in the environment handed over',
-    Object.hasOwn(options.env, 'GITHUB_TOKEN'), false)
-  expect('nor is the cloud credential', Object.hasOwn(options.env, 'AWS_SECRET_ACCESS_KEY'), false)
-  expect('the marker is', options.env[SANDBOX_ENV_VAR] !== undefined, true)
-
-  if (report.backend === undefined) return
+  const options = sandboxSpawnOptions(confined, { env: caller })
   const result = spawnSync(confined.argv[0] ?? '', confined.argv.slice(1), {
     cwd: workspace, encoding: 'utf8', windowsHide: true,
     stdio: [...options.stdio], env: { ...options.env },
