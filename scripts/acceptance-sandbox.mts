@@ -17,8 +17,8 @@ import {
   type FileSystemEntry, type SandboxMode, type SandboxOutcomeKind, type SandboxPolicy,
 } from '@alvin0/ai-agent-sdk-sandbox'
 import {
-  checkSandboxDependencies, localSandbox, sandboxChildStarted, sandboxSpawnOptions,
-  writeConfinedFile,
+  checkSandboxDependencies, localSandbox, SANDBOX_ENV_VAR, sandboxChildStarted,
+  sandboxSpawnOptions, writeConfinedFile,
 } from '@alvin0/ai-agent-sdk-sandbox-node'
 
 // Deliberately NOT canonicalized: a real cwd routinely arrives through a
@@ -50,6 +50,7 @@ for (const warning of report.warnings) process.stdout.write(`  warning: ${warnin
 try {
   await checkFence()
   await checkNestedCarveOut()
+  await checkEnvironment()
   if (report.backend === undefined) await checkFailsClosed()
   else await checkConfinement()
 } finally {
@@ -114,6 +115,33 @@ async function checkFence(): Promise<void> {
   } catch {
     process.stdout.write('  skip symlinked open: this host does not permit creating symlinks\n')
   }
+}
+
+/**
+ * A confined command must not receive the caller's credentials. The boundary is
+ * about file effects, and an inherited `GITHUB_TOKEN` walks straight past it.
+ */
+async function checkEnvironment(): Promise<void> {
+  process.stdout.write('\nenvironment\n')
+  const confined = await provider.confine(
+    [process.execPath, '-e', "console.log(Object.keys(process.env).sort().join(','))"],
+    policyFor('read-only'),
+  )
+  const options = sandboxSpawnOptions(confined, {
+    env: { ...process.env, GITHUB_TOKEN: 'canary', AWS_SECRET_ACCESS_KEY: 'canary' },
+  })
+  expect('the token is not in the environment handed over',
+    Object.hasOwn(options.env, 'GITHUB_TOKEN'), false)
+  expect('nor is the cloud credential', Object.hasOwn(options.env, 'AWS_SECRET_ACCESS_KEY'), false)
+  expect('the marker is', options.env[SANDBOX_ENV_VAR] !== undefined, true)
+
+  if (report.backend === undefined) return
+  const result = spawnSync(confined.argv[0] ?? '', confined.argv.slice(1), {
+    cwd: workspace, encoding: 'utf8', windowsHide: true,
+    stdio: [...options.stdio], env: { ...options.env },
+  })
+  const seen = (result.stdout ?? '').trim().split(',')
+  expect('and the command cannot see it either', seen.includes('GITHUB_TOKEN'), false)
 }
 
 /**
@@ -194,7 +222,7 @@ async function run(
   const confined = await provider.confine(argv, policyFor(mode, entries))
   const [program, ...args] = confined.argv
   if (program === undefined) throw new Error('confine returned an empty argv')
-  const options = sandboxSpawnOptions(confined, process.env)
+  const options = sandboxSpawnOptions(confined)
   const result = spawnSync(program, args, {
     cwd: workspace, encoding: 'utf8', windowsHide: true,
     stdio: [...options.stdio], env: { ...options.env },

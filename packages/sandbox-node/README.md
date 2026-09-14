@@ -81,11 +81,53 @@ if (reason !== undefined) logger.warn(`sandbox is not enforcing: ${reason}`)
 bubblewrap`, `run under WSL2 rather than WSL1`), and `report.fenceAvailable` is
 always `true`.
 
-## Environment markers
+## Environment
 
-Confined children receive `AI_AGENT_SDK_SANDBOX` (the backend id) and
+A file boundary says nothing about environment variables, and the process that
+spawns a confined command usually holds the credentials the agent runs on.
+`sandboxSpawnOptions` therefore builds an **allow-list**, not an inheritance:
+`PATH`, `HOME`, locale, and the handful of names a program needs to start.
+
+```ts
+sandboxSpawnOptions(confined, { allow: ['BUILD_NUMBER'] })   // add your own
+sandboxSpawnOptions(confined, { inherit: true })             // still drops secrets
+```
+
+Credential-shaped names (`*_TOKEN`, `*_SECRET`, `*_PASSWORD`, `*_API_KEY`,
+`*_CREDENTIALS`, …) are removed even under `inherit`, because an allow-list is
+written once and the environment keeps changing.
+
+Confined children also receive `AI_AGENT_SDK_SANDBOX` (the backend id) and
 `AI_AGENT_SDK_SANDBOX_MODE`. Nested tools and test suites read them through
 `insideSandbox(process.env)` instead of retrying writes that cannot succeed.
+
+## Ending an execution
+
+Killing the process a runner spawned is not the same as ending the work. A
+command that forks twice and calls `setsid` leaves the process group and is
+reparented, so nothing connects it to the execution any more — measured on
+macOS, it kept writing after its sandbox was killed.
+
+```ts
+const result = await terminateConfined(child)   // group, then strays
+```
+
+On Linux the PID namespace makes this a non-issue and no process table is
+walked. Elsewhere the group is signalled and descendants sampled before the
+kill are swept. A process that double-forks *between* the sample and the kill
+still escapes; closing that needs fork notifications from the kernel, which
+Node does not expose.
+
+## Requiring a boundary
+
+`partial` is a state, not a caveat: a bubblewrap rung without its own `/proc`
+lets a command reach outside the mounts through another process's procfs entry.
+A deployment that cannot accept that says so, and gets `SANDBOX_UNAVAILABLE`
+rather than a boundary it did not agree to.
+
+```ts
+localSandbox({ requireEnforcement: 'full' })
+```
 
 ## Backend profiles
 
@@ -139,7 +181,12 @@ under a real backend on macOS and Linux.
   internet: a TCP connection to a public address succeeds. Only paths listed as
   denied are closed to outbound Unix-socket connections.
 - **No resource limits.** No rlimit, no cgroup, no accounting: 150 processes,
-  2 GB of memory, and 20 000 files were all created without resistance.
+  2 GB of memory, and 20 000 files were all created without resistance. That
+  belongs to its own seam — cgroup v2 on Linux, a Job Object on Windows — and
+  cannot be expressed as a file-effect mode without the mode lying about what
+  it governs.
+- **A process that double-forks between the sample and the kill escapes the
+  sweep** on platforms without a PID namespace. See *Ending an execution*.
 - **Seatbelt classification rests on a self-check, not a channel.** bubblewrap
   reports on its own descriptor, so a command cannot claim the sandbox failed.
   Seatbelt has no such channel; instead the generated profile is validated once

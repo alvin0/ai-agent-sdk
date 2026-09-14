@@ -11,6 +11,7 @@
  */
 
 import type { ConfinedArgv } from '@alvin0/ai-agent-sdk-sandbox'
+import { confinedEnv, type ConfinedEnvOptions } from './env.ts'
 
 /** The `stdio` and `env` a confined execution should be spawned with. */
 export interface SandboxSpawnOptions {
@@ -19,27 +20,48 @@ export interface SandboxSpawnOptions {
    * has one. Nothing else: an inherited capability rides along otherwise.
    */
   readonly stdio: readonly ('ignore' | 'pipe')[]
-  /** The caller's environment plus the confinement markers. */
-  readonly env: Readonly<Record<string, string | undefined>>
+  /** The allowed environment plus the confinement markers. */
+  readonly env: Readonly<Record<string, string>>
+  /** Whether the child leads its own process group, so it can be torn down. */
+  readonly detached: boolean
+}
+
+/** How a confined execution is spawned. */
+export interface SandboxSpawnInput extends ConfinedEnvOptions {
+  /** Whether the child gets a pipe on stdin or nothing at all. */
+  readonly stdin?: 'ignore' | 'pipe'
+  /**
+   * Make the child a process-group leader so the whole group can be signalled
+   * at once. Required by `terminateConfined`, and on by default because a
+   * command that outlives its cancellation is a command still writing.
+   */
+  readonly detached?: boolean
 }
 
 /**
  * Build the spawn options for one wrapped argv.
+ *
+ * The environment is an allow-list, not an inheritance: the spawning process
+ * usually holds the credentials the agent runs on, and a file boundary says
+ * nothing about environment variables.
+ *
  * @param confined - the result of `confine()`.
- * @param env - the environment to start from; defaults to the current process's.
- * @param stdin - whether the child gets a pipe on stdin or nothing at all.
  */
 export function sandboxSpawnOptions(
   confined: ConfinedArgv,
-  env: Readonly<Record<string, string | undefined>> = process.env,
-  stdin: 'ignore' | 'pipe' = 'ignore',
+  input: SandboxSpawnInput = {},
 ): SandboxSpawnOptions {
+  const stdin = input.stdin ?? 'ignore'
   const stdio: ('ignore' | 'pipe')[] = [stdin, 'pipe', 'pipe']
   if (confined.statusFd !== undefined) {
     while (stdio.length < confined.statusFd) stdio.push('ignore')
     stdio[confined.statusFd] = 'pipe'
   }
-  return Object.freeze({ stdio: Object.freeze(stdio), env: Object.freeze({ ...env, ...confined.env }) })
+  return Object.freeze({
+    stdio: Object.freeze(stdio),
+    env: confinedEnv(confined.env, input),
+    detached: input.detached ?? true,
+  })
 }
 
 /**

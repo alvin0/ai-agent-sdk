@@ -9,7 +9,8 @@
  */
 
 import type {
-  ConfinedArgv, FsFence, PathResolver, SandboxPolicy, SandboxProvider, WritableRootOptions,
+  ConfinedArgv, FsFence, PathResolver, SandboxEnforcement, SandboxPolicy, SandboxProvider,
+  WritableRootOptions,
 } from '@alvin0/ai-agent-sdk-sandbox'
 import { createFsFence, SandboxUnavailableError } from '@alvin0/ai-agent-sdk-sandbox'
 import { bwrapProfileArgs, BWRAP_DENIAL_SIGNATURES, BWRAP_STATUS_FD } from './backends/bwrap.ts'
@@ -20,6 +21,11 @@ import { WINDOWS_UNAVAILABLE_REASON } from './backends/windows.ts'
 import { sandboxEnv } from './env.ts'
 import { hardenedDeniedPaths, nodePathResolver } from './fs/resolver.ts'
 import { platformChain, probeRunner, runnerDescriptor, type RunnerId } from './select.ts'
+
+/** Enforcement levels in increasing completeness, for comparing one to another. */
+const ENFORCEMENT_RANK: Readonly<Record<SandboxEnforcement, number>> = Object.freeze({
+  'fence-only': 0, partial: 1, full: 2,
+})
 
 /** Provider configuration; every field has a working default. */
 export interface LocalSandboxOptions {
@@ -54,6 +60,15 @@ export interface LocalSandboxOptions {
   readonly hardenDefaults?: boolean
   /** Permit writes to a file whose inode carries another name. Off by default. */
   readonly allowAliasedWrites?: boolean
+  /**
+   * Refuse to confine unless the selected rung reaches at least this level.
+   *
+   * `partial` is a real state, not a caveat: a bubblewrap rung without its own
+   * `/proc` lets a command reach outside the mounts through another process's
+   * procfs entry. A deployment that cannot accept that says so here and gets
+   * `SANDBOX_UNAVAILABLE` instead of a boundary it did not agree to.
+   */
+  readonly requireEnforcement?: SandboxEnforcement
 }
 
 /**
@@ -88,6 +103,16 @@ export function localSandbox(options: LocalSandboxOptions = {}): SandboxProvider
     if (selected === undefined) {
       const detail = platform === 'win32' ? WINDOWS_UNAVAILABLE_REASON : undefined
       throw new SandboxUnavailableError(platform, platformChain(platform), detail)
+    }
+    const required = options.requireEnforcement
+    if (required !== undefined) {
+      const reached = runnerDescriptor(selected).enforcement
+      if (ENFORCEMENT_RANK[reached] < ENFORCEMENT_RANK[required]) {
+        throw new SandboxUnavailableError(
+          platform, [selected],
+          `this host reaches '${reached}' enforcement and the deployment requires '${required}'`,
+        )
+      }
     }
     return selected
   }
@@ -142,12 +167,18 @@ export function localSandbox(options: LocalSandboxOptions = {}): SandboxProvider
 
 export { checkSandboxDependencies, sandboxUnavailableReason } from './doctor.ts'
 export type { SandboxDependencyReport } from './doctor.ts'
-export { insideSandbox, SANDBOX_ENV_VAR, SANDBOX_MODE_ENV_VAR, sandboxEnv } from './env.ts'
+export {
+  BASELINE_ENV_NAMES, confinedEnv, insideSandbox, isSecretEnvName,
+  SANDBOX_ENV_VAR, SANDBOX_MODE_ENV_VAR, sandboxEnv,
+} from './env.ts'
+export type { ConfinedEnvOptions } from './env.ts'
+export { descendantsOf, terminateConfined } from './terminate.ts'
+export type { TerminateOptions, TerminateResult } from './terminate.ts'
 export { defaultTempRoots, hardenedDeniedPaths, nodePathResolver } from './fs/resolver.ts'
 export { openConfinedWrite, writeConfinedFile } from './open.ts'
 export type { ConfinedOpenOptions } from './open.ts'
 export { sandboxChildStarted, sandboxSpawnOptions } from './spawn.ts'
-export type { SandboxSpawnOptions } from './spawn.ts'
+export type { SandboxSpawnInput, SandboxSpawnOptions } from './spawn.ts'
 export { BWRAP_STATUS_FD } from './backends/bwrap.ts'
 export { SEATBELT_RUNNER_FAILURE_RULES, seatbeltProfileAccepted } from './backends/seatbelt.ts'
 export { PLATFORM_CHAINS, platformChain, probeRunner, runnerDescriptor } from './select.ts'

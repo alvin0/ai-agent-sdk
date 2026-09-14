@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { spawn } from 'node:child_process'
 import { link, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
@@ -10,7 +11,9 @@ import {
 import type { SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
 import {
   checkSandboxDependencies, insideSandbox, localSandbox, platformChain,
-  runnerDescriptor, SANDBOX_ENV_VAR, sandboxChildStarted, sandboxSpawnOptions, writeConfinedFile,
+  descendantsOf, isSecretEnvName, runnerDescriptor, SANDBOX_ENV_VAR, sandboxChildStarted,
+  sandboxSpawnOptions, terminateConfined,
+  writeConfinedFile,
   SEATBELT_RUNNER_FAILURE_RULES,
   sandboxUnavailableReason,
 } from '@alvin0/ai-agent-sdk-sandbox-node'
@@ -380,7 +383,7 @@ describe('inherited capabilities and aliased inodes', () => {
     const root = await workspace()
     const provider = localSandbox({ platform: 'linux', probe: false })
     const confined = await provider.confine(['true'], policyFor(root))
-    const options = sandboxSpawnOptions(confined, { PATH: '/usr/bin' })
+    const options = sandboxSpawnOptions(confined, { env: { PATH: '/usr/bin' } })
     // A descriptor opened before the wrap is a capability the kernel already
     // granted; no mount revokes it, so the child inherits nothing beyond the
     // standard streams and the runner's own status channel.
@@ -493,5 +496,104 @@ describe('check-then-write is not a boundary under concurrency', () => {
     const fence = localSandbox({ probe: false, tempRoots: [] }).fence(policyFor(root))
     await writeConfinedFile(fence, join(root, 'written.txt'), 'ok')
     expect(await readFile(join(root, 'written.txt'), 'utf8')).toBe('ok')
+  })
+})
+
+describe('the environment a confined command receives', () => {
+  // A file boundary says nothing about environment variables, and the spawning
+  // process usually holds the credentials the agent runs on. Inheriting them
+  // wholesale confines the filesystem while the secrets walk through.
+  const caller = {
+    PATH: '/usr/bin', HOME: '/home/u', LANG: 'en_US.UTF-8',
+    GITHUB_TOKEN: 'ghp_secret', AWS_SECRET_ACCESS_KEY: 'aws_secret',
+    ANTHROPIC_API_KEY: 'sk-secret', MY_APP_PASSWORD: 'hunter2',
+    BUILD_NUMBER: '42',
+  }
+
+  it('passes the baseline and drops everything else', async () => {
+    const root = await workspace()
+    const confined = await localSandbox({ platform: 'linux', probe: false })
+      .confine(['true'], policyFor(root))
+    const { env } = sandboxSpawnOptions(confined, { env: caller })
+    expect(env['PATH']).toBe('/usr/bin')
+    expect(env['HOME']).toBe('/home/u')
+    expect(env['GITHUB_TOKEN']).toBeUndefined()
+    expect(env['AWS_SECRET_ACCESS_KEY']).toBeUndefined()
+    expect(env['ANTHROPIC_API_KEY']).toBeUndefined()
+    expect(env['BUILD_NUMBER']).toBeUndefined()
+    expect(env[SANDBOX_ENV_VAR]).toBe('bwrap')
+  })
+
+  it('passes a name the deployment explicitly allows', async () => {
+    const root = await workspace()
+    const confined = await localSandbox({ platform: 'linux', probe: false })
+      .confine(['true'], policyFor(root))
+    const { env } = sandboxSpawnOptions(confined, { env: caller, allow: ['BUILD_NUMBER'] })
+    expect(env['BUILD_NUMBER']).toBe('42')
+  })
+
+  it('still removes credential-shaped names when the whole environment is inherited', async () => {
+    const root = await workspace()
+    const confined = await localSandbox({ platform: 'linux', probe: false })
+      .confine(['true'], policyFor(root))
+    const { env } = sandboxSpawnOptions(confined, { env: caller, inherit: true })
+    expect(env['BUILD_NUMBER']).toBe('42')
+    expect(env['GITHUB_TOKEN']).toBeUndefined()
+    expect(env['MY_APP_PASSWORD']).toBeUndefined()
+  })
+
+  it('recognises a credential by the shape of its name', () => {
+    for (const name of ['GITHUB_TOKEN', 'AWS_SECRET_ACCESS_KEY', 'DB_PASSWORD',
+      'npm_config_auth', 'SESSION_COOKIE', 'MY_PRIVATE_KEY']) {
+      expect(isSecretEnvName(name)).toBe(true)
+    }
+    for (const name of ['PATH', 'HOME', 'BUILD_NUMBER', 'KEYBOARD_LAYOUT']) {
+      expect(isSecretEnvName(name)).toBe(false)
+    }
+  })
+})
+
+describe('refusing a boundary the deployment did not agree to', () => {
+  it('fails closed when the host only reaches partial enforcement', async () => {
+    const root = await workspace()
+    // The restricted bubblewrap rung is `partial`; a deployment that needs a
+    // real /proc boundary must not silently get one without it.
+    const provider = localSandbox({
+      platform: 'linux', probe: false, requireEnforcement: 'full',
+    })
+    // With probing off the chain's first rung is taken, which is `full` here.
+    await expect(provider.confine(['true'], policyFor(root))).resolves.toBeDefined()
+
+    const strict = localSandbox({ platform: 'win32', probe: false, requireEnforcement: 'partial' })
+    await expect(strict.confine(['true'], policyFor(root)))
+      .rejects.toBeInstanceOf(SandboxUnavailableError)
+  })
+})
+
+describe('tearing down everything the command started', () => {
+  // Killing the process a runner spawned is not the same as ending the work: a
+  // command that forks twice and calls setsid leaves the group and is
+  // reparented, so nothing connects it to the execution any more.
+  it('signals the process group, not just the process', async () => {
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      stdio: 'ignore', detached: true,
+    })
+    await new Promise(resolve => setTimeout(resolve, 100))
+    const result = await terminateConfined(child, { graceMs: 200 })
+    expect(result.signalled).toContain(child.pid)
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect(child.killed || child.exitCode !== null || child.signalCode !== null).toBe(true)
+  })
+
+  it('does not walk the process table where a PID namespace already did', async () => {
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      stdio: 'ignore', detached: true,
+    })
+    const result = await terminateConfined(child, { graceMs: 100, platform: 'linux' })
+    expect(result.strays).toBe(false)
+  })
+
+  it('reports no descendants on a platform without a process table to read', () => {
+    expect([...descendantsOf(process.pid, 'win32')]).toEqual([])
   })
 })
