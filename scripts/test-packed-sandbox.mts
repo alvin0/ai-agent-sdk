@@ -45,9 +45,26 @@ function pack(root: string, destination: string): string {
 }
 
 function run(command: string, args: readonly string[], cwd: string): string {
-  const result = spawnSync(command, args, { cwd, encoding: 'utf8', env: process.env })
+  // Windows ships npm as `npm.cmd`, and Node refuses to spawn a `.cmd` without
+  // a shell (the fix for CVE-2024-27980). Going through the shell means the
+  // shell, not Node, splits the command line, so every argument is quoted here
+  // — the runner's workspace path can contain characters cmd would otherwise
+  // treat as syntax.
+  const windows = process.platform === 'win32'
+  const result = spawnSync(
+    command,
+    windows ? args.map(argument => `"${argument.replaceAll('"', '\\"')}"`) : args,
+    { cwd, encoding: 'utf8', env: process.env, shell: windows },
+  )
+  // A process that never started reports no streams at all; saying so beats
+  // printing two `undefined`s and leaving the reader to guess.
+  if (result.error !== undefined) {
+    throw new Error(`${command} ${args.join(' ')} could not start: ${result.error.message}`)
+  }
   if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(' ')} failed\n${result.stdout}\n${result.stderr}`)
+    throw new Error(
+      `${command} ${args.join(' ')} failed (exit ${String(result.status)})\n${result.stdout}\n${result.stderr}`,
+    )
   }
   return result.stdout
 }
