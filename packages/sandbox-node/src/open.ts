@@ -48,7 +48,15 @@ export async function openConfinedWrite(
   const before = await resolver.realpath(dirname(path))
   await fence.assertWritable(path)
 
-  const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW
+  // `O_NOFOLLOW` does not exist on Windows, where `constants.O_NOFOLLOW` is
+  // `undefined` and would silently vanish from the bitwise OR. Where the kernel
+  // cannot refuse the open, refuse it here instead: not atomic, but the
+  // alternative is following the link.
+  const noFollow = constants.O_NOFOLLOW ?? 0
+  if (noFollow === 0 && (await resolver.readLink?.(path)) !== undefined) {
+    throw new SandboxDeniedError(path, 'workspace-write', fence.writableRoots)
+  }
+  const flags = constants.O_WRONLY | constants.O_CREAT | noFollow
     | (options.truncate === false ? constants.O_APPEND : constants.O_TRUNC)
 
   let handle: FileHandle

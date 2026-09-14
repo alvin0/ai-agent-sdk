@@ -1,6 +1,6 @@
 /** Node filesystem facts for the Universal contract's injected resolver. */
 
-import { realpath, stat } from 'node:fs/promises'
+import { lstat, readlink, realpath, stat } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { PathResolver } from '@alvin0/ai-agent-sdk-sandbox'
@@ -14,8 +14,14 @@ export function nodePathResolver(): PathResolver {
       catch { return normalizePath(path) }
     },
     async exists(path: string): Promise<boolean> {
-      try { await stat(path); return true }
+      // `lstat`, not `stat`: a symbolic link whose target is missing still
+      // exists, and judging it absent would resolve the link's own name.
+      try { await lstat(path); return true }
       catch { return false }
+    },
+    async readLink(path: string): Promise<string | undefined> {
+      try { return (await lstat(path)).isSymbolicLink() ? await readlink(path) : undefined }
+      catch { return undefined }
     },
     async hardLinkCount(path: string): Promise<number> {
       try { return (await stat(path)).nlink }

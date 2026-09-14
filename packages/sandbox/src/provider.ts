@@ -77,6 +77,15 @@ export interface PathResolver {
   /** Whether the path currently exists. */
   exists(path: string): Promise<boolean>
   /**
+   * The target of a symbolic link, or `undefined` when the path is not one.
+   *
+   * Existence has to be judged without following links: a link pointing at a
+   * path that does not exist yet still exists itself, and treating it as absent
+   * makes the resolver judge the link's own name instead of where it leads —
+   * which is inside the workspace, and therefore writable.
+   */
+  readLink?(path: string): Promise<string | undefined>
+  /**
    * How many names refer to this file's inode, when the host can say.
    *
    * A path boundary cannot see a hard link: two names for one inode, one inside

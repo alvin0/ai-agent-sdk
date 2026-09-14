@@ -467,6 +467,27 @@ describe('check-then-write is not a boundary under concurrency', () => {
     expect(existsSync(join(outside, 'canary.txt'))).toBe(false)
   })
 
+  it('judges a dangling symlink by where it leads, not by its own name', async () => {
+    // `stat` follows links, so a link to a path that does not exist yet looked
+    // absent — and the resolver then judged the link's own name, which is
+    // inside the workspace. The link is what exists; its target is what counts.
+    const root = await workspace()
+    const outside = await workspace()
+    const dangling = join(root, 'dangling')
+    await symlink(join(outside, 'not-created-yet.txt'), dangling)
+    const fence = localSandbox({ probe: false, tempRoots: [] }).fence(policyFor(root))
+    expect(await fence.isWritable(dangling)).toBe(false)
+  })
+
+  it('follows a symlink chain to where it actually lands', async () => {
+    const root = await workspace()
+    const outside = await workspace()
+    await symlink(outside, join(root, 'hop1'), 'dir')
+    await symlink(join(root, 'hop1'), join(root, 'hop2'), 'dir')
+    const fence = localSandbox({ probe: false, tempRoots: [] }).fence(policyFor(root))
+    expect(await fence.isWritable(join(root, 'hop2', 'x.txt'))).toBe(false)
+  })
+
   it('opens an ordinary path inside the workspace', async () => {
     const root = await workspace()
     const fence = localSandbox({ probe: false, tempRoots: [] }).fence(policyFor(root))

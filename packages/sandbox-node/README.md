@@ -122,7 +122,8 @@ under a real backend on macOS and Linux.
   `writeConfinedFile`, which check and open in one step and refuse to follow a
   symlink on the final component. A hostile swap of a *directory* component is
   still not defeated; closing that needs `openat2(RESOLVE_BENEATH)`, which Node
-  does not expose.
+  does not expose. Windows has no `O_NOFOLLOW`, so there the link is refused by
+  an explicit check rather than by the kernel, and the open is not atomic.
 - **The caller must use `sandboxSpawnOptions`.** A file descriptor opened before
   the wrap is a capability the kernel already granted, and no mount revokes it:
   a child handed an extra descriptor reads and writes through it regardless of

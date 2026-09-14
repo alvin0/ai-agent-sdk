@@ -9,7 +9,7 @@
  */
 
 import { SandboxDeniedError } from './errors.ts'
-import { ancestorPaths, normalizePath } from './path.ts'
+import { ancestorPaths, isAbsolutePath, normalizePath, parentPath } from './path.ts'
 import type { SandboxPolicy } from './policy.ts'
 import type { FsFence, PathResolver } from './provider.ts'
 import type { GrantLayer, WritableRootOptions } from './roots.ts'
@@ -81,6 +81,9 @@ export function createFsFence(
   })
 }
 
+/** Bound on link chasing, so a self-referential link cannot loop forever. */
+const SYMLINK_DEPTH_LIMIT = 32
+
 /**
  * Resolve a path through its deepest existing ancestor.
  *
@@ -90,13 +93,32 @@ export function createFsFence(
  * both cases: a symlinked parent resolves to its real location, and a target
  * that does not exist yet is still judged where it would actually be created.
  */
-async function canonicalize(path: string, resolver: PathResolver): Promise<string> {
+async function canonicalize(
+  path: string,
+  resolver: PathResolver,
+  depth = 0,
+): Promise<string> {
   const normalized = normalizePath(path)
+  if (depth >= SYMLINK_DEPTH_LIMIT) return normalized
   const chain = ancestorPaths(normalized)
   for (let index = chain.length - 1; index >= 0; index--) {
     const candidate = chain[index]
     if (candidate === undefined) continue
     if (!(await resolver.exists(candidate))) continue
+
+    // A link whose target does not exist yet is still a link, and `realpath`
+    // cannot resolve it. Reading it directly is what keeps a dangling symlink
+    // from being judged by its own name — which sits inside the workspace,
+    // while what it names does not.
+    const link = await resolver.readLink?.(candidate)
+    if (link !== undefined) {
+      const parent = parentPath(candidate) ?? candidate
+      const target = isAbsolutePath(link) ? link : `${parent}/${link}`
+      const tail = normalized.slice(candidate.length).replace(/^[\\/]+/, '')
+      const resolved = await canonicalize(target, resolver, depth + 1)
+      return tail === '' ? resolved : normalizePath(`${resolved}/${tail}`)
+    }
+
     const real = await resolver.realpath(candidate)
     const tail = normalized.slice(candidate.length).replace(/^[\\/]+/, '')
     return tail === '' ? normalizePath(real) : normalizePath(`${real}/${tail}`)
