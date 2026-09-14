@@ -48,7 +48,24 @@ export function createFsFence(
   async function permits(path: string, want: 'write' | 'read'): Promise<boolean> {
     const [target, resolved] = await Promise.all([canonicalize(path, resolver), layersOnce()])
     const access = accessInLayers(target, resolved)
-    return want === 'write' ? access === 'write' : access !== 'deny'
+    if (want === 'read') return access !== 'deny'
+    if (access !== 'write') return false
+    return options.allowAliasedWrites === true || !(await aliased(target))
+  }
+
+  /**
+   * Whether the target is reachable under a name this policy never saw.
+   *
+   * A hard link gives one inode two names. Judging the name inside the
+   * workspace says nothing about the other one, which may sit anywhere,
+   * so a write through the inside name escapes a boundary made of paths. The
+   * count is the only signal available without walking the whole filesystem;
+   * when the host cannot report it, the check does not fire.
+   */
+  async function aliased(target: string): Promise<boolean> {
+    if (resolver.hardLinkCount === undefined) return false
+    try { return (await resolver.hardLinkCount(target)) > 1 }
+    catch { return false }
   }
 
   return Object.freeze({
@@ -60,6 +77,7 @@ export function createFsFence(
       const writable = layers.filter(layer => layer.access === 'write').map(layer => layer.path)
       throw new SandboxDeniedError(normalizePath(path), policy.mode, writable)
     },
+    isAliased: (path: string) => canonicalize(path, resolver).then(aliased),
   })
 }
 

@@ -37,6 +37,15 @@ export interface CommandOutcome {
   readonly stderr: string
   /** Terminating signal name, when the host reports one. */
   readonly signal?: string | null
+  /**
+   * Whether the runner reported, on a channel of its own, that it executed the
+   * command. Stderr cannot answer this: the runner and the command share that
+   * stream, so a command can print the runner's fatal signature and exit with
+   * the runner's code, and claim it never ran. When this is `true` no
+   * runner-failure rule applies, because the claim is already contradicted by
+   * evidence the command could not write.
+   */
+  readonly childStarted?: boolean
 }
 
 /** Evidence a consumer needs to classify one confined command's outcome. */
@@ -78,9 +87,11 @@ export function classifyOutcome(
   if (outcome.exitCode === 0) return Object.freeze({ kind: 'success' })
 
   const lines = outcome.stderr.split(/\r?\n/)
-  for (const rule of input.runnerFailureRules) {
-    const evidence = matchRunnerFailure(outcome.exitCode, lines, rule)
-    if (evidence !== undefined) return Object.freeze({ kind: 'runner-failure', evidence })
+  if (outcome.childStarted !== true) {
+    for (const rule of input.runnerFailureRules) {
+      const evidence = matchRunnerFailure(outcome.exitCode, lines, rule)
+      if (evidence !== undefined) return Object.freeze({ kind: 'runner-failure', evidence })
+    }
   }
 
   if (outcome.signal === 'SIGSYS' || outcome.exitCode === SIGSYS_EXIT_CODE) {

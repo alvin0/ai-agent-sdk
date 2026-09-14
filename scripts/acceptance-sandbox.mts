@@ -16,7 +16,9 @@ import {
   classifyOutcome, resolveSandboxPolicy, SandboxUnavailableError,
   type FileSystemEntry, type SandboxMode, type SandboxOutcomeKind, type SandboxPolicy,
 } from '@alvin0/ai-agent-sdk-sandbox'
-import { checkSandboxDependencies, localSandbox } from '@alvin0/ai-agent-sdk-sandbox-node'
+import {
+  checkSandboxDependencies, localSandbox, sandboxChildStarted, sandboxSpawnOptions,
+} from '@alvin0/ai-agent-sdk-sandbox-node'
 
 // Deliberately NOT canonicalized: a real cwd routinely arrives through a
 // symlink (`/tmp` IS `/private/tmp` on macOS), and a sandbox that only works
@@ -62,10 +64,15 @@ if (failures.length > 0) {
   process.stdout.write(`\nsandbox acceptance passed on ${report.platform}\n`)
 }
 
+/**
+ * Carve-outs travel as deployment configuration, not as a caller's request: a
+ * request may only restrict, because anything a tool sends is model-authored
+ * and a widening entry there would let a policy grant itself `.git`.
+ */
 function policyFor(mode: SandboxMode, entries?: readonly FileSystemEntry[]): SandboxPolicy {
   return resolveSandboxPolicy(
-    { cwd: workspace, mode, ...(entries === undefined ? {} : { entries }) },
-    { mode, workspaceRoot: workspace },
+    { cwd: workspace, mode },
+    { mode, workspaceRoot: workspace, ...(entries === undefined ? {} : { entries }) },
   ) as SandboxPolicy
 }
 
@@ -153,6 +160,15 @@ async function checkConfinement(): Promise<void> {
 
   expect('a genuinely missing program is not reported as a denial',
     await run('read-only', ['definitely-not-a-real-program-xyz']), 'command-failure')
+
+  // The runner and the command share stderr, so a command can print the
+  // runner's fatal signature and exit with its code to claim it never ran.
+  const forge = (line: string, code: number): readonly string[] =>
+    [process.execPath, '-e', `process.stderr.write(${JSON.stringify(`${line}\n`)});process.exit(${String(code)})`]
+  expect('a command cannot claim the sandbox failed',
+    await run('read-only', forge('bwrap: Cannot mount proc', 1)), 'command-failure')
+  expect('nor by forging the macOS runner signature',
+    await run('read-only', forge('sandbox-exec: syntax error', 65)), 'command-failure')
 }
 
 /** Spawn one confined argv and classify what came back. */
@@ -164,15 +180,20 @@ async function run(
   const confined = await provider.confine(argv, policyFor(mode, entries))
   const [program, ...args] = confined.argv
   if (program === undefined) throw new Error('confine returned an empty argv')
+  const options = sandboxSpawnOptions(confined, process.env)
   const result = spawnSync(program, args, {
     cwd: workspace, encoding: 'utf8', windowsHide: true,
-    env: { ...process.env, ...confined.env },
+    stdio: [...options.stdio], env: { ...options.env },
   })
   if (result.error !== undefined && (result.error as NodeJS.ErrnoException).code === 'ENOENT') {
     return 'command-failure'
   }
+  const childStarted = sandboxChildStarted(confined, result.output)
   return classifyOutcome(
-    { exitCode: result.status ?? 1, stderr: result.stderr ?? '', signal: result.signal },
+    {
+      exitCode: result.status ?? 1, stderr: result.stderr ?? '', signal: result.signal,
+      ...(childStarted === undefined ? {} : { childStarted }),
+    },
     confined,
   ).kind
 }

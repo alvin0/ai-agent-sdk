@@ -9,7 +9,9 @@
  */
 
 import type { RunnerFailureRule, SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
+import type { WritableRootOptions } from '@alvin0/ai-agent-sdk-sandbox'
 import { grantLayers } from '@alvin0/ai-agent-sdk-sandbox'
+import { spawnSync } from 'node:child_process'
 import { nodePathResolver } from '../fs/resolver.ts'
 
 /** Program name; ships with macOS. */
@@ -50,7 +52,7 @@ function sbplString(path: string): string {
  */
 export async function seatbeltProfileArgs(
   policy: SandboxPolicy,
-  tempRoots: readonly string[],
+  options: WritableRootOptions,
 ): Promise<readonly string[]> {
   const resolver = nodePathResolver()
   const forms: string[] = [
@@ -60,17 +62,62 @@ export async function seatbeltProfileArgs(
     `(allow file-write* (literal ${sbplString('/dev/null')}))`,
   ]
 
-  for (const layer of grantLayers(policy, { tempRoots })) {
+  for (const layer of grantLayers(policy, options)) {
     // Seatbelt matches resolved paths — `/tmp` IS `/private/tmp` — so a rule
     // written the other way silently matches nothing.
     const subpath = `(subpath ${sbplString(await resolver.realpath(layer.path))})`
     if (layer.access === 'write') forms.push(`(allow file-write* ${subpath})`)
     else forms.push(`(deny file-write* ${subpath})`)
-    if (layer.access === 'deny') forms.push(`(deny file-read* ${subpath})`)
+    if (layer.access === 'deny') {
+      forms.push(`(deny file-read* ${subpath})`)
+      // Connecting to a Unix socket is `network-outbound` in SBPL, not a file
+      // operation, so denying reads and writes leaves a host daemon socket
+      // fully reachable — a Docker socket that answers is host root. Denying
+      // the path for outbound connections is what actually closes it.
+      forms.push(`(deny network-outbound ${subpath})`)
+    }
   }
 
   return Object.freeze(['-p', forms.join(' ')])
 }
+
+/**
+ * Whether this host accepts the profile we generated, cached per profile text.
+ *
+ * Seatbelt has no status channel, so a command can print `sandbox-exec:` and
+ * exit 65 to claim the profile was rejected and the command never ran. The
+ * profile is ours and deterministic, so validating it once settles the claim:
+ * if the kernel accepted this exact profile, a later report that it did not is
+ * a forgery, and the rule that reads such a report is dropped.
+ */
+const VALIDATED = new Map<string, boolean>()
+
+/**
+ * Apply one generated profile to `true` and remember whether it was accepted.
+ * @param profile - the SBPL text this policy produced.
+ */
+export function seatbeltProfileAccepted(profile: string): boolean {
+  const cached = VALIDATED.get(profile)
+  if (cached !== undefined) return cached
+  let accepted = false
+  try {
+    const result = spawnSync(SEATBELT_PROGRAM, ['-p', profile, 'true'], {
+      timeout: 5_000, stdio: 'ignore', windowsHide: true,
+    })
+    accepted = result.error === undefined && result.status === 0
+  } catch { accepted = false }
+  VALIDATED.set(profile, accepted)
+  return accepted
+}
+
+/**
+ * The rules that still apply once the profile itself has been validated.
+ * Profile rejection is no longer possible, so only a runtime apply failure
+ * remains — and that one names functions a command has no reason to print.
+ */
+export const SEATBELT_VALIDATED_FAILURE_RULES: readonly RunnerFailureRule[] = Object.freeze([
+  Object.freeze({ fatalSignatures: Object.freeze(['sandbox_init', 'sandbox_apply']) }),
+])
 
 /** The read-only profile used to probe whether Seatbelt accepts a policy. */
 export function seatbeltProbeArgs(): readonly string[] {

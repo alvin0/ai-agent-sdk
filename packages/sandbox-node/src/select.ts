@@ -87,8 +87,13 @@ export function probeRunner(id: RunnerId, workspaceRoot: string, timeoutMs: numb
     ? seatbeltProbeArgs()
     : bwrapProbeArgs(workspaceRoot, id === 'bwrap' ? 'full' : 'restricted')
   try {
+    // The bubblewrap profile reports status on its own descriptor, so the probe
+    // has to provide one: writing to a closed fd would fail the probe for a
+    // runner that works.
     const probe = spawnSync(descriptor.program, [...args], {
-      timeout: timeoutMs, stdio: 'ignore', windowsHide: true,
+      timeout: timeoutMs,
+      stdio: id === 'seatbelt' ? 'ignore' : ['ignore', 'ignore', 'ignore', 'pipe'],
+      windowsHide: true,
     })
     return probe.error === undefined && probe.status === 0
   } catch { return false }

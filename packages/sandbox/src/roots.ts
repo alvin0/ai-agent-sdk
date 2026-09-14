@@ -55,6 +55,19 @@ export interface WritableRootOptions {
   readonly tempRoots?: readonly string[]
   /** Whether to layer {@link PROTECTED_SUBPATHS} under every granted root. */
   readonly protectSubpaths?: boolean
+  /**
+   * Absolute paths the platform hides outright — credential stores and host
+   * daemon sockets. Layered as `deny` above the mode grant and below any
+   * explicit entry, so a deployment can still reopen one deliberately while a
+   * tool-supplied restriction cannot widen it.
+   */
+  readonly deniedPaths?: readonly string[]
+  /**
+   * Permit writes to a file whose inode carries more than one name. Off by
+   * default: a hard link reaching out of the workspace is otherwise invisible
+   * to a boundary made of paths.
+   */
+  readonly allowAliasedWrites?: boolean
 }
 
 const ORIGIN_RANK: Readonly<Record<GrantOrigin, number>> = Object.freeze({
@@ -78,6 +91,9 @@ export function grantLayers(
     for (const root of [policy.workspaceRoot, ...(options.tempRoots ?? [])]) {
       proposed.push({ path: normalizePath(root), access: 'write', origin: 'mode' })
     }
+  }
+  for (const denied of options.deniedPaths ?? []) {
+    proposed.push({ path: normalizePath(denied), access: 'deny', origin: 'protected' })
   }
   if (options.protectSubpaths !== false) {
     for (const layer of proposed.filter(candidate => candidate.access === 'write')) {

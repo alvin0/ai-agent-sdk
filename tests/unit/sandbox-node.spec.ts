@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { link, mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { realpath } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   SandboxDeniedError, SandboxUnavailableError, classifyOutcome, normalizePath, resolveSandboxPolicy,
@@ -9,7 +9,9 @@ import {
 import type { SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
 import {
   checkSandboxDependencies, insideSandbox, localSandbox, platformChain,
-  runnerDescriptor, SANDBOX_ENV_VAR, sandboxUnavailableReason,
+  runnerDescriptor, SANDBOX_ENV_VAR, sandboxChildStarted, sandboxSpawnOptions,
+  SEATBELT_RUNNER_FAILURE_RULES,
+  sandboxUnavailableReason,
 } from '@alvin0/ai-agent-sdk-sandbox-node'
 
 const roots: string[] = []
@@ -134,10 +136,21 @@ describe('confined argv', () => {
 
   it('grants nothing writable under read-only', async () => {
     const root = await workspace()
-    const provider = localSandbox({ platform: 'linux', probe: false })
+    const provider = localSandbox({ platform: 'linux', probe: false, hardenDefaults: false })
     const { argv } = await provider.confine(['bash', '-c', 'true'], policyFor(root, 'read-only'))
     expect(argv).not.toContain('--bind')
     expect(argv).not.toContain('--tmpfs')
+  })
+
+  it('hides credential stores and daemon sockets even under read-only', async () => {
+    const root = await workspace()
+    const provider = localSandbox({ platform: 'linux', probe: false })
+    const { argv } = await provider.confine(['bash', '-c', 'true'], policyFor(root, 'read-only'))
+    const profile = argv.join(' ')
+    expect(profile).toContain(normalizePath(join(homedir(), '.ssh')))
+    // The path is emitted canonically, and `/var` is a symlink on macOS.
+    expect(profile).toContain('docker.sock')
+    expect(argv).not.toContain('--bind')
   })
 
   it('builds an allow-default Seatbelt profile that denies writes by default', async () => {
@@ -149,7 +162,11 @@ describe('confined argv', () => {
     const profile = argv[2] ?? ''
     expect(profile).toContain('(allow default)')
     expect(profile).toContain('(deny file-write*)')
-    expect(profile.indexOf('(deny file-write* (subpath')).toBeGreaterThan(profile.indexOf('(allow file-write* (subpath'))
+    // The workspace grant must precede the denials carved inside it.
+    const grant = profile.indexOf(`(allow file-write* (subpath "${normalizePath(root)}")`)
+    expect(grant).toBeGreaterThanOrEqual(0)
+    expect(profile.indexOf(`(deny file-write* (subpath "${normalizePath(join(root, '.git'))}")`))
+      .toBeGreaterThan(grant)
   })
 
   it('marks the confinement in the environment so children can detect it', async () => {
@@ -191,12 +208,27 @@ describe('runner failure is distinguished from an ordinary command failure', () 
     expect(classifyOutcome({ exitCode: 71, stderr }, confined).kind).toBe('command-failure')
   })
 
-  it('still reads a rejected Seatbelt profile as a runner failure', async () => {
-    const root = await workspace()
-    const provider = localSandbox({ platform: 'darwin', probe: false })
-    const confined = await provider.confine(['true'], policyFor(root))
+  it('still reads a rejected Seatbelt profile as a runner failure', () => {
+    // Against the rule itself: whether a given host keeps this rule depends on
+    // whether the generated profile validated there, which is the next test.
     const stderr = "sandbox-exec: syntax error: expecting ')'"
-    expect(classifyOutcome({ exitCode: 65, stderr }, confined).kind).toBe('runner-failure')
+    expect(classifyOutcome({ exitCode: 65, stderr },
+      { denialSignatures: [], runnerFailureRules: SEATBELT_RUNNER_FAILURE_RULES }).kind)
+      .toBe('runner-failure')
+  })
+
+  it('drops that rule once the generated profile has been validated', async () => {
+    const root = await workspace()
+    const confined = await localSandbox({ platform: 'darwin', probe: false })
+      .confine(['true'], policyFor(root))
+    const stderr = "sandbox-exec: syntax error: expecting ')'"
+    const kind = classifyOutcome({ exitCode: 65, stderr }, confined).kind
+    // On a host with a working sandbox-exec the profile validates, so a later
+    // report that it was rejected can only be a forgery; elsewhere the rule
+    // stays, because nothing has contradicted the report.
+    const validated = confined.runnerFailureRules.every(
+      rule => !rule.fatalSignatures.includes('sandbox-exec:'))
+    expect(kind).toBe(validated ? 'command-failure' : 'runner-failure')
   })
 
   it('reads a bubblewrap execvp failure as a command failure', async () => {
@@ -331,5 +363,78 @@ describe('a protected subpath enforced by a mount reports as a denial', () => {
     const confined = await provider.confine(['true'], policyFor(root))
     const stderr = `Error: EBUSY: resource busy or locked, rmdir '${join(root, '.git')}'`
     expect(classifyOutcome({ exitCode: 1, stderr }, confined).kind).toBe('denied')
+  })
+})
+
+describe('inherited capabilities and aliased inodes', () => {
+  it('offers spawn options that carry nothing but the standard streams', async () => {
+    const root = await workspace()
+    const provider = localSandbox({ platform: 'linux', probe: false })
+    const confined = await provider.confine(['true'], policyFor(root))
+    const options = sandboxSpawnOptions(confined, { PATH: '/usr/bin' })
+    // A descriptor opened before the wrap is a capability the kernel already
+    // granted; no mount revokes it, so the child inherits nothing beyond the
+    // standard streams and the runner's own status channel.
+    expect([...options.stdio]).toEqual(['ignore', 'pipe', 'pipe', 'pipe'])
+    expect(confined.statusFd).toBe(3)
+    expect(options.env[SANDBOX_ENV_VAR]).toBe('bwrap')
+  })
+
+  it('carries only the standard streams for a runner without a status channel', async () => {
+    const root = await workspace()
+    const confined = await localSandbox({ platform: 'darwin', probe: false })
+      .confine(['true'], policyFor(root))
+    expect(confined.statusFd).toBeUndefined()
+    expect([...sandboxSpawnOptions(confined).stdio]).toEqual(['ignore', 'pipe', 'pipe'])
+  })
+
+  it('refuses a write to a file whose inode carries another name', async () => {
+    const root = await workspace()
+    const outside = await workspace()
+    const victim = join(outside, 'victim.txt')
+    await writeFile(victim, 'ORIGINAL')
+    const alias = join(root, 'innocent.txt')
+    await link(victim, alias)
+
+    const fence = localSandbox({ probe: false }).fence(policyFor(root))
+    expect(await fence.isAliased(alias)).toBe(true)
+    expect(await fence.isWritable(alias)).toBe(false)
+    await expect(fence.assertWritable(alias)).rejects.toBeInstanceOf(SandboxDeniedError)
+    // An ordinary file in the same workspace is unaffected.
+    expect(await fence.isWritable(join(root, 'ordinary.txt'))).toBe(true)
+  })
+
+  it('permits aliased writes when a deployment deliberately opts in', async () => {
+    const root = await workspace()
+    const outside = await workspace()
+    const victim = join(outside, 'victim.txt')
+    await writeFile(victim, 'ORIGINAL')
+    const alias = join(root, 'innocent.txt')
+    await link(victim, alias)
+
+    const fence = localSandbox({ probe: false, allowAliasedWrites: true }).fence(policyFor(root))
+    expect(await fence.isWritable(alias)).toBe(true)
+  })
+})
+
+describe('a command cannot claim the sandbox failed', () => {
+  // The runner and the command share stderr, so a command can print the
+  // runner's fatal signature and exit with its code. bubblewrap reports on a
+  // descriptor of its own instead, which the command never holds.
+  it('ignores a forged runner signature once the runner said the command ran', async () => {
+    const root = await workspace()
+    const confined = await localSandbox({ platform: 'linux', probe: false })
+      .confine(['true'], policyFor(root))
+    const forged = { exitCode: 1, stderr: 'bwrap: Cannot mount proc' }
+    expect(classifyOutcome(forged, confined).kind).toBe('runner-failure')
+    expect(classifyOutcome({ ...forged, childStarted: true }, confined).kind).toBe('command-failure')
+  })
+
+  it('reads the start report out of the status descriptor', async () => {
+    const root = await workspace()
+    const confined = await localSandbox({ platform: 'linux', probe: false })
+      .confine(['true'], policyFor(root))
+    expect(sandboxChildStarted(confined, [null, '', '', '{"child-pid":42}\n'])).toBe(true)
+    expect(sandboxChildStarted(confined, [null, '', '', ''])).toBe(false)
   })
 })

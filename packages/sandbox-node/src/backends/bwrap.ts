@@ -9,6 +9,7 @@
  */
 
 import type { RunnerFailureRule, SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
+import type { WritableRootOptions } from '@alvin0/ai-agent-sdk-sandbox'
 import { grantLayers, pathDepth } from '@alvin0/ai-agent-sdk-sandbox'
 import { isDirectory, nodePathResolver } from '../fs/resolver.ts'
 
@@ -27,6 +28,16 @@ export const BWRAP_PROGRAM = 'bwrap'
  */
 export type BwrapVariant = 'full' | 'restricted'
 
+/**
+ * Descriptor bubblewrap reports its own status on.
+ *
+ * It writes `{"child-pid": N}` once the command has actually been executed, on
+ * a channel the command itself never holds. That is what makes the report
+ * trustworthy where stderr is not: the runner and the command share stderr, so
+ * a command can print `bwrap: ...` and exit 1 to impersonate a broken sandbox.
+ */
+export const BWRAP_STATUS_FD = 3
+
 /** The namespace and capability arguments shared by the profile and its probe. */
 function baseArgs(variant: BwrapVariant): string[] {
   return [
@@ -36,6 +47,7 @@ function baseArgs(variant: BwrapVariant): string[] {
     '--unshare-pid', '--unshare-ipc', '--unshare-user',
     '--new-session', '--die-with-parent',
     '--cap-drop', 'ALL',
+    '--json-status-fd', String(BWRAP_STATUS_FD),
   ]
 }
 
@@ -78,17 +90,27 @@ export const BWRAP_RUNNER_FAILURE_RULES: readonly RunnerFailureRule[] = Object.f
  */
 export async function bwrapProfileArgs(
   policy: SandboxPolicy,
-  tempRoots: readonly string[],
+  options: WritableRootOptions,
   variant: BwrapVariant = 'full',
 ): Promise<readonly string[]> {
   const resolver = nodePathResolver()
   const args: string[] = baseArgs(variant)
   const sealReadOnly: string[] = []
 
-  for (const layer of grantLayers(policy, { tempRoots })) {
+  for (const layer of grantLayers(policy, options)) {
     // Bind the canonical location: a layer named through a symlink would
     // otherwise govern whatever the link happens to point at.
     const real = await resolver.realpath(layer.path)
+
+    // A mount needs its destination to exist: `--ro-bind-try` tolerates a
+    // missing SOURCE, not a missing DESTINATION, and outside the workspace the
+    // root is read-only so bubblewrap cannot create one. A hardened deny list
+    // names paths that are absent on most hosts (`~/.aws` on a machine without
+    // it), and emitting a mount for those aborts the whole sandbox with
+    // "Can't create file at ...: Read-only file system" — the command then
+    // never runs at all. Nothing needs masking where nothing exists.
+    if (layer.access !== 'write' && !(await resolver.exists(real))) continue
+
     if (layer.access === 'write') {
       args.push('--bind', real, real)
     } else if (layer.access === 'read') {

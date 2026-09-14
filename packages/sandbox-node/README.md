@@ -115,23 +115,27 @@ IS `/private/tmp`, and a grant written the other way matches nothing.
 Measured, not assumed — each item below was reproduced by running the attack
 under a real backend on macOS and Linux.
 
-- **A pre-existing hard link escapes the boundary.** A hard link inside the
-  workspace pointing at a file outside it aliases one inode under two names, and
-  a write through the workspace name reaches the outside file on both backends.
-  A confined process cannot create such a link — `link()` is denied — so this
-  needs a link placed by something else beforehand (a checkout, a setup script,
-  prior host access). No filesystem sandbox that works on paths can close this;
-  it needs file-identity policy.
+- **The caller must use `sandboxSpawnOptions`.** A file descriptor opened before
+  the wrap is a capability the kernel already granted, and no mount revokes it:
+  a child handed an extra descriptor reads and writes through it regardless of
+  policy. Neither backend closes inherited descriptors, so the spawn must pass
+  nothing but the standard streams and the runner's own status channel.
+- **A pre-existing hard link still escapes the kernel profiles.** One inode
+  under two names, one inside the workspace and one outside, lets a write reach
+  past a boundary made of paths. The fence refuses writes to a file whose inode
+  carries another name, but bubblewrap and Seatbelt cannot see the alias, so a
+  spawned process writing through it is not stopped. A confined process cannot
+  create such a link — `link()` is denied — so it needs one placed beforehand.
 - **No network confinement.** File effects only. A confined command reaches the
-  internet: a TCP connection to a public address succeeds.
-- **Reading is unconfined by default.** The host filesystem is bound read-only,
-  so `/etc/passwd` and `~/.ssh` are readable unless a `deny` entry hides them.
-  Combined with open network, that is an exfiltration path.
-- **Host sockets are reachable.** A Unix socket connection is not a file write,
-  so `SSH_AUTH_SOCK` and `/var/run/docker.sock` connect from inside. A reachable
-  Docker socket is equivalent to host root. Hide them with `deny` entries.
+  internet: a TCP connection to a public address succeeds. Only paths listed as
+  denied are closed to outbound Unix-socket connections.
 - **No resource limits.** No rlimit, no cgroup, no accounting: 150 processes,
   2 GB of memory, and 20 000 files were all created without resistance.
+- **Seatbelt classification rests on a self-check, not a channel.** bubblewrap
+  reports on its own descriptor, so a command cannot claim the sandbox failed.
+  Seatbelt has no such channel; instead the generated profile is validated once
+  against the host, and the rule a command could forge is dropped when it
+  validates. On a host where validation itself fails, the forgeable rule stays.
 - **Process visibility differs.** Linux gives a private PID namespace, so only
   the sandbox's own processes are visible. macOS does not: the confined process
   sees its real host PID, and Seatbelt's allow-by-default profile leaves
@@ -140,11 +144,21 @@ under a real backend on macOS and Linux.
 - **Symlinks created inside a granted root after wrapping** are not masked by
   the kernel profile; the fence resolves them per call, the profile does not.
 
-What did hold, under the same measurement: writes and deletions outside the
+Credential stores and host daemon sockets are hidden by default — `~/.ssh`,
+`~/.aws`, `~/.gnupg`, `~/.kube`, `~/.npmrc`, `~/.netrc`, the Docker, Podman,
+containerd and D-Bus sockets, and `SSH_AUTH_SOCK`. Pass `hardenDefaults: false`
+to opt out. On Seatbelt the denial covers outbound connections as well as reads,
+because connecting to a socket is not a file operation and a write boundary
+alone leaves a container socket answering, which is host root.
+
+What held, under the same measurement: writes and deletions outside the
 workspace, writes through a symlink pointing out of it, writes to protected
 metadata directories, nested carve-outs, `/proc` isolation and `mount` on Linux
 — a new user namespace can be created there but cannot remount anything
 writable, and `/dev` is a private, ephemeral node set rather than the host's.
+A tool cannot raise its own mode or grant itself a writable path: widening
+requires an approval minted by `approveSandboxEscalation`, which a JSON payload
+cannot contain.
 
 Verified by `.github/workflows/sandbox.yml`, which runs real confined commands
 and asserts the outcome rather than trusting that the argv was well-formed. It

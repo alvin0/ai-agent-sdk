@@ -7,6 +7,8 @@
  * of shared provider state.
  */
 
+import type { SandboxApproval } from './approval.ts'
+import { requireSandboxApproval } from './approval.ts'
 import type { FileSystemEntry } from './entries.ts'
 import { orderEntries } from './entries.ts'
 import { SandboxPolicyError } from './errors.ts'
@@ -35,16 +37,33 @@ export interface SandboxPolicy extends SandboxExecutionPolicy {
   readonly mode: ConfinedSandboxMode
 }
 
-/** Inputs that select the policy for one capability call. */
+/**
+ * Inputs that select the policy for one capability call.
+ *
+ * `mode` and `entries` are the UNTRUSTED half: they arrive from whatever asked
+ * for the execution, which in an agent is a model-authored tool payload. They
+ * may only narrow. Widening lives behind {@link approval}, which a tool payload
+ * cannot contain because it is a capability rather than data.
+ */
 export interface SandboxPolicyRequest {
-  /** Explicit approved mode override; outranks every other source. */
+  /**
+   * The mode the caller asks for. Honoured only when it is at least as strict
+   * as the session's own mode — a request can tighten its own execution, never
+   * loosen it.
+   */
   readonly mode?: SandboxMode
   /** The calling session's mode, as last logged for that session. */
   readonly sessionMode?: SandboxMode
   /** The calling session's immutable cwd; becomes the workspace boundary. */
   readonly cwd?: string
-  /** Carve-outs contributed by configuration or by an approval. */
+  /**
+   * Carve-outs the caller asks for. Restrictions only: a `write` entry here is
+   * an escalation attempt and is refused, because granting write to `.git` or
+   * `~/.ssh` defeats the boundary just as completely as raising the mode.
+   */
   readonly entries?: readonly FileSystemEntry[]
+  /** An approval minted by `approveSandboxEscalation`; the only way to widen. */
+  readonly approval?: SandboxApproval
   /** Opaque calling-session identity. */
   readonly sessionId?: string
 }
@@ -60,24 +79,56 @@ export interface SandboxPolicyDefaults {
 }
 
 /**
- * Resolve the complete policy for one capability call. An approved explicit
- * mode outranks the session's mode, which outranks the deployment default. A
- * session cwd is its `workspace-write` boundary; the configured root is the
- * fallback for agentless calls and sessions without a cwd.
- * @param request - the calling session, approved override, and carve-outs.
+ * Resolve the complete policy for one capability call.
+ *
+ * Authority only ever decreases across untrusted inputs: the deployment default
+ * and the session's mode set a ceiling, a request may narrow beneath it, and a
+ * minted approval is the single path that raises it. A session cwd is its
+ * `workspace-write` boundary; the configured root is the fallback for agentless
+ * calls and sessions without a cwd.
+ * @param request - the calling session's untrusted ask, plus any approval.
  * @param defaults - deployment mode, workspace root, and standing carve-outs.
+ * @throws SandboxPolicyError when a request tries to widen without an approval.
  */
 export function resolveSandboxPolicy(
   request: SandboxPolicyRequest,
   defaults: SandboxPolicyDefaults,
 ): SandboxExecutionPolicy {
-  const mode = request.mode ?? request.sessionMode ?? defaults.mode
-  if (!isSandboxMode(mode)) throw new SandboxPolicyError(`Unknown sandbox mode '${String(mode)}'`)
+  const approval = request.approval === undefined ? undefined : requireSandboxApproval(request.approval)
+
+  // The ceiling is what the deployment and the session already allow. A request
+  // is clamped to it; only an approval may raise it.
+  const ceiling = request.sessionMode ?? defaults.mode
+  if (!isSandboxMode(ceiling)) throw new SandboxPolicyError(`Unknown sandbox mode '${String(ceiling)}'`)
+  const requested = request.mode
+  if (requested !== undefined && !isSandboxMode(requested)) {
+    throw new SandboxPolicyError(`Unknown sandbox mode '${String(requested)}'`)
+  }
+  const narrowed = requested !== undefined && modeAuthority(requested) < modeAuthority(ceiling)
+    ? requested
+    : ceiling
+  const mode = approval?.mode ?? narrowed
+
   const workspaceRoot = normalizePath(request.cwd ?? defaults.workspaceRoot)
   if (!isAbsolutePath(workspaceRoot)) {
     throw new SandboxPolicyError(`Sandbox workspace root must be absolute, received '${workspaceRoot}'`)
   }
-  const entries = orderEntries([...(defaults.entries ?? []), ...(request.entries ?? [])])
+
+  for (const entry of request.entries ?? []) {
+    if (entry.access === 'write') {
+      throw new SandboxPolicyError(
+        `A requested entry may not grant write access to '${entry.path}'; `
+        + 'widening a policy requires an approval minted by approveSandboxEscalation()',
+      )
+    }
+  }
+
+  // Deployment config first, then the caller's restrictions, then the approval —
+  // so an approval can reopen what a restriction closed, and a restriction can
+  // never reopen what the deployment closed unless it is narrower.
+  const entries = orderEntries([
+    ...(defaults.entries ?? []), ...(request.entries ?? []), ...(approval?.entries ?? []),
+  ])
   return Object.freeze({
     mode, workspaceRoot,
     ...(entries.length === 0 ? {} : { entries }),

@@ -24,6 +24,29 @@ seam, and a mode that claimed to cover them would be lying.
 | `workspace-write` | Writes under the workspace root, plus any temp roots the consumer explicitly grants |
 | `danger-full-access` | No confinement; the provider is never consulted |
 
+## The authorization boundary
+
+Everything a tool sends is model-authored JSON, so a policy input that widens
+authority is one the model can grant itself. `mode` and `entries` on a request
+are therefore the untrusted half: a requested mode is honoured only when it is
+at least as strict as the session's own, and a requested entry granting `write`
+is refused outright.
+
+Widening goes through a capability instead of data:
+
+```ts
+import { approveSandboxEscalation, resolveSandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
+
+// After the host has actually authorized it — a human prompt, a policy engine.
+const approval = approveSandboxEscalation({ mode: 'workspace-write' })
+const policy = resolveSandboxPolicy({ cwd, sessionMode, approval }, defaults)
+```
+
+Only a value this module minted is accepted. `JSON.parse('{"approved":true}')`
+is refused, which is what a forged approval arriving in a tool payload looks
+like. Deployment configuration goes in `defaults`, which is the trusted half and
+may grant anything.
+
 ## Per-call policy
 
 Policy is resolved per capability call, never fixed on the provider. Two

@@ -3,9 +3,14 @@ import {
   classifyOutcome, PROTECTED_SUBPATHS, resolveSandboxPolicy, writableRoots,
 } from '@alvin0/ai-agent-sdk-sandbox'
 
+// Widening carve-outs are deployment configuration: a request may only
+// restrict, since anything a tool sends is model-authored.
 const policy = resolveSandboxPolicy(
-  { cwd: '/repo', entries: [{ path: '/repo/build', access: 'write' }] },
-  { mode: 'workspace-write', workspaceRoot: '/fallback' },
+  { cwd: '/repo' },
+  {
+    mode: 'workspace-write', workspaceRoot: '/fallback',
+    entries: [{ path: '/repo/build', access: 'write' }],
+  },
 )
 assert.equal(policy.mode, 'workspace-write')
 assert.equal(policy.workspaceRoot, '/repo')

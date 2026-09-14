@@ -22,6 +22,15 @@ export interface ConfinedArgv {
   readonly runnerFailureRules: readonly RunnerFailureRule[]
   /** Environment additions marking the confinement for child processes. */
   readonly env: Readonly<Record<string, string>>
+  /**
+   * File descriptor the runner reports its own status on, when it has one.
+   *
+   * The consumer must give the spawned process a pipe at this descriptor and
+   * read it back: it is the only channel a confined command cannot write to,
+   * and therefore the only evidence that distinguishes a runner that failed
+   * from a command claiming the runner failed.
+   */
+  readonly statusFd?: number
 }
 
 /**
@@ -38,6 +47,8 @@ export interface FsFence {
   isReadable(path: string): Promise<boolean>
   /** The roots this fence permits writes under, for surfacing to a caller. */
   readonly writableRoots: readonly string[]
+  /** Whether the path's inode carries another name this policy never examined. */
+  isAliased(path: string): Promise<boolean>
 }
 
 /**
@@ -65,4 +76,13 @@ export interface PathResolver {
   realpath(path: string): Promise<string>
   /** Whether the path currently exists. */
   exists(path: string): Promise<boolean>
+  /**
+   * How many names refer to this file's inode, when the host can say.
+   *
+   * A path boundary cannot see a hard link: two names for one inode, one inside
+   * the workspace and one outside, let a write reach past the boundary through
+   * the inside name. A count above one means the file is reachable under
+   * another name this policy never examined.
+   */
+  hardLinkCount?(path: string): Promise<number>
 }
