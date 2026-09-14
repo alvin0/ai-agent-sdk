@@ -104,6 +104,12 @@ export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {
     workspaceDependencies: [scoped('core')],
     externalRuntimeDependencies: ['@a2a-js/sdk'],
   },
+  [scoped('sandbox')]: {
+    runtime: 'universal', workspaceDependencies: [], externalRuntimeDependencies: [],
+  },
+  [scoped('sandbox-node')]: {
+    runtime: 'node', workspaceDependencies: [scoped('sandbox')], externalRuntimeDependencies: [],
+  },
 }
 
 export interface PackageManifest {
