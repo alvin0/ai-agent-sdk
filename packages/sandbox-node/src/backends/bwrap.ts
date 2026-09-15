@@ -99,6 +99,7 @@ export async function bwrapProfileArgs(
   policy: SandboxPolicy,
   options: WritableRootOptions,
   variant: BwrapVariant = 'full',
+  aliased: readonly string[] = [],
 ): Promise<readonly string[]> {
   const resolver = nodePathResolver()
   const args: string[] = baseArgs(variant, policy.network ?? 'allow-all')
@@ -133,6 +134,14 @@ export async function bwrapProfileArgs(
     } else {
       args.push('--ro-bind-try', '/dev/null', real)
     }
+  }
+
+  // A hard link is two names for one inode, and the grant above named only one
+  // of them. Re-binding the file read-only closes the second name without
+  // hiding the first: the content stays readable, the write does not land.
+  for (const alias of aliased) {
+    const real = await resolver.realpath(alias)
+    args.push('--ro-bind-try', real, real)
   }
 
   // Deepest first, so sealing a parent never precedes sealing its own child.

@@ -55,6 +55,7 @@ function sbplString(path: string): string {
 export async function seatbeltProfileArgs(
   policy: SandboxPolicy,
   options: WritableRootOptions,
+  aliased: readonly string[] = [],
 ): Promise<readonly string[]> {
   const resolver = nodePathResolver()
   const forms: string[] = [
@@ -87,6 +88,13 @@ export async function seatbeltProfileArgs(
       // the path for outbound connections is what actually closes it.
       forms.push(`(deny network-outbound ${subpath})`)
     }
+  }
+
+  // The write grant above named one of the inode's names. SBPL resolves by
+  // last match, so denying the other one here is what makes the grant mean
+  // what it says.
+  for (const alias of aliased) {
+    forms.push(`(deny file-write* (literal ${sbplString(await resolver.realpath(alias))}))`)
   }
 
   return Object.freeze(['-p', forms.join(' ')])

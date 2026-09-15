@@ -10,7 +10,7 @@
 
 import { spawn, spawnSync } from 'node:child_process'
 import {
-  existsSync, linkSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync,
+  existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -247,6 +247,18 @@ async function checkInheritedCapabilities(): Promise<void> {
   }
 
   if (report.backend === undefined) return
+
+  // The decisive one: the fence already refuses this, so what is being checked
+  // is that the kernel profile refuses it too. Otherwise the boundary depends
+  // on which layer the caller happened to go through.
+  if (existsSync(alias)) {
+    expect('and the kernel profile refuses it as well',
+      await run('workspace-write', [process.execPath, '-e',
+        `require('node:fs').writeFileSync(${JSON.stringify(alias)}, 'PWNED')`]), 'denied')
+    expect('the file it aliases is untouched',
+      readFileSync(victim, 'utf8'), 'ORIGINAL')
+  }
+
   const code = `try{require('node:fs').writeSync(3,Buffer.from('X'),0,1,0);console.log('WROTE')}catch(e){console.log('blocked')}`
   const confined = await provider.confine([process.execPath, '-e', code], policyFor('read-only'))
   const options = sandboxSpawnOptions(confined)

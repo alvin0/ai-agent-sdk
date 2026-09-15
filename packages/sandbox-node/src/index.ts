@@ -12,7 +12,7 @@ import type {
   ConfinedArgv, FsFence, PathResolver, SandboxEnforcement, SandboxPolicy, SandboxProvider,
   WritableRootOptions,
 } from '@alvin0/ai-agent-sdk-sandbox'
-import { createFsFence, SandboxUnavailableError } from '@alvin0/ai-agent-sdk-sandbox'
+import { createFsFence, SandboxUnavailableError, writableRoots } from '@alvin0/ai-agent-sdk-sandbox'
 import {
   bwrapNetworkEnforcement, bwrapProfileArgs, BWRAP_DENIAL_SIGNATURES, BWRAP_STATUS_FD,
 } from './backends/bwrap.ts'
@@ -21,6 +21,7 @@ import {
   SEATBELT_VALIDATED_FAILURE_RULES,
 } from './backends/seatbelt.ts'
 import { WINDOWS_UNAVAILABLE_REASON } from './backends/windows.ts'
+import { findAliasedPaths } from './aliases.ts'
 import { sandboxEnv } from './env.ts'
 import { hardenedDeniedPaths, nodePathResolver } from './fs/resolver.ts'
 import { platformChain, probeRunner, runnerDescriptor, type RunnerId } from './select.ts'
@@ -63,6 +64,16 @@ export interface LocalSandboxOptions {
   readonly hardenDefaults?: boolean
   /** Permit writes to a file whose inode carries another name. Off by default. */
   readonly allowAliasedWrites?: boolean
+  /**
+   * Scan the granted roots for hard links and close them in the kernel profile.
+   *
+   * On by default. A path boundary cannot see that two names share an inode, so
+   * without this the fence refuses an aliased write while the profile permits
+   * it — the boundary then depends on which layer the caller went through. The
+   * cost is a walk of the writable roots per call; a scan that hits its bound
+   * reports `partial`, because it cannot prove the absence of an alias.
+   */
+  readonly maskAliasedInodes?: boolean
   /**
    * Refuse to confine unless the selected rung reaches at least this level.
    *
@@ -163,16 +174,22 @@ export function localSandbox(options: LocalSandboxOptions = {}): SandboxProvider
 
       const runner = selectRunner(policy.workspaceRoot)
       const descriptor = runnerDescriptor(runner)
+      const scan = options.maskAliasedInodes === false || options.allowAliasedWrites === true
+        ? { aliased: [] as readonly string[], complete: true }
+        : await findAliasedPaths(writableRoots(policy, rootOptions).roots)
       const profile = runner === 'seatbelt'
-        ? await seatbeltProfileArgs(policy, rootOptions)
-        : await bwrapProfileArgs(policy, rootOptions, runner === 'bwrap' ? 'full' : 'restricted')
+        ? await seatbeltProfileArgs(policy, rootOptions, scan.aliased)
+        : await bwrapProfileArgs(
+          policy, rootOptions, runner === 'bwrap' ? 'full' : 'restricted', scan.aliased)
       // A validated profile cannot later be reported as rejected, so the rule
       // that reads such a report — the one a command can forge — is dropped.
       const validated = runner === 'seatbelt' && profile[1] !== undefined
         && seatbeltProfileAccepted(profile[1])
       return Object.freeze({
         argv: Object.freeze([descriptor.program, ...profile, ...descriptor.separator, ...argv]),
-        enforcement: descriptor.enforcement,
+        // A scan that stopped at its bound leaves an alias possible, so the
+        // enforcement claim is lowered rather than the scan's limit hidden.
+        enforcement: scan.complete ? descriptor.enforcement : 'partial',
         backend: descriptor.id,
         denialSignatures: descriptor.denialSignatures,
         runnerFailureRules: validated
@@ -195,6 +212,8 @@ export {
   SANDBOX_ENV_VAR, SANDBOX_MODE_ENV_VAR, sandboxEnv,
 } from './env.ts'
 export type { ConfinedEnvOptions } from './env.ts'
+export { findAliasedPaths } from './aliases.ts'
+export type { AliasScan, AliasScanOptions } from './aliases.ts'
 export { descendantsOf, terminateConfined } from './terminate.ts'
 export { parseCpuTime, resourceEnforcement, sampleTree, superviseConfined } from './supervise.ts'
 export type { Supervision, SuperviseOptions, SupervisionResult } from './supervise.ts'

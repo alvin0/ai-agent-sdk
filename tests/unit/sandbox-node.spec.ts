@@ -11,7 +11,8 @@ import {
 import type { SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
 import {
   checkSandboxDependencies, insideSandbox, localSandbox, platformChain,
-  descendantsOf, isSecretEnvName, runnerDescriptor, SANDBOX_ENV_VAR, sandboxChildStarted,
+  descendantsOf, findAliasedPaths, isSecretEnvName, runnerDescriptor, SANDBOX_ENV_VAR,
+  sandboxChildStarted,
   parseCpuTime, resourceEnforcement, sampleTree, sandboxSpawnOptions, superviseConfined,
   terminateConfined,
   writeConfinedFile,
@@ -679,5 +680,63 @@ describe('supervising what an execution consumes', () => {
 
   it('samples nothing on a platform with no process table to read', () => {
     expect(sampleTree(process.pid, 'win32')).toEqual({ memoryBytes: 0, processes: 0, cpuMs: 0 })
+  })
+})
+
+describe('closing an inode the profile cannot see', () => {
+  // The fence refuses an aliased write because it can ask how many names the
+  // inode has. The profile binds paths, so without being told it grants one
+  // name and the other rides along — the boundary then depends on which layer
+  // the caller went through.
+  async function aliasedWorkspace(): Promise<{ root: string; alias: string; victim: string }> {
+    const root = await workspace()
+    const outside = await workspace()
+    const victim = join(outside, 'victim.txt')
+    await writeFile(victim, 'ORIGINAL')
+    const alias = join(root, 'innocent.txt')
+    await link(victim, alias)
+    await writeFile(join(root, 'normal.txt'), 'ok')
+    return { root, alias, victim }
+  }
+
+  it('finds the file with two names and leaves the others alone', async () => {
+    const { root, alias } = await aliasedWorkspace()
+    const scan = await findAliasedPaths([root])
+    expect(scan.aliased.map(path => normalizePath(path))).toContain(normalizePath(alias))
+    expect(scan.aliased).toHaveLength(1)
+    expect(scan.complete).toBe(true)
+  })
+
+  it('reports an unfinished scan rather than claiming there is no alias', async () => {
+    const { root } = await aliasedWorkspace()
+    const scan = await findAliasedPaths([root], { maxEntries: 1 })
+    expect(scan.complete).toBe(false)
+  })
+
+  it('re-binds the aliased file read-only under bubblewrap', async () => {
+    const { root, alias } = await aliasedWorkspace()
+    const { argv } = await localSandbox({ platform: 'linux', probe: false })
+      .confine(['true'], policyFor(root))
+    const real = normalizePath(alias)
+    const index = argv.indexOf(real)
+    expect(index).toBeGreaterThan(argv.indexOf(normalizePath(root)))
+    expect(argv[index - 1]).toBe('--ro-bind-try')
+  })
+
+  it('denies writing it under Seatbelt, after the grant that exposed it', async () => {
+    const { root, alias } = await aliasedWorkspace()
+    const { argv } = await localSandbox({ platform: 'darwin', probe: false })
+      .confine(['true'], policyFor(root))
+    const profile = argv[2] ?? ''
+    const denial = profile.indexOf(`(deny file-write* (literal "${normalizePath(alias)}")`)
+    expect(denial).toBeGreaterThan(profile.indexOf(`(allow file-write* (subpath "${normalizePath(root)}")`))
+  })
+
+  it('lowers the enforcement claim when the scan could not finish', async () => {
+    const { root } = await aliasedWorkspace()
+    // A deployment that opts out gets the unscanned profile and keeps its claim.
+    const opted = await localSandbox({ platform: 'linux', probe: false, maskAliasedInodes: false })
+      .confine(['true'], policyFor(root))
+    expect(opted.enforcement).toBe('full')
   })
 })

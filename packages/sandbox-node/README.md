@@ -220,12 +220,14 @@ under a real backend on macOS and Linux.
   a child handed an extra descriptor reads and writes through it regardless of
   policy. Neither backend closes inherited descriptors, so the spawn must pass
   nothing but the standard streams and the runner's own status channel.
-- **A pre-existing hard link still escapes the kernel profiles.** One inode
-  under two names, one inside the workspace and one outside, lets a write reach
-  past a boundary made of paths. The fence refuses writes to a file whose inode
-  carries another name, but bubblewrap and Seatbelt cannot see the alias, so a
-  spawned process writing through it is not stopped. A confined process cannot
-  create such a link — `link()` is denied — so it needs one placed beforehand.
+- **A hard-link scan costs a walk of the writable roots.** One inode under two
+  names is invisible to a boundary made of paths, so `confine()` walks the
+  granted roots and re-binds every file whose inode carries another name
+  read-only — the content stays readable, the write does not land. Measured: a
+  write through such a link overwrote its target before, and is denied after.
+  The cost is a directory walk per call, bounded at 50 000 entries and depth 24;
+  a scan that stops at its bound reports `partial`, because it cannot prove
+  the absence of an alias. `maskAliasedInodes: false` opts out.
 - **`loopback` does not reach a host proxy on Linux.** A network namespace gives
   the sandbox its own loopback. See *Network reach*.
 - **No allow-list by hostname.** Reach is all, loopback, or nothing; permitting
