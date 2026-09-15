@@ -11,8 +11,27 @@
 
 ## Cài đặt
 
-Cả 23 package đã publish trên npm dưới scope `@alvin0`, build và ký từ CI kèm
+Cả 25 package publish được đều đã lên npm dưới scope `@alvin0`, build và ký từ CI kèm
 provenance SLSA.
+
+```text
+        ┌──────────────────────── Universal ────────────────────────┐
+        │  core · provider-* · protocol-* · mcp · observability-fetch │
+        │  (chạy ở mọi runtime dạng Fetch)                           │
+        └──────────┬──────────────────────────────────┬─────────────┘
+                   │                                  │
+      ┌─────── browser ────────┐            ┌────────── node ──────────┐
+      │ observability-browser  │            │ auth-node · mcp-node     │
+      │ (IndexedDB)            │            │ skill-filesystem · …     │
+      └────────────────────────┘            └──────────────────────────┘
+
+   Edge/Worker  → chỉ Universal            → 3 package
+   Trình duyệt  → Universal + browser      → 3 package
+   Node         → Universal + node         → 6 package
+```
+
+Một package chỉ nâng tầng của đồ thị mà ứng dụng **thực sự import**. Cài một năng
+lực Node không biến core thành Node.
 
 Chọn tập runtime nhỏ nhất bạn cần.
 

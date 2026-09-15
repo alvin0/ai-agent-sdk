@@ -39,6 +39,18 @@ parse?: (raw: unknown) => Args
 hook exists so the SDK needs no schema library of its own — plug in whatever you
 already use.
 
+```text
+   model                          host
+   ─────                          ────
+   { limit: 500 }  ──────────►  parse()  throws: "limit must be 1–100; got 500"
+                                   │
+       ◄─── INVALID_ARGUMENTS ─────┘        execute() never runs
+   { limit: 100 }  ──────────►  parse()  ──►  typed Args  ──►  execute()
+```
+
+The message is what the model reads to correct itself, so write it for the model:
+state the constraint and the value received.
+
 ```ts
 import { z } from 'zod'
 const Args = z.object({ query: z.string().min(1), limit: z.number().int().positive().max(100) })

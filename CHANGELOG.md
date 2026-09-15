@@ -2,6 +2,34 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## 0.1.3 - 2026-09-15
+
+### Added
+
+- Added `@alvin0/ai-agent-sdk-sandbox`, a Universal package holding the sandbox contract: the file-effect mode vocabulary, per-call policy resolution, the ordered writable-root algebra both enforcement layers share, exec classification, minted escalation approvals, and the rules that keep a broken sandbox from reading as a denied command.
+- Added `@alvin0/ai-agent-sdk-sandbox-node`, the Node enforcement half: bubblewrap and Seatbelt process confinement, an in-process path fence, credential-safe spawn options, process teardown, resource supervision, backend probing, and a dependency doctor.
+- Added network reach as a policy axis of its own (`deny`, `loopback`, `allow-all`), enforced by a network namespace on Linux and `(deny network*)` on macOS, and reported separately from the file mode.
+- Added `classifyExec`, which reads what a command does — including inside a shell string, a pipeline, or a chain — and maps it to `allow`, `allow-scoped`, `ask-approval`, or `deny` before any enforcement runs.
+- Added a read allow-list baseline (`baseline: 'deny'`) enforced by the fence, `openConfinedWrite`/`writeConfinedFile` for check-and-open in a single step, and `superviseConfined` for sampled wall-clock, memory, process, and CPU limits.
+- Added English and Vietnamese sandbox documentation, an agent-skill reference, a differential policy fuzzer, and a cross-platform acceptance suite with its own CI workflow.
+
+### Changed
+
+- Documented how the sandbox composes with the agent loop: a `ToolInterceptor` turns a classification into `allow`/`deny`/`ask`, the session's approval broker answers `ask`, the interceptor mints the escalation once a person has answered, and the tool body resolves the policy and confines or fences. Covered in the sandbox guide (English and Vietnamese), the package README, and the agent skill.
+
+### Compatibility
+
+- Both sandbox packages are new at `0.1.3` and change no existing API. Neither depends on `@alvin0/ai-agent-sdk-core`, so they are opt-in and add no dependency to an application that does not install them.
+- `SandboxMode` governs file effects only. Network and resources are separate policy fields, and `confine()` reports `full`, `partial`, or `fence-only` enforcement rather than implying it.
+- A policy request may only narrow authority. Widening requires an approval minted by `approveSandboxEscalation`, which is spent on first use unless given `scope: 'session'`; parsed JSON is refused.
+- There is no Win32 confinement backend: `confine()` fails closed with `SANDBOX_UNAVAILABLE` on Windows, while the in-process fence still applies on every platform.
+- Resource limits are sampled, not quota-enforced; a hostile swap of a directory component defeats a check-then-write, and `confine()` refuses `baseline: 'deny'` rather than pretending to enforce it. Each limit is documented where it is measured.
+
+### Release scope
+
+- All 26 workspace SDK packages, root metadata, and `SDK_VERSION` move from `0.1.2` to `0.1.3` to satisfy the existing lockstep release workflow. The private testkit remains unpublished.
+- `@alvin0/ai-agent-sdk-sandbox` and `@alvin0/ai-agent-sdk-sandbox-node` are published for the first time at `0.1.3`. Every other package receives the lockstep version update with no behavioral change.
+
 ## 0.1.2 - 2026-09-13
 
 ### Added

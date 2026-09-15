@@ -21,7 +21,9 @@ that mixing them in would discourage running the fast suite.
 | --- | --- |
 | `pnpm test:edge` | Packed core, provider-http, mcp, observability-otel, plus the portable no-follow check |
 | `pnpm test:browser` | Packed `observability-browser` |
-| `pnpm test:node` | Packed `auth-node`, `mcp-node`, `mcp-node-server`, `skill-filesystem`, `observability-node` |
+| `pnpm test:node` | Packed `sandbox`, `sandbox-node`, `auth-node`, `mcp-node`, `mcp-node-server`, `skill-filesystem`, `observability-node` |
+| `pnpm test:sandbox` | Cross-platform sandbox acceptance against the real backends |
+| `pnpm test:sandbox:fuzz` | Differential policy fuzzing across the algebra, fence, and profiles |
 | `pnpm test:recovery` | Observability recovery paths |
 
 ## Static gates

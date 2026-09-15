@@ -12,6 +12,19 @@ A checkpoint is lossy. Pinned memory is **not part of the compactable history
 span**. Conflating the two is how long agents lose their objective halfway
 through.
 
+```text
+   BEFORE compaction                      AFTER compaction
+   ──────────────────────────────         ──────────────────────────────
+   <task-memory>  objective, con-         <task-memory>  UNCHANGED
+                  straints, decisions                    (pinned, never compacted)
+   ─────────────────────────────          ──────────────────────────────
+   u1 a1 u2 a2 u3 a3 u4 a4 u5 a5          [handoff checkpoint]  u4 a4 u5 a5
+   └──── 80% of the usable window ┘       └─── lossy ───┘  └ last 20% verbatim ┘
+```
+
+Collapsing these two layers into one is how long-running agents lose the plot:
+what gets compacted is the *evidence*, never the *objective*.
+
 ## Four layers of state
 
 ```text

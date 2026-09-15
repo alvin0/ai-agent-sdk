@@ -217,6 +217,92 @@ A command it does not recognise is never allowed, and one that hides others — 
 shell string, a pipeline, a chain — is decided by the riskiest thing inside it.
 It decides; `confine()` and `fence()` are what hold.
 
+## Wiring it into an agent
+
+Neither package depends on `-core`, and core has no sandbox slot to fill. They
+meet at two seams a session already has: an **interceptor** decides, the
+**approval broker** asks a person, and the tool body enforces.
+
+```ts
+import { createApprovalBroker } from '@alvin0/ai-agent-sdk-core'
+import type { ToolCallContext, ToolInterceptor } from '@alvin0/ai-agent-sdk-core/tools'
+import { approveSandboxEscalation, classifyExec, type SandboxApproval } from '@alvin0/ai-agent-sdk-sandbox'
+
+/** Argv of a command-running tool call; `undefined` for a tool that runs none. */
+const argvOf = (call: ToolCallContext): readonly string[] | undefined =>
+  call.toolName === 'run_command' ? commandArgv(call.args) : undefined
+
+const asked = new Set<string>()
+const granted = new Map<string, SandboxApproval>()
+
+const sandboxInterceptor: ToolInterceptor = {
+  name: 'sandbox:exec',
+  before: async (call, next) => {
+    const argv = argvOf(call)
+    if (argv === undefined) return await next()
+    const verdict = classifyExec(argv)
+    if (verdict.outcome === 'deny') return { kind: 'deny', reason: verdict.reason }
+    if (verdict.outcome !== 'ask-approval') return await next()
+    asked.add(call.callId)
+    return { kind: 'ask', reason: verdict.reason }
+  },
+  // `around` runs only after policy and approval passed, so reaching it for a
+  // call that asked IS the person's answer. Mint the capability here, not from
+  // anything the model wrote.
+  around: async (call, next) => {
+    if (!asked.delete(call.callId)) return await next()
+    granted.set(call.callId, approveSandboxEscalation({ entries: escalationFor(call) }))
+    try { return await next() } finally { granted.delete(call.callId) }
+  },
+}
+
+const approvals = createApprovalBroker()
+const session = agent.createSession({ tools: [runCommand], interceptors: [sandboxInterceptor], approvals })
+```
+
+`classifyExec` answers what is machine-decidable and `'ask'` hands the rest to
+the broker — the same split [Permissions](/en/03-tools/permissions) describes.
+`allow-scoped` is not an `allow`: it means run it, under the policy.
+
+The tool body is where the policy is resolved and held. It reads the approval by
+call id — an approval is a capability, and `resolveSandboxPolicy` accepts only a
+minted one, never a field in model-authored JSON:
+
+```ts
+const runCommand = defineTool({
+  name: 'run_command',
+  description: 'Run a command inside the workspace sandbox.',
+  parameters: { /* … */ },
+  isConcurrencySafe: () => false,
+  execute: async (args, ctx) => {
+    const approval = granted.get(ctx.callId)
+    const policy = confiningPolicy(resolveSandboxPolicy(
+      { cwd: workspaceRoot, sessionMode, ...approval === undefined ? {} : { approval } },
+      { mode: 'workspace-write', workspaceRoot, network: 'deny' },
+    ))
+    if (policy === undefined) return await spawnUnconfined(args.argv, ctx.signal)
+    const confined = await sandbox.confine(args.argv, policy)
+    const options = sandboxSpawnOptions(confined)
+    // … spawn with options.stdio / options.env, then classifyOutcome(…, confined)
+  },
+})
+```
+
+A tool that touches files itself — most SDK tools — never spawns anything, so no
+process sandbox sees it. That one takes the other layer, in the same `execute`:
+
+```ts
+const fence = sandbox.fence(policy)
+await writeConfinedFile(fence, target, data)   // checks and opens in one step
+```
+
+Three properties survive this wiring, and each fails silently if it is dropped:
+the session's `mode` is the **ceiling** and a tool argument may only narrow it;
+the approval is **minted by the host** after the broker answered, never parsed
+from arguments; and the classification decides while `confine()` and `fence()`
+hold — one without the other is either a prompt with no enforcement or
+enforcement with nobody asked.
+
 ## What each platform actually enforces
 
 | | Linux | macOS | Windows |

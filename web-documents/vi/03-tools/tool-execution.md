@@ -16,6 +16,21 @@ model phát ra các lời gọi tool (một lô)
       └── concludeTurn()? → lượt kết thúc SAU KHI lô commit
 ```
 
+```text
+  một lô model phát ra: [read A] [read B] [write C] [shell D]
+                          safe     safe     unsafe    unsafe
+
+   thời gian →
+   ├─ read A ────────┐
+   ├─ read B ────────┤  chạy song song (≤ maxParallel)
+   │                 │
+   │                 └──► write C ──────► shell D      exclusive, lần lượt
+   │
+   └──────────────── COMMIT cả lô cùng nhau ──────────────┘
+                                │
+                                └── concludeTurn() chỉ có hiệu lực SAU commit
+```
+
 Các lời gọi được **xếp theo lô**. Vòng lặp commit hết mọi lời gọi trong lô hiện
 tại trước khi hành động theo `concludeTurn()`, nên công việc của một lời gọi song
 song không bao giờ bị vứt bỏ.

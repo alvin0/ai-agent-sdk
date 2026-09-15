@@ -119,6 +119,40 @@ looks like a test while what it runs is the test suite.
 
 It decides; it does not enforce. `confine()` and `fence()` are what hold.
 
+## Wiring it into an agent
+
+This package does not depend on `@alvin0/ai-agent-sdk-core`, and core has no
+sandbox slot. A session already has the two seams needed: an interceptor decides
+and the approval broker asks.
+
+```ts
+const sandboxInterceptor: ToolInterceptor = {
+  name: 'sandbox:exec',
+  before: async (call, next) => {
+    const argv = argvOf(call)                        // undefined for a non-exec tool
+    if (argv === undefined) return await next()
+    const verdict = classifyExec(argv)
+    if (verdict.outcome === 'deny') return { kind: 'deny', reason: verdict.reason }
+    if (verdict.outcome !== 'ask-approval') return await next()
+    asked.add(call.callId)
+    return { kind: 'ask', reason: verdict.reason }   // the broker asks a person
+  },
+  // Reaching `around` for a call that asked IS the answer. Mint the capability
+  // here, never from tool arguments.
+  around: async (call, next) => {
+    if (!asked.delete(call.callId)) return await next()
+    granted.set(call.callId, approveSandboxEscalation({ entries: escalationFor(call) }))
+    try { return await next() } finally { granted.delete(call.callId) }
+  },
+}
+
+agent.createSession({ tools: [runCommand], interceptors: [sandboxInterceptor], approvals })
+```
+
+The tool body reads the approval by `ctx.callId`, passes it to
+`resolveSandboxPolicy`, and then confines or fences. `classifyExec` decides;
+this package never holds anything.
+
 ## Network reach
 
 `SandboxMode` governs file effects and says so. Reachability is a second,

@@ -32,7 +32,7 @@ ledger to keep in sync.
 Schema v5 freezes these baselines explicitly, **so a runtime label cannot pass
 merely because the imports look clean**.
 
-## The 23 target packages
+## The 25 target packages
 
 | Package | Tier | Roles |
 | --- | --- | --- |
@@ -55,6 +55,8 @@ merely because the imports look clean**.
 | `auth-node` | node | credential-source, credential-store |
 | `skill-filesystem` | node | skill-provider |
 | `instructions-node` | node | context-section |
+| `sandbox` | universal | sandbox-contract |
+| `sandbox-node` | node | sandbox-provider |
 | `observability-fetch` | universal | observation-exporter |
 | `observability-otel` | universal | observation-processor |
 | `observability-browser` | browser | observation-exporter |
@@ -68,7 +70,7 @@ Five packages have more than one public entrypoint:
 
 | Package | Entrypoints |
 | --- | --- |
-| `core` | `.` `./agent` `./memory` `./provider` `./skills` `./tools` `./observability` |
+| `core` | `.` `./agent` `./memory` `./provider` `./skills` `./tools` `./embedding` `./observability` |
 | `auth-node` | `.` `./env` `./codex` `./copilot` |
 | `a2a` | `.` `./client` `./server` |
 | `mcp` | `.` `./client` `./server` |
@@ -77,11 +79,11 @@ Five packages have more than one public entrypoint:
 MCP `/server`, auth `/codex` and auth `/copilot` are **optional-peer views**;
 identity routes are recorded separately.
 
-Across the 23 packages that is 38 public specifiers.
+Across the 25 packages that is 41 public specifiers.
 
 ## Manifest rules
 
-All 23 packages:
+All 25 packages:
 
 - **forbid wildcard and `require` routes**;
 - include an explicit `"./package.json"` export;

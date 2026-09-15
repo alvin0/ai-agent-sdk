@@ -59,6 +59,19 @@ The snapshot is **JSON-safe** and includes:
 - durable memory;
 - the **identities** of any activated skills.
 
+```text
+   ┌─ snapshot (JSON-safe, portable across processes) ─────┐
+   │  schema version                                       │
+   │  conversationId                                       │
+   │  agent identity          ← a different id ⇒ resume fails│
+   │  append-only history                                  │
+   │  task memory                                          │
+   │  activated skill identity   (ids + locations only)    │
+   └───────────────────────────────────────────────────────┘
+        ✗ skill bodies        ✗ resource contents
+        ✗ connections, providers  ✗ bound tools
+```
+
 ## What a snapshot deliberately excludes
 
 **Skill bodies and resources are never persisted.** Resume rediscovers and

@@ -165,6 +165,25 @@ const session = agent.createSession({
 })
 ```
 
+Session-level options do not override the definition uniformly — some merge,
+some replace:
+
+```text
+   agent definition (frozen)           createSession({ … })
+   ─────────────────────────           ─────────────────────
+        tools: [readFile]      ──┐
+                                 ├── MERGE ─►  [readFile, extraTool]
+        tools: [extraTool]     ──┘
+
+        compaction: 0.8        ──┐
+                                 ├── REPLACE ►  0.75
+        compaction: 0.75       ──┘
+
+        runtimeLimits          ──── REPLACE ►  the session's values
+
+        memory: binding        ──── OFF ────►  memory: false
+```
+
 Session-level `tools` are **combined** with definition-owned tools, not replaced.
 Session-level `compaction` and `runtimeLimits` override the definition. History,
 ledger, and event-buffer limits bound each session's retained working set.

@@ -29,6 +29,21 @@ const agent = runtime.agent({ id: 'calc', model, instructions: '…', tools: [mu
 | **Native tool** | `nativeTools: [{ type: 'native', … }]` | The provider | Web search, image generation |
 | **Tool source** | `toolSources: [connection]` | The SDK scheduler, via the source | A whole MCP server catalog |
 
+```text
+                          ┌──────────────┐
+                          │    model     │  emits one tool call
+                          └──────┬───────┘
+          ┌──────────────────────┼──────────────────────┐
+          ▼                      ▼                      ▼
+   tools: [...]          toolSources: [...]      nativeTools: [...]
+   host functions        a remote catalog        provider-executed
+          │                      │                      │
+          ▼                      ▼                      ▼
+   SDK scheduler          SDK scheduler,          ✗ the scheduler NEVER
+   runs execute()         via that source            runs it
+                                                  (web search, image gen)
+```
+
 They are declared **separately on purpose**: the scheduler must never try to
 execute a provider-side tool, and a remote catalog must be able to change
 revision without touching your host functions.

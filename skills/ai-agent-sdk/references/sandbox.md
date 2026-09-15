@@ -45,6 +45,50 @@ const outcome = classifyOutcome({
 policy travels per call, so two consumers may confine differently at the same
 instant.
 
+## Wiring into core
+
+Core has no sandbox slot. The seams are `interceptors` and `approvals` on a
+session; the tool body resolves the policy and enforces it.
+
+```ts
+const asked = new Set<string>(), granted = new Map<string, SandboxApproval>()
+
+const sandboxInterceptor: ToolInterceptor = {
+  name: 'sandbox:exec',
+  before: async (call, next) => {
+    const argv = argvOf(call)                       // undefined for a non-exec tool
+    if (argv === undefined) return await next()
+    const verdict = classifyExec(argv)
+    if (verdict.outcome === 'deny') return { kind: 'deny', reason: verdict.reason }
+    if (verdict.outcome !== 'ask-approval') return await next()
+    asked.add(call.callId)
+    return { kind: 'ask', reason: verdict.reason }  // routed to the broker
+  },
+  // Reaching `around` for a call that asked IS the person's answer: policy and
+  // approval both passed. Mint the capability here, never from tool arguments.
+  around: async (call, next) => {
+    if (!asked.delete(call.callId)) return await next()
+    granted.set(call.callId, approveSandboxEscalation({ entries: escalationFor(call) }))
+    try { return await next() } finally { granted.delete(call.callId) }
+  },
+}
+
+agent.createSession({ tools: [runCommand], interceptors: [sandboxInterceptor], approvals: createApprovalBroker() })
+```
+
+Inside `execute`, read the approval by `ctx.callId`, pass it to
+`resolveSandboxPolicy`, then `confine()` (a tool that spawns) or `fence()` (a
+tool that touches files itself). `ToolInterceptor` and `ToolCallContext` come
+from `@alvin0/ai-agent-sdk-core/tools`; `defineTool` and `createApprovalBroker`
+from `@alvin0/ai-agent-sdk-core`.
+
+| Seam | Carries |
+| --- | --- |
+| `interceptors[].before` | `classifyExec` verdict: `allow` / `deny` / `ask` |
+| `approvals` (broker) | the person's `allow` \| `deny` \| `abort` |
+| `interceptors[].around` | mints `approveSandboxEscalation` once the answer is in |
+| `tool.execute` | `resolveSandboxPolicy` + `confine()` / `fence()` |
+
 ## Traps
 
 | Symptom | Cause |

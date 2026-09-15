@@ -34,6 +34,27 @@ mục, và 128 MiB tổng.
 > khi có cấu hình `maxInputTokens`. Việc khôi phục khi tràn và `session.compact()`
 > thủ công vẫn có thể ép giảm một cách hữu ích.
 
+Vòng kiểm tra áp lực chạy trước mỗi bước model:
+
+```text
+   trước mỗi bước model
+        │
+        ▼
+   đo TOÀN BỘ yêu cầu kế tiếp (bộ nhớ + message + schema tool)
+        │
+        ├── < 80% cửa sổ dùng được ──────────────────► gửi đi
+        │
+        └── ≥ 80%  ──► tạo checkpoint cho khoảng cũ
+                          │
+                          ├── tiết kiệm đủ ──────────► gửi đi
+                          │
+                          └── riêng phần giữ lại đã vượt ngưỡng,
+                              hoặc tiết kiệm quá ít
+                                   └─► LÙI 4 bước model rồi thử lại
+
+   nhà cung cấp trả CONTEXT_WINDOW_EXCEEDED ──► nén rồi thử lại MỘT lần
+```
+
 ## Cấu hình
 
 ```ts

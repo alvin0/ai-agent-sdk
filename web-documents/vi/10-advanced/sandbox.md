@@ -218,6 +218,91 @@ Lệnh không nhận ra thì **không bao giờ** được allow, và lệnh gi�
 chuỗi shell, pipeline, chain — quyết theo mắt xích rủi ro nhất. Nó **quyết
 định**; `confine()` và `fence()` mới là thứ **giữ**.
 
+## Ghép vào một agent
+
+Không package nào phụ thuộc `-core`, và core cũng không có slot sandbox để cắm
+vào. Chúng gặp nhau ở hai seam mà một session vốn đã có: **interceptor** quyết
+định, **approval broker** hỏi người, còn thân tool mới cưỡng chế.
+
+```ts
+import { createApprovalBroker } from '@alvin0/ai-agent-sdk-core'
+import type { ToolCallContext, ToolInterceptor } from '@alvin0/ai-agent-sdk-core/tools'
+import { approveSandboxEscalation, classifyExec, type SandboxApproval } from '@alvin0/ai-agent-sdk-sandbox'
+
+/** Argv của một tool chạy lệnh; `undefined` với tool không chạy lệnh nào. */
+const argvOf = (call: ToolCallContext): readonly string[] | undefined =>
+  call.toolName === 'run_command' ? commandArgv(call.args) : undefined
+
+const asked = new Set<string>()
+const granted = new Map<string, SandboxApproval>()
+
+const sandboxInterceptor: ToolInterceptor = {
+  name: 'sandbox:exec',
+  before: async (call, next) => {
+    const argv = argvOf(call)
+    if (argv === undefined) return await next()
+    const verdict = classifyExec(argv)
+    if (verdict.outcome === 'deny') return { kind: 'deny', reason: verdict.reason }
+    if (verdict.outcome !== 'ask-approval') return await next()
+    asked.add(call.callId)
+    return { kind: 'ask', reason: verdict.reason }
+  },
+  // `around` chỉ chạy sau khi policy và approval đã qua, nên với một call đã
+  // hỏi thì việc tới được đây CHÍNH LÀ câu trả lời của người. Đúc capability ở
+  // đây, không phải từ thứ model viết ra.
+  around: async (call, next) => {
+    if (!asked.delete(call.callId)) return await next()
+    granted.set(call.callId, approveSandboxEscalation({ entries: escalationFor(call) }))
+    try { return await next() } finally { granted.delete(call.callId) }
+  },
+}
+
+const approvals = createApprovalBroker()
+const session = agent.createSession({ tools: [runCommand], interceptors: [sandboxInterceptor], approvals })
+```
+
+`classifyExec` trả lời phần máy quyết được, `'ask'` giao phần còn lại cho broker
+— đúng cách chia mà [Permissions](/vi/03-tools/permissions) mô tả. `allow-scoped`
+không phải `allow`: nó nghĩa là cứ chạy, nhưng **dưới policy**.
+
+Thân tool là nơi policy được resolve và được giữ. Nó đọc approval theo call id —
+approval là một capability, và `resolveSandboxPolicy` chỉ nhận cái được đúc, không
+bao giờ nhận một field trong JSON do model viết:
+
+```ts
+const runCommand = defineTool({
+  name: 'run_command',
+  description: 'Chạy một lệnh bên trong sandbox của workspace.',
+  parameters: { /* … */ },
+  isConcurrencySafe: () => false,
+  execute: async (args, ctx) => {
+    const approval = granted.get(ctx.callId)
+    const policy = confiningPolicy(resolveSandboxPolicy(
+      { cwd: workspaceRoot, sessionMode, ...approval === undefined ? {} : { approval } },
+      { mode: 'workspace-write', workspaceRoot, network: 'deny' },
+    ))
+    if (policy === undefined) return await spawnUnconfined(args.argv, ctx.signal)
+    const confined = await sandbox.confine(args.argv, policy)
+    const options = sandboxSpawnOptions(confined)
+    // … spawn với options.stdio / options.env, rồi classifyOutcome(…, confined)
+  },
+})
+```
+
+Tool tự đụng vào file — phần lớn tool của SDK — không spawn gì cả, nên không
+process sandbox nào thấy nó. Tool đó dùng tầng còn lại, ngay trong cùng `execute`:
+
+```ts
+const fence = sandbox.fence(policy)
+await writeConfinedFile(fence, target, data)   // kiểm tra và mở trong một bước
+```
+
+Ba tính chất phải sống sót qua cách ghép này, và mỗi cái hỏng là hỏng trong im
+lặng: `mode` của session là **trần**, tham số tool chỉ được siết xuống; approval
+do **host đúc** sau khi broker trả lời, không bao giờ parse từ tham số; và phần
+phân loại **quyết định** còn `confine()` với `fence()` mới **giữ** — thiếu một
+trong hai thì hoặc là hỏi mà không cưỡng chế, hoặc là cưỡng chế mà không hỏi ai.
+
 ## Mỗi nền tảng thật sự cưỡng chế được gì
 
 | | Linux | macOS | Windows |

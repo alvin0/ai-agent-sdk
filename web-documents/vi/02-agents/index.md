@@ -11,6 +11,26 @@ Ba đối tượng, ba vòng đời:
 | `RuntimeAgent` / `DefinedAgent` | Phạm vi module, đã đóng băng | Danh tính, chỉ dẫn, tuyến model, năng lực |
 | `RuntimeAgentSession` | Một hội thoại | Lịch sử, bộ nhớ, skill đã kích hoạt, khoá loại trừ |
 
+```text
+  AgentRuntime                        sống theo tiến trình / theo yêu cầu
+  ┌──────────────────────────────────────────────────────────────┐
+  │  provider · observability · lease · close() → báo cáo         │
+  │                                                              │
+  │   RuntimeAgent / DefinedAgent      ĐÓNG BĂNG, không I/O       │
+  │   ┌────────────────────────────────────────────────────┐     │
+  │   │ danh tính · chỉ dẫn · tuyến model · năng lực        │     │
+  │   │                                                    │     │
+  │   │   Session          MỘT hội thoại, có trạng thái     │     │
+  │   │   ┌──────────────────────────────────────────┐     │     │
+  │   │   │ lịch sử · bộ nhớ · skill đã bật · khoá    │     │     │
+  │   │   └──────────────────────────────────────────┘     │     │
+  │   └────────────────────────────────────────────────────┘     │
+  └──────────────────────────────────────────────────────────────┘
+
+   đóng: runtime  ✓        agent: không có gì để đóng
+                           session: không có close() — chụp snapshot hoặc bỏ tham chiếu
+```
+
 ## Hai kiểu khai báo
 
 **Gắn qua runtime** — gốc ghép nối tạo ra agent:

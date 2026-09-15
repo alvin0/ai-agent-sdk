@@ -2,6 +2,20 @@
 
 Three levels of parallelism, each with a different safety contract.
 
+```text
+   layer 1: independent runs          layer 2: tool calls         layer 3: sub-agents
+   ───────────────────────────        ──────────────────────      ───────────────────
+   Promise.all([                      one model batch             spawn_agent × N
+     reviewer.generate(x),              [read A] safe   ┐         ├─ worker 1
+     tester.generate(x),                [read B] safe   ┴ parallel├─ worker 2
+     auditor.generate(x),               [write C] unsafe ─ alone  └─ wait_agents
+   ])
+   nothing shared implicitly          fail-closed: must            each worker gets
+   ⇒ always safe                      return exactly true          its own session
+
+   ✗ NOT safe: two concurrent session.run() calls on the SAME session
+```
+
 ## 1. Independent runs — your code
 
 Separate runs share nothing implicitly, so this is always safe:

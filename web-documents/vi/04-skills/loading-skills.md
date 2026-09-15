@@ -31,6 +31,19 @@ nguyên nào để đóng.
 Mặc định, việc khám phá tìm `.agents/skills` từ `cwd` **đi ngược lên tới gốc
 Git**.
 
+```text
+   roots: [...] có mặt?
+        │
+        ├── CÓ ──► chỉ tìm đúng các root đó, theo thứ tự
+        │           root đứng TRƯỚC thắng khi trùng id
+        │
+        └── KHÔNG ──► đi ngược từ cwd lên tới gốc Git
+                       /repo/apps/web/.agents/skills      ← cwd
+                       /repo/apps/.agents/skills
+                       /repo/.agents/skills               ← dừng ở gốc Git
+                       (+ .dsh/skills, mức người dùng: mặc định TẮT)
+```
+
 | Tuỳ chọn | Mặc định | Tác dụng |
 | --- | --- | --- |
 | `cwd` | — | Điểm bắt đầu tìm ngược lên |

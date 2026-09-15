@@ -31,6 +31,23 @@ Các tool skill được sinh ra là **rào chắn của bộ lập lịch**. Đ
 thứ tự model cho một lô như `load_skill` rồi `read_skill_resource`, và không giả
 định rằng một provider từ xa an toàn khi truy cập đồng thời.
 
+Cùng một danh mục 50 skill, nhìn theo phần **thực sự tiêu token**:
+
+```text
+   trên đĩa / trong provider          trong ngữ cảnh model
+   ─────────────────────────          ────────────────────────────────
+   50 × SKILL.md + tài nguyên    →    [id, tên, mô tả] × 50   ≤ 8.000 ký tự
+        (hàng trăm nghìn ký tự)        ▲
+                                       │ model gọi load_skill('incident-triage')
+                                       │
+   SKILL.md của 1 skill          →    + toàn bộ phần thân skill đó
+                                       + manifest đường dẫn/kích thước tài nguyên
+                                       ▲
+                                       │ model gọi read_skill_resource(...)
+                                       │
+   1 tệp tài nguyên              →    + MỘT khối văn bản có chặn cứng
+```
+
 ## Hai cách cấp skill
 
 | Cách | Dùng khi | Điểm vào |

@@ -44,6 +44,25 @@ for await (const event of agent.stream(input)) {
 }
 ```
 
+```text
+   lời gọi tool
+        │
+        ├─ policy / catalog / budget từ chối ────────► rejected
+        │
+        ├─ parse() ném ────────────────────────────► rejected  (INVALID_ARGUMENTS)
+        │
+        ├─ lượt chạy bị huỷ ───────────────────────► aborted
+        │
+        ├─ execute() ném ──────────────────────────► failed
+        │
+        └─ execute() trả về ───────────────────────► completed
+                                                        │
+   ba nhánh đầu và `failed` đều là ToolFailure:          │
+   model ĐỌC được và thử cách khác — lượt KHÔNG kết thúc │
+                                                        ▼
+                                          concludesTurn chỉ có ở đây
+```
+
 ## Lỗi tham số là thứ model sửa được
 
 Ném lỗi bên trong `parse` sinh ra `INVALID_ARGUMENTS`. Model đọc thông điệp của

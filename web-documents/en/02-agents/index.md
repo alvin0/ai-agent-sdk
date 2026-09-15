@@ -11,6 +11,26 @@ Three objects, three lifetimes:
 | `RuntimeAgent` / `DefinedAgent` | Module scope, frozen | Identity, instructions, model route, capabilities |
 | `RuntimeAgentSession` | One conversation | History, memory, activated skills, exclusion lock |
 
+```text
+  AgentRuntime                        lives for a process / a request
+  ┌──────────────────────────────────────────────────────────────┐
+  │  providers · observability · leases · close() → report        │
+  │                                                              │
+  │   RuntimeAgent / DefinedAgent      FROZEN, no I/O             │
+  │   ┌────────────────────────────────────────────────────┐     │
+  │   │ identity · instructions · model route · capabilities│     │
+  │   │                                                    │     │
+  │   │   Session          ONE conversation, stateful       │     │
+  │   │   ┌──────────────────────────────────────────┐     │     │
+  │   │   │ history · memory · active skills · lock   │     │     │
+  │   │   └──────────────────────────────────────────┘     │     │
+  │   └────────────────────────────────────────────────────┘     │
+  └──────────────────────────────────────────────────────────────┘
+
+   close: runtime  ✓        agent: nothing to close
+                            session: no close() — snapshot it or drop the reference
+```
+
 ## Two authoring styles
 
 **Runtime binding** — the composition root creates the agent:

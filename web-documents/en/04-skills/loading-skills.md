@@ -31,6 +31,19 @@ no owned resource to close.
 By default, discovery searches `.agents/skills` from `cwd` **upwards through the
 Git root**.
 
+```text
+   roots: [...] provided?
+        │
+        ├── YES ──► search exactly those roots, in order
+        │            an EARLIER root wins on duplicate ids
+        │
+        └── NO ───► walk upward from cwd to the Git root
+                     /repo/apps/web/.agents/skills      ← cwd
+                     /repo/apps/.agents/skills
+                     /repo/.agents/skills               ← stops at the Git root
+                     (+ .dsh/skills, user-level: off by default)
+```
+
 | Option | Default | Effect |
 | --- | --- | --- |
 | `cwd` | — | Start of the upward search |

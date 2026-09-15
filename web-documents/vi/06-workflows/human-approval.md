@@ -3,6 +3,25 @@
 Có hai ranh giới tách bạch cần con người: **phê duyệt** chặn một lời gọi tool,
 còn **đầu vào người dùng** dừng model lại ở một quyết định quan trọng.
 
+Hai ranh giới dừng ở hai chỗ khác nhau trong cùng một lượt:
+
+```text
+   model                                             con người
+   ─────                                             ─────────
+     │
+     ├─ phát ra lời gọi tool ──► PHÊ DUYỆT ────────► allow / deny / abort
+     │                           (chặn 1 lời gọi)         │
+     │   ◄─ deny: ToolFailure, model thử cách khác ───────┘
+     │
+     ├─ gặp một quyết định quan trọng
+     │      (mode: 'deep-human-in-loop')
+     │   ──► request_user_input ──────────────────► câu trả lời của người
+     │        (đỗ lại CẢ model)                            │
+     │   ◄────────────────────────────────────────────────┘
+     ▼
+   tiếp tục lượt
+```
+
 ## Phê duyệt — chặn một lời gọi tool
 
 ```ts

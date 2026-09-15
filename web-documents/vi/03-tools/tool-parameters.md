@@ -38,6 +38,18 @@ parse?: (raw: unknown) => Args
 `parse` kiểm tra và thu hẹp tham số thô **trước khi `execute` nhìn thấy**. Hook
 này tồn tại để SDK không cần thư viện schema riêng — bạn cắm thứ mình đang dùng.
 
+```text
+   model                          host
+   ─────                          ────
+   { limit: 500 }  ──────────►  parse()  ném: "limit must be 1–100; got 500"
+                                   │
+       ◄─── INVALID_ARGUMENTS ─────┘        execute() KHÔNG chạy
+   { limit: 100 }  ──────────►  parse()  ──►  Args có kiểu  ──►  execute()
+```
+
+Thông điệp lỗi là thứ model đọc để tự sửa, nên hãy viết nó cho model: nêu ràng
+buộc và giá trị đã nhận.
+
 ```ts
 import { z } from 'zod'
 const Args = z.object({ query: z.string().min(1), limit: z.number().int().positive().max(100) })

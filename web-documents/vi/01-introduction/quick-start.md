@@ -59,6 +59,25 @@ console.log(response.text)
 console.log(response.usage)
 ```
 
+### Một lượt trông như thế nào
+
+```text
+  agent.generate("21 * 2 bằng bao nhiêu?")
+        │
+        ▼
+   ┌─────────┐   tool call { a: 21, b: 2 }   ┌────────────────────────┐
+   │         │ ────────────────────────────► │ parse()   ranh giới    │
+   │  model  │                               │           kiểu         │
+   │         │                               │ execute() { product }  │
+   │         │ ◄──────────────────────────── │                        │
+   └────┬────┘   kết quả tool                └────────────────────────┘
+        │
+        │  parse() ném lỗi → model NHẬN lỗi tool và thử lại,
+        │                    chương trình KHÔNG sập
+        ▼
+   response.text + response.usage
+```
+
 ## 4. Duy trì hội thoại
 
 `generate()` không giữ trạng thái. Với chat, hãy tạo một session — nó sở hữu lịch

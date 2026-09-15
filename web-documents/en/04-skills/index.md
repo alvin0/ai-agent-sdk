@@ -31,6 +31,23 @@ Generated skill tools are **scheduler barriers**. This preserves model order for
 a batch such as `load_skill` followed by `read_skill_resource`, and does not
 assume a remote provider is safe for concurrent access.
 
+The same 50-skill catalog, seen as what actually **costs tokens**:
+
+```text
+   on disk / in a provider            in the model's context
+   ─────────────────────────          ────────────────────────────────
+   50 × SKILL.md + resources     →    [id, name, description] × 50  ≤ 8,000 chars
+        (hundreds of thousands             ▲
+         of characters)                    │ the model calls load_skill('incident-triage')
+                                           │
+   one skill's SKILL.md          →    + that skill's whole body
+                                      + a bounded path/size resource manifest
+                                           ▲
+                                           │ the model calls read_skill_resource(...)
+                                           │
+   one resource file             →    + ONE hard-bounded block of text
+```
+
 ## Two ways to supply skills
 
 | Approach | Use when | Entry point |

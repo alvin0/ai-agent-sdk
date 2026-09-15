@@ -35,6 +35,19 @@ history.entries()    // bản ghi bền cho người đọc: mọi message + b�
 history.messages()   // phép chiếu hiện tại mà model nhìn thấy
 ```
 
+```text
+  entries()   bản ghi bền, chỉ-thêm — dùng để kiểm toán
+  ┌────┬────┬────┬────┬────┬────┬────┬────┬────┬────┐
+  │ u1 │ a1 │ u2 │ a2 │ u3 │ a3 │ u4 │ a4 │ u5 │ a5 │
+  └────┴────┴────┴────┴────┴────┴────┴────┴────┴────┘
+     └──────── bị một checkpoint che ────────┘
+
+  messages()  phép chiếu model ĐANG thấy
+  ┌──────────────────────────┬────┬────┬────┬────┐
+  │ checkpoint (bàn giao)    │ u4 │ a4 │ u5 │ a5 │
+  └──────────────────────────┴────┴────┴────┴────┘
+```
+
 `entries()` là chỉ-thêm và **không bao giờ bị xoá**, kể cả các lần nén thất bại.
 `messages()` là những gì model thấy lúc này — các khoảng cũ có thể đã bị một
 checkpoint che đi.

@@ -21,7 +21,9 @@ chung sẽ làm người ta ngại chạy bộ test nhanh.
 | --- | --- |
 | `pnpm test:edge` | Bản đóng gói của core, provider-http, mcp, observability-otel, cộng kiểm tra no-follow đa nền tảng |
 | `pnpm test:browser` | Bản đóng gói của `observability-browser` |
-| `pnpm test:node` | Bản đóng gói của `auth-node`, `mcp-node`, `mcp-node-server`, `skill-filesystem`, `observability-node` |
+| `pnpm test:node` | Bản đóng gói của `sandbox`, `sandbox-node`, `auth-node`, `mcp-node`, `mcp-node-server`, `skill-filesystem`, `observability-node` |
+| `pnpm test:sandbox` | Acceptance sandbox đa nền tảng, chạy trên backend thật |
+| `pnpm test:sandbox:fuzz` | Fuzz vi sai chính sách qua đại số, fence, và các profile |
 | `pnpm test:recovery` | Các đường khôi phục của observability |
 
 ## Cổng kiểm tra tĩnh

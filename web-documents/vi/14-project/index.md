@@ -4,14 +4,14 @@
 
 | Mục | Giá trị |
 | --- | --- |
-| Phiên bản | `0.1.2` |
+| Phiên bản | `0.1.3` |
 | Giấy phép | MIT |
 | Yêu cầu Node | 22.18+ cho công cụ workspace; 22.12+ cho package năng lực Node đã cài |
-| Publish lên registry | Release candidate `0.1.2` — 23 package dưới scope `@alvin0` |
+| Publish lên registry | Release candidate `0.1.3` — 25 package dưới scope `@alvin0` |
 
 ## Publish lên registry
 
-Cả 23 package có thể publish đều dùng scope `@alvin0`, với tên
+Cả 25 package có thể publish đều dùng scope `@alvin0`, với tên
 `@alvin0/ai-agent-sdk-<capability>`. Scope `@ai-agent-sdk` thuộc một account
 khác, nên tên trên registry mang tên dự án ở dạng tiền tố thay vì ở scope. Một
 version chỉ được xem là có sẵn sau khi workflow release hoàn tất trên registry.
@@ -29,7 +29,7 @@ package provider.
 Nếu muốn cài từ tarball cục bộ:
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.2.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.3.tgz
 ```
 
 ## Đánh phiên bản

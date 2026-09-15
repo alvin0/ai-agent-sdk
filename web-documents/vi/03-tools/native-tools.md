@@ -42,6 +42,20 @@ runtime.agent({
 Tool của host chạy qua bộ lập lịch của SDK. Native tool chạy ở phía nhà cung cấp
 và vẫn sinh ra sự kiện có tương quan cho giao diện.
 
+```text
+   host của bạn                              phía nhà cung cấp
+   ─────────────────────────────             ─────────────────────────
+   tools: [readProjectFile]                  nativeTools: [web-search]
+        │                                          │
+        │  model gọi                               │  model gọi
+        ▼                                          ▼
+   bộ lập lịch SDK                           nhà cung cấp tự chạy
+   parse → execute → render                  (SDK không thấy thân hàm)
+        │                                          │
+        └────► tool-call / tool-result             └────► assistant-native-tool
+                (bạn kiểm soát)                            (chỉ tiến độ + kết quả)
+```
+
 ## Hỗ trợ của nhà cung cấp được kiểm tra trước khi gửi
 
 Adapter khai báo dung lượng ngữ cảnh tổng hợp, giới hạn output mặc định và cứng,
