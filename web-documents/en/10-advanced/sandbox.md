@@ -8,6 +8,46 @@ enforces it on Linux, macOS and Windows.
 pnpm add @alvin0/ai-agent-sdk-sandbox @alvin0/ai-agent-sdk-sandbox-node
 ```
 
+## The path a request takes
+
+Nothing here decides and enforces at the same time. A request is read, an
+outcome chosen, a policy resolved, and only then does anything hold it.
+
+```text
+   USER          "restart nginx for me"
+     │
+     ▼
+ ┌───────────────────────┐
+ │  classifyExec(argv)   │   reads the command semantically
+ └───────────┬───────────┘
+             │  capability: service-control
+             ▼
+ ┌───────────────────────┐
+ │  outcome              │   allow │ allow-scoped │ ask-approval │ deny
+ └───────────┬───────────┘
+             │  ask-approval
+             ▼
+ ┌───────────────────────┐
+ │ approveSandboxEscal…  │   a PERSON approves; the token cannot be forged
+ └───────────┬───────────┘
+             ▼
+ ┌───────────────────────┐
+ │ resolveSandboxPolicy  │   a request only narrows; only an approval widens
+ └───────────┬───────────┘
+             │  SandboxPolicy
+     ┌───────┴────────┐
+     ▼                ▼
+ confine(argv)    fence(policy)
+  child process    the tool itself
+     │                │
+     ▼                ▼
+ bubblewrap /      path check
+ Seatbelt          per call
+```
+
+The left branch and the right branch enforce the same policy through different
+mechanisms. Neither substitutes for the other.
+
 ## Three axes, kept apart
 
 A policy answers three separate questions, because three separate mechanisms
@@ -24,9 +64,15 @@ not decide. `confine()` reports each separately for the same reason.
 
 ## Two layers of enforcement
 
-```
-confine()  wraps an argv for a kernel backend   what a CHILD PROCESS may touch
-fence()    checks a path in-process             what a TOOL does itself
+```text
+  agent host  (your process)
+  │
+  ├── a tool reads or writes a file itself ──► fence()     ✓ every platform
+  │
+  └── a tool spawns a process ───────────────► confine()   ✓ linux, macOS
+                                                   │       ✗ windows (fails closed)
+                                                   └── children, grandchildren,
+                                                       all inside the same wrap
 ```
 
 A process sandbox cannot see a tool calling `fs.writeFile` inside the agent
@@ -61,7 +107,46 @@ wrap is a capability the kernel already granted and no mount revokes, and the
 environment it builds is an allow-list — the process spawning a confined command
 usually holds the credentials the agent runs on.
 
+## How a path gets its access
+
+A policy is not two lists. It is an ordered stack, broadest first, and the
+access at a path is whatever the **last** layer containing it said.
+
+```text
+ policy: workspace-write /repo
+         entries: /repo/vendor = deny
+                  /repo/vendor/cache = write
+
+ grantLayers()                         broadest ──► narrowest
+ ┌──────────────────────────────────────────────────────────┐
+ │  write   mode        /repo                               │
+ │  read    protected   /repo/.git   (.ssh .aws .netrc …)   │
+ │  deny    entry       /repo/vendor                        │
+ │  write   entry       /repo/vendor/cache                  │
+ └──────────────────────────────────────────────────────────┘
+
+ /repo/src/a.ts         → write
+ /repo/.git/config      → read     a grant never reaches repository metadata
+ /repo/vendor/x         → deny
+ /repo/vendor/cache/x   → write    a narrower layer reopens a denied parent
+```
+
+Flattening that into "granted roots" plus "denied paths" loses the last line:
+a set of roots has nowhere to record a grant living inside something denied.
+
 ## Authority only ever decreases
+
+```text
+  deployment default ──┐
+                       ├──► CEILING ─────────────► the mode this call runs under
+  session mode ────────┘         ▲            ▲
+                                 │            │
+  request.mode ── may only ──────┘            │
+                 NARROW                       │
+                                              │
+  approval  ── minted, not parsed ── may ─────┘
+              (WeakSet membership)   WIDEN
+```
 
 Everything a tool sends is model-authored JSON, so a policy input that widens
 authority is one the model can widen. A request may tighten its own execution
@@ -85,6 +170,34 @@ deployment that means otherwise.
 Note what the grant above does not do: it never mentions a mode, so the policy
 stays `read-only` and exactly one file becomes writable. Raising the mode
 instead makes the whole workspace writable and the named resource decorative.
+
+## Reading the result
+
+Two failures look identical in a shell and mean opposite things. A *denial*
+means confinement worked; a *runner failure* means the command never ran.
+
+```text
+  the command exits
+        │
+        ├─ exit 0 ─────────────────────────────────────► success
+        │
+        ├─ runner reported "I started it" on its own fd ─┐
+        │      (bubblewrap --json-status-fd)             │ no runner-failure
+        │                                                │ rule may apply
+        ├─ a runner-failure rule matches stderr ────────► runner-failure
+        │      (exit gate + fatal line, noise removed)
+        │
+        ├─ killed by SIGSYS ───────────────────────────► denied
+        │      (a seccomp kill needs no text matching)
+        │
+        ├─ exit 2 / 126 / 127 ─────────────────────────► command-failure
+        │
+        └─ stderr matches THIS backend's denial dialect ─► denied
+                 otherwise ────────────────────────────► command-failure
+```
+
+Matching a cross-backend union of denial strings would claim denials a given
+backend never produces, so only the dialect of the wrapping backend is used.
 
 ## Deciding before enforcing
 

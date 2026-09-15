@@ -8,6 +8,46 @@ Một lệnh bị giới hạn chạy với ít quyền hơn tiến trình đã 
 pnpm add @alvin0/ai-agent-sdk-sandbox @alvin0/ai-agent-sdk-sandbox-node
 ```
 
+## Một yêu cầu đi qua những đâu
+
+Không chỗ nào vừa quyết định vừa cưỡng chế. Lệnh được **đọc**, một **outcome**
+được chọn, một **policy** được giải, rồi mới có thứ **giữ** nó.
+
+```text
+   NGƯỜI DÙNG    "restart nginx giúp tôi"
+     │
+     ▼
+ ┌───────────────────────┐
+ │  classifyExec(argv)   │   đọc lệnh theo NGỮ NGHĨA
+ └───────────┬───────────┘
+             │  capability: service-control
+             ▼
+ ┌───────────────────────┐
+ │  outcome              │   allow │ allow-scoped │ ask-approval │ deny
+ └───────────┬───────────┘
+             │  ask-approval
+             ▼
+ ┌───────────────────────┐
+ │ approveSandboxEscal…  │   CON NGƯỜI duyệt; token không giả được
+ └───────────┬───────────┘
+             ▼
+ ┌───────────────────────┐
+ │ resolveSandboxPolicy  │   request chỉ SIẾT; chỉ approval mới NỚI
+ └───────────┬───────────┘
+             │  SandboxPolicy
+     ┌───────┴────────┐
+     ▼                ▼
+ confine(argv)    fence(policy)
+  tiến trình con    chính tool đó
+     │                │
+     ▼                ▼
+ bubblewrap /      kiểm tra path
+ Seatbelt          theo từng lời gọi
+```
+
+Nhánh trái và nhánh phải cưỡng chế **cùng một policy** bằng hai cơ chế khác
+nhau. Không cái nào thay thế cái nào.
+
 ## Ba trục, tách bạch
 
 Một policy trả lời ba câu hỏi riêng biệt, vì ba cơ chế khác nhau cưỡng chế chúng
@@ -24,9 +64,15 @@ báo cáo từng trục riêng cũng vì lý do đó.
 
 ## Hai tầng cưỡng chế
 
-```
-confine()  boc argv cho backend kernel   TIEN TRINH CON duoc cham gi
-fence()    kiem tra path trong tien trinh  TOOL tu lam gi
+```text
+  agent host  (tiến trình của bạn)
+  │
+  ├── tool tự đọc/ghi file ──────────────────► fence()     ✓ mọi nền tảng
+  │
+  └── tool spawn một tiến trình ─────────────► confine()   ✓ linux, macOS
+                                                   │       ✗ windows (fail closed)
+                                                   └── con, cháu, chắt
+                                                       đều nằm trong cùng lớp bọc
 ```
 
 Process sandbox không thấy tool gọi `fs.writeFile` ngay trong host agent, và
@@ -61,7 +107,46 @@ là một capability kernel đã cấp và không mount nào thu hồi; còn env
 dựng là một allow-list — tiến trình spawn thường giữ đúng credential mà agent
 đang chạy bằng.
 
+## Một path lấy quyền của nó ra sao
+
+Policy **không phải** hai danh sách. Nó là một **chồng lớp có thứ tự**, rộng
+trước, và quyền tại một path là thứ mà **lớp cuối cùng** bao nó nói.
+
+```text
+ policy: workspace-write /repo
+         entries: /repo/vendor = deny
+                  /repo/vendor/cache = write
+
+ grantLayers()                         rộng ──► hẹp
+ ┌──────────────────────────────────────────────────────────┐
+ │  write   mode        /repo                               │
+ │  read    protected   /repo/.git   (.ssh .aws .netrc …)   │
+ │  deny    entry       /repo/vendor                        │
+ │  write   entry       /repo/vendor/cache                  │
+ └──────────────────────────────────────────────────────────┘
+
+ /repo/src/a.ts         → write
+ /repo/.git/config      → read     grant không bao giờ với tới metadata repo
+ /repo/vendor/x         → deny
+ /repo/vendor/cache/x   → write    lớp hẹp mở lại cha đã bị deny
+```
+
+Làm phẳng thành "root được cấp" + "path bị chặn" sẽ **mất dòng cuối**: một tập
+root không có chỗ nào ghi được một grant nằm *bên trong* thứ đã bị deny.
+
 ## Quyền chỉ đi xuống
+
+```text
+  mặc định deployment ──┐
+                        ├──► TRẦN ─────────────► mode mà lời gọi này chạy dưới
+  mode của session ─────┘         ▲          ▲
+                                  │          │
+  request.mode ── chỉ được ───────┘          │
+                  SIẾT                       │
+                                             │
+  approval ── được ĐÚC, không parse ── được ─┘
+              (thành viên WeakSet)     NỚI
+```
 
 Mọi thứ tool gửi lên đều là JSON do model viết, nên một input nới rộng quyền là
 input model tự nới được. Request chỉ được **siết** phần thực thi của chính nó,
@@ -85,6 +170,35 @@ Chỉ giá trị do chính lời gọi đó đúc mới được chấp nhận;
 Chú ý thứ grant trên **không** làm: nó không nhắc tới mode, nên policy vẫn là
 `read-only` và đúng một file trở nên ghi được. Nâng mode thay vào đó sẽ làm cả
 workspace ghi được, và cái resource được nêu tên trở thành trang trí.
+
+## Đọc kết quả
+
+Hai kiểu hỏng trông giống hệt nhau trong shell nhưng nghĩa ngược nhau. **denied**
+= confinement đã làm việc. **runner failure** = lệnh **chưa từng chạy**.
+
+```text
+  lệnh kết thúc
+        │
+        ├─ exit 0 ──────────────────────────────────────► success
+        │
+        ├─ runner báo "tôi đã chạy nó" trên fd riêng ─────┐
+        │      (bubblewrap --json-status-fd)              │ không luật
+        │                                                 │ runner-failure nào
+        ├─ khớp luật runner-failure trong stderr ────────► runner-failure
+        │      (gate exit code + dòng fatal, đã lọc nhiễu)
+        │
+        ├─ bị giết bởi SIGSYS ──────────────────────────► denied
+        │      (seccomp kill không cần khớp chữ nào)
+        │
+        ├─ exit 2 / 126 / 127 ──────────────────────────► command-failure
+        │
+        └─ stderr khớp phương ngữ denial của CHÍNH backend đó ─► denied
+                 ngược lại ─────────────────────────────────► command-failure
+```
+
+Khớp với hợp nhất chuỗi denial của mọi backend sẽ tuyên bố những denial mà một
+backend cụ thể **không bao giờ** sinh ra — nên chỉ dùng phương ngữ của backend
+đang bọc.
 
 ## Quyết định trước khi cưỡng chế
 
