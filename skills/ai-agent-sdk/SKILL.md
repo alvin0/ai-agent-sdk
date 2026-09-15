@@ -1,6 +1,6 @@
 ---
 name: ai-agent-sdk
-description: Build and maintain applications with the @alvin0/ai-agent-sdk-* TypeScript SDK — generation and embeddings, runtime composition, agents, sessions, streaming, tools, structured output, progressive-disclosure skills, task memory and compaction, multi-agent orchestration, MCP, A2A, observability, testing, releases, and deployment to Node, Edge/Worker, or the browser. Use when writing or reviewing code that imports any @alvin0/ai-agent-sdk-* package, choosing an install profile, or validating this SDK repository for release.
+description: Build and maintain applications with the @alvin0/ai-agent-sdk-* TypeScript SDK — generation and embeddings, runtime composition, agents, sessions, streaming, tools, structured output, progressive-disclosure skills, task memory and compaction, multi-agent orchestration, MCP, A2A, process sandboxing and command policy, observability, testing, releases, and deployment to Node, Edge/Worker, or the browser. Use when writing or reviewing code that imports any @alvin0/ai-agent-sdk-* package, choosing an install profile, or validating this SDK repository for release.
 ---
 
 # ai-agent-sdk
@@ -92,6 +92,7 @@ Load only the file the task needs. Each is self-contained.
 | Test an agent or embedding provider without a live endpoint | [references/testing.md](references/testing.md) |
 | Validate repository CI, package versions, tarballs, or a release | [references/testing.md](references/testing.md) |
 | Something is wrong and you want the cause | [references/troubleshooting.md](references/troubleshooting.md) |
+| Confine a command's file effects, network reach or resources | [references/sandbox.md](references/sandbox.md) |
 | Ship to Node CLI, Edge/Worker, or browser | [references/deploy.md](references/deploy.md) |
 
 ## Import routes
@@ -129,6 +130,9 @@ carry the fix; this is the index.
 | Two different skill-provider contracts | references/skills.md |
 | Two different exporter shapes | references/observability.md |
 | `createSdkMcpHandler({ tools })` wants a `ToolCatalog` | references/mcp.md |
+| A confined child still writes outside, or reads a token | references/sandbox.md |
+| `confine()` throws `SANDBOX_UNAVAILABLE` on Windows | references/sandbox.md |
+| A request entry granting `write` throws | references/sandbox.md |
 
 ## Where the prose docs and the typings disagree
 

@@ -29,6 +29,8 @@
 | `@alvin0/ai-agent-sdk-mcp-node-server` | Node | MCP stdio / `node:http` hosting |
 | `@alvin0/ai-agent-sdk-skill-filesystem` | Node | `SKILL.md` folder discovery |
 | `@alvin0/ai-agent-sdk-instructions-node` | Node | `AGENTS.md`-style context sections |
+| `@alvin0/ai-agent-sdk-sandbox` | Universal | File-effect, network and resource policy; command classification |
+| `@alvin0/ai-agent-sdk-sandbox-node` | Node | bubblewrap / Seatbelt confinement and the in-process path fence |
 | `@alvin0/ai-agent-sdk-observability-fetch` | Universal | HTTPS telemetry exporter |
 | `@alvin0/ai-agent-sdk-observability-browser` | Universal | IndexedDB durable queue |
 | `@alvin0/ai-agent-sdk-observability-node` | Node | JSONL journal + crash recovery |
@@ -187,7 +189,8 @@ pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
 # Node coding harness
 pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-auth-node \
   @alvin0/ai-agent-sdk-provider-codex @alvin0/ai-agent-sdk-mcp-node \
-  @alvin0/ai-agent-sdk-observability-node @alvin0/ai-agent-sdk-skill-filesystem
+  @alvin0/ai-agent-sdk-observability-node @alvin0/ai-agent-sdk-skill-filesystem \
+  @alvin0/ai-agent-sdk-sandbox @alvin0/ai-agent-sdk-sandbox-node
 ```
 
 All profiles share the same Universal core and agent loop.
