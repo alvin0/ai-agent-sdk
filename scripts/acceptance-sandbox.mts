@@ -60,6 +60,11 @@ try {
   await checkInheritedCapabilities()
   if (report.backend === undefined) await checkFailsClosed()
   else await checkConfinement()
+} catch (error) {
+  // A throw here is a result too — a backend that refuses to build a profile
+  // fails the same boundary an assertion would, and reporting it as a failure
+  // keeps it in the annotation rather than in an unattributed stack trace.
+  failures.push(`threw: ${error instanceof Error ? error.stack ?? error.message : String(error)}`)
 } finally {
   rmSync(workspace, { recursive: true, force: true })
   rmSync(outside, { recursive: true, force: true })
@@ -68,6 +73,15 @@ try {
 if (failures.length > 0) {
   process.stderr.write(`\nsandbox acceptance FAILED on ${report.platform}:\n`)
   for (const failure of failures) process.stderr.write(`- ${failure}\n`)
+  // Confinement is a property of the host kernel, so the run that fails is
+  // routinely one nobody can reproduce locally. An annotation carries the
+  // failing assertions onto the run itself, where they are legible without
+  // reading the step log.
+  annotate(`sandbox acceptance FAILED on ${report.platform}/${process.arch}`, [
+    `backend=${report.backend ?? 'none'} enforcement=${report.enforcement ?? 'fence-only'} runner=${runnerVersion()}`,
+    ...report.errors.map(error => `doctor error: ${error}`),
+    ...failures,
+  ])
   process.exitCode = 1
 } else {
   process.stdout.write(`\nsandbox acceptance passed on ${report.platform}\n`)
@@ -89,6 +103,28 @@ function expect(label: string, actual: unknown, wanted: unknown): void {
   const ok = actual === wanted
   process.stdout.write(`  ${ok ? 'ok  ' : 'FAIL'} ${label}: ${String(actual)}${ok ? '' : ` (wanted ${String(wanted)})`}\n`)
   if (!ok) failures.push(`${label}: got ${String(actual)}, wanted ${String(wanted)}`)
+}
+
+/**
+ * Raise a workflow annotation, when running under one.
+ *
+ * Stdout alone is not enough here: a kernel-specific failure is read by someone
+ * who cannot reproduce it, and the detail has to reach the run summary rather
+ * than sit inside a step log. Outside Actions this is an ordinary stderr line.
+ */
+/** What the selected runner reports itself as; the boundary depends on it. */
+function runnerVersion(): string {
+  const program = report.backend === 'seatbelt' ? 'sandbox-exec' : 'bwrap'
+  const result = spawnSync(program, ['--version'], { encoding: 'utf8', windowsHide: true })
+  return `${program} ${((result.stdout ?? '') + (result.stderr ?? '')).trim().split('\n')[0] ?? '(unknown)'}`
+}
+
+function annotate(title: string, lines: readonly string[]): void {
+  if (process.env['GITHUB_ACTIONS'] === 'true') {
+    process.stdout.write(`::error title=${title}::${lines.join('%0A')}\n`)
+    return
+  }
+  process.stderr.write(`${title}: ${lines.join('; ')}\n`)
 }
 
 /** The in-process fence is the one layer every platform must provide. */
