@@ -77,8 +77,8 @@ const reason = sandboxUnavailableReason(report)
 if (reason !== undefined) logger.warn(`sandbox is not enforcing: ${reason}`)
 ```
 
-`report.errors` carries operator-actionable remediation (`apt install
-bubblewrap`, `run under WSL2 rather than WSL1`), and `report.fenceAvailable` is
+`report.errors` carries operator-actionable remediation (`install bubblewrap
+>= 0.12.0`, `run under WSL2 rather than WSL1`), and `report.fenceAvailable` is
 always `true`.
 
 ## Environment
@@ -188,6 +188,11 @@ denial real is deferred to the end, because sealing it in place would leave
 bubblewrap unable to create the mount point for a grant reopened inside it
 (`Can't mkdir ...: Read-only file system`). A private PID namespace is part of the boundary, not a convenience:
 without it, procfs magic links reach outside the mounts.
+
+Runner selection rejects bubblewrap older than 0.12.0. That release fixes
+GHSA-pxhw-h44j-8pfx, where setup-time creation below an attacker-controlled
+symlink could escape the sandbox. CI builds the pinned upstream release and
+verifies its SHA-256 instead of inheriting an affected distribution package.
 
 Some hosts refuse to mount a private `/proc` at all — a container whose `/proc`
 carries masked paths is the common case — and bubblewrap then fails outright

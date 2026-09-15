@@ -28,9 +28,9 @@ export interface SandboxDependencyReport {
 
 /** Operator-facing remediation per rung. */
 const REMEDIATION: Readonly<Record<RunnerId, string>> = Object.freeze({
-  bwrap: "install bubblewrap (e.g. 'apt install bubblewrap'), or run under WSL2 rather than WSL1",
+  bwrap: "install bubblewrap >= 0.12.0, or run under WSL2 rather than WSL1",
   'bwrap-restricted':
-    'bubblewrap cannot create the namespaces it needs at all; WSL1 cannot, and a container host '
+    'install bubblewrap >= 0.12.0; it must also be able to create user namespaces (WSL1 cannot), and a container host '
     + 'must permit unprivileged user namespaces',
   seatbelt: 'sandbox-exec is missing from /usr/bin, which means this is not a supported macOS host',
 })

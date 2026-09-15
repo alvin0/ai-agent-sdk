@@ -12,7 +12,7 @@
  * whose inode is reachable under a name this policy never examined.
  */
 
-import { readdir, lstat } from 'node:fs/promises'
+import { readdir, lstat, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 
 /** What a scan found, and whether it finished. */
@@ -58,24 +58,29 @@ export async function findAliasedPaths(
     if (depth > maxDepth) { complete = false; return }
     let entries: string[]
     try { entries = await readdir(directory, { encoding: 'utf8' }) }
-    catch { return }
+    catch { complete = false; return }
     for (const name of entries) {
       if (examined >= maxEntries) { complete = false; return }
       examined += 1
       const path = join(directory, name)
       let stats: Awaited<ReturnType<typeof lstat>>
       try { stats = await lstat(path) }
-      catch { continue }
+      catch { complete = false; continue }
       if (stats.isSymbolicLink()) continue
       if (stats.isDirectory()) { await walk(path, depth + 1); continue }
       if (stats.isFile() && stats.nlink > 1) aliased.push(path)
     }
   }
 
+  const canonicalRoots = new Set<string>()
   for (const root of roots) {
+    try { canonicalRoots.add(await realpath(root)) }
+    catch { complete = false }
+  }
+  for (const root of canonicalRoots) {
     let stats: Awaited<ReturnType<typeof lstat>>
     try { stats = await lstat(root) }
-    catch { continue }
+    catch { complete = false; continue }
     examined += 1
     if (stats.isDirectory()) await walk(root, 0)
     else if (stats.isFile() && stats.nlink > 1) aliased.push(root)

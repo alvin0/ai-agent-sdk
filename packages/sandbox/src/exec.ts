@@ -127,7 +127,7 @@ const CREDENTIAL_TOOL_SAFE_VERBS: Readonly<Record<string, ReadonlySet<string>>> 
 /** Shell keywords that lead a segment without being the command. */
 const SHELL_KEYWORDS = new Set([
   'if', 'then', 'else', 'elif', 'fi', 'do', 'done', 'while', 'until', 'for', 'case',
-  'esac', 'in', '{', '}', '(', ')', '!', 'time', 'exec', 'eval',
+  'esac', 'in', '{', '}', '(', ')', '!', 'time', 'exec',
 ])
 
 /** Paths whose contents authorize something, wherever they are read from. */
@@ -231,6 +231,14 @@ function classifySingle(
   const inPlace = IN_PLACE_FLAGS[program]
   if (inPlace !== undefined && args.some(argument => inPlace.some(flag => argument === flag || argument.startsWith(`${flag}`) && flag === '-i'))) {
     return decide('modify', program, 'edits its input in place', [], outcomes)
+  }
+  if (program === 'find' && args.some(argument =>
+    argument === '-delete' || argument === '-exec' || argument === '-execdir'
+    || argument === '-ok' || argument === '-okdir')) {
+    return decide('modify', program, 'runs an action that may change files', [], outcomes)
+  }
+  if (program === 'awk' && args.some(argument => /(^|[^A-Za-z_])system\s*\(/.test(argument))) {
+    return decide('unknown', program, 'evaluates another command dynamically', [], outcomes)
   }
   if (program === 'rm' && touched.some(argument => ROOTISH.has(argument.replace(/\/+$/, '') || '/'))) {
     return decide('critical', program, `removes a system root: ${touched.join(' ')}`, [], outcomes)
@@ -375,7 +383,34 @@ export function splitCommands(argv: readonly string[]): readonly (readonly strin
   if (script === undefined) return [stripped]
 
   const commands = tokenizeScript(script)
+  if (hasDynamicShellSyntax(script)) {
+    return Object.freeze([...commands, Object.freeze(['(dynamic-shell-syntax)'])])
+  }
   return commands.length === 0 ? [stripped] : commands
+}
+
+/** Syntax that can execute code our deliberately small tokenizer cannot see. */
+function hasDynamicShellSyntax(script: string): boolean {
+  let quote: '"' | "'" | undefined
+  for (let index = 0; index < script.length; index++) {
+    const character = script[index] ?? ''
+    if (character === '\\' && quote !== "'") { index += 1; continue }
+    if (character === "'") {
+      if (quote === undefined) quote = "'"
+      else if (quote === "'") quote = undefined
+      continue
+    }
+    if (character === '"') {
+      if (quote === undefined) quote = '"'
+      else if (quote === '"') quote = undefined
+      continue
+    }
+    if (quote === "'") continue
+    if (character === '`') return true
+    const pair = script.slice(index, index + 2)
+    if (pair === '$(' || pair === '<(' || pair === '>(') return true
+  }
+  return quote !== undefined
 }
 
 /** A separator that is not inside quotes, used only to decide whether to walk. */

@@ -44,6 +44,32 @@ export const PLATFORM_CHAINS: Readonly<Record<string, readonly RunnerId[]>> = Ob
   win32: Object.freeze([] as const),
 })
 
+/** First upstream release containing GHSA-pxhw-h44j-8pfx's setup fix. */
+export const MINIMUM_SAFE_BWRAP_VERSION = '0.12.0'
+
+/** Whether `bwrap --version` identifies an upstream release with the fix. */
+export function isSafeBubblewrapVersion(output: string): boolean {
+  const match = /(?:bubblewrap|bwrap)\s+(\d+)\.(\d+)\.(\d+)/i.exec(output)
+  if (match === null) return false
+  const found = match.slice(1, 4).map(Number)
+  const minimum = MINIMUM_SAFE_BWRAP_VERSION.split('.').map(Number)
+  for (let index = 0; index < 3; index++) {
+    if ((found[index] ?? 0) > (minimum[index] ?? 0)) return true
+    if ((found[index] ?? 0) < (minimum[index] ?? 0)) return false
+  }
+  return true
+}
+
+function safeBubblewrapInstalled(program: string, timeoutMs: number): boolean {
+  try {
+    const version = spawnSync(program, ['--version'], {
+      timeout: timeoutMs, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
+    })
+    return version.error === undefined && version.status === 0
+      && isSafeBubblewrapVersion(`${version.stdout ?? ''}\n${version.stderr ?? ''}`)
+  } catch { return false }
+}
+
 const DESCRIPTORS: Readonly<Record<RunnerId, RunnerDescriptor>> = Object.freeze({
   bwrap: Object.freeze({
     id: 'bwrap', program: BWRAP_PROGRAM, enforcement: 'full' as const,
@@ -83,6 +109,7 @@ export function platformChain(platform: string): readonly RunnerId[] {
  */
 export function probeRunner(id: RunnerId, workspaceRoot: string, timeoutMs: number): boolean {
   const descriptor = DESCRIPTORS[id]
+  if (id !== 'seatbelt' && !safeBubblewrapInstalled(descriptor.program, timeoutMs)) return false
   const args = id === 'seatbelt'
     ? seatbeltProbeArgs()
     : bwrapProbeArgs(workspaceRoot, id === 'bwrap' ? 'full' : 'restricted')

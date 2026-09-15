@@ -282,7 +282,31 @@ describe('the authorization boundary', () => {
     const resolved = resolveSandboxPolicy(
       { cwd: '/repo', entries: [{ path: '/repo/vendor', access: 'deny' }] }, defaults,
     )
-    expect(resolved.entries).toContainEqual({ path: '/repo/vendor', access: 'deny' })
+    expect(resolved.restrictions).toContainEqual({ path: '/repo/vendor', access: 'deny' })
+  })
+
+  it('does not let a request reopen a deployment denial as readable', () => {
+    const resolved = resolveSandboxPolicy(
+      { cwd: '/repo', entries: [{ path: '/repo/private', access: 'read' }] },
+      {
+        mode: 'workspace-write', workspaceRoot: '/repo',
+        entries: [{ path: '/repo/private', access: 'deny' }],
+      },
+    )
+    expect(accessInLayers('/repo/private/key.txt', grantLayers(resolved as never))).toBe('deny')
+  })
+
+  it('keeps nested deployment denials beneath a broad request restriction', () => {
+    const resolved = resolveSandboxPolicy(
+      { cwd: '/repo', entries: [{ path: '/repo', access: 'read' }] },
+      {
+        mode: 'workspace-write', workspaceRoot: '/repo',
+        entries: [{ path: '/repo/private', access: 'deny' }],
+      },
+    )
+    const layers = grantLayers(resolved as never)
+    expect(accessInLayers('/repo/README.md', layers)).toBe('read')
+    expect(accessInLayers('/repo/private/key.txt', layers)).toBe('deny')
   })
 
   it('refuses an approval that was not minted, however well shaped', () => {
@@ -519,6 +543,21 @@ describe('reading a command for what it does', () => {
     expect(verdict(`awk -F'|' {print} data.txt`).outcome).toBe('allow')
     expect(verdict(`curl -sSI http://127.0.0.1/ | grep -iE 'server|location'`))
       .toEqual({ capability: 'use', outcome: 'allow-scoped' })
+  })
+
+  it('asks for approval when shell syntax hides another command', () => {
+    expect(verdict('bash -c "echo $(touch probe.txt)"'))
+      .toEqual({ capability: 'unknown', outcome: 'ask-approval' })
+    expect(verdict('bash -c "echo `touch probe.txt`"'))
+      .toEqual({ capability: 'unknown', outcome: 'ask-approval' })
+  })
+
+  it('does not classify mutating find and dynamic awk actions as observation', () => {
+    expect(verdict('find . -delete')).toEqual({ capability: 'modify', outcome: 'ask-approval' })
+    expect(verdict('find . -exec touch {} ;'))
+      .toEqual({ capability: 'modify', outcome: 'ask-approval' })
+    expect(verdict("awk 'BEGIN{system(\"touch probe\")}'"))
+      .toEqual({ capability: 'unknown', outcome: 'ask-approval' })
   })
 
   it('does not take a quoted command for a real one', () => {

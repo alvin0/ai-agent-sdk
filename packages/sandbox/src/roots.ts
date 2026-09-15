@@ -15,7 +15,7 @@
  */
 
 import type { FileSystemAccess, FileSystemEntry } from './entries.ts'
-import { orderEntries } from './entries.ts'
+import { accessFor, orderEntries } from './entries.ts'
 import type { SandboxPolicy } from './policy.ts'
 import { containsPath, joinPath, normalizePath, pathDepth } from './path.ts'
 
@@ -31,7 +31,7 @@ export const PROTECTED_SUBPATHS: readonly string[] = Object.freeze([
 ])
 
 /** Where a layer came from, which decides ties at equal path specificity. */
-export type GrantOrigin = 'mode' | 'protected' | 'entry'
+export type GrantOrigin = 'mode' | 'protected' | 'entry' | 'restriction' | 'approval'
 
 /** One subtree's access, overriding whatever the layers beneath it said. */
 export interface GrantLayer {
@@ -71,8 +71,35 @@ export interface WritableRootOptions {
 }
 
 const ORIGIN_RANK: Readonly<Record<GrantOrigin, number>> = Object.freeze({
-  mode: 0, protected: 1, entry: 2,
+  mode: 0, protected: 1, entry: 2, restriction: 3, approval: 4,
 })
+
+const ACCESS_RANK: Readonly<Record<FileSystemAccess, number>> = Object.freeze({
+  deny: 0, read: 1, write: 2,
+})
+
+function narrower(left: FileSystemAccess, right: FileSystemAccess): FileSystemAccess {
+  return ACCESS_RANK[left] <= ACCESS_RANK[right] ? left : right
+}
+
+function collapseLayers(
+  proposed: readonly GrantLayer[], baseline: FileSystemAccess,
+): GrantLayer[] {
+  const sorted = [...proposed].sort((left, right) =>
+    pathDepth(left.path) - pathDepth(right.path)
+    || ORIGIN_RANK[left.origin] - ORIGIN_RANK[right.origin]
+    || left.path.localeCompare(right.path))
+  const lastAtPath = new Map<string, number>()
+  sorted.forEach((layer, index) => lastAtPath.set(layer.path, index))
+  const kept: GrantLayer[] = []
+  sorted.forEach((layer, index) => {
+    if (lastAtPath.get(layer.path) === index
+      && accessInLayers(layer.path, kept, baseline) !== layer.access) {
+      kept.push(Object.freeze(layer))
+    }
+  })
+  return kept
+}
 
 /**
  * Resolve a policy into the ordered layers that express it.
@@ -105,27 +132,36 @@ export function grantLayers(
   for (const entry of orderEntries(policy.entries ?? [])) {
     proposed.push({ path: entry.path, access: entry.access, origin: 'entry' })
   }
-
-  proposed.sort((left, right) =>
-    pathDepth(left.path) - pathDepth(right.path)
-    || ORIGIN_RANK[left.origin] - ORIGIN_RANK[right.origin]
-    || left.path.localeCompare(right.path))
-
-  // A path named twice keeps only its last layer. The earlier one can never
-  // affect a decision — the later one covers exactly the same subtree — but
-  // leaving it in makes the list say two things about one path, and a backend
-  // that emits one rule per layer then emits both. bubblewrap did: it sealed a
-  // denied directory read-only *after* a later layer had bound it writable,
-  // so the fence allowed a write the kernel refused.
-  const lastAtPath = new Map<string, number>()
-  proposed.forEach((layer, index) => lastAtPath.set(layer.path, index))
-  const distinct = proposed.filter((layer, index) => lastAtPath.get(layer.path) === index)
-
   const baseline = policy.baseline ?? BASELINE_ACCESS
-  const kept: GrantLayer[] = []
-  for (const layer of distinct) {
-    if (accessInLayers(layer.path, kept, baseline) !== layer.access) kept.push(Object.freeze(layer))
+  let kept = collapseLayers(proposed, baseline)
+
+  // A request is an intersection, not another last-wins grant list. Recompute
+  // every boundary named by either side so a broad request restriction also
+  // survives narrower standing grants nested beneath it.
+  const restrictions = orderEntries(policy.restrictions ?? [])
+  if (restrictions.length > 0) {
+    const boundaries = orderEntries([
+      ...kept.map(layer => ({ path: layer.path, access: layer.access })),
+      ...restrictions,
+    ]).map(entry => entry.path)
+    const distinctBoundaries = [...new Set(boundaries)]
+    const intersected: GrantLayer[] = []
+    for (const path of distinctBoundaries) {
+      const access = narrower(
+        accessInLayers(path, kept, baseline),
+        accessFor(path, restrictions, 'write'),
+      )
+      if (accessInLayers(path, intersected, baseline) !== access) {
+        intersected.push(Object.freeze({ path, access, origin: 'restriction' }))
+      }
+    }
+    kept = intersected
   }
+
+  kept = collapseLayers([
+    ...kept,
+    ...orderEntries(policy.approvedEntries ?? []).map(entry => ({ ...entry, origin: 'approval' as const })),
+  ], baseline)
   return Object.freeze(kept)
 }
 

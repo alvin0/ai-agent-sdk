@@ -2,7 +2,7 @@
 
 import { lstat, readlink, realpath, stat } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import type { PathResolver } from '@alvin0/ai-agent-sdk-sandbox'
 import { normalizePath } from '@alvin0/ai-agent-sdk-sandbox'
 
@@ -10,8 +10,19 @@ import { normalizePath } from '@alvin0/ai-agent-sdk-sandbox'
 export function nodePathResolver(): PathResolver {
   return Object.freeze({
     async realpath(path: string): Promise<string> {
-      try { return normalizePath(await realpath(path)) }
-      catch { return normalizePath(path) }
+      let current = path
+      const missing: string[] = []
+      while (true) {
+        try {
+          const existing = await realpath(current)
+          return normalizePath(join(existing, ...missing.reverse()))
+        } catch {
+          const parent = dirname(current)
+          if (parent === current) return normalizePath(path)
+          missing.push(basename(current))
+          current = parent
+        }
+      }
     },
     async exists(path: string): Promise<boolean> {
       // `lstat`, not `stat`: a symbolic link whose target is missing still

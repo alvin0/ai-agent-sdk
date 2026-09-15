@@ -29,7 +29,9 @@ seam, and a mode that claimed to cover them would be lying.
 Everything a tool sends is model-authored JSON, so a policy input that widens
 authority is one the model can grant itself. `mode` and `entries` on a request
 are therefore the untrusted half: a requested mode is honoured only when it is
-at least as strict as the session's own, and a requested entry granting `write`
+at least as strict as the session's own, and requested entries are intersected
+with deployment and hardening layers. A `deny` can narrow `read`, and `read` can
+narrow `write`, but neither can reopen a standing denial. A requested `write`
 is refused outright.
 
 Widening goes through a capability instead of data:

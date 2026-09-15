@@ -11,7 +11,8 @@ import {
 import type { SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
 import {
   checkSandboxDependencies, insideSandbox, localSandbox, platformChain,
-  descendantsOf, findAliasedPaths, isSecretEnvName, runnerDescriptor, SANDBOX_ENV_VAR,
+  descendantsOf, findAliasedPaths, isSafeBubblewrapVersion, isSecretEnvName,
+  runnerDescriptor, SANDBOX_ENV_VAR,
   sandboxChildStarted,
   parseCpuTime, resourceEnforcement, sampleTree, sandboxSpawnOptions, superviseConfined,
   terminateConfined,
@@ -138,6 +139,18 @@ describe('confined argv', () => {
     const denyIndex = argv.indexOf(normalizePath(join(root, '.git')))
     expect(grantIndex).toBeGreaterThanOrEqual(0)
     expect(denyIndex).toBeGreaterThan(grantIndex)
+  })
+
+  it('reserves a protected subpath even when it does not exist yet', async () => {
+    const root = await workspace()
+    await rm(join(root, '.git'), { recursive: true })
+    const { argv } = await localSandbox({ platform: 'linux', probe: false, tempRoots: [] })
+      .confine(['true'], policyFor(root))
+    const protectedPath = normalizePath(join(root, '.git'))
+    const mask = argv.indexOf(protectedPath)
+    expect(mask).toBeGreaterThan(argv.indexOf(normalizePath(root)))
+    expect(argv[mask - 1]).toBe('--tmpfs')
+    expect(argv).toContain('--remount-ro')
   })
 
   it('grants nothing writable under read-only', async () => {
@@ -362,6 +375,9 @@ describe('a narrower grant beneath a denial reaches every layer', () => {
     const reopened = profile.indexOf(`(allow file-write* (subpath "${normalizePath(join(root, 'vendor', 'cache'))}")`)
     expect(denied).toBeGreaterThanOrEqual(0)
     expect(reopened).toBeGreaterThan(denied)
+    const readDenied = profile.indexOf(`(deny file-read* (subpath "${normalizePath(join(root, 'vendor'))}")`)
+    const readReopened = profile.indexOf(`(allow file-read* (subpath "${normalizePath(join(root, 'vendor', 'cache'))}")`)
+    expect(readReopened).toBeGreaterThan(readDenied)
   })
 })
 
@@ -570,6 +586,16 @@ describe('refusing a boundary the deployment did not agree to', () => {
     await expect(strict.confine(['true'], policyFor(root)))
       .rejects.toBeInstanceOf(SandboxUnavailableError)
   })
+
+  it('fails closed when an incomplete alias scan lowers a full runner', async () => {
+    const root = await workspace()
+    const strict = localSandbox({
+      platform: 'linux', probe: false, requireEnforcement: 'full',
+      aliasScanOptions: { maxEntries: 0 },
+    })
+    await expect(strict.confine(['true'], policyFor(root)))
+      .rejects.toBeInstanceOf(SandboxUnavailableError)
+  })
 })
 
 describe('tearing down everything the command started', () => {
@@ -713,6 +739,31 @@ describe('closing an inode the profile cannot see', () => {
     expect(scan.complete).toBe(false)
   })
 
+  it('canonicalizes a symlinked grant root before scanning it', async () => {
+    const { root, alias } = await aliasedWorkspace()
+    const parent = await workspace()
+    const linkedRoot = join(parent, 'linked-root')
+    await symlink(root, linkedRoot, process.platform === 'win32' ? 'junction' : 'dir')
+    const scan = await findAliasedPaths([linkedRoot])
+    expect(scan.complete).toBe(true)
+    expect(scan.aliased.map(path => normalizePath(path))).toContain(normalizePath(alias))
+    const { argv } = await localSandbox({ platform: 'linux', probe: false })
+      .confine(['true'], policyFor(linkedRoot))
+    const mask = argv.indexOf(normalizePath(alias))
+    expect(mask).toBeGreaterThanOrEqual(0)
+    expect(argv[mask - 1]).toBe('--ro-bind-try')
+  })
+
+  it('does not re-expose an alias that lives inside a denied subtree', async () => {
+    const { root, alias } = await aliasedWorkspace()
+    const denied = { ...policyFor(root), entries: [{ path: alias, access: 'deny' as const }] }
+    const { argv } = await localSandbox({ platform: 'linux', probe: false, hardenDefaults: false })
+      .confine(['true'], denied)
+    // One occurrence is the deny layer's destination. A second occurrence
+    // would be the alias loop binding the host content back over that mask.
+    expect(argv.filter(token => token === normalizePath(alias))).toHaveLength(1)
+  })
+
   it('re-binds the aliased file read-only under bubblewrap', async () => {
     const { root, alias } = await aliasedWorkspace()
     const { argv } = await localSandbox({ platform: 'linux', probe: false })
@@ -738,5 +789,14 @@ describe('closing an inode the profile cannot see', () => {
     const opted = await localSandbox({ platform: 'linux', probe: false, maskAliasedInodes: false })
       .confine(['true'], policyFor(root))
     expect(opted.enforcement).toBe('full')
+  })
+})
+
+describe('bubblewrap security gate', () => {
+  it('accepts the patched upstream line and rejects affected or unreadable versions', () => {
+    expect(isSafeBubblewrapVersion('bubblewrap 0.12.0')).toBe(true)
+    expect(isSafeBubblewrapVersion('bubblewrap 1.0.0')).toBe(true)
+    expect(isSafeBubblewrapVersion('bubblewrap 0.11.2')).toBe(false)
+    expect(isSafeBubblewrapVersion('unknown')).toBe(false)
   })
 })

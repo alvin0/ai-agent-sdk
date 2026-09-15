@@ -12,7 +12,7 @@ import type {
   NetworkEnforcement, NetworkMode, RunnerFailureRule, SandboxPolicy,
 } from '@alvin0/ai-agent-sdk-sandbox'
 import type { WritableRootOptions } from '@alvin0/ai-agent-sdk-sandbox'
-import { grantLayers, pathDepth } from '@alvin0/ai-agent-sdk-sandbox'
+import { accessInLayers, grantLayers, pathDepth } from '@alvin0/ai-agent-sdk-sandbox'
 import { isDirectory, nodePathResolver } from '../fs/resolver.ts'
 
 /** Program name looked up on `PATH`. */
@@ -104,11 +104,13 @@ export async function bwrapProfileArgs(
   const resolver = nodePathResolver()
   const args: string[] = baseArgs(variant, policy.network ?? 'allow-all')
   const sealReadOnly: string[] = []
+  const layers = Object.freeze(await Promise.all(grantLayers(policy, options).map(async layer =>
+    Object.freeze({ ...layer, path: await resolver.realpath(layer.path) }))))
 
-  for (const layer of grantLayers(policy, options)) {
+  for (const [index, layer] of layers.entries()) {
     // Bind the canonical location: a layer named through a symlink would
     // otherwise govern whatever the link happens to point at.
-    const real = await resolver.realpath(layer.path)
+    const real = layer.path
 
     // A mount needs its destination to exist: `--ro-bind-try` tolerates a
     // missing SOURCE, not a missing DESTINATION, and outside the workspace the
@@ -117,7 +119,16 @@ export async function bwrapProfileArgs(
     // it), and emitting a mount for those aborts the whole sandbox with
     // "Can't create file at ...: Read-only file system" — the command then
     // never runs at all. Nothing needs masking where nothing exists.
-    if (layer.access !== 'write' && !(await resolver.exists(real))) continue
+    if (layer.access !== 'write' && !(await resolver.exists(real))) {
+      // A protected child of a writable mount must still occupy the name: if
+      // it is skipped, the command can create it through the writable parent.
+      const before = accessInLayers(layer.path, layers.slice(0, index), policy.baseline ?? 'read')
+      if (before === 'write') {
+        args.push('--tmpfs', real)
+        sealReadOnly.push(real)
+      }
+      continue
+    }
 
     if (layer.access === 'write') {
       args.push('--bind', real, real)
@@ -141,7 +152,9 @@ export async function bwrapProfileArgs(
   // hiding the first: the content stays readable, the write does not land.
   for (const alias of aliased) {
     const real = await resolver.realpath(alias)
-    args.push('--ro-bind-try', real, real)
+    if (accessInLayers(alias, layers, policy.baseline ?? 'read') === 'write') {
+      args.push('--ro-bind-try', real, real)
+    }
   }
 
   // Deepest first, so sealing a parent never precedes sealing its own child.

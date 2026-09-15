@@ -21,7 +21,7 @@ import {
   SEATBELT_VALIDATED_FAILURE_RULES,
 } from './backends/seatbelt.ts'
 import { WINDOWS_UNAVAILABLE_REASON } from './backends/windows.ts'
-import { findAliasedPaths } from './aliases.ts'
+import { findAliasedPaths, type AliasScanOptions } from './aliases.ts'
 import { sandboxEnv } from './env.ts'
 import { hardenedDeniedPaths, nodePathResolver } from './fs/resolver.ts'
 import { platformChain, probeRunner, runnerDescriptor, type RunnerId } from './select.ts'
@@ -74,6 +74,8 @@ export interface LocalSandboxOptions {
    * reports `partial`, because it cannot prove the absence of an alias.
    */
   readonly maskAliasedInodes?: boolean
+  /** Bounds for the hard-link walk; primarily useful for deterministic policy. */
+  readonly aliasScanOptions?: AliasScanOptions
   /**
    * Refuse to confine unless the selected rung reaches at least this level.
    *
@@ -105,6 +107,16 @@ export function localSandbox(options: LocalSandboxOptions = {}): SandboxProvider
   })
   let selected: RunnerId | undefined
   let selectionResolved = false
+
+  function requireEffectiveEnforcement(reached: SandboxEnforcement, runner: string): void {
+    const required = options.requireEnforcement
+    if (required !== undefined && ENFORCEMENT_RANK[reached] < ENFORCEMENT_RANK[required]) {
+      throw new SandboxUnavailableError(
+        platform, [runner],
+        `this execution reaches '${reached}' enforcement and the deployment requires '${required}'`,
+      )
+    }
+  }
 
   function selectRunner(workspaceRoot: string): RunnerId {
     if (!selectionResolved) {
@@ -158,10 +170,15 @@ export function localSandbox(options: LocalSandboxOptions = {}): SandboxProvider
       }
 
       if (options.runnerCommand !== undefined && options.runnerCommand.length > 0) {
-        const profile = await bwrapProfileArgs(policy, rootOptions)
+        const scan = options.maskAliasedInodes === false || options.allowAliasedWrites === true
+          ? { aliased: [] as readonly string[], complete: true }
+          : await findAliasedPaths(writableRoots(policy, rootOptions).roots, options.aliasScanOptions)
+        const enforcement: SandboxEnforcement = scan.complete ? 'full' : 'partial'
+        requireEffectiveEnforcement(enforcement, 'custom')
+        const profile = await bwrapProfileArgs(policy, rootOptions, 'full', scan.aliased)
         return Object.freeze({
           argv: Object.freeze([...options.runnerCommand, ...profile, '--', ...argv]),
-          enforcement: 'full', backend: 'custom',
+          enforcement, backend: 'custom',
           denialSignatures: BWRAP_DENIAL_SIGNATURES,
           runnerFailureRules: Object.freeze([
             Object.freeze({ fatalSignatures: options.runnerFailureSignatures ?? [] }),
@@ -176,7 +193,7 @@ export function localSandbox(options: LocalSandboxOptions = {}): SandboxProvider
       const descriptor = runnerDescriptor(runner)
       const scan = options.maskAliasedInodes === false || options.allowAliasedWrites === true
         ? { aliased: [] as readonly string[], complete: true }
-        : await findAliasedPaths(writableRoots(policy, rootOptions).roots)
+        : await findAliasedPaths(writableRoots(policy, rootOptions).roots, options.aliasScanOptions)
       const profile = runner === 'seatbelt'
         ? await seatbeltProfileArgs(policy, rootOptions, scan.aliased)
         : await bwrapProfileArgs(
@@ -185,11 +202,13 @@ export function localSandbox(options: LocalSandboxOptions = {}): SandboxProvider
       // that reads such a report — the one a command can forge — is dropped.
       const validated = runner === 'seatbelt' && profile[1] !== undefined
         && seatbeltProfileAccepted(profile[1])
+      const effectiveEnforcement = scan.complete ? descriptor.enforcement : 'partial'
+      requireEffectiveEnforcement(effectiveEnforcement, descriptor.id)
       return Object.freeze({
         argv: Object.freeze([descriptor.program, ...profile, ...descriptor.separator, ...argv]),
         // A scan that stopped at its bound leaves an alias possible, so the
         // enforcement claim is lowered rather than the scan's limit hidden.
-        enforcement: scan.complete ? descriptor.enforcement : 'partial',
+        enforcement: effectiveEnforcement,
         backend: descriptor.id,
         denialSignatures: descriptor.denialSignatures,
         runnerFailureRules: validated
@@ -225,7 +244,10 @@ export { sandboxChildStarted, sandboxSpawnOptions } from './spawn.ts'
 export type { SandboxSpawnInput, SandboxSpawnOptions } from './spawn.ts'
 export { bwrapNetworkEnforcement, BWRAP_STATUS_FD } from './backends/bwrap.ts'
 export { SEATBELT_RUNNER_FAILURE_RULES, seatbeltNetworkEnforcement, seatbeltProfileAccepted } from './backends/seatbelt.ts'
-export { PLATFORM_CHAINS, platformChain, probeRunner, runnerDescriptor } from './select.ts'
+export {
+  MINIMUM_SAFE_BWRAP_VERSION, PLATFORM_CHAINS, isSafeBubblewrapVersion,
+  platformChain, probeRunner, runnerDescriptor,
+} from './select.ts'
 export type { RunnerDescriptor, RunnerId } from './select.ts'
 export type { BwrapVariant } from './backends/bwrap.ts'
 export { WINDOWS_UNAVAILABLE_REASON } from './backends/windows.ts'

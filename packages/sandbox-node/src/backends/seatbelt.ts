@@ -12,7 +12,7 @@ import type {
   NetworkEnforcement, NetworkMode, RunnerFailureRule, SandboxPolicy,
 } from '@alvin0/ai-agent-sdk-sandbox'
 import type { WritableRootOptions } from '@alvin0/ai-agent-sdk-sandbox'
-import { grantLayers } from '@alvin0/ai-agent-sdk-sandbox'
+import { accessInLayers, grantLayers } from '@alvin0/ai-agent-sdk-sandbox'
 import { spawnSync } from 'node:child_process'
 import { nodePathResolver } from '../fs/resolver.ts'
 
@@ -74,12 +74,15 @@ export async function seatbeltProfileArgs(
     if (network === 'loopback') forms.push('(allow network* (remote ip "localhost:*"))')
   }
 
-  for (const layer of grantLayers(policy, options)) {
+  const layers = Object.freeze(await Promise.all(grantLayers(policy, options).map(async layer =>
+    Object.freeze({ ...layer, path: await resolver.realpath(layer.path) }))))
+  for (const layer of layers) {
     // Seatbelt matches resolved paths — `/tmp` IS `/private/tmp` — so a rule
     // written the other way silently matches nothing.
-    const subpath = `(subpath ${sbplString(await resolver.realpath(layer.path))})`
+    const subpath = `(subpath ${sbplString(layer.path)})`
     if (layer.access === 'write') forms.push(`(allow file-write* ${subpath})`)
     else forms.push(`(deny file-write* ${subpath})`)
+    if (layer.access !== 'deny') forms.push(`(allow file-read* ${subpath})`)
     if (layer.access === 'deny') {
       forms.push(`(deny file-read* ${subpath})`)
       // Connecting to a Unix socket is `network-outbound` in SBPL, not a file
@@ -94,7 +97,9 @@ export async function seatbeltProfileArgs(
   // last match, so denying the other one here is what makes the grant mean
   // what it says.
   for (const alias of aliased) {
-    forms.push(`(deny file-write* (literal ${sbplString(await resolver.realpath(alias))}))`)
+    if (accessInLayers(alias, layers, policy.baseline ?? 'read') === 'write') {
+      forms.push(`(deny file-write* (literal ${sbplString(await resolver.realpath(alias))}))`)
+    }
   }
 
   return Object.freeze(['-p', forms.join(' ')])

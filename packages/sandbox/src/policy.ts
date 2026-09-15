@@ -26,6 +26,10 @@ export interface SandboxExecutionPolicy {
   readonly workspaceRoot: string
   /** Nested carve-outs layered over the mode's base grant. */
   readonly entries?: readonly FileSystemEntry[]
+  /** Untrusted per-call carve-outs, kept separate so they can only intersect. */
+  readonly restrictions?: readonly FileSystemEntry[]
+  /** Carve-outs carried by a minted approval and therefore allowed to widen. */
+  readonly approvedEntries?: readonly FileSystemEntry[]
   /**
    * The access in force where no layer applies.
    *
@@ -150,12 +154,12 @@ export function resolveSandboxPolicy(
     }
   }
 
-  // Deployment config first, then the caller's restrictions, then the approval —
-  // so an approval can reopen what a restriction closed, and a restriction can
-  // never reopen what the deployment closed unless it is narrower.
-  const entries = orderEntries([
-    ...(defaults.entries ?? []), ...(request.entries ?? []), ...(approval?.entries ?? []),
-  ])
+  // Preserve the authority boundary instead of flattening all three sources
+  // into one last-entry-wins list. grantLayers() intersects restrictions with
+  // the standing policy, then applies only minted approvals as widenings.
+  const entries = orderEntries(defaults.entries ?? [])
+  const restrictions = orderEntries(request.entries ?? [])
+  const approvedEntries = orderEntries(approval?.entries ?? [])
   // Reach narrows the same way authority does, and widens only with approval.
   const network = approval?.network
     ?? narrowNetwork(defaults.network ?? 'allow-all', request.network)
@@ -164,6 +168,8 @@ export function resolveSandboxPolicy(
     mode, workspaceRoot, network,
     ...(defaults.baseline === undefined ? {} : { baseline: defaults.baseline }),
     ...(entries.length === 0 ? {} : { entries }),
+    ...(restrictions.length === 0 ? {} : { restrictions }),
+    ...(approvedEntries.length === 0 ? {} : { approvedEntries }),
     ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
   })
 }

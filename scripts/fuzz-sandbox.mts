@@ -162,10 +162,9 @@ if (report.backend !== undefined) {
     const target = makeTarget(random)
     const fence = provider.fence(policy)
     const permitted = await fence.isWritable(target)
-    const aliased = await fence.isAliased(target)
     const outcome = await backendWrites(policy, target)
 
-    if (!permitted && outcome.kind === 'success' && !aliased) {
+    if (!permitted && outcome.kind === 'success') {
       failures.push({
         seed: SEED, index, kind: 'BACKEND-ALLOWS-WHAT-FENCE-DENIES', target,
         entries: policy.entries ?? [], detail: outcome.detail,

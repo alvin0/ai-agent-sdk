@@ -80,10 +80,7 @@ jobs:
 
       - name: Install bubblewrap
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes bubblewrap
-          bwrap --version
+        run: sudo bash scripts/install-safe-bubblewrap.sh
 
       # Ubuntu 24.04 ships an AppArmor policy that denies unprivileged user
       # namespaces, which is exactly what bubblewrap needs. Relaxing it here
@@ -170,7 +167,7 @@ jobs:
             --cap-add SYS_ADMIN \
             -v "$PWD":/w:ro node:22-bookworm bash -c '
               set -e
-              apt-get update -qq && apt-get install -y -qq bubblewrap
+              bash /w/scripts/install-safe-bubblewrap.sh
               mkdir -p /tmp/acceptance && cd /tmp/acceptance && npm init -y > /dev/null
               npm install --no-audit --no-fund \
                 /w/packages/sandbox/artifacts/*.tgz \
