@@ -804,7 +804,9 @@ describe('masking a path inside a directory that cannot be listed', () => {
     const socketDir = join(root, 'run')
     await mkdir(socketDir, { recursive: true })
     await writeFile(join(socketDir, 'daemon.sock'), '')
-    await chmod(socketDir, 0o711)
+    // `0o311` for the owner is what `0o711` root-owned is for everyone else:
+    // the directory may be traversed, so the socket is reachable, but not listed.
+    await chmod(socketDir, 0o311)
     try {
       const policy = resolveSandboxPolicy({ cwd: root, mode: 'read-only' }, {
         mode: 'read-only', workspaceRoot: root,
