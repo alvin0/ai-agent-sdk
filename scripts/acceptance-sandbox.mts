@@ -43,6 +43,8 @@ const nested: readonly FileSystemEntry[] = Object.freeze([
 const provider = localSandbox()
 const report = checkSandboxDependencies(workspace)
 const failures: string[] = []
+/** Runner diagnostics kept from the first few non-successful confined runs. */
+const diagnostics: string[] = []
 
 process.stdout.write(`platform: ${report.platform}/${process.arch}\n`)
 process.stdout.write(`backend: ${report.backend ?? '(none — fence only)'}\n`)
@@ -80,6 +82,7 @@ if (failures.length > 0) {
   annotate(`sandbox acceptance FAILED on ${report.platform}/${process.arch}`, [
     `backend=${report.backend ?? 'none'} enforcement=${report.enforcement ?? 'fence-only'} runner=${runnerVersion()}`,
     ...report.errors.map(error => `doctor error: ${error}`),
+    ...diagnostics,
     ...failures,
   ])
   process.exitCode = 1
@@ -433,11 +436,21 @@ async function run(
     return 'command-failure'
   }
   const childStarted = sandboxChildStarted(confined, result.output)
-  return classifyOutcome(
+  const kind = classifyOutcome(
     {
       exitCode: result.status ?? 1, stderr: result.stderr ?? '', signal: result.signal,
       ...(childStarted === undefined ? {} : { childStarted }),
     },
     confined,
   ).kind
+  // A denial nobody can explain is the failure mode this suite exists to catch:
+  // the runner's own diagnostic says whether the boundary refused the effect or
+  // the profile never built, and the two are indistinguishable from the kind.
+  if (kind !== 'success' && diagnostics.length < 3) {
+    diagnostics.push(
+      `${mode} ${kind}: ${(result.stderr ?? '').trim().split('\n').slice(0, 2).join(' / ') || '(no stderr)'}`,
+      `  argv: ${confined.argv.join(' ')}`,
+    )
+  }
+  return kind
 }
