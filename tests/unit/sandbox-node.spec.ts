@@ -783,12 +783,21 @@ describe('closing an inode the profile cannot see', () => {
     expect(denial).toBeGreaterThan(profile.indexOf(`(allow file-write* (subpath "${normalizePath(root)}")`))
   })
 
-  it('lowers the enforcement claim when the scan could not finish', async () => {
+  it('keeps the claim when a deployment opts out of scanning at all', async () => {
     const { root } = await aliasedWorkspace()
-    // A deployment that opts out gets the unscanned profile and keeps its claim.
     const opted = await localSandbox({ platform: 'linux', probe: false, maskAliasedInodes: false })
       .confine(['true'], policyFor(root))
     expect(opted.enforcement).toBe('full')
+  })
+
+  it('lowers the enforcement claim when the scan could not finish', async () => {
+    const { root } = await aliasedWorkspace()
+    // The bound is what makes the scan incomplete, and an alias the walk never
+    // reached is an alias the profile never masked — so the claim has to drop.
+    const bounded = await localSandbox({
+      platform: 'linux', probe: false, aliasScanOptions: { maxEntries: 0 },
+    }).confine(['true'], policyFor(root))
+    expect(bounded.enforcement).toBe('partial')
   })
 })
 

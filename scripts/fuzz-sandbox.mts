@@ -73,6 +73,11 @@ linkSync(join(outside, 'target.txt'), join(workspace, 'hardlink.txt'))
 const SPECIAL = ['link-out/x.txt', 'link-in/x.txt', 'link-dangling', 'link-chain/x.txt',
   'hardlink.txt', 'missing/deep/x.txt', 'a/../b/x.txt']
 
+// Only an existing file can answer a read, so the read phase draws from these
+// rather than from the write phase's targets, most of which are yet to exist.
+const files = nodes.filter(node => node.endsWith('file.txt'))
+files.push(join(workspace, 'hardlink.txt'), join(workspace, 'link-in', 'a', 'file.txt'))
+
 const ACCESS: readonly FileSystemAccess[] = ['write', 'read', 'deny']
 // Probing matters here: without it the first rung in the chain is taken even
 // where it cannot start, and every case would report a runner failure rather
@@ -182,6 +187,27 @@ if (report.backend !== undefined) {
         entries: policy.entries ?? [], detail: outcome.detail,
       })
     }
+
+    // Reads are the other half of the boundary, and the half a write-only fuzz
+    // never sees. A deny layer has to hide the content from the kernel profile
+    // too, and a grant reopened beneath one has to hand it back — the two
+    // failures a mask that only ever narrows writes would both pass.
+    const readTarget = files[Math.floor(random() * files.length)] ?? workspace
+    const readable = await fence.isReadable(readTarget)
+    const read = await backendReads(policy, readTarget)
+
+    if (!readable && read.kind === 'success') {
+      failures.push({
+        seed: SEED, index, kind: 'BACKEND-READS-WHAT-FENCE-HIDES', target: readTarget,
+        entries: policy.entries ?? [], detail: read.detail,
+      })
+    }
+    if (readable && read.kind === 'denied') {
+      failures.push({
+        seed: SEED, index, kind: 'BACKEND-HIDES-WHAT-FENCE-READS', target: readTarget,
+        entries: policy.entries ?? [], detail: read.detail,
+      })
+    }
   }
 }
 
@@ -262,11 +288,24 @@ function referenceAccess(target: string, layers: readonly GrantLayer[]): FileSys
   return effective
 }
 
+/** Attempt the read under the kernel profile and classify what came back. */
+async function backendReads(
+  policy: SandboxPolicy, target: string,
+): Promise<{ kind: string; detail: string }> {
+  return runConfined(policy, `require('node:fs').readFileSync(${JSON.stringify(target)})`)
+}
+
 /** Attempt the write under the kernel profile and classify what came back. */
 async function backendWrites(
   policy: SandboxPolicy, target: string,
 ): Promise<{ kind: string; detail: string }> {
-  const code = `require('node:fs').writeFileSync(${JSON.stringify(target)}, 'fuzz')`
+  return runConfined(policy, `require('node:fs').writeFileSync(${JSON.stringify(target)}, 'fuzz')`)
+}
+
+/** One confined attempt, read through the backend's own denial dialect. */
+async function runConfined(
+  policy: SandboxPolicy, code: string,
+): Promise<{ kind: string; detail: string }> {
   const confined = await provider.confine([process.execPath, '-e', code], policy)
   const options = sandboxSpawnOptions(confined)
   const result = spawnSync(confined.argv[0] ?? '', confined.argv.slice(1), {

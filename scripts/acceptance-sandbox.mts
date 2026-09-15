@@ -33,6 +33,7 @@ mkdirSync(join(workspace, '.git'), { recursive: true })
 mkdirSync(join(workspace, 'vendor', 'cache'), { recursive: true })
 writeFileSync(join(workspace, 'readable.txt'), 'content')
 writeFileSync(join(workspace, 'vendor', 'secret.txt'), 'hidden')
+writeFileSync(join(workspace, 'vendor', 'cache', 'cached.txt'), 'cached')
 
 /** A denied subtree with a narrower grant reopened inside it. */
 const nested: readonly FileSystemEntry[] = Object.freeze([
@@ -108,13 +109,6 @@ function expect(label: string, actual: unknown, wanted: unknown): void {
   if (!ok) failures.push(`${label}: got ${String(actual)}, wanted ${String(wanted)}`)
 }
 
-/**
- * Raise a workflow annotation, when running under one.
- *
- * Stdout alone is not enough here: a kernel-specific failure is read by someone
- * who cannot reproduce it, and the detail has to reach the run summary rather
- * than sit inside a step log. Outside Actions this is an ordinary stderr line.
- */
 /** What the selected runner reports itself as; the boundary depends on it. */
 function runnerVersion(): string {
   const program = report.backend === 'seatbelt' ? 'sandbox-exec' : 'bwrap'
@@ -122,6 +116,13 @@ function runnerVersion(): string {
   return `${program} ${((result.stdout ?? '') + (result.stderr ?? '')).trim().split('\n')[0] ?? '(unknown)'}`
 }
 
+/**
+ * Raise a workflow annotation, when running under one.
+ *
+ * Stdout alone is not enough here: a kernel-specific failure is read by someone
+ * who cannot reproduce it, and the detail has to reach the run summary rather
+ * than sit inside a step log. Outside Actions this is an ordinary stderr line.
+ */
 function annotate(title: string, lines: readonly string[]): void {
   if (process.env['GITHUB_ACTIONS'] === 'true') {
     process.stdout.write(`::error title=${title}::${lines.join('%0A')}\n`)
@@ -369,6 +370,18 @@ async function checkNestedCarveOut(): Promise<void> {
     await run('workspace-write', write(join(workspace, 'vendor', 'cache', 'written.txt')), nested), 'success')
   expect('the denied parent really is not',
     await run('workspace-write', write(join(workspace, 'vendor', 'escaped.txt')), nested), 'denied')
+
+  // Reads have to match the fence as exactly as writes do. A backend that
+  // reopens a subtree for writing while the parent's denial still hides its
+  // contents hands the command a directory it may write and cannot read —
+  // which no assertion about the write alone would ever notice.
+  const read = (target: string): readonly string[] =>
+    [process.execPath, '-e', `require('node:fs').readFileSync(${JSON.stringify(target)})`]
+  expect('the reopened subtree is readable through the profile too',
+    await run('workspace-write', read(join(workspace, 'vendor', 'cache', 'cached.txt')), nested), 'success')
+  // Masked or refused are both correct; reaching the content is not.
+  expect('and the denied parent yields nothing',
+    await run('workspace-write', read(join(workspace, 'vendor', 'secret.txt')), nested) === 'success', false)
 }
 
 /** A platform without a backend must refuse to wrap, never pass argv through. */
