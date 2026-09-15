@@ -34,5 +34,9 @@ export {
   accessInLayers, BASELINE_ACCESS, grantLayers, PROTECTED_SUBPATHS, unreadablePaths, writableRoots,
 } from './roots.ts'
 export type { GrantLayer, GrantOrigin, WritableRootOptions, WritableRootSet } from './roots.ts'
+export { breachedLimit, hasResourceLimits } from './resources.ts'
+export type {
+  ResourceBreach, ResourceEnforcement, ResourceLimits, ResourceUsage,
+} from './resources.ts'
 export { sandboxViolation } from './violation.ts'
 export type { SandboxViolation, SandboxViolationBackend, SandboxViolationReason } from './violation.ts'

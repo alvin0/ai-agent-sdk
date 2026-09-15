@@ -140,6 +140,33 @@ built here.
 `confine()` reports `networkEnforcement` separately from `enforcement`, because
 a host can give you the file boundary and not this one.
 
+## Resource limits
+
+A filesystem boundary can be completely correct while the host falls over. A
+fork storm, a growing allocation and a loop that never ends cost nothing in file
+effects — measured against these backends, 150 processes, 2 GB of memory and
+20 000 files met no resistance at all.
+
+```ts
+const child = spawn(confined.argv[0], confined.argv.slice(1), spawnOptions)
+const used = await superviseConfined(child, {
+  wallClockMs: 60_000, memoryBytes: 2e9, processes: 64,
+}).done
+// { terminated: true, breach: 'memory', peakMemoryBytes: ... }
+```
+
+This is **not a quota**, and the reported enforcement says `monitor` rather than
+`quota` for that reason. A quota is the kernel refusing the allocation; this
+samples the process tree and tears the execution down afterwards. Measured
+against a 300 MB limit, the peak reached 382 MB before the sampler caught it —
+that overshoot is exactly the difference, and it is why the level is reported
+rather than assumed.
+
+A real quota needs cgroup v2 on Linux or a Job Object on Windows. Neither is
+built here: cgroup v2 was not writable in any container tested, including a
+privileged one, and shipping a backend that cannot be exercised is how a test
+suite ends up green over a path nobody ran.
+
 ## Requiring a boundary
 
 `partial` is a state, not a caveat: a bubblewrap rung without its own `/proc`
@@ -204,11 +231,9 @@ under a real backend on macOS and Linux.
 - **No allow-list by hostname.** Reach is all, loopback, or nothing; permitting
   `github.com` and refusing everything else needs a proxy the sandbox can reach
   and a bridge into the namespace, which is not built here.
-- **No resource limits.** No rlimit, no cgroup, no accounting: 150 processes,
-  2 GB of memory, and 20 000 files were all created without resistance. That
-  belongs to its own seam — cgroup v2 on Linux, a Job Object on Windows — and
-  cannot be expressed as a file-effect mode without the mode lying about what
-  it governs.
+- **Resource limits are sampled, not enforced.** `superviseConfined` ends a
+  runaway; it does not prevent the spike between two samples. See *Resource
+  limits*.
 - **A process that double-forks between the sample and the kill escapes the
   sweep** on platforms without a PID namespace. See *Ending an execution*.
 - **Seatbelt classification rests on a self-check, not a channel.** bubblewrap

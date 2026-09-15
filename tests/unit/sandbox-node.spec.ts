@@ -12,7 +12,8 @@ import type { SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
 import {
   checkSandboxDependencies, insideSandbox, localSandbox, platformChain,
   descendantsOf, isSecretEnvName, runnerDescriptor, SANDBOX_ENV_VAR, sandboxChildStarted,
-  sandboxSpawnOptions, terminateConfined,
+  parseCpuTime, resourceEnforcement, sampleTree, sandboxSpawnOptions, superviseConfined,
+  terminateConfined,
   writeConfinedFile,
   SEATBELT_RUNNER_FAILURE_RULES,
   sandboxUnavailableReason,
@@ -639,5 +640,44 @@ describe('backends express network reach', () => {
     expect(confined.networkEnforcement).toBe('full')
     expect((await provider.confine(['true'], networkPolicy(root, 'allow-all'))).networkEnforcement)
       .toBe('none')
+  })
+})
+
+describe('supervising what an execution consumes', () => {
+  // A filesystem boundary can be completely correct while the host falls over.
+  // This is a sampler, not a quota: it ends a runaway rather than preventing
+  // the allocation, and the overshoot between two samples is the difference.
+  it('ends an execution that outlives its wall clock', async () => {
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      stdio: 'ignore', detached: true,
+    })
+    const result = await superviseConfined(child, { wallClockMs: 300, intervalMs: 50 }).done
+    expect(result.terminated).toBe(true)
+    expect(result.breach).toBe('wall-clock')
+  })
+
+  it('leaves a command that stays within its limits alone', async () => {
+    const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 100)'], {
+      stdio: 'ignore', detached: true,
+    })
+    const result = await superviseConfined(child, { wallClockMs: 10_000, intervalMs: 50 }).done
+    expect(result.terminated).toBe(false)
+    expect(result.breach).toBeUndefined()
+  })
+
+  it('reports monitoring, never a quota, because no allocation is refused', () => {
+    expect(resourceEnforcement({ memoryBytes: 1 })).toBe('monitor')
+    expect(resourceEnforcement({})).toBe('none')
+  })
+
+  it('reads the ps TIME column in every shape it takes', () => {
+    expect(parseCpuTime('0:01')).toBe(1_000)
+    expect(parseCpuTime('1:02:03')).toBe(3_723_000)
+    expect(parseCpuTime('2-01:00:00')).toBe(176_400_000)
+    expect(parseCpuTime('nonsense')).toBe(0)
+  })
+
+  it('samples nothing on a platform with no process table to read', () => {
+    expect(sampleTree(process.pid, 'win32')).toEqual({ memoryBytes: 0, processes: 0, cpuMs: 0 })
   })
 })

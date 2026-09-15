@@ -8,19 +8,20 @@
  * the build instead of passing quietly.
  */
 
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import {
   existsSync, linkSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  approveSandboxEscalation, classifyOutcome, resolveSandboxPolicy, SandboxUnavailableError,
+  approveSandboxEscalation, classifyOutcome, hasResourceLimits, resolveSandboxPolicy,
+  SandboxUnavailableError,
   type FileSystemEntry, type SandboxMode, type SandboxOutcomeKind, type SandboxPolicy,
 } from '@alvin0/ai-agent-sdk-sandbox'
 import {
-  checkSandboxDependencies, confinedEnv, localSandbox, SANDBOX_ENV_VAR, sandboxChildStarted,
-  sandboxSpawnOptions, writeConfinedFile,
+  checkSandboxDependencies, confinedEnv, localSandbox, resourceEnforcement, SANDBOX_ENV_VAR,
+  sandboxChildStarted, sandboxSpawnOptions, superviseConfined, writeConfinedFile,
 } from '@alvin0/ai-agent-sdk-sandbox-node'
 
 // Deliberately NOT canonicalized: a real cwd routinely arrives through a
@@ -55,6 +56,7 @@ try {
   await checkNestedCarveOut()
   await checkEnvironment()
   await checkNetwork()
+  await checkResources()
   await checkInheritedCapabilities()
   if (report.backend === undefined) await checkFailsClosed()
   else await checkConfinement()
@@ -190,6 +192,31 @@ async function checkNetwork(): Promise<void> {
 
   const open = await provider.confine(probe, networkPolicy('allow-all'))
   expect('allow-all reports no network enforcement', open.networkEnforcement, 'none')
+}
+
+/**
+ * A filesystem boundary can be completely correct while the host falls over.
+ * Supervision is a sampler rather than a quota, so what is asserted is that a
+ * runaway ends — not that the allocation was refused, which it was not.
+ */
+async function checkResources(): Promise<void> {
+  process.stdout.write('\nresource limits\n')
+  expect('limits are only watched when some are set',
+    hasResourceLimits({}), false)
+  expect('and supervision never claims to be a quota',
+    resourceEnforcement({ wallClockMs: 1 }), 'monitor')
+
+  if (report.backend === undefined) return
+  const confined = await provider.confine(
+    [process.execPath, '-e', 'setInterval(() => {}, 1000)'], policyFor('read-only'),
+  )
+  const options = sandboxSpawnOptions(confined)
+  const child = spawn(confined.argv[0] ?? '', confined.argv.slice(1), {
+    cwd: workspace, stdio: [...options.stdio], env: { ...options.env }, detached: options.detached,
+  })
+  const supervised = await superviseConfined(child, { wallClockMs: 600, intervalMs: 100 }).done
+  expect('a command that never ends is ended', supervised.terminated, true)
+  expect('and the reason is the limit it broke', supervised.breach, 'wall-clock')
 }
 
 /** A policy that differs from the others only in the reach it permits. */

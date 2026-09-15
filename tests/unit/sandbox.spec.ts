@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   accessFor, accessInLayers, annotateStderr, approveSandboxEscalation, classifyOutcome,
   confiningPolicy, containsPath, dedupeRoots, grantLayers, isSandboxApproval, narrowPolicy,
-  narrowNetwork, networkAuthority, normalizePath, PROTECTED_SUBPATHS, resolveSandboxPolicy,
+  breachedLimit, hasResourceLimits, narrowNetwork, networkAuthority, normalizePath,
+  PROTECTED_SUBPATHS, resolveSandboxPolicy,
   sandboxViolation, SandboxPolicyError, unreadablePaths, writableRoots,
 } from '@alvin0/ai-agent-sdk-sandbox'
 import type { SandboxPolicy } from '@alvin0/ai-agent-sdk-sandbox'
@@ -322,5 +323,26 @@ describe('network reach is its own axis', () => {
     expect(networkAuthority('loopback')).toBeLessThan(networkAuthority('allow-all'))
     expect(narrowNetwork('loopback', 'allow-all')).toBe('loopback')
     expect(narrowNetwork('allow-all', 'deny')).toBe('deny')
+  })
+})
+
+describe('resource limits', () => {
+  const usage = { peakMemoryBytes: 0, peakProcesses: 1, cpuMs: 0, wallClockMs: 0 }
+
+  it('says nothing is watched when no limit is set', () => {
+    expect(hasResourceLimits({})).toBe(false)
+    expect(hasResourceLimits({ memoryBytes: 1 })).toBe(true)
+  })
+
+  it('names the first limit the usage exceeds', () => {
+    expect(breachedLimit({ ...usage, wallClockMs: 10 }, { wallClockMs: 5 })).toBe('wall-clock')
+    expect(breachedLimit({ ...usage, peakProcesses: 9 }, { processes: 4 })).toBe('processes')
+    expect(breachedLimit({ ...usage, peakMemoryBytes: 9 }, { memoryBytes: 4 })).toBe('memory')
+    expect(breachedLimit({ ...usage, cpuMs: 9 }, { cpuMs: 4 })).toBe('cpu')
+  })
+
+  it('reports nothing while the usage is within its limits', () => {
+    expect(breachedLimit(usage, { wallClockMs: 1, memoryBytes: 1, processes: 1, cpuMs: 1 }))
+      .toBeUndefined()
   })
 })

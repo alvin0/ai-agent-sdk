@@ -180,6 +180,8 @@ export {
 } from './env.ts'
 export type { ConfinedEnvOptions } from './env.ts'
 export { descendantsOf, terminateConfined } from './terminate.ts'
+export { parseCpuTime, resourceEnforcement, sampleTree, superviseConfined } from './supervise.ts'
+export type { Supervision, SuperviseOptions, SupervisionResult } from './supervise.ts'
 export type { TerminateOptions, TerminateResult } from './terminate.ts'
 export { defaultTempRoots, hardenedDeniedPaths, nodePathResolver } from './fs/resolver.ts'
 export { openConfinedWrite, writeConfinedFile } from './open.ts'
