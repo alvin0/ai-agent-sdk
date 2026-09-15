@@ -59,6 +59,19 @@ Snapshot **an toàn JSON** và bao gồm:
 - bộ nhớ bền vững;
 - **danh tính** của các skill đã kích hoạt.
 
+```text
+   ┌─ snapshot (an toàn JSON, chuyển được giữa tiến trình) ─┐
+   │  phiên bản schema                                     │
+   │  conversationId                                       │
+   │  danh tính agent            ← id khác ⇒ khôi phục lỗi │
+   │  lịch sử chỉ-thêm                                     │
+   │  bộ nhớ tác vụ                                        │
+   │  danh tính skill đã kích hoạt   (chỉ id + vị trí)     │
+   └───────────────────────────────────────────────────────┘
+        ✗ phần thân skill      ✗ nội dung tài nguyên
+        ✗ kết nối, provider    ✗ tool đã gắn
+```
+
 ## Snapshot cố ý loại trừ gì
 
 **Phần thân và tài nguyên của skill không bao giờ được lưu.** Khi khôi phục, hệ

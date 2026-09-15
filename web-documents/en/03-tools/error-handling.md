@@ -44,6 +44,25 @@ for await (const event of agent.stream(input)) {
 }
 ```
 
+```text
+   a tool call
+        │
+        ├─ policy / catalog / budget refuses it ─────► rejected
+        │
+        ├─ parse() throws ─────────────────────────► rejected  (INVALID_ARGUMENTS)
+        │
+        ├─ the run is cancelled ───────────────────► aborted
+        │
+        ├─ execute() throws ───────────────────────► failed
+        │
+        └─ execute() returns ──────────────────────► completed
+                                                        │
+   the first three and `failed` are all ToolFailure:     │
+   the model READS them and tries something else —       │
+   the turn does NOT end                                 ▼
+                                          concludesTurn exists only here
+```
+
 ## Argument failures are model-correctable
 
 Throwing inside `parse` produces `INVALID_ARGUMENTS`. The model reads your

@@ -64,6 +64,21 @@ All events carry `runId`, `traceId`, and a monotonic `sequence`.
 
 `tool-result.status` is one of `completed`, `failed`, `aborted`, `rejected`.
 
+A run that uses a tool emits this sequence:
+
+```text
+  sequence →   1        2          3         4          5        6         7
+             ┌────┐  ┌──────┐  ┌────────┐ ┌───────┐ ┌──────┐ ┌───────┐ ┌─────┐
+             │comm│  │ tool │  │approval│ │ tool  │ │ comm │ │assist.│ │usage│
+             │delta│ │ call │  │request │ │result │ │delta │ │ delta │ │     │
+             └────┘  └──────┘  └────────┘ └───────┘ └──────┘ └───────┘ └─────┘
+             progress  open a   ask the    close it  progress  the real  account
+             narration tool node human               narration answer    -ing
+
+   commentary-delta  ──► progress pane      assistant-delta ──► answer pane
+   (the two never mix; reasoning is a third, separate stream)
+```
+
 ## Rendering a live UI
 
 ```ts

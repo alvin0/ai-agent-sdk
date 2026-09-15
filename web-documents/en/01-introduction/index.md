@@ -27,11 +27,28 @@ finish reasons, and error codes are defined once in `@alvin0/ai-agent-sdk-core`.
 Adapters are the only layer that knows a wire format; everything above speaks
 the neutral vocabulary.
 
+```text
+  your code     messages · content blocks · usage · finishReason · error codes
+       │                  (the neutral vocabulary, defined ONCE)
+       ▼
+  ┌──────────────────────────── core ─────────────────────────────┐
+  │     agent loop · history · tools · budgets · event stream      │
+  └──────────────┬────────────────┬────────────────┬──────────────┘
+                 │                │                │
+             adapter          adapter          adapter      ← the ONLY layer
+                 │                │                │          that knows a wire format
+                 ▼                ▼                ▼
+        Anthropic Messages   OpenAI Responses    Codex
+```
+
+Switching provider swaps one box on the bottom row. Nothing above it changes,
+because nothing above it ever read a wire format.
+
 **A real agent loop.** Immutable history, staged tool dispatch, bounded parallel
 scheduling, approvals, durability checkpoints, forced-final answers, and a
 backpressured event stream — not a `while` loop around a chat completion call.
 
-**Capability packages, not a monolith.** Twenty-three packages, each with a declared
+**Capability packages, not a monolith.** Twenty-six packages, each with a declared
 runtime tier. An Edge worker installs three packages; a Node coding harness
 installs six. Importing a Node capability elevates only that application's
 reachable graph — it does not swap in a different harness implementation.

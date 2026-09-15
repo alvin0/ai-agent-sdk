@@ -29,6 +29,21 @@ const agent = runtime.agent({ id: 'calc', model, instructions: '…', tools: [mu
 | **Native tool** | `nativeTools: [{ type: 'native', … }]` | Nhà cung cấp | Web search, sinh ảnh |
 | **Tool source** | `toolSources: [connection]` | Bộ lập lịch của SDK, qua nguồn đó | Cả một danh mục MCP server |
 
+```text
+                          ┌──────────────┐
+                          │    model     │  phát ra một lời gọi tool
+                          └──────┬───────┘
+          ┌──────────────────────┼──────────────────────┐
+          ▼                      ▼                      ▼
+   tools: [...]          toolSources: [...]      nativeTools: [...]
+   hàm của host          danh mục từ xa          nhà cung cấp thực thi
+          │                      │                      │
+          ▼                      ▼                      ▼
+   bộ lập lịch SDK        bộ lập lịch SDK         ✗ bộ lập lịch KHÔNG
+   chạy execute()         chạy qua nguồn đó          bao giờ chạy nó
+                                                  (web search, sinh ảnh)
+```
+
 Chúng được khai báo **tách riêng có chủ ý**: bộ lập lịch không bao giờ được cố
 chạy một tool phía nhà cung cấp, và một danh mục từ xa phải đổi revision được mà
 không chạm tới các hàm host của bạn.

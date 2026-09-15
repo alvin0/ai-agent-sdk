@@ -59,6 +59,25 @@ console.log(response.text)
 console.log(response.usage)
 ```
 
+### What one turn looks like
+
+```text
+  agent.generate("What is 21 * 2?")
+        │
+        ▼
+   ┌─────────┐   tool call { a: 21, b: 2 }   ┌────────────────────────┐
+   │         │ ────────────────────────────► │ parse()   the typed    │
+   │  model  │                               │           boundary     │
+   │         │                               │ execute() { product }  │
+   │         │ ◄──────────────────────────── │                        │
+   └────┬────┘   tool result                 └────────────────────────┘
+        │
+        │  parse() throws → the model RECEIVES a tool error and retries;
+        │                   the program does NOT crash
+        ▼
+   response.text + response.usage
+```
+
 ## 4. Keep a conversation
 
 `generate()` is stateless. For a chat, create a session — it owns history and

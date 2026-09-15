@@ -55,6 +55,16 @@ nhớ sống lâu hơn một lượt chạy đã bị huỷ đúng là loại c�
 Kho này **có revision**, không phải last-write-wins. `commit()` nhận revision mà
 SDK đã đọc và phải từ chối ghi nếu bản ghi đã bị đổi bên dưới.
 
+```text
+   SDK                                     kho của bạn
+   ───                                     ───────────
+   load()            ──────────────────►   revision 7, items [...]
+   (người khác ghi vào giữa chừng)  ────►   revision 8
+   commit(revision: 7, items) ─────────►   7 ≠ 8  ⇒  { status: 'conflict' }
+        │
+        └── SDK nạp lại (revision 8) rồi commit lại ─► { status: 'committed' }
+```
+
 ```ts
 return { status: 'conflict' }   // SDK nạp lại và thử lại với trạng thái mới
 ```

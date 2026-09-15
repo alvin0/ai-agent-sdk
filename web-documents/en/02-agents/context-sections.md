@@ -58,6 +58,19 @@ Three possible returns:
 | A different `revision` | The section's node is **replaced** in place |
 | `undefined` | Retraction: the node becomes `retractionText` |
 
+```text
+   surface before the step          resolve() returns           after the step
+   ─────────────────────────        ──────────────────          ─────────────────────
+   [git-branch: "main"]        same revision       ──►   [git-branch: "main"]
+                                                          (no write, 0 tokens)
+
+   [git-branch: "main"]        new revision + text ──►   [git-branch: "hotfix"]
+                                                          (REPLACED in place)
+
+   [git-branch: "main"]        undefined           ──►   [git-branch: "…no longer
+                                                           applies"]  (retraction)
+```
+
 A changed section replaces its own node rather than appending beside it, so the
 model never reads two versions of the same context at once.
 

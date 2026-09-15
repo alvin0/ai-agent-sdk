@@ -35,6 +35,27 @@ user-authored objective retains user authority instead of being silently
 promoted to developer/system instructions. That distinction matters when the
 model must weigh a user constraint against a developer rule.
 
+```text
+  WHO AUTHORED IT                WHERE IT REACHES THE MODEL
+  ───────────────────────────    ──────────────────────────────────────
+  developer
+    instructions             ──► system prompt
+    additionalInstructions   ──► system prompt, this run only
+
+  ─ ─ ─ ─ ─ a boundary that is never crossed upward ─ ─ ─ ─ ─
+
+  user
+    task memory              ──► user message, inside <task-memory>
+    session.inject(text)     ──► user message, attributed
+
+  app
+    ctx.addContext() in a tool ► user message on the NEXT request
+```
+
+The arrows only point downward. A user-set objective is never promoted into a
+system instruction, because when the two conflict the model needs to know who
+said what.
+
 ## Per-run additions
 
 ```ts

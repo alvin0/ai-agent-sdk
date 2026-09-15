@@ -27,12 +27,29 @@ lý do kết thúc, và mã lỗi được định nghĩa một lần trong `@al
 Adapter là tầng duy nhất biết định dạng wire; mọi thứ phía trên nói bằng từ vựng
 trung lập.
 
+```text
+  mã của bạn     message · content block · usage · finishReason · mã lỗi
+       │                 (từ vựng trung lập, định nghĩa MỘT lần)
+       ▼
+  ┌──────────────────────────── core ─────────────────────────────┐
+  │   vòng lặp agent · lịch sử · tool · ngân sách · luồng sự kiện  │
+  └──────────────┬────────────────┬────────────────┬──────────────┘
+                 │                │                │
+             adapter          adapter          adapter      ← tầng DUY NHẤT
+                 │                │                │          biết định dạng wire
+                 ▼                ▼                ▼
+        Anthropic Messages   OpenAI Responses    Codex
+```
+
+Đổi provider là đổi một hộp ở hàng dưới cùng. Không có gì phía trên nó phải sửa,
+vì không có gì phía trên nó từng đọc định dạng wire.
+
 **Một vòng lặp agent thật.** Lịch sử bất biến, điều phối tool theo giai đoạn,
 lập lịch song song có chặn trên, phê duyệt, checkpoint bền vững, câu trả lời cuối
 bắt buộc, và luồng sự kiện có backpressure — không phải một vòng `while` bọc
 quanh lời gọi chat completion.
 
-**Package theo năng lực, không phải khối nguyên.** Hai mươi ba package, mỗi package
+**Package theo năng lực, không phải khối nguyên.** Hai mươi sáu package, mỗi package
 khai báo một tầng runtime. Một Edge worker cài ba package; một harness lập trình
 trên Node cài sáu. Import một năng lực Node chỉ nâng tầng đồ thị mà ứng dụng đó
 chạm tới — không đánh tráo sang một harness khác.

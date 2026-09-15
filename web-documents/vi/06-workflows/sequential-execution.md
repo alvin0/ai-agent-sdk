@@ -3,6 +3,21 @@
 Có bốn cơ chế cưỡng chế thứ tự, ở bốn tầng khác nhau. Hãy chọn tầng thấp nhất mà
 thực sự giữ được thứ tự.
 
+```text
+   MẠNH ─────────────────────────────────────────────────────► YẾU
+   (không phụ thuộc model)                     (chỉ là gợi ý cho model)
+
+   1. await của bạn     2. khoá session    3. tool exclusive   4. prompt
+   ┌──────────────┐     ┌─────────────┐    ┌──────────────┐   ┌──────────┐
+   │ a.run()      │     │ run() #2 bị │    │ 1 lời gọi    │   │ "làm X   │
+   │   rồi b.run()│     │ từ chối khi │    │ chạy MỘT     │   │  trước Y"│
+   │              │     │ #1 đang chạy│    │ mình         │   │          │
+   └──────────────┘     └─────────────┘    └──────────────┘   └──────────┘
+   giữa các lượt chạy   trong 1 hội thoại  trong 1 lượt       không bảo đảm
+```
+
+Chọn tầng thấp nhất **thực sự** giữ được thứ tự bạn cần.
+
 ## 1. Mã của bạn `await`
 
 Bảo đảm thứ tự mạnh nhất, vì nó không phụ thuộc model chút nào.

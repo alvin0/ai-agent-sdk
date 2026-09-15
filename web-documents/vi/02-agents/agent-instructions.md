@@ -35,6 +35,26 @@ này thành thẩm quyền khác.
 hệ thống/lập trình viên. Sự phân biệt đó quan trọng khi model phải cân giữa một
 ràng buộc của người dùng và một quy tắc của lập trình viên.
 
+```text
+  AI SOẠN                        TỚI MODEL Ở ĐÂU
+  ───────────────────────────    ──────────────────────────────────────
+  lập trình viên
+    instructions             ──► system prompt
+    additionalInstructions   ──► system prompt, chỉ lượt chạy này
+
+  ─ ─ ─ ─ ─ ranh giới không bao giờ bị vượt qua ─ ─ ─ ─ ─
+
+  người dùng
+    bộ nhớ tác vụ            ──► message user, trong <task-memory>
+    session.inject(text)     ──► message user, có quy kết
+
+  app
+    ctx.addContext() từ tool ──► message user ở yêu cầu KẾ TIẾP
+```
+
+Mũi tên chỉ đi xuống. Một mục tiêu do người dùng đặt không bao giờ được nâng lên
+thành chỉ dẫn hệ thống, vì khi hai bên mâu thuẫn, model cần biết ai đã nói gì.
+
 ## Bổ sung theo từng lượt
 
 ```ts

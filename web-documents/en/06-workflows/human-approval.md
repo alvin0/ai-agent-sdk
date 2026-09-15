@@ -3,6 +3,25 @@
 Two separate boundaries block on a human: **approvals** gate a tool call,
 **user input** parks the model on a material decision.
 
+The two boundaries stop at two different places in the same turn:
+
+```text
+   model                                             human
+   ─────                                             ─────
+     │
+     ├─ emits a tool call ────► APPROVAL ──────────► allow / deny / abort
+     │                          (gates ONE call)           │
+     │   ◄─ deny: ToolFailure, the model tries again ──────┘
+     │
+     ├─ reaches a material decision
+     │      (mode: 'deep-human-in-loop')
+     │   ──► request_user_input ──────────────────► the person's answer
+     │        (parks the WHOLE model)                      │
+     │   ◄────────────────────────────────────────────────┘
+     ▼
+   the turn continues
+```
+
 ## Approvals — gate a tool call
 
 ```ts

@@ -55,6 +55,16 @@ avoid.
 The store is **revisioned**, not last-write-wins. `commit()` receives the revision
 the SDK loaded and must reject the write if the row moved underneath it.
 
+```text
+   SDK                                     your store
+   ───                                     ──────────
+   load()            ──────────────────►   revision 7, items [...]
+   (someone else writes meanwhile)  ────►   revision 8
+   commit(revision: 7, items) ─────────►   7 ≠ 8  ⇒  { status: 'conflict' }
+        │
+        └── SDK reloads (revision 8) and commits again ─► { status: 'committed' }
+```
+
 ```ts
 return { status: 'conflict' }   // the SDK reloads and retries with fresh state
 ```

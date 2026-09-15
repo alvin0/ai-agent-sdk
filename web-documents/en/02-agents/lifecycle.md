@@ -82,6 +82,28 @@ const session = agent.createSession({
 | `checkpoint` | `(ctx) => void` | Durability point — persist progress |
 | `onTurnEnd` | `(ctx) => void` | Terminal accounting for one turn |
 
+Where the hooks sit inside one turn:
+
+```text
+  run()
+    │
+    ├─► beforeStep      { kind: 'proceed', prepend? }  → continue
+    │                   { kind: 'reject', reason }     → this step never runs
+    │        │
+    │        ▼
+    │   model request ──── fails ────► onRequestError → 'retry' | 'fail'
+    │        │                              │
+    │        │◄─── retry ──────────────────┘
+    │        ▼
+    │   tool dispatch   (loops back to beforeStep for the next step)
+    │        │
+    │        ▼
+    │   checkpoint      ← the durability point: save progress here
+    │
+    ▼
+  onTurnEnd            ← end-of-turn accounting, once per turn
+```
+
 ### `beforeStep` returns a decision
 
 ```ts

@@ -1,0 +1,70 @@
+import { spawnSync } from 'node:child_process'
+import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const workspaceRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
+const packageName = process.argv[2]
+const dependencyNames: Readonly<Record<string, readonly string[]>> = {
+  sandbox: ['sandbox'],
+  'sandbox-node': ['sandbox', 'sandbox-node'],
+}
+const dependencies = packageName === undefined ? undefined : dependencyNames[packageName]
+if (packageName === undefined || dependencies === undefined) {
+  throw new TypeError(`unknown sandbox package '${packageName ?? ''}'`)
+}
+
+const packageRoot = join(workspaceRoot, 'packages', packageName)
+const artifacts = join(packageRoot, 'artifacts')
+rmSync(artifacts, { recursive: true, force: true })
+mkdirSync(artifacts, { recursive: true })
+const tarballs = dependencies.map(name => pack(join(workspaceRoot, 'packages', name), artifacts))
+const temporaryRoot = mkdtempSync(join(tmpdir(), `ai-agent-sdk-${packageName}-pack-`))
+try {
+  cpSync(join(packageRoot, 'fixtures', 'packed'), temporaryRoot, { recursive: true })
+  run('npm', [
+    'install', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund', ...tarballs,
+  ], temporaryRoot)
+  run(process.execPath, ['smoke.mjs'], temporaryRoot)
+  process.stdout.write(
+    `packed ${packageName} fixture passed: ${relative(workspaceRoot, tarballs.at(-1) ?? '')}\n`,
+  )
+} finally {
+  rmSync(temporaryRoot, { recursive: true, force: true })
+}
+
+function pack(root: string, destination: string): string {
+  const output = run('npm', [
+    'exec', '--yes', '--package=pnpm@11.25.0', '--',
+    'pnpm', 'pack', '--pack-destination', destination,
+  ], root)
+  const tarball = output.split(/\r?\n/).map(line => line.trim()).findLast(line => line.endsWith('.tgz'))
+  if (tarball === undefined) throw new Error(`pnpm pack did not report a tarball for ${root}`)
+  return resolve(root, tarball)
+}
+
+function run(command: string, args: readonly string[], cwd: string): string {
+  // Windows ships npm as `npm.cmd`, and Node refuses to spawn a `.cmd` without
+  // a shell (the fix for CVE-2024-27980). Going through the shell means the
+  // shell, not Node, splits the command line, so every argument is quoted here
+  // — the runner's workspace path can contain characters cmd would otherwise
+  // treat as syntax.
+  const windows = process.platform === 'win32'
+  const result = spawnSync(
+    command,
+    windows ? args.map(argument => `"${argument.replaceAll('"', '\\"')}"`) : args,
+    { cwd, encoding: 'utf8', env: process.env, shell: windows },
+  )
+  // A process that never started reports no streams at all; saying so beats
+  // printing two `undefined`s and leaving the reader to guess.
+  if (result.error !== undefined) {
+    throw new Error(`${command} ${args.join(' ')} could not start: ${result.error.message}`)
+  }
+  if (result.status !== 0) {
+    throw new Error(
+      `${command} ${args.join(' ')} failed (exit ${String(result.status)})\n${result.stdout}\n${result.stderr}`,
+    )
+  }
+  return result.stdout
+}

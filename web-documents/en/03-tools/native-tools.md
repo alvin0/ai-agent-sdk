@@ -42,6 +42,20 @@ runtime.agent({
 Host tools execute through the SDK scheduler. Native tools execute at the
 provider and still produce correlated events for a GUI.
 
+```text
+   your host                                 the provider side
+   ─────────────────────────────             ─────────────────────────
+   tools: [readProjectFile]                  nativeTools: [web-search]
+        │                                          │
+        │  the model calls it                      │  the model calls it
+        ▼                                          ▼
+   SDK scheduler                             the provider runs it
+   parse → execute → render                  (the SDK never sees the body)
+        │                                          │
+        └────► tool-call / tool-result             └────► assistant-native-tool
+                (you control it)                           (progress + result only)
+```
+
 ## Provider support is validated before dispatch
 
 Adapters declare combined context capacity, default and hard output limits,

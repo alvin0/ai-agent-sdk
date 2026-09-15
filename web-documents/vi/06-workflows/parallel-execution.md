@@ -2,6 +2,20 @@
 
 Ba tầng song song, mỗi tầng một hợp đồng an toàn khác nhau.
 
+```text
+   tầng 1: lượt chạy độc lập          tầng 2: lời gọi tool        tầng 3: agent con
+   ───────────────────────────        ──────────────────────      ──────────────────
+   Promise.all([                      một lô của model            spawn_agent × N
+     reviewer.generate(x),              [read A] safe   ┐         ├─ worker 1
+     tester.generate(x),                [read B] safe   ┴ song song├─ worker 2
+     auditor.generate(x),               [write C] unsafe ─ riêng   └─ wait_agents
+   ])
+   không chia sẻ gì ngầm              fail-closed:                session riêng cho
+   ⇒ luôn an toàn                     phải trả đúng true          từng worker
+
+   ✗ KHÔNG an toàn: hai session.run() đồng thời trên CÙNG một session
+```
+
 ## 1. Các lượt chạy độc lập — mã của bạn
 
 Các lượt chạy riêng không chia sẻ gì ngầm, nên cách này luôn an toàn:

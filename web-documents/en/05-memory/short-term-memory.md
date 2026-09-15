@@ -36,6 +36,27 @@ to 100,000 entries, 16 MiB per entry, and 128 MiB total.
 > is a **no-op** unless `maxInputTokens` is configured. Overflow recovery and
 > manual `session.compact()` can still force a useful reduction.
 
+The pressure check runs before every model step:
+
+```text
+   before each model step
+        │
+        ▼
+   measure the WHOLE next request (memory + messages + tool schemas)
+        │
+        ├── < 80% of the usable window ──────────────► send it
+        │
+        └── ≥ 80%  ──► checkpoint the older span
+                          │
+                          ├── saved enough ──────────► send it
+                          │
+                          └── the retained tail alone is over threshold,
+                              or the checkpoint saved too little
+                                   └─► BACK OFF 4 model steps, then retry
+
+   provider returns CONTEXT_WINDOW_EXCEEDED ──► compact and retry ONCE
+```
+
 ## Configuration
 
 ```ts

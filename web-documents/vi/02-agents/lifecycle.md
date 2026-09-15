@@ -81,6 +81,28 @@ const session = agent.createSession({
 | `checkpoint` | `(ctx) => void` | Điểm bền vững — lưu lại tiến độ |
 | `onTurnEnd` | `(ctx) => void` | Hạch toán kết thúc cho một lượt |
 
+Hook nằm ở đâu trong một lượt:
+
+```text
+  run()
+    │
+    ├─► beforeStep      { kind: 'proceed', prepend? }  → chạy tiếp
+    │                   { kind: 'reject', reason }     → dừng bước này
+    │        │
+    │        ▼
+    │   yêu cầu model ──── thất bại ──► onRequestError → 'retry' | 'fail'
+    │        │                                │
+    │        │◄─── retry ────────────────────┘
+    │        ▼
+    │   điều phối tool  (vòng lặp về beforeStep cho bước kế)
+    │        │
+    │        ▼
+    │   checkpoint      ← điểm bền vững: lưu tiến độ ở đây
+    │
+    ▼
+  onTurnEnd            ← hạch toán kết thúc, một lần cho mỗi lượt
+```
+
 ### `beforeStep` trả về một quyết định
 
 ```ts

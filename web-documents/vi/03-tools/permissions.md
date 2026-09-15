@@ -95,6 +95,27 @@ const session = agent.createSession({
 })
 ```
 
+```text
+   lời gọi tool
+        │
+        ▼
+   interceptor.before ──── deny ──────────────► ToolFailure (model đọc được)
+        │
+        ├──────────────── allow ─────────────┐
+        │                                    │
+        └──────────────── ask                │
+                           │                 │
+                           ▼                 │
+                  approval broker            │
+                   (một CON NGƯỜI)           │
+                   allow │ deny │ abort      │
+                           │                 │
+             allow ────────┴─────────────────┤
+             deny  ──► ToolFailure           │
+             abort ──► rút lại cả lượt       ▼
+                                      interceptor.around → execute()
+```
+
 Pha `before` quyết định **allow**, **deny** hay **ask** — `'ask'` đưa lời gọi
 sang approval broker thay vì tự trả lời.
 

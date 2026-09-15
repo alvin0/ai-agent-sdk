@@ -12,7 +12,7 @@ vào công khai, những export quan trọng, và hình dạng cách dùng.
 
 | Trang | Package bao gồm | Runtime |
 | --- | --- | --- |
-| [core](/vi/13-api-reference/core) | `@alvin0/ai-agent-sdk-core` và 6 subpath của nó | Universal |
+| [core](/vi/13-api-reference/core) | `@alvin0/ai-agent-sdk-core` và 7 subpath của nó | Universal |
 | [Agent](/vi/13-api-reference/agent) · [Tool](/vi/13-api-reference/tool) · [Workflow](/vi/13-api-reference/workflow) · [Memory](/vi/13-api-reference/memory) · [Types](/vi/13-api-reference/types) | Tham chiếu theo khái niệm | Universal |
 | [Provider](/vi/09-providers/) | `provider-openai`, `provider-anthropic`, `provider-codex`, `provider-copilot`, `provider-gemini`, `provider-http` | Universal |
 | [Protocol](/vi/09-providers/protocols) | `protocol-responses`, `protocol-anthropic-messages`, `protocol-gemini-interactions`, `protocol-openai-chat-completions` | Universal |
@@ -21,6 +21,7 @@ vào công khai, những export quan trọng, và hình dạng cách dùng.
 | [A2A](/vi/08-a2a/remote-agents) | `a2a` | Node |
 | [auth-node](/vi/09-providers/auth-node) | `auth-node` | Node |
 | [skill-filesystem](/vi/04-skills/loading-skills) | `skill-filesystem` | Node |
+| [Sandbox](/vi/10-advanced/sandbox) | `sandbox`, `sandbox-node` | hỗn hợp |
 | [testkit](/vi/14-project/testkit) | `testkit` (chỉ dev) | Universal |
 
 ## Slot ghép nối nhìn nhanh
@@ -40,6 +41,10 @@ Mọi package ngoài core đều ghi rõ nó cắm vào đâu và ai đóng nó.
 | `skill-filesystem` | `runtime-agent.skills` | `borrowed-caller-owned` |
 | `observability-fetch` / `-node` / `-browser` | `runtime.observability.exporters` | `explicit-owned-or-borrowed` |
 | `observability-otel` | `runtime.observability.openSpan-processors` | `borrowed-caller-owned` |
+
+`sandbox` và `sandbox-node` **không có slot ghép nối**. Chúng được dùng từ bên
+trong thân tool, và vào tới vòng lặp qua `interceptors` và `approvals` sẵn có của
+session — xem [Sandbox](/vi/10-advanced/sandbox).
 
 ## Đọc nhãn vòng đời
 

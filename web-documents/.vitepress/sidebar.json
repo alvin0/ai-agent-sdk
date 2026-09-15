@@ -295,6 +295,10 @@
           "link": "/en/10-advanced/security"
         },
         {
+          "text": "Sandbox",
+          "link": "/en/10-advanced/sandbox"
+        },
+        {
           "text": "Performance",
           "link": "/en/10-advanced/performance"
         },
@@ -705,6 +709,10 @@
         {
           "text": "Security",
           "link": "/vi/10-advanced/security"
+        },
+        {
+          "text": "Sandbox",
+          "link": "/vi/10-advanced/sandbox"
         },
         {
           "text": "Performance",

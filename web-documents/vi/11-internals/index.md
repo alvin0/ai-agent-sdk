@@ -5,7 +5,7 @@ mà tài liệu hướng người dùng không giải thích.
 
 | Trang | Bao gồm |
 | --- | --- |
-| [Topology package](/vi/11-internals/package-topology) | 23 package đích, 38 định danh, tầng runtime, quy tắc phụ thuộc |
+| [Topology package](/vi/11-internals/package-topology) | 25 package đích, 41 định danh, tầng runtime, quy tắc phụ thuộc |
 | [Đường ống adapter](/vi/11-internals/adapter-pipeline) | Provider cung cấp gì và lớp cơ sở sở hữu gì |
 
 ## Hai quy tắc cấu trúc

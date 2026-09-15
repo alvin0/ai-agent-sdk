@@ -61,6 +61,21 @@ await store.save(session.conversationId, snapshot)
 const resumed = agent.resumeSession(await store.load(conversationId))
 ```
 
+```text
+   session đang chạy                snapshot (JSON)          resumeSession()
+   ────────────────────             ───────────────          ───────────────────
+   skill "release-review"     ──►   { id, vị trí }     ──►   khám phá LẠI từ
+     + phần thân đã nạp             ✗ KHÔNG lưu thân         provider hiện tại
+     + tài nguyên đã đọc            ✗ KHÔNG lưu tài nguyên   + nạp lại phần thân
+                                                                   │
+                                     provider đã trôi lệch? ───────┤
+                                     id không còn khả dụng?  ──────┘
+                                              │
+                                              ▼
+                                   thất bại TRƯỚC yêu cầu model
+                                   (không chạy với năng lực khác)
+```
+
 Khi khôi phục, SDK **khám phá lại và nạp lại** chúng từ các provider hiện tại.
 
 ## Khôi phục thất bại sớm, có chủ ý

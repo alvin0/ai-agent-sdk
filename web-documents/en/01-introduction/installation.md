@@ -11,8 +11,27 @@
 
 ## Install
 
-All 23 packages are published on npm under the `@alvin0` scope, built and
+All 25 publishable packages are published on npm under the `@alvin0` scope, built and
 signed from CI with SLSA provenance.
+
+```text
+        ┌──────────────────────── Universal ────────────────────────┐
+        │  core · provider-* · protocol-* · mcp · observability-fetch │
+        │  (runs on any Fetch-shaped runtime)                        │
+        └──────────┬──────────────────────────────────┬─────────────┘
+                   │                                  │
+      ┌─────── browser ────────┐            ┌────────── node ──────────┐
+      │ observability-browser  │            │ auth-node · mcp-node     │
+      │ (IndexedDB)            │            │ skill-filesystem · …     │
+      └────────────────────────┘            └──────────────────────────┘
+
+   Edge/Worker  → Universal only          → 3 packages
+   Browser      → Universal + browser     → 3 packages
+   Node         → Universal + node        → 6 packages
+```
+
+A package only elevates the graph an application actually **imports**. Installing
+a Node capability does not turn the core into Node.
 
 Choose the smallest runtime closure you need.
 

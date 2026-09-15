@@ -4,14 +4,14 @@
 
 | Item | Value |
 | --- | --- |
-| Version | `0.1.2` |
+| Version | `0.1.3` |
 | License | MIT |
 | Node requirement | 22.18+ for workspace tooling; 22.12+ for installed Node capability packages |
-| Registry publication | `0.1.2` release candidate — 23 packages under `@alvin0` |
+| Registry publication | `0.1.3` release candidate — 25 packages under `@alvin0` |
 
 ## Registry publication
 
-The 23 publishable packages use the `@alvin0` scope and are named
+The 25 publishable packages use the `@alvin0` scope and are named
 `@alvin0/ai-agent-sdk-<capability>`. The scope `@ai-agent-sdk` belongs to a
 different account, which is why the registry names carry the project as a name
 prefix rather than as the scope. Availability of a specific version remains a
@@ -30,7 +30,7 @@ of the provider packages.
 To install from a local tarball instead:
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.2.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.3.tgz
 ```
 
 ## Versioning

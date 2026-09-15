@@ -1,0 +1,105 @@
+/** The abstract sandbox seam: one wrap function and one in-process fence. */
+
+import type { RunnerFailureRule } from './classify.ts'
+import type { SandboxEnforcement } from './mode.ts'
+import type { NetworkEnforcement } from './network.ts'
+import type { SandboxPolicy } from './policy.ts'
+
+/** The argv to spawn in place of the caller's own, plus how to read its result. */
+export interface ConfinedArgv {
+  /** The wrapped argv: runner, profile arguments, separator, caller's argv. */
+  readonly argv: readonly string[]
+  /** How completely the selected backend enforces this policy's file effects. */
+  readonly enforcement: SandboxEnforcement
+  /**
+   * How completely it enforces the policy's network reach. `none` means the
+   * command can reach whatever the host can, whatever the policy asked for —
+   * a separate fact from file enforcement, because a host can provide one
+   * mechanism and not the other.
+   */
+  readonly networkEnforcement: NetworkEnforcement
+  /** Identifier of the backend that produced this wrap. */
+  readonly backend: string
+  /**
+   * The selected backend's denial DIALECT: the stderr substrings a file effect
+   * denied by THIS backend produces. Matched instead of a cross-backend union,
+   * which would claim denials this backend never emits.
+   */
+  readonly denialSignatures: readonly string[]
+  /** Structured evidence that the runner failed before the command ran. */
+  readonly runnerFailureRules: readonly RunnerFailureRule[]
+  /** Environment additions marking the confinement for child processes. */
+  readonly env: Readonly<Record<string, string>>
+  /**
+   * File descriptor the runner reports its own status on, when it has one.
+   *
+   * The consumer must give the spawned process a pipe at this descriptor and
+   * read it back: it is the only channel a confined command cannot write to,
+   * and therefore the only evidence that distinguishes a runner that failed
+   * from a command claiming the runner failed.
+   */
+  readonly statusFd?: number
+}
+
+/**
+ * In-process path fence. It governs file effects a tool performs itself, which
+ * no process sandbox can see, and is the only enforcement available on a
+ * platform without a process backend.
+ */
+export interface FsFence {
+  /** Throw `SandboxDeniedError` unless the path may be written. */
+  assertWritable(path: string): Promise<void>
+  /** Whether the path may be written, without throwing. */
+  isWritable(path: string): Promise<boolean>
+  /** Whether the path may be read; `deny` carve-outs make this false. */
+  isReadable(path: string): Promise<boolean>
+  /** The roots this fence permits writes under, for surfacing to a caller. */
+  readonly writableRoots: readonly string[]
+  /** Whether the path's inode carries another name this policy never examined. */
+  isAliased(path: string): Promise<boolean>
+}
+
+/**
+ * Abstract process-sandbox service. `confine` must return an enforcing argv or
+ * fail closed; silent unconfined passthrough is forbidden.
+ */
+export interface SandboxProvider {
+  /** Stable identifier of this provider implementation. */
+  readonly id: string
+  /**
+   * Wrap `argv` so it executes confined under `policy` on this host.
+   * @param argv - the exact argv the caller is about to spawn, NOT a shell
+   *   string; a shell-shaped consumer passes `['bash', '-c', command]`.
+   * @param policy - the file-effect policy this execution runs under.
+   * @returns the argv to spawn instead, plus its enforcement and dialects.
+   */
+  confine(argv: readonly string[], policy: SandboxPolicy): Promise<ConfinedArgv>
+  /** Build the in-process fence for the same policy the backends receive. */
+  fence(policy: SandboxPolicy): FsFence
+}
+
+/** Filesystem facts the Universal contract cannot read for itself. */
+export interface PathResolver {
+  /** Canonical path with symlinks resolved, for the nearest existing ancestor. */
+  realpath(path: string): Promise<string>
+  /** Whether the path currently exists. */
+  exists(path: string): Promise<boolean>
+  /**
+   * The target of a symbolic link, or `undefined` when the path is not one.
+   *
+   * Existence has to be judged without following links: a link pointing at a
+   * path that does not exist yet still exists itself, and treating it as absent
+   * makes the resolver judge the link's own name instead of where it leads —
+   * which is inside the workspace, and therefore writable.
+   */
+  readLink?(path: string): Promise<string | undefined>
+  /**
+   * How many names refer to this file's inode, when the host can say.
+   *
+   * A path boundary cannot see a hard link: two names for one inode, one inside
+   * the workspace and one outside, let a write reach past the boundary through
+   * the inside name. A count above one means the file is reachable under
+   * another name this policy never examined.
+   */
+  hardLinkCount?(path: string): Promise<number>
+}

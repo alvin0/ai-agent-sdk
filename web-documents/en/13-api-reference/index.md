@@ -11,7 +11,7 @@ entrypoints, the exports that matter, and a usage shape.
 
 | Page | Packages covered | Runtime |
 | --- | --- | --- |
-| [core](/en/13-api-reference/core) | `@alvin0/ai-agent-sdk-core` and its 6 subpaths | Universal |
+| [core](/en/13-api-reference/core) | `@alvin0/ai-agent-sdk-core` and its 7 subpaths | Universal |
 | [Agent](/en/13-api-reference/agent) · [Tool](/en/13-api-reference/tool) · [Workflow](/en/13-api-reference/workflow) · [Memory](/en/13-api-reference/memory) · [Types](/en/13-api-reference/types) | Per-concept reference | Universal |
 | [Providers](/en/09-providers/) | `provider-openai`, `provider-anthropic`, `provider-codex`, `provider-copilot`, `provider-gemini`, `provider-http` | Universal |
 | [Protocols](/en/09-providers/protocols) | `protocol-responses`, `protocol-anthropic-messages`, `protocol-gemini-interactions`, `protocol-openai-chat-completions` | Universal |
@@ -20,6 +20,7 @@ entrypoints, the exports that matter, and a usage shape.
 | [A2A](/en/08-a2a/remote-agents) | `a2a` | Node |
 | [auth-node](/en/09-providers/auth-node) | `auth-node` | Node |
 | [skill-filesystem](/en/04-skills/loading-skills) | `skill-filesystem` | Node |
+| [Sandbox](/en/10-advanced/sandbox) | `sandbox`, `sandbox-node` | mixed |
 | [testkit](/en/14-project/testkit) | `testkit` (dev-only) | Universal |
 
 ## Composition slots at a glance
@@ -39,6 +40,10 @@ Every non-core package documents where it plugs in and who closes it.
 | `skill-filesystem` | `runtime-agent.skills` | `borrowed-caller-owned` |
 | `observability-fetch` / `-node` / `-browser` | `runtime.observability.exporters` | `explicit-owned-or-borrowed` |
 | `observability-otel` | `runtime.observability.openSpan-processors` | `borrowed-caller-owned` |
+
+`sandbox` and `sandbox-node` have **no composition slot**. They are used from
+inside a tool body, and reach the loop through the session's existing
+`interceptors` and `approvals` — see [Sandbox](/en/10-advanced/sandbox).
 
 ## Reading the lifecycle labels
 

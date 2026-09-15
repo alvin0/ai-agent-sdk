@@ -32,7 +32,7 @@ nào phải giữ đồng bộ.
 Schema v5 đóng băng các baseline này một cách tường minh, **để một nhãn runtime
 không thể qua cửa chỉ vì phần import nhìn có vẻ sạch**.
 
-## 23 package đích
+## 25 package đích
 
 | Package | Tầng | Vai trò |
 | --- | --- | --- |
@@ -55,6 +55,8 @@ không thể qua cửa chỉ vì phần import nhìn có vẻ sạch**.
 | `auth-node` | node | credential-source, credential-store |
 | `skill-filesystem` | node | skill-provider |
 | `instructions-node` | node | context-section |
+| `sandbox` | universal | sandbox-contract |
+| `sandbox-node` | node | sandbox-provider |
 | `observability-fetch` | universal | observation-exporter |
 | `observability-otel` | universal | observation-processor |
 | `observability-browser` | browser | observation-exporter |
@@ -69,7 +71,7 @@ Năm package có nhiều hơn một điểm vào công khai:
 
 | Package | Điểm vào |
 | --- | --- |
-| `core` | `.` `./agent` `./memory` `./provider` `./skills` `./tools` `./observability` |
+| `core` | `.` `./agent` `./memory` `./provider` `./skills` `./tools` `./embedding` `./observability` |
 | `auth-node` | `.` `./env` `./codex` `./copilot` |
 | `a2a` | `.` `./client` `./server` |
 | `mcp` | `.` `./client` `./server` |
@@ -78,11 +80,11 @@ Năm package có nhiều hơn một điểm vào công khai:
 MCP `/server`, auth `/codex` và auth `/copilot` là **khung nhìn theo peer tuỳ
 chọn**; các tuyến danh tính được ghi riêng.
 
-Trên 23 package, tổng cộng là 38 định danh công khai.
+Trên 25 package, tổng cộng là 41 định danh công khai.
 
 ## Quy tắc manifest
 
-Cả 23 package:
+Cả 25 package:
 
 - **cấm tuyến wildcard và tuyến `require`**;
 - có export `"./package.json"` tường minh;

@@ -34,6 +34,19 @@ history.entries()    // the durable human transcript: every message + lifecycle 
 history.messages()   // the current model-visible projection
 ```
 
+```text
+  entries()   the durable, append-only record — what you audit
+  ┌────┬────┬────┬────┬────┬────┬────┬────┬────┬────┐
+  │ u1 │ a1 │ u2 │ a2 │ u3 │ a3 │ u4 │ a4 │ u5 │ a5 │
+  └────┴────┴────┴────┴────┴────┴────┴────┴────┴────┘
+     └──────── covered by a checkpoint ───────┘
+
+  messages()  the projection the model sees RIGHT NOW
+  ┌──────────────────────────┬────┬────┬────┬────┐
+  │ checkpoint (handoff)     │ u4 │ a4 │ u5 │ a5 │
+  └──────────────────────────┴────┴────┴────┴────┘
+```
+
 `entries()` is append-only and **never deleted**, including failed compaction
 attempts. `messages()` is what the model sees now — older spans may be shadowed
 by a checkpoint.

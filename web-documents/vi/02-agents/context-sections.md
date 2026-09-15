@@ -57,6 +57,19 @@ Ba giá trị trả về có thể:
 | `revision` khác | Node của section bị **thay** tại chỗ |
 | `undefined` | Thu hồi: node trở thành `retractionText` |
 
+```text
+   bề mặt model trước bước           resolve() trả về            sau bước
+   ─────────────────────────         ──────────────────          ─────────────────────
+   [git-branch: "main"]        rev không đổi        ──►   [git-branch: "main"]
+                                                          (không ghi, 0 token)
+
+   [git-branch: "main"]        rev đổi, text mới    ──►   [git-branch: "hotfix"]
+                                                          (THAY tại chỗ, không thêm)
+
+   [git-branch: "main"]        undefined            ──►   [git-branch: "…không còn
+                                                           áp dụng"]  (thu hồi)
+```
+
 Một section thay đổi sẽ thay node của chính nó chứ không thêm bên cạnh, nên
 model không bao giờ đọc hai phiên bản của cùng một ngữ cảnh.
 

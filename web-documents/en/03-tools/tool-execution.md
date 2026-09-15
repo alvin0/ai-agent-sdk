@@ -16,6 +16,21 @@ model emits tool calls (one batch)
       └── concludeTurn()? → turn ends AFTER the batch commits
 ```
 
+```text
+  one batch from the model: [read A] [read B] [write C] [shell D]
+                              safe     safe     unsafe    unsafe
+
+   time →
+   ├─ read A ────────┐
+   ├─ read B ────────┤  run in parallel (≤ maxParallel)
+   │                 │
+   │                 └──► write C ──────► shell D      exclusive, one at a time
+   │
+   └──────────────── the whole batch COMMITS together ────┘
+                                │
+                                └── concludeTurn() only takes effect after that
+```
+
 Calls are **staged in batches**. The loop commits every call in the current batch
 before acting on `concludeTurn()`, so a parallel sibling's work is never
 discarded.

@@ -95,6 +95,27 @@ const session = agent.createSession({
 })
 ```
 
+```text
+   a tool call
+        │
+        ▼
+   interceptor.before ──── deny ──────────────► ToolFailure (the model reads it)
+        │
+        ├──────────────── allow ─────────────┐
+        │                                    │
+        └──────────────── ask                │
+                           │                 │
+                           ▼                 │
+                  approval broker            │
+                    (a HUMAN)                │
+                   allow │ deny │ abort      │
+                           │                 │
+             allow ────────┴─────────────────┤
+             deny  ──► ToolFailure           │
+             abort ──► the turn is withdrawn ▼
+                                      interceptor.around → execute()
+```
+
 A `before` phase decides **allow**, **deny**, or **ask** — `'ask'` routes the
 call to the approval broker instead of answering it. A `deny` (or a throw from
 `around`) becomes a `ToolFailure` the model reads. Use interceptors for

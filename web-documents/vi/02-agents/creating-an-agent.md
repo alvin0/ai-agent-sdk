@@ -165,6 +165,25 @@ const session = agent.createSession({
 })
 ```
 
+Tuỳ chọn ở mức session **không** thay thế định nghĩa một cách đồng nhất — có
+loại gộp vào, có loại đè lên:
+
+```text
+   định nghĩa agent (đóng băng)        createSession({ … })
+   ─────────────────────────────       ─────────────────────
+        tools: [readFile]      ──┐
+                                 ├── GỘP ──►  [readFile, extraTool]
+        tools: [extraTool]     ──┘
+
+        compaction: 0.8        ──┐
+                                 ├── ĐÈ ───►  0.75
+        compaction: 0.75       ──┘
+
+        runtimeLimits          ──── ĐÈ ───►  giá trị của session
+
+        memory: binding        ──── TẮT ──►  memory: false
+```
+
 `tools` ở mức session được **gộp** với tool do định nghĩa sở hữu, không thay thế.
 `compaction` và `runtimeLimits` ở mức session thì ghi đè định nghĩa. Các giới hạn
 history, ledger và event buffer chặn working set được giữ lại của từng session.

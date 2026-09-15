@@ -63,6 +63,21 @@ Mọi sự kiện đều mang `runId`, `traceId`, và `sequence` tăng đơn đi
 
 `tool-result.status` là một trong `completed`, `failed`, `aborted`, `rejected`.
 
+Một lượt chạy có dùng tool phát ra chuỗi sự kiện như sau:
+
+```text
+  sequence →   1        2          3         4          5        6         7
+             ┌────┐  ┌──────┐  ┌────────┐ ┌───────┐ ┌──────┐ ┌───────┐ ┌─────┐
+             │comm│  │ tool │  │approval│ │ tool  │ │ comm │ │assist.│ │usage│
+             │delta│ │ call │  │request │ │result │ │delta │ │ delta │ │     │
+             └────┘  └──────┘  └────────┘ └───────┘ └──────┘ └───────┘ └─────┘
+              tường    mở nút    hỏi người  đóng nút  tường    câu trả   hạch
+              thuật    tool                 tool     thuật    lời thật  toán
+
+   commentary-delta  ──► thanh tiến độ        assistant-delta ──► ô câu trả lời
+   (hai luồng KHÔNG trộn vào nhau; suy luận là luồng thứ ba, riêng)
+```
+
 ## Vẽ giao diện trực tiếp
 
 ```ts

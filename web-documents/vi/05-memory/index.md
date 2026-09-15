@@ -11,6 +11,19 @@ bạch:
 Checkpoint có mất mát. Bộ nhớ đã ghim **không nằm trong khoảng lịch sử bị nén**.
 Gộp hai thứ này lại chính là cách các agent dài hơi mất mục tiêu giữa đường.
 
+```text
+   TRƯỚC khi nén                          SAU khi nén
+   ──────────────────────────────         ──────────────────────────────
+   <task-memory>  mục tiêu, ràng buộc     <task-memory>  y NGUYÊN
+                  quyết định                             (được ghim, không bị nén)
+   ─────────────────────────────          ──────────────────────────────
+   u1 a1 u2 a2 u3 a3 u4 a4 u5 a5          [checkpoint bàn giao]  u4 a4 u5 a5
+   └──── 80% cửa sổ dùng được ───┘        └─ có mất mát ─┘  └ 20% cuối nguyên văn ┘
+```
+
+Gộp hai tầng này làm một chính là cách agent dài hơi quên mất mục tiêu: phần bị
+nén là phần *bằng chứng*, không bao giờ là phần *mục tiêu*.
+
 ## Bốn tầng trạng thái
 
 ```text

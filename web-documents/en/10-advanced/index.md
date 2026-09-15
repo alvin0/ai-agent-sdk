@@ -9,6 +9,7 @@ working. The material assumes you have read [Agents](/en/02-agents/) and
 | [Error Handling](/en/10-advanced/error-handling) | The SDK-wide taxonomy, retry policy, and every code |
 | [Observability](/en/10-advanced/observability) | The observation bus, usage coverage, and how to configure it |
 | [Security](/en/10-advanced/security) | Credentials, endpoint policy, privacy defaults |
+| [Sandbox](/en/10-advanced/sandbox) | Confining a command's file effects, network reach and resources |
 | [Performance](/en/10-advanced/performance) | Every bound, budget, and token-accounting decision |
 | [Production Deployment](/en/10-advanced/production-deployment) | Startup, shutdown, and per-runtime checklists |
 | [Troubleshooting](/en/10-advanced/troubleshooting) | Symptom → cause → fix |

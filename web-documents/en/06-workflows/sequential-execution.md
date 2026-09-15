@@ -3,6 +3,22 @@
 Four mechanisms enforce ordering, at four different levels. Pick the lowest one
 that actually holds.
 
+```text
+   STRONGEST ────────────────────────────────────────────────► WEAKEST
+   (independent of the model)                     (a hint to the model)
+
+   1. your await        2. session lock    3. exclusive tool   4. the prompt
+   ┌──────────────┐     ┌─────────────┐    ┌──────────────┐   ┌──────────┐
+   │ a.run()      │     │ a second    │    │ one call runs│   │ "do X    │
+   │   then b.run()│    │ run() is    │    │ alone        │   │  before Y"│
+   │              │     │ refused     │    │              │   │          │
+   └──────────────┘     └─────────────┘    └──────────────┘   └──────────┘
+   between runs         within one         within one turn    no guarantee
+                        conversation
+```
+
+Pick the lowest layer that **actually** holds the order you need.
+
 ## 1. Your code awaits
 
 The strongest ordering guarantee, because it does not depend on the model at all.

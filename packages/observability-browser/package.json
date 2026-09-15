@@ -4,7 +4,7 @@
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
   },
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "IndexedDB durable observation queue and opt-in browser lifecycle integration",
   "license": "MIT",
   "repository": {

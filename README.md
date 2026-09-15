@@ -37,7 +37,8 @@ pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai \
 # Node coding harness: choose only the capabilities it uses
 pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-auth-node @alvin0/ai-agent-sdk-provider-codex \
   @alvin0/ai-agent-sdk-mcp-node @alvin0/ai-agent-sdk-observability-node \
-  @alvin0/ai-agent-sdk-skill-filesystem
+  @alvin0/ai-agent-sdk-skill-filesystem \
+  @alvin0/ai-agent-sdk-sandbox @alvin0/ai-agent-sdk-sandbox-node
 ```
 
 All three profiles share the same Universal core and agent loop. Importing a Node

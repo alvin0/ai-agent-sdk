@@ -62,6 +62,21 @@ await store.save(session.conversationId, snapshot)
 const resumed = agent.resumeSession(await store.load(conversationId))
 ```
 
+```text
+   live session                     snapshot (JSON)         resumeSession()
+   ────────────────────             ───────────────         ───────────────────
+   skill "release-review"     ──►   { id, location }  ──►   REDISCOVER from
+     + loaded body                  ✗ no body               current providers
+     + read resources               ✗ no resources          + reload the body
+                                                                  │
+                                    provider drifted? ────────────┤
+                                    id no longer available? ──────┘
+                                             │
+                                             ▼
+                                   fails BEFORE the model request
+                                   (never runs with different capabilities)
+```
+
 On resume the SDK **rediscovers and rehydrates** them from current providers.
 
 ## Resume fails early, on purpose
