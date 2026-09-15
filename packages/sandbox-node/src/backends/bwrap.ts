@@ -12,7 +12,9 @@ import type {
   NetworkEnforcement, NetworkMode, RunnerFailureRule, SandboxPolicy,
 } from '@alvin0/ai-agent-sdk-sandbox'
 import type { WritableRootOptions } from '@alvin0/ai-agent-sdk-sandbox'
-import { accessInLayers, grantLayers, pathDepth } from '@alvin0/ai-agent-sdk-sandbox'
+import { accessInLayers, grantLayers, normalizePath, pathDepth } from '@alvin0/ai-agent-sdk-sandbox'
+import { readdir } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import { isDirectory, nodePathResolver } from '../fs/resolver.ts'
 
 /** Program name looked up on `PATH`. */
@@ -132,18 +134,36 @@ export async function bwrapProfileArgs(
 
     if (layer.access === 'write') {
       args.push('--bind', real, real)
-    } else if (layer.access === 'read') {
+      continue
+    }
+
+    // bubblewrap builds the mount point itself, and since 0.12.0 it has to read
+    // the destination's parent to do so. A host daemon socket routinely sits in
+    // a root-owned `0711` directory — `/run/containerd` on a GitHub runner —
+    // which the confined user may traverse but not list, and naming the socket
+    // there aborts the whole sandbox instead of masking anything. Masking the
+    // directory denies strictly more and mounts cleanly, so the mask climbs to
+    // the shallowest ancestor bubblewrap can actually mount.
+    const mask = await mountableMaskPoint(real)
+    if (mask === undefined) {
+      throw new Error(
+        `bubblewrap cannot mask ${real}: no ancestor of it can carry a mount point, `
+        + 'so this policy has no profile that expresses it',
+      )
+    }
+
+    if (layer.access === 'read' && mask === real) {
       args.push('--ro-bind-try', real, real)
-    } else if (await isDirectory(real)) {
+    } else if (await isDirectory(mask)) {
       // An empty tmpfs hides the contents, but a bare tmpfs is writable, so the
       // denial is only real once it is remounted read-only. That remount is
       // deferred: sealing it here would leave bubblewrap unable to create the
       // mount point for a narrower grant reopened inside this subtree
       // ("Can't mkdir ...: Read-only file system").
-      args.push('--tmpfs', real)
-      sealReadOnly.push(real)
+      args.push('--tmpfs', mask)
+      sealReadOnly.push(mask)
     } else {
-      args.push('--ro-bind-try', '/dev/null', real)
+      args.push('--ro-bind-try', '/dev/null', mask)
     }
   }
 
@@ -164,6 +184,34 @@ export async function bwrapProfileArgs(
 
   args.push('--chdir', await resolver.realpath(policy.workspaceRoot))
   return Object.freeze(args)
+}
+
+/**
+ * The shallowest path at or above `path` that bubblewrap can mount a mask on.
+ *
+ * The constraint is the destination's *parent*: bubblewrap creates the mount
+ * point, and to do that it must be able to read that parent. A directory the
+ * confined user may traverse but not list therefore cannot hold a mask, while
+ * the directory itself can carry one — and masking it denies strictly more
+ * than masking what is inside it, so climbing never widens the boundary.
+ *
+ * `undefined` means even the root could not be read, which no profile can
+ * express and which the caller reports rather than papering over.
+ */
+async function mountableMaskPoint(path: string): Promise<string | undefined> {
+  let candidate = normalizePath(path)
+  for (;;) {
+    const parent = normalizePath(dirname(candidate))
+    if (parent === candidate) return undefined
+    if (await isReadableDirectory(parent)) return candidate
+    candidate = parent
+  }
+}
+
+/** Whether this process may list `path`, which is what mounting under it needs. */
+async function isReadableDirectory(path: string): Promise<boolean> {
+  try { await readdir(path); return true }
+  catch { return false }
 }
 
 /**

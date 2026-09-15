@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { spawn } from 'node:child_process'
-import { link, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, link, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
@@ -789,6 +789,39 @@ describe('closing an inode the profile cannot see', () => {
     const opted = await localSandbox({ platform: 'linux', probe: false, maskAliasedInodes: false })
       .confine(['true'], policyFor(root))
     expect(opted.enforcement).toBe('full')
+  })
+})
+
+// A host daemon socket lives in a directory the confined user may traverse but
+// not list — `/run/containerd` is `0711` on a GitHub runner. bubblewrap builds
+// the mount point itself and, since the 0.12.0 hardening, has to read that
+// parent to do it: naming the socket there aborts the whole sandbox, so every
+// command comes back denied and nothing is confined at all.
+describe('masking a path inside a directory that cannot be listed', () => {
+  const unlistable = process.platform === 'win32' || process.getuid?.() === 0
+  it.skipIf(unlistable)('masks the directory instead of aborting the profile', async () => {
+    const root = await workspace()
+    const socketDir = join(root, 'run')
+    await mkdir(socketDir, { recursive: true })
+    await writeFile(join(socketDir, 'daemon.sock'), '')
+    await chmod(socketDir, 0o711)
+    try {
+      const policy = resolveSandboxPolicy({ cwd: root, mode: 'read-only' }, {
+        mode: 'read-only', workspaceRoot: root,
+        entries: [{ path: join(socketDir, 'daemon.sock'), access: 'deny' }],
+      }) as SandboxPolicy
+      const { argv } = await localSandbox({ platform: 'linux', probe: false, hardenDefaults: false })
+        .confine(['true'], policy)
+
+      // The mask climbs to the directory, which denies strictly more than the
+      // socket it contains — a mask may narrow the boundary, never widen it.
+      const masked = argv.indexOf(normalizePath(socketDir))
+      expect(masked).toBeGreaterThan(0)
+      expect(argv[masked - 1]).toBe('--tmpfs')
+      expect(argv).not.toContain(normalizePath(join(socketDir, 'daemon.sock')))
+    } finally {
+      await chmod(socketDir, 0o755)
+    }
   })
 })
 
