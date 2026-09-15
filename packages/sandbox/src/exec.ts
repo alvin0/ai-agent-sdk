@@ -138,9 +138,6 @@ const CREDENTIAL_PATTERN =
 const CRITICAL_PATH_PATTERN =
   /(^|\/)(etc\/(sudoers|shadow|passwd|ssh\/sshd_config|pam\.d)|boot|sys\/kernel|proc\/sys)(\/|$)/i
 
-/** Tokens that separate one command from the next, wherever they appear. */
-const SEPARATOR_PATTERN = /(^|[^\\])(&&|\|\||;|\|)/
-
 /** Shells whose `-c` argument is another command entirely. */
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'fish', 'pwsh', 'powershell'])
 
@@ -156,7 +153,13 @@ export function classifyExec(
   argv: readonly string[],
   outcomes: Readonly<Record<ExecCapability, ExecOutcome>> = DEFAULT_EXEC_OUTCOMES,
 ): ExecClassification {
-  const parts = splitCommands(argv).map(part => classifySingle(part, outcomes))
+  // A segment that is only shell keywords — a bare `fi`, a closing `done` — is
+  // punctuation, not a command. Left in, it classifies as unrecognised and
+  // drags a whole chain to an approval prompt: `if ...; then npm test; fi`
+  // would ask about running its own test suite.
+  const parts = splitCommands(argv)
+    .map(part => classifySingle(part, outcomes))
+    .filter(part => part.program !== '(empty)')
   if (parts.length === 0) {
     return decide('unknown', '(empty)', 'no command to classify', [], outcomes)
   }
@@ -295,14 +298,19 @@ function classifyServiceCommand(
 ): ExecClassification {
   const positional = args.filter(argument => !argument.startsWith('-'))
   const verb = positional[VERB_POSITION[program] ?? 0]
-  if (verb !== undefined && SERVICE_READ_VERBS.has(verb)) {
+  if (verb === undefined) {
+    // No action named: `systemctl`, `systemctl --failed`, `launchctl` alone all
+    // list units. A real model reaches for exactly these when asked what is
+    // broken, and reading them as control actions asks for approval to look.
+    return decide('observe', program, 'lists services without naming an action', [], outcomes)
+  }
+  if (SERVICE_READ_VERBS.has(verb)) {
     return decide('observe', program, `reports service state (${verb})`, [], outcomes)
   }
   if (program === 'nginx' && args.includes('-t')) {
     return decide('observe', program, 'checks configuration without applying it', [], outcomes)
   }
-  return decide('service-control', program,
-    `changes a running service${verb === undefined ? '' : ` (${verb})`}`, [], outcomes)
+  return decide('service-control', program, `changes a running service (${verb})`, [], outcomes)
 }
 
 /** Tool subcommands that install outside the workspace or raise privilege. */
@@ -344,9 +352,11 @@ function stripWrappers(argv: readonly string[]): readonly string[] {
  * Every command an argv actually runs.
  *
  * A shell invocation carries its real command in a string, and that string can
- * hold several. Splitting on the operators that separate commands is coarse —
- * it does not understand quoting — so it errs toward finding MORE commands,
- * which classifies toward more caution rather than less.
+ * hold several. Splitting it with a pattern cannot work: `grep -E 'a|b'` puts a
+ * separator inside a quoted word, and a pattern either splits there — inventing
+ * commands out of a regex — or refuses to split anywhere a quote appears. The
+ * script is therefore walked one character at a time, so a separator only
+ * separates when nothing is quoting it.
  */
 export function splitCommands(argv: readonly string[]): readonly (readonly string[])[] {
   const stripped = stripWrappers(argv)
@@ -356,26 +366,83 @@ export function splitCommands(argv: readonly string[]): readonly (readonly strin
   let script: string | undefined
   if (SHELLS.has(program) && flagIndex >= 0) {
     script = stripped[flagIndex + 1]
-  } else if (stripped.some(token => SEPARATOR_PATTERN.test(token))) {
+  } else if (stripped.some(token => UNQUOTED_SEPARATOR.test(token))) {
     // An argv is not always one command. A model emits a whole command line,
     // and `if [ -f package.json ]; then npm test; fi` names `[` first — read as
     // one argv it looks like a test, while what it runs is the test suite.
-    // Under-classifying is the direction that matters, so any argv carrying a
-    // command separator is read as the script it is.
     script = stripped.join(' ')
   }
   if (script === undefined) return [stripped]
-  return script
-    .split(/&&|\|\||[;|]|\n|\bthen\b|\bdo\b|\bfi\b|\bdone\b/)
-    .map(piece => piece.trim())
-    .filter(piece => piece !== '')
-    .map(piece => piece.split(/\s+/)
-      // A segment can open with grouping punctuation glued to the program:
-      // `(command -v lscpu` names `(command`, which is nothing.
-      .map(token => token.replace(/^[({]+/, '').replace(/[)}]+$/, ''))
-      .map(token => token.replace(/^["']|["']$/g, ''))
-      .filter(token => token !== ''))
-    .filter(piece => piece.length > 0)
+
+  const commands = tokenizeScript(script)
+  return commands.length === 0 ? [stripped] : commands
+}
+
+/** A separator that is not inside quotes, used only to decide whether to walk. */
+const UNQUOTED_SEPARATOR = /^(&&|\|\||;|\|)$|[;|&]/
+
+/**
+ * Split a shell script into commands, respecting quotes and escapes.
+ *
+ * Deliberately not a shell parser: it does not expand, substitute, or
+ * understand control flow. It answers one question — which words belong to
+ * which command — and leaves the rest to the classifier, which treats anything
+ * it cannot read as something to ask about.
+ */
+export function tokenizeScript(script: string): readonly (readonly string[])[] {
+  const commands: string[][] = []
+  let command: string[] = []
+  let word = ''
+  let quote: '"' | "'" | undefined
+  let index = 0
+
+  const endWord = (): void => { if (word !== '') { command.push(word); word = '' } }
+  const endCommand = (): void => {
+    endWord()
+    if (command.length > 0) commands.push(command)
+    command = []
+  }
+
+  while (index < script.length) {
+    const character = script[index] ?? ''
+
+    if (quote !== undefined) {
+      if (character === '\\' && quote === '"' && index + 1 < script.length) {
+        word += script[index + 1] ?? ''
+        index += 2
+        continue
+      }
+      if (character === quote) quote = undefined
+      else word += character
+      index += 1
+      continue
+    }
+
+    if (character === '"' || character === "'") { quote = character; index += 1; continue }
+    if (character === '\\' && index + 1 < script.length) {
+      word += script[index + 1] ?? ''
+      index += 2
+      continue
+    }
+    if (character === ' ' || character === '\t') { endWord(); index += 1; continue }
+    if (character === '\n') { endCommand(); index += 1; continue }
+
+    // Separators end a command; redirection is kept as its own word so the
+    // classifier can see that output goes into a file.
+    const pair = script.slice(index, index + 2)
+    if (pair === '&&' || pair === '||') { endCommand(); index += 2; continue }
+    if (pair === '>>') { endWord(); command.push('>>'); index += 2; continue }
+    if (character === ';' || character === '|' || character === '&') { endCommand(); index += 1; continue }
+    if (character === '>') { endWord(); command.push('>'); index += 1; continue }
+    if (character === '(' || character === ')' || character === '{' || character === '}') {
+      endWord(); index += 1; continue
+    }
+
+    word += character
+    index += 1
+  }
+  endCommand()
+  return commands
 }
 
 /** The final path segment, so `/usr/bin/systemctl` decides like `systemctl`. */

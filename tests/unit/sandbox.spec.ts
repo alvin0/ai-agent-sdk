@@ -3,6 +3,7 @@ import {
   accessFor, accessInLayers, annotateStderr, approveSandboxEscalation, classifyOutcome,
   confiningPolicy, containsPath, dedupeRoots, grantLayers, isSandboxApproval, narrowPolicy,
   breachedLimit, classifyExec, hasResourceLimits, narrowNetwork, networkAuthority, normalizePath,
+  tokenizeScript,
   PROTECTED_SUBPATHS, resolveSandboxPolicy,
   sandboxViolation, SandboxPolicyError, unreadablePaths, writableRoots,
 } from '@alvin0/ai-agent-sdk-sandbox'
@@ -507,6 +508,32 @@ describe('reading a command for what it does', () => {
 
   it('looks through wrappers and environment assignments', () => {
     expect(verdict('TZ=UTC timeout 30 npm test'))
+      .toEqual({ capability: 'use', outcome: 'allow-scoped' })
+  })
+
+  it('does not invent a command out of a quoted separator', () => {
+    // A pattern split cannot do this: `grep -E 'a|b'` puts a separator inside a
+    // quoted word, so a regex either splits there or refuses to split at all.
+    expect(tokenizeScript(`grep -E 'a|b' f.txt`)).toEqual([['grep', '-E', 'a|b', 'f.txt']])
+    expect(verdict(`grep -E 'a|b' file.txt`)).toEqual({ capability: 'observe', outcome: 'allow' })
+    expect(verdict(`awk -F'|' {print} data.txt`).outcome).toBe('allow')
+    expect(verdict(`curl -sSI http://127.0.0.1/ | grep -iE 'server|location'`))
+      .toEqual({ capability: 'use', outcome: 'allow-scoped' })
+  })
+
+  it('does not take a quoted command for a real one', () => {
+    // The dangerous half is inside quotes, so it is text being printed rather
+    // than a command being run.
+    expect(verdict(`echo "hi; rm -rf /etc"`)).toEqual({ capability: 'observe', outcome: 'allow' })
+    expect(verdict(`echo 'a && b'`)).toEqual({ capability: 'observe', outcome: 'allow' })
+    // Unquoted, the same words are two commands and the second decides.
+    expect(verdict('echo hi && rm -rf /etc')).toEqual({ capability: 'critical', outcome: 'deny' })
+  })
+
+  it('treats a segment of pure shell punctuation as punctuation', () => {
+    // A bare `fi` classified as unrecognised would drag the whole chain to an
+    // approval prompt for running its own test suite.
+    expect(verdict('if [ -f package.json ]; then npm test; fi'))
       .toEqual({ capability: 'use', outcome: 'allow-scoped' })
   })
 

@@ -95,8 +95,18 @@ This is a classifier, and a classifier is a guess. Two rules keep the guess from
 becoming a hazard: a command it does not recognise is **never allowed**, and a
 command that hides others — a shell string, a pipeline, a chain, an argv with
 separators in it — is decided by the riskiest thing inside it rather than by its
-wrapper. Splitting does not understand quoting, so it errs toward finding more
-commands, which classifies toward more caution rather than less.
+wrapper.
+
+The script is walked one character at a time rather than split with a pattern,
+because `grep -E 'a|b'` puts a separator inside a quoted word: a pattern either
+splits there, inventing a command out of a regex, or refuses to split wherever a
+quote appears. Quotes and escapes are respected, so `echo "hi; rm -rf /etc"` is
+one command printing text while `echo hi && rm -rf /etc` is two, and the second
+decides.
+
+What it deliberately does not do: expand variables, resolve `$(...)`, follow a
+script file, or know what an unrecognised binary does. `eval "$CMD"` classifies
+as unrecognised, which asks — it does not read what `$CMD` holds.
 
 Two of its rules exist because real model output demanded them. Asked to show
 AWS credentials, a model proposed `aws configure list` and `aws sts

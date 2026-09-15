@@ -11,7 +11,9 @@ export {
 export type {
   SandboxApproval, SandboxApprovalGrant, SandboxApprovalScope,
 } from './approval.ts'
-export { classifyExec, DEFAULT_EXEC_OUTCOMES, splitCommands } from './exec.ts'
+export {
+  classifyExec, DEFAULT_EXEC_OUTCOMES, splitCommands, tokenizeScript,
+} from './exec.ts'
 export type { ExecCapability, ExecClassification, ExecOutcome } from './exec.ts'
 export { accessFor, entriesWithin, orderEntries } from './entries.ts'
 export type { FileSystemAccess, FileSystemEntry } from './entries.ts'
