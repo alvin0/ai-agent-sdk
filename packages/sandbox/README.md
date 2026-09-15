@@ -70,6 +70,43 @@ Precedence is fixed: an approved explicit mode outranks the session's mode,
 which outranks the deployment default. A session's cwd is its `workspace-write`
 boundary; the configured root is the fallback for agentless calls.
 
+## Reading a command for what it does
+
+The file seam cannot tell `systemctl status nginx` from `systemctl restart
+nginx`: both are argv, neither writes a file the policy governs, and one
+observes while the other changes the machine. `classifyExec` reads the command
+semantically so a harness can decide before any of it runs.
+
+```ts
+classifyExec(['systemctl', 'status', 'nginx'])   // observe          -> allow
+classifyExec(['systemctl', 'restart', 'nginx'])  // service-control  -> ask-approval
+classifyExec(['aws', 'configure', 'list'])       // credential       -> deny
+```
+
+| Capability | Default outcome |
+| --- | --- |
+| `observe` | `allow` |
+| `use` | `allow-scoped` |
+| `modify`, `service-control`, `package-install`, `privilege` | `ask-approval` |
+| `credential`, `critical` | `deny` |
+| `unknown` | `ask-approval` |
+
+This is a classifier, and a classifier is a guess. Two rules keep the guess from
+becoming a hazard: a command it does not recognise is **never allowed**, and a
+command that hides others — a shell string, a pipeline, a chain, an argv with
+separators in it — is decided by the riskiest thing inside it rather than by its
+wrapper. Splitting does not understand quoting, so it errs toward finding more
+commands, which classifies toward more caution rather than less.
+
+Two of its rules exist because real model output demanded them. Asked to show
+AWS credentials, a model proposed `aws configure list` and `aws sts
+get-caller-identity` — neither names `~/.aws/credentials`, so a rule matching
+credential *paths* saw nothing while the secret was read inside the tool. And
+`if [ -f package.json ]; then npm test; fi`, read as one argv, names `[` and
+looks like a test while what it runs is the test suite.
+
+It decides; it does not enforce. `confine()` and `fence()` are what hold.
+
 ## Network reach
 
 `SandboxMode` governs file effects and says so. Reachability is a second,

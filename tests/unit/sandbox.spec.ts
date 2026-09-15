@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   accessFor, accessInLayers, annotateStderr, approveSandboxEscalation, classifyOutcome,
   confiningPolicy, containsPath, dedupeRoots, grantLayers, isSandboxApproval, narrowPolicy,
-  breachedLimit, hasResourceLimits, narrowNetwork, networkAuthority, normalizePath,
+  breachedLimit, classifyExec, hasResourceLimits, narrowNetwork, networkAuthority, normalizePath,
   PROTECTED_SUBPATHS, resolveSandboxPolicy,
   sandboxViolation, SandboxPolicyError, unreadablePaths, writableRoots,
 } from '@alvin0/ai-agent-sdk-sandbox'
@@ -435,5 +435,89 @@ describe('an approval is spent, and can expire', () => {
     expect(accessInLayers('/repo/etc/config.yaml', layers)).toBe('write')
     expect(accessInLayers('/repo/etc/secret.yaml', layers)).toBe('read')
     expect(accessInLayers('/repo/etc/another.conf', layers)).toBe('read')
+  })
+})
+
+describe('reading a command for what it does', () => {
+  const verdict = (command: string): { capability: string; outcome: string } => {
+    const argv = command.startsWith('bash -c ')
+      ? ['bash', '-c', command.slice(8).replace(/^["']|["']$/g, '')]
+      : command.split(' ')
+    const { capability, outcome } = classifyExec(argv)
+    return { capability, outcome }
+  }
+
+  it('separates observing a service from controlling one', () => {
+    // The distinction the file seam cannot make: neither writes a file the
+    // policy cares about, and one changes the machine.
+    expect(verdict('systemctl status nginx')).toEqual({ capability: 'observe', outcome: 'allow' })
+    expect(verdict('systemctl restart nginx'))
+      .toEqual({ capability: 'service-control', outcome: 'ask-approval' })
+  })
+
+  it('finds the verb where each program puts it', () => {
+    // `service` names the unit first; reading position zero for both makes
+    // every `service` invocation look like a control action.
+    expect(verdict('service postgresql status')).toEqual({ capability: 'observe', outcome: 'allow' })
+    expect(verdict('service postgresql restart'))
+      .toEqual({ capability: 'service-control', outcome: 'ask-approval' })
+  })
+
+  it('refuses a command that reads a credential it never names', () => {
+    // Found by running real model output through this: asked for AWS
+    // credentials, a model proposed these, and neither mentions a path.
+    expect(verdict('aws configure list')).toEqual({ capability: 'credential', outcome: 'deny' })
+    expect(verdict('aws sts get-caller-identity'))
+      .toEqual({ capability: 'credential', outcome: 'deny' })
+    expect(verdict('security find-generic-password'))
+      .toEqual({ capability: 'credential', outcome: 'deny' })
+  })
+
+  it('refuses one that names a credential path, whatever reads it', () => {
+    expect(verdict('cat /home/u/.ssh/id_ed25519').outcome).toBe('deny')
+    expect(verdict('grep -r secret /home/u/.aws/credentials').outcome).toBe('deny')
+  })
+
+  it('sees a flag that turns a reading tool into a writing one', () => {
+    expect(verdict('sed s/a/b/ file.txt')).toEqual({ capability: 'observe', outcome: 'allow' })
+    expect(verdict('sed -i s/a/b/ file.txt')).toEqual({ capability: 'modify', outcome: 'ask-approval' })
+  })
+
+  it('decides a chain by its riskiest link, not its first', () => {
+    expect(verdict('bash -c "echo hi && rm -rf /etc"'))
+      .toEqual({ capability: 'critical', outcome: 'deny' })
+    expect(verdict('bash -c "systemctl status nginx | grep active"'))
+      .toEqual({ capability: 'observe', outcome: 'allow' })
+  })
+
+  it('reads an argv that carries separators as the script it is', () => {
+    // Read as one argv this names `[`, which looks like a test; what it runs
+    // is the test suite. Under-classifying is the direction that matters.
+    expect(verdict('if [ -f package.json ]; then npm test; fi').capability).not.toBe('unknown')
+    expect(verdict('if [ -f package.json ]; then npm test; fi'))
+      .toEqual({ capability: 'use', outcome: 'allow-scoped' })
+  })
+
+  it('sees output redirected into a file the command never ran against', () => {
+    expect(verdict('bash -c "echo x > /tmp/probe"'))
+      .toEqual({ capability: 'modify', outcome: 'ask-approval' })
+    expect(verdict('bash -c "echo x > /etc/passwd"'))
+      .toEqual({ capability: 'critical', outcome: 'deny' })
+  })
+
+  it('looks through wrappers and environment assignments', () => {
+    expect(verdict('TZ=UTC timeout 30 npm test'))
+      .toEqual({ capability: 'use', outcome: 'allow-scoped' })
+  })
+
+  it('asks rather than allows when it does not recognise a command', () => {
+    // A command nobody recognised is not a safe command; it is an unread one.
+    expect(verdict('some-vendor-tool --apply')).toEqual({ capability: 'unknown', outcome: 'ask-approval' })
+  })
+
+  it('refuses what a session cannot undo', () => {
+    for (const command of ['reboot', 'visudo', 'iptables -F', 'rm -rf /']) {
+      expect(verdict(command).outcome).toBe('deny')
+    }
   })
 })
