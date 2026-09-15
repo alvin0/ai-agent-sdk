@@ -121,9 +121,10 @@ export function grantLayers(
   proposed.forEach((layer, index) => lastAtPath.set(layer.path, index))
   const distinct = proposed.filter((layer, index) => lastAtPath.get(layer.path) === index)
 
+  const baseline = policy.baseline ?? BASELINE_ACCESS
   const kept: GrantLayer[] = []
   for (const layer of distinct) {
-    if (accessInLayers(layer.path, kept) !== layer.access) kept.push(Object.freeze(layer))
+    if (accessInLayers(layer.path, kept, baseline) !== layer.access) kept.push(Object.freeze(layer))
   }
   return Object.freeze(kept)
 }

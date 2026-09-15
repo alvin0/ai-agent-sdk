@@ -18,8 +18,21 @@ import { SandboxPolicyError } from './errors.ts'
 import type { SandboxMode } from './mode.ts'
 import type { NetworkMode } from './network.ts'
 
+/** How long a minted approval remains usable. */
+export type SandboxApprovalScope = 'single-call' | 'session'
+
 /** What an approval permits, beyond what the session already allows. */
 export interface SandboxApprovalGrant {
+  /**
+   * Whether the approval survives the call it was minted for.
+   *
+   * `single-call` — the default — is consumed the first time a policy is
+   * resolved with it, so a grant given for one operation cannot be replayed
+   * for the next. A person approving "read this file" approved one read.
+   */
+  readonly scope?: SandboxApprovalScope
+  /** Wall-clock deadline in epoch milliseconds, after which it is refused. */
+  readonly expiresAt?: number
   /** Mode the approval raises this call to. */
   readonly mode?: SandboxMode
   /** Entries the approval may add, including widening ones. */
@@ -45,6 +58,9 @@ export interface SandboxApproval extends SandboxApprovalGrant {
  */
 const MINTED = new WeakSet<object>()
 
+/** Approvals already consumed. Separate from minting, so the refusal differs. */
+const SPENT = new WeakSet<object>()
+
 /**
  * Mint an approval. Call this only after the host has actually authorized the
  * escalation; the SDK cannot tell an approved grant from a requested one, which
@@ -61,15 +77,35 @@ export function isSandboxApproval(value: unknown): value is SandboxApproval {
   return typeof value === 'object' && value !== null && MINTED.has(value)
 }
 
+/** Whether a minted approval has already been used up. */
+export function isSandboxApprovalSpent(approval: SandboxApproval): boolean {
+  return SPENT.has(approval)
+}
+
 /**
  * Accept an approval, or refuse it loudly.
  * @throws SandboxPolicyError when the value was not minted here — which is what
  *   a forged approval arriving through a tool payload looks like.
  */
-export function requireSandboxApproval(value: unknown): SandboxApproval {
-  if (isSandboxApproval(value)) return value
-  throw new SandboxPolicyError(
-    'Sandbox escalation requires an approval minted by approveSandboxEscalation(); '
-    + 'a plain object cannot widen a policy, because a tool payload can contain one',
-  )
+export function requireSandboxApproval(value: unknown, now: number = Date.now()): SandboxApproval {
+  if (!isSandboxApproval(value)) {
+    throw new SandboxPolicyError(
+      'Sandbox escalation requires an approval minted by approveSandboxEscalation(); '
+      + 'a plain object cannot widen a policy, because a tool payload can contain one',
+    )
+  }
+  if (value.expiresAt !== undefined && now > value.expiresAt) {
+    throw new SandboxPolicyError(
+      'This sandbox approval has expired; an escalation outliving the moment it was '
+      + 'granted is an escalation nobody is still watching',
+    )
+  }
+  if (SPENT.has(value)) {
+    throw new SandboxPolicyError(
+      'This sandbox approval was already used; a grant given for one operation cannot '
+      + 'be replayed for the next',
+    )
+  }
+  if ((value.scope ?? 'single-call') === 'single-call') SPENT.add(value)
+  return value
 }

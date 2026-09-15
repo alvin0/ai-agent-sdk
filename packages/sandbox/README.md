@@ -95,6 +95,42 @@ Unix sockets are **not** governed by this axis — they are filesystem objects,
 so a host daemon socket is closed by a `deny` entry, not by a network mode. The
 two seams compose; neither substitutes for the other.
 
+## Deny-list or allow-list
+
+By default the host is readable and a policy closes paths one at a time. That
+is a deny-list: it protects what someone remembered to name, and the path nobody
+thought about stays open.
+
+```ts
+{ mode: 'read-only', workspaceRoot, baseline: 'deny',
+  entries: [{ path: '/var/log/my-api', access: 'read' }] }
+```
+
+`baseline: 'deny'` inverts it — nothing is readable until an entry says so —
+which is how a request to investigate one service is scoped to that service's
+logs rather than to every log on the host.
+
+It is enforced by `fence(policy)`, not by the kernel profiles, and
+`confine()` refuses it rather than pretending: inverting a mount profile means
+binding only what a program needs, and the set a program needs to start at all
+is specific to an OS build.
+
+## Approvals are spent
+
+An approval is consumed the first time a policy is resolved with it. A person
+approving "read this file" approved one read, and a grant that survives its own
+operation is a grant nobody is still watching.
+
+```ts
+approveSandboxEscalation({ entries: [{ path: '/etc/app/config.yaml', access: 'write' }] })
+approveSandboxEscalation({ mode: 'workspace-write', scope: 'session', expiresAt })
+```
+
+Note what the first grant does *not* do: it never mentions a mode, so the
+policy stays `read-only` and exactly one file becomes writable. Raising the mode
+instead would make the whole workspace writable, and the named resource
+decorative.
+
 ## Nested carve-outs
 
 A single writable root is not enough. An agent that may write in a repository

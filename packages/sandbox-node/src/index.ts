@@ -130,6 +130,22 @@ export function localSandbox(options: LocalSandboxOptions = {}): SandboxProvider
     async confine(argv: readonly string[], policy: SandboxPolicy): Promise<ConfinedArgv> {
       if (argv.length === 0) throw new TypeError('confine requires a non-empty argv')
 
+      // An allow-list baseline is a fence capability, not a kernel one. Both
+      // profiles here start from a readable host and close paths one at a
+      // time; inverting that means binding only what a program needs, and the
+      // set a program needs to start at all — loader, libraries, locale — is
+      // specific to an OS build. Shipping a guess would produce a profile that
+      // either fails to start or quietly reads more than it claims, so the
+      // request is refused instead.
+      if ((policy.baseline ?? 'read') === 'deny') {
+        throw new SandboxUnavailableError(
+          platform, [],
+          'a deny-by-default read baseline is enforced by fence(policy), not by the kernel '
+          + 'profiles: neither bubblewrap nor Seatbelt is given the system paths a program '
+          + 'needs to start, so an allow-list profile cannot be built here',
+        )
+      }
+
       if (options.runnerCommand !== undefined && options.runnerCommand.length > 0) {
         const profile = await bwrapProfileArgs(policy, rootOptions)
         return Object.freeze({

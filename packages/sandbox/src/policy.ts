@@ -9,7 +9,7 @@
 
 import type { SandboxApproval } from './approval.ts'
 import { requireSandboxApproval } from './approval.ts'
-import type { FileSystemEntry } from './entries.ts'
+import type { FileSystemAccess, FileSystemEntry } from './entries.ts'
 import { orderEntries } from './entries.ts'
 import { SandboxPolicyError } from './errors.ts'
 import type { ConfinedSandboxMode, SandboxMode } from './mode.ts'
@@ -26,6 +26,16 @@ export interface SandboxExecutionPolicy {
   readonly workspaceRoot: string
   /** Nested carve-outs layered over the mode's base grant. */
   readonly entries?: readonly FileSystemEntry[]
+  /**
+   * The access in force where no layer applies.
+   *
+   * `read` — the default — means the host is readable and a policy closes
+   * paths one at a time, which is a deny-list: it protects what someone
+   * remembered to name. `deny` inverts that into an allow-list, where nothing
+   * is readable until an entry says so, and a path nobody thought about is
+   * closed rather than open.
+   */
+  readonly baseline?: FileSystemAccess
   /**
    * What this execution may reach over the network. Independent of
    * {@link SandboxExecutionPolicy.mode}, which governs file effects only.
@@ -85,6 +95,8 @@ export interface SandboxPolicyDefaults {
   readonly workspaceRoot: string
   /** Carve-outs that always apply, before request-supplied ones. */
   readonly entries?: readonly FileSystemEntry[]
+  /** Access where no layer applies; see {@link SandboxExecutionPolicy.baseline}. */
+  readonly baseline?: FileSystemAccess
   /**
    * Network reach for calls that do not narrow it. Defaults to `allow-all`,
    * which is what this package did before the seam existed; a deployment
@@ -150,6 +162,7 @@ export function resolveSandboxPolicy(
 
   return Object.freeze({
     mode, workspaceRoot, network,
+    ...(defaults.baseline === undefined ? {} : { baseline: defaults.baseline }),
     ...(entries.length === 0 ? {} : { entries }),
     ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
   })

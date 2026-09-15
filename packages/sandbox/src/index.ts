@@ -5,8 +5,12 @@
  * command. It holds no platform code and imports nothing.
  */
 
-export { approveSandboxEscalation, isSandboxApproval, requireSandboxApproval } from './approval.ts'
-export type { SandboxApproval, SandboxApprovalGrant } from './approval.ts'
+export {
+  approveSandboxEscalation, isSandboxApproval, isSandboxApprovalSpent, requireSandboxApproval,
+} from './approval.ts'
+export type {
+  SandboxApproval, SandboxApprovalGrant, SandboxApprovalScope,
+} from './approval.ts'
 export { accessFor, entriesWithin, orderEntries } from './entries.ts'
 export type { FileSystemAccess, FileSystemEntry } from './entries.ts'
 export { SandboxDeniedError, SandboxPolicyError, SandboxUnavailableError } from './errors.ts'

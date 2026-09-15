@@ -13,7 +13,7 @@ import { ancestorPaths, isAbsolutePath, normalizePath, parentPath } from './path
 import type { SandboxPolicy } from './policy.ts'
 import type { FsFence, PathResolver } from './provider.ts'
 import type { GrantLayer, WritableRootOptions } from './roots.ts'
-import { accessInLayers, grantLayers } from './roots.ts'
+import { accessInLayers, BASELINE_ACCESS, grantLayers } from './roots.ts'
 
 /**
  * Build the fence for one policy.
@@ -47,7 +47,7 @@ export function createFsFence(
 
   async function permits(path: string, want: 'write' | 'read'): Promise<boolean> {
     const [target, resolved] = await Promise.all([canonicalize(path, resolver), layersOnce()])
-    const access = accessInLayers(target, resolved)
+    const access = accessInLayers(target, resolved, policy.baseline ?? BASELINE_ACCESS)
     if (want === 'read') return access !== 'deny'
     if (access !== 'write') return false
     return options.allowAliasedWrites === true || !(await aliased(target))

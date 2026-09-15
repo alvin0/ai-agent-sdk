@@ -377,3 +377,63 @@ describe('resource limits', () => {
       .toBeUndefined()
   })
 })
+
+describe('an allow-list baseline', () => {
+  // A deny-list protects what someone remembered to name. An allow-list closes
+  // the path nobody thought about, which is the one that matters.
+  const allowList = {
+    mode: 'read-only' as const, workspaceRoot: '/repo', baseline: 'deny' as const,
+    entries: [{ path: '/repo/logs/my-api', access: 'read' as const }],
+  }
+
+  it('closes everything no entry names', () => {
+    const policy = resolveSandboxPolicy({ cwd: '/repo' }, allowList)
+    const layers = grantLayers(policy as never)
+    expect(accessInLayers('/repo/logs/my-api/app.log', layers, 'deny')).toBe('read')
+    expect(accessInLayers('/repo/logs/auth-service/auth.log', layers, 'deny')).toBe('deny')
+    expect(accessInLayers('/etc/passwd', layers, 'deny')).toBe('deny')
+  })
+
+  it('leaves the default a deny-list, which is what the package did before', () => {
+    const policy = resolveSandboxPolicy({ cwd: '/repo' }, { mode: 'read-only', workspaceRoot: '/repo' })
+    expect(policy.baseline).toBeUndefined()
+  })
+})
+
+describe('an approval is spent, and can expire', () => {
+  const defaults = { mode: 'read-only' as const, workspaceRoot: '/repo' }
+
+  it('cannot be replayed for the next operation', () => {
+    const approval = approveSandboxEscalation({ mode: 'workspace-write' })
+    expect(resolveSandboxPolicy({ cwd: '/repo', approval }, defaults).mode).toBe('workspace-write')
+    // A person approving "write this file" approved one write.
+    expect(() => resolveSandboxPolicy({ cwd: '/repo', approval }, defaults))
+      .toThrow(SandboxPolicyError)
+  })
+
+  it('survives the call when a deployment says it should', () => {
+    const approval = approveSandboxEscalation({ mode: 'workspace-write', scope: 'session' })
+    expect(resolveSandboxPolicy({ cwd: '/repo', approval }, defaults).mode).toBe('workspace-write')
+    expect(resolveSandboxPolicy({ cwd: '/repo', approval }, defaults).mode).toBe('workspace-write')
+  })
+
+  it('is refused once its deadline has passed', () => {
+    const approval = approveSandboxEscalation({
+      mode: 'workspace-write', scope: 'session', expiresAt: Date.now() - 1,
+    })
+    expect(() => resolveSandboxPolicy({ cwd: '/repo', approval }, defaults))
+      .toThrow(SandboxPolicyError)
+  })
+
+  it('grants exactly the resource it names, without widening the mode', () => {
+    const approval = approveSandboxEscalation({
+      entries: [{ path: '/repo/etc/config.yaml', access: 'write' }],
+    })
+    const policy = resolveSandboxPolicy({ cwd: '/repo', approval }, defaults)
+    expect(policy.mode).toBe('read-only')
+    const layers = grantLayers(policy as never)
+    expect(accessInLayers('/repo/etc/config.yaml', layers)).toBe('write')
+    expect(accessInLayers('/repo/etc/secret.yaml', layers)).toBe('read')
+    expect(accessInLayers('/repo/etc/another.conf', layers)).toBe('read')
+  })
+})
