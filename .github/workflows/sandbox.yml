@@ -7,7 +7,7 @@ name: Sandbox
 
 on:
   push:
-    branches: [main, mono-package, feat-sanbox]
+    branches: [main, mono-package]
     paths:
       - 'packages/sandbox/**'
       - 'packages/sandbox-node/**'

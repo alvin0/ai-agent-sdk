@@ -9,6 +9,7 @@ cho nó chạy được. Phần này giả định bạn đã đọc [Agents](/v
 | [Error Handling](/vi/10-advanced/error-handling) | Hệ phân loại toàn SDK, chính sách thử lại, và mọi mã lỗi |
 | [Observability](/vi/10-advanced/observability) | Bus quan sát, độ phủ usage, và cách cấu hình |
 | [Security](/vi/10-advanced/security) | Thông tin xác thực, chính sách endpoint, mặc định riêng tư |
+| [Sandbox](/vi/10-advanced/sandbox) | Giới hạn hiệu ứng file, tầm với mạng và tài nguyên của một lệnh |
 | [Performance](/vi/10-advanced/performance) | Mọi chặn trên, ngân sách, và quyết định hạch toán token |
 | [Production Deployment](/vi/10-advanced/production-deployment) | Khởi động, shutdown, và checklist theo từng runtime |
 | [Troubleshooting](/vi/10-advanced/troubleshooting) | Triệu chứng → nguyên nhân → cách sửa |
