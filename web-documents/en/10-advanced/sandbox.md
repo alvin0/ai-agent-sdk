@@ -134,6 +134,26 @@ access at a path is whatever the **last** layer containing it said.
 Flattening that into "granted roots" plus "denied paths" loses the last line:
 a set of roots has nowhere to record a grant living inside something denied.
 
+Those layers are the **deployment's** own. A request and an approval are not
+more entries in the same list, because the three sources do not carry the same
+authority:
+
+```text
+  defaults.entries   ──► layers, last one containing a path wins   (origin: entry)
+        │
+        ▼
+  request.entries    ──► INTERSECTED with what stands            (origin: restriction)
+        │                 every boundary either side names is recomputed as the
+        │                 NARROWER of the two — so a broad request `deny` also
+        │                 closes narrower standing grants nested beneath it
+        ▼
+  approval.entries   ──► applied last, and may WIDEN               (origin: approval)
+                          only a value minted by approveSandboxEscalation()
+```
+
+Flattening all three into one last-wins list is what let a request re-open what
+the deployment had closed, simply by naming a deeper path.
+
 ## Authority only ever decreases
 
 ```text
@@ -307,10 +327,15 @@ enforcement with nobody asked.
 
 | | Linux | macOS | Windows |
 | --- | --- | --- | --- |
-| Process confinement | bubblewrap | Seatbelt | ✗ — `confine()` fails closed |
+| Process confinement | bubblewrap ≥ 0.12.0 | Seatbelt | ✗ — `confine()` fails closed |
 | Network | network namespace | `(deny network*)` | ✗ |
 | Process teardown | PID namespace | group + descendant sweep | partial |
 | In-process fence | ✓ | ✓ | ✓ |
+
+Runner selection **rejects bubblewrap older than 0.12.0**, the release that
+fixes GHSA-pxhw-h44j-8pfx — setup-time creation below an attacker-controlled
+symlink could escape the sandbox. An older binary is treated as no backend at
+all, not as a degraded one.
 
 `confine()` reports `enforcement` as `full`, `partial` or `fence-only` rather
 than implying it. A deployment that cannot accept less says so:
@@ -318,6 +343,11 @@ than implying it. A deployment that cannot accept less says so:
 ```ts
 localSandbox({ requireEnforcement: 'full' })   // otherwise SANDBOX_UNAVAILABLE
 ```
+
+The check is per execution, against what that call actually reached — not against
+the rung picked at startup. An alias scan that stops at its bound lowers the
+claim to `partial`, and a deployment requiring `full` is refused that execution
+rather than handed a weaker one. `aliasScanOptions` bounds that walk.
 
 ## What it does not do
 

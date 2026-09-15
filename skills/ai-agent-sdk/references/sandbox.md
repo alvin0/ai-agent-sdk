@@ -101,6 +101,8 @@ from `@alvin0/ai-agent-sdk-core`.
 | `confine()` throws `SANDBOX_UNAVAILABLE` on Windows | There is no Win32 backend. `fence(policy)` still applies; catch and fall back, or set `requireEnforcement` and refuse to run. |
 | `confine()` throws with `baseline: 'deny'` | An allow-list read baseline is a fence capability. The kernel profiles are not given the system paths a program needs to start. |
 | A write lands despite `assertWritable` returning | Check-then-write is racy. Use `openConfinedWrite` / `writeConfinedFile`, which check and open in one step. |
+| `confine()` refuses to use an installed bubblewrap | Runner selection rejects anything older than 0.12.0 (GHSA-pxhw-h44j-8pfx). An old binary counts as no backend, not a degraded one. |
+| `requireEnforcement: 'full'` throws on a call that worked before | The check is per execution against the level actually reached: an alias scan that stopped at its bound lowers it to `partial`. Bound the walk with `aliasScanOptions`. |
 | `enforcement: 'partial'` on Linux | Either the restricted bubblewrap rung (no private `/proc`), or a hard-link scan that hit its bound. |
 
 ## Three axes, not one mode
@@ -119,10 +121,17 @@ fields on the same policy, and `confine()` reports their enforcement separately.
 | `baseline` | `read` (default), `deny` | fence only — `confine()` refuses `deny` |
 | `entries` | `{ path, access: 'write' \| 'read' \| 'deny' }[]` | both layers |
 
-Entries resolve by path specificity: the last layer containing a path wins, so
-`/repo = write`, `/repo/a = deny`, `/repo/a/b = write` behaves as written.
-`PROTECTED_SUBPATHS` (`.git`, `.ssh`, `.aws`, `.netrc`, …) is layered under every
-granted root automatically and stays readable.
+Deployment entries resolve by path specificity: the last layer containing a path
+wins, so `/repo = write`, `/repo/a = deny`, `/repo/a/b = write` behaves as
+written. `PROTECTED_SUBPATHS` (`.git`, `.ssh`, `.aws`, `.netrc`, …) is layered
+under every granted root automatically and stays readable.
+
+The three sources are kept apart, because they do not carry the same authority:
+`defaults.entries` are those layers; `request.entries` become `restrictions` and
+are **intersected** with them (every boundary either side names is recomputed as
+the narrower of the two, so a broad request `deny` also closes narrower standing
+grants beneath it); `approval.entries` become `approvedEntries` and are the only
+source applied last and allowed to widen.
 
 ## Authority
 
@@ -150,7 +159,12 @@ tell `systemctl status nginx` from `systemctl restart nginx`.
 classifyExec(['systemctl', 'status', 'nginx'])   // observe         → allow
 classifyExec(['systemctl', 'restart', 'nginx'])  // service-control → ask-approval
 classifyExec(['aws', 'configure', 'list'])       // credential      → deny
+classifyExec(['find', '.', '-name', '*.js', '-delete'])   // modify  → ask-approval
 ```
+
+A verb that only *looks* read-only is read for what it runs: `find` carrying
+`-delete`, `-exec`, `-execdir`, `-ok` or `-okdir` classifies as `modify`, and
+`eval` is a program to be classified, not shell punctuation to be skipped.
 
 An unrecognised command is never allowed. A command hiding others — a shell
 string, a pipeline, an argv carrying separators — is decided by its riskiest

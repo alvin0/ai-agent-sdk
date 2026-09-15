@@ -134,6 +134,25 @@ trước, và quyền tại một path là thứ mà **lớp cuối cùng** bao 
 Làm phẳng thành "root được cấp" + "path bị chặn" sẽ **mất dòng cuối**: một tập
 root không có chỗ nào ghi được một grant nằm *bên trong* thứ đã bị deny.
 
+Các lớp trên là của **deployment**. Request và approval **không** phải thêm
+entry vào cùng danh sách đó, vì ba nguồn không mang cùng thẩm quyền:
+
+```text
+  defaults.entries   ──► lớp, lớp CUỐI bao path thì thắng          (origin: entry)
+        │
+        ▼
+  request.entries    ──► GIAO với thứ đang đứng                (origin: restriction)
+        │                 mọi ranh giới do một trong hai bên nêu đều được tính
+        │                 lại thành bên HẸP HƠN — nên một `deny` rộng từ request
+        │                 cũng đóng luôn các grant hẹp nằm bên dưới nó
+        ▼
+  approval.entries   ──► áp dụng sau cùng, và được phép NỚI         (origin: approval)
+                          chỉ giá trị do approveSandboxEscalation() đúc ra
+```
+
+Làm phẳng cả ba vào một danh sách last-wins chính là thứ từng cho một request mở
+lại cái deployment đã đóng, chỉ bằng cách nêu một path sâu hơn.
+
 ## Quyền chỉ đi xuống
 
 ```text
@@ -307,10 +326,15 @@ trong hai thì hoặc là hỏi mà không cưỡng chế, hoặc là cưỡng c
 
 | | Linux | macOS | Windows |
 | --- | --- | --- | --- |
-| Giới hạn tiến trình | bubblewrap | Seatbelt | ✗ — `confine()` fail closed |
+| Giới hạn tiến trình | bubblewrap ≥ 0.12.0 | Seatbelt | ✗ — `confine()` fail closed |
 | Mạng | network namespace | `(deny network*)` | ✗ |
 | Dọn tiến trình | PID namespace | group + quét con cháu | một phần |
 | Fence trong tiến trình | ✓ | ✓ | ✓ |
+
+Khâu chọn runner **từ chối bubblewrap cũ hơn 0.12.0** — bản vá
+GHSA-pxhw-h44j-8pfx, lỗ hổng cho phép thoát sandbox khi quá trình dựng tạo mục
+bên dưới một symlink do kẻ tấn công điều khiển. Bản cũ bị coi là **không có
+backend**, không phải backend yếu hơn.
 
 `confine()` báo `enforcement` là `full`, `partial` hay `fence-only` chứ không
 ngụ ý. Deployment không chấp nhận mức thấp hơn thì nói ra:
@@ -318,6 +342,12 @@ ngụ ý. Deployment không chấp nhận mức thấp hơn thì nói ra:
 ```ts
 localSandbox({ requireEnforcement: 'full' })   // neu khong: SANDBOX_UNAVAILABLE
 ```
+
+Việc kiểm tra diễn ra **theo từng lần thực thi**, so với mức mà chính lời gọi đó
+đạt tới — không phải mức của rung đã chọn lúc khởi động. Một lần quét alias dừng
+ở chặn trên sẽ hạ mức xuống `partial`, và deployment đòi `full` bị từ chối ngay
+lần thực thi đó thay vì nhận một mức yếu hơn. `aliasScanOptions` chặn phạm vi
+quét đó.
 
 ## Những gì nó không làm
 
