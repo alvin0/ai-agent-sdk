@@ -208,6 +208,37 @@ describe('layered grants', () => {
     expect(accessInLayers('/repo/.git/config', grantLayers(reopened))).toBe('write')
   })
 
+  it('keeps only the last layer when one path is named twice', () => {
+    // Found by the fuzzer at seed 578640087 on linux/arm64. Both layers
+    // survived the collapse, and bubblewrap emitted a rule for each: it bound
+    // the directory writable and then sealed it read-only, so the fence
+    // allowed a write the kernel refused.
+    const repeated = policy({
+      entries: [
+        { path: '/repo/vendor', access: 'deny' },
+        { path: '/repo/vendor', access: 'write' },
+      ],
+    })
+    const layers = grantLayers(repeated)
+    // One rule at most, and here none at all: the surviving layer grants write,
+    // which the workspace already did, so it changes nothing and collapses too.
+    expect(layers.filter(layer => layer.path === '/repo/vendor').length).toBeLessThanOrEqual(1)
+    expect(accessInLayers('/repo/vendor/x', layers)).toBe('write')
+    expect(writableRoots(repeated).denied).not.toContain('/repo/vendor')
+  })
+
+  it('keeps the surviving layer when it is not already in force', () => {
+    const repeated = policy({
+      entries: [
+        { path: '/repo/vendor', access: 'write' },
+        { path: '/repo/vendor', access: 'deny' },
+      ],
+    })
+    const layers = grantLayers(repeated)
+    expect(layers.filter(layer => layer.path === '/repo/vendor')).toHaveLength(1)
+    expect(accessInLayers('/repo/vendor/x', layers)).toBe('deny')
+  })
+
   it('emits no layer that would not change the access already in force', () => {
     const redundant = policy({ entries: [{ path: '/repo/src', access: 'write' }] })
     expect(grantLayers(redundant).map(layer => layer.path)).not.toContain('/repo/src')

@@ -111,8 +111,18 @@ export function grantLayers(
     || ORIGIN_RANK[left.origin] - ORIGIN_RANK[right.origin]
     || left.path.localeCompare(right.path))
 
+  // A path named twice keeps only its last layer. The earlier one can never
+  // affect a decision — the later one covers exactly the same subtree — but
+  // leaving it in makes the list say two things about one path, and a backend
+  // that emits one rule per layer then emits both. bubblewrap did: it sealed a
+  // denied directory read-only *after* a later layer had bound it writable,
+  // so the fence allowed a write the kernel refused.
+  const lastAtPath = new Map<string, number>()
+  proposed.forEach((layer, index) => lastAtPath.set(layer.path, index))
+  const distinct = proposed.filter((layer, index) => lastAtPath.get(layer.path) === index)
+
   const kept: GrantLayer[] = []
-  for (const layer of proposed) {
+  for (const layer of distinct) {
     if (accessInLayers(layer.path, kept) !== layer.access) kept.push(Object.freeze(layer))
   }
   return Object.freeze(kept)
