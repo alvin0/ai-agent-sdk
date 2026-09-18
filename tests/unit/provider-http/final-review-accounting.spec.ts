@@ -26,7 +26,7 @@ describe('final review provider retry to terminal ledger', () => {
     const low = ReasoningEffortId('low')
     const adapter = createRuntimeHttpProvider({
       displayName: 'Partial retry', protocol, baseUrl: 'https://partial.invalid', auth: { kind: 'none' },
-      models: [{ id: 'test', reasoning: { efforts: [{ id: low, name: 'low' }], defaultEffort: low } }],
+      models: [{ id: 'test', reasoning: { efforts: [{ id: low, name: 'low' }] } }],
       fetch: async () => new Response(`data: ${++calls === 1 ? 'partial' : 'full'}\n\n`, {
         headers: { 'content-type': 'text/event-stream' },
       }),

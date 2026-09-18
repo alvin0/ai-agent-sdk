@@ -7,7 +7,6 @@ import {
   captureTurnHooks, captureUsagePolicy, captureUserInputBroker,
 } from './policy.ts'
 import type { RuntimeAgentInvocationOptions, RuntimeAgentSessionOptions } from './types.ts'
-import { ReasoningEffortId } from '../../primitives/brand.ts'
 import { resolveAgentModel } from '../provider/model-selection.ts'
 import type { ModelTarget, ProviderSelection } from '../provider/types.ts'
 import { captureToolSources } from '../tool-source/definition.ts'
@@ -15,7 +14,7 @@ import { captureMemoryBinding } from '../memory/definition.ts'
 import { captureRuntimeSkillSources } from '../skill-provider/definition.ts'
 
 const KEYS = new Set(['signal', 'additionalInstructions', 'onEvent', 'imagePolicy', 'documentPolicy',
-  'structuredOutput', 'includeTraceEvents', 'model', 'effort', 'maxTokens'])
+  'structuredOutput', 'includeTraceEvents', 'model', 'maxTokens'])
 const SESSION_KEYS = new Set(['conversationId', 'tools', 'toolSources', 'skills', 'memory', 'skillCwd',
   'userInput', 'approvals', 'spillStore', 'interceptors', 'contextSections', 'hooks', 'usagePolicy', 'historyLimits',
   'ledgerLimits',
@@ -24,7 +23,6 @@ const SESSION_KEYS = new Set(['conversationId', 'tools', 'toolSources', 'skills'
 export interface CapturedInvocationOptions {
   /** Already resolved against the configured routes; a full target, never route-only. */
   readonly model?: ModelTarget
-  readonly effort?: ReturnType<typeof ReasoningEffortId>
   readonly maxTokens?: number
   readonly structuredOutput?: NonNullable<RuntimeAgentInvocationOptions['structuredOutput']>
   readonly imagePolicy?: 'strict' | 'project'
@@ -134,15 +132,11 @@ export function captureInvocationOptions(
     throw new TypeError('Runtime invocation model override is unavailable on this session')
   }
   const model = requested === undefined ? undefined : resolveAgentModel(selection!, requested)
-  const rawEffort = ownData(source, 'effort', false)
-  if (rawEffort !== undefined && typeof rawEffort !== 'string') throw new TypeError('Runtime invocation effort must be a string')
-  const effort = rawEffort === undefined ? undefined : ReasoningEffortId(rawEffort)
   const maxTokens = ownData(source, 'maxTokens', false)
   if (maxTokens !== undefined && (!Number.isSafeInteger(maxTokens) || (maxTokens as number) < 1)) {
     throw new TypeError('Runtime invocation maxTokens must be a positive safe integer')
   }
   return Object.freeze({ ...(model === undefined ? {} : { model }),
-    ...(effort === undefined ? {} : { effort }),
     ...(maxTokens === undefined ? {} : { maxTokens: maxTokens as number }),
     ...(structuredOutput === undefined ? {} : { structuredOutput }), ...(imagePolicy === undefined ? {} : { imagePolicy }),
     ...(documentPolicy === undefined ? {} : { documentPolicy }), ...(signal === undefined ? {} : { signal }),

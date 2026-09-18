@@ -116,14 +116,17 @@ export type WireToolChoice =
 
 /** Extended-thinking configuration. */
 export type WireThinking =
+  | { type: 'adaptive' }
   | { type: 'enabled'; budget_tokens: number }
   | { type: 'disabled' }
 
 export interface WireOutputConfig {
-  format: {
+  format?: {
     type: 'json_schema'
     schema: Readonly<Record<string, unknown>>
   }
+  /** The GA reasoning-effort field: `"low" | "medium" | "high" | "xhigh" | "max"`, sent verbatim. */
+  effort?: string
 }
 
 /** The request body. */

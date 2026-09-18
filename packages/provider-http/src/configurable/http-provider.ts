@@ -305,8 +305,8 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
       provider,
       model,
       this.options.models ?? [],
-      this.options.defaultMaxTokens ?? 8_192,
-      this.options.defaultContextWindow ?? 128_000,
+      this.options.defaultMaxTokens,
+      this.options.defaultContextWindow,
     )))
   }
 
@@ -438,8 +438,8 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
       models: this.options.models ?? await this.resolveCatalog(
         provider, baseUrl, headers, operationSignal, context,
       ),
-      defaultMaxTokens: this.options.defaultMaxTokens ?? 8_192,
-      defaultContextWindow: this.options.defaultContextWindow ?? 128_000,
+      ...(this.options.defaultMaxTokens === undefined ? {} : { defaultMaxTokens: this.options.defaultMaxTokens }),
+      ...(this.options.defaultContextWindow === undefined ? {} : { defaultContextWindow: this.options.defaultContextWindow }),
     }
   }
 

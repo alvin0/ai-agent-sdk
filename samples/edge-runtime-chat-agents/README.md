@@ -72,20 +72,23 @@ Reasoning effort is in the same menu and defaults to **model default**, which
 sends no effort field. The menu then shows the levels for the selected model:
 GPT-5 offers `minimal` through `high`, GPT-5.1 offers `none` through `high`, and
 GPT-5.2/GPT-5.4 also offer `xhigh`. Non-reasoning models such as GPT-4o and
-GPT-4.1 show no levels. Picking a level adds the complete reasoning capability
-list to that model's catalog entry, since the SDK validates the selected effort
-against the model's declared capabilities.
+GPT-4.1 show no levels. This list is purely advisory now — the SDK forwards
+whatever effort an agent is given straight to the provider and lets the
+provider be the judge of it, rather than validating it against a declared
+ladder itself.
 
-Changing either keeps the conversation. Model and effort are sent **per turn**:
-`session.stream()` takes a `model` and an `effort` that apply to that call only,
-so the warm session, its history and its compactor stay exactly where they were
-and the next turn simply runs somewhere else. The agent's own binding never
-moves, and a turn that names no effort sends none rather than inheriting the
-level some earlier turn picked.
+Changing the **model** keeps the conversation: `session.stream()` still takes a
+`model` override that applies to that call only, so the warm session, its
+history and its compactor stay exactly where they were and the next turn simply
+runs somewhere else. Changing the **effort** does not: the SDK has no per-call
+effort override, only a per-agent one, so a new effort choice rebuilds the
+session — and its history — around a freshly bound agent.
 
-Two things still replace the session, because neither is a per-call decision: a
-corrected capacity, which is baked into the provider when the runtime is built,
-and a team roster, whose members bind their models when the members are built.
+Three things replace the session, because none of them is a per-call decision:
+a corrected capacity, which is baked into the provider when the runtime is
+built; a new effort choice, which is baked into the agent when the session is
+built; and a team roster, whose members bind their models (and their effort)
+when the members are built.
 
 ## One agent, a fixed team, or Team Auto
 

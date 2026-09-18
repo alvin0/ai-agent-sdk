@@ -8,10 +8,11 @@
  * 1. The override reaches the wire and does not outlive its run.
  * 2. It is resolved against the SAME configured routes as the binding, with the
  *    same codes, and BEFORE any I/O — a bad target costs nothing.
- * 3. Switching model drops the inherited effort and output ceiling, because both
- *    belong to the model that offered them.
- * 4. Nothing here introduces failover: an unsupported effort fails the run
- *    rather than quietly landing on another model or another effort.
+ * 3. Switching model drops the agent's inherited effort and output ceiling: an
+ *    effort belongs to the model that offered it, and effort is pure
+ *    pass-through now — the SDK has no ladder to carry it against.
+ * 4. Effort has NO per-invocation override: it is set once, on the agent, and
+ *    an invocation cannot change it — only defining a different agent can.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -23,9 +24,8 @@ import type { ModelProviderRegistrar } from '../../../packages/core/src/plugin/p
 import { ReasoningEffortId } from '../../../packages/core/src/primitives/brand.ts'
 import { MODEL_BINDING_ERROR_CODES } from '../../../packages/core/src/composition/common/config.ts'
 import { createAgentRuntime } from '../../../packages/core/src/index.ts'
-import { AgentRunError } from '../../../packages/core/src/agent/accounting/error.ts'
 
-/** Efforts each model offers, so an override onto the wrong ladder is detectable. */
+/** Advisory efforts each model declares; display metadata only, never enforced. */
 const LADDERS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   'luna-like': Object.freeze(['low', 'medium', 'high']),
   'reserve-like': Object.freeze(['medium', 'max']),
@@ -47,7 +47,7 @@ class RecordingAdapter extends ModelAdapter {
     const efforts = (LADDERS[id] ?? []).map(effort => ({ id: ReasoningEffortId(effort), name: effort }))
     return Promise.resolve({
       provider, id, name: id, maxOutputTokens: 4_096, context: { contextWindow: 128_000 },
-      ...(efforts.length === 0 ? {} : { reasoning: { efforts, defaultEffort: efforts[0]!.id } }),
+      ...(efforts.length === 0 ? {} : { reasoning: { efforts } }),
     })
   }
 }
@@ -81,12 +81,13 @@ describe('per-invocation model selection', () => {
     const session = agent.createSession()
 
     const bound = await session.run('one')
-    const moved = await session.run('two', { model: { provider: 'secondary', id: 'reserve-like' }, effort: 'max' })
+    const moved = await session.run('two', { model: { provider: 'secondary', id: 'reserve-like' } })
     const back = await session.run('three')
 
     expect(adapter.requests.map(request => [request.provider, request.model, request.reasoningEffort])).toEqual([
       ['primary', 'luna-like', 'high'],
-      ['secondary', 'reserve-like', 'max'],
+      // Effort belongs to the agent's own model; a model switch drops it.
+      ['secondary', 'reserve-like', undefined],
       ['primary', 'luna-like', 'high'],
     ])
     // The binding is the agent's identity and an invocation never rewrites it.
@@ -97,29 +98,33 @@ describe('per-invocation model selection', () => {
     await runtime.close()
   })
 
-  it('changes effort alone on the agent\'s own model', async () => {
+  it('has no per-invocation effort override: only the agent\'s own effort ever ships', async () => {
     const { adapter, runtime } = await runtimeWithTwoRoutes()
-    const session = runtime.agent({ id: 'effort-only', model: { provider: 'primary', id: 'luna-like' },
+    const session = runtime.agent({ id: 'effort-fixed', model: { provider: 'primary', id: 'luna-like' },
       effort: 'low', instructions: 'Answer.', compaction: false }).createSession()
-    await session.run('one', { effort: 'high' })
-    expect(adapter.requests.at(-1)).toMatchObject({ provider: 'primary', model: 'luna-like', reasoningEffort: 'high' })
+    await session.run('one')
+    expect(adapter.requests.at(-1)).toMatchObject({ provider: 'primary', model: 'luna-like', reasoningEffort: 'low' })
     await runtime.close()
   })
 
-  it('drops the inherited effort and ceiling when the model changes, and keeps them when restated', async () => {
+  it('drops the inherited effort when the model changes, and keeps maxTokens when restated', async () => {
     const { adapter, runtime } = await runtimeWithTwoRoutes()
     const session = runtime.agent({ id: 'ladders', model: { provider: 'primary', id: 'luna-like' },
       effort: 'high', maxTokens: 2_048, instructions: 'Answer.', compaction: false }).createSession()
 
-    // 'high' is not on the reserve-like ladder; carrying it over would fail the run.
+    // Effort is pure pass-through and has no per-invocation override, so a model
+    // switch always drops the agent's effort — there is nothing to restate it with.
     await session.run('one', { model: { provider: 'secondary', id: 'reserve-like' } })
     const dropped = adapter.requests.at(-1)!
     expect(dropped.model).toBe('reserve-like')
-    expect(dropped.reasoningEffort).toBe('medium') // the route's own default, not the agent's 'high'
+    expect(dropped.reasoningEffort).toBeUndefined()
     expect(dropped.maxTokens).toBeUndefined()
 
-    await session.run('two', { model: { provider: 'secondary', id: 'reserve-like' }, effort: 'max', maxTokens: 512 })
-    expect(adapter.requests.at(-1)).toMatchObject({ model: 'reserve-like', reasoningEffort: 'max', maxTokens: 512 })
+    // maxTokens keeps its per-invocation override.
+    await session.run('two', { model: { provider: 'secondary', id: 'reserve-like' }, maxTokens: 512 })
+    const restated = adapter.requests.at(-1)!
+    expect(restated).toMatchObject({ model: 'reserve-like', maxTokens: 512 })
+    expect(restated.reasoningEffort).toBeUndefined()
     await runtime.close()
   })
 
@@ -168,26 +173,14 @@ describe('per-invocation model selection', () => {
     await runtime.close()
   })
 
-  it('fails the run rather than falling back when the override asks for an unsupported effort', async () => {
-    const { adapter, runtime } = await runtimeWithTwoRoutes()
-    const session = runtime.agent({ id: 'no-failover', model: { provider: 'primary', id: 'luna-like' },
-      instructions: 'Answer.', compaction: false }).createSession()
-    const failure = await session.run('one', { model: { provider: 'secondary', id: 'reserve-like' }, effort: 'high' })
-      .then(() => undefined, (error: unknown) => error as AgentRunError)
-    expect(failure).toBeInstanceOf(AgentRunError)
-    expect(failure!.report.status).toBe('error')
-    expect(failure!.report.errors.map(error => error.code)).toContain('UNSUPPORTED_REASONING_EFFORT')
-    // No second dispatch on another model or another effort.
-    expect(adapter.requests).toHaveLength(0)
-    await runtime.close()
-  })
-
-  it('rejects unsupported invocation fields rather than ignoring them', async () => {
+  it('rejects unsupported invocation fields rather than ignoring them, including a removed effort override', async () => {
     const { runtime } = await runtimeWithTwoRoutes()
     const session = runtime.agent({ id: 'strict-fields', model: { provider: 'primary', id: 'luna-like' },
       instructions: 'Answer.', compaction: false }).createSession()
     await expect(session.run('one', { provider: 'secondary' } as never)).rejects.toThrow(TypeError)
     await expect(session.run('one', { maxTokens: 0 } as never)).rejects.toThrow(TypeError)
+    // Effort has no per-invocation override anymore: only the agent definition sets it.
+    await expect(session.run('one', { effort: 'high' } as never)).rejects.toThrow(TypeError)
     await runtime.close()
   })
 })

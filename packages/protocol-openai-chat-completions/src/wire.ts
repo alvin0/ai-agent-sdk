@@ -140,6 +140,8 @@ export interface WireRequest {
   stop?: string | string[]
   seed?: number
   reasoning_effort?: string
+  /** Sent alongside `reasoning_effort` by `dialect.reasoningFormat: 'deepseek'`. */
+  thinking?: { type: 'enabled' | 'disabled' }
   tools?: WireTool[]
   tool_choice?: WireToolChoice
   parallel_tool_calls?: boolean
@@ -321,8 +323,24 @@ export interface ChatCompletionsDialect {
   readonly stop: boolean
   /** Send `seed`. */
   readonly seed: boolean
-  /** Send `reasoning_effort`. */
-  readonly reasoningEffort: boolean
+  /**
+   * How this endpoint wants to be told how hard to think, or `false` to send
+   * nothing regardless of the effort the caller asked for.
+   *
+   * `'openai'` sends `reasoning_effort` alone (the value passed through
+   * verbatim — see decision 1 in the redesign plan). `'deepseek'` matches an
+   * endpoint that reasons unless told not to: every effort except `'off'`
+   * sends `thinking: {type: 'enabled'}` beside `reasoning_effort`, and
+   * `'off'` sends `thinking: {type: 'disabled'}` and omits `reasoning_effort`
+   * entirely, mirroring `.temp/deepseek-harness`'s `thinkingFormat: 'deepseek'`
+   * (battle-tested there, not guessed here).
+   *
+   * `'openrouter' | 'qwen'` are deliberately NOT implemented yet: this SDK
+   * has no live credentials or verified wire capture for either endpoint's
+   * reasoning field, and decision 7 (honest behaviour, no guessing) rules out
+   * shipping an unverified shape under a name that promises otherwise.
+   */
+  readonly reasoningFormat: 'openai' | 'deepseek' | false
   /** Prompt-cache key, sent when the endpoint accepts one. */
   readonly promptCacheKey?: string
   /**
@@ -340,7 +358,7 @@ export interface ChatCompletionsDialect {
  *
  * Conservative in one direction on purpose: a field an endpoint does not
  * understand is usually a hard HTTP 400, while a field left unsent merely
- * forgoes a feature. So `parallelToolCalls`, `seed` and `reasoningEffort` — the
+ * forgoes a feature. So `parallelToolCalls`, `seed` and `reasoningFormat` — the
  * three fields older gateways most often reject — stay OFF until a provider
  * opts in.
  *
@@ -358,6 +376,6 @@ export const DEFAULT_DIALECT: ChatCompletionsDialect = Object.freeze({
   systemRole: 'system',
   stop: true,
   seed: false,
-  reasoningEffort: false,
+  reasoningFormat: false,
   path: '/chat/completions',
 } as const satisfies ChatCompletionsDialect)

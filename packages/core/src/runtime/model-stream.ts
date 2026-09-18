@@ -2,7 +2,7 @@ import type { ModelAdapter, PreparedAdapterCall } from '../contract/adapter.ts'
 import { callConfigEquals, type CallConfig } from '../contract/call-config.ts'
 import type { GenerateOptions } from '../contract/generate-options.ts'
 import { isNativeToolSchema } from '../contract/tool.ts'
-import type { ProviderInfo, ResolvedModelInfo } from '../contract/model-info.ts'
+import type { ProviderInfo, ResolvedModelInfo, RuntimeDefaults } from '../contract/model-info.ts'
 import type { ResolvedRetryPolicy } from '../contract/retry-policy.ts'
 import { normalizeModelFailure } from '../errors/failure.ts'
 import { MODEL_ERROR_CODES, ModelError, REGISTRY_ERROR_CODES } from '../errors/model-error.ts'
@@ -39,6 +39,7 @@ export interface AdapterStreamInput {
   readonly onDispatch: () => void
   readonly prepared?: PreparedDispatch
   readonly maxCatalogBytes: number
+  readonly defaults: RuntimeDefaults
   readonly registration: (provider: string) => RuntimeAdapterRegistration
   readonly registeredAdapter: (provider: string) => ModelAdapter | undefined
 }
@@ -106,11 +107,11 @@ async function prepareDispatch(
     options.provider, options.model, options.signal, context,
   )
   const modelInfo = normalizeResolvedModelInfo(
-    registration.provider.id, options.model, adapterCall.model, input.maxCatalogBytes,
+    registration.provider.id, options.model, adapterCall.model, input.maxCatalogBytes, input.defaults,
   )
   return {
     modelInfo,
-    config: resolveCallWithModelInfo(options, modelInfo).config,
+    config: resolveCallWithModelInfo(options, modelInfo, input.defaults).config,
     dispatch: (request, activeContext) => adapterCall.stream(request, activeContext),
   }
 }

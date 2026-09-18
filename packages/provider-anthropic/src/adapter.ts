@@ -10,7 +10,6 @@
 
 import type { ModelReasoningInfo } from '@alvin0/ai-agent-sdk-core'
 import type { ModelProviderPlugin, ModelProviderRegistrar, RetryPolicyConfig } from '@alvin0/ai-agent-sdk-core'
-import { anthropicContextPolicy } from './context-policy.ts'
 import { ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
 import {
   defineModelProviderPlugin,
@@ -34,6 +33,7 @@ import {
   DEFAULT_THINKING_BUDGETS,
   anthropicMessagesProtocol,
   type AnthropicDialect,
+  type AnthropicReasoningFormat,
   type ThinkingBudgets,
 } from '@alvin0/ai-agent-sdk-protocol-anthropic-messages'
 
@@ -81,8 +81,25 @@ export interface AnthropicAdapterOptions {
    * stale built-in list would name retired models.
    */
   models?: readonly ProviderCatalogModel[]
-  /** Effort id to thinking-token budget; defaults to {@link DEFAULT_THINKING_BUDGETS}. */
+  /**
+   * Which field carries reasoning effort. Defaults to `'output-config'`
+   * (current GA models): the caller's effort string reaches
+   * `output_config.effort` verbatim — pure pass-through, no SDK conversion.
+   * Set `'thinking-budget'` for an older model or a gateway that only
+   * understands a token budget; then effort is converted via `thinkingBudgets`
+   * instead of being sent raw.
+   */
+  reasoningFormat?: AnthropicReasoningFormat
+  /** Effort id to thinking-token budget; only consulted under `reasoningFormat: 'thinking-budget'`. */
   thinkingBudgets?: ThinkingBudgets
+  /**
+   * Extended-thinking mode, sent only when set. Independent of effort under
+   * `'output-config'` — omission leaves the model's own default thinking
+   * behavior alone rather than the SDK guessing one from the effort.
+   */
+  thinking?: 'adaptive' | 'disabled'
+  /** How the API key travels. Defaults to `'x-api-key'`, this API's own header. */
+  authHeader?: 'x-api-key' | 'bearer'
   /**
    * Output cap when neither caller nor catalog names one.
    *
@@ -114,10 +131,11 @@ export interface AnthropicAdapterOptions {
  * @returns the adapter, ready to register.
  */
 export function anthropicAdapter(options: AnthropicAdapterOptions): HttpModelAdapter {
-  const contextPolicy = anthropicContextPolicy(options)
   const budgets = options.thinkingBudgets ?? DEFAULT_THINKING_BUDGETS
   const dialect: Partial<AnthropicDialect> = {
     budgets,
+    ...options.reasoningFormat === undefined ? {} : { reasoningFormat: options.reasoningFormat },
+    ...options.thinking === undefined ? {} : { thinking: options.thinking },
     ...options.version === undefined ? {} : { version: options.version },
     ...options.beta === undefined ? {} : { beta: options.beta },
   }
@@ -126,21 +144,15 @@ export function anthropicAdapter(options: AnthropicAdapterOptions): HttpModelAda
     displayName: 'Anthropic',
     protocol: anthropicMessagesProtocol,
     baseUrl: options.baseUrl ?? ANTHROPIC_BASE_URL,
-    // This API uses its own header rather than `authorization: Bearer`.
-    auth: {
-      kind: 'header',
-      name: 'x-api-key',
-      value: options.apiKey,
-      label: 'the `apiKey` option',
-    },
+    auth: authOf(options),
     dialect,
     describeModel: (info, effective) => ({
-      ...contextPolicy(info),
+      ...info,
       reasoning: info.reasoning ?? reasoningInfo(effective.budgets),
     }),
     ...options.models === undefined ? {} : { models: options.models },
-    defaultMaxTokens: options.defaultMaxTokens ?? 8_192,
-    defaultContextWindow: options.defaultContextWindow ?? 200_000,
+    ...options.defaultMaxTokens === undefined ? {} : { defaultMaxTokens: options.defaultMaxTokens },
+    ...options.defaultContextWindow === undefined ? {} : { defaultContextWindow: options.defaultContextWindow },
     ...options.streamIdleTimeoutMs === undefined
       ? {}
       : { streamIdleTimeoutMs: options.streamIdleTimeoutMs },
@@ -200,10 +212,11 @@ function legacyAnthropicPlugin(options: AnthropicPluginOptions): ModelProviderPl
 }
 
 function createRuntimeAnthropicAdapter(options: AnthropicProviderOptions): HttpModelAdapter {
-  const contextPolicy = anthropicContextPolicy(options)
   const budgets = options.thinkingBudgets ?? DEFAULT_THINKING_BUDGETS
   const dialect: Partial<AnthropicDialect> = {
     budgets,
+    ...(options.reasoningFormat === undefined ? {} : { reasoningFormat: options.reasoningFormat }),
+    ...(options.thinking === undefined ? {} : { thinking: options.thinking }),
     ...(options.version === undefined ? {} : { version: options.version }),
     ...(options.beta === undefined ? {} : { beta: options.beta }),
   }
@@ -211,20 +224,15 @@ function createRuntimeAnthropicAdapter(options: AnthropicProviderOptions): HttpM
     displayName: 'Anthropic',
     protocol: anthropicMessagesProtocol,
     baseUrl: options.baseUrl ?? ANTHROPIC_BASE_URL,
-    auth: {
-      kind: 'header',
-      name: 'x-api-key',
-      value: options.apiKey,
-      label: 'the `apiKey` option',
-    },
+    auth: authOf(options),
     dialect,
     describeModel: (info, effective) => ({
-      ...contextPolicy(info),
+      ...info,
       reasoning: info.reasoning ?? reasoningInfo(effective.budgets),
     }),
     ...(options.models === undefined ? {} : { models: options.models }),
-    defaultMaxTokens: options.defaultMaxTokens ?? 8_192,
-    defaultContextWindow: options.defaultContextWindow ?? 200_000,
+    ...(options.defaultMaxTokens === undefined ? {} : { defaultMaxTokens: options.defaultMaxTokens }),
+    ...(options.defaultContextWindow === undefined ? {} : { defaultContextWindow: options.defaultContextWindow }),
     ...(options.streamIdleTimeoutMs === undefined ? {} : { streamIdleTimeoutMs: options.streamIdleTimeoutMs }),
     ...transportLimits(options),
     ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),
@@ -250,6 +258,16 @@ function runtimeDefaultModel(
     throw new TypeError('A string defaultModel requires exactly one Anthropic route')
   }
   return { defaultModel: Object.freeze({ provider: routes[0]!, id: value }) }
+}
+
+/**
+ * This API's own header is `x-api-key`, unlike most others' `authorization:
+ * Bearer` — but a gateway sitting in front of it may expect Bearer instead.
+ */
+function authOf(options: AnthropicAdapterOptions | AnthropicProviderOptions) {
+  return options.authHeader === 'bearer'
+    ? { kind: 'bearer' as const, token: options.apiKey, label: 'the `apiKey` option' }
+    : { kind: 'header' as const, name: 'x-api-key', value: options.apiKey, label: 'the `apiKey` option' }
 }
 
 function transportLimits(options: AnthropicAdapterOptions | AnthropicProviderOptions) {

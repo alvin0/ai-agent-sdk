@@ -211,6 +211,7 @@
           "RuntimeAgentTeamEvent",
           "RuntimeAgentTeamOptions",
           "RuntimeCloseReport",
+          "RuntimeDefaults",
           "RuntimeModelCatalogSnapshot",
           "RuntimeObservationExporterRegistration",
           "RuntimeObservationResourceInput",
@@ -371,7 +372,7 @@
           "withIdleTimeout",
           "withRetry"
         ],
-        "declarationSha256": "7a3e72047edec5b0c2ef36ce7976fd4200e2ed74d141cd4d5dbfff826b68594d"
+        "declarationSha256": "1feee4ef0b98b04c4a99c38f9582092af6070ecbdc8025e3db29e6ac24aefb9b"
       },
       "./agent": {
         "exports": [
@@ -1007,7 +1008,7 @@
           "retryAfterMs",
           "transportJson"
         ],
-        "declarationSha256": "66fa1d9665b70b1632d8612f95bf4c46828e0fb13436d0e86178ea762565b97f"
+        "declarationSha256": "c2dc35a9b2fa29c16784cec0701237c86ac497b11f3390684fb2764a4b9783f8"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-responses": {
@@ -1047,7 +1048,7 @@
           "serializeResponsesRequest",
           "translateResponsesStream"
         ],
-        "declarationSha256": "292df3bff6fc3ea3b8b179e997c2ce8ab77d29a90dfadce698a593945019176e"
+        "declarationSha256": "bf8baf6e757db9936b6203c5f6046c4c4eac4e721b6e01090bc5c3f096f38728"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-anthropic-messages": {
@@ -1091,7 +1092,7 @@
           "serializeAnthropicRequest",
           "translateAnthropicStream"
         ],
-        "declarationSha256": "afbb5bf91717af4f4512bb3500d4ac091115c6dd84003678b3691e8bc4fc2c8b"
+        "declarationSha256": "ea604ef568e879828166e8c0eda9a0e803cf55e078ba30ccb50ae73fa73610ce"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-gemini-interactions": {
@@ -1128,7 +1129,7 @@
           "serializeGeminiInteractionsRequest",
           "translateGeminiInteractionsStream"
         ],
-        "declarationSha256": "4e985b8a06e35afe3fe253df320635dd261a88a0577bd9563c4e51c2ffee6ca4"
+        "declarationSha256": "df31ce35a9bf2b234570737253232a3ded750f5ff0cf2c507d6a78b82354d291"
       }
     },
     "@alvin0/ai-agent-sdk-provider-openai": {

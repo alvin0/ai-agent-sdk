@@ -45,10 +45,11 @@ export interface AgentDefinitionInput {
   /**
    * Provider reasoning effort. Omitted means no preference.
    *
-   * An agent that never asked for a level should not be given one: the value
-   * is validated against the model's own ladder, so an invented default makes
-   * the agent unrunnable on every provider that declares no efforts — and
-   * silently overrides the provider's own default everywhere else.
+   * Pure pass-through: omitted, no effort field reaches the wire request at
+   * all; set, the exact string is forwarded to the provider's own effort
+   * field verbatim. The SDK never validates it against a ladder or invents a
+   * default — an unsupported value is the provider's rejection to make, in
+   * its own error shape, not a guess this package would get stale.
    */
   readonly effort?: string
   /** Requested output budget; omission uses the selected model's declared default/cap. */

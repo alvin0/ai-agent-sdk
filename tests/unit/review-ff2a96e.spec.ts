@@ -22,7 +22,7 @@ class Scripted extends ModelAdapter {
   override async resolveModel(provider: string, id: string): Promise<ResolvedModelInfo> {
     const low = ReasoningEffortId('low')
     return { provider, id, name: id,
-      reasoning: { efforts: [{ id: low, name: 'Low' }], defaultEffort: low } }
+      reasoning: { efforts: [{ id: low, name: 'Low' }] } }
   }
   async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     const step = this.steps[this.requests.length]

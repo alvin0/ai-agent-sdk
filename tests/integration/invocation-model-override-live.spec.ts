@@ -112,7 +112,7 @@ describe.skipIf(!codexLive)('per-invocation model selection, live generation', (
     })
   })
 
-  it('puts successive turns of one session on different models at different efforts', async () => {
+  it('puts successive turns of one session on different models, dropping effort on the switch', async () => {
     const agent = runtime.agent({
       id: 'override-live', model: { provider: GENERATION_ROUTE, id: PRIMARY_MODEL }, effort: 'low',
       instructions: 'Answer in at most eight words. No punctuation beyond a full stop.',
@@ -120,10 +120,11 @@ describe.skipIf(!codexLive)('per-invocation model selection, live generation', (
     })
     const session = agent.createSession()
 
+    // Effort has no per-invocation override anymore — it is set once, on the
+    // agent, and travels with the agent's own model only.
     const bound = await session.run('Reply with the single word: alpha')
-    const highEffort = await session.run('Reply with the single word: beta', { effort: 'high' })
     const switched = await session.run('Reply with the single word: gamma', {
-      model: { provider: GENERATION_ROUTE, id: SECONDARY_MODEL }, effort: 'max',
+      model: { provider: GENERATION_ROUTE, id: SECONDARY_MODEL },
     })
     const routeDefault = await session.run('Reply with the single word: delta', {
       model: { provider: GENERATION_ROUTE },
@@ -133,7 +134,6 @@ describe.skipIf(!codexLive)('per-invocation model selection, live generation', (
       [...new Set(response.report.modelCalls.map(call => `${call.provider}/${call.model}`))]
 
     expect(called(bound)).toEqual([`${GENERATION_ROUTE}/${PRIMARY_MODEL}`])
-    expect(called(highEffort)).toEqual([`${GENERATION_ROUTE}/${PRIMARY_MODEL}`])
     // The override, not the binding, decided this turn.
     expect(called(switched)).toEqual([`${GENERATION_ROUTE}/${SECONDARY_MODEL}`])
     // Route-only resolves the configured default, which is the primary model again.
@@ -141,7 +141,7 @@ describe.skipIf(!codexLive)('per-invocation model selection, live generation', (
     // The agent's own target never moved.
     expect(agent.model).toEqual({ provider: GENERATION_ROUTE, id: PRIMARY_MODEL })
 
-    for (const response of [bound, highEffort, switched, routeDefault]) {
+    for (const response of [bound, switched, routeDefault]) {
       expect(response.report.status).toBe('success')
       expect(response.text.trim().length).toBeGreaterThan(0)
     }
@@ -155,7 +155,7 @@ describe.skipIf(!codexLive)('per-invocation model selection, live generation', (
 
     await session.run('Remember this codeword for later: pangolin. Reply with: ok')
     const recalled = await session.run('What was the codeword? Reply with the word only.', {
-      model: { provider: GENERATION_ROUTE, id: SECONDARY_MODEL }, effort: 'medium',
+      model: { provider: GENERATION_ROUTE, id: SECONDARY_MODEL },
     })
 
     expect(recalled.report.modelCalls.every(call => call.model === SECONDARY_MODEL)).toBe(true)
@@ -163,18 +163,29 @@ describe.skipIf(!codexLive)('per-invocation model selection, live generation', (
     expect(recalled.text.toLowerCase()).toContain('pangolin')
   }, 300_000)
 
-  it('refuses an effort the live catalog does not offer, and never lands on another one', async () => {
+  it('lets the provider itself reject an unsupported effort, in its own words', async () => {
+    // Effort is pure pass-through now: nothing in the SDK validates it against a
+    // ladder, so this must fail at the real endpoint, carrying that endpoint's
+    // own error message — never a fabricated `UNSUPPORTED_REASONING_EFFORT`.
     const session = runtime.agent({
-      id: 'no-failover-live', model: { provider: GENERATION_ROUTE, id: PRIMARY_MODEL },
+      id: 'provider-rejects-live', model: { provider: GENERATION_ROUTE, id: PRIMARY_MODEL }, effort: 'ludicrous',
       instructions: 'Answer in one word.', compaction: false,
     }).createSession()
 
-    const failure = await session.run('Reply with: epsilon', { effort: 'ludicrous' })
-      .then(() => undefined, (error: unknown) => error as { code?: string; report?: { errors: readonly { code: string }[] } })
+    const failure = await session.run('Reply with: epsilon')
+      .then(() => undefined, (error: unknown) => error as { report?: { errors: readonly { code: string; message: string }[] } })
     expect(failure).toBeDefined()
-    expect(failure!.report?.errors.map(error => error.code)).toContain('UNSUPPORTED_REASONING_EFFORT')
-    // The session is intact: the refusal is about that one invocation.
-    const next = await session.run('Reply with: zeta')
+    expect(failure!.report?.errors.length).toBeGreaterThan(0)
+    // The message is the provider's own, not an SDK-invented one — it says
+    // something about the request or the effort field, not a stable SDK code.
+    expect(failure!.report?.errors[0]!.message.length).toBeGreaterThan(0)
+
+    // The session is intact: the refusal is about that one agent, not the route.
+    const recovered = runtime.agent({
+      id: 'provider-rejects-live-recovery', model: { provider: GENERATION_ROUTE, id: PRIMARY_MODEL },
+      instructions: 'Answer in one word.', compaction: false,
+    }).createSession()
+    const next = await recovered.run('Reply with: zeta')
     expect(next.report.status).toBe('success')
   }, 300_000)
 
@@ -295,7 +306,7 @@ describe.skipIf(!codexLive || !copilotLive)('retrieval across a generation model
 
     const primary = await session.run(`Context: ${context}\n\nQuestion: what did the sodium pack cost per kilowatt hour?`)
     const secondary = await session.run('Repeat that figure exactly.', {
-      model: { provider: GENERATION_ROUTE, id: SECONDARY_MODEL }, effort: 'medium',
+      model: { provider: GENERATION_ROUTE, id: SECONDARY_MODEL },
     })
 
     expect(primary.report.modelCalls.every(call => call.model === PRIMARY_MODEL)).toBe(true)
@@ -314,7 +325,7 @@ describe.skipIf(!codexLive || !copilotLive)('retrieval across a generation model
 })
 
 describe.skipIf(!codexLive || !copilotLive || process.env.SDK_LIVE_SOAK !== '1')('long session package composition', () => {
-  it('cycles every advertised effort with retrieval, rejected calls, abort and reuse', async () => {
+  it('cycles every advertised effort as a distinct agent, plus retrieval, rejected calls, abort and reuse', async () => {
     const advertised = new Map<string, string[]>()
     const runtime = await createAgentRuntime({
       providers: [codexNodeProviderPlugin({ defaultModel: PRIMARY_MODEL, fetch: async (input, init) => {
@@ -333,6 +344,10 @@ describe.skipIf(!codexLive || !copilotLive || process.env.SDK_LIVE_SOAK !== '1')
     })
     try {
       const catalog = await runtime.modelCatalog(GENERATION_ROUTE)
+      // Effort has no per-invocation override anymore, so "cycling every advertised
+      // effort" means one agent per (model, effort) pair, not one session cycling
+      // effort per turn. Conversation continuity is exercised across MODEL
+      // switches on a single session instead — the property that still matters.
       const targets = [PRIMARY_MODEL, SECONDARY_MODEL].flatMap(model => {
         const entry = catalog.models.find(candidate => candidate.id === model)
         expect(entry, `catalog must expose ${model}`).toBeDefined()
@@ -345,15 +360,33 @@ describe.skipIf(!codexLive || !copilotLive || process.env.SDK_LIVE_SOAK !== '1')
       const indexed = await embeddings.embedMany({
         values: ['The project codeword is pangolin.', 'The office coffee is decaf.'], purpose: 'retrieval-document',
       })
+
+      // Every advertised effort actually dispatches, once each, as its own agent.
+      for (const target of targets) {
+        const oneShot = runtime.agent({
+          id: `soak-effort-${target.model}-${target.effort}`,
+          model: { provider: GENERATION_ROUTE, id: target.model }, effort: target.effort,
+          instructions: 'Answer in one word.', compaction: false,
+        }).createSession()
+        const response = await oneShot.run('Reply with: ready')
+        expect(response.report.status).toBe('success')
+        expect(response.report.modelCalls.every(call => call.provider === GENERATION_ROUTE && call.model === target.model)).toBe(true)
+        console.log(`soak effort ${target.model}/${target.effort} passed`)
+      }
+
+      // Conversation continuity across repeated MODEL switches on one session.
       const session = runtime.agent({
         id: 'long-session-live', model: { provider: GENERATION_ROUTE, id: PRIMARY_MODEL }, effort: 'low',
         instructions: 'Remember the supplied project codeword. Answer with that one word only.', compaction: false,
       }).createSession()
-      const count = Math.max(24, targets.length * 2)
+      const models = [PRIMARY_MODEL, SECONDARY_MODEL]
+      const count = Math.max(24, models.length * 2)
       for (let turn = 0; turn < count; turn++) {
-        const target = targets[turn % targets.length]!
+        const model = models[turn % models.length]!
         if (turn % 6 === 3) {
-          await expect(session.run('This request must fail preflight.', { effort: 'ludicrous' })).rejects.toBeDefined()
+          // An unroutable target must fail without corrupting the session.
+          await expect(session.run('This request must fail preflight.', { model: { provider: 'not-configured', id: 'x' } }))
+            .rejects.toBeDefined()
           expect(session.isRunning).toBe(false)
         }
         if (turn % 4 === 0) {
@@ -365,17 +398,17 @@ describe.skipIf(!codexLive || !copilotLive || process.env.SDK_LIVE_SOAK !== '1')
         const response = await session.run(turn === 0
           ? 'The project codeword is pangolin. What is the codeword?'
           : 'What is the project codeword from earlier in this conversation?', {
-          model: { provider: GENERATION_ROUTE, id: target.model }, effort: target.effort,
+          model: { provider: GENERATION_ROUTE, id: model },
         })
         expect(response.report.status).toBe('success')
         expect(response.text.toLowerCase()).toContain('pangolin')
         expect(response.report.modelCalls.length).toBeGreaterThan(0)
-        expect(response.report.modelCalls.every(call => call.provider === GENERATION_ROUTE && call.model === target.model)).toBe(true)
+        expect(response.report.modelCalls.every(call => call.provider === GENERATION_ROUTE && call.model === model)).toBe(true)
         expect(response.report.usage.authoritative).toBe(true)
         expect(session.isRunning).toBe(false)
-        console.log(`soak turn ${turn + 1}/${count}: ${target.model}/${target.effort} passed`)
+        console.log(`soak turn ${turn + 1}/${count}: ${model} passed`)
       }
-      const handle = session.stream('Repeat the project codeword.', { effort: 'low' })
+      const handle = session.stream('Repeat the project codeword.')
       for await (const event of handle) {
         if (event.type === 'assistant-delta') handle.abort()
       }

@@ -25,6 +25,7 @@ import type {
   ModelModality,
   ProviderInfo,
   ResolvedModelInfo,
+  RuntimeDefaults,
 } from '../contract/model-info.ts'
 import { resolveRetryPolicy, type ResolvedRetryPolicy } from '../contract/retry-policy.ts'
 import { ModelError, REGISTRY_ERROR_CODES } from '../errors/model-error.ts'
@@ -89,6 +90,11 @@ export interface ModelRegistryOptions {
   readonly observation?: ObservationPort
   /** Safe SDK/service/runtime identity copied onto observation events. */
   readonly observationResource?: ObservationResource
+  /**
+   * SDK-wide fallbacks (context window, output cap, accepted modalities) used
+   * only when neither a model nor its route names one. See {@link RuntimeDefaults}.
+   */
+  readonly defaults?: RuntimeDefaults
 }
 
 type AdapterRegistration = RuntimeAdapterRegistration
@@ -139,11 +145,13 @@ export class ModelRegistry {
   private readonly maxCatalogBytes: number
   private readonly observation: ObservationPort | undefined
   private readonly observationResource: ObservationResource
+  private readonly defaults: RuntimeDefaults
 
   constructor(options: ModelRegistryOptions = {}) {
     this.maxCatalogModels = positiveSafeInteger(options.maxCatalogModels ?? 2_048, 'maxCatalogModels')
     this.maxCatalogBytes = positiveSafeInteger(options.maxCatalogBytes ?? 4 * 1024 * 1024, 'maxCatalogBytes')
     this.observation = options.observation
+    this.defaults = validateRuntimeDefaults(options.defaults ?? {})
     this.observationResource = deepFreeze(options.observationResource ?? {
       sdkName: 'ai-agent-sdk',
       sdkVersion: SDK_VERSION,
@@ -488,7 +496,7 @@ export class ModelRegistry {
   ): Promise<ResolvedModelInfo> {
     const registration = this.registration(provider)
     const resolved = await registration.adapter.resolveModel(provider, model, signal)
-    return normalizeResolvedModelInfo(registration.provider.id, model, resolved, this.maxCatalogBytes)
+    return normalizeResolvedModelInfo(registration.provider.id, model, resolved, this.maxCatalogBytes, this.defaults)
   }
 
   /** The retry policy captured for one route. */
@@ -511,17 +519,14 @@ export class ModelRegistry {
     const registration = this.registration(config.provider)
     const adapterCall = await registration.adapter.prepareCall(config.provider, config.model, signal, invocationContext)
     const modelInfo = normalizeResolvedModelInfo(
-      registration.provider.id, config.model, adapterCall.model, this.maxCatalogBytes,
+      registration.provider.id, config.model, adapterCall.model, this.maxCatalogBytes, this.defaults,
     )
-    const resolved = resolveCallWithModelInfo(config, modelInfo)
+    const resolved = resolveCallWithModelInfo(config, modelInfo, this.defaults)
     const resolvedConfig = deepFreeze(structuredClone(resolved.config))
     const context = resolved.context === undefined
       ? undefined
       : deepFreeze(structuredClone(resolved.context))
     const adapterDefaults = deepFreeze<CallConfigAdapterDefaults>({
-      ...config.reasoningEffort === undefined && resolvedConfig.reasoningEffort !== undefined
-        ? { reasoningEffort: true as const }
-        : {},
       ...config.maxTokens === undefined && resolvedConfig.maxTokens !== undefined
         ? { maxTokens: true as const }
         : {},
@@ -628,7 +633,7 @@ export class ModelRegistry {
     const chain = [...this.middleware]
     const run = (): AsyncIterable<StreamChunk> => {
       let next = (): AsyncIterable<StreamChunk> => streamAdapter({
-        options, context, onDispatch, maxCatalogBytes: this.maxCatalogBytes,
+        options, context, onDispatch, maxCatalogBytes: this.maxCatalogBytes, defaults: this.defaults,
         registration: provider => this.registration(provider),
         registeredAdapter: provider => this.adapters.get(provider)?.adapter,
         ...(prepared === undefined ? {} : { prepared }),
@@ -666,4 +671,19 @@ function positiveSafeInteger(value: number, label: string): number {
     throw new RangeError(`ModelRegistry ${label} must be a positive safe integer`)
   }
   return value
+}
+
+function validateRuntimeDefaults(defaults: RuntimeDefaults): RuntimeDefaults {
+  if (defaults.contextWindow !== undefined) positiveSafeInteger(defaults.contextWindow, 'defaults.contextWindow')
+  if (defaults.maxTokens !== undefined) positiveSafeInteger(defaults.maxTokens, 'defaults.maxTokens')
+  if (defaults.inputModalities !== undefined
+    && (defaults.inputModalities.length === 0
+      || new Set(defaults.inputModalities).size !== defaults.inputModalities.length)) {
+    throw new RangeError('ModelRegistry defaults.inputModalities must be non-empty and unique')
+  }
+  return deepFreeze({
+    ...(defaults.contextWindow === undefined ? {} : { contextWindow: defaults.contextWindow }),
+    ...(defaults.maxTokens === undefined ? {} : { maxTokens: defaults.maxTokens }),
+    ...(defaults.inputModalities === undefined ? {} : { inputModalities: [...defaults.inputModalities] }),
+  })
 }

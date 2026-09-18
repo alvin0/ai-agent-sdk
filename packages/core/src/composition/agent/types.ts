@@ -119,16 +119,7 @@ export interface RuntimeAgentInvocationOptions {
    * chosen one fails — the failure is raised to the caller.
    */
   readonly model?: { readonly provider: string; readonly id?: string }
-  /**
-   * Reasoning effort for this invocation only.
-   *
-   * Alone it re-runs the agent's own model at a different effort. With `model`
-   * it applies to that model. Omitted alongside a `model` that differs from the
-   * binding, the agent's effort is NOT carried over: an effort belongs to the
-   * ladder of the model that offers it, and the route decides the default.
-   */
-  readonly effort?: string
-  /** Output ceiling for this invocation only; dropped like `effort` on a model switch. */
+  /** Output ceiling for this invocation only; dropped, like effort, on a model switch. */
   readonly maxTokens?: number
   /** One schema adapter supplies the provider schema and a synchronous runtime validator. */
   readonly structuredOutput?: {

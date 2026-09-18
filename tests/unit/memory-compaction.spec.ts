@@ -45,7 +45,7 @@ class NoContextScriptedAdapter extends ScriptedAdapter {
     const medium = ReasoningEffortId('medium')
     return Promise.resolve({
       provider, id: model, name: model,
-      reasoning: { efforts: [{ id: medium, name: 'medium' }], defaultEffort: medium },
+      reasoning: { efforts: [{ id: medium, name: 'medium' }] },
     })
   }
 }
@@ -754,7 +754,7 @@ describe('agent context compaction', () => {
     expect(checkpoints).toHaveLength(1)
   })
 
-  it('recomputes ratio-based retention after pruning without model context metadata', async () => {
+  it('recomputes ratio-based retention after pruning against a runtime-defaulted context window', async () => {
     const history = new History()
     const assistant = (text: string) => createMessage({
       role: 'assistant' as const,
@@ -784,7 +784,12 @@ describe('agent context compaction', () => {
     const adapter = new NoContextScriptedAdapter([
       textRound('## Primary Request and Intent\n- Objective\n## Next Step\n- Continue.'),
     ])
-    const registry = new ModelRegistry()
+    // The adapter declares no context window at all. Since a route this silent
+    // now gets the RUNTIME's own default (not the SDK's 200,000 constant, and
+    // no longer an inference from actual usage — see RuntimeDefaults), this is
+    // set small and explicit so ratio-based retention still has something to
+    // compute against.
+    const registry = new ModelRegistry({ defaults: { contextWindow: 2_000 } })
     registry.registerAdapter(['test'], adapter)
     const compactor = new ContextCompactor({
       registry,

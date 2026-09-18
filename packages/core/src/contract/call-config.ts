@@ -31,9 +31,11 @@ export interface CallConfig {
  *
  * Reported so a caller can tell "I chose 4096 output tokens" from "the adapter
  * chose 4096 for me", which matters when surfacing effective settings.
+ *
+ * `reasoningEffort` has no entry here: effort is pure pass-through, so the
+ * registry never materializes one the caller omitted.
  */
 export interface CallConfigAdapterDefaults {
-  reasoningEffort?: true
   maxTokens?: true
 }
 

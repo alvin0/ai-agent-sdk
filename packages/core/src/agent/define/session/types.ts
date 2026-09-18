@@ -211,8 +211,6 @@ export interface AgentInvocationOptions {
    * output ceiling — see `sessionCallConfig`.
    */
   readonly model?: { readonly provider: string; readonly model: string }
-  /** Reasoning effort for this run only. Alone, it keeps the session's model. */
-  readonly reasoningEffort?: import('../../../primitives/brand.ts').ReasoningEffortId
   /** Output ceiling for this run only. */
   readonly maxTokens?: number
   readonly outputFormat?: import('../../../contract/index.ts').ModelOutputFormat

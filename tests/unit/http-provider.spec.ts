@@ -1080,7 +1080,7 @@ describe('createHttpProvider: catalog and errors', () => {
       models: [{
         id: 'declared-model', contextWindow: 64_000, maxTokens: 2_048,
         inputModalities: ['text', 'image'], nativeTools: ['web-search'],
-        reasoning: { efforts: [{ id: high, name: 'High' }], defaultEffort: high },
+        reasoning: { efforts: [{ id: high, name: 'High' }] },
       }],
       discoverModels: discover,
       fetch,
@@ -1093,7 +1093,7 @@ describe('createHttpProvider: catalog and errors', () => {
     await expect(provider.resolveModel('static-route', 'declared-model')).resolves.toMatchObject({
       id: 'declared-model', context: { contextWindow: 64_000 },
       defaultMaxTokens: 2_048, maxOutputTokens: 2_048,
-      reasoning: { defaultEffort: 'high' }, nativeTools: ['web-search'],
+      reasoning: { efforts: [{ id: 'high' }] }, nativeTools: ['web-search'],
     })
     expect(resolve).not.toHaveBeenCalled()
     expect(discover).not.toHaveBeenCalled()

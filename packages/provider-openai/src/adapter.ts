@@ -31,7 +31,6 @@ import {
   openAiResponsesProtocol,
   type ResponsesDialect,
 } from '@alvin0/ai-agent-sdk-protocol-responses'
-import { openAiContextPolicy } from './context-policy.ts'
 
 /** The OpenAI API base. */
 export const OPENAI_BASE_URL = 'https://api.openai.com/v1'
@@ -100,7 +99,6 @@ export function openAiAdapter(options: OpenAiAdapterOptions): HttpModelAdapter {
 
   return createHttpProvider({
     displayName: 'OpenAI',
-    describeModel: openAiContextPolicy(options),
     protocol: openAiResponsesProtocol,
     baseUrl: options.baseUrl ?? OPENAI_BASE_URL,
     auth: {
@@ -116,8 +114,8 @@ export function openAiAdapter(options: OpenAiAdapterOptions): HttpModelAdapter {
       ...options.project === undefined ? {} : { 'openai-project': options.project },
     }),
     ...options.models === undefined ? {} : { models: options.models },
-    defaultMaxTokens: options.defaultMaxTokens ?? 32_000,
-    defaultContextWindow: options.defaultContextWindow ?? 128_000,
+    ...options.defaultMaxTokens === undefined ? {} : { defaultMaxTokens: options.defaultMaxTokens },
+    ...options.defaultContextWindow === undefined ? {} : { defaultContextWindow: options.defaultContextWindow },
     ...options.streamIdleTimeoutMs === undefined
       ? {}
       : { streamIdleTimeoutMs: options.streamIdleTimeoutMs },
@@ -178,7 +176,6 @@ function legacyOpenAiPlugin(options: OpenAiPluginOptions): ModelProviderPlugin {
 
 function createRuntimeOpenAiAdapter(options: OpenAiProviderOptions): HttpModelAdapter {
   return createRuntimeHttpProvider({
-    describeModel: openAiContextPolicy(options),
     displayName: 'OpenAI',
     protocol: openAiResponsesProtocol,
     baseUrl: options.baseUrl ?? OPENAI_BASE_URL,
@@ -189,8 +186,8 @@ function createRuntimeOpenAiAdapter(options: OpenAiProviderOptions): HttpModelAd
       ...(options.project === undefined ? {} : { 'openai-project': options.project }),
     }),
     ...(options.models === undefined ? {} : { models: options.models }),
-    defaultMaxTokens: options.defaultMaxTokens ?? 32_000,
-    defaultContextWindow: options.defaultContextWindow ?? 128_000,
+    ...(options.defaultMaxTokens === undefined ? {} : { defaultMaxTokens: options.defaultMaxTokens }),
+    ...(options.defaultContextWindow === undefined ? {} : { defaultContextWindow: options.defaultContextWindow }),
     ...(options.streamIdleTimeoutMs === undefined ? {} : { streamIdleTimeoutMs: options.streamIdleTimeoutMs }),
     ...transportLimits(options),
     ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),

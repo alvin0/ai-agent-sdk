@@ -95,7 +95,11 @@ export interface ProviderCatalogModel {
   maxTokens?: number
   /** Default output budget, independently of the ceiling. Falls back to maxTokens. */
   defaultMaxTokens?: number
-  /** Accepted request modalities; omission is treated as text-only. */
+  /**
+   * Accepted request modalities. Omission is UNKNOWN, not text-only — the
+   * registry fills the SDK's own permissive default (text + image + document)
+   * when neither this nor a runtime default names one. See RuntimeDefaults.
+   */
   inputModalities?: readonly ModelModality[]
   /** Modalities this model route may return. */
   outputModalities?: readonly ModelModality[]
@@ -128,10 +132,18 @@ export interface HttpConnection extends HttpTransportConnection {
   readonly maxSseEventChars?: number
   /** Advisory catalog; requests are never restricted to it. */
   readonly models: readonly ProviderCatalogModel[]
-  /** Output cap applied when neither the caller nor the model entry names one. */
-  readonly defaultMaxTokens: number
-  /** Context capacity used when the selected model has no exact value. */
-  readonly defaultContextWindow: number
+  /**
+   * Output cap applied when neither the caller nor the model entry names one.
+   * Absent means this ROUTE names no default either — the registry's own
+   * RuntimeDefaults tier may still fill it; if nothing does, no cap is sent.
+   */
+  readonly defaultMaxTokens?: number
+  /**
+   * Context capacity used when the selected model has no exact value. Absent
+   * means this route names no default either — the registry's own
+   * RuntimeDefaults/SDK-constant tier fills it instead of this connection.
+   */
+  readonly defaultContextWindow?: number
 }
 
 /** What {@link HttpModelAdapter.buildBody} and `translate` receive. */
@@ -142,8 +154,13 @@ export interface ProviderRequest {
   readonly model: ResolvedModelInfo
   /** The connection snapshot this call is bound to. */
   readonly connection: HttpConnection
-  /** Output cap to send; always resolved to a number, which some APIs require. */
-  readonly maxTokens: number
+  /**
+   * Output cap to send. Absent when neither the caller, the model, nor the
+   * route names one — an endpoint that requires the field regardless (such as
+   * Anthropic's Messages API) supplies its own fallback at the protocol layer,
+   * not here.
+   */
+  readonly maxTokens?: number
 }
 
 /**
@@ -404,11 +421,12 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       )
     }
 
+    const resolvedMaxTokens = options.maxTokens ?? model.defaultMaxTokens ?? connection.defaultMaxTokens
     const request: ProviderRequest = {
       options,
       model,
       connection,
-      maxTokens: options.maxTokens ?? model.defaultMaxTokens ?? connection.defaultMaxTokens,
+      ...(resolvedMaxTokens === undefined ? {} : { maxTokens: resolvedMaxTokens }),
     }
 
     const sseLimits = resolveSseLimits(connection)

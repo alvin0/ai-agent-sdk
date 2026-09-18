@@ -137,11 +137,17 @@ describe('Edge sample: changing model between turns', () => {
     expect(captured.map(request => request.model)).toEqual([MODEL_B, MODEL_A])
   })
 
-  it('applies the effort of the turn that asked for it, on the model of that turn', async () => {
+  it('applies the effort of the turn that asked for it, rebuilding the session to do it', async () => {
+    // The SDK has no per-call effort override — only a per-agent one — so
+    // unlike a model switch, an effort switch rebuilds the session (and loses
+    // its history) around a freshly bound agent.
     const app = createEdgeChatApp()
     await chat(app, { message: 'one', model: MODEL_A, effort: 'high' })
+    const first = (await findSession('edge-override', API_KEY))?.session
     await chat(app, { message: 'two', model: MODEL_B, effort: 'medium' })
+    const second = (await findSession('edge-override', API_KEY))?.session
     await chat(app, { message: 'three', model: MODEL_A })
+    const third = (await findSession('edge-override', API_KEY))?.session
 
     expect(captured.map(request => [request.model, request.effort])).toEqual([
       [MODEL_A, 'high'],
@@ -150,6 +156,13 @@ describe('Edge sample: changing model between turns', () => {
       // carries 'medium' over from the previous turn's model.
       [MODEL_A, undefined],
     ])
+    // Each distinct effort choice is a distinct agent binding, so each turn
+    // above ran on its own rebuilt session — never the previous turn's.
+    expect(first).toBeDefined()
+    expect(second).not.toBe(first)
+    expect(third).not.toBe(second)
+    // Still exactly one warm slot: the old session is dropped, not leaked.
+    expect(activeSessions()).toBe(1)
   })
 
   it('rejects an effort the selected model does not declare, before any provider call', async () => {

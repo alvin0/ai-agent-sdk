@@ -281,44 +281,90 @@ describe('serializeAnthropicRequest', () => {
     ])
   })
 
-  it('drops sampling knobs when extended thinking is enabled', () => {
-    // Sending both is rejected by this API.
+  // --- 'output-config' (default): effort is pure pass-through to output_config.effort ---
+
+  it('sends effort verbatim to output_config.effort by default, never guessing a thinking field', () => {
+    const body = serializeAnthropicRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+      reasoningEffort: ReasoningEffortId('high'),
+    }), options)
+    expect(body.output_config).toEqual({ effort: 'high' })
+    // No ladder, no budget conversion, no auto-derived `thinking` — the SDK
+    // does not validate or convert this string at all under this format.
+    expect(body).not.toHaveProperty('thinking')
+  })
+
+  it('combines effort with a structured-output schema in the same output_config', () => {
+    const schema = { type: 'object', properties: { a: { type: 'string' } }, required: ['a'], additionalProperties: false } as const
+    const body = serializeAnthropicRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+      reasoningEffort: ReasoningEffortId('xhigh'),
+      outputFormat: { type: 'json_schema', name: 'answer', schema },
+    }), options)
+    expect(body.output_config).toEqual({ format: { type: 'json_schema', schema }, effort: 'xhigh' })
+  })
+
+  it('never drops temperature/top_p on the caller\'s behalf, with or without effort', () => {
     const body = serializeAnthropicRequest(providerRequest({
       messages: [createTextMessage('hi')],
       reasoningEffort: ReasoningEffortId('high'),
       temperature: 0.7,
       topP: 0.9,
-    }, 40_000), options)
-    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 24_576 })
-    expect(body.temperature).toBeUndefined()
-    expect(body.top_p).toBeUndefined()
+    }), options)
+    expect(body.temperature).toBe(0.7)
+    expect(body.top_p).toBe(0.9)
   })
 
-  it('keeps sampling knobs when thinking is off', () => {
+  it('sends `thinking` only when explicitly configured, independent of effort', () => {
+    const withAdaptive = serializeAnthropicRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+    }), { ...options, thinking: 'adaptive' })
+    expect(withAdaptive.thinking).toEqual({ type: 'adaptive' })
+
+    const withoutConfig = serializeAnthropicRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+      reasoningEffort: ReasoningEffortId('high'),
+    }), options)
+    expect(withoutConfig).not.toHaveProperty('thinking')
+  })
+
+  // --- 'thinking-budget' (compat: older models, or a gateway with no effort field) ---
+
+  it('converts effort to a thinking budget only under reasoningFormat: thinking-budget', () => {
+    const body = serializeAnthropicRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+      reasoningEffort: ReasoningEffortId('high'),
+    }, 40_000), { ...options, reasoningFormat: 'thinking-budget' as const })
+    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 24_576 })
+    // No output_config.effort under this format — the endpoint has no such field.
+    expect(body).not.toHaveProperty('output_config')
+  })
+
+  it('keeps sampling knobs when thinking is off, under thinking-budget', () => {
     const body = serializeAnthropicRequest(providerRequest({
       messages: [createTextMessage('hi')],
       reasoningEffort: ReasoningEffortId('off'),
       temperature: 0.7,
-    }), options)
+    }), { ...options, reasoningFormat: 'thinking-budget' as const })
     expect(body.thinking).toEqual({ type: 'disabled' })
     expect(body.temperature).toBe(0.7)
   })
 
-  it('caps the thinking budget below max_tokens so an answer still fits', () => {
+  it('caps the thinking budget below max_tokens so an answer still fits, under thinking-budget', () => {
     // This API requires budget_tokens < max_tokens and rejects the request
     // otherwise, so a large effort against a small cap must be reduced.
     const body = serializeAnthropicRequest(providerRequest({
       messages: [createTextMessage('hi')],
       reasoningEffort: ReasoningEffortId('high'),
-    }, 4_000), options)
+    }, 4_000), { ...options, reasoningFormat: 'thinking-budget' as const })
     expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 3_000 })
   })
 
-  it('disables thinking when the cap leaves less than the provider minimum', () => {
+  it('disables thinking when the cap leaves less than the provider minimum, under thinking-budget', () => {
     const body = serializeAnthropicRequest(providerRequest({
       messages: [createTextMessage('hi')],
       reasoningEffort: ReasoningEffortId('high'),
-    }, 1_000), options)
+    }, 1_000), { ...options, reasoningFormat: 'thinking-budget' as const })
     expect(body.thinking).toEqual({ type: 'disabled' })
   })
 

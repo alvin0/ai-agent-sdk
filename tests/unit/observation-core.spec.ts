@@ -256,6 +256,9 @@ describe('core observation identities and model-call handles', () => {
       coverage: 'missing',
       possiblyBilledAttemptsWithoutUsage: 1,
       authoritative: false,
+      // The report is honest: the provider's own message reaches the caller
+      // verbatim, never replaced by a generic "inspect the stable code" line.
+      error: { message: 'provider rejected request', code: 'INVALID_REQUEST' },
     })
   })
 

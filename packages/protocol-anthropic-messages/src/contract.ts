@@ -3,7 +3,8 @@ import type { GenerateOptions, StreamChunk, UsageCounters } from '@alvin0/ai-age
 /** The request fields a pure wire protocol is allowed to inspect. */
 export interface ProtocolRequest {
   readonly options: GenerateOptions
-  readonly maxTokens: number
+  /** Absent when neither the caller, the model, nor the route names an output cap. */
+  readonly maxTokens?: number
 }
 
 /** One decoded SSE event, expressed without depending on an HTTP transport. */

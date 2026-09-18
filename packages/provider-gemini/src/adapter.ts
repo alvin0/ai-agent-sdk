@@ -20,7 +20,6 @@ import {
   geminiInteractionsProtocol,
   type GeminiInteractionsDialect,
 } from '@alvin0/ai-agent-sdk-protocol-gemini-interactions'
-import { geminiContextPolicy } from './context-policy.ts'
 
 /** Google Gemini API v1beta base. The protocol appends only `/interactions`. */
 export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
@@ -59,7 +58,6 @@ export interface GeminiAdapterOptions {
 export function geminiAdapter(options: GeminiAdapterOptions): HttpModelAdapter {
   return createHttpProvider({
     displayName: 'Gemini',
-    describeModel: geminiContextPolicy(options),
     protocol: geminiInteractionsProtocol,
     baseUrl: options.baseUrl ?? GEMINI_BASE_URL,
     auth: {
@@ -68,8 +66,8 @@ export function geminiAdapter(options: GeminiAdapterOptions): HttpModelAdapter {
     },
     dialect: dialectOf(options),
     ...(options.models === undefined ? {} : { models: options.models }),
-    defaultMaxTokens: options.defaultMaxTokens ?? 8_192,
-    defaultContextWindow: options.defaultContextWindow ?? 200_000,
+    ...(options.defaultMaxTokens === undefined ? {} : { defaultMaxTokens: options.defaultMaxTokens }),
+    ...(options.defaultContextWindow === undefined ? {} : { defaultContextWindow: options.defaultContextWindow }),
     ...(options.streamIdleTimeoutMs === undefined ? {} : { streamIdleTimeoutMs: options.streamIdleTimeoutMs }),
     ...transportLimits(options),
     ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),
@@ -126,7 +124,6 @@ function legacyGeminiPlugin(options: GeminiPluginOptions): ModelProviderPlugin {
 
 function createRuntimeGeminiAdapter(options: GeminiProviderOptions): HttpModelAdapter {
   return createRuntimeHttpProvider({
-    describeModel: geminiContextPolicy(options),
     displayName: 'Gemini',
     protocol: geminiInteractionsProtocol,
     baseUrl: options.baseUrl ?? GEMINI_BASE_URL,
@@ -136,8 +133,8 @@ function createRuntimeGeminiAdapter(options: GeminiProviderOptions): HttpModelAd
     },
     dialect: dialectOf(options),
     ...(options.models === undefined ? {} : { models: options.models }),
-    defaultMaxTokens: options.defaultMaxTokens ?? 8_192,
-    defaultContextWindow: options.defaultContextWindow ?? 200_000,
+    ...(options.defaultMaxTokens === undefined ? {} : { defaultMaxTokens: options.defaultMaxTokens }),
+    ...(options.defaultContextWindow === undefined ? {} : { defaultContextWindow: options.defaultContextWindow }),
     ...(options.streamIdleTimeoutMs === undefined ? {} : { streamIdleTimeoutMs: options.streamIdleTimeoutMs }),
     ...transportLimits(options),
     ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),

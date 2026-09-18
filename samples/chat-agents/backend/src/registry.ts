@@ -274,7 +274,6 @@ export interface ModelOption {
    * adapter discloses none — the UI then falls back to the generic ladder.
    */
   readonly efforts: readonly string[]
-  readonly defaultEffort?: string
 }
 
 /**
@@ -310,9 +309,6 @@ export async function listModels(provider: string): Promise<readonly ModelOption
       id: model.id,
       ...model.name === undefined ? {} : { name: model.name },
       efforts: info?.reasoning?.efforts.map(effort => effort.id) ?? [],
-      ...info?.reasoning?.defaultEffort === undefined
-        ? {}
-        : { defaultEffort: info.reasoning.defaultEffort },
     }
   }))
   return resolved

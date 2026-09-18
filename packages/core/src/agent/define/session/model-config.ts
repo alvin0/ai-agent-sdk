@@ -9,20 +9,18 @@ export type SessionCallConfig = Pick<CallConfig, 'provider' | 'model' | 'reasoni
  * The model binding for ONE run: the session's binding, then the invocation's
  * overlay on top of it.
  *
- * Switching model and inheriting the previous model's controls is not a
- * conservative default, it is a broken one: an effort or an output ceiling is a
- * property of the model that offers it, and carrying either onto a different
- * model produces `UNSUPPORTED_REASONING_EFFORT` or
- * `OUTPUT_TOKEN_LIMIT_EXCEEDED` at dispatch. So a model override drops the
- * inherited effort and maxTokens unless the same invocation restates them, and
- * omission means the adapter's own default — the same rule the session binding
- * already follows. An effort-only override keeps the session's model, which is
- * the point of asking for a different effort.
+ * Effort belongs to the agent, not to a single run: there is no per-invocation
+ * effort override, so the only way effort changes is by defining a different
+ * agent. Switching model on one invocation still drops the inherited effort —
+ * an effort belongs to the model that offers it, and carrying it onto a
+ * different model would be a guess this package has no way to validate, now
+ * that effort is pure pass-through. maxTokens follows the same drop-on-switch
+ * rule, but stays overridable per invocation like today.
  */
 export function sessionCallConfig(
   definition: AgentDefinition,
   runtime: RuntimeSessionConfiguration | undefined,
-  invocation?: Pick<AgentInvocationOptions, 'model' | 'reasoningEffort' | 'maxTokens'>,
+  invocation?: Pick<AgentInvocationOptions, 'model' | 'maxTokens'>,
 ): SessionCallConfig {
   const base: SessionCallConfig = runtime !== undefined
     ? {
@@ -34,18 +32,16 @@ export function sessionCallConfig(
     : {
         provider: definition.provider,
         model: definition.model,
-        // Omitted when the author expressed no preference: a value the SDK invented
-        // is rejected outright by a model that declares no ladder.
         ...(definition.effort === undefined ? {} : { reasoningEffort: definition.effort }),
         ...(definition.maxTokens === undefined ? {} : { maxTokens: definition.maxTokens }),
       }
   const target = invocation?.model
-  if (target === undefined && invocation?.reasoningEffort === undefined && invocation?.maxTokens === undefined) {
+  if (target === undefined && invocation?.maxTokens === undefined) {
     return base
   }
   const switched = target !== undefined
     && (target.provider !== base.provider || target.model !== base.model)
-  const reasoningEffort = invocation?.reasoningEffort ?? (switched ? undefined : base.reasoningEffort)
+  const reasoningEffort = switched ? undefined : base.reasoningEffort
   const maxTokens = invocation?.maxTokens ?? (switched ? undefined : base.maxTokens)
   return {
     provider: target?.provider ?? base.provider,

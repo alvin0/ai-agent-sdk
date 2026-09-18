@@ -301,23 +301,48 @@ function toolOf(tool: ModelToolSchema): WireTool {
   )
 }
 
-/** How a reasoning effort becomes a thinking token budget. */
+/** How a reasoning effort becomes a thinking token budget, for `reasoningFormat: 'thinking-budget'`. */
 export type ThinkingBudgets = Readonly<Record<string, number>>
+
+/** Which field carries reasoning effort on the wire. */
+export type AnthropicReasoningFormat = 'output-config' | 'thinking-budget'
 
 /** Options controlling how the request is built. */
 export interface AnthropicSerializeOptions {
-  /** Effort id to thinking-token budget. An absent or zero budget disables thinking. */
+  /**
+   * `'output-config'` (default, current models): effort is pass-through —
+   * sent verbatim as `output_config.effort`, exactly what the caller gave.
+   * `'thinking-budget'` (older models, or a gateway that only understands a
+   * token budget): effort is looked up in `budgets` and converted to
+   * `thinking.budget_tokens` instead — the SDK does the conversion because the
+   * endpoint has no `effort` field to receive the raw string at all.
+   */
+  reasoningFormat?: AnthropicReasoningFormat
+  /** Effort id to thinking-token budget; only consulted under `'thinking-budget'`. */
   budgets: ThinkingBudgets
+  /**
+   * Extended-thinking mode, sent only when set — omission means "say nothing",
+   * which is this API's own way of leaving the model's default behavior alone.
+   * Ignored under `'thinking-budget'`, which derives `thinking` from the effort instead.
+   */
+  thinking?: 'adaptive' | 'disabled'
 }
 
 /**
- * Resolve the `thinking` field for this request.
+ * Last-resort `max_tokens`, used only when neither the caller, the model, nor
+ * the route names one. This API rejects a request that omits the field
+ * entirely, unlike most others — see {@link serializeAnthropicRequest}.
+ */
+export const DEFAULT_MAX_TOKENS = 8_192
+
+/**
+ * Resolve the `thinking` field under `reasoningFormat: 'thinking-budget'`.
  *
  * The budget must leave room for a real answer, so it is capped below
  * `max_tokens` — this API requires `budget_tokens < max_tokens` and rejects the
  * request otherwise.
  */
-function thinkingOf(
+function thinkingFromBudget(
   effort: string | undefined,
   maxTokens: number,
   budgets: ThinkingBudgets,
@@ -331,15 +356,25 @@ function thinkingOf(
   return capped < 1_024 ? { type: 'disabled' } : { type: 'enabled', budget_tokens: capped }
 }
 
-function outputConfig(format: ModelOutputFormat | undefined): WireOutputConfig | undefined {
-  if (format === undefined || format.type === 'text') return undefined
-  return { format: { type: 'json_schema', schema: format.schema } }
+function outputConfig(
+  format: ModelOutputFormat | undefined,
+  effort: string | undefined,
+): WireOutputConfig | undefined {
+  const formatPart = format === undefined || format.type === 'text'
+    ? undefined
+    : { type: 'json_schema' as const, schema: format.schema }
+  if (formatPart === undefined && effort === undefined) return undefined
+  return {
+    ...(formatPart === undefined ? {} : { format: formatPart }),
+    ...(effort === undefined ? {} : { effort }),
+  }
 }
 
 /**
  * Build the Messages request body.
  * @param request - the resolved request, model, and connection.
- * @param options - thinking-budget mapping.
+ * @param options - which field carries effort, its budget table, and the
+ * explicit-thinking switch.
  * @returns the wire body, ready to serialize.
  */
 export function serializeAnthropicRequest(
@@ -351,28 +386,36 @@ export function serializeAnthropicRequest(
   const tools = call.tools === undefined || call.tools.length === 0
     ? undefined
     : call.tools.map(toolOf)
-  const thinking = thinkingOf(
-    call.reasoningEffort === undefined ? undefined : String(call.reasoningEffort),
-    request.maxTokens,
-    options.budgets,
-  )
-  const thinkingEnabled = thinking?.type === 'enabled'
-  const output = outputConfig(call.outputFormat)
+  // Required by this API — unlike most others, omitting it is an error — so
+  // this is the one field the SDK still defaults on the caller's behalf when
+  // nothing upstream (caller, model, or route) named a value.
+  const maxTokens = request.maxTokens ?? DEFAULT_MAX_TOKENS
+  const reasoningFormat = options.reasoningFormat ?? 'output-config'
+  const effort = call.reasoningEffort === undefined ? undefined : String(call.reasoningEffort)
+  const budgetThinking = reasoningFormat === 'thinking-budget'
+    ? thinkingFromBudget(effort, maxTokens, options.budgets)
+    : undefined
+  // Under 'output-config', `thinking` is an independent, explicit switch — not
+  // derived from effort — so it is sent only when the caller configured one.
+  const thinking = reasoningFormat === 'thinking-budget'
+    ? budgetThinking
+    : options.thinking === undefined
+      ? undefined
+      : options.thinking === 'adaptive' ? { type: 'adaptive' as const } : { type: 'disabled' as const }
+  const output = outputConfig(call.outputFormat, reasoningFormat === 'output-config' ? effort : undefined)
 
   return {
     model: call.model,
-    // Required by this API — unlike most others, omitting it is an error.
-    max_tokens: request.maxTokens,
+    max_tokens: maxTokens,
     messages: messagesOf(call.messages),
     ...system === undefined ? {} : { system },
     ...tools === undefined ? {} : { tools },
     ...call.toolChoice === undefined ? {} : { tool_choice: toolChoiceOf(call.toolChoice) },
-    // Extended thinking is incompatible with sampling adjustments; sending both
-    // is rejected, so the sampling knobs are dropped when thinking is on.
-    ...!thinkingEnabled && call.temperature !== undefined
-      ? { temperature: call.temperature }
-      : {},
-    ...!thinkingEnabled && call.topP !== undefined ? { top_p: call.topP } : {},
+    // Pass-through: the caller's own sampling choices are forwarded as given.
+    // An endpoint that rejects temperature/top_p alongside thinking says so in
+    // its own error — the SDK no longer guesses and drops them first.
+    ...call.temperature === undefined ? {} : { temperature: call.temperature },
+    ...call.topP === undefined ? {} : { top_p: call.topP },
     ...call.stop === undefined || call.stop.length === 0
       ? {}
       : { stop_sequences: [...call.stop] },

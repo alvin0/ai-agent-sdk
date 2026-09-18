@@ -33,10 +33,12 @@ export interface WarmSession {
   /**
    * The selection the most recent turn ran with.
    *
-   * Mutable for the single-agent modes, where a model or effort change is an
-   * override on the next `stream()` call rather than a new session. The team
-   * modes bind a model per member at construction, so for them this still
-   * describes how the session was built and a change rebuilds it.
+   * Mutable for the single-agent modes, where a MODEL change is an override on
+   * the next `stream()` call rather than a new session. Effort has no such
+   * per-call override in the SDK — it belongs to the agent a session is bound
+   * to — so an effort change always rebuilds the session, in every mode. This
+   * field still records it so `acquireSession` can detect that change and
+   * `readConfig`/UI code can display it.
    */
   model: string
   effort: string | undefined
@@ -127,15 +129,16 @@ export async function acquireSession(
   // session built around the previous one, so that session is discarded and its
   // history goes with it: the history belongs to the agents that produced it.
   //
-  // A MODEL or EFFORT change no longer costs the conversation. In the
-  // single-agent modes the selection is applied per call — `run`/`stream` take
-  // a `model` and an `effort` for that turn alone — so the session, its history
-  // and its compactor stay, and the next turn simply goes elsewhere. The team
-  // modes still rebuild: a member's model is bound when the member is built,
-  // and no per-call override reaches inside a team.
+  // A MODEL change no longer costs the conversation in the single-agent modes:
+  // `stream()` takes a `model` override for that turn alone, so the session,
+  // its history and its compactor stay, and the next turn simply goes
+  // elsewhere. EFFORT has no such per-call override — it is a property of the
+  // agent a session is bound to — so an effort change always rebuilds the
+  // session, in every mode, and takes the history with it.
   const teamShaped = config.mode === 'team' || config.mode === 'team-auto'
   const reusable = existing !== undefined && existing.rosterKey === rosterKey
-    && (!teamShaped || (existing.model === config.model && existing.effort === config.effort))
+    && existing.effort === config.effort
+    && (!teamShaped || existing.model === config.model)
   if (reusable) {
     existing.model = config.model
     existing.effort = config.effort
@@ -260,14 +263,14 @@ async function createSession(
   }
 
   if (config.mode !== 'team') {
-    // Bound with NO effort on purpose. Every turn states its own model and
-    // effort when it runs, so a level baked in here would be the level of
-    // whichever turn happened to build the session — and a later turn that
-    // deselects effort would silently inherit it. Omission has to mean
-    // omission, which it only does if the binding carries none.
+    // Effort is bound here, at session creation, because the SDK has no
+    // per-call effort override. `acquireSession` already rebuilds this session
+    // whenever `config.effort` changes, so the binding always matches what the
+    // visitor most recently asked for.
     const agent = runtime.agent({
       id: 'edge-chat',
       model: { provider: 'openai', id: config.model },
+      ...(config.effort === undefined ? {} : { effort: config.effort }),
       instructions: config.instructions,
       tools: createEdgeTools(),
       maxTurns: config.maxTurns,

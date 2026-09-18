@@ -11,7 +11,7 @@ import type {
   ProtocolStreamChunk,
 } from './contract.ts'
 import type { ModelTarget, ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core/provider'
-import { serializeAnthropicRequest, type ThinkingBudgets } from './serialize.ts'
+import { serializeAnthropicRequest, type AnthropicReasoningFormat, type ThinkingBudgets } from './serialize.ts'
 import { translateAnthropicStream } from './translate.ts'
 
 /** Protocol id, usable as a stable string in configuration. */
@@ -42,8 +42,22 @@ export const DEFAULT_THINKING_BUDGETS: ThinkingBudgets = Object.freeze({
 
 /** Per-endpoint knobs of the Messages protocol. */
 export interface AnthropicDialect {
-  /** Effort id to thinking-token budget. */
+  /**
+   * Which field carries reasoning effort. `'output-config'` (default) is pure
+   * pass-through — the caller's effort string reaches `output_config.effort`
+   * unchanged, current GA behavior. `'thinking-budget'` is for an older model
+   * or a gateway that only understands a token budget: the SDK converts effort
+   * to `thinking.budget_tokens` using `budgets` instead of sending it raw.
+   */
+  readonly reasoningFormat: AnthropicReasoningFormat
+  /** Effort id to thinking-token budget; only consulted under `'thinking-budget'`. */
   readonly budgets: ThinkingBudgets
+  /**
+   * Extended-thinking mode, sent only when set. Independent of effort under
+   * `'output-config'` — omission leaves the model's own default thinking
+   * behavior alone rather than the SDK guessing one.
+   */
+  readonly thinking?: 'adaptive' | 'disabled'
   /** `anthropic-version` header value. */
   readonly version: string
   /** Opt-in beta features, sent as `anthropic-beta`. */
@@ -51,6 +65,7 @@ export interface AnthropicDialect {
 }
 
 const DEFAULT_DIALECT: AnthropicDialect = Object.freeze({
+  reasoningFormat: 'output-config' as const,
   budgets: DEFAULT_THINKING_BUDGETS,
   version: ANTHROPIC_VERSION,
   beta: Object.freeze([]),
@@ -97,7 +112,11 @@ export const anthropicMessagesProtocol: ProtocolDefinition<AnthropicDialect>
     ...dialect.beta.length === 0 ? {} : { 'anthropic-beta': dialect.beta.join(',') },
   }),
   serialize(request: ProtocolRequest, dialect: AnthropicDialect): Readonly<Record<string, unknown>> {
-    const body: unknown = serializeAnthropicRequest(request, { budgets: dialect.budgets })
+    const body: unknown = serializeAnthropicRequest(request, {
+      reasoningFormat: dialect.reasoningFormat,
+      budgets: dialect.budgets,
+      ...(dialect.thinking === undefined ? {} : { thinking: dialect.thinking }),
+    })
     return body as Readonly<Record<string, unknown>>
   },
   // Params are annotated because `Object.freeze` erases the contextual typing the

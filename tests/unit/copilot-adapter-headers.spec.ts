@@ -736,16 +736,23 @@ const DEFAULTED_LIMITS = {
   maxResponseBytes: DEFAULT_MAX_RESPONSE_BYTES,
   maxResponseChunks: DEFAULT_MAX_RESPONSE_CHUNKS,
   maxErrorBodyBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
-  defaultMaxTokens: 8_192,
-  defaultContextWindow: 128_000,
 } as const
 
-/** Options that must be ABSENT from the connection when unset, never `undefined`. */
+/**
+ * Options that must be ABSENT from the connection when unset, never `undefined`.
+ *
+ * `defaultMaxTokens`/`defaultContextWindow` moved here from `DEFAULTED_LIMITS`:
+ * this adapter no longer invents 8,192/128,000 on the caller's behalf — an
+ * unset route names no default either, and the registry's own RuntimeDefaults
+ * / SDK-constant tier fills the gap instead (see RuntimeDefaults).
+ */
 const PASSTHROUGH_LIMITS = [
   'maxSseEvents',
   'maxSseEventChars',
   'requestLoggerTimeoutMs',
   'allowInsecureHttp',
+  'defaultMaxTokens',
+  'defaultContextWindow',
 ] as const
 
 /** The three catalog cache options, which never reach the connection snapshot. */
@@ -771,7 +778,8 @@ describe('Feature: github-copilot-provider, Property 26: Option đi tới đích
           ? intBetween(rng, 60_000, 600_000)
           : intBetween(rng, 4_096, 1_048_576)
       }
-      for (const key of ['maxSseEvents', 'maxSseEventChars', 'requestLoggerTimeoutMs']) {
+      for (const key of ['maxSseEvents', 'maxSseEventChars', 'requestLoggerTimeoutMs',
+        'defaultMaxTokens', 'defaultContextWindow']) {
         if (bool(rng)) chosen[key] = intBetween(rng, 1_000, 90_000)
       }
       const cache: Record<string, number> = {}

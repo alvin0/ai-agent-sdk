@@ -213,6 +213,25 @@ function toolChoiceOf(choice: ToolChoice): WireToolChoice {
 }
 
 /**
+ * The reasoning-effort wire fields for one request, per `dialect.reasoningFormat`.
+ *
+ * The effort value itself is never translated — decision 1 sends whatever the
+ * caller passed, verbatim, as a string. Only the FIELD(S) it travels on change
+ * per format; see the `reasoningFormat` doc comment on {@link ChatCompletionsDialect}.
+ */
+function reasoningFieldsOf(
+  format: ChatCompletionsDialect['reasoningFormat'],
+  effort: string | undefined,
+): Pick<WireRequest, 'reasoning_effort' | 'thinking'> {
+  if (format === false || effort === undefined) return {}
+  if (format === 'openai') return { reasoning_effort: effort }
+  // 'deepseek': the endpoint reasons unless told not to, so `'off'` disables
+  // thinking instead of merely omitting an effort the endpoint would ignore.
+  if (effort === 'off') return { thinking: { type: 'disabled' } }
+  return { thinking: { type: 'enabled' }, reasoning_effort: effort }
+}
+
+/**
  * Map the neutral output format onto `response_format`, per dialect state.
  *
  * A schema the endpoint cannot honour is an error rather than a downgrade to
@@ -273,7 +292,9 @@ export function serializeChatCompletionsRequest(
     messages,
     stream: true,
     ...dialect.streamUsage ? { stream_options: { include_usage: true } } : {},
-    ...dialect.maxTokensField === false ? {} : { [dialect.maxTokensField]: request.maxTokens },
+    ...dialect.maxTokensField === false || request.maxTokens === undefined
+      ? {}
+      : { [dialect.maxTokensField]: request.maxTokens },
     ...dialect.sampling && options.temperature !== undefined
       ? { temperature: options.temperature }
       : {},
@@ -285,9 +306,7 @@ export function serializeChatCompletionsRequest(
     ...dialect.stop && options.stop !== undefined && options.stop.length > 0
       ? { stop: [...options.stop] }
       : {},
-    ...dialect.reasoningEffort && options.reasoningEffort !== undefined
-      ? { reasoning_effort: String(options.reasoningEffort) }
-      : {},
+    ...reasoningFieldsOf(dialect.reasoningFormat, options.reasoningEffort),
     ...tools === undefined ? {} : { tools },
     ...tools === undefined || options.toolChoice === undefined
       ? {}
