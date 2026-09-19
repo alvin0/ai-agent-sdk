@@ -10,7 +10,7 @@
 
 import type { ModelReasoningInfo } from '@alvin0/ai-agent-sdk-core'
 import type { ModelProviderPlugin, ModelProviderRegistrar, RetryPolicyConfig } from '@alvin0/ai-agent-sdk-core'
-import { ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
+import { ModelAdapter, ModelError, ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
 import {
   defineModelProviderPlugin,
   type ComposableModelProviderPlugin,
@@ -18,14 +18,18 @@ import {
   type ModelTarget,
 } from '@alvin0/ai-agent-sdk-core/provider'
 import type {
+  HeaderContext,
   HttpModelAdapter,
   ProviderCatalogModel,
   ProviderRequestLogger,
+  ProviderResponseLogger,
+  RequestContext,
 } from '@alvin0/ai-agent-sdk-provider-http'
 import {
   createHttpProvider,
   endpointHeaders,
   createRuntimeHttpProvider,
+  FieldFallbackAdapter,
   type CredentialSource,
 } from '@alvin0/ai-agent-sdk-provider-http'
 import {
@@ -66,10 +70,27 @@ export interface AnthropicAdapterOptions {
   apiKey: AnthropicCredential
   /** Endpoint base; defaults to {@link ANTHROPIC_BASE_URL}. */
   baseUrl?: string
+  /**
+   * Name this endpoint uses in diagnostics and error messages. Defaults to
+   * `'Anthropic'`; set it to the real vendor name (e.g. `'Kimi'`) when pointing
+   * this provider at a compatible gateway, so a rejection names who rejected it.
+   */
+  displayName?: string
   /** Extra endpoint headers, captured once per operation. Reserved names and collisions fail. */
-  headers?: Readonly<Record<string, string>> | (() => Readonly<Record<string, string>>)
+  headers?: Readonly<Record<string, string>> | ((ctx: HeaderContext) => Readonly<Record<string, string>>)
   /** Permit cleartext HTTP explicitly for trusted local gateways. */
   allowInsecureHttp?: boolean
+  /** Override the request path this protocol would otherwise pick (e.g. a gateway deployment path). */
+  path?: string
+  /** Extra query-string parameters, or a resolver for them. Never for secrets. */
+  query?: Readonly<Record<string, string>> | (() => Readonly<Record<string, string>>)
+  /**
+   * Fields to deep-merge into the serialized body. The caller's value always
+   * wins, even over a field the SDK set. A `null` value deletes the field.
+   */
+  body?: Readonly<Record<string, unknown>>
+  /** Last-resort hook with full authority over the body, run after `body` is merged in. */
+  transformRequest?: (body: unknown, ctx: RequestContext) => unknown
   /** API version header; defaults to {@link ANTHROPIC_VERSION}. */
   version?: string
   /** Opt-in beta features, sent as `anthropic-beta`. */
@@ -98,6 +119,22 @@ export interface AnthropicAdapterOptions {
    * behavior alone rather than the SDK guessing one from the effort.
    */
   thinking?: 'adaptive' | 'disabled'
+  /**
+   * Mark the stable prefix of every request (system prompt, tool
+   * definitions, every message but the newest) as a `cache_control`
+   * breakpoint, so a long conversation reads its own unchanged history back
+   * at a steep discount instead of paying to reprocess it on every turn.
+   *
+   * Off by default: this is an Anthropic-specific extension, and a gateway
+   * behind this same adapter that speaks the Messages API but does not
+   * understand `cache_control` should not be asked to guess. If a live
+   * dispatch is ever rejected specifically for it, this adapter turns
+   * caching off for itself, permanently, and retries once without it — it
+   * never fails a call over an optimization the caller opted into.
+   */
+  promptCaching?: boolean
+  /** Cache breakpoint lifetime. Defaults to this API's own default (5 minutes). */
+  promptCachingTtl?: '5m' | '1h'
   /** How the API key travels. Defaults to `'x-api-key'`, this API's own header. */
   authHeader?: 'x-api-key' | 'bearer'
   /**
@@ -122,6 +159,8 @@ export interface AnthropicAdapterOptions {
   retryPolicy?: RetryPolicyConfig
   /** Optional exact wire-request logger; credentials are redacted. */
   requestLogger?: ProviderRequestLogger
+  /** Optional exact wire-response logger, fired once a stream ends. */
+  responseLogger?: ProviderResponseLogger
   fetch?: typeof globalThis.fetch
 }
 
@@ -130,22 +169,13 @@ export interface AnthropicAdapterOptions {
  * @param options - credential, endpoint, and thinking-budget overrides.
  * @returns the adapter, ready to register.
  */
-export function anthropicAdapter(options: AnthropicAdapterOptions): HttpModelAdapter {
-  const budgets = options.thinkingBudgets ?? DEFAULT_THINKING_BUDGETS
-  const dialect: Partial<AnthropicDialect> = {
-    budgets,
-    ...options.reasoningFormat === undefined ? {} : { reasoningFormat: options.reasoningFormat },
-    ...options.thinking === undefined ? {} : { thinking: options.thinking },
-    ...options.version === undefined ? {} : { version: options.version },
-    ...options.beta === undefined ? {} : { beta: options.beta },
-  }
-
-  return createHttpProvider({
-    displayName: 'Anthropic',
+export function anthropicAdapter(options: AnthropicAdapterOptions): ModelAdapter {
+  const build = (promptCachingOverride?: boolean): HttpModelAdapter => createHttpProvider({
+    displayName: options.displayName ?? 'Anthropic',
     protocol: anthropicMessagesProtocol,
     baseUrl: options.baseUrl ?? ANTHROPIC_BASE_URL,
     auth: authOf(options),
-    dialect,
+    dialect: dialectOf(options, promptCachingOverride),
     describeModel: (info, effective) => ({
       ...info,
       reasoning: info.reasoning ?? reasoningInfo(effective.budgets),
@@ -159,7 +189,13 @@ export function anthropicAdapter(options: AnthropicAdapterOptions): HttpModelAda
     ...transportLimits(options),
     ...options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy },
     ...options.requestLogger === undefined ? {} : { requestLogger: options.requestLogger },
+    ...options.responseLogger === undefined ? {} : { responseLogger: options.responseLogger },
   })
+  const primary = build()
+  // Only wrapped when caching is actually requested: an adapter nobody asked
+  // to cache anything with pays nothing extra.
+  if (options.promptCaching !== true) return primary
+  return new FieldFallbackAdapter(primary, build(false), { isFieldRejection: isCacheControlRejection })
 }
 
 export interface AnthropicPluginOptions extends AnthropicAdapterOptions {
@@ -188,7 +224,7 @@ export function anthropicPlugin(
   return defineModelProviderPlugin({
     id,
     family: 'anthropic',
-    displayName: 'Anthropic',
+    displayName: options.displayName ?? 'Anthropic',
     routes,
     ...runtimeDefaultModel(options.defaultModel, routes),
     setup(registrar) {
@@ -204,28 +240,20 @@ function legacyAnthropicPlugin(options: AnthropicPluginOptions): ModelProviderPl
   const adapter = anthropicAdapter(options)
   return Object.freeze({
     id: 'anthropic',
-    displayName: 'Anthropic',
+    displayName: options.displayName ?? 'Anthropic',
     setup(registrar: ModelProviderRegistrar) {
       registrar.registerAdapter(routes, adapter)
     },
   })
 }
 
-function createRuntimeAnthropicAdapter(options: AnthropicProviderOptions): HttpModelAdapter {
-  const budgets = options.thinkingBudgets ?? DEFAULT_THINKING_BUDGETS
-  const dialect: Partial<AnthropicDialect> = {
-    budgets,
-    ...(options.reasoningFormat === undefined ? {} : { reasoningFormat: options.reasoningFormat }),
-    ...(options.thinking === undefined ? {} : { thinking: options.thinking }),
-    ...(options.version === undefined ? {} : { version: options.version }),
-    ...(options.beta === undefined ? {} : { beta: options.beta }),
-  }
-  return createRuntimeHttpProvider({
-    displayName: 'Anthropic',
+function createRuntimeAnthropicAdapter(options: AnthropicProviderOptions): ModelAdapter {
+  const build = (promptCachingOverride?: boolean): HttpModelAdapter => createRuntimeHttpProvider({
+    displayName: options.displayName ?? 'Anthropic',
     protocol: anthropicMessagesProtocol,
     baseUrl: options.baseUrl ?? ANTHROPIC_BASE_URL,
     auth: authOf(options),
-    dialect,
+    dialect: dialectOf(options, promptCachingOverride),
     describeModel: (info, effective) => ({
       ...info,
       reasoning: info.reasoning ?? reasoningInfo(effective.budgets),
@@ -237,7 +265,11 @@ function createRuntimeAnthropicAdapter(options: AnthropicProviderOptions): HttpM
     ...transportLimits(options),
     ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),
     ...(options.requestLogger === undefined ? {} : { requestLogger: options.requestLogger }),
+    ...(options.responseLogger === undefined ? {} : { responseLogger: options.responseLogger }),
   })
+  const primary = build()
+  if (options.promptCaching !== true) return primary
+  return new FieldFallbackAdapter(primary, build(false), { isFieldRejection: isCacheControlRejection })
 }
 
 function usesRuntimeComposition(
@@ -264,16 +296,81 @@ function runtimeDefaultModel(
  * This API's own header is `x-api-key`, unlike most others' `authorization:
  * Bearer` — but a gateway sitting in front of it may expect Bearer instead.
  */
-function authOf(options: AnthropicAdapterOptions | AnthropicProviderOptions) {
+/**
+ * Generic over the credential type on purpose: the two call sites accept
+ * DIFFERENT ones — the legacy adapter takes {@link AnthropicCredential}
+ * (`provider-http`'s string-or-resolver), the composable one takes core's
+ * broader `CredentialInput`. A non-generic parameter union would widen
+ * `apiKey` to the union of both and fit neither target scheme.
+ */
+function authOf<Credential>(options: {
+  readonly authHeader?: 'x-api-key' | 'bearer'
+  readonly apiKey: Credential
+}) {
   return options.authHeader === 'bearer'
     ? { kind: 'bearer' as const, token: options.apiKey, label: 'the `apiKey` option' }
     : { kind: 'header' as const, name: 'x-api-key', value: options.apiKey, label: 'the `apiKey` option' }
+}
+
+const ANTHROPIC_REASONING_FORMATS = new Set(['output-config', 'thinking-budget'])
+
+/**
+ * Build the dialect, rejecting a `reasoningFormat` that isn't one of this
+ * protocol's own two values. A JS caller (or one that fought past TypeScript
+ * with `as any`) mistyping a value from a DIFFERENT protocol — Chat
+ * Completions' `'deepseek'`, for instance — would otherwise fall through the
+ * `reasoningFormat === 'thinking-budget'` checks in `serialize.ts` and
+ * silently behave as `'output-config'` instead of failing loudly.
+ */
+/**
+ * @param promptCachingOverride - Forces `promptCaching` regardless of what
+ *   `options` asked for — how the fallback build (never marks
+ *   `cache_control`) differs from the primary one when caching is on.
+ *   Omitted, `options.promptCaching` decides as normal.
+ */
+function dialectOf(
+  options: AnthropicAdapterOptions | AnthropicProviderOptions,
+  promptCachingOverride?: boolean,
+): Partial<AnthropicDialect> {
+  if (options.reasoningFormat !== undefined && !ANTHROPIC_REASONING_FORMATS.has(options.reasoningFormat)) {
+    throw new TypeError(
+      `Anthropic reasoningFormat must be 'output-config' or 'thinking-budget', received ${JSON.stringify(options.reasoningFormat)}`,
+    )
+  }
+  const budgets = options.thinkingBudgets ?? DEFAULT_THINKING_BUDGETS
+  const promptCaching = promptCachingOverride ?? options.promptCaching
+  return {
+    budgets,
+    ...(options.reasoningFormat === undefined ? {} : { reasoningFormat: options.reasoningFormat }),
+    ...(options.thinking === undefined ? {} : { thinking: options.thinking }),
+    ...(options.version === undefined ? {} : { version: options.version }),
+    ...(options.beta === undefined ? {} : { beta: options.beta }),
+    ...(promptCaching === undefined ? {} : { promptCaching }),
+    ...(options.promptCachingTtl === undefined ? {} : { promptCachingTtl: options.promptCachingTtl }),
+  }
+}
+
+/**
+ * Recognize a dispatch rejection caused specifically by `cache_control` —
+ * the one signal {@link FieldFallbackAdapter} is allowed to react to. Scoped
+ * narrowly (a 400 whose message names the field) rather than treating every
+ * 400 as a reason to give up on caching, which would mask a real, unrelated
+ * request error behind a silent feature downgrade.
+ */
+function isCacheControlRejection(error: unknown): boolean {
+  return error instanceof ModelError
+    && error.failure.status === 400
+    && error.message.toLowerCase().includes('cache_control')
 }
 
 function transportLimits(options: AnthropicAdapterOptions | AnthropicProviderOptions) {
   return {
     ...(options.allowInsecureHttp === undefined ? {} : { allowInsecureHttp: options.allowInsecureHttp }),
     headers: endpointHeaders(options.headers),
+    ...options.path === undefined ? {} : { path: options.path },
+    ...options.query === undefined ? {} : { query: options.query },
+    ...options.body === undefined ? {} : { body: options.body },
+    ...options.transformRequest === undefined ? {} : { transformRequest: options.transformRequest },
     ...options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs },
     ...options.maxRequestBytes === undefined ? {} : { maxRequestBytes: options.maxRequestBytes },
     ...options.maxResponseBytes === undefined ? {} : { maxResponseBytes: options.maxResponseBytes },

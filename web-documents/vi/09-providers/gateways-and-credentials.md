@@ -5,8 +5,9 @@ Có từ SDK **0.1.2**.
 ## Cấu hình endpoint tương thích
 
 Adapter/plugin generation của OpenAI, Anthropic và Gemini nhận `baseUrl`,
-`models`, `fetch` và `headers`. Adapter/plugin embedding của OpenAI và Gemini
-cũng nhận header tùy biến.
+`displayName`, `models`, `fetch`, `headers`, `path`, `query`, `body` và
+`transformRequest`. Adapter/plugin embedding của OpenAI và Gemini cũng nhận
+header tùy biến.
 
 ```ts
 import { openAiEmbeddingPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
@@ -37,16 +38,22 @@ Nếu cần cách xác thực khác, dùng [HTTP provider tùy biến](/vi/09-pr
 
 | Năng lực | Giao thức/path yêu cầu |
 | --- | --- |
-| OpenAI generation | Responses, `/responses` |
+| OpenAI generation | Responses, `/responses`; hoặc Chat Completions, `/chat/completions` |
 | Anthropic generation | Messages, `/v1/messages` |
 | Gemini generation | Interactions, `/interactions` |
 | OpenAI embedding | `/embeddings` |
 | Gemini embedding | `models/{model}:batchEmbedContents` |
 
-Tên model không chứng minh tính tương thích. Gateway chỉ có Chat Completions hoặc
-Gemini `generateContent` không khớp các plugin generation trên. Khai báo năng lực
+Tên model không chứng minh tính tương thích. Chọn `api: 'chat-completions'` cho
+endpoint tương thích OpenAI phơi ra wire đó thay vì Responses. Gemini
+`generateContent` vẫn không khớp plugin Gemini Interactions. Khai báo năng lực
 model trong `models` theo endpoint thực tế. Gateway HTTP local đáng tin cậy cần
 bật tường minh `allowInsecureHttp: true`.
+
+Các field prompt cache tuỳ chọn an toàn với gateway. Khi gateway tương thích
+OpenAI hoặc Anthropic trả HTTP 400 nêu đúng `prompt_cache_key` hoặc
+`cache_control`, adapter thử lại một lần không có field đó và ghi nhớ việc hạ cấp
+cho instance. Xem [Prompt caching](/vi/09-providers/prompt-caching).
 
 ## Lưu credential Codex và Copilot trong database
 

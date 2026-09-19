@@ -26,6 +26,7 @@
     "@alvin0/ai-agent-sdk-mcp-node": "workspace:*",
     "@alvin0/ai-agent-sdk-provider-anthropic": "workspace:*",
     "@alvin0/ai-agent-sdk-provider-gemini": "workspace:*",
+    "@alvin0/ai-agent-sdk-provider-http": "workspace:*",
     "@alvin0/ai-agent-sdk-provider-openai": "workspace:*",
     "@alvin0/ai-agent-sdk-skill-filesystem": "workspace:*",
     "drizzle-orm": "catalog:",

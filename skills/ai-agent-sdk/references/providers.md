@@ -8,9 +8,10 @@ four things — `connect`, `endpointPath`, `buildBody`, `translate` — and
 its own fetch loop that forgets attribution headers, mishandles abort, or
 invents error codes.
 
-`openai` and `codex` share **one** Responses implementation
-(`@alvin0/ai-agent-sdk-protocol-responses`) and differ only by a dialect record:
-base URL, auth, and which optional fields the endpoint accepts.
+`openai` supports both Responses and Chat Completions. `codex` shares OpenAI's
+Responses protocol implementation, while Copilot can route between Responses
+and Chat Completions per model. Endpoint/auth choices stay in provider packages;
+wire serialization stays in protocol packages.
 
 ## Four protocols ship today
 
@@ -36,11 +37,29 @@ registrar.registerAdapter(adapter, routes?)   // plugin registrar: adapter FIRST
 
 ## Level 1 — configuration only
 
-Since 0.1.2, OpenAI/Anthropic/Gemini generation and OpenAI/Gemini embedding
-adapters/plugins accept `headers` as a record or synchronous resolver. Header
-names are case-insensitive; reserved auth/transport names and collisions fail.
-Prepared embedding batches share one snapshot. Use `allowInsecureHttp: true`
-only for trusted local gateways. The wire protocol still has to match.
+OpenAI/Anthropic/Gemini generation and OpenAI/Gemini embedding adapters/plugins
+accept `headers` as a record or synchronous resolver. Generation header
+resolvers receive `{ provider, agentId?, signal? }`; values supplied through an
+agent's `providerOptions.headers` win over model and route headers. Credential
+headers remain owned by `auth`, and connection-forbidden names still fail.
+Prepared calls capture one coherent connection snapshot. Use
+`allowInsecureHttp: true` only for trusted local gateways. The wire protocol
+still has to match.
+
+The three first-party generation providers also expose the same gateway escape
+hatches:
+
+| Option | Behavior |
+| --- | --- |
+| `displayName` | Names the real endpoint in diagnostics |
+| `path` | Replaces the protocol's request path |
+| `query` | Adds non-secret query parameters; may be resolved per operation |
+| `body` | Deep-merges route fields after protocol serialization; `null` deletes |
+| `transformRequest` | Last-resort full-body transform, after all merges |
+| `requestLogger` / `responseLogger` | Opt-in exact wire diagnostics; see observability.md |
+
+Body precedence is protocol body → route body → `models[].body` → agent
+`providerOptions.body` → `transformRequest`. Later layers win recursively.
 
 Codex/Copilot stores can use `defineCredentialStore({ id, label, read, commit })`
 with database-backed atomic revision checks. `getCodexTokens(store)` refreshes
@@ -68,10 +87,12 @@ registry.registerAdapter(['openrouter'], createHttpProvider({
 }))
 ```
 
-`HttpProviderOptions` in full: `displayName`, `protocol`, `baseUrl`, `auth`
+`HttpProviderOptions` includes `displayName`, `protocol`, `baseUrl`, `auth`
 (required), plus `allowInsecureHttp`, `fetch`, `dialect` (a `Partial<Dialect>`
-merged over protocol defaults), `headers`, `models`, and the timeout/size
-bounds.
+merged over protocol defaults), `headers`, `path`, `query`, `body`,
+`transformRequest`, `models`, `requestLogger`, `responseLogger`, and the
+timeout/size bounds. `auth` may be one scheme or an array; arrays union distinct
+credential headers and reject case-insensitive collisions.
 
 ### Auth schemes
 
@@ -150,18 +171,18 @@ For a fully non-HTTP provider, the `ModelAdapter` author surface stays public.
 
 ## What the registry enforces before any I/O
 
-`ModelRegistry` validates and snapshots each adapter's declared capabilities.
+`ModelRegistry` snapshots each adapter's declared capabilities.
 `prepareCall()` returns a **generation-bound** capability snapshot: combined
 context window, default and hard output limits, reasoning efforts, input/output
 modalities, explicit native-tool support.
 
-Before provider I/O it rejects an unsupported reasoning effort
-(`UNSUPPORTED_REASONING_EFFORT`), an unsupported native tool
-(`UNSUPPORTED_NATIVE_TOOL`), and an output selection above the hard ceiling
+Before provider I/O it rejects an unsupported native tool
+(`UNSUPPORTED_NATIVE_TOOL`) and an output selection above the hard ceiling
 (`OUTPUT_TOKEN_LIMIT_EXCEEDED`); it projects image input away only for models
 that explicitly lack vision, and prevents an output reservation from consuming
-the whole context window. These are execution invariants, not catalog
-decoration.
+the whole context window. An undeclared input modality is permissive. Reasoning
+efforts are advisory catalog data only: a caller's exact effort string passes
+through to the provider, and omission sends none.
 
 ## Retry is a decorator
 
@@ -288,10 +309,26 @@ compatible endpoint answers HTTP 400.
 | Route | Endpoint | Credential | Notes |
 | --- | --- | --- | --- |
 | `anthropic` | Messages API | injected `apiKey` | — |
-| `openai` | Responses API | injected `apiKey` | prefer for production |
+| `openai` | Responses (default) or Chat Completions | injected `apiKey` | route default via `api`; per-model override via `models[].api` |
 | `codex` | ChatGPT-backed Codex | injected `CodexAuthStore` | discovers its catalog from the endpoint, because available models depend on the account plan |
 | `gemini` | Gemini Interactions | injected `apiKey` | — |
 | `copilot` | Copilot subscription surface, **both** Responses and Chat Completions | injected `CopilotCredentialStore` | discovers its catalog, and picks the endpoint per model |
+
+### First-party provider differences that must stay explicit
+
+- **OpenAI:** `api: 'responses' | 'chat-completions'`; `compat` tunes the Chat
+  Completions dialect. `promptCacheKey` supplies a stable application key;
+  `promptCaching: true` generates one per adapter instance.
+- **Anthropic:** current models use `reasoningFormat: 'output-config'` by
+  default and receive effort at `output_config.effort`. Select
+  `'thinking-budget'` only for an older model/gateway that requires mapped token
+  budgets. `authHeader` may be `'x-api-key'` or `'bearer'`.
+- **Gemini:** Interactions only, not `generateContent`; `authHeader` may be
+  `'x-goog-api-key'` or `'bearer'`. `store` controls provider retention, not
+  prompt caching.
+
+For long-session caching semantics and downgrade behavior, read
+[prompt-caching.md](prompt-caching.md).
 
 The Codex endpoint serves the Codex CLI and identifies its client with an
 `originator` header; the adapter defaults to the CLI's value so requests are
@@ -396,6 +433,10 @@ naming an endpoint that does not exist fails at provider construction with
 `COPILOT_ENDPOINT_OVERRIDE_INVALID`, not at the first request to that model.
 `--models` is the discovery path — it prints each model's chosen endpoint **and**
 the `source` that decided it — and rebuilding the runtime is the reset.
+
+Copilot's Chat Completions branch leaves reasoning off by default. Set
+`reasoningFormat: 'openai'` in its dialect only when that endpoint/model accepts
+`reasoning_effort`; then the agent's exact effort string is forwarded verbatim.
 
 ### Client identity
 

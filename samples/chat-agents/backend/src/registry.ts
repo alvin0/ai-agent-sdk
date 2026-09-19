@@ -16,8 +16,26 @@ import { CODEX_CATALOG_POLICY } from './model-policy'
 import { geminiAdapter } from '@alvin0/ai-agent-sdk-provider-gemini'
 import { openAiAdapter } from '@alvin0/ai-agent-sdk-provider-openai'
 import { anthropicAdapter } from '@alvin0/ai-agent-sdk-provider-anthropic'
+import type { ProviderRequestLogger, ProviderResponseLogger } from '@alvin0/ai-agent-sdk-provider-http'
 import { codexSignedIn } from './auth'
 import { apiKeyFor, baseUrlFor, credentialViews } from './credentials'
+import type { RawCallCorrelator, RawCallSink } from './provider-calls'
+
+/**
+ * The raw wire loggers one provider's adapter is constructed with, or nothing
+ * when the caller has no trace to attach them to (a bare `listModels` call,
+ * for instance, has no run and nothing worth logging).
+ */
+function rawLoggersFor(
+  provider: string,
+  raw: { readonly correlator: RawCallCorrelator; readonly sink: RawCallSink } | undefined,
+): { requestLogger?: ProviderRequestLogger; responseLogger?: ProviderResponseLogger } {
+  if (raw === undefined) return {}
+  return {
+    requestLogger: raw.correlator.requestLoggerFor(provider),
+    responseLogger: raw.correlator.responseLoggerFor(raw.sink),
+  }
+}
 
 /** One selectable provider, as the model picker sees it. */
 export interface ProviderInfoView {
@@ -140,12 +158,22 @@ export async function listProviders(): Promise<readonly ProviderInfoView[]> {
   ]
 }
 
+/** What one run needs to attach the exact wire payload to its trace. */
+export interface RawLogging {
+  readonly correlator: RawCallCorrelator
+  readonly sink: RawCallSink
+}
+
 /**
  * Build a registry carrying every provider whose credential is present.
+ * @param middleware - Wraps every model call, for the trace's request/response summary.
+ * @param raw - When given, every adapter also reports its exact wire payload,
+ *   correlated back to the SAME round `middleware` already recorded.
  * @returns The registry plus the provider ids it can route.
  */
 export async function buildRegistry(
   middleware?: StreamMiddleware,
+  raw?: RawLogging,
 ): Promise<{ registry: ModelRegistry; routed: readonly string[] }> {
   const registry = new ModelRegistry()
   // Installed before any adapter routes anything, so no call of this run can
@@ -165,6 +193,7 @@ export async function buildRegistry(
     registry.registerAdapter(['gemini'], geminiAdapter({
       apiKey: storedCredential('gemini'),
       ...baseUrl === undefined ? {} : { baseUrl },
+      ...rawLoggersFor('gemini', raw),
     }))
     routed.push('gemini')
   }
@@ -173,6 +202,7 @@ export async function buildRegistry(
     registry.registerAdapter(['openai'], openAiAdapter({
       apiKey: storedCredential('openai'),
       ...baseUrl === undefined ? {} : { baseUrl },
+      ...rawLoggersFor('openai', raw),
     }))
     routed.push('openai')
   }
@@ -181,11 +211,15 @@ export async function buildRegistry(
     registry.registerAdapter(['anthropic'], anthropicAdapter({
       apiKey: storedCredential('anthropic'),
       ...baseUrl === undefined ? {} : { baseUrl },
+      ...rawLoggersFor('anthropic', raw),
     }))
     routed.push('anthropic')
   }
   if (await codexSignedIn()) {
-    registry.registerAdapter(['codex'], codexNodeAdapter(CODEX_CATALOG_POLICY))
+    registry.registerAdapter(['codex'], codexNodeAdapter({
+      ...CODEX_CATALOG_POLICY,
+      ...rawLoggersFor('codex', raw),
+    }))
     routed.push('codex')
   }
   return { registry, routed }
@@ -239,14 +273,16 @@ export interface ResolvedModel {
  * Resolve the call config for a run.
  * @param selection - The conversation's chosen pair, when the user picked one.
  * @param middleware - Wraps every model call of this run, for the trace.
+ * @param raw - When given, every adapter also reports its exact wire payload.
  * @returns The registry and the config to run with.
  * @throws When the selection has no credential, or nothing is configured at all.
  */
 export async function resolveModel(
   selection: ModelSelection | undefined,
   middleware?: StreamMiddleware,
+  raw?: RawLogging,
 ): Promise<ResolvedModel> {
-  const { registry, routed } = await buildRegistry(middleware)
+  const { registry, routed } = await buildRegistry(middleware, raw)
   if (routed.length === 0) {
     throw new Error('no provider is configured: add an API key or sign in with Codex in Settings')
   }

@@ -14,7 +14,7 @@ that forgets attribution headers, mishandles abort, or invents error codes.
 | Entry point | Endpoint | Credential |
 | --- | --- | --- |
 | `@alvin0/ai-agent-sdk-provider-anthropic` | Messages API | injected `apiKey` |
-| `@alvin0/ai-agent-sdk-provider-openai` | Responses API | injected `apiKey` |
+| `@alvin0/ai-agent-sdk-provider-openai` | Responses or Chat Completions | injected `apiKey` |
 | `@alvin0/ai-agent-sdk-provider-codex` | ChatGPT-backed Codex | injected `CodexAuthStore` |
 | `@alvin0/ai-agent-sdk-provider-gemini` | Gemini Interactions API | injected `apiKey` |
 | `@alvin0/ai-agent-sdk-provider-copilot` | Copilot subscription surface | injected `CopilotCredentialStore` |
@@ -37,6 +37,11 @@ See [Embeddings](/en/09-providers/embeddings).
 ## Two registration styles
 
 New in 0.1.2: [Compatible gateways and database credentials](/en/09-providers/gateways-and-credentials).
+
+Provider-native caching for long sessions is documented in
+[Prompt caching](/en/09-providers/prompt-caching). OpenAI uses a stable cache
+key, Anthropic uses explicit prefix breakpoints, and Gemini Interactions caches
+matching prefixes implicitly.
 
 **Plugin (recommended).** A transactional registration the runtime activates and
 removes:

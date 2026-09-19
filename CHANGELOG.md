@@ -2,6 +2,28 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## 0.1.4 - 2026-09-19
+
+### Added
+
+- OpenAI now supports both Responses and Chat Completions, including per-model wire routing and compatibility controls for third-party gateways.
+- Added provider-native prompt caching: stable OpenAI cache keys, Anthropic `cache_control` breakpoints with optional TTL, gateway fallback, and normalized Gemini implicit-cache usage.
+- OpenAI, Anthropic, and Gemini now support custom display names, paths, queries, request-body overrides/transforms, contextual headers, and agent-level `providerOptions`; HTTP providers also expose exact `responseLogger` diagnostics.
+- Agents can override `contextWindow` and `inputModalities`, while runtimes can define shared model defaults.
+
+### Changed
+
+- **Breaking:** reasoning effort is now agent-level, provider-owned pass-through. Per-invocation effort, SDK validation/defaulting, and `defaultEffort` were removed; Anthropic defaults to `output_config.effort`, with legacy thinking budgets opt-in.
+- Removed hard-coded vendor model policies. Unknown models use a 200,000-token context and permissive text/image/document input; output limits are omitted unless configured, except where a protocol requires one.
+
+### Fixed
+
+- Fixed media rejection for uncatalogued models, invalid cross-protocol reasoning formats, and standalone Anthropic/Gemini package typechecking.
+
+### Release scope
+
+- All 26 workspace package manifests, root metadata, and `SDK_VERSION` move from `0.1.3` to `0.1.4`; 25 packages are publishable and the private testkit remains unpublished.
+
 ## 0.1.3 - 2026-09-15
 
 ### Added

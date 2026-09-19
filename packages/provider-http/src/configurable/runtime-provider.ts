@@ -32,6 +32,7 @@ import type { RuntimeHttpProviderOptions, RuntimeModelDiscoveryContext } from '.
 import { snapshotJsonObject } from '../common/json-snapshot.ts'
 import { HTTP_RUNTIME_OPTION_LIMITS } from '../common/config.ts'
 import { mergeHeaderLayers, type HeaderLayer } from '../common/header-layers.ts'
+import type { HeaderContext } from '../common/endpoint-headers.ts'
 
 const NEVER_ABORTED_SIGNAL = new AbortController().signal
 const NULL_LOGGER: SdkLogger = Object.freeze({
@@ -70,7 +71,15 @@ export function createRuntimeHttpProvider<Dialect extends object>(
   const requestLogger = optionalCapturedMethod<
     [import('../base/http-adapter.ts').ProviderRequestLogRecord], Promise<void> | void
   >(source, 'requestLogger')
+  const responseLogger = optionalCapturedMethod<
+    [import('../base/http-adapter.ts').ProviderResponseLogRecord], Promise<void> | void
+  >(source, 'responseLogger')
+  const transformRequest = optionalCapturedMethod<
+    [unknown, { provider: string; model: string; agentId?: string; signal?: AbortSignal }], unknown
+  >(source, 'transformRequest')
   const headers = captureHeaders(source)
+  const query = captureQuery(source)
+  const path = capturePath(source)
 
   const legacy: HttpProviderOptions<Dialect> = {
     displayName,
@@ -78,10 +87,14 @@ export function createRuntimeHttpProvider<Dialect extends object>(
     baseUrl: baseUrl.href,
     auth,
     ...copyOptional(source, 'allowInsecureHttp'),
+    ...(path === undefined ? {} : { path }),
     ...copyJsonOptional(source, 'models', 'models'),
     ...copyJsonOptional(source, 'dialect', 'dialect'),
     ...(fetch === undefined ? {} : { fetch }),
     ...(headers === undefined ? {} : { headers }),
+    ...(query === undefined ? {} : { query }),
+    ...copyJsonOptional(source, 'body', 'body'),
+    ...(transformRequest === undefined ? {} : { transformRequest }),
     ...copyOptional(source, 'catalogTtlMs'),
     ...copyOptional(source, 'catalogStaleTtlMs'),
     ...copyOptional(source, 'catalogFailureBackoffMs'),
@@ -103,6 +116,7 @@ export function createRuntimeHttpProvider<Dialect extends object>(
     ...(errorCode === undefined ? {} : { errorCode }),
     ...copyHeaderOptional(source, 'baseHeaders', 'transport'),
     ...(requestLogger === undefined ? {} : { requestLogger }),
+    ...(responseLogger === undefined ? {} : { responseLogger }),
     ...(discover === undefined ? {} : {
       discoverModels: async (context: ModelDiscoveryContext) => discover({
         provider: context.provider ?? '',
@@ -164,7 +178,12 @@ function captureRuntimeProtocol<Dialect extends object>(value: unknown): Runtime
   }
 }
 
-function captureRuntimeAuth(value: unknown, baseUrl: URL): AuthScheme {
+function captureRuntimeAuth(value: unknown, baseUrl: URL): AuthScheme | readonly AuthScheme[] {
+  if (Array.isArray(value)) return value.map(entry => captureRuntimeAuthScheme(entry, baseUrl))
+  return captureRuntimeAuthScheme(value, baseUrl)
+}
+
+function captureRuntimeAuthScheme(value: unknown, baseUrl: URL): AuthScheme {
   const source = plainObject(value, 'runtime HTTP auth')
   const kind = ownData(source, 'kind')
   if (kind === 'none') return Object.freeze({ kind })
@@ -177,6 +196,15 @@ function captureRuntimeAuth(value: unknown, baseUrl: URL): AuthScheme {
   }
   if (kind === 'header') {
     const name = boundedIdentifier(ownData(source, 'name'), 256, 'auth header name')
+    return Object.freeze({
+      kind,
+      name,
+      value: captureCredential(ownData(source, 'value')),
+      ...copyOptional(source, 'label'),
+    })
+  }
+  if (kind === 'query') {
+    const name = boundedIdentifier(ownData(source, 'name'), 256, 'auth query param name')
     return Object.freeze({
       kind,
       name,
@@ -262,12 +290,42 @@ function copyHeaderOptional(
 
 function captureHeaders(
   source: object,
-): Readonly<Record<string, string>> | (() => Readonly<Record<string, string>>) | undefined {
+): Readonly<Record<string, string>> | ((ctx: HeaderContext) => Readonly<Record<string, string>>) | undefined {
   const value = ownData(source, 'headers', false)
   if (value === undefined) return undefined
   if (typeof value !== 'function') return snapshotHeaders(value, 'endpoint')
+  const captured = (ctx: HeaderContext) => Reflect.apply(value, source, [ctx]) as unknown
+  return (ctx: HeaderContext) => snapshotHeaders(captured(ctx), 'endpoint')
+}
+
+function capturePath(source: object): string | undefined {
+  const value = ownData(source, 'path', false)
+  return value === undefined ? undefined : boundedIdentifier(value, 2_048, 'path')
+}
+
+function captureQuery(
+  source: object,
+): Readonly<Record<string, string>> | (() => Readonly<Record<string, string>>) | undefined {
+  const value = ownData(source, 'query', false)
+  if (value === undefined) return undefined
+  if (typeof value !== 'function') return snapshotQuery(value)
   const captured = (...args: []) => Reflect.apply(value, source, args) as unknown
-  return () => snapshotHeaders(captured(), 'endpoint')
+  return () => snapshotQuery(captured())
+}
+
+function snapshotQuery(value: unknown): Readonly<Record<string, string>> {
+  const snapshot = snapshotJsonObject({ query: value }, HTTP_RUNTIME_OPTION_LIMITS).query
+  if (snapshot === null || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+    throw new AgentSdkError('Runtime HTTP query must be a record', HTTP_PROVIDER_ERROR_CODES.QUERY_INVALID)
+  }
+  const output: Record<string, string> = {}
+  for (const [key, entry] of Object.entries(snapshot)) {
+    if (typeof entry !== 'string') {
+      throw new AgentSdkError('Runtime HTTP query values must be strings', HTTP_PROVIDER_ERROR_CODES.QUERY_INVALID)
+    }
+    output[key] = entry
+  }
+  return Object.freeze(output)
 }
 
 function snapshotHeaders(value: unknown, layer: HeaderLayer): Readonly<Record<string, string>> {

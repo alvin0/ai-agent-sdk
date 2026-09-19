@@ -82,6 +82,10 @@ export function snapshotRunTurnOptions(options: RunTurnOptions): RunTurnOptions 
     ...(options.config.temperature === undefined ? {} : { temperature: options.config.temperature }),
     ...(options.config.topP === undefined ? {} : { topP: options.config.topP }),
     ...(options.config.maxTokens === undefined ? {} : { maxTokens: options.config.maxTokens }),
+    ...(options.config.contextWindow === undefined ? {} : { contextWindow: options.config.contextWindow }),
+    ...(options.config.inputModalities === undefined ? {} : {
+      inputModalities: Object.freeze([...options.config.inputModalities]),
+    }),
     ...(options.config.stop === undefined ? {} : { stop: Object.freeze([...options.config.stop]) }),
   })
   return Object.freeze({

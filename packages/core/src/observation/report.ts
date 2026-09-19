@@ -81,6 +81,17 @@ export interface ModelInvocationContext {
   readonly observation?: ObservationPort
   /** Safe SDK/service/runtime identity copied onto nested provider operations. */
   readonly resource?: ObservationResource
+  /** Stable code-owned agent identity (`AgentDefinition.id`), when this call belongs to one. */
+  readonly agentId?: string
+  /**
+   * Extra headers/body fields for this agent's provider requests
+   * (`AgentDefinitionInput.providerOptions`), when this call belongs to an
+   * agent that configured one.
+   */
+  readonly providerOptions?: {
+    readonly headers?: Readonly<Record<string, string>>
+    readonly body?: Readonly<Record<string, unknown>>
+  }
   readonly correlation?: Partial<CorrelationContext>
   readonly terminalCheckpointOwner?: 'model-call' | 'agent-run'
   /** Shared sequence/monotonic scope when this call belongs to a larger agent run. */

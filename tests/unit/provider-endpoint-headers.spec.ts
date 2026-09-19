@@ -55,6 +55,169 @@ describe('compatible endpoint headers', () => {
   })
 
   it.each([
+    ['OpenAI', (options: OpenAiProviderOptions) => openAiPlugin(options)],
+    ['Anthropic', (options: OpenAiProviderOptions) => anthropicPlugin(options)],
+    ['Gemini', (options: OpenAiProviderOptions) => geminiPlugin(options)],
+    ['OpenAI adapter', manual(openAiAdapter)],
+    ['Anthropic adapter', manual(anthropicAdapter)],
+    ['Gemini adapter', manual(geminiAdapter)],
+  ] as const)('%s forwards a `path` override and resolved `query` params', async (_name, plugin) => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ error: { message: 'controlled rejection' } }, { status: 400 }))
+    const runtime = await createAgentRuntime({ providers: [plugin({
+      id: 'gateway', baseUrl: 'http://localhost:1234/deployments/x',
+      allowInsecureHttp: true, apiKey: defineCredentialSource({ id: 'key', resolve: () => 'key' }),
+      path: '/custom-path', query: () => ({ 'api-version': '2026-06-01' }),
+      fetch, retryPolicy: { mode: 'normal', maxRetries: 0 },
+    })] })
+    try {
+      await runtime.agent({ id: 'agent', instructions: 'Reply.', compaction: false,
+        model: { provider: 'gateway', id: 'custom-model' },
+      }).generate('Hello').catch(() => undefined)
+      const [url] = fetch.mock.calls.at(-1)!
+      expect(String(url)).toBe('http://localhost:1234/deployments/x/custom-path?api-version=2026-06-01')
+    } finally { await runtime.close() }
+  })
+
+  it.each([
+    ['OpenAI', (options: OpenAiProviderOptions) => openAiPlugin(options)],
+    ['Anthropic', (options: OpenAiProviderOptions) => anthropicPlugin(options)],
+    ['Gemini', (options: OpenAiProviderOptions) => geminiPlugin(options)],
+    ['OpenAI adapter', manual(openAiAdapter)],
+    ['Anthropic adapter', manual(anthropicAdapter)],
+    ['Gemini adapter', manual(geminiAdapter)],
+  ] as const)('%s deep-merges `body` and runs `transformRequest` last', async (_name, plugin) => {
+    let requestedBody: Record<string, unknown> | undefined
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+      requestedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return Response.json({ error: { message: 'controlled rejection' } }, { status: 400 })
+    })
+    const runtime = await createAgentRuntime({ providers: [plugin({
+      id: 'gateway', baseUrl: 'http://localhost:1234/prefix',
+      allowInsecureHttp: true, apiKey: defineCredentialSource({ id: 'key', resolve: () => 'key' }),
+      body: { extra: 'from-body' },
+      transformRequest: (body, ctx) => ({ ...(body as Record<string, unknown>), stampedFor: ctx.model }),
+      fetch, retryPolicy: { mode: 'normal', maxRetries: 0 },
+    })] })
+    try {
+      await runtime.agent({ id: 'agent', instructions: 'Reply.', compaction: false,
+        model: { provider: 'gateway', id: 'custom-model' },
+      }).generate('Hello').catch(() => undefined)
+      expect(requestedBody).toMatchObject({ extra: 'from-body', stampedFor: 'custom-model' })
+    } finally { await runtime.close() }
+  })
+
+  it.each([
+    ['OpenAI', (options: OpenAiProviderOptions) => openAiPlugin(options)],
+    ['Anthropic', (options: OpenAiProviderOptions) => anthropicPlugin(options)],
+    ['Gemini', (options: OpenAiProviderOptions) => geminiPlugin(options)],
+    ['OpenAI adapter', manual(openAiAdapter)],
+    ['Anthropic adapter', manual(anthropicAdapter)],
+    ['Gemini adapter', manual(geminiAdapter)],
+  ] as const)('%s carries the agent id into `headers` and `transformRequest` context', async (_name, plugin) => {
+    let headerCtxAgentId: string | undefined
+    let transformCtxAgentId: string | undefined
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ error: { message: 'controlled rejection' } }, { status: 400 }))
+    const runtime = await createAgentRuntime({ providers: [plugin({
+      id: 'gateway', baseUrl: 'http://localhost:1234/prefix',
+      allowInsecureHttp: true, apiKey: defineCredentialSource({ id: 'key', resolve: () => 'key' }),
+      headers: ctx => { headerCtxAgentId = ctx.agentId; return {} },
+      transformRequest: (body, ctx) => { transformCtxAgentId = ctx.agentId; return body },
+      fetch, retryPolicy: { mode: 'normal', maxRetries: 0 },
+    })] })
+    try {
+      await runtime.agent({ id: 'named-agent', instructions: 'Reply.', compaction: false,
+        model: { provider: 'gateway', id: 'custom-model' },
+      }).generate('Hello').catch(() => undefined)
+      expect(headerCtxAgentId).toBe('named-agent')
+      expect(transformCtxAgentId).toBe('named-agent')
+    } finally { await runtime.close() }
+  })
+
+  it.each([
+    ['OpenAI', (options: OpenAiProviderOptions) => openAiPlugin(options)],
+    ['Anthropic', (options: OpenAiProviderOptions) => anthropicPlugin(options)],
+    ['Gemini', (options: OpenAiProviderOptions) => geminiPlugin(options)],
+    ['OpenAI adapter', manual(openAiAdapter)],
+    ['Anthropic adapter', manual(anthropicAdapter)],
+    ['Gemini adapter', manual(geminiAdapter)],
+  ] as const)(
+    "%s lets an agent's own providerOptions win over the route's headers/body",
+    async (_name, plugin) => {
+      let requestedHeaders: Headers | undefined
+      let requestedBody: Record<string, unknown> | undefined
+      const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+        requestedHeaders = new Headers(init?.headers)
+        requestedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+        return Response.json({ error: { message: 'controlled rejection' } }, { status: 400 })
+      })
+      const runtime = await createAgentRuntime({ providers: [plugin({
+        id: 'gateway', baseUrl: 'http://localhost:1234/prefix',
+        allowInsecureHttp: true, apiKey: defineCredentialSource({ id: 'key', resolve: () => 'key' }),
+        headers: { 'x-route-only': 'route', 'x-shared': 'route' },
+        body: { routeOnly: 'route', shared: 'route' },
+        fetch, retryPolicy: { mode: 'normal', maxRetries: 0 },
+      })] })
+      try {
+        await runtime.agent({ id: 'agent', instructions: 'Reply.', compaction: false,
+          model: { provider: 'gateway', id: 'custom-model' },
+          providerOptions: {
+            headers: { 'x-shared': 'agent', 'x-agent-only': 'agent' },
+            body: { shared: 'agent', agentOnly: 'agent' },
+          },
+        }).generate('Hello').catch(() => undefined)
+        expect(requestedHeaders?.get('x-route-only')).toBe('route')
+        expect(requestedHeaders?.get('x-agent-only')).toBe('agent')
+        expect(requestedHeaders?.get('x-shared')).toBe('agent')
+        expect(requestedBody).toMatchObject({ routeOnly: 'route', agentOnly: 'agent', shared: 'agent' })
+      } finally { await runtime.close() }
+    },
+  )
+
+  it.each([
+    ['OpenAI', (options: OpenAiProviderOptions) => openAiPlugin(options)],
+    ['Anthropic', (options: OpenAiProviderOptions) => anthropicPlugin(options)],
+    ['Gemini', (options: OpenAiProviderOptions) => geminiPlugin(options)],
+    ['OpenAI adapter', manual(openAiAdapter)],
+    ['Anthropic adapter', manual(anthropicAdapter)],
+    ['Gemini adapter', manual(geminiAdapter)],
+  ] as const)(
+    "%s stacks route → models[] → agent, later tier winning at each step",
+    async (_name, plugin) => {
+      let requestedHeaders: Headers | undefined
+      let requestedBody: Record<string, unknown> | undefined
+      const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+        requestedHeaders = new Headers(init?.headers)
+        requestedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+        return Response.json({ error: { message: 'controlled rejection' } }, { status: 400 })
+      })
+      const runtime = await createAgentRuntime({ providers: [plugin({
+        id: 'gateway', baseUrl: 'http://localhost:1234/prefix',
+        allowInsecureHttp: true, apiKey: defineCredentialSource({ id: 'key', resolve: () => 'key' }),
+        headers: { 'x-route-only': 'route', 'x-tier': 'route' },
+        body: { routeOnly: 'route', tier: 'route' },
+        models: [{
+          id: 'custom-model',
+          headers: { 'x-model-only': 'model', 'x-tier': 'model' },
+          body: { modelOnly: 'model', tier: 'model' },
+        }],
+        fetch, retryPolicy: { mode: 'normal', maxRetries: 0 },
+      })] })
+      try {
+        await runtime.agent({ id: 'agent', instructions: 'Reply.', compaction: false,
+          model: { provider: 'gateway', id: 'custom-model' },
+          providerOptions: { headers: { 'x-tier': 'agent' }, body: { tier: 'agent' } },
+        }).generate('Hello').catch(() => undefined)
+        expect(requestedHeaders?.get('x-route-only')).toBe('route')
+        expect(requestedHeaders?.get('x-model-only')).toBe('model')
+        expect(requestedHeaders?.get('x-tier')).toBe('agent')
+        expect(requestedBody).toMatchObject({ routeOnly: 'route', modelOnly: 'model', tier: 'agent' })
+      } finally { await runtime.close() }
+    },
+  )
+
+  it.each([
     ['OpenAI', openAiEmbeddingAdapter, { data: [{ index: 0, embedding: [1, 0] }] }],
     ['Gemini', geminiEmbeddingAdapter, { embeddings: [{ values: [1, 0] }] }],
   ] as const)('%s embedding snapshots headers across prepared batches', async (_name, adapterFor, response) => {
@@ -78,20 +241,30 @@ describe('compatible endpoint headers', () => {
     expect(new Headers(fetch.mock.calls[2]![1]?.headers).get('x-tenant')).toBe('second')
   })
 
-  it('detaches static headers and rejects collisions without silently overwriting', () => {
+  const ctx = { provider: 'test' }
+
+  it('detaches static headers and lets a caller override a default, but still rejects an intra-object duplicate', () => {
     const source = { 'X-Tenant': 'first' }
     const resolve = endpointHeaders(source)
     source['X-Tenant'] = 'second'
-    expect(resolve()['x-tenant']).toBe('first')
-    expect(() => endpointHeaders({ 'OpenAI-Organization': 'other' },
-      { 'openai-organization': 'original' })).toThrow()
+    expect(resolve(ctx)['x-tenant']).toBe('first')
+    // Decision 12: the caller's value wins over the route's own default instead of colliding.
+    expect(endpointHeaders({ 'OpenAI-Organization': 'other' },
+      { 'openai-organization': 'original' })(ctx)['openai-organization']).toBe('other')
     expect(() => endpointHeaders({ Foo: 'a', foo: 'b' })).toThrow()
   })
 
-  it.each(['Authorization', 'x-api-key', 'Content-Type', 'Host', 'x-ai-agent-sdk-version'])(
+  it.each(['Authorization', 'x-api-key', 'Host'])(
     'rejects reserved %s headers', name => {
       expect(() => endpointHeaders({ [name]: 'override' })).toThrow()
-      expect(() => endpointHeaders(() => ({ [name]: 'override' }))()).toThrow()
+      expect(() => endpointHeaders(() => ({ [name]: 'override' }))(ctx)).toThrow()
+    },
+  )
+
+  it.each(['Content-Type', 'x-ai-agent-sdk-version'])(
+    'lets a caller override the SDK-set %s header (decision 12)', name => {
+      expect(endpointHeaders({ [name]: 'override' })(ctx)[name.toLowerCase()]).toBe('override')
+      expect(endpointHeaders(() => ({ [name]: 'override' }))(ctx)[name.toLowerCase()]).toBe('override')
     },
   )
 })

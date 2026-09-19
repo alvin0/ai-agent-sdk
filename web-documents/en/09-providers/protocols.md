@@ -4,7 +4,7 @@ A protocol package owns the **wire schema, request serializer, stream
 translator, and dialect record**. It owns no endpoint, credentials, fetch
 implementation, filesystem access, or Node APIs.
 
-All three packages are **Universal**, their only runtime dependency is
+All four packages are **Universal**, their only runtime dependency is
 `@alvin0/ai-agent-sdk-core`, composition slot is `provider-author.protocol`, and
 lifecycle is `inert-value` — select one in `createRuntimeHttpProvider()` with no
 startup or cleanup obligation.
@@ -44,7 +44,23 @@ createRuntimeHttpProvider({ protocol: openAiResponsesProtocol, baseUrl, auth })
 ```
 
 Supports native web search and image generation, `{ kind: 'file', fileId }` image
-input, and `detail: 'original'`.
+input, `detail: 'original'`, and the optional `prompt_cache_key` dialect field.
+
+---
+
+## `@alvin0/ai-agent-sdk-protocol-openai-chat-completions`
+
+The OpenAI Chat Completions wire used by compatible endpoints that do not expose
+Responses. Its dialect controls reasoning format, output-token field, system
+role, structured output, tools, streaming usage, stop, seed, and
+`prompt_cache_key` independently.
+
+```bash
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-protocol-openai-chat-completions
+```
+
+`provider-openai` selects this protocol with `api: 'chat-completions'`; callers
+normally do not need to construct it directly.
 
 ---
 
@@ -59,7 +75,9 @@ pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-protocol-gemini-interact
 ```
 
 It preserves thought signatures across function-call loops and maps JSON Schema
-output to `response_format` with `application/json`.
+output to `response_format` with `application/json`. Supported models perform
+implicit prefix caching; this protocol has no cache-key request field and maps
+reported `usage.total_cached_tokens` to neutral cache-read usage.
 
 ---
 
@@ -95,7 +113,9 @@ export type * from './wire.ts'
 
 Maps native web search and preserves its encrypted result/citation replay state.
 Reports unsupported native image generation and file-id image input as typed
-`INVALID_REQUEST` errors rather than dropping them silently.
+`INVALID_REQUEST` errors rather than dropping them silently. Its opt-in caching
+dialect adds `cache_control` breakpoints to stable system, tool, and history
+prefixes.
 
 ---
 

@@ -146,6 +146,7 @@ function dialect(rng: Rng): CopilotDialect {
     streamUsage: bool(rng),
     systemRole: pick(rng, ['system', 'developer'] as const),
     parallelToolCalls: bool(rng),
+    reasoningFormat: pick(rng, ['openai', 'deepseek', false] as const),
     ...(bool(rng) ? { promptCacheKey: `cache-${String(intBelow(rng, 100))}` } : {}),
   } satisfies CopilotDialect)
 }
@@ -534,8 +535,8 @@ describe('Feature: github-copilot-provider, Property 32: Composite protocol nháº
         expect(sub.path, trace).toBe(openAiChatCompletionsProtocol.defaultDialect.path)
         expect(sub.stop, trace).toBe(openAiChatCompletionsProtocol.defaultDialect.stop)
         expect(sub.seed, trace).toBe(openAiChatCompletionsProtocol.defaultDialect.seed)
-        expect(sub.reasoningEffort, trace)
-          .toBe(openAiChatCompletionsProtocol.defaultDialect.reasoningEffort)
+        // `reasoningFormat` DOES cross, verbatim from the Copilot dialect.
+        expect(sub.reasoningFormat, trace).toBe(copilot.reasoningFormat)
         for (const alien of ['store', 'include', 'reasoningSummary']) {
           expect(Object.hasOwn(sub, alien), `${trace} ${alien}`).toBe(false)
         }

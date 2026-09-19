@@ -378,4 +378,65 @@ describe('serializeAnthropicRequest', () => {
     expect(body.messages).toHaveLength(1)
     expect(body.messages[0]?.content).toEqual([{ type: 'text', text: 'real' }])
   })
+
+  describe('promptCaching', () => {
+    it('marks no cache_control anywhere by default', () => {
+      const body = serializeAnthropicRequest(providerRequest({
+        system: 'be terse',
+        messages: [createTextMessage('one'), createAssistantMessage({ content: [{ type: 'text', text: 'ack' }], source: { provider: 'p', model: 'm' } }), createTextMessage('two')],
+        tools: [{ name: 'lookup', description: 'Look something up.', parameters: { type: 'object' } }],
+      }), options)
+      expect(body.system).toBe('be terse')
+      expect(JSON.stringify(body)).not.toContain('cache_control')
+    })
+
+    it('marks the system prompt, the last tool, and everything but the newest message', () => {
+      const body = serializeAnthropicRequest(providerRequest({
+        system: 'be terse',
+        messages: [createTextMessage('one'), createAssistantMessage({ content: [{ type: 'text', text: 'ack' }], source: { provider: 'p', model: 'm' } }), createTextMessage('two')],
+        tools: [
+          { name: 'lookup', description: 'Look something up.', parameters: { type: 'object' } },
+          { name: 'search', description: 'Search the web.', parameters: { type: 'object' } },
+        ],
+      }), { ...options, promptCaching: true })
+      // System: one block, carrying the breakpoint.
+      expect(body.system).toEqual([
+        { type: 'text', text: 'be terse', cache_control: { type: 'ephemeral' } },
+      ])
+      // Tools: only the LAST one is marked — caches the whole list.
+      expect(body.tools?.[0]).not.toHaveProperty('cache_control')
+      expect(body.tools?.[1]).toMatchObject({ cache_control: { type: 'ephemeral' } })
+      // Messages: [user 'one', assistant 'ack', user 'two'] — the breakpoint
+      // sits on the SECOND-TO-LAST wire message (assistant 'ack'), not the
+      // newest ('two'), since only 'two' is new since the previous request.
+      expect(body.messages).toHaveLength(3)
+      expect(body.messages[0]?.content[0]).not.toHaveProperty('cache_control')
+      expect(body.messages[1]?.content[0]).toMatchObject({ cache_control: { type: 'ephemeral' } })
+      expect(body.messages[2]?.content[0]).not.toHaveProperty('cache_control')
+    })
+
+    it('marks no message breakpoint on the very first turn — nothing stable exists yet', () => {
+      const body = serializeAnthropicRequest(providerRequest({
+        system: 'be terse',
+        messages: [createTextMessage('first message ever')],
+      }), { ...options, promptCaching: true })
+      expect(body.messages).toHaveLength(1)
+      expect(body.messages[0]?.content[0]).not.toHaveProperty('cache_control')
+      // System still gets marked: it is stable from the very first call.
+      expect(body.system).toEqual([
+        { type: 'text', text: 'be terse', cache_control: { type: 'ephemeral' } },
+      ])
+    })
+
+    it('passes an explicit ttl through to every breakpoint', () => {
+      const body = serializeAnthropicRequest(providerRequest({
+        system: 'be terse',
+        messages: [createTextMessage('one'), createAssistantMessage({ content: [{ type: 'text', text: 'ack' }], source: { provider: 'p', model: 'm' } }), createTextMessage('two')],
+      }), { ...options, promptCaching: true, promptCachingTtl: '1h' })
+      expect(body.system).toEqual([
+        { type: 'text', text: 'be terse', cache_control: { type: 'ephemeral', ttl: '1h' } },
+      ])
+      expect(body.messages[1]?.content[0]).toMatchObject({ cache_control: { type: 'ephemeral', ttl: '1h' } })
+    })
+  })
 })

@@ -390,7 +390,7 @@ export function serializeResponsesRequest(
         },
       },
     ...text === undefined ? {} : { text },
-    store: dialect.store,
+    ...dialect.store === undefined ? {} : { store: dialect.store },
     stream: true,
     ...dialect.include.length === 0 ? {} : { include: [...dialect.include] },
     ...dialect.promptCacheKey === undefined ? {} : { prompt_cache_key: dialect.promptCacheKey },

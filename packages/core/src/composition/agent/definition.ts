@@ -16,11 +16,13 @@ import { captureRuntimeSkillSources } from '../skill-provider/definition.ts'
 import { captureRuntimeContextSections } from './policy.ts'
 import type { AgentCompactionConfig, AgentCompactionOptions } from '../../agent/memory/compaction-config.ts'
 import { assertAgentIdentitySnapshot } from '../identity/agent.ts'
+import type { ModelModality } from '../../contract/index.ts'
 
 const KEYS = new Set(['id', 'name', 'description', 'model', 'instructions', 'effort', 'maxTokens', 'mode',
+  'contextWindow', 'inputModalities',
   'tools', 'nativeTools', 'toolChoice', 'outputFormat', 'toolSources', 'skills', 'allowedSkillIds', 'memory',
   'contextSections', 'compaction',
-  'maxTurns', 'maxToolCalls', 'commentary'])
+  'maxTurns', 'maxToolCalls', 'commentary', 'providerOptions'])
 
 export interface BoundRuntimeAgentDefinition {
   readonly model: ModelTarget
@@ -45,6 +47,8 @@ export function defineRuntimeAgentDefinition(input: RuntimeAgentDefinitionInput)
     model: target, instructions: legacy.instructions,
     ...(bound.effort === undefined ? {} : { effort: bound.effort }),
     ...(bound.maxTokens === undefined ? {} : { maxTokens: bound.maxTokens }),
+    ...(legacy.contextWindow === undefined ? {} : { contextWindow: legacy.contextWindow }),
+    ...(legacy.inputModalities === undefined ? {} : { inputModalities: legacy.inputModalities }),
     mode: legacy.mode, tools: legacy.tools, nativeTools: legacy.nativeTools,
     ...(legacy.toolChoice === undefined ? {} : { toolChoice: legacy.toolChoice }),
     ...(legacy.outputFormat === undefined ? {} : { outputFormat: legacy.outputFormat }),
@@ -87,6 +91,8 @@ export function bindRuntimeAgentDefinition(
   if (values.effort !== undefined && typeof values.effort !== 'string') throw new TypeError('Runtime agent effort must be a string')
   const effort = values.effort === undefined ? undefined : ReasoningEffortId(values.effort)
   const maxTokens = values.maxTokens as number | undefined
+  const contextWindow = values.contextWindow as number | undefined
+  const inputModalities = values.inputModalities as readonly ModelModality[] | undefined
   const tools = values.tools === undefined ? undefined : captureToolDefinitions(values.tools)
   const toolSources = captureToolSources(values.toolSources)
   const nativeTools = captureNativeTools(values.nativeTools)
@@ -94,6 +100,7 @@ export function bindRuntimeAgentDefinition(
   const memory = values.memory === undefined ? undefined : captureMemoryBinding(values.memory)
   const skills = values.skills === undefined ? undefined : captureRuntimeSkillSources(values.skills)
   const contextSections = captureRuntimeContextSections(values.contextSections)
+  const providerOptions = captureProviderOptions(values.providerOptions)
   assertAgentIdentitySnapshot({ ...(tools === undefined ? {} : { tools }), nativeTools,
     ...(skills === undefined ? {} : { skills }), ...(values.allowedSkillIds === undefined ? {} : {
       allowedSkillIds: values.allowedSkillIds as readonly string[],
@@ -105,7 +112,10 @@ export function bindRuntimeAgentDefinition(
     provider: target.provider, model: target.id,
     // Legacy definitions require a value; the runtime session override below preserves omission.
     effort: effort ?? 'medium',
-    ...(maxTokens === undefined ? {} : { maxTokens }), instructions: values.instructions as string,
+    ...(maxTokens === undefined ? {} : { maxTokens }),
+    ...(contextWindow === undefined ? {} : { contextWindow }),
+    ...(inputModalities === undefined ? {} : { inputModalities }),
+    instructions: values.instructions as string,
     ...(values.mode === undefined ? {} : { mode: values.mode as NonNullable<RuntimeAgentBindingInput['mode']> }),
     ...(tools === undefined ? {} : { tools }),
     ...(nativeTools.length === 0 ? {} : { nativeTools }),
@@ -120,10 +130,29 @@ export function bindRuntimeAgentDefinition(
     ...(values.maxTurns === undefined ? {} : { maxTurns: values.maxTurns as number | 'auto' }),
     ...(values.maxToolCalls === undefined ? {} : { maxToolCalls: values.maxToolCalls as number }),
     ...(values.commentary === undefined ? {} : { commentary: values.commentary as NonNullable<RuntimeAgentBindingInput['commentary']> }),
+    ...(providerOptions === undefined ? {} : { providerOptions }),
   })
   return Object.freeze({ model: target, ...(effort === undefined ? {} : { effort }),
     ...(maxTokens === undefined ? {} : { maxTokens }), legacy, toolSources,
     ...(memory === undefined ? {} : { memory }) })
+}
+
+/** Capture `providerOptions.headers`/`.body`, rejecting anything not a plain record. */
+function captureProviderOptions(value: unknown): { headers?: Record<string, string>; body?: Record<string, unknown> } | undefined {
+  if (value === undefined) return undefined
+  const source = objectValue(value)
+  const headers = ownData(source, 'headers', false)
+  const body = ownData(source, 'body', false)
+  if (headers !== undefined) {
+    const record = objectValue(headers)
+    for (const entry of Object.values(record)) {
+      if (typeof entry !== 'string') throw new TypeError('agent providerOptions.headers values must be strings')
+    }
+  }
+  const result: { headers?: Record<string, string>; body?: Record<string, unknown> } = {}
+  if (headers !== undefined) result.headers = { ...(headers as Record<string, string>) }
+  if (body !== undefined) result.body = { ...(objectValue(body) as Record<string, unknown>) }
+  return result
 }
 
 function captureAuthorTarget(input: RuntimeAgentDefinitionInput): ModelTarget {

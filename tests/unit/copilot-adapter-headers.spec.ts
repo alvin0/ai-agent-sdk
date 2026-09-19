@@ -9,10 +9,13 @@
  *
  * Everything here is asserted on the request the adapter ACTUALLY DISPATCHES,
  * through an injected `fetch`, rather than on the object `auth.resolve` returns.
- * That distinction is the whole point of Property 2: `content-type` cannot come
- * from the auth layer at all — `provider-http`'s `mergeHeaderLayers` marks that
- * name transport-owned and raises `HEADER_COLLISION` for a second owner — so the
- * adapter sends it through `baseHeaders`. The three mandatory headers therefore
+ * That distinction is the whole point of Property 2: the adapter sends
+ * `content-type` through `baseHeaders`, not the auth layer, by its own design —
+ * not because `provider-http` would reject the alternative. (Decision 12 lets a
+ * later layer override an earlier one's transport/attribution/protocol headers
+ * instead of raising `HEADER_COLLISION`; only a connection-level name `fetch`
+ * itself forbids, or a credential-shaped name arriving outside `auth`, still
+ * hard-error — see `header-layers.ts`.) The three mandatory headers therefore
  * only ever appear TOGETHER on the wire, and the wire is where they are checked.
  *
  * Four further readings of the design that this file settles:
@@ -47,6 +50,7 @@ import {
   createTextMessage,
   MODEL_ERROR_CODES,
   ModelError,
+  ReasoningEffortId,
   withRetry,
   type ModelInvocationContext,
   type StreamChunk,
@@ -356,6 +360,47 @@ describe('Copilot adapter request surfaces', () => {
     expect(deployed.of('chat')).toHaveLength(1)
     expect(deployed.of('responses')).toHaveLength(1)
     expect(counted.reads()).toBe(2)
+  })
+
+  it('sends no `reasoning_effort` on chat/completions by default, and sends it verbatim once opted in', async () => {
+    // Live-verified 2026-09-19 against a real Copilot Individual account
+    // (docs/plans/reasoning-effort-provider-redesign.md, phase 4b), and locked in
+    // permanently by `copilot-generation.spec.ts`'s live suite: the original
+    // design assumed an UNRECOGNIZED `reasoning_effort` field would 400 the
+    // request generically. The real rejection is the opposite — the backend
+    // parses the field, names it and the exact model in its own error message,
+    // and rejects it as a MODEL CAPABILITY mismatch (`reasoning_effort "low" was
+    // provided, but model gpt-4o-mini-2024-07-18 does not support reasoning
+    // effort`), not as an unknown field. That is real infrastructure recognizing
+    // a real field, just not applicable to a non-reasoning model — this test locks
+    // in the corrected default (still off, since one non-reasoning model on one
+    // account is not proof every model/account combination behaves the same) and
+    // the opt-in the live probe justified.
+    let capturedBody: Record<string, unknown> | undefined
+    const fetchWithBodyCapture = (async (input: Parameters<typeof globalThis.fetch>[0], init?: RequestInit) => {
+      const url = new URL(String(input))
+      if (url.pathname.includes('copilot_internal/v2/token')) {
+        return jsonResponse({ token: 'tid=reasoningprop;exp=1;sig=deadbeef', expires_at: Math.floor(Date.now() / 1_000) + 1_500 })
+      }
+      if (url.pathname.endsWith('/models')) return jsonResponse(CATALOG_BODY)
+      capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return sseResponse(CHAT_FRAMES)
+    }) as typeof globalThis.fetch
+
+    const defaultAdapter = copilotAdapter({
+      authStore: memoryCopilotCredentialStore(authFile()), fetch: fetchWithBodyCapture,
+    })
+    await generate(defaultAdapter, CHAT_MODEL)
+    expect(capturedBody?.reasoning_effort).toBeUndefined()
+
+    const optedIn = copilotAdapter({
+      authStore: memoryCopilotCredentialStore(authFile()), fetch: fetchWithBodyCapture,
+      dialect: { reasoningFormat: 'openai' },
+    })
+    for await (const _chunk of optedIn.stream({
+      ...generateOptions(CHAT_MODEL), reasoningEffort: ReasoningEffortId('low'),
+    })) { /* drain */ }
+    expect(capturedBody?.reasoning_effort).toBe('low')
   })
 })
 

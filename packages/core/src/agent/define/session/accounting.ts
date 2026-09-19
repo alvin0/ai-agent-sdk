@@ -19,6 +19,7 @@ export function createSessionLedger(input: SessionLedgerInput): RunLedger {
     conversationId,
     sessionId: conversationId,
     agentId: definition.id,
+    ...(definition.providerOptions === undefined ? {} : { providerOptions: definition.providerOptions }),
     mode: definition.mode,
     maxTurns: definition.maxTurns,
     ...options.usagePolicy === undefined ? {} : { usagePolicy: options.usagePolicy },

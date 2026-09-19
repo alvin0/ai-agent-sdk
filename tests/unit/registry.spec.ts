@@ -447,4 +447,29 @@ describe('ModelRegistry runtime defaults', () => {
     expect(() => new ModelRegistry({ defaults: { contextWindow: -1 } })).toThrow(RangeError)
     expect(() => new ModelRegistry({ defaults: { inputModalities: [] } })).toThrow(RangeError)
   })
+
+  it('lets an agent-tier contextWindow win over the model, route, and runtime default', async () => {
+    const registry = new ModelRegistry({ defaults: { contextWindow: 272_000 } })
+    registry.registerAdapter(['fake'], new FakeAdapter(textStream, { context: { contextWindow: 8_000 } }))
+    const prepared = await registry.prepareCall({ provider: 'fake', model: 'm', contextWindow: 64_000 })
+    expect(prepared.model.context?.contextWindow).toBe(8_000)
+    expect(prepared.config.contextWindow).toBe(64_000)
+  })
+
+  it('lets an agent-tier inputModalities list win over the model, route, and runtime default', async () => {
+    const registry = new ModelRegistry({ defaults: { inputModalities: ['text', 'image'] } })
+    registry.registerAdapter(['fake'], new FakeAdapter(textStream, { inputModalities: ['text', 'image', 'document'] }))
+    const prepared = await registry.prepareCall({ provider: 'fake', model: 'm', inputModalities: ['text'] })
+    expect(prepared.model.inputModalities).toEqual(['text', 'image', 'document'])
+    expect(prepared.inputModalities).toEqual(['text'])
+  })
+
+  it('rejects an agent-tier contextWindow above the model\'s technical ceiling', async () => {
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['fake'], new FakeAdapter(textStream, {
+      context: { contextWindow: 8_000, maxContextWindow: 8_000 },
+    }))
+    await expect(registry.prepareCall({ provider: 'fake', model: 'm', contextWindow: 16_000 }))
+      .rejects.toMatchObject({ code: 'INVALID_MODEL_INFO' })
+  })
 })

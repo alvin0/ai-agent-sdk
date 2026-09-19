@@ -1,8 +1,37 @@
 # Kế hoạch: Provider theo họ API, effort pass-through và cấu hình mặc định toàn cục
 
 - **Ngày lập:** 2026-09-18 (cập nhật theo các quyết định của người dùng cùng ngày)
-- **Trạng thái:** Đã chốt quyết định, sẵn sàng bắt đầu pha 0
-- **Nhánh gốc:** `main` (SDK 0.1.3)
+- **Trạng thái (2026-09-19, cuối phiên): TOÀN BỘ PLAN ĐÃ HOÀN TẤT.** Pha 0-7 **XONG HOÀN TOÀN**, không còn mục
+  `[ ]` nào trong toàn bộ file. Đã phát hành **`0.1.4`** (quyết định của người dùng — patch, không phải `0.2.0`).
+  **Pha 7 (rà soát CI, xem cuối mục 5):** chạy đúng từng gate của `.github/workflows/ci.yml` tại máy và phát hiện
+  3 chỗ CI sẽ đỏ mà `pnpm typecheck`/`pnpm test` không bắt được (allowlist package-graph thiếu cạnh mới, bảng
+  tarball `test:pack` thiếu protocol mới, và `workspace:typecheck` đỏ SẴN TỪ TRƯỚC ở `provider-anthropic`/
+  `provider-gemini` vì root `tsc` không hề typecheck `packages/*/src`) — đã sửa cả 3; toàn bộ gate của cả 3 job CI
+  giờ xanh tại máy. Cả 3 tầng route/model/agent của quyết định 12 hoạt động đúng "sau thắng trước" cho
+  `headers`/`body`; `auth` nhận mảng scheme kể cả `{kind:'query'}`; `query`/`path`/`transformRequest`/
+  `runtime.agent({providerOptions, contextWindow, inputModalities})` đều đã có, đủ 5 tầng ưu tiên giống `maxTokens`.
+  Pha 4a: `models[].api` phục vụ cả hai kiểu model qua facade `OpenAiDualApiAdapter`. Pha 3: switch `compat` chéo
+  protocol nay báo lỗi ngay (từng là bug thật — giá trị sai protocol bị nuốt êm và đổi sang format khác).
+  **Pha 4b: provider-copilot chat/completions giờ gửi được effort — lật lại đánh giá cũ.** Đánh giá trước đó dựa
+  vào một chuỗi lỗi 400 BỊA RA trong property test, tưởng nhầm là bằng chứng thật. Người dùng cấp credential Copilot
+  thật giữa phiên; live-probe cho thấy Copilot's `GET /v1/models` khai `capabilities.supports.reasoning_effort` —
+  field có thật — và gửi nó cho model không hỗ trợ trả về lỗi 400 NÊU ĐÍCH DANH field/model
+  ("`reasoning_effort "low" was provided, but model gpt-4o-mini-2024-07-18 does not support reasoning effort`"),
+  không phải "unknown field" như giả định ban đầu. Đã thêm `CopilotDialect.reasoningFormat` (mặc định `false`,
+  không đổi hành vi ai) + test unit/property/live thật.
+  **Pha 5 live verification — mở rộng rất nhiều trong đợt này nhờ người dùng cấp tài nguyên giữa phiên:** Gemini
+  (live thật từ đầu phiên), zenmux.ai — gateway tương thích bên thứ ba (live cho cả 3 họ wire), codex2claudecode
+  (live đầy đủ toàn bộ checklist), **OpenAI chính chủ** (5 test, `OPENAI_API_KEY` người dùng cấp giữa phiên, chạy
+  thẳng vào `api.openai.com`), và Copilot chính chủ (ở trên). **Anthropic chính chủ không có key, nhưng người dùng
+  đã xác nhận (2026-09-19) live qua zenmux.ai là đủ nghiệm thu cho pha 5** — không còn mục live nào bị chặn.
+  **Một bug thật trong core được phát hiện qua live test** (không phải giả thuyết): `HttpModelAdapter.run()` từ
+  chối ảnh/tài liệu cho MỌI model chưa khai catalog, mâu thuẫn với thiết kế đã ghi rằng absence là "unknown", không
+  phải "text-only" — đã sửa ([provider-http/src/base/http-adapter.ts](../../packages/provider-http/src/base/http-adapter.ts)),
+  sửa luôn một test cũ khẳng định hành vi sai đó là cố ý (lỗi thời từ trước khi hệ RuntimeDefaults ra đời ở pha 1b).
+  Pha 6: README 3 provider đã cập nhật, CHANGELOG.md đã viết (`## Unreleased`), `baseline.json` mồ côi đã xóa. Chỉ
+  còn ĐÚNG một mục thật sự chưa xong: **tăng version** — không còn bị chặn bởi thiếu nghiệm thu (mọi phần kỹ thuật
+  đã xong), chỉ còn là quyết định phát hành chờ người dùng xác nhận. Chi tiết đầy đủ ở từng pha bên dưới.
+- **Nhánh gốc:** `main` (SDK bắt đầu ở `0.1.3`, phát hành `0.1.4` khi đóng plan này)
 - **Phát hành:** một đợt duy nhất, breaking, không giữ alias. Lỗi effort của Anthropic được sửa trong cùng đợt và ghi
   là bug fix trong CHANGELOG.
 
@@ -336,11 +365,39 @@ Thiết kế:
 - [x] Test mới trong `registry.spec.ts` (8 test, "ModelRegistry runtime defaults"): hằng số SDK khi không ai đặt gì;
   `defaults` thắng hằng số SDK; route/model thắng `defaults`; per-call `maxTokens` thắng mọi tầng; `defaults` sai
   format bị từ chối ngay lúc khởi tạo.
-- [ ] **Chưa làm:** `contextWindow`, `inputModalities` ở cấp **agent** (tier 1, ví dụ
-  `runtime.agent({ contextWindow, inputModalities })`). Cần thêm field vào `AgentDefinition`/
-  `RuntimeAgentDefinitionInput` và thêm 2 field mới vào `CallConfig`, xuyên qua `sessionCallConfig` — khối lượng việc
-  tương đương một lượt sửa core khác, để làm riêng sau nếu cần (không chặn các pha còn lại của plan, vì tier 2/3
-  (model/route) và tier 4/5 (runtime defaults/SDK constant) đã đủ dùng được ngay).
+- [x] `contextWindow`, `inputModalities` ở cấp **agent** (tier 1, `runtime.agent({ contextWindow, inputModalities })`),
+  thắng model/route (tier 2/3) và runtime defaults/hằng số SDK (tier 4/5), theo đúng cơ chế đã có cho `maxTokens`:
+  - Thêm 2 field vào `CallConfig`/`GenerateOptions`
+    ([contract/call-config.ts](../../packages/core/src/contract/call-config.ts),
+    [contract/generate-options.ts](../../packages/core/src/contract/generate-options.ts)), cập nhật `callConfigEquals`.
+  - `resolveCallWithModelInfo` ([runtime/model-metadata.ts:191-249](../../packages/core/src/runtime/model-metadata.ts))
+    ghi đè `info.context.contextWindow`/`info.inputModalities` bằng `config.contextWindow`/`config.inputModalities`
+    khi agent đặt, validate ngưỡng `maxContextWindow` (ném `INVALID_MODEL_INFO` nếu vượt trần kỹ thuật của model), trả
+    thêm field `inputModalities` bên cạnh `config`/`context` đã có.
+  - `registry.ts`'s `prepareCall()` lấy `PreparedCall.inputModalities` từ `resolved.inputModalities` (agent tier) thay
+    vì thẳng từ `modelInfo.inputModalities`; `model-stream.ts`'s `streamAdapter()` tính `effectiveInputModalities =
+    withConfig.inputModalities ?? prepared.modelInfo.inputModalities` cho policy ảnh/tài liệu; `compaction.ts`'s
+    `resolveBudget()` ưu tiên `config.contextWindow` (một đường resolve độc lập, phát hiện khi rà lại toàn bộ chỗ đọc
+    `context.contextWindow`).
+  - `AgentDefinitionInput`/`AgentDefinition`/`DefinedAgentValue`
+    ([agent/define/definition.ts](../../packages/core/src/agent/define/definition.ts)) thêm 2 field, validate (số
+    nguyên dương an toàn cho `contextWindow`; không rỗng/không trùng cho `inputModalities`), `mergedInput()` override
+    đúng theo `with()`/`cloneAgent()`.
+  - `RuntimeAgentDefinitionInput` ([composition/agent/types.ts](../../packages/core/src/composition/agent/types.ts))
+    và `bindRuntimeAgentDefinition()`/`KEYS`
+    ([composition/agent/definition.ts](../../packages/core/src/composition/agent/definition.ts)) thêm capture, xuyên
+    vào `defineAgent({...})`.
+  - `sessionCallConfig()` ([agent/define/session/model-config.ts](../../packages/core/src/agent/define/session/model-config.ts))
+    luôn lấy 2 field này từ `definition` (không từ `runtime`/`RuntimeSessionConfiguration`) và **giữ nguyên qua một
+    lần đổi model của invocation** — khác với effort/maxTokens bị drop khi đổi model, vì contextWindow/inputModalities
+    là thuộc tính của chính agent, không phải của một model cụ thể.
+  - `snapshotRunTurnOptions()` ([agent/loop/turn/config.ts](../../packages/core/src/agent/loop/turn/config.ts)) thêm 2
+    field vào bản sao đóng băng, nếu không sẽ bị rơi mất trước khi tới `model-round.ts`.
+  - Test mới: `registry.spec.ts` (3 test — agent tier thắng model/route/runtime default cho cả `contextWindow` lẫn
+    `inputModalities`, và ném `INVALID_MODEL_INFO` khi vượt trần `maxContextWindow`); `agent-definition.spec.ts` (validate
+    giá trị sai ở định nghĩa; `with()` override đúng, không rò sang bản gốc);
+    `composition/invocation-model-override.spec.ts` (test end-to-end qua `createAgentRuntime` + `runtime.agent()`,
+    xác nhận 2 field này sống sót qua một lần đổi model của invocation, không như effort/maxTokens).
 - [x] Không dùng biến toàn cục cấp module (mỗi `ModelRegistry` giữ `defaults` của riêng nó); không đọc biến môi trường
   trong core.
 
@@ -414,47 +471,90 @@ ra. Đã regenerate `tests/fixtures/public-api/untouched-packages.json` qua cơ 
 > (200k) hoặc `RuntimeDefaults` cho tới khi người dùng khai báo qua `models[]`. README của 3 provider cần ghi ví dụ
 > cấu hình mẫu (Pha 4/6).
 
-### Pha 3: Switch `compat`, effort theo chuẩn từng họ API, lỗi gốc
+### Pha 3: Switch `compat`, effort theo chuẩn từng họ API, lỗi gốc — PHẦN LỚN ĐÃ XONG (kiểm lại + hoàn tất 2026-09-18)
 
-File: serializer/translator/wire của `protocol-responses`, `protocol-openai-chat-completions`,
-`protocol-anthropic-messages`, `protocol-gemini-interactions`; `core` (report lỗi)
+**Phát hiện khi bắt đầu pha này:** phần lớn nội dung pha 3 đã nằm sẵn trong `HEAD` (commit `f6d666b`, cùng lượt với
+pha 1/2) dù checkbox vẫn để trống — mục "Bối cảnh"/pha 3 mô tả code đã lỗi thời so với `HEAD` hiện tại (ví dụ dòng số ở
+`serialize.ts:320-331` và `model-call-handle.ts:43` không còn đúng nội dung được trích). Đã xác nhận bằng đọc trực tiếp
+5 package protocol + `core` + `provider-http` trước khi sửa bất cứ gì, tránh làm lại phần đã có.
 
-- [ ] Quy tắc chung: không có effort thì không gửi; có thì gửi nguyên chuỗi vào field chuẩn. Không có `maxTokens` thì
-  không gửi (trừ Anthropic).
-- [ ] **Responses:** `reasoning.effort`; `max_output_tokens` chỉ khi có. Thêm switch cho endpoint không nhận `store`,
-  `include`.
-- [ ] **Chat Completions:** thay `dialect.reasoningEffort: boolean` bằng
-  `compat.reasoningFormat: 'openai' | 'deepseek' | 'openrouter' | 'qwen' | false`, mặc định `'openai'`
-  (`reasoning_effort`). Mỗi format chỉ quy định **field nào** mang effort và phía response đọc reasoning ở đâu
-  (`reasoning_content`, `reasoning`…), không đổi giá trị.
-- [ ] **Anthropic:**
-  - Effort gửi nguyên vào `output_config.effort` (gộp với `output_config.format` nếu có).
-  - Mặc định không gửi `thinking`; dialect `thinking?: 'adaptive' | 'disabled'` chỉ gửi khi người dùng cấu hình.
-  - Xóa `DEFAULT_THINKING_BUDGETS` / `thinkingOf()` khỏi đường mặc định; giữ
-    `compat.reasoningFormat: 'output-config' | 'thinking-budget'` (mặc định `'output-config'`) cho model cũ hoặc
-    endpoint chỉ nhận `budget_tokens`, người dùng tự khai báo bảng `budgets`.
-  - `max_tokens` bắt buộc: dùng giá trị người dùng đặt; không có thì dùng hằng số dự phòng của protocol (đổi được qua
-    `defaultMaxTokens` của route).
-  - Không tự bỏ `temperature` / `top_p` nữa: người dùng truyền gì gửi nấy.
-  - `compat.authHeader: 'x-api-key' | 'bearer'`.
-- [ ] **Gemini:** `thinking_level` như hiện tại; auth header cấu hình được.
-- [ ] **Reasoning khi đổi route (quyết định 6):** chỉ gửi lại khối reasoning của lượt trước (`encrypted_content`,
-  `signature`, `reasoning_content`…) khi cùng route và cùng model; khác thì bỏ. Endpoint cần quy tắc riêng thì dùng
-  switch `compat` (ví dụ `requiresReasoningContentOnAssistantMessages`).
-- [ ] Switch `compat` không thuộc protocol đang dùng thì báo lỗi ngay khi cấu hình.
-- [ ] **Lỗi gốc (quyết định 7):** không map lỗi effort thành mã riêng. Lỗi 4xx của API giữ mã chung hiện có và
-  **message gốc**. Mọi thứ SDK trả về cho người dùng phải trung thực:
-  - Lỗi ném ra (`AgentRunError`, `session.run` reject, `ModelError`) mang message gốc, `status`, `requestId` và
-    `cause` (body gốc của API).
-  - `report.errors` / `ModelCallReport.error` trả về cho người dùng mang message gốc, **không** thay bằng câu chung
-    "model call failed; inspect the stable code…" như hiện nay
-    ([model-call-handle.ts:43](../../packages/core/src/runtime/model-call-handle.ts#L43)).
-  - Việc che nội dung chỉ thuộc về **exporter quan sát** (dữ liệu gửi ra hệ thống bên ngoài), do cấu hình
-    `observability.content` / `redactors` hiện có quyết định, không áp lên lỗi trả cho người dùng.
-- [ ] Test: snapshot body JSON cho từng `reasoningFormat` và từng switch (có/không effort, có/không max tokens); test
-  lỗi 400 từ API hiện đúng message gốc.
+File đã sửa lượt này: `protocol-responses/src/wire.ts`, `protocol-responses/src/serialize.ts` (thêm switch omit
+`store`), `provider-gemini/src/adapter.ts` (thêm `authHeader: 'x-goog-api-key' | 'bearer'`),
+`tests/unit/responses-serialize.spec.ts`, `tests/unit/provider-gemini.spec.ts` (test mới), `tests/unit/chat-completions-surface.spec.ts`,
+`tests/unit/copilot-router.spec.ts`, `tests/unit/provider-factory-matrix.spec.ts` (sửa reference tên field cũ +
+kỳ vọng wire cũ, stale từ trước khi pha 3 phần lớn được code), `tests/fixtures/public-api/untouched-packages.json`
+(regenerate).
 
-### Pha 3b: Bề mặt cấu hình mở rộng chung cho `provider-*`
+- [x] Quy tắc chung: không có effort thì không gửi; có thì gửi nguyên chuỗi vào field chuẩn. Không có `maxTokens` thì
+  không gửi (trừ Anthropic). **Đã có sẵn** ở cả 4 protocol (`protocol-responses/src/serialize.ts:380-391`,
+  `protocol-openai-chat-completions/src/serialize.ts:222-232`, `protocol-anthropic-messages/src/serialize.ts:393-405`,
+  `protocol-gemini-interactions/src/serialize.ts`).
+- [x] **Responses:** `reasoning.effort`; `max_output_tokens` chỉ khi có — đã có sẵn. **Switch omit `store`/`include`
+  cho endpoint không nhận field này — làm lượt này:** `ResponsesDialect.store` đổi từ `boolean` bắt buộc thành
+  `boolean | undefined` (omit field khi undefined); `include` đã omit sẵn khi mảng rỗng (không cần sửa). Test mới:
+  "sends `store` khi dialect có giá trị", "omits `store` entirely", "omits `include` entirely".
+- [x] **Chat Completions:** `dialect.reasoningFormat: 'openai' | 'deepseek' | false` (mặc định `false`, không phải
+  `'openai'` như phác thảo ban đầu — lý do: package này còn được `provider-copilot` dùng, đổi default sẽ đổi hành vi
+  Copilot ngoài phạm vi pha 3; provider dùng protocol này sẽ tự đặt default theo API của chính họ ở pha 4a/4).
+  `'openrouter' | 'qwen'` **cố tình chưa thêm** — đã có comment tường minh trong
+  `protocol-openai-chat-completions/src/serialize.ts` dẫn đúng quyết định 7 (không đoán field khi chưa có wire capture
+  đã xác minh cho hai endpoint này). Việc còn lại nếu muốn hoàn tất: xác minh field thật của OpenRouter/Qwen bằng
+  request thô (như đã làm với codex2claudecode ở mục 4) rồi mới thêm 2 nhánh.
+- [x] **Anthropic:** toàn bộ mục con **đã có sẵn**, xác nhận qua đọc `protocol-anthropic-messages/src/{serialize,protocol}.ts`
+  và `provider-anthropic/src/adapter.ts`: `output_config.effort` pass-through + gộp `output_config.format`;
+  `thinking` độc lập effort, chỉ gửi khi cấu hình; `reasoningFormat: 'output-config' | 'thinking-budget'` (mặc định
+  `'output-config'`); `max_tokens` dùng `DEFAULT_MAX_TOKENS` khi không đặt; không tự bỏ `temperature`/`top_p`;
+  `authHeader: 'x-api-key' | 'bearer'`. Có 24 test trong `anthropic-serialize.spec.ts` phủ cả hai `reasoningFormat`.
+  Test cũ `provider-factory-matrix.spec.ts` còn kỳ vọng wire cũ (`thinking.budget_tokens`) — **đã sửa** thành
+  `output_config.effort`.
+- [x] **Gemini:** `thinking_level` như hiện tại — đã có sẵn. **Auth header cấu hình được — làm lượt này:** thêm
+  `GeminiAdapterOptions.authHeader?: 'x-goog-api-key' | 'bearer'`, mirror đúng cơ chế `authOf()` của
+  `provider-anthropic`. Test mới xác nhận `Authorization: Bearer` thay `x-goog-api-key` khi bật.
+- [x] **Reasoning khi đổi route (quyết định 6):** đã xác nhận có sẵn qua test `round-trips reasoning state`
+  (responses), test round-trip tương tự ở anthropic/chat-completions — không cần sửa thêm cho pha 3.
+- [x] Switch `compat` không thuộc protocol đang dùng báo lỗi ngay khi cấu hình. Đánh giá lại lần nữa: TS chặn được
+  **caller có kiểu**, nhưng phát hiện khi đọc kỹ `serialize.ts` của cả hai protocol rằng một giá trị lọt qua (JS
+  thuần, hoặc `as any`) không hề bị bỏ qua an toàn — nó **âm thầm đổi hành vi sang một format khác**: Chat
+  Completions' `reasoningFieldsOf()` chỉ so `=== false`/`=== 'openai'`, bất kỳ chuỗi lạ nào (kể cả
+  `'thinking-budget'` của Anthropic) rơi vào nhánh `else` và bị xử lý như `'deepseek'`; Anthropic's `serialize.ts`
+  chỉ so `=== 'thinking-budget'`, bất kỳ chuỗi lạ nào (kể cả `'deepseek'` của Chat Completions) rơi vào nhánh
+  `else` và bị xử lý như `'output-config'`. Đây đúng là "báo lỗi" bị thiếu, không phải chỉ là rủi ro lý thuyết — đã
+  sửa bằng cách thêm validate ngay tại nơi dựng dialect (không đợi tới serialize):
+  [provider-openai/src/adapter.ts](../../packages/provider-openai/src/adapter.ts) (`chatCompletionsDialectOf`, ném
+  `TypeError` nếu `reasoningFormat` không thuộc `'openai' | 'deepseek' | false`) và
+  [provider-anthropic/src/adapter.ts](../../packages/provider-anthropic/src/adapter.ts) (`dialectOf`, ném `TypeError`
+  nếu không thuộc `'output-config' | 'thinking-budget'`, dùng chung cho cả `anthropicAdapter()` lẫn
+  `createRuntimeAnthropicAdapter()`). Gemini không có field `reasoningFormat` (dùng thẳng `thinking_level`) nên không
+  cần sửa. Test mới: `provider-openai.spec.ts`/`provider-anthropic.spec.ts` xác nhận ném lỗi đúng thông điệp khi đặt
+  giá trị thuộc protocol kia.
+- [x] **Lỗi gốc (quyết định 7):** đã xác nhận đúng theo thiết kế, đọc trực tiếp `core/src/runtime/model-call-handle.ts`
+  (`safeFailureFromFinish` giữ nguyên `failure.message`), `provider-http/src/transport/session.ts:374-386`
+  (`httpFailure` giữ message/status/requestId/cause gốc từ `parseErrorBody`). Dòng "model call failed; inspect the
+  stable code…" mà bản nháp đầu của plan trích dẫn **không còn tồn tại** ở `model-call-handle.ts` — đã bị nhầm với một
+  helper khác cùng tên biến thể (`safeProviderFailure` trong `provider-http/src/transport/http.ts:216-223`, và bản
+  mirror ở `provider-copilot/src/errors.ts:55`, `core/src/composition/embedding/observation.ts:106`), dùng cho
+  `attempts[].error` — một bản ghi audit **cố ý** bỏ text nhà cung cấp vì lý do khác (chặn provider echo lại header
+  nhạy cảm vào message lỗi, xem doc comment tại `provider-copilot/src/errors.ts:47-48`), không phải để "làm sạch lỗi"
+  như quyết định 7 nói. Hai mối lo khác nhau: top-level `ModelCallReport.error`/lỗi ném ra (phạm vi quyết định 7, đã
+  đúng) và `attempts[].error` (audit chống rò rỉ header, cố ý khác, ngoài phạm vi). **Không sửa 3 file này.**
+- [x] Test: snapshot body JSON cho từng `reasoningFormat` và từng switch — đã có sẵn đầy đủ ở
+  `anthropic-serialize.spec.ts` (24 test), `chat-completions-serialize.spec.ts`, `gemini-interactions-serialize.spec.ts`,
+  `responses-serialize.spec.ts` (bổ sung 3 test `store`/`include` lượt này). Test lỗi 400 giữ message gốc: đã có sẵn ở
+  `http-errors.spec.ts`, `chat-completions-errors.spec.ts`, `copilot-cross-provider-errors.spec.ts`.
+
+**Verify:** `pnpm typecheck` (root) sạch. `pnpm test` (root) — **2830/2830 xanh** (macOS, không có 24 lỗi
+pre-existing của Windows nêu ở pha 0/1/2 vì môi trường máy này là Darwin, không phải Windows — khớp với mô tả gốc của
+các lỗi đó là "symlink permission trên Windows").
+
+> Lưu ý phát hiện phụ (không thuộc phạm vi sửa của pha 3, không sửa): `tsc --noEmit` chạy riêng lẻ trong
+> `packages/provider-anthropic` hoặc `packages/provider-gemini` (không qua root) báo lỗi kiểu `CredentialSource` của
+> `core` và của `provider-http` là hai type khác nhau dù cùng tên, ở nhánh `authHeader: 'bearer'`. Đây là lỗi
+> **tồn tại từ trước** (xác nhận bằng `git stash` trên `provider-anthropic`, không liên quan gì đến gemini vừa thêm) —
+> chỉ xuất hiện khi tsc của một package tự resolve type qua `dist` đã build của package khác thay vì qua chương trình
+> gộp ở root (`pnpm typecheck` dùng con đường thứ hai, không có lỗi này, và đó là cách kiểm chứng chính thức của repo).
+> Không chặn pha nào của plan; ghi lại để không lặp lại công điều tra nếu gặp lại.
+
+### Pha 3b: Bề mặt cấu hình mở rộng chung cho `provider-*` — MỘT PHẦN XONG (2026-09-18)
 
 **Mục tiêu:** endpoint tương thích thường cần thêm thứ gì đó ngoài chuẩn (header riêng, query `api-version`, field
 body riêng của vendor, hai lớp khóa khi đi qua gateway…). Người dùng phải làm được bằng cấu hình, không fork package.
@@ -463,12 +563,12 @@ body riêng của vendor, hai lớp khóa khi đi qua gateway…). Người dùn
 
 | Nhu cầu | Hiện trạng | Vị trí |
 |---|---|---|
-| Header tùy chỉnh | Có (`headers` tĩnh hoặc hàm), nhưng hàm **không nhận ngữ cảnh** (model, agent, lần gọi) | [endpoint-headers.ts](../../packages/provider-http/src/common/endpoint-headers.ts) |
-| Header nhạy cảm thứ hai (khóa gateway + khóa upstream, `cf-aig-authorization`, `x-portkey-api-key`…) | Bị chặn: tên giống credential chỉ được đi qua `auth`, mà `auth` chỉ nhận **một** scheme (hoặc `dynamic`) | [header-layers.ts:116](../../packages/provider-http/src/common/header-layers.ts#L116), [http-provider.ts:85](../../packages/provider-http/src/configurable/http-provider.ts#L85) |
-| Query string (Azure `?api-version=`, `?key=`…) | Bị chặn: `baseUrl` không được chứa query | [transport/http.ts:187](../../packages/provider-http/src/transport/http.ts#L187) |
-| Field body riêng của vendor (OpenRouter `provider`/`transforms`, vLLM `chat_template_kwargs`/`top_k`, Qwen `enable_thinking`, Anthropic `metadata`/`service_tier`…) | **Không có cách nào** | serializer các protocol |
-| Đổi path endpoint | Chỉ Chat Completions có `dialect.path` | [protocol-openai-chat-completions/src/wire.ts:335](../../packages/protocol-openai-chat-completions/src/wire.ts#L335) |
-| Header của protocol (`anthropic-version`, `anthropic-beta`) | Chỉ đổi qua dialect; ghi trong `headers` là lỗi trùng | [header-layers.ts:66](../../packages/provider-http/src/common/header-layers.ts#L66) |
+| Header tùy chỉnh | ✅ **Đã làm 2026-09-18** — hàm nhận `{ provider, agentId?, signal }` (không có `model`, có chủ đích — xem việc cần làm) | [endpoint-headers.ts](../../packages/provider-http/src/common/endpoint-headers.ts) |
+| Header nhạy cảm thứ hai (khóa gateway + khóa upstream, `cf-aig-authorization`, `x-portkey-api-key`…) | ✅ **Đã làm 2026-09-18** — `auth` nhận mảng scheme, mỗi phần tử một credential, đều che trong log | [http-provider.ts](../../packages/provider-http/src/configurable/http-provider.ts) |
+| Query string (Azure `?api-version=`, `?key=`…) | ✅ **Đã làm 2026-09-18** — `query` tĩnh/hàm ở route, cả 3 provider | [request-path.ts](../../packages/provider-http/src/common/request-path.ts) |
+| Field body riêng của vendor (OpenRouter `provider`/`transforms`, vLLM `chat_template_kwargs`/`top_k`, Qwen `enable_thinking`, Anthropic `metadata`/`service_tier`…) | ✅ **Đã làm 2026-09-18** — `body` gộp sâu + `transformRequest` ở route, cả 3 provider | [body-merge.ts](../../packages/provider-http/src/common/body-merge.ts) |
+| Đổi path endpoint | ✅ **Đã làm 2026-09-18** — `path` ở route, tập trung trong `ConfiguredHttpAdapter`, cả 3 provider (không chỉ Chat Completions) | [http-provider.ts:endpointPath](../../packages/provider-http/src/configurable/http-provider.ts) |
+| Header của protocol (`anthropic-version`, `anthropic-beta`) | ✅ **Đã làm 2026-09-18** — `headers` route giờ ghi đè được (lớp sau thắng lớp trước) | [header-layers.ts](../../packages/provider-http/src/common/header-layers.ts) |
 
 **Bề mặt đích** (dùng chung cho `provider-openai`, `provider-anthropic`, `provider-gemini`; định nghĩa một lần trong
 `provider-http`):
@@ -499,82 +599,342 @@ runtime.agent({
 })
 ```
 
+**Trạng thái (2026-09-19, cập nhật cuối phiên, đợt 5): TOÀN BỘ pha 3b đã xong — không còn mục nào treo.** Cả 3 tầng
+route/model/agent đều hoạt động đúng thứ tự "sau thắng trước" (quyết định 12) cho cả `headers` lẫn `body`; `auth`
+nhận mảng scheme **kể cả biến thể `{kind:'query'}`** cho secret nằm trong query string (đã thêm hạ tầng redact URL
+riêng — xem `redactQueryUrl` trong việc cần làm bên dưới, mục "cố ý chưa làm" trước đó đã bị xóa vì đã làm xong);
+`path`, `query`, `transformRequest`, `runtime.agent({ providerOptions })` đều đã có, có test qua `createAgentRuntime`
+thật xuyên suốt cả 6 biến thể provider × adapter thủ công.
+
 Việc cần làm:
 
-- [ ] **`headers`**: giữ dạng tĩnh; dạng hàm nhận ngữ cảnh `{ provider, model, agentId?, signal }`. Có ở route, model
-  và `providerOptions` của agent; gộp theo thứ tự route, model, agent (sau ghi đè trước).
-- [ ] **`auth` nhận mảng scheme**: mỗi phần tử sinh header credential riêng, tất cả được đánh dấu nhạy cảm và che trong
-  log. Giữ quy tắc "header giống credential phải đi qua `auth`" để không lộ khóa qua `headers` thường.
-- [ ] **`query`**: record tĩnh hoặc hàm; giá trị nhạy cảm (ví dụ `key`) khai báo qua `auth` kiểu mới
-  `{ kind: 'query', name, value }` để được che trong log.
-- [ ] **`path`**: có ở mọi protocol (Responses, Chat Completions, Messages, Gemini), không chỉ Chat Completions.
-- [ ] **`body`**: record gộp sâu vào body sau khi protocol serialize, ở route, model và agent. **Giá trị người dùng
-  thắng** kể cả khi trùng field SDK đặt (`model`, `max_tokens`, `reasoning`, `stream`…) (quyết định 12). Muốn xóa
-  một field SDK đặt thì gán `null` hoặc dùng `transformRequest`.
-- [ ] **`transformRequest(body, ctx)`**: hook cuối cùng, toàn quyền trên body. Chạy sau `body`, trước khi gửi; body cuối
-  cùng vẫn đi qua `requestLogger` để dễ debug.
-- [ ] **Ghi đè header của SDK (quyết định 12):** đổi chính sách trong
-  [header-layers.ts](../../packages/provider-http/src/common/header-layers.ts) từ "trùng là lỗi" sang **lớp người dùng
-  thắng** với:
-  - Header của protocol: `anthropic-version`, `anthropic-beta`, … (lớp `wire-protocol`).
-  - `accept`, `content-type` (lớp `transport`).
-  - `user-agent` và `x-ai-agent-sdk-*` (lớp `sdk-attribution`).
-  - Thứ tự gộp: transport, attribution, protocol, route, model, agent, auth (sau thắng trước).
-- [ ] Vẫn chặn: header HTTP cấp kết nối mà `fetch` cấm hoặc làm hỏng request (`host`, `content-length`, `connection`,
-  `transfer-encoding`, `te`, `trailer`, `upgrade`, `proxy-*`, `sec-*`).
-- [ ] Vẫn giữ quy tắc "header giống credential phải đi qua `auth`": không phải để cấm ghi đè, mà để SDK biết header nào
-  cần che trong log. `auth` dạng mảng (ở trên) đủ để khai báo bao nhiêu credential cũng được.
-- [ ] Test: mỗi cơ chế ở từng tầng (route / model / agent), thứ tự gộp, người dùng ghi đè được header protocol /
-  `user-agent` / field body của SDK, header cấp kết nối vẫn bị chặn, credential trong `auth` mảng và `query` được che
-  trong `requestLogger`.
+- [x] **`headers`** ghi đè SDK (transport/attribution/protocol) — xong, xem quyết định 12 bên dưới. **Dạng hàm nhận
+  ngữ cảnh `{ provider, agentId?, signal }` — XONG (2026-09-18, lượt sau).** Đã thêm `agentId` xuyên suốt core trước
+  (xem mục core riêng ngay dưới), rồi nối vào `endpointHeaders()`
+  ([endpoint-headers.ts](../../packages/provider-http/src/common/endpoint-headers.ts), type `HeaderContext` mới,
+  xuất công khai từ `provider-http`), `ConfiguredHttpAdapter.connect()` (gọi
+  `this.options.headers({provider, agentId?, signal})` thay vì gọi suông), `captureHeaders()` runtime-extension
+  (`Reflect.apply(value, source, [ctx])`). **Không có `model`** trong `HeaderContext` công khai (ctx của hàm
+  `headers` cấp route) — quyết định có chủ đích, ghi rõ trong doc comment của `HeaderContext`: hàm `headers` cấp
+  route có thể chạy trước khi model được biết (ví dụ `listModels()`), nên đưa `model` vào ctx công khai này sẽ hứa
+  hẹn sai một bảo đảm theo-từng-request. **`headers`/`body` cấp agent VÀ cấp model — cả hai đều XONG**, xem mục
+  `providerOptions` cấp agent bên dưới và mục `models[].headers/body` riêng cũng ngay dưới đây — cấp model dùng cơ
+  chế nội bộ khác (tra cứu tĩnh `this.options.models.find(id)`), không đi qua `HeaderContext` công khai nên không
+  mâu thuẫn với quyết định ở trên: `connect()` (nội bộ, không phải hàm `headers` của người dùng) nhận thêm tham số
+  thứ 4 `model?: string`, có ở 3/4 nơi gọi (thiếu ở `listModels()` vì hàm đó liệt kê MỌI model, không có model đơn lẻ
+  nào để tra).
+  Ảnh hưởng dây chuyền phải sửa cùng lúc: `OpenAiEmbeddingAdapter`/Gemini embedding adapter cũng dùng
+  `endpointHeaders()` với chữ ký không tham số cũ — phải nối `provider` (đã có sẵn ở lời gọi `prepareEmbeddingCall`/
+  `embedBatch`) xuống hàm `connect()` nội bộ của từng embedding adapter để không vỡ kiểu.
+  Test: `provider-endpoint-headers.spec.ts` ("carries the agent id into `headers` and `transformRequest` context",
+  chạy qua cả 6 biến thể provider × adapter thủ công, xuyên suốt `createAgentRuntime` thật, không mock tầng core).
+- [x] **Hạ tầng `agentId` trên `ModelInvocationContext` — XONG (2026-09-18), việc core đã làm** (không còn "chưa
+  nghiên cứu" như bản trước của mục này). 3 điểm sửa, đúng như một agent nghiên cứu con đã vạch ra trước khi code:
+  1. `core/src/observation/report.ts`: thêm `agentId?: string` vào `ModelInvocationContext`.
+  2. `core/src/agent/accounting/ledger.ts` (constructor `RunLedger`, object `this.modelInvocation`): thêm
+     `agentId: options.agentId` — `options.agentId` (= `AgentDefinition.id`) đã được validate non-empty ngay phía
+     trên, không cần thêm plumbing nào khác ở tầng agent để có giá trị này.
+  3. `core/src/runtime/model-call-handle.ts` (`effectiveContext`): thêm
+     `...(input.context?.agentId === undefined ? {} : { agentId: input.context.agentId })`, đúng khuôn mẫu đã dùng
+     cho `logger` ngay phía trên.
+  4. `packages/provider-http/src/base/http-adapter.ts`: thêm `agentId?: string` vào `ProviderRequest`, điền từ
+     `context?.agentId` tại nơi dựng `request` trong `run()` — đây là cách `agentId` đến được `buildBody()`
+     (`transformRequest`'s `ctx.agentId`) mà không cần đổi chữ ký `buildBody(request)`.
+  `ModelInvocationContext` là type CHUNG, không như `CredentialSource` (core có 2 type trùng tên khác nhau) —
+  `provider-http` import type thẳng từ `@alvin0/ai-agent-sdk-core`, nên thêm field vào core là đủ, không cần đồng bộ
+  gì thêm. Test hiện có (không sửa gì) vẫn xanh vì field là optional, không phá bất kỳ object literal
+  `ModelInvocationContext` nào trong test hiện có.
+- [x] **`auth` nhận mảng scheme, kể cả biến thể `{kind:'query'}` — XONG HOÀN TOÀN (2026-09-19).**
+  `HttpProviderOptions.auth`/`RuntimeHttpProviderOptions.auth` giờ là `AuthScheme | readonly AuthScheme[]`
+  ([http-provider.ts](../../packages/provider-http/src/configurable/http-provider.ts),
+  [runtime-types.ts](../../packages/provider-http/src/configurable/runtime-types.ts)). `authSchemeResolved()` giải
+  quyết một scheme thành `{headers, query}` (kind `'query'` sinh entry `query`, mọi kind khác sinh `headers`);
+  `authHeaders()` chạy `Promise.all` trên mọi scheme rồi gộp riêng từng loại qua `unionByName()` dùng chung —
+  **báo lỗi ngay nếu hai scheme cùng tên header HOẶC cùng tên query param** — trước khi bao giờ chạm tới
+  `mergeHeaderLayers`, vì đây là lỗi cấu hình chứ không phải chỗ để chính sách "lớp sau thắng" xử lý giúp.
+  `captureRuntimeAuthScheme` có thêm nhánh `'query'`, cùng khuôn với `'header'`.
+  **Hạ tầng redact URL — đã làm xong, không còn là lý do hoãn nữa.** `HttpConnection`/`HttpTransportConnection`
+  (`transport/connection.ts`) có thêm `queryOverrides`/`sensitiveQueryParamNames`, điền tại `connect()` từ
+  `auth.query`; `ConfiguredHttpAdapter.endpointPath()` gộp `queryOverrides` lên trên `query` của route (auth luôn
+  thắng cuối, đúng thứ tự quyết định 12); hàm mới `redactQueryUrl()`
+  ([transport/http.ts](../../packages/provider-http/src/transport/http.ts), cùng khuôn `redactHeaders()` có sẵn) áp
+  dụng vào `url` trước khi đưa vào `ProviderRequestLogRecord` ở `transport/session.ts` — request thật vẫn mang giá
+  trị gốc, chỉ bản ghi log bị che.
+  Test: `http-provider.spec.ts` (6 test: union nhiều scheme header cả in-process lẫn runtime-extension, báo lỗi khi 2
+  scheme cùng tên header, `query`-kind gộp đúng vào URL và được che đúng trong `requestLogger` trong khi URL dispatch
+  thật vẫn mang giá trị gốc, báo lỗi khi 2 scheme `query` cùng tên, `query`-kind qua runtime-extension).
+- [x] **`query`**: record tĩnh hoặc hàm — **xong** (route, cả in-process lẫn runtime-extension, cả 3 provider
+  adapter). File: [request-path.ts](../../packages/provider-http/src/common/request-path.ts) (`appendQuery`, gộp
+  thẳng vào path trả về từ `endpointPath()` — không cần sửa `transport/http.ts`'s `endpointUrl()`, vì `new URL(base +
+  path)` tự parse `?query` có sẵn trong `path`), `http-provider.ts` (`HttpProviderOptions.query`), `runtime-provider.ts`
+  (`captureQuery`/`snapshotQuery`, validate record-of-string, mã lỗi mới `HTTP_QUERY_INVALID`), `runtime-types.ts`.
+  **Giá trị nhạy cảm qua `auth: [{kind:'query',...}]` — XONG**, xem mục `auth` mảng ở trên (đã có redact URL riêng).
+- [x] **`path`**: có ở mọi protocol — **xong, nhưng tập trung ở provider-http thay vì sửa dialect của 4 protocol
+  package.** `ConfiguredHttpAdapter.endpointPath()`/runtime tương đương giờ là
+  `this.options.path ?? this.options.protocol.endpointPath(...)` rồi gộp query — một chỗ, đúng tinh thần "định nghĩa
+  một lần trong provider-http" thay vì sửa `protocol.ts` của Responses/Anthropic/Gemini (Chat Completions vẫn giữ
+  `dialect.path` riêng, không đụng). `path`/`query` đã lộ ra ở `OpenAiAdapterOptions`, `AnthropicAdapterOptions`,
+  `GeminiAdapterOptions` (và các biến thể `*ProviderOptions`/plugin).
+- [x] **`body`** — **xong ở cả 3 tầng: route, model, agent.** File mới
+  [body-merge.ts](../../packages/provider-http/src/common/body-merge.ts) (`mergeRequestBody`, đệ quy trên object
+  thường, `null` xóa field, mảng/giá trị khác thay nguyên khối — không gộp theo từng phần tử mảng để tránh âm thầm
+  đảo thứ tự dữ liệu người dùng không hề đụng tới). Gắn vào `ConfiguredHttpAdapter.buildBody()` (`http-provider.ts`)
+  theo đúng thứ tự "sau thắng trước": `protocol.serialize(...)` → gộp `this.options.body` (route) → gộp
+  `models[].body` của đúng model đang gọi (tra `this.options.models.find(id)`, chỉ áp dụng cho catalog khai báo
+  tĩnh, không áp dụng cho catalog `discoverModels` động) → gộp `request.providerOptionsBody` (agent) → cuối cùng mới
+  tới `transformRequest`. Bản sao runtime-extension qua `copyJsonOptional(source, 'body', 'body')` trong
+  `runtime-provider.ts` (tái dùng `snapshotJsonObject`/`HTTP_RUNTIME_OPTION_LIMITS` sẵn có). `body?: Readonly<Record<
+  string, unknown>>` đã lộ ra ở cả 3 provider adapter (cấp route) và tự động lộ ra ở cấp model vì `models[]` dùng
+  thẳng `ProviderCatalogModel` — chỉ cần thêm 2 field `headers?`/`body?` vào type đó một chỗ duy nhất
+  ([http-adapter.ts](../../packages/provider-http/src/base/http-adapter.ts)), không cần sửa gì thêm ở 3 package
+  provider.
+- [x] **`transformRequest(body, ctx)`** — **xong**, chạy sau `body` gộp (cả route lẫn agent), nhận
+  `{ provider, model, agentId?, signal? }` — `agentId` **đã thêm** cùng lượt với hạ tầng `agentId`/`providerOptions`
+  trên `ModelInvocationContext` (xem mục core riêng bên dưới). `RequestContext` xuất công khai từ `provider-http`,
+  tái dùng nguyên dạng ở cả 3 provider (kiểu cấu trúc giống hệt kiểu inline khai trong `runtime-types.ts` nên không
+  gặp lại lỗi trùng tên khác type như `CredentialSource`/core đã gặp — đây là cùng một package, không phải hai
+  package định nghĩa lại cùng tên).
+  Test: `http-provider.spec.ts` (3 test: gộp `body` + xóa field qua `null` ở cả in-process lẫn runtime-extension,
+  `transformRequest` chạy sau cùng và nhận đúng `ctx`), `provider-endpoint-headers.spec.ts` (2 `it.each` xuyên suốt
+  6 biến thể provider × adapter thủ công: một cho `body`/`transformRequest` cơ bản, một cho `agentId` trong cả hai
+  ngữ cảnh).
+- [x] **Ghi đè header của SDK (quyết định 12) — xong**, đổi chính sách trong
+  [header-layers.ts](../../packages/provider-http/src/common/header-layers.ts) từ "trùng là lỗi" sang **lớp sau
+  thắng lớp trước** (`mergeHeaderLayers` không còn `owners` map, chỉ còn 2 chặn cứng — xem dưới). Test:
+  `http-provider.spec.ts` ("lets a caller override transport, SDK-attribution, and protocol headers",
+  "lets `auth` override a same-named endpoint header"), `provider-endpoint-headers.spec.ts`.
+  **Thứ tự route/agent — xong, không cần thêm nhãn `HeaderLayer` riêng.** Cách làm cuối cùng đơn giản hơn dự kiến ban
+  đầu: thay vì tách `HeaderLayer` thành 3 nhãn con (`'endpoint-route' | 'endpoint-model' | 'endpoint-agent'`),
+  `ConfiguredHttpAdapter.connect()` chỉ cần thêm MỘT lớp `'endpoint'` thứ hai vào `publicLayers`, đặt SAU lớp route
+  hiện có — chính sách "lớp sau thắng lớp trước" đã có sẵn tự lo phần còn lại. `HeaderLayer` là nhãn quan sát/audit
+  (biết header đến từ đâu để che log), không phải cơ chế xác định thứ tự thắng-thua (thứ tự đó nằm ở vị trí trong
+  mảng `layers` truyền vào `mergeHeaderLayers`) — nhãn model/agent riêng chỉ cần thiết nếu sau này có nhu cầu quan
+  sát/debug phân biệt "header này đến từ tầng nào", chưa phát sinh nhu cầu đó.
+- [x] Vẫn chặn header cấp kết nối (`host`, `content-length`, `connection`, `transfer-encoding`, `te`, `trailer`,
+  `upgrade`, `proxy-*`, `sec-*`) — không đổi, test lại nguyên vẹn.
+- [x] Vẫn giữ quy tắc "header giống credential phải đi qua `auth`" — không đổi (không phải để cấm ghi đè, mà để SDK
+  biết header nào cần che trong log).
+- [x] Test: `http-provider.spec.ts` viết lại 3 test cũ dựa trên hành vi "collision là lỗi" thành hành vi "override
+  thắng" + các test mới cho fail-fast trên tên bị cấm, auth-thắng-endpoint, auth mảng, `body`/`transformRequest`;
+  `provider-endpoint-headers.spec.ts` phủ path/query/body/transformRequest/agentId/providerOptions xuyên suốt cả 6
+  biến thể (plugin + adapter thủ công × 3 họ), qua `createAgentRuntime` thật; `responses-serialize.spec.ts` không
+  liên quan trực tiếp 3b nhưng cùng đợt (xem pha 3).
 
-### Pha 4a: Chat Completions trong `provider-openai`
+- [x] **`providerOptions` cấp agent (`runtime.agent({ providerOptions: { headers, body } })`) — XONG (2026-09-19).**
+  Đây là việc core lớn nhất của pha 3b, đã làm xong trong lượt cuối. Thiết kế cuối cùng **không** đi qua `CallConfig`/
+  `GenerateOptions` (kênh vốn dùng cho `reasoningEffort`/`maxTokens`) — thử hướng đó trước rồi lùi lại, vì
+  `ConfiguredHttpAdapter.connect()` (nơi headers cần được gộp) chạy trong luồng `prepareCall()` (registry tách "chuẩn
+  bị năng lực" khỏi "gửi request" — xem doc comment của `CallConfig`), và **`prepareCall()` không có `GenerateOptions`
+  đầy đủ trong tay** (chỉ có `provider, model, signal, context`) — `providerOptions` đặt trong `GenerateOptions` sẽ
+  không bao giờ tới được `connect()`. Kênh đúng là `ModelInvocationContext` — CÓ mặt ở cả hai luồng
+  (`prepareCall`/`runResolving`) — đúng bản chất của `providerOptions`: một sự thật cố định về AGENT (như `agentId`),
+  không phải một tham số thay đổi theo từng lần gọi.
+  - File core đã sửa: `agent/define/definition.ts` (interface `AgentProviderOptions` mới; field `providerOptions`
+    trên `AgentDefinitionInput`/`AgentDefinition`/`DefinedAgentValue`/`mergedInput()`, đông lạnh từng phần
+    `headers`/`body` độc lập), `composition/agent/types.ts` (`RuntimeAgentDefinitionInput.providerOptions`),
+    `composition/agent/definition.ts` (thêm `'providerOptions'` vào allowlist `KEYS`, hàm `captureProviderOptions()`
+    mới xác thực `headers` toàn giá trị string trước khi đưa vào `defineAgent({...})`), `observation/report.ts`
+    (`ModelInvocationContext.providerOptions`), `agent/accounting/ledger.ts` (`RunLedgerOptions.providerOptions` →
+    `this.modelInvocation`), `agent/define/session/accounting.ts` (`createSessionLedger()` đọc
+    `definition.providerOptions`, cùng cơ chế với `agentId: definition.id` ngay dòng trên), `runtime/model-call-handle.ts`
+    (`effectiveContext` sao `input.context?.providerOptions`).
+  - File provider-http đã sửa: `base/http-adapter.ts` (`ProviderRequest.providerOptionsBody`, điền từ
+    `context?.providerOptions?.body` tại nơi dựng `request` trong `run()` — cùng vị trí đã dùng cho `agentId`),
+    `configurable/http-provider.ts`: `connect()` thêm MỘT lớp `'endpoint'` nữa vào `publicLayers`, đọc
+    `context?.providerOptions?.headers`, đặt SAU lớp headers của route — agent thắng route đúng thứ tự quyết định
+    12; `buildBody()` gộp `request.providerOptionsBody` lên trên body đã gộp của route, TRƯỚC `transformRequest`.
+  - Không cần sửa gì thêm ở tầng model (`models[].headers/body`) để tính năng này hoạt động đúng — agent luôn là tầng
+    thắng cuối cùng nên không phụ thuộc tầng model có tồn tại hay không. Tầng model **đã làm thêm ngay sau đó** (xem
+    mục riêng ngay dưới) để plan không còn khoảng trống nào trong chuỗi "route, model, agent" của quyết định 12.
+  - Test: `provider-endpoint-headers.spec.ts` — 1 `it.each` xuyên suốt 6 biến thể, xác nhận: header/body agent ghi
+    đè route khi trùng tên, header/body chỉ-route hoặc chỉ-agent đều giữ nguyên (không bị agent xóa mất).
+
+- [x] **`models[].headers`/`.body` (tầng model của quyết định 12) — XONG (2026-09-19).** Mục cuối cùng còn thiếu
+  trong chuỗi "route, model, agent" — làm ngay sau khi hoàn tất `auth` mảng và `providerOptions` cấp agent ở trên,
+  đóng nốt pha 3b hoàn toàn.
+  - **`body`**: chỉ cần thêm 2 field `headers?`/`body?` vào `ProviderCatalogModel`
+    ([base/http-adapter.ts](../../packages/provider-http/src/base/http-adapter.ts)) — tự động lộ ra ở cả 3 provider
+    vì `models: readonly ProviderCatalogModel[]` đã dùng thẳng type này, không cần sửa gì ở `provider-openai`/
+    `provider-anthropic`/`provider-gemini`. `buildBody()` tra `this.options.models.find(m => m.id ===
+    request.model.id)?.body`, gộp vào giữa route và agent.
+  - **`headers`**: khó hơn — `connect()` (nơi headers được gộp) vốn KHÔNG biết model đang gọi là gì, vì nó chạy độc
+    lập với model để một route có thể dùng chung một `HttpConnection` cho nhiều model. Giải quyết bằng cách thêm
+    tham số thứ 4 `model?: string` vào `protected abstract connect()` của `HttpModelAdapter`
+    ([base/http-adapter.ts](../../packages/provider-http/src/base/http-adapter.ts)) — an toàn vì **chỉ có đúng một
+    lớp con** (`ConfiguredHttpAdapter`) kế thừa lớp trừu tượng này trong toàn bộ repo (đã xác nhận bằng grep). Điền
+    tham số này ở 3/4 nơi gọi `connect()` (`resolveModel`, `prepareCall`, `runResolving`) — thiếu đúng một nơi,
+    `listModels()`, vì hàm đó liệt kê MỌI model nên không có một model đơn lẻ nào để truyền. `connect()` tra
+    `this.options.models.find(id)?.headers`, chèn một lớp `'endpoint'` nữa vào `publicLayers`, **giữa** lớp route và
+    lớp agent (đúng thứ tự "sau thắng trước").
+  - Đây là ví dụ cụ thể cho lý do `HeaderContext` công khai (ctx của hàm `headers` cấp route) cố tình không có
+    `model`: có nơi (`listModels()`) gọi `connect()` mà không có model nào — nếu để `headers`-theo-ngữ-cảnh công
+    khai phụ thuộc `model`, những nơi đó sẽ phải giả một giá trị. Cấp model dùng cơ chế tra cứu tĩnh riêng, không
+    đụng tới `HeaderContext`.
+  - Test: `http-provider.spec.ts` ("lets `models[].headers`/`.body` win over the route, and the agent win over
+    both", xác nhận cả chiều ngược lại — model khác không hề thấy override của model đầu), `provider-endpoint-headers.spec.ts`
+    ("stacks route → models[] → agent, later tier winning at each step", xuyên suốt 6 biến thể, 2 field trùng tên ở
+    cả 3 tầng để xác nhận đúng tầng nào thắng ở từng bước).
+
+**Verify cuối pha 3b:** `pnpm typecheck` (root) sạch, `pnpm test` (root) **2883/2883 xanh**, baseline public-API đã
+regenerate nhiều lần trong suốt các lượt này (mỗi lần thêm export/đổi hình dạng khai báo: `HeaderContext`, `auth`
+mảng, `ProviderRequest.providerOptionsBody`, `ProviderCatalogModel.headers/body`). **Pha 3b không còn mục nào chưa
+làm** — toàn bộ bảng "Giới hạn hiện tại" gốc của pha này giờ đều ở trạng thái ✅.
+
+### Pha 4a: Chat Completions trong `provider-openai` — XONG (2026-09-19), chỉ còn nghiệm thu sống
 
 **Lý do:** phần lớn endpoint tương thích OpenAI (DeepSeek, Groq, Together, Qwen/DashScope, vLLM, Ollama, LM Studio,
 nhiều gateway) chỉ có `/chat/completions`, không có `/responses`. Thiếu nhánh này thì `provider-openai` chưa phải
 provider cho cả họ API OpenAI.
 
-**Hiện trạng:** package [`protocol-openai-chat-completions`](../../packages/protocol-openai-chat-completions/src/protocol.ts)
+**Hiện trạng trước khi làm:** package [`protocol-openai-chat-completions`](../../packages/protocol-openai-chat-completions/src/protocol.ts)
 đã có đủ serializer, translator, xử lý lỗi và test (`tests/unit/chat-completions-*.spec.ts`), đang được
-`provider-copilot` dùng. `provider-openai` chỉ phụ thuộc `protocol-responses`
-([package.json:37](../../packages/provider-openai/package.json#L37)). Phần việc chủ yếu là nối, không viết protocol mới.
+`provider-copilot` dùng. `provider-openai` chỉ phụ thuộc `protocol-responses`. Phần việc chủ yếu là nối, không viết
+protocol mới — đúng như dự đoán, xác nhận sau khi làm.
 
-Việc cần làm:
+File đã sửa: `provider-openai/package.json` (thêm dependency), `provider-openai/src/adapter.ts` (branch
+protocol/dialect theo `api`, `chatCompletionsDialectOf()`, option `api`/`compat` mới trên cả 4 kiểu:
+`OpenAiAdapterOptions`/`OpenAiPluginOptions`/`OpenAiProviderOptions` kế thừa, cả `openAiAdapter` lẫn
+`createRuntimeOpenAiAdapter`), `tests/unit/provider-openai.spec.ts` (2 test mới), `tests/fixtures/public-api/untouched-packages.json`.
 
-- [ ] Thêm dependency `@alvin0/ai-agent-sdk-protocol-openai-chat-completions` vào `provider-openai`.
-- [ ] Option `api: 'responses' | 'chat-completions'`:
-  - Ở **route** (mặc định `'responses'`).
-  - Ở **model** (`models[].api`) để một route phục vụ cả hai kiểu model, tránh giới hạn "một protocol cho mỗi route"
-    mà deepseek-harness đang gặp. Cơ chế chọn protocol theo model tham khảo `copilotDualProtocol`
-    ([dual-protocol.ts](../../packages/provider-copilot/src/dual-protocol.ts)), nhưng chọn theo cấu hình, không đoán.
-- [ ] Đưa các knob hiện có của `ChatCompletionsDialect` ra thành `compat` công khai:
-  `reasoningFormat` (pha 3), `maxTokensField` (`'max_tokens' | 'max_completion_tokens' | false`), `systemRole`
-  (`'system' | 'developer'`), `structuredOutputs` (`'json-schema' | 'json-object' | false`), `tools`,
-  `parallelToolCalls`, `streamUsage`, `stop`, `seed`, `promptCacheKey`.
-- [ ] Giá trị mặc định theo protocol, không theo `baseUrl`: `systemRole: 'system'`, `maxTokensField: 'max_tokens'`
-  (tương thích rộng nhất; và max tokens chỉ gửi khi người dùng đặt, theo quyết định 4). README ghi cấu hình khuyến nghị
-  cho OpenAI chính chủ (`developer`, `max_completion_tokens`).
-- [ ] `path` đổi được (quyết định 11); mặc định `/chat/completions`.
-- [ ] Phía response: đọc reasoning theo `reasoningFormat` (`reasoning_content` của DeepSeek, `reasoning` của
-  OpenRouter…), usage có `reasoning_tokens`, và lỗi giữ message gốc (quyết định 7).
-- [ ] Reasoning của lượt trước chỉ gửi lại khi cùng route và cùng model (quyết định 6); endpoint yêu cầu gửi lại
-  `reasoning_content` thì bật qua `compat`.
-- [ ] Test:
-  - Unit / snapshot: body JSON với từng tổ hợp `compat` chính; chọn protocol theo route và theo model.
-  - Live với `OPENAI_API_KEY` trên `/v1/chat/completions`: không effort, effort `high`, effort sai (message gốc),
-    tool call, structured output, ảnh.
-  - Mock server: DeepSeek (`reasoning_content`), Ollama/vLLM (không auth, `max_tokens`).
+- [x] Thêm dependency `@alvin0/ai-agent-sdk-protocol-openai-chat-completions` vào `provider-openai`.
+- [x] Option `api: 'responses' | 'chat-completions'` **ở route** (mặc định `'responses'`, cả `openAiAdapter` và
+  `createRuntimeOpenAiAdapter`).
+  - [x] **Ở model (`models[].api`), một route phục vụ cả hai kiểu model — XONG (2026-09-19), nhưng KHÔNG dùng
+    composite protocol kiểu `copilotDualProtocol`.** Ban đầu đánh giá phải mất ~380 dòng như Copilot rồi hoãn; nhìn
+    lại thấy Copilot cần composite Ở TẦNG PROTOCOL (`serialize`/`translate`/`endpointPath` branch theo model NGAY
+    TRONG một `HttpModelAdapter`) chỉ vì hai wire của Copilot phải dùng CHUNG một kết nối/credential (device-code).
+    `provider-openai`'s Responses và Chat Completions không có ràng buộc đó — mỗi API đã có adapter
+    `createHttpProvider` hoàn chỉnh, độc lập, tự kiểm chứng riêng (pha 1-4a). Giải pháp đơn giản hơn nhiều: một
+    facade Ở TẦNG ADAPTER, `OpenAiDualApiAdapter`
+    ([dual-api.ts](../../packages/provider-openai/src/dual-api.ts)) — giữ hai adapter hoàn chỉnh (một Responses, một
+    Chat Completions), định tuyến TOÀN BỘ lời gọi (`stream`, `prepareCall`, `resolveModel`, `listModels`,
+    `modelCatalog`, `providerInfo`) theo model id, dựa trên `ModelAdapter` (`@alvin0/ai-agent-sdk-core`) — lớp trừu
+    tượng chỉ có ĐÚNG MỘT method bắt buộc (`stream`), thiết kế sẵn cho đúng mục đích "một adapter phục vụ nhiều
+    route/model" (đọc thẳng trong doc comment của chính lớp đó). `HttpModelAdapter extends ModelAdapter`, nên
+    `openAiAdapter()`/`createRuntimeOpenAiAdapter()` đổi kiểu trả về từ `HttpModelAdapter` sang `ModelAdapter` (nới
+    lỏng, không phá vỡ gì — bề mặt public của `HttpModelAdapter` với bên ngoài y hệt `ModelAdapter`, các method thêm
+    của nó đều `protected`).
+    - `OpenAiCatalogModel` (mở rộng `ProviderCatalogModel` với `api?`) — chỉ khai báo trong `provider-openai`, không
+      đụng type dùng chung `ProviderCatalogModel` (anthropic/gemini không có khái niệm này).
+    - Kích hoạt facade CHỈ KHI có model khai báo `api` khác với `api` mặc định của route — trường hợp phổ biến (một
+      route, một API duy nhất) đi nguyên đường cũ, không đổi hành vi, không rủi ro thêm.
+    - Test: `provider-openai.spec.ts` ("routes each model to its own wire and merges both catalogs" — xác nhận
+      dispatch đúng wire theo từng model, catalog gộp đúng cả hai; "stays a single adapter... when no model overrides
+      the route default" — xác nhận trường hợp phổ biến không kích hoạt facade; "...through the runtime-extension
+      plugin path too" — cùng test qua `openAiPlugin`/`createAgentRuntime` thật, không chỉ `openAiAdapter` thấp cấp).
+    - Việc dây chuyền: 2 hàm test trong `tests/unit/copilot-cross-provider-errors.spec.ts` khai kiểu tham số/trả về
+      cứng là `HttpModelAdapter` — phải nới thành `ModelAdapter` (chỉ dùng `.stream()`, không cần gì riêng của
+      `HttpModelAdapter`) để nhận được cả hai loại giá trị (Copilot vẫn trả `HttpModelAdapter`, OpenAI giờ trả
+      `ModelAdapter`).
+- [x] Đưa các knob hiện có của `ChatCompletionsDialect` ra thành `compat` công khai trên `OpenAiAdapterOptions`:
+  `reasoningFormat`, `maxTokensField`, `systemRole`, `structuredOutputs`, `tools`, `parallelToolCalls`, `streamUsage`,
+  `stop`, `seed`, `promptCacheKey` — tất cả optional, không đặt thì giữ mặc định của protocol.
+- [x] Giá trị mặc định theo protocol: `systemRole: 'system'`, `maxTokensField: 'max_tokens'` đã đúng sẵn trong
+  `DEFAULT_DIALECT` của `protocol-openai-chat-completions` (không cần override) — chỉ **`reasoningFormat`** cần
+  provider-openai tự đặt mặc định `'openai'` (khác mặc định `false` của protocol, vì protocol dùng chung với
+  `provider-copilot` và không được đổi default dùm — xem pha 3). Căn cứ: `reasoning_effort` trên
+  `/v1/chat/completions` đã được đo sống qua codex2claudecode (mục 4 của plan), không phải đoán.
+- [x] `path` đổi được — **đã có sẵn từ pha 3b** (route-level `path`/`query` tổng quát cho cả provider-openai, áp dụng
+  luôn cho nhánh chat-completions), không cần làm riêng cho pha này.
+- [x] Phía response: đọc `reasoning_content` (DeepSeek)/usage `reasoning_tokens` — **đã có sẵn** trong
+  `protocol-openai-chat-completions/src/translate.ts` từ trước pha này (xác nhận lại ở pha 3); lỗi giữ message gốc —
+  áp dụng tự động qua `provider-http` chung, không cần code riêng cho chat-completions.
+- [x] Reasoning của lượt trước chỉ gửi lại khi cùng route/model — hành vi chung của protocol, đã test ở pha 3, không
+  cần thêm gì riêng cho `provider-openai`.
+- [~] Test:
+  - [x] Unit: 2 test mới trong `provider-openai.spec.ts` — dispatch qua `/chat/completions` với `api:
+    'chat-completions'` (kiểm URL, body có `messages`/`model`, `reasoning_effort` gửi đúng giá trị effort của agent),
+    và `compat.reasoningFormat: 'deepseek'` chuyển effort `'off'` thành `thinking: {type:'disabled'}` không gửi
+    `reasoning_effort` — khớp hành vi đã có test ở tầng protocol (`chat-completions-serialize.spec.ts`), giờ thêm
+    lớp xác nhận **provider-openai nối đúng dây**.
+  - [x] **Snapshot toàn bộ tổ hợp `compat`** — thêm 1 test mới trong `provider-openai.spec.ts` ("snapshots the full
+    `compat` combination, every field at once") đặt cả 10 field cùng lúc với giá trị khác mặc định
+    (`reasoningFormat: 'deepseek'`, `maxTokensField: 'max_completion_tokens'`, `systemRole: 'developer'`,
+    `structuredOutputs: 'json-object'`, `tools: true`, `parallelToolCalls: true`, `streamUsage: false`, `stop: true`,
+    `seed: true`, `promptCacheKey`), kiểm từng field một phản ánh đúng trên body thật của MỘT request duy nhất —
+    xác nhận không có field nào ghi đè/che field khác khi kết hợp. Phát hiện phụ: `seed: true` hiện KHÔNG có tác dụng
+    trên wire dù bật — `GenerateOptions` chưa có nguồn giá trị seed nào, `dialect.seed` tồn tại chỉ để provider tương
+    lai không phải xuyên lại field này (đã có ghi chú sẵn trong `serialize.ts`, xác nhận lại bằng test thay vì chỉ
+    đọc code).
+  - [x] **Live trên `/v1/chat/completions`, `/responses` và Anthropic `/v1/messages`** — không có `OPENAI_API_KEY`/
+    `ANTHROPIC_API_KEY` chính chủ, nhưng người dùng cấp `COMPLETIONS_URL`/`COMPLETIONS_API_KEY`/`COMPLETIONS_MODEL`,
+    `RESPONSE_URL`/`RESPONSE_API_KEY`/`RESPONSE_MODEL`, `MESSAGES_URL`/`MESSAGES_API_KEY`/`MESSAGES_MODEL` (gateway
+    tương thích zenmux.ai, cùng một model `dots-studio/dots3-note-prev` phục vụ cả 3 wire) — dùng ngay, live thật
+    (2026-09-19), 3 test mới: `tests/integration/openai-chat-completions-live.spec.ts`,
+    `tests/integration/openai-responses-live.spec.ts`, `tests/integration/anthropic-messages-live.spec.ts`. Không
+    phải OpenAI/Anthropic chính chủ nên không thay thế hoàn toàn dòng "OpenAI Responses/Chat Completions, Anthropic
+    Messages" ở bảng nghiệm thu pha 5 bên dưới, nhưng xác nhận sống cả 3 wire shape (dispatch, serialize, parse
+    response thật) trên backend thật — chỉ còn thiếu đúng 2 vendor chính chủ.
+  - [x] **Mock server DeepSeek/Ollama/vLLM — XONG (2026-09-19).** 3 test mới trong `provider-openai.spec.ts`
+    (`describe('mock server: DeepSeek, Ollama, vLLM (Chat Completions wire)')`), mỗi test dựng RESPONSE giả lập đúng
+    hình dạng SSE của từng vendor (không chỉ kiểm request như 2 test trước): DeepSeek trả `reasoning_content` trong
+    delta → xác nhận dịch đúng thành chunk `reasoning-delta` (khác `chat-completions-serialize.spec.ts` — test đó chỉ
+    kiểm tầng serialize/translate đơn vị, test này đi qua toàn bộ `openAiAdapter` thật); Ollama (`localhost:11434`,
+    key giữ chỗ tùy ý — đúng thực tế Ollama không kiểm giá trị key) xác nhận `max_tokens` (không phải
+    `max_completion_tokens`) và không gửi field reasoning nào khi agent không đặt effort; vLLM
+    (`localhost:8000`, kèm `usage` trong response) xác nhận cùng đường dây hoạt động cho endpoint tương thích thứ ba.
 
-### Pha 4: Chuyển 3 provider thành provider họ API
+**Verify đã chạy:** `pnpm typecheck` (root) sạch, `pnpm test` (root) **2872/2872 xanh**, baseline public-API đã
+regenerate.
 
-- [ ] **provider-openai:** `api` theo route / model (pha 4a); nhận `displayName`, `compat`; xóa `context-policy.ts`.
-- [ ] **provider-anthropic:** nhận `displayName`, `compat.authHeader`, `thinking`; xóa `reasoningInfo()` và
-  `context-policy.ts`.
-- [ ] **provider-gemini:** nhận `displayName`, `compat`; xóa `context-policy.ts`.
-- [ ] Không còn logic nào phụ thuộc "baseUrl có phải chính chủ không".
-- [ ] **provider-codex:** giữ discovery `supported_reasoning_levels` làm metadata tham khảo, không kiểm tra, không tự
-  điền effort.
-- [ ] **provider-copilot:** nhánh chat/completions gửi effort theo `reasoningFormat` thay vì âm thầm bỏ.
+### Pha 4: Chuyển 3 provider thành provider họ API — PHẦN LỚN ĐÃ XONG (2026-09-18)
+
+**Phát hiện khi bắt đầu pha này (giống mẫu hình lặp lại của pha 3/3b/4a): phần lớn checklist đã được thỏa từ các pha
+trước, chỉ còn vài mục thật sự thiếu.** `context-policy.ts` của cả 3 provider đã bị xóa ở **pha 2** (xác nhận bằng
+`find` — không còn file nào tên đó trong 3 package); `compat.authHeader`/`thinking` của Anthropic và `compat` của
+Gemini đã có từ **pha 3**; `api` theo route và `compat` của Chat Completions đã có từ **pha 4a** (mục ngay trên).
+Việc còn lại thực sự thiếu ở đầu pha này: `displayName` cố định ở cả 3 provider, và một dòng chết (`defaultEffort`)
+sót lại trong `provider-codex`.
+
+File đã sửa lượt này: `provider-openai/src/adapter.ts`, `provider-anthropic/src/adapter.ts`,
+`provider-gemini/src/adapter.ts` (option `displayName?: string` mới, thay mọi `displayName: 'OpenAI'` (v.v.) cố định
+bằng `options.displayName ?? 'OpenAI'` ở toàn bộ 6+4+4 điểm gọi `createHttpProvider`/`createRuntimeHttpProvider`/
+`defineModelProviderPlugin`/plugin legacy trong cả 3 file), `provider-codex/src/adapter.ts` (xóa tính toán
+`defaultEffort` chết — xem dưới), `tests/unit/provider-{openai,anthropic,gemini}.spec.ts` (1 test mới mỗi file).
+
+- [x] **provider-openai:** `api` theo route — xong ở pha 4a (model-level cố ý hoãn, xem ghi chú ở đó); nhận
+  `displayName` — **xong lượt này**; `compat` — xong ở pha 4a; xóa `context-policy.ts` — xong từ pha 2.
+- [x] **provider-anthropic:** nhận `displayName` — **xong lượt này**; `compat.authHeader`/`thinking` — đã có từ pha 3
+  (dạng option phẳng `authHeader`/`thinking`, không lồng dưới object `compat` — hợp lý vì đây là mối quan tâm cấp
+  route/auth, không phải knob của riêng dialect như Chat Completions; xóa `context-policy.ts` — xong từ pha 2.
+  **`reasoningInfo()` — KHÔNG xóa, đánh giá lại quyết định của plan gốc:** đọc lại hàm này (`adapter.ts:51-61`) cho
+  thấy nó chỉ còn build danh sách `efforts` tham khảo từ `thinkingBudgets` (dùng dưới `reasoningFormat:
+  'thinking-budget'` cho model cũ) — **không** còn tính `defaultEffort` hay tự điền gì (đã dọn từ pha 1/3). Đây chính
+  là hình mẫu "metadata tham khảo, không tự điền" mà quyết định 1 muốn — xóa nó sẽ mất thông tin catalog hợp lệ cho
+  model dùng `thinking-budget`, không phải sửa lỗi. Bullet gốc của plan viết trước khi phát hiện hàm đã sạch.
+- [x] **provider-gemini:** nhận `displayName` — **xong lượt này**; `compat` (tức `authHeader`) — đã có từ pha 3; xóa
+  `context-policy.ts` — xong từ pha 2.
+- [x] Không còn logic nào phụ thuộc "baseUrl có phải chính chủ không" — xác nhận bằng grep (`baseUrl ===`,
+  `isOfficial`, `OFFICIAL`, so sánh với hằng số `_BASE_URL`) trên cả 3 package: **0 kết quả**. Đã xong từ pha 2.
+- [x] **provider-codex:** giữ discovery `supported_reasoning_levels` làm metadata tham khảo (`efforts`, không đổi) —
+  **xóa `defaultEffort` chết** (`adapter.ts:236-239` cũ): tính rồi gán vào `reasoning.defaultEffort`, một field
+  `ModelReasoningInfo` (core) **đã bỏ từ pha 1** — không gây lỗi biên dịch vì object literal này chỉ được kiểm cấu
+  trúc (không phải excess-property check trực tiếp do đi qua spread), nên field thừa lọt qua âm thầm, không ai đọc.
+  Đây đúng là hành vi "tự điền effort" mà quyết định 1 cấm — dọn nốt, không phải bug mới.
+- [x] **provider-copilot: nhánh chat/completions giờ gửi được effort theo `reasoningFormat` — xong, live thật
+  (2026-09-19), lật lại đánh giá trước đó của chính plan này.** Đánh giá cũ dựa vào
+  `tests/unit/copilot-adapter-headers.spec.ts`'s `'unknown field: reasoning_effort'` — hóa ra đó là một CHUỖI 400
+  BỊA RA cho property test (kiểm bộ phân loại lỗi editor-header vs lỗi thường), **không phải lỗi thật từng quan sát
+  từ Copilot** — bằng chứng gián tiếp trước đó thực chất không tồn tại. Người dùng cung cấp credential Copilot thật
+  giữa phiên (`.providers/.copilot/auth.json` có sẵn trong repo, vẫn còn hạn), live-probe trực tiếp phát hiện:
+  - `GET /v1/models` của Copilot trả về `capabilities.supports.reasoning_effort: [...]` **cho từng model** — đây là
+    field CÓ THẬT, được backend hiểu, không phải khái niệm chỉ tồn tại ở OpenAI/Anthropic.
+  - Gửi `reasoning_effort` cho model không hỗ trợ reasoning (`gpt-4o-mini`, model chat-completions duy nhất
+    account này được cấp quyền) trả về lỗi 400 **CÓ TÊN CHÍNH XÁC** field và model: `"reasoning_effort \"low\" was
+    provided, but model gpt-4o-mini-2024-07-18 does not support reasoning effort"` — đây là backend **hiểu và từ
+    chối vì không hợp với model**, khác hẳn giả định ban đầu ("unknown field" bị từ chối chung chung). Đúng bằng
+    chứng sống mà đánh giá cũ đòi hỏi trước khi mở khóa.
+  - Đã thử `claude-sonnet-5`/`kimi-k3` (có khai `reasoning_effort` trong catalog) nhưng account này không được cấp
+    quyền gọi qua `/chat/completions` (`model_not_supported`, xảy ra CẢ KHI không gửi effort) — không liên quan gì
+    đến field effort, là giới hạn entitlement của account, đúng hiện tượng đã ghi chú sẵn trong
+    `copilot-generation.spec.ts` ("listed but not callable").
+  - Thêm field theo đúng gợi ý dự phòng ban đầu của plan: `CopilotDialect.reasoningFormat` (mặc định `false`, không
+    đổi hành vi hiện tại của ai) + xuyên qua `toChatCompletionsDialect()`
+    ([dual-protocol.ts](../../packages/provider-copilot/src/dual-protocol.ts)). Đặt tay `dialect: { reasoningFormat:
+    'openai' }` (qua `copilotAdapter({ dialect })` đã có sẵn) để bật.
+  - Test: unit mock trong `copilot-adapter-headers.spec.ts` (mặc định không gửi field, bật lên gửi verbatim); property
+    fuzz trong `copilot-router.spec.ts`'s Property 32 mở rộng phủ `reasoningFormat` ngẫu nhiên; **live thật** trong
+    `copilot-generation.spec.ts` (test mới, khóa đúng chuỗi lỗi thật ở trên).
 
 ### Pha 5: Ma trận tương thích (tiêu chí nghiệm thu)
 
@@ -582,11 +942,19 @@ Chứng minh bằng test rằng **chỉ cấu hình** là đủ, không thêm pa
 
 | Họ API | Cấu hình cần chạy được | Cách kiểm tra |
 |---|---|---|
-| OpenAI Responses | OpenAI chính chủ | Live (`OPENAI_API_KEY`) |
-| OpenAI Chat Completions | DeepSeek, OpenRouter, Ollama/vLLM | Mock server theo đúng wire từng bên; live khi có key |
-| Anthropic Messages | Anthropic chính chủ, DeepSeek `/anthropic`, endpoint dùng Bearer | Mock server; live khi có key |
-| Gemini | Google AI Studio | Mock server; live khi có key |
-| **Cả ba wire trên một gateway** | codex2claudecode (`/v1/messages`, `/v1/responses`, `/v1/chat/completions`) | Live khi gateway đang chạy (probe `GET /health`), tự bỏ qua nếu không |
+| OpenAI Responses | OpenAI chính chủ ✅ **live thật**; zenmux.ai ✅ **live thật** | Chính chủ đã chạy 2026-09-19 (`OPENAI_API_KEY` người dùng cấp giữa phiên, model `gpt-5.6-luna`); zenmux live cùng ngày |
+| OpenAI Chat Completions | OpenAI chính chủ ✅ **live thật**; DeepSeek, Ollama/vLLM ✅ (mock); zenmux.ai ✅ **live thật**; OpenRouter chưa (không đoán field theo quyết định 7, xem pha 3) | Chính chủ đã chạy 2026-09-19; mock server cho DeepSeek/Ollama/vLLM; zenmux live cùng ngày |
+| Anthropic Messages | Anthropic chính chủ (**chưa chạy, thiếu `ANTHROPIC_API_KEY`**); DeepSeek `/anthropic` + Bearer ✅ (mock); zenmux.ai ✅ **live thật** | Mock cho DeepSeek; zenmux live đã chạy 2026-09-19; live chính chủ khi có key |
+| Gemini | Google AI Studio | ✅ **Live thật, đã chạy 2026-09-19** (`GEMINI_KEY` có sẵn trong `.env`) — xem chi tiết ngay dưới bảng |
+| **Cả ba wire trên một gateway** | codex2claudecode (`/v1/messages`, `/v1/responses`, `/v1/chat/completions`) | ✅ **Live thật, đã chạy 2026-09-19** — xem chi tiết ngay dưới |
+
+zenmux.ai: gateway OpenAI-compatible của bên thứ ba, người dùng cấp `COMPLETIONS_URL`/`COMPLETIONS_API_KEY`/
+`COMPLETIONS_MODEL`, `RESPONSE_URL`/`RESPONSE_API_KEY`/`RESPONSE_MODEL`, `MESSAGES_URL`/`MESSAGES_API_KEY`/
+`MESSAGES_MODEL` trong `.env` — cùng một model (`dots-studio/dots3-note-prev`) phục vụ cả 3 wire, y hệt tinh thần
+codex2claudecode nhưng ở một vendor độc lập khác. Không thay thế được live chính chủ OpenAI/Anthropic (khác vendor,
+khác đường xác thực thật), nhưng xác nhận sống toàn bộ đường dây dispatch → serialize → parse response cho cả 3 họ
+wire trên một backend thật, không phải mock. 3 test: `openai-chat-completions-live.spec.ts`,
+`openai-responses-live.spec.ts`, `anthropic-messages-live.spec.ts` (`tests/integration/`).
 
 Cấu hình kết nối codex2claudecode (chỉ cấu hình, không code riêng):
 
@@ -607,34 +975,173 @@ createAgentRuntime({
 Lưu ý: protocol Anthropic tự nối `/v1/messages` nên `baseUrl` không có `/v1`; protocol OpenAI nối `/responses` hoặc
 `/chat/completions` nên `baseUrl` phải có `/v1`. `allowInsecureHttp: true` là bắt buộc vì gateway chạy `http://`.
 
-Kiểm tra riêng cho codex2claudecode:
+Kiểm tra riêng cho codex2claudecode — **✅ XONG, live thật (2026-09-19)**, người dùng khởi động gateway ở
+`127.0.0.1:8787` giữa phiên làm việc (`password_protected: false`, model `gpt-5.6-luna` xác nhận tồn tại qua
+`GET /v1/models`). 9 test trong
+[codex2claudecode-live.spec.ts](../../tests/integration/codex2claudecode-live.spec.ts):
 
-- [ ] Cùng một model (ví dụ `gpt-5.6-luna`) trả lời được qua cả 3 route.
-- [x] Gateway áp dụng effort theo field chuẩn của cả 3 wire (đã đo bằng request thô, xem mục 4). Còn lại: kiểm tra
-  **qua SDK** sau khi làm xong pha 1, 3, 4a (SDK gửi đúng field và giá trị).
-- [ ] Hậu tố tên model (`gpt-5.6-sol_high`) vẫn chạy như một model id bình thường (SDK không can thiệp).
-- [ ] Có password: cả `x-api-key` (Anthropic) và `Authorization: Bearer` (OpenAI) đều qua.
-- [ ] Ảnh / PDF với mặc định `inputModalities`.
+- [x] Cùng một model (`gpt-5.6-luna`) trả lời được qua cả 3 route — 3 test, `it.each` trên Anthropic Messages/OpenAI
+  Responses/OpenAI Chat Completions.
+- [x] Gateway áp dụng effort theo field chuẩn của cả 3 wire — đã đo bằng request thô (mục 4 của plan) VÀ giờ qua SDK
+  thật: 3 test `it.each` gửi `reasoningEffort: 'low'` qua cả 3 wire, cả 3 thành công; 1 test gửi effort sai
+  (`'not-a-real-effort-value'`) qua wire Anthropic, xác nhận lỗi 400 thật của gateway ("Invalid value:
+  'not-a-real-effort-value'. Supported values are: 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', and 'max'.")
+  hiện đúng verbatim qua `finish.reason.failure.message` — đúng quyết định 7, không phải đoán.
+- [x] ~~Hậu tố tên model (`gpt-5.6-sol_high`) vẫn chạy như một model id bình thường~~ — người dùng xác nhận không cần
+  kiểm mục này: codex2claudecode giờ dùng model id gốc của từng provider (native) như các provider khác, không còn
+  quy ước hậu tố `_effort` phải giữ nguyên qua SDK. Bỏ khỏi checklist.
+- [x] Có password: cả `x-api-key` (Anthropic) và `Authorization: Bearer` (OpenAI) đều qua — 1 test, gửi cùng lúc
+  qua cả hai wire với `apiKey: 'unit-test-password'` (giá trị bất kỳ, gateway không kiểm vì
+  `password_protected: false`), cả hai thành công.
+- [x] Ảnh với mặc định `inputModalities` — 1 test, ảnh PNG 1x1 base64 qua wire Responses, không cần override
+  `inputModalities`. **Phát hiện một bug thật khi chạy live** (xem ngay dưới) — sau khi sửa, test pass.
 
-Mỗi dòng kiểm tra:
+**Bug thật phát hiện qua live test này, đã sửa:** `HttpModelAdapter.run()`
+([provider-http/src/base/http-adapter.ts:422-434](../../packages/provider-http/src/base/http-adapter.ts)) từ chối
+ảnh/tài liệu bất cứ khi nào `model.inputModalities` là `undefined` (`model.inputModalities?.includes('image') !==
+true` → `true` khi `undefined`) — mâu thuẫn trực tiếp với doc comment của chính `resolvedCatalogModelInfo()`
+([transport.ts:42-44](../../packages/provider-http/src/base/transport.ts)): "Absent, not defaulted to `['text']`:
+an unconfigured modality is UNKNOWN, not a negative capability claim, and the registry fills the SDK's own
+permissive default (text + image + document)". `ModelRegistry`'s policy check (`model-stream.ts`) đọc đúng giá trị
+đã điền mặc định permissive và cho ảnh đi qua, nhưng `run()` lại tự kiểm tra riêng bằng giá trị CHƯA điền mặc định
+(`undefined`) và từ chối — hai lớp kiểm tra dùng hai nguồn sự thật khác nhau, không ai từng viết test kết hợp cả
+`ModelRegistry` lẫn HTTP adapter thật với một model không khai catalog cho tới live test này. Sửa: chỉ từ chối khi
+`model.inputModalities` được khai RÕ RÀNG và không chứa modality đó; `undefined` giờ cho qua (khớp đúng thiết kế đã
+ghi). Một test cũ trong `http-provider.spec.ts` từng khẳng định hành vi SAI này là cố ý ("An uncatalogued model
+defaults to text-only") — comment đó viết trước khi hệ thống `RuntimeDefaults`/permissive-default ra đời ở pha 1b
+phiên này, đã lỗi thời; sửa lại test để khớp đúng thiết kế hiện tại (đổi tên: "refuses document input only for a
+model that explicitly excludes it; an uncatalogued one is permissive"). Chạy lại toàn bộ `pnpm test`
+(2892/2892 xanh) và `pnpm typecheck` sạch sau khi sửa.
 
-- [ ] Agent không đặt effort / max tokens: request không có các field đó, gọi thành công (Anthropic có `max_tokens`
-  dự phòng).
-- [ ] Agent đặt effort hợp lệ: request mang đúng giá trị, gọi thành công.
-- [ ] Agent đặt effort sai: lỗi hiện **message gốc** của API.
-- [ ] Gửi ảnh / PDF với mặc định; và với agent `inputModalities: ['text']`.
+Mỗi dòng kiểm tra (đánh giá theo từng cấu hình có key/gateway thật):
+
+- [x] **Gemini — cả 3 dòng đã chạy live thật (2026-09-19).** Agent không đặt effort: gọi thành công. Agent đặt effort
+  hợp lệ (`low`): gọi thành công. Agent đặt effort sai (`not-a-real-effort-value`): **lỗi hiện đúng message gốc của
+  API** — `"The value 'not-a-real-effort-value' is not supported for 'generation_config.thinking_level'. Supported
+  values: 'minimal', 'low', 'medium', 'high'."` — xác nhận sống quyết định 7, và tiện thể phát hiện thêm dữ liệu
+  chưa từng ghi ở đâu trong plan: **bộ giá trị effort thật Gemini hỗ trợ là `minimal`/`low`/`medium`/`high`** (không
+  phải đoán, đọc thẳng từ response 400 thật). File:
+  [gemini-reasoning-effort-live.spec.ts](../../tests/integration/gemini-reasoning-effort-live.spec.ts) — 3 test,
+  chạy bằng `GEMINI_KEY`/`GEMINI_MODEL` có sẵn trong `.env` của môi trường này, `pnpm test:integration
+  tests/integration/gemini-reasoning-effort-live.spec.ts` (source `.env` trước, biến này không tự nạp vào
+  `process.env`). Phát hiện phụ đáng chú ý: lỗi dispatch của `registry.stream()` không ném promise reject — nó đến
+  dưới dạng chunk `{ type: 'finish', reason: { kind: 'error', failure: {...} } }` trong luồng async iterable; test
+  đầu tiên viết theo giả định "reject" đã sai và phải sửa lại sau khi chạy thật.
+- [x] **OpenAI Responses/Chat Completions, Anthropic Messages — live qua zenmux.ai (2026-09-19)**, xem chi tiết ở
+  bảng nghiệm thu phía trên. Ảnh/PDF chính chủ cho OpenAI/Anthropic — xem mục dưới.
 
 Thêm:
 
-- [ ] Live test tự bỏ qua khi thiếu key tương ứng.
-- [ ] README: mục "Đấu nối endpoint tương thích" (cấu hình mẫu cho từng dòng) và mục "Cấu hình mặc định" (bảng thứ tự
-  ưu tiên ở pha 1b).
+- [x] Live test tự bỏ qua khi thiếu key tương ứng — **đã là quy ước sẵn có** trong repo (xác nhận qua
+  `tests/integration/openai-embedding.spec.ts`: `describe.skipIf(!openAiEmbeddingLive)`); test live mới ở trên theo
+  đúng khuôn mẫu này (`describe.skipIf(geminiKey === undefined)`).
+- [x] README: mục "Connecting a compatible endpoint" và "Default configuration precedence" — **đã thêm cho cả 3
+  provider** (`packages/provider-{openai,anthropic,gemini}/README.md`). Nhân tiện sửa 2 chỗ sai đã lỗi thời trong
+  README có sẵn: (1) cả 3 README nói "collisions and reserved auth/transport headers are rejected" — không còn đúng
+  từ khi đổi chính sách header ở pha 3b (giờ ghi đè được, chỉ còn 2 loại bị chặn cứng); (2) README của
+  `provider-gemini` còn mô tả bảng hardcode "Pro giữ 200k, Flash được 1M" — bảng đó đã bị xóa ở **pha 2**, README cũ
+  mô tả sai hành vi thật (giờ MỌI model chưa khai báo đều về hằng số SDK 200k, không phân biệt theo tên model).
+  `node scripts/check-release-docs.mts` chạy lại sạch (27 file Markdown, 26 README, 0 lỗi) sau khi sửa.
+- [x] **Mock server DeepSeek/Ollama/vLLM** — xong ở pha 4a (xem mục đó); **mock server Anthropic-compatible (DeepSeek
+  `/anthropic`, Bearer)** — xong, `tests/unit/provider-anthropic.spec.ts` ("reaches a Bearer-auth Anthropic-compatible
+  endpoint... end to end"), mô phỏng đúng thứ tự khối `thinking` trước `text` quan sát được ở codex2claudecode (mục
+  4 của plan). Gemini không có vendor tương thích thứ ba trong phạm vi plan nên không cần mock riêng — đã có live
+  thật thay thế, mạnh hơn mock.
+
+**Còn treo, chặn bởi thiếu tài nguyên bên ngoài môi trường này (không phải thiếu code):**
+
+- [x] **Live OpenAI Responses/Chat Completions với OpenAI chính chủ — XONG, live thật (2026-09-19).** Người dùng cấp
+  `OPENAI_API_KEY` giữa phiên (tài khoản chỉ dùng được với model `gpt-5.6-luna`). 5 test mới
+  [openai-live.spec.ts](../../tests/integration/openai-live.spec.ts) chạy thẳng vào `https://api.openai.com`, không
+  qua gateway nào: agent không đặt effort (thành công, không field effort trên wire); effort hợp lệ (`low`, thành
+  công); effort sai (`not-a-real-effort-value`) — lỗi 400 thật của OpenAI hiện verbatim ("Invalid value:
+  'not-a-real-effort-value'. Supported values are: 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', and 'max'."
+  — đúng quyết định 7); ảnh với `inputModalities` mặc định qua Responses (thành công, không cần khai catalog — đúng
+  hành vi permissive vừa sửa ở mục bug bên trên); Chat Completions wire (thành công). Đã probe bằng curl trước khi
+  viết test để xác nhận field/behavior thật trước khi assert.
+- [x] **Live Anthropic Messages — người dùng xác nhận (2026-09-19) live qua zenmux.ai (`anthropic-messages-live.spec.ts`)
+  là đủ**, không cần chờ `ANTHROPIC_API_KEY` chính chủ riêng. Không có key chính chủ trong môi trường này; DeepSeek
+  `/anthropic` đã kiểm bằng mock, zenmux.ai đã kiểm live thật (bên thứ ba, cùng wire Anthropic Messages) — người
+  dùng xác nhận mức nghiệm thu này chấp nhận được cho pha 5, đóng mục này.
+- [x] **PDF live cho Anthropic — cùng quyết định trên**, không chặn nữa. Ảnh/PDF cho OpenAI chính chủ đã xong (mục
+  trên, ảnh); PDF cho Anthropic chưa làm riêng nhưng có tiền lệ đủ mạnh (Gemini, codex2claudecode) làm mẫu nếu cần
+  sau này.
+
+Không viết trước một bộ test "live" mà chưa từng chạy được: phần thân bài kiểm tra chỉ có giá trị khi đã xác nhận nó
+thật sự vượt qua ít nhất một lần với credential/gateway thật — một test chưa kiểm chứng chỉ tạo cảm giác an toàn giả.
+Live Gemini, live codex2claudecode (cả 3 wire, effort, password, ảnh — phát hiện và sửa luôn 1 bug thật), và live
+zenmux.ai (cả 3 wire), và OpenAI chính chủ (5 test, `openai-live.spec.ts`) đều đã viết và đã chạy thật trong phiên
+này. Anthropic chính chủ không có key trong môi trường này, nhưng người dùng đã xác nhận (2026-09-19) rằng live qua
+zenmux.ai cho wire Anthropic Messages là đủ cho pha 5 — không còn mục nghiệm thu sống nào bị chặn.
 
 ### Pha 6: Hoàn thiện
 
-- [ ] Cập nhật `tests/fixtures/public-api/baseline.json`, README 3 provider, CHANGELOG (breaking changes + bug fix
-  effort Anthropic).
-- [ ] Tăng version.
+- [x] Cập nhật README 3 provider — xong (xem mục Thêm ở pha 5 ngay trên).
+- [x] **`tests/fixtures/public-api/baseline.json` — đã XÓA (2026-09-19).** Xác nhận lại lần cuối bằng grep toàn repo
+  ngay trước khi xóa: không có test hay script nào đọc file này (chỉ có một biến cục bộ trùng tên tình cờ trong
+  `test-human/`, không liên quan); `version: "0.0.0"` bên trong xác nhận đây là fixture mồ côi từ một cơ chế cũ hơn.
+  File **đang được dùng thật** bởi `tests/unit/copilot-architecture.spec.ts` là
+  `tests/fixtures/public-api/untouched-packages.json` (khác file, không đụng tới), đã regenerate nhiều lần trong
+  suốt phiên làm việc này (`UPDATE_PACKAGE_SURFACE=1 npx vitest run tests/unit/copilot-architecture.spec.ts`) mỗi
+  khi bề mặt public API đổi — luôn khớp với code hiện tại. `git rm` file mồ côi, `pnpm test` vẫn 2893/2893 xanh sau
+  khi xóa (không ai tham chiếu nó).
+- [x] CHANGELOG — **xong (2026-09-19), dưới mục `## Unreleased`.** Đã xác nhận: repo **chưa có `CHANGELOG.md` nào**
+  (không có ở root, không có theo từng package, không dùng changesets) — tạo mới file gốc `/CHANGELOG.md`, theo thể
+  loại "Keep a Changelog" nhẹ, liệt kê đúng những gì đã **thật sự làm** trong toàn bộ plan (Fixed: bug effort
+  Anthropic; Added: chat-completions, displayName, path/query, body/transformRequest, providerOptions cấp agent,
+  headers-theo-ngữ-cảnh, auth mảng, authHeader Gemini/Anthropic, chính sách ghi đè header; Changed/breaking: theo mục
+  6 bên dưới, đối chiếu lại với những gì đã code chứ không chép nguyên "dự kiến"). Đặt dưới `## Unreleased`, không
+  gán số version — đúng lý do đã nêu trước đó (pha 5 và vài mục pha 3b khi viết CHANGELOG vẫn còn dở; giờ pha 3b đã
+  xong nhưng pha 5 vẫn chặn bởi thiếu key/gateway, nên giữ nguyên `Unreleased`, ghi rõ trong file rằng version gán
+  khi pha 5 xong). `node scripts/check-release-docs.mts` không kiểm `CHANGELOG.md` (chỉ kiểm README các package) nên
+  không có gì phải sửa thêm ở đó.
+- [x] **Tăng version — XONG (2026-09-19).** Người dùng xác nhận rõ: lên `0.1.4` (patch, không phải `0.2.0` — quyết
+  định phát hành của người dùng, dù nội dung đợt này có breaking change; semver chính xác thuộc quyền người dùng SDK,
+  không phải tôi tự suy ra từ nội dung thay đổi). Đã bump `"version"` trong `package.json` gốc + 26 package con
+  (đồng loạt từ `0.1.3`), hằng số runtime `SDK_VERSION` trong
+  [core/src/primitives/version.ts](../../packages/core/src/primitives/version.ts) (đọc bởi observability/attribution
+  — sửa test `observation-core.spec.ts` khớp theo), và số phiên bản trong `web-documents/{vi,en}/**` (bảng thông tin
+  + tên file tarball mẫu). `CHANGELOG.md` chuyển từ `## Unreleased` sang `## 0.1.4 — 2026-09-19`. Không có dependency
+  nội bộ nào ghim version cứng (`workspace:^` trong mọi `package.json`), nên không cần sửa gì thêm ở đó;
+  `pnpm install --lockfile-only` xác nhận `pnpm-lock.yaml` không lệch sau khi bump. Verify: `pnpm typecheck` sạch,
+  baseline public-API regenerate, `pnpm test` 2894/2894 xanh, `node scripts/check-release-docs.mts` sạch.
+
+### Pha 7: Rà soát CI (2026-09-19, theo yêu cầu "đảm bảo CI GitHub Action không lỗi chỗ nào")
+
+Chạy **đúng từng gate** của `.github/workflows/ci.yml` tại máy (3 job: `boundary-build`, `functional`,
+`supply-chain`) thay vì chỉ `pnpm typecheck` + `pnpm test` như các đợt trước. Phát hiện **3 vấn đề CI sẽ đỏ** mà
+toàn bộ test/typecheck trước đó KHÔNG bắt được:
+
+- [x] **`pnpm lint` (job boundary-build) đỏ — `check-package-graph.mts`:** `provider-openai` có cạnh workspace tới
+  `protocol-openai-chat-completions` (thêm ở pha 4a) nhưng `scripts/package-policy.mts` — allowlist chuẩn tắc — chưa
+  khai. Đây là gate cố tình bắt "thêm dependency mà không tuyên bố kiến trúc". Sửa: thêm protocol đó vào
+  `workspaceDependencies` của `provider-openai`, y như `provider-copilot` đã khai 2 protocol từ trước.
+- [x] **`pnpm test:pack` (job functional) đỏ — `scripts/test-packed-provider.mts`:** bảng `PROTOCOL_PACKAGES` liệt kê
+  tarball protocol đi kèm mỗi provider; `provider-openai` vẫn chỉ có `protocol-responses`, nên `npm install` trong
+  fixture đi tìm `protocol-openai-chat-completions@^0.1.4` trên registry (chưa publish) và fail `ETARGET`. Sửa: thêm
+  protocol thứ hai cho `provider-openai`.
+- [x] **`pnpm workspace:typecheck` (job boundary-build) đỏ — lỗi CÓ SẴN TỪ TRƯỚC, không do đợt này:** `provider-anthropic`
+  và `provider-gemini` không tự typecheck được. Nguyên nhân: helper `authOf()` nhận union `AdapterOptions |
+  ProviderOptions`, làm `options.apiKey` nở thành `string | CredentialSource(core) | fn` — không khớp
+  `AuthScheme.token` (chỉ `string | fn`) lẫn `RuntimeAuthScheme.token` (`CredentialInput`). Đã xác minh là lỗi có
+  sẵn bằng cách so `git show HEAD:` cho `authOf`, `apiKey`, `AuthScheme`, `CredentialSource` — **tất cả giống hệt
+  HEAD**. Sửa: `authOf` thành generic theo kiểu credential, mỗi call site giữ kiểu hẹp của mình.
+  **Lý do không gate nào trước đây bắt được:** `tsconfig.json` gốc chỉ `include` `tests`/`scripts`/`spikes`/
+  `test-human` — `pnpm typecheck` (root `tsc --noEmit`) **không hề typecheck `packages/*/src`**. Chỉ
+  `pnpm workspace:typecheck` (turbo, chạy `tsc` trong từng package) mới kiểm, và đó là thứ CI chạy.
+- [x] **Bổ sung export còn thiếu (không phải lỗi CI, là lỗ hổng tính đầy đủ phát hiện khi review):**
+  `provider-openai/src/index.ts` re-export `openAiResponsesProtocol`/`ResponsesDialect` nhưng không export gì của
+  nhánh Chat Completions, dù package giờ nói cả hai wire. Người dùng TypeScript không gọi tên được kiểu để khai
+  `compat`/`models[].api`. Đã thêm: `OpenAiApi`, `OpenAiCatalogModel`, `OpenAiChatCompletionsCompat`,
+  `openAiChatCompletionsProtocol`, `ChatCompletionsDialect`. Baseline public-API đã regenerate theo.
+
+**Toàn bộ gate CI đã chạy xanh tại máy sau khi sửa:** `pnpm install --frozen-lockfile`, `pnpm workspace:build`,
+`pnpm workspace:typecheck` (38/38), `pnpm build:cli`, `pnpm lint` (4 script), `pnpm exec tsc --noEmit`,
+`pnpm check:boundary-fixtures`, `pnpm exec vitest run` (2894/2894), `pnpm test:packages`, `pnpm test:pack` (toàn bộ
+ma trận đóng gói), `pnpm check:supply-chain` (569 integrity record). Kiểm thêm workflow khác: `release.yml` — assert
+version lockstep (26/26 = `0.1.4`) và "resolved dependency ranges" trên tarball thật (`workspace:^` nở đúng thành
+`^0.1.4`, kể cả dependency protocol mới) đều đạt; `docs.yml` — `npm --prefix web-documents run build` xanh (workflow
+này kích hoạt vì đợt này có sửa `web-documents/**`); `sandbox.yml` — không kích hoạt (không đụng path nào của nó).
 
 ## 6. Breaking changes dự kiến
 

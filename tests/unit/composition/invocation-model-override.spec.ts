@@ -173,6 +173,25 @@ describe('per-invocation model selection', () => {
     await runtime.close()
   })
 
+  it('carries an agent-tier contextWindow/inputModalities through every invocation, even across a model switch', async () => {
+    const { adapter, runtime } = await runtimeWithTwoRoutes()
+    const session = runtime.agent({ id: 'capacity', model: { provider: 'primary', id: 'luna-like' },
+      contextWindow: 64_000, inputModalities: ['text'],
+      instructions: 'Answer.', compaction: false }).createSession()
+
+    await session.run('one')
+    // Unlike effort/maxTokens, contextWindow/inputModalities describe the
+    // agent's own configuration, not a specific model's ladder, so a model
+    // switch does not drop them.
+    await session.run('two', { model: { provider: 'secondary', id: 'reserve-like' } })
+
+    expect(adapter.requests.map(request => [request.contextWindow, request.inputModalities])).toEqual([
+      [64_000, ['text']],
+      [64_000, ['text']],
+    ])
+    await runtime.close()
+  })
+
   it('rejects unsupported invocation fields rather than ignoring them, including a removed effort override', async () => {
     const { runtime } = await runtimeWithTwoRoutes()
     const session = runtime.agent({ id: 'strict-fields', model: { provider: 'primary', id: 'luna-like' },

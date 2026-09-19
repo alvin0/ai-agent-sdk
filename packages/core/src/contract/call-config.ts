@@ -10,6 +10,7 @@
  */
 
 import type { ReasoningEffortId } from '../primitives/brand.ts'
+import type { ModelModality } from './model-info.ts'
 
 /**
  * Route, model, effort, and sampling scalars of one request. Every field maps
@@ -23,6 +24,10 @@ export interface CallConfig {
   topP?: number
   maxTokens?: number
   stop?: readonly string[]
+  /** Overrides the model/route/runtime-defaults tiers, same precedence as `maxTokens`. */
+  contextWindow?: number
+  /** Overrides the model/route/runtime-defaults tiers, same precedence as `maxTokens`. */
+  inputModalities?: readonly ModelModality[]
 }
 
 /**
@@ -53,7 +58,14 @@ export function callConfigEquals(a: CallConfig, b: CallConfig): boolean {
     || a.temperature !== b.temperature
     || a.topP !== b.topP
     || a.maxTokens !== b.maxTokens
+    || a.contextWindow !== b.contextWindow
   ) return false
-  if (a.stop === undefined || b.stop === undefined) return a.stop === b.stop
-  return a.stop.length === b.stop.length && a.stop.every((value, index) => value === b.stop?.[index])
+  if (a.stop === undefined || b.stop === undefined) {
+    if (a.stop !== b.stop) return false
+  } else if (a.stop.length !== b.stop.length || !a.stop.every((value, index) => value === b.stop?.[index])) {
+    return false
+  }
+  if (a.inputModalities === undefined || b.inputModalities === undefined) return a.inputModalities === b.inputModalities
+  return a.inputModalities.length === b.inputModalities.length
+    && a.inputModalities.every((value, index) => value === b.inputModalities?.[index])
 }

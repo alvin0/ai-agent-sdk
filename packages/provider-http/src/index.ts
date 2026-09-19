@@ -3,12 +3,16 @@
 export * from './base/index.ts'
 export * from './base/context-policy.ts'
 export * from './configurable/http-provider.ts'
+export {
+  FieldFallbackAdapter,
+  type FieldFallbackOptions,
+} from './configurable/field-fallback.ts'
 export * from './configurable/runtime-provider.ts'
 export type * from './configurable/runtime-types.ts'
 export * from './observation/operations.ts'
 export * from './protocol/protocol.ts'
 export * from './stream/sse.ts'
-export { endpointHeaders } from './common/endpoint-headers.ts'
+export { endpointHeaders, type HeaderContext } from './common/endpoint-headers.ts'
 /** Embedding route configuration; the provider embedding adapters declare against it. */
 export * from './transport/embedding-connection.ts'
 /**

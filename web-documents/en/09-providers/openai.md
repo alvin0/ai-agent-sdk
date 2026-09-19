@@ -8,8 +8,9 @@ Lifecycle: `inert-runtime-owned-registration`.
 pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai
 ```
 
-Targets the **OpenAI Responses API** through
-[`@alvin0/ai-agent-sdk-protocol-responses`](/en/09-providers/protocols).
+Targets both OpenAI generation wires: **Responses** (the default) and **Chat
+Completions**. One route can select a default wire with `api`, or route individual
+catalog models with `models[].api`.
 
 ## Compose it
 
@@ -56,12 +57,20 @@ export {
   openAiAdapter,
   openAiPlugin,
   type OpenAiAdapterOptions,
+  type OpenAiApi,
+  type OpenAiCatalogModel,
+  type OpenAiChatCompletionsCompat,
   type OpenAiCredential,
   type OpenAiPluginOptions,
   type OpenAiProviderOptions,
 }
 // Re-exported for convenience:
-export { openAiResponsesProtocol, type ResponsesDialect }
+export {
+  openAiResponsesProtocol,
+  openAiChatCompletionsProtocol,
+  type ResponsesDialect,
+  type ChatCompletionsDialect,
+}
 ```
 
 | Export | Use |
@@ -152,28 +161,64 @@ plugin-instance, and provider-family identity.
 A route collision fails **before setup completes** with
 `DUPLICATE_ADAPTER`, not at first use.
 
-## An OpenAI-compatible endpoint
+## Prompt caching for long sessions
 
-Any endpoint speaking the **Responses** protocol needs no new package:
+Caching is opt-in. Let the SDK generate one stable key for this adapter/plugin
+instance:
 
 ```ts
-import { openAiResponsesProtocol } from '@alvin0/ai-agent-sdk-protocol-responses'
-import { createHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
-
-registry.registerAdapter(['openrouter'], createHttpProvider({
-  displayName: 'OpenRouter',
-  protocol: openAiResponsesProtocol,
-  baseUrl: 'https://openrouter.ai/api/v1',
-  auth: { kind: 'bearer', token: envCredential('OPENROUTER_API_KEY') },
-}))
+openAiPlugin({
+  apiKey,
+  promptCaching: true,
+})
 ```
 
-> An endpoint that speaks **Chat Completions** rather than Responses is a
-> different wire protocol and needs a protocol implementation — see
-> [Custom Provider](/en/09-providers/custom-provider).
+Or pass an application-owned key when the provider instance serves a known
+session:
+
+```ts
+openAiPlugin({
+  apiKey,
+  promptCacheKey: `conversation:${conversationId}`,
+})
+```
+
+The resolved key is serialized as `prompt_cache_key` on both Responses and Chat
+Completions. A mixed route shares the same key across both wires. Keep one
+auto-keyed provider instance scoped to one cache identity; sharing it between
+unrelated tenants or conversations would group traffic under the same key.
+
+If a compatible gateway rejects `prompt_cache_key` with a field-specific HTTP
+400, the adapter retries that call once without the field and remembers the
+downgrade for its lifetime. Unrelated failures are not retried by this mechanism.
+
+See [Prompt caching](/en/09-providers/prompt-caching) for provider differences,
+session lifetime, prefix stability, and usage accounting.
+
+## An OpenAI-compatible endpoint
+
+Choose the wire that the endpoint actually implements. Most OpenAI-compatible
+gateways implement Chat Completions:
+
+```ts
+openAiPlugin({
+  id: 'openrouter',
+  displayName: 'OpenRouter',
+  baseUrl: 'https://openrouter.ai/api/v1',
+  api: 'chat-completions',
+  apiKey: envCredential('OPENROUTER_API_KEY'),
+  compat: { reasoningFormat: 'openai' },
+})
+```
+
+Set `api: 'responses'` for a Responses-compatible endpoint. `compat` controls
+Chat-Completions-specific fields such as reasoning format, token-limit field,
+system role, tools, streaming usage, stop, and seed. `path`, `query`, `body`, and
+`transformRequest` cover gateway-specific routing and payload extensions.
 
 ## Read next
 
 - [Anthropic](/en/09-providers/anthropic) · [Codex](/en/09-providers/codex)
 - [Protocols](/en/09-providers/protocols)
+- [Prompt caching](/en/09-providers/prompt-caching)
 - [Custom Provider](/en/09-providers/custom-provider)

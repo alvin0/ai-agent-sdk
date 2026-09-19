@@ -66,7 +66,7 @@ export {
 | `anthropicPlugin(options)` | **Recommended.** Transactional registration. |
 | `anthropicAdapter(options)` | Manual route registration. |
 | `ANTHROPIC_VERSION` | The pinned API version header the adapter sends. |
-| `DEFAULT_THINKING_BUDGETS` | Maps reasoning efforts to thinking token budgets. |
+| `DEFAULT_THINKING_BUDGETS` | Legacy effort-to-budget mapping used only with `reasoningFormat: 'thinking-budget'`. |
 
 ```ts
 import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
@@ -82,32 +82,61 @@ const registry = new ModelRegistry()
 registry.install(anthropicPlugin({ apiKey }))
 ```
 
-## Reasoning maps to thinking budgets
+## Reasoning effort
 
-Anthropic expresses reasoning as a **token budget**, not an effort level. The
-adapter bridges the neutral `effort` to a budget through
-`DEFAULT_THINKING_BUDGETS`:
+Current models receive the neutral `effort` value through
+`output_config.effort` by default:
 
 ```ts
 runtime.agent({
   id: 'analyst',
   model: { provider: 'anthropic', id: 'claude-sonnet-4-5' },
   instructions: '…',
-  effort: 'medium',        // → a thinking token budget
+  effort: 'medium',        // → output_config.effort
 })
 ```
 
-Override the mapping when your model or workload needs a different curve:
+For an older model or compatible gateway that only accepts a thinking-token
+budget, opt into the legacy mapping explicitly:
 
 ```ts
 anthropicPlugin({
   apiKey,
+  reasoningFormat: 'thinking-budget',
   thinkingBudgets: { low: 1_024, medium: 8_192, high: 32_768 },
 })
 ```
 
 `AnthropicReasoningState` carries the adapter-private reasoning state needed for
 replay.
+
+## Prompt caching for long sessions
+
+Enable provider-native `cache_control` breakpoints explicitly:
+
+```ts
+anthropicPlugin({
+  apiKey,
+  promptCaching: true,
+  promptCachingTtl: '1h', // optional; omitted uses the API default (5m)
+})
+```
+
+The serializer marks the stable prefix without changing the neutral message
+contract:
+
+- the system prompt;
+- the final tool definition, which covers the tool list before it;
+- the final content block of the second-to-last wire message, which covers the
+  conversation before the newest turn.
+
+That uses at most three cache breakpoints and leaves one of Anthropic's four
+breakpoint slots available. On the first turn there is no stable message prefix,
+so only an available system/tool prefix is marked.
+
+If a compatible Messages gateway returns a field-specific HTTP 400 naming
+`cache_control`, the adapter retries once without caching and remembers the
+downgrade. See [Prompt caching](/en/09-providers/prompt-caching).
 
 ## Capabilities
 
@@ -183,4 +212,5 @@ surface as typed errors rather than behaviour drift.
 
 - [OpenAI](/en/09-providers/openai) · [Codex](/en/09-providers/codex)
 - [Protocols](/en/09-providers/protocols)
+- [Prompt caching](/en/09-providers/prompt-caching)
 - [Native Tools](/en/03-tools/native-tools)

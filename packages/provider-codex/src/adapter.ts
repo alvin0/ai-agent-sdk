@@ -36,6 +36,7 @@ import type {
   HttpModelAdapter,
   ProviderCatalogModel,
   ProviderRequestLogger,
+  ProviderResponseLogger,
 } from '@alvin0/ai-agent-sdk-provider-http'
 import {
   createHttpProvider,
@@ -172,6 +173,8 @@ export interface CodexAdapterOptions {
   retryPolicy?: RetryPolicyConfig
   /** Optional exact wire-request logger; credentials/account ids are redacted. */
   requestLogger?: ProviderRequestLogger
+  /** Optional exact wire-response logger, fired once a stream ends. */
+  responseLogger?: ProviderResponseLogger
   /** Issuer and client id overrides for token refresh. */
   oauth?: CodexOAuthOptions
   /**
@@ -233,10 +236,6 @@ async function discoverCodexModels(
         ...candidate.description === undefined ? {} : { description: candidate.description },
       }]
     })
-    const defaultEffort = typeof entry.default_reasoning_level === 'string'
-      && efforts.some(effort => effort.id === entry.default_reasoning_level)
-      ? ReasoningEffortId(entry.default_reasoning_level)
-      : undefined
     return [{
       id: entry.slug,
       ...entry.display_name === undefined ? {} : { name: entry.display_name },
@@ -249,12 +248,7 @@ async function discoverCodexModels(
       ...typeof entry.max_context_window === 'number' && Number.isSafeInteger(entry.max_context_window)
         && entry.max_context_window >= (entry.context_window ?? 1)
         ? { maxContextWindow: entry.max_context_window } : {},
-      ...efforts.length === 0 ? {} : {
-        reasoning: {
-          efforts,
-          ...defaultEffort === undefined ? {} : { defaultEffort },
-        },
-      },
+      ...efforts.length === 0 ? {} : { reasoning: { efforts } },
     }]
   })
 }
@@ -362,6 +356,7 @@ function legacyCodexAdapter(
     ...transportLimits(options),
     ...options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy },
     ...options.requestLogger === undefined ? {} : { requestLogger: options.requestLogger },
+    ...options.responseLogger === undefined ? {} : { responseLogger: options.responseLogger },
   })
 }
 
@@ -459,6 +454,7 @@ function runtimeCodexAdapter(
     ...transportLimits(options),
     ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),
     ...(options.requestLogger === undefined ? {} : { requestLogger: options.requestLogger }),
+    ...(options.responseLogger === undefined ? {} : { responseLogger: options.responseLogger }),
   })
 }
 

@@ -8,27 +8,28 @@ Với bất kỳ endpoint nào nói một giao thức mà package này đã hi�
 vào chỉ là **cấu hình**. Không tệp mới, không thư mục mới, không sửa SDK.
 
 ```ts
-import { openAiResponsesProtocol } from '@alvin0/ai-agent-sdk-protocol-responses'
+import { openAiChatCompletionsProtocol } from '@alvin0/ai-agent-sdk-protocol-openai-chat-completions'
 import { createHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
 import { envCredential } from '@alvin0/ai-agent-sdk-auth-node/env'
 
 registry.registerAdapter(['openrouter'], createHttpProvider({
   displayName: 'OpenRouter',
-  protocol: openAiResponsesProtocol,
+  protocol: openAiChatCompletionsProtocol,
   baseUrl: 'https://openrouter.ai/api/v1',
   auth: { kind: 'bearer', token: envCredential('OPENROUTER_API_KEY') },
 }))
 ```
 
-Hiện có sẵn ba giao thức:
+Hiện có sẵn bốn giao thức:
 
 | Giao thức | Package |
 | --- | --- |
 | OpenAI Responses / Codex | `@alvin0/ai-agent-sdk-protocol-responses` |
+| OpenAI Chat Completions | `@alvin0/ai-agent-sdk-protocol-openai-chat-completions` |
 | Anthropic Messages | `@alvin0/ai-agent-sdk-protocol-anthropic-messages` |
 | Gemini Interactions | `@alvin0/ai-agent-sdk-protocol-gemini-interactions` |
 
-Cả ba đều Universal, không sở hữu endpoint hay thông tin xác thực, và chỉ phụ
+Cả bốn đều Universal, không sở hữu endpoint hay thông tin xác thực, và chỉ phụ
 thuộc `@alvin0/ai-agent-sdk-core`.
 
 ### OAuth không cần kế thừa lớp

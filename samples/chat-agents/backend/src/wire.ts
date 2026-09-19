@@ -161,6 +161,31 @@ export interface WireApiCall {
     readonly finishReason?: string
     readonly error?: string
   }
+  /**
+   * The exact wire payload, when the adapter was configured to report it.
+   *
+   * Everything above this field is the SDK's own neutral shape — `messages`,
+   * `params` — reconstructed from `GenerateOptions`/`StreamChunk`, one layer
+   * above what actually reaches the provider. `raw` is the other side of that
+   * layer: `request.body` is the exact protocol-serialized JSON (OpenAI's
+   * `input`, Anthropic's `content` blocks, whatever field names this provider
+   * actually uses), and `response.frames` is every decoded SSE event before
+   * this SDK's `translate()` reshapes any of it — the two put the question
+   * "did the payload actually carry the right parameters" within direct reach
+   * instead of behind a reconstruction.
+   */
+  readonly raw?: {
+    readonly request: {
+      readonly headers: Readonly<Record<string, string>>
+      readonly body: unknown
+      readonly bodyBytes: number
+    }
+    readonly response: {
+      readonly status: number
+      readonly headers: Readonly<Record<string, string>>
+      readonly frames: readonly { readonly event: string | undefined; readonly data: string }[]
+    }
+  }
 }
 /**
  * One step of a run, as the trace view draws it.

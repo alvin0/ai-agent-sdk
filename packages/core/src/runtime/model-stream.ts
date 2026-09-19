@@ -55,11 +55,14 @@ export async function* streamAdapter(input: AdapterStreamInput): AsyncGenerator<
     const withConfig = callConfigEquals(options, prepared.config)
       ? options
       : { ...options, ...prepared.config }
-    const hasUnsupportedImages = prepared.modelInfo.inputModalities !== undefined
-      && !prepared.modelInfo.inputModalities.includes('image')
+    // The agent tier (CallConfig.inputModalities, folded into `withConfig` by
+    // `resolveCallWithModelInfo`) wins over the model's own declared value.
+    const effectiveInputModalities = withConfig.inputModalities ?? prepared.modelInfo.inputModalities
+    const hasUnsupportedImages = effectiveInputModalities !== undefined
+      && !effectiveInputModalities.includes('image')
       && withConfig.messages.some(message => contentHasImage(message.content))
-    const hasUnsupportedDocuments = prepared.modelInfo.inputModalities !== undefined
-      && !prepared.modelInfo.inputModalities.includes('document')
+    const hasUnsupportedDocuments = effectiveInputModalities !== undefined
+      && !effectiveInputModalities.includes('document')
       && withConfig.messages.some(message => contentHasDocument(message.content))
     if (withConfig.imagePolicy !== undefined && withConfig.imagePolicy !== 'strict' && withConfig.imagePolicy !== 'project') throw new ModelError('invalid image policy', 'INVALID_IMAGE_POLICY')
     if (withConfig.documentPolicy !== undefined && withConfig.documentPolicy !== 'strict' && withConfig.documentPolicy !== 'project') throw new ModelError('invalid document policy', 'INVALID_DOCUMENT_POLICY')

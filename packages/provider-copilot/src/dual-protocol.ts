@@ -100,6 +100,22 @@ export interface CopilotDialect {
   readonly parallelToolCalls: boolean
   /** Prompt/session cache key, used by BOTH branches. */
   readonly promptCacheKey?: string
+  /**
+   * Chat Completions only: how to tell this endpoint how hard to think.
+   *
+   * Defaults to `false` (send nothing) — the original design reasoned that an
+   * unrecognized field would 400 a request, but a live probe against a real
+   * Copilot Individual account (docs/plans/reasoning-effort-provider-redesign.md,
+   * phase 4b) found the opposite: `gpt-4o-mini` on `/chat/completions` accepted
+   * `reasoning_effort` in the body without error, both set and unset. The
+   * account's only chat-completions-entitled model is not a reasoning model, so
+   * this proves the field is tolerated, not that it changes behavior — still not
+   * enough to flip the default without guessing (decision 7), but enough to stop
+   * blocking the caller who wants to opt in. Set `'openai'` to send
+   * `reasoning_effort` verbatim, the same wire field Chat Completions uses
+   * elsewhere in this SDK.
+   */
+  readonly reasoningFormat: ChatCompletionsDialect['reasoningFormat']
 }
 
 /**
@@ -122,6 +138,7 @@ export const COPILOT_DEFAULT_DIALECT: CopilotDialect = Object.freeze({
   streamUsage: true,
   systemRole: 'system',
   parallelToolCalls: false,
+  reasoningFormat: false,
 } as const satisfies CopilotDialect)
 
 /**
@@ -157,9 +174,9 @@ export function toResponsesDialect(dialect: CopilotDialect): Partial<ResponsesDi
  * Project the Copilot dialect onto the Chat Completions dialect.
  *
  * PURE and TOTAL, same rule as {@link toResponsesDialect}: `store`, `include` and
- * `reasoningSummary` have no Chat Completions destination and are dropped —
- * `reasoningEffort` is a different knob (how hard to think, not whether to report
- * a summary), so mapping onto it would be a guess dressed as a translation.
+ * `reasoningSummary` have no Chat Completions destination and are dropped.
+ * `reasoningFormat` DOES have one — see its doc comment on {@link CopilotDialect}
+ * for why it defaults off rather than on.
  *
  * Two flags change type on the way across, and each mapping is total:
  *
@@ -190,6 +207,7 @@ export function toChatCompletionsDialect(
     streamUsage: dialect.streamUsage,
     systemRole: dialect.systemRole,
     parallelToolCalls: dialect.parallelToolCalls,
+    reasoningFormat: dialect.reasoningFormat,
     ...(dialect.promptCacheKey === undefined ? {} : { promptCacheKey: dialect.promptCacheKey }),
   }
 }
@@ -274,8 +292,8 @@ export function copilotDualProtocol(
   /**
    * The Chat Completions dialect for one request.
    *
-   * Same rule; the sub-protocol supplies `path`, `stop`, `seed` and
-   * `reasoningEffort`, which {@link CopilotDialect} deliberately does not expose.
+   * Same rule; the sub-protocol supplies `path`, `stop` and `seed`, which
+   * {@link CopilotDialect} does not expose.
    */
   const resolvedChatDialect = (dialect: CopilotDialect): ChatCompletionsDialect =>
     Object.freeze({ ...chat.defaultDialect, ...toChatCompletionsDialect(dialect) })

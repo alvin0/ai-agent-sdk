@@ -14,7 +14,7 @@ header quy kết, xử lý sai abort, hoặc bịa mã lỗi.
 | Điểm vào | Endpoint | Thông tin xác thực |
 | --- | --- | --- |
 | `@alvin0/ai-agent-sdk-provider-anthropic` | Messages API | `apiKey` tiêm vào |
-| `@alvin0/ai-agent-sdk-provider-openai` | Responses API | `apiKey` tiêm vào |
+| `@alvin0/ai-agent-sdk-provider-openai` | Responses hoặc Chat Completions | `apiKey` tiêm vào |
 | `@alvin0/ai-agent-sdk-provider-codex` | Codex nền ChatGPT | `CodexAuthStore` tiêm vào |
 | `@alvin0/ai-agent-sdk-provider-gemini` | Gemini Interactions API | `apiKey` tiêm vào |
 | `@alvin0/ai-agent-sdk-provider-copilot` | Bề mặt subscription Copilot | `CopilotCredentialStore` tiêm vào |
@@ -37,6 +37,11 @@ một plugin generation trên cùng runtime. Xem
 ## Hai kiểu đăng ký
 
 Mới trong 0.1.2: [Gateway tương thích và credential trong database](/vi/09-providers/gateways-and-credentials).
+
+Xem [Prompt caching](/vi/09-providers/prompt-caching) cho caching native theo
+provider trong session dài. OpenAI dùng cache key ổn định, Anthropic dùng
+breakpoint prefix tường minh, còn Gemini Interactions cache prefix khớp theo cơ
+chế implicit.
 
 **Plugin (khuyến nghị).** Một đăng ký có giao dịch mà runtime kích hoạt và gỡ bỏ:
 

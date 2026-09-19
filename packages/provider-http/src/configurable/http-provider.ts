@@ -52,6 +52,8 @@ import {
   type ProviderRequest,
   type ProviderRequestLogger,
   type ProviderRequestLogRecord,
+  type ProviderResponseLogger,
+  type ProviderResponseLogRecord,
 } from '../base/http-adapter.ts'
 import type { ProviderProtocolChunk } from '../stream/types.ts'
 import { resolveDialect, type WireProtocol } from '../protocol/protocol.ts'
@@ -64,10 +66,15 @@ import {
   DEFAULT_TRANSPORT_HEADERS,
   mergeHeaderLayers,
 } from '../common/header-layers.ts'
+import type { HeaderContext } from '../common/endpoint-headers.ts'
 import {
   catalogModelInfo,
   resolvedCatalogModelInfo,
 } from '../base/transport.ts'
+import { appendQuery } from '../common/request-path.ts'
+import { mergeRequestBody } from '../common/body-merge.ts'
+import { AgentSdkError } from '@alvin0/ai-agent-sdk-core/provider'
+import { HTTP_PROVIDER_ERROR_CODES } from '../common/config.ts'
 
 /** A credential, either literal or resolved per operation. */
 export type CredentialSource = string | ((
@@ -98,9 +105,56 @@ export type AuthScheme =
       provider?: string,
     ) => Record<string, string> | Promise<Record<string, string>>
   }
+  /**
+   * A named query-string parameter, e.g. Azure's `?key=`. Never a header —
+   * the value reaches the URL instead — but still resolved alongside every
+   * other scheme and still redacted in logs by name.
+   */
+  | { kind: 'query'; name: string; value: CredentialSource; label?: string }
 
-interface ResolvedAuthHeaders {
+interface ResolvedAuth {
   readonly headers: Readonly<Record<string, string>>
+  readonly query: Readonly<Record<string, string>>
+}
+
+/** Normalize a single scheme or an array of schemes into an array. */
+function authSchemesOf(auth: AuthScheme | readonly AuthScheme[]): readonly AuthScheme[] {
+  return Array.isArray(auth) ? auth : [auth as AuthScheme]
+}
+
+/** Union several name/value records, case-insensitively, failing fast on a name two entries both set. */
+function unionByName(
+  entries: readonly Readonly<Record<string, string>>[],
+  kind: 'header' | 'query param',
+): Readonly<Record<string, string>> {
+  const output: Record<string, string> = {}
+  const owners = new Map<string, number>()
+  entries.forEach((entry, index) => {
+    for (const [name, value] of Object.entries(entry)) {
+      const lower = name.toLowerCase()
+      const first = owners.get(lower)
+      if (first !== undefined && first !== index) {
+        throw new AgentSdkError(
+          `Two auth schemes both produced the \`${lower}\` ${kind}`,
+          HTTP_PROVIDER_ERROR_CODES.HEADER_COLLISION,
+        )
+      }
+      owners.set(lower, index)
+      output[name] = value
+    }
+  })
+  return output
+}
+
+/** What `transformRequest` sees alongside the body. */
+export interface RequestContext {
+  /** Registered provider route. */
+  readonly provider: string
+  /** Exact model id for this call. */
+  readonly model: string
+  /** Stable code-owned agent identity, when this call belongs to one and the caller supplied it. */
+  readonly agentId?: string
+  readonly signal?: AbortSignal
 }
 
 /** What a model-discovery hook receives. */
@@ -128,16 +182,46 @@ export interface HttpProviderOptions<Dialect extends object> {
   allowInsecureHttp?: boolean
   /** Captured fetch implementation for tests, custom runtimes, and transport policy. */
   fetch?: typeof globalThis.fetch
-  /** How to authenticate. */
-  auth: AuthScheme
+  /**
+   * How to authenticate. An array resolves every scheme and unions their
+   * headers — a gateway key alongside an upstream key, for instance. Each
+   * entry's headers are marked sensitive and redacted in logs; two entries
+   * producing the same header name fail fast, before either credential
+   * resolves.
+   */
+  auth: AuthScheme | readonly AuthScheme[]
   /**
    * Per-endpoint protocol knobs, merged over the protocol's defaults.
    *
    * Partial, so a protocol can gain a knob without any endpoint needing an edit.
    */
   dialect?: Partial<Dialect>
-  /** Extra static headers, or a resolver for them. */
-  headers?: Record<string, string> | (() => Record<string, string>)
+  /** Extra static headers, or a resolver receiving `{ provider, agentId?, signal? }`. */
+  headers?: Record<string, string> | ((ctx: HeaderContext) => Record<string, string>)
+  /**
+   * Override the request path every protocol would otherwise pick for itself
+   * (e.g. an Azure OpenAI deployment path). Applies uniformly to every request
+   * this endpoint sends; a protocol's own default stays in force when unset.
+   */
+  path?: string
+  /**
+   * Extra query-string parameters, or a resolver for them (e.g. Azure's
+   * `api-version`). Never for secrets — a value here is NOT redacted in logs;
+   * put a credential in `auth` instead.
+   */
+  query?: Record<string, string> | (() => Record<string, string>)
+  /**
+   * Fields to deep-merge into the serialized body, route-wide. The caller's
+   * value always wins, even over a field the SDK set (`model`, `max_tokens`,
+   * `reasoning`, `stream`, …) — decision 12. A `null` value deletes the field.
+   */
+  body?: Readonly<Record<string, unknown>>
+  /**
+   * Last-resort hook with full authority over the body, run after `body` is
+   * merged in and right before the request is sent (and logged). Prefer
+   * `body` when a deep-merge already says what you mean.
+   */
+  transformRequest?: (body: unknown, ctx: RequestContext) => unknown
   /**
    * Advisory model catalog.
    *
@@ -211,6 +295,14 @@ export interface HttpProviderOptions<Dialect extends object> {
    * @deprecated High-risk compatibility bridge. Prefer structured observation.
    */
   requestLogger?: ProviderRequestLogger
+  /**
+   * Observe the exact, header-redacted wire response once a stream ends.
+   * `frames` is every decoded SSE event in this provider's own vocabulary,
+   * before `translate()` reshapes it — the counterpart `requestLogger` is
+   * missing entirely, and without it a trace can show what went out but not
+   * what came back.
+   */
+  responseLogger?: ProviderResponseLogger
 }
 
 const DEFAULT_CATALOG_TTL_MS = 5 * 60 * 1_000
@@ -272,12 +364,16 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
       ),
       maxCatalogModels,
       maxCatalogBytes,
-      auth: Object.freeze({ ...options.auth }),
+      auth: Object.freeze(authSchemesOf(options.auth).map(scheme => Object.freeze({ ...scheme }))),
       ...(models === undefined ? {} : { models }),
       ...(options.headers === undefined || typeof options.headers === 'function'
         ? {}
         : { headers: Object.freeze({ ...options.headers }) }),
       ...(options.baseHeaders === undefined ? {} : { baseHeaders: Object.freeze({ ...options.baseHeaders }) }),
+      ...(options.query === undefined || typeof options.query === 'function'
+        ? {}
+        : { query: Object.freeze({ ...options.query }) }),
+      ...(options.body === undefined ? {} : { body: Object.freeze({ ...options.body }) }),
     })
     this.displayName = options.displayName
     this.dialect = resolveDialect(options.protocol, options.dialect)
@@ -344,41 +440,75 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
       Object.freeze(catalogModelInfo(provider, model))))
   }
 
-  /** Resolve the authentication headers for one operation. */
-  private async authHeaders(
+  /** Resolve one scheme for one operation, as either a header or a query param. */
+  private async authSchemeResolved(
+    auth: AuthScheme,
     provider: string,
     signal?: AbortSignal,
     context?: ModelInvocationContext,
-  ): Promise<ResolvedAuthHeaders> {
-    const auth = this.options.auth
+  ): Promise<{ headers: Readonly<Record<string, string>>; query: Readonly<Record<string, string>> }> {
     switch (auth.kind) {
       case 'none':
-        return { headers: {} }
+        return { headers: {}, query: {} }
       case 'bearer': {
         const token = await observeCredentialOperation(context, provider, 'resolve', () => credential(
           auth.token, this.displayName, auth.label ?? 'the `auth.token` option', signal, context,
         ))
-        return { headers: { authorization: `Bearer ${token}` } }
+        return { headers: { authorization: `Bearer ${token}` }, query: {} }
       }
       case 'header': {
         const value = await observeCredentialOperation(context, provider, 'resolve', () => credential(
           auth.value, this.displayName, auth.label ?? `the \`${auth.name}\` credential`, signal, context,
         ))
-        return { headers: { [auth.name]: value } }
+        return { headers: { [auth.name]: value }, query: {} }
+      }
+      case 'query': {
+        const value = await observeCredentialOperation(context, provider, 'resolve', () => credential(
+          auth.value, this.displayName, auth.label ?? `the \`${auth.name}\` query credential`, signal, context,
+        ))
+        return { headers: {}, query: { [auth.name]: value } }
       }
       case 'dynamic':
-        return { headers: await observeCredentialOperation(
-          context, provider, 'resolve', async () => await auth.resolve(signal, context, provider),
-        ) }
+        return {
+          headers: await observeCredentialOperation(
+            context, provider, 'resolve', async () => await auth.resolve(signal, context, provider),
+          ),
+          query: {},
+        }
       default:
-        return { headers: {} }
+        return { headers: {}, query: {} }
     }
+  }
+
+  /**
+   * Resolve every configured scheme in parallel and union their headers and
+   * query params.
+   *
+   * Two schemes producing the same header name (or the same query param name)
+   * fail fast, before the merged result ever reaches {@link mergeHeaderLayers}
+   * — a collision here is a configuration mistake (the same credential
+   * declared twice, or two schemes racing for `authorization`), not something
+   * a later-layer-wins policy should paper over.
+   */
+  private async authHeaders(
+    provider: string,
+    signal?: AbortSignal,
+    context?: ModelInvocationContext,
+  ): Promise<ResolvedAuth> {
+    const schemes = authSchemesOf(this.options.auth)
+    const resolved = await Promise.all(
+      schemes.map(scheme => this.authSchemeResolved(scheme, provider, signal, context)),
+    )
+    const headers = unionByName(resolved.map(entry => entry.headers), 'header')
+    const query = unionByName(resolved.map(entry => entry.query), 'query param')
+    return { headers, query }
   }
 
   protected override async connect(
     provider: string,
     signal?: AbortSignal,
     context?: ModelInvocationContext,
+    model?: string,
   ): Promise<HttpConnection> {
     const timeoutMs = positiveFinite(
       this.options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
@@ -390,8 +520,15 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
     // Credential and endpoint resolve together, in one snapshot, so a rotating
     // secret can never be paired with a different generation's URL.
     const extra = typeof this.options.headers === 'function'
-      ? this.options.headers()
+      ? this.options.headers({
+        provider,
+        ...(context?.agentId === undefined ? {} : { agentId: context.agentId }),
+        ...(operationSignal === undefined ? {} : { signal: operationSignal }),
+      })
       : this.options.headers ?? {}
+    const modelEntry = model === undefined
+      ? undefined
+      : this.options.models?.find(candidate => candidate.id === model)
     const publicLayers = [
       captureHeaderLayer({
         layer: 'transport', headers: this.options.baseHeaders ?? DEFAULT_TRANSPORT_HEADERS,
@@ -402,6 +539,12 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
         headers: this.options.protocol.protocolHeaders?.(this.dialect) ?? {},
       }),
       captureHeaderLayer({ layer: 'endpoint', headers: extra }),
+      // The model's own headers win over the route's, per decision 12's
+      // "route, model, agent" precedence.
+      captureHeaderLayer({ layer: 'endpoint', headers: modelEntry?.headers ?? {} }),
+      // The agent's own headers, last among the public layers so they win over
+      // both the route's and the model's.
+      captureHeaderLayer({ layer: 'endpoint', headers: context?.providerOptions?.headers ?? {} }),
     ] as const
     // Structural conflicts that do not depend on credentials fail before secret
     // resolution. The captured layer snapshots cannot mutate while auth awaits.
@@ -417,6 +560,10 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
       baseUrl,
       headers,
       sensitiveHeaderNames: merged.sensitiveHeaderNames,
+      ...(Object.keys(auth.query).length === 0 ? {} : {
+        queryOverrides: auth.query,
+        sensitiveQueryParamNames: Object.freeze(Object.keys(auth.query)),
+      }),
       streamIdleTimeoutMs: this.options.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS,
       requestTimeoutMs: this.options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
       maxRequestBytes: this.options.maxRequestBytes ?? DEFAULT_MAX_REQUEST_BYTES,
@@ -507,16 +654,47 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
     return this.options.requestLogger?.(record)
   }
 
+  protected override observeResponse(record: ProviderResponseLogRecord): Promise<void> | void {
+    return this.options.responseLogger?.(record)
+  }
+
   protected override providerErrorCode(status: number, detail: string): string {
     return this.options.errorCode?.(status, detail) ?? super.providerErrorCode(status, detail)
   }
 
   protected override endpointPath(request: ProviderRequest): string {
-    return this.options.protocol.endpointPath(request, this.dialect)
+    const base = this.options.path ?? this.options.protocol.endpointPath(request, this.dialect)
+    const withRouteQuery = appendQuery(base, this.options.query)
+    // `auth`'s query-string credentials (`{ kind: 'query', ... }`) always win,
+    // same as any other auth-layer value — see decision 12's merge order.
+    return request.connection.queryOverrides === undefined
+      ? withRouteQuery
+      : appendQuery(withRouteQuery, request.connection.queryOverrides)
   }
 
   protected override buildBody(request: ProviderRequest): unknown | Promise<unknown> {
-    return this.options.protocol.serialize(request, this.dialect)
+    const serialized = this.options.protocol.serialize(request, this.dialect)
+    const withRouteBody = this.options.body === undefined
+      ? serialized
+      : mergeRequestBody(serialized, this.options.body)
+    // The model's own body fields win over the route's, per decision 12's
+    // "route, model, agent" precedence.
+    const modelBody = this.options.models?.find(candidate => candidate.id === request.model.id)?.body
+    const withModelBody = modelBody === undefined
+      ? withRouteBody
+      : mergeRequestBody(withRouteBody, modelBody)
+    // The agent's own body fields win over both, being the last, most specific tier.
+    const merged = request.providerOptionsBody === undefined
+      ? withModelBody
+      : mergeRequestBody(withModelBody, request.providerOptionsBody)
+    return this.options.transformRequest === undefined
+      ? merged
+      : this.options.transformRequest(merged, {
+        provider: request.options.provider,
+        model: request.model.id,
+        ...request.agentId === undefined ? {} : { agentId: request.agentId },
+        ...request.options.signal === undefined ? {} : { signal: request.options.signal },
+      })
   }
 
   protected override translate(

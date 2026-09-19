@@ -909,6 +909,9 @@ importers:
 
   packages/provider-openai:
     dependencies:
+      '@alvin0/ai-agent-sdk-protocol-openai-chat-completions':
+        specifier: workspace:^
+        version: link:../protocol-openai-chat-completions
       '@alvin0/ai-agent-sdk-protocol-responses':
         specifier: workspace:^
         version: link:../protocol-responses
@@ -1058,6 +1061,9 @@ importers:
       '@alvin0/ai-agent-sdk-provider-gemini':
         specifier: workspace:*
         version: link:../../../packages/provider-gemini
+      '@alvin0/ai-agent-sdk-provider-http':
+        specifier: workspace:*
+        version: link:../../../packages/provider-http
       '@alvin0/ai-agent-sdk-provider-openai':
         specifier: workspace:*
         version: link:../../../packages/provider-openai

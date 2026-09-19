@@ -11,8 +11,9 @@ Vòng đời: `inert-runtime-owned-registration`.
 pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-openai
 ```
 
-Nhắm tới **OpenAI Responses API** thông qua
-[`@alvin0/ai-agent-sdk-protocol-responses`](/vi/09-providers/protocols).
+Nhắm tới cả hai wire generation của OpenAI: **Responses** (mặc định) và **Chat
+Completions**. Một route có thể chọn wire mặc định bằng `api`, hoặc định tuyến
+từng model trong catalog bằng `models[].api`.
 
 ## Ghép nối
 
@@ -56,12 +57,20 @@ export {
   openAiAdapter,
   openAiPlugin,
   type OpenAiAdapterOptions,
+  type OpenAiApi,
+  type OpenAiCatalogModel,
+  type OpenAiChatCompletionsCompat,
   type OpenAiCredential,
   type OpenAiPluginOptions,
   type OpenAiProviderOptions,
 }
 // Re-export cho tiện:
-export { openAiResponsesProtocol, type ResponsesDialect }
+export {
+  openAiResponsesProtocol,
+  openAiChatCompletionsProtocol,
+  type ResponsesDialect,
+  type ChatCompletionsDialect,
+}
 ```
 
 | Export | Dùng để |
@@ -153,28 +162,63 @@ tính tuyến, danh tính thực thể plugin, và danh tính họ provider tác
 Xung đột tuyến thất bại **trước khi hoàn tất thiết lập** với `DUPLICATE_ADAPTER`,
 không phải tới lúc dùng lần đầu.
 
-## Một endpoint tương thích OpenAI
+## Prompt caching cho session dài
 
-Bất kỳ endpoint nào nói giao thức **Responses** đều không cần package mới:
+Caching là opt-in. Để SDK sinh một key ổn định cho instance adapter/plugin này:
 
 ```ts
-import { openAiResponsesProtocol } from '@alvin0/ai-agent-sdk-protocol-responses'
-import { createHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
-
-registry.registerAdapter(['openrouter'], createHttpProvider({
-  displayName: 'OpenRouter',
-  protocol: openAiResponsesProtocol,
-  baseUrl: 'https://openrouter.ai/api/v1',
-  auth: { kind: 'bearer', token: envCredential('OPENROUTER_API_KEY') },
-}))
+openAiPlugin({
+  apiKey,
+  promptCaching: true,
+})
 ```
 
-> Một endpoint nói **Chat Completions** chứ không phải Responses là một giao thức
-> wire khác và cần một hiện thực giao thức riêng — xem
-> [Custom Provider](/vi/09-providers/custom-provider).
+Hoặc truyền key do ứng dụng sở hữu khi provider instance phục vụ một session đã
+biết:
+
+```ts
+openAiPlugin({
+  apiKey,
+  promptCacheKey: `conversation:${conversationId}`,
+})
+```
+
+Key đã resolve được serialize thành `prompt_cache_key` trên cả Responses và Chat
+Completions. Route hỗn hợp dùng chung một key cho cả hai wire. Hãy giới hạn một
+provider instance dùng auto-key cho đúng một cache identity; dùng chung instance
+đó giữa các tenant hoặc hội thoại không liên quan sẽ gom traffic vào cùng key.
+
+Nếu gateway tương thích trả HTTP 400 và nêu rõ `prompt_cache_key`, adapter thử
+lại call đó một lần không có field rồi ghi nhớ việc hạ cấp trong suốt vòng đời.
+Cơ chế này không nuốt các lỗi không liên quan.
+
+Xem [Prompt caching](/vi/09-providers/prompt-caching) để biết khác biệt giữa các
+provider, vòng đời session, độ ổn định prefix và accounting usage.
+
+## Một endpoint tương thích OpenAI
+
+Chọn đúng wire mà endpoint thực sự hiện thực. Phần lớn gateway tương thích
+OpenAI hiện thực Chat Completions:
+
+```ts
+openAiPlugin({
+  id: 'openrouter',
+  displayName: 'OpenRouter',
+  baseUrl: 'https://openrouter.ai/api/v1',
+  api: 'chat-completions',
+  apiKey: envCredential('OPENROUTER_API_KEY'),
+  compat: { reasoningFormat: 'openai' },
+})
+```
+
+Đặt `api: 'responses'` cho endpoint tương thích Responses. `compat` điều khiển
+các field riêng của Chat Completions như định dạng reasoning, field giới hạn
+token, system role, tools, streaming usage, stop và seed. `path`, `query`, `body`
+và `transformRequest` bao phủ cách định tuyến và payload riêng của gateway.
 
 ## Đọc tiếp
 
 - [Anthropic](/vi/09-providers/anthropic) · [Codex](/vi/09-providers/codex)
 - [Protocols](/vi/09-providers/protocols)
+- [Prompt caching](/vi/09-providers/prompt-caching)
 - [Custom Provider](/vi/09-providers/custom-provider)

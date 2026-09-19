@@ -372,7 +372,7 @@
           "withIdleTimeout",
           "withRetry"
         ],
-        "declarationSha256": "1feee4ef0b98b04c4a99c38f9582092af6070ecbdc8025e3db29e6ac24aefb9b"
+        "declarationSha256": "65970393a5d203e00145e5b20b2160731fdf69187581e63859234e728542f6f8"
       },
       "./agent": {
         "exports": [
@@ -742,7 +742,7 @@
           "defineEmbeddingProviderPlugin",
           "defineModelProviderPlugin"
         ],
-        "declarationSha256": "920201eef7636882b38c13fc69a149bb9d6366040c9d02a83ce8bf8f880eb421"
+        "declarationSha256": "a0b042ae07b6d7aa2e56a234353a8de7815dc633b6ad710d36961898cc02cfb7"
       },
       "./skills": {
         "exports": [
@@ -953,8 +953,11 @@
           "DEFAULT_STREAM_IDLE_TIMEOUT_MS",
           "EmbeddingCatalogModel",
           "EmbeddingHttpConnection",
+          "FieldFallbackAdapter",
+          "FieldFallbackOptions",
           "HTTP_PROTOCOL_API_VERSION",
           "HTTP_PROVIDER_ERROR_CODES",
+          "HeaderContext",
           "HttpAuthResolveOptions",
           "HttpConnection",
           "HttpModelAdapter",
@@ -975,6 +978,9 @@
           "ProviderRequest",
           "ProviderRequestLogRecord",
           "ProviderRequestLogger",
+          "ProviderResponseLogRecord",
+          "ProviderResponseLogger",
+          "RequestContext",
           "ResolvedTransportLimits",
           "RuntimeAuthScheme",
           "RuntimeCredentialSource",
@@ -1008,7 +1014,7 @@
           "retryAfterMs",
           "transportJson"
         ],
-        "declarationSha256": "c2dc35a9b2fa29c16784cec0701237c86ac497b11f3390684fb2764a4b9783f8"
+        "declarationSha256": "db087b40c82984df8af78bd9805ab23d5ebcd3609322d7bb5675bd9cfa4e8d5a"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-responses": {
@@ -1048,7 +1054,7 @@
           "serializeResponsesRequest",
           "translateResponsesStream"
         ],
-        "declarationSha256": "bf8baf6e757db9936b6203c5f6046c4c4eac4e721b6e01090bc5c3f096f38728"
+        "declarationSha256": "8ce4c775514c63c3a7357a20f7831ad981f500eeb26be698f64d3f348c13cdf1"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-anthropic-messages": {
@@ -1058,14 +1064,17 @@
           "ANTHROPIC_VERSION",
           "AnthropicDialect",
           "AnthropicMessagesProtocolDefinition",
+          "AnthropicReasoningFormat",
           "AnthropicReasoningState",
           "AnthropicSerializeOptions",
+          "DEFAULT_MAX_TOKENS",
           "DEFAULT_THINKING_BUDGETS",
           "ProtocolDefinition",
           "ProtocolRequest",
           "ProtocolSseEvent",
           "ProtocolStreamChunk",
           "ThinkingBudgets",
+          "WireCacheControl",
           "WireCitation",
           "WireDelta",
           "WireDocumentSource",
@@ -1081,6 +1090,7 @@
           "WireServerToolUseBlock",
           "WireStopReason",
           "WireStreamEvent",
+          "WireSystemBlock",
           "WireThinking",
           "WireTool",
           "WireToolChoice",
@@ -1092,7 +1102,7 @@
           "serializeAnthropicRequest",
           "translateAnthropicStream"
         ],
-        "declarationSha256": "ea604ef568e879828166e8c0eda9a0e803cf55e078ba30ccb50ae73fa73610ce"
+        "declarationSha256": "6d73c144d981252c04eee16e50ea534c26171022a94b2c54c8e2357bd32cb27f"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-gemini-interactions": {
@@ -1135,20 +1145,25 @@
     "@alvin0/ai-agent-sdk-provider-openai": {
       ".": {
         "exports": [
+          "ChatCompletionsDialect",
           "OPENAI_BASE_URL",
           "OpenAiAdapterOptions",
+          "OpenAiApi",
+          "OpenAiCatalogModel",
+          "OpenAiChatCompletionsCompat",
           "OpenAiCredential",
           "OpenAiEmbeddingProviderOptions",
           "OpenAiPluginOptions",
           "OpenAiProviderOptions",
           "ResponsesDialect",
           "openAiAdapter",
+          "openAiChatCompletionsProtocol",
           "openAiEmbeddingAdapter",
           "openAiEmbeddingPlugin",
           "openAiPlugin",
           "openAiResponsesProtocol"
         ],
-        "declarationSha256": "d028d6969915983c4ed5f7b146a8626664c72b24619d1ba5e409912a3ac3028f"
+        "declarationSha256": "e8abcc89b86f93e2adae8fcf2ebe73c08517dce42e9b55c1521dbe40438063ba"
       }
     },
     "@alvin0/ai-agent-sdk-provider-gemini": {
@@ -1169,7 +1184,7 @@
           "geminiInteractionsProtocol",
           "geminiPlugin"
         ],
-        "declarationSha256": "866fa9d349c799f9c68b49e9db49e4bf4327cdc09964003e737f02c1b35409c4"
+        "declarationSha256": "5e2edf0a5088e1874161c295a63dac64eeaea27ed333551bb8eb49e0b934352f"
       }
     }
   }

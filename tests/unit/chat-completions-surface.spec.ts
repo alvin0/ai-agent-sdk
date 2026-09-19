@@ -119,7 +119,7 @@ describe('protocol-openai-chat-completions public surface', () => {
     // Unsent field costs a feature; unknown field costs the whole request.
     expect(DEFAULT_DIALECT.parallelToolCalls).toBe(false)
     expect(DEFAULT_DIALECT.seed).toBe(false)
-    expect(DEFAULT_DIALECT.reasoningEffort).toBe(false)
+    expect(DEFAULT_DIALECT.reasoningFormat).toBe(false)
   })
 
   it('survives `defineWireProtocol` unchanged', () => {

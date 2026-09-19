@@ -62,6 +62,15 @@ export interface AnthropicDialect {
   readonly version: string
   /** Opt-in beta features, sent as `anthropic-beta`. */
   readonly beta: readonly string[]
+  /**
+   * Marks the stable prefix (system, tools, everything but the newest
+   * message) as a cache breakpoint. See `AnthropicSerializeOptions`'s doc
+   * comment in `serialize.ts` for why, and off by default for the same
+   * "not every gateway understands this" reason `reasoningFormat` is opt-in.
+   */
+  readonly promptCaching: boolean
+  /** Cache breakpoint lifetime; unset defers to this API's own default. */
+  readonly promptCachingTtl?: '5m' | '1h'
 }
 
 const DEFAULT_DIALECT: AnthropicDialect = Object.freeze({
@@ -69,6 +78,7 @@ const DEFAULT_DIALECT: AnthropicDialect = Object.freeze({
   budgets: DEFAULT_THINKING_BUDGETS,
   version: ANTHROPIC_VERSION,
   beta: Object.freeze([]),
+  promptCaching: false,
 })
 
 interface RuntimeProtocolRequest extends ProtocolRequest {
@@ -116,6 +126,8 @@ export const anthropicMessagesProtocol: ProtocolDefinition<AnthropicDialect>
       reasoningFormat: dialect.reasoningFormat,
       budgets: dialect.budgets,
       ...(dialect.thinking === undefined ? {} : { thinking: dialect.thinking }),
+      promptCaching: dialect.promptCaching,
+      ...(dialect.promptCachingTtl === undefined ? {} : { promptCachingTtl: dialect.promptCachingTtl }),
     })
     return body as Readonly<Record<string, unknown>>
   },

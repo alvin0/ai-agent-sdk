@@ -72,6 +72,7 @@ import {
   transportJson,
   type EmbeddingCatalogModel,
   type EmbeddingHttpConnection,
+  type HeaderContext,
 } from '@alvin0/ai-agent-sdk-provider-http'
 
 /** Google Generative Language API v1beta base; the adapter appends the model path. */
@@ -186,7 +187,7 @@ interface GeminiEmbedRequest {
  */
 class GeminiEmbeddingAdapter extends EmbeddingAdapter {
   readonly #options: GeminiEmbeddingProviderOptions
-  readonly #headers: () => Readonly<Record<string, string>>
+  readonly #headers: (ctx: HeaderContext) => Readonly<Record<string, string>>
   readonly #models: readonly EmbeddingCatalogModel[]
   readonly #retryPolicy: ResolvedRetryPolicy
 
@@ -270,7 +271,7 @@ class GeminiEmbeddingAdapter extends EmbeddingAdapter {
   ): Promise<PreparedEmbeddingCall> {
     const resolved = await this.resolveEmbeddingModel(provider, model, signal)
     const profile = this.embeddingProfile(resolved, options)
-    const connection = await this.#connect(signal, context)
+    const connection = await this.#connect(provider, signal, context)
     return Object.freeze({
       model: resolved,
       profile,
@@ -296,17 +297,22 @@ class GeminiEmbeddingAdapter extends EmbeddingAdapter {
     const profile = this.embeddingProfile(resolved, {
       ...(batch.dimensions === undefined ? {} : { dimensions: batch.dimensions }),
     })
-    const connection = await this.#connect(batch.signal, context)
+    const connection = await this.#connect(batch.provider, batch.signal, context)
     return await this.#dispatch(connection, resolved, profile, batch, context)
   }
 
   /** Resolve the credential and bounds into one frozen snapshot. */
   async #connect(
+    provider: string,
     signal?: AbortSignal,
     context?: ModelInvocationContext,
   ): Promise<EmbeddingHttpConnection> {
     const options = this.#options
-    const extraHeaders = this.#headers()
+    const extraHeaders = this.#headers({
+      provider,
+      ...(context?.agentId === undefined ? {} : { agentId: context.agentId }),
+      ...(signal === undefined ? {} : { signal }),
+    })
     const apiKey = assertUsableApiKey(
       await resolveCredential(options.apiKey, signal, context),
       DISPLAY_NAME,

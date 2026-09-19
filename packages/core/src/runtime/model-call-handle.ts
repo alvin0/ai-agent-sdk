@@ -399,6 +399,8 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
     terminalCheckpointOwner: input.context?.terminalCheckpointOwner ?? 'model-call',
     scope,
     ...(input.context?.logger === undefined ? {} : { logger: input.context.logger }),
+    ...(input.context?.agentId === undefined ? {} : { agentId: input.context.agentId }),
+    ...(input.context?.providerOptions === undefined ? {} : { providerOptions: input.context.providerOptions }),
     declareProviderAttemptAccounting: () => { providerAttemptAccountingDeclared = true },
     startProviderAttempt,
     recordProviderRetry,

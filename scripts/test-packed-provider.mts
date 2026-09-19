@@ -17,12 +17,14 @@ type ProviderPackageName =
 /**
  * The protocol packages each provider tarball needs installed beside it.
  *
- * Copilot is the only entry with two: it serves one route with two wire protocols
- * and picks between them per model, so both tarballs travel with it.
+ * Two entries carry two protocols each, for different reasons: Copilot serves one
+ * route with two wire protocols and picks between them per model, and OpenAI
+ * speaks both Responses and Chat Completions (`api`, or `models[].api` per
+ * model). Either way both tarballs have to travel with the provider.
  */
 const PROTOCOL_PACKAGES: Readonly<Record<ProviderPackageName, readonly string[]>> = {
   'provider-anthropic': ['protocol-anthropic-messages'],
-  'provider-openai': ['protocol-responses'],
+  'provider-openai': ['protocol-responses', 'protocol-openai-chat-completions'],
   'provider-codex': ['protocol-responses'],
   'provider-copilot': ['protocol-responses', 'protocol-openai-chat-completions'],
   'provider-gemini': ['protocol-gemini-interactions'],

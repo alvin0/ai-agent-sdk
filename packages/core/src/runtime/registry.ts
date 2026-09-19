@@ -540,9 +540,9 @@ export class ModelRegistry {
       retryPolicy: registration.retryPolicy,
       adapterDefaults,
       ...context === undefined ? {} : { context },
-      ...modelInfo.inputModalities === undefined
+      ...resolved.inputModalities === undefined
         ? {}
-        : { inputModalities: Object.freeze([...modelInfo.inputModalities]) },
+        : { inputModalities: Object.freeze([...resolved.inputModalities]) },
       stream: (options: GenerateOptions, context = invocationContext): ModelCallHandle => {
         // Both guards below exist so a stale handle fails loudly instead of
         // quietly dispatching against a configuration nobody vetted.
