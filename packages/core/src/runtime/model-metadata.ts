@@ -5,11 +5,27 @@ import type {
   ModelCatalogSnapshot,
   ModelContext,
   ModelInfo,
+  ModelModality,
   ResolvedModelInfo,
+  RuntimeDefaults,
 } from '../contract/model-info.ts'
 import { ModelError, REGISTRY_ERROR_CODES } from '../errors/model-error.ts'
 import { freezeMessage, type Message } from '../message/message.ts'
 import { deepFreeze } from '../primitives/freeze.ts'
+
+/**
+ * SDK constant of last resort for context capacity: applied only when neither
+ * the model, its route, nor {@link RuntimeDefaults.contextWindow} names one.
+ */
+export const DEFAULT_CONTEXT_WINDOW = 200_000
+
+/**
+ * SDK constant of last resort for accepted input: applied only when neither
+ * the model, its route, nor {@link RuntimeDefaults.inputModalities} names one.
+ * Every current modality, because an adapter that stays silent has made no
+ * negative capability claim — see {@link ModelInfo.inputModalities}.
+ */
+export const DEFAULT_INPUT_MODALITIES = Object.freeze(['text', 'image', 'document'] as const)
 
 export function validateCatalogModels(
   provider: string,
@@ -76,6 +92,7 @@ export function normalizeResolvedModelInfo(
   model: string,
   info: ResolvedModelInfo,
   maxBytes: number,
+  defaults: RuntimeDefaults = {},
 ): ResolvedModelInfo {
   if (info.provider !== provider || info.id !== model
     || typeof info.name !== 'string' || info.name.length === 0) {
@@ -116,9 +133,16 @@ export function normalizeResolvedModelInfo(
   }
   validateReasoning(provider, model, info)
   validateCapabilities(provider, model, info)
+  // Fill what the adapter left silent, in priority order: the route/model
+  // already spoke through `info` above, so only a genuine gap reaches here —
+  // the runtime's own defaults, then the SDK's last-resort constant. Neither
+  // ever overrides a fact the adapter actually declared.
+  const contextWindow = info.context?.contextWindow ?? defaults.contextWindow ?? DEFAULT_CONTEXT_WINDOW
+  const inputModalities = info.inputModalities ?? defaults.inputModalities ?? DEFAULT_INPUT_MODALITIES
   const normalized = deepFreeze(structuredClone({
     ...info,
-    ...(info.inputModalities === undefined ? {} : { inputModalities: [...info.inputModalities] }),
+    context: { ...info.context, contextWindow },
+    inputModalities: [...inputModalities],
     ...(info.outputModalities === undefined ? {} : { outputModalities: [...info.outputModalities] }),
     ...(info.nativeTools === undefined ? {} : { nativeTools: [...info.nativeTools] }),
   }))
@@ -131,6 +155,7 @@ export function normalizeResolvedModelInfo(
   return normalized
 }
 
+/** Structural check only: `reasoning` is advisory display metadata, never a dispatch gate. */
 function validateReasoning(provider: string, model: string, info: ResolvedModelInfo): void {
   if (info.reasoning === undefined) return
   const ids = info.reasoning.efforts.map(effort => effort.id)
@@ -139,10 +164,6 @@ function validateReasoning(provider: string, model: string, info: ResolvedModelI
       typeof effort.id !== 'string' || effort.id.length === 0
       || typeof effort.name !== 'string' || effort.name.length === 0)) {
     throw invalidModel(provider, model, 'empty or duplicated reasoning efforts')
-  }
-  if (info.reasoning.defaultEffort !== undefined
-    && !ids.includes(info.reasoning.defaultEffort)) {
-    throw invalidModel(provider, model, 'a default reasoning effort it does not offer')
   }
 }
 
@@ -170,17 +191,35 @@ function invalidModel(provider: string, model: string, reason: string): ModelErr
 export function resolveCallWithModelInfo(
   config: CallConfig,
   info: ResolvedModelInfo,
-): { readonly config: CallConfig; readonly context: ModelContext | undefined } {
-  const reasoningEffort = config.reasoningEffort ?? info.reasoning?.defaultEffort
-  if (config.reasoningEffort !== undefined
-    && info.reasoning?.efforts.some(effort => effort.id === config.reasoningEffort) !== true) {
+  defaults: RuntimeDefaults = {},
+): {
+  readonly config: CallConfig
+  readonly context: ModelContext | undefined
+  readonly inputModalities: readonly ModelModality[] | undefined
+} {
+  // Pass-through: the registry neither validates a caller's effort against
+  // `info.reasoning` nor materializes one the caller omitted. An unsupported
+  // value is the provider's call to make, at dispatch, in its own error shape.
+  const reasoningEffort = config.reasoningEffort
+  // Agent tier (1) wins over whatever normalizeResolvedModelInfo already
+  // resolved (model/route/runtime-defaults/SDK-constant, tiers 2-5) — same
+  // precedence rule as maxTokens below, just one tier higher since the model
+  // itself never names an override for its own capacity.
+  const context = config.contextWindow === undefined || info.context === undefined
+    ? info.context
+    : { ...info.context, contextWindow: config.contextWindow }
+  if (context !== undefined && context.maxContextWindow !== undefined
+    && context.contextWindow > context.maxContextWindow) {
     throw new ModelError(
-      `model "${info.id}" on route "${info.provider}" does not offer reasoning effort `
-      + `"${config.reasoningEffort}"`,
-      REGISTRY_ERROR_CODES.UNSUPPORTED_REASONING_EFFORT,
+      `model "${info.id}" on route "${info.provider}" was asked for a ${context.contextWindow}-token `
+      + `context window, above its ${context.maxContextWindow}-token technical ceiling`,
+      REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
     )
   }
-  const maxTokens = config.maxTokens ?? info.defaultMaxTokens
+  const inputModalities = config.inputModalities ?? info.inputModalities
+  // maxTokens has no SDK-constant tier: unlike context/modalities, an unset
+  // output cap is not sent at all rather than defaulted (see RuntimeDefaults).
+  const maxTokens = config.maxTokens ?? info.defaultMaxTokens ?? defaults.maxTokens
   if (maxTokens !== undefined && info.maxOutputTokens !== undefined
     && maxTokens > info.maxOutputTokens) {
     throw new ModelError(
@@ -189,11 +228,11 @@ export function resolveCallWithModelInfo(
       REGISTRY_ERROR_CODES.OUTPUT_TOKEN_LIMIT_EXCEEDED,
     )
   }
-  if (maxTokens !== undefined && info.context !== undefined
-    && maxTokens >= info.context.contextWindow) {
+  if (maxTokens !== undefined && context !== undefined
+    && maxTokens >= context.contextWindow) {
     throw new ModelError(
       `model "${info.id}" on route "${info.provider}" cannot reserve ${maxTokens} output tokens `
-      + `inside its ${info.context.contextWindow}-token combined context window`,
+      + `inside its ${context.contextWindow}-token combined context window`,
       REGISTRY_ERROR_CODES.OUTPUT_TOKEN_LIMIT_EXCEEDED,
     )
   }
@@ -206,8 +245,11 @@ export function resolveCallWithModelInfo(
       ...(config.topP === undefined ? {} : { topP: config.topP }),
       ...(maxTokens === undefined ? {} : { maxTokens }),
       ...(config.stop === undefined ? {} : { stop: [...config.stop] }),
+      ...(config.contextWindow === undefined ? {} : { contextWindow: config.contextWindow }),
+      ...(config.inputModalities === undefined ? {} : { inputModalities: [...config.inputModalities] }),
     },
-    context: info.context,
+    context,
+    inputModalities,
   }
 }
 

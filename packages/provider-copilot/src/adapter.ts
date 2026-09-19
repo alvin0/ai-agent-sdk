@@ -48,6 +48,7 @@ import {
   type HttpModelAdapter,
   type ProviderCatalogModel,
   type ProviderRequestLogger,
+  type ProviderResponseLogger,
   type RuntimeModelDiscoveryContext,
 } from '@alvin0/ai-agent-sdk-provider-http'
 import { openAiChatCompletionsProtocol } from '@alvin0/ai-agent-sdk-protocol-openai-chat-completions'
@@ -263,6 +264,13 @@ export interface CopilotProviderOptions {
    * stop the request (Requirement 14.5).
    */
   readonly requestLogger?: ProviderRequestLogger
+  /**
+   * Exact wire-response observer, fired once a stream ends.
+   *
+   * BEST-EFFORT, same contract as {@link requestLogger}: a logger that
+   * overruns or throws does not affect the request it describes.
+   */
+  readonly responseLogger?: ProviderResponseLogger
   /** HTTP implementation, for tests and non-browser runtimes. */
   readonly fetch?: typeof globalThis.fetch
 
@@ -483,6 +491,7 @@ function buildCopilotAdapter(
     baseHeaders: COPILOT_TRANSPORT_HEADERS,
     ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),
     ...(options.requestLogger === undefined ? {} : { requestLogger: options.requestLogger }),
+    ...(options.responseLogger === undefined ? {} : { responseLogger: options.responseLogger }),
     // A 400 for a missing editor header, and ONLY that, gets the Copilot code.
     errorCode: (status: number, detail: string): string | undefined =>
       isMissingEditorHeaderFailure(status, detail)

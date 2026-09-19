@@ -16,6 +16,8 @@ export {
 } from './protocol.ts'
 export {
   serializeAnthropicRequest,
+  DEFAULT_MAX_TOKENS,
+  type AnthropicReasoningFormat,
   type AnthropicReasoningState,
   type AnthropicSerializeOptions,
   type ThinkingBudgets,

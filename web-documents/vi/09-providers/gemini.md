@@ -87,10 +87,18 @@ registry.registerAdapter(['gemini'], geminiAdapter({ apiKey }))
 interface GeminiAdapterOptions {
   apiKey: GeminiCredential          // bắt buộc; tiêm vào
   baseUrl?: string                  // mặc định GEMINI_BASE_URL
+  displayName?: string
+  headers?: Record<string, string> | ((context: HeaderContext) => Record<string, string>)
+  allowInsecureHttp?: boolean
+  path?: string
+  query?: Record<string, string> | (() => Record<string, string>)
+  body?: Record<string, unknown>
+  transformRequest?: (body: unknown, context: RequestContext) => unknown
   models?: readonly ProviderCatalogModel[]
-  store?: boolean                   // Google có được giữ lại interaction? mặc định false
-  defaultMaxTokens?: number         // 8.192
-  defaultContextWindow?: number     // 1.000.000
+  store?: boolean                   // điều khiển retention, không phải công tắc prompt cache
+  authHeader?: 'x-goog-api-key' | 'bearer'
+  defaultMaxTokens?: number
+  defaultContextWindow?: number
   streamIdleTimeoutMs?: number
   requestTimeoutMs?: number
   maxRequestBytes?: number
@@ -102,6 +110,7 @@ interface GeminiAdapterOptions {
   requestLoggerTimeoutMs?: number
   retryPolicy?: RetryPolicyConfig
   requestLogger?: ProviderRequestLogger
+  responseLogger?: ProviderResponseLogger
   fetch?: typeof globalThis.fetch
 }
 ```
@@ -127,6 +136,21 @@ geminiPlugin({ apiKey, store: true })   // mặc định là false
 `store: false` là mặc định, nên Google được yêu cầu **không** giữ lại yêu cầu và
 interaction trừ khi bạn bật. Nó ánh xạ vào phương ngữ của giao thức, không phải
 một cờ theo từng yêu cầu.
+
+### Prompt caching là implicit
+
+Gemini Interactions tự thực hiện implicit prefix caching trên các model được hỗ
+trợ, ở cả chế độ hội thoại stateless và stateful. Provider này dùng request shape
+Interactions stateless và gửi lại lịch sử đã chuẩn hoá. Không có option
+`promptCacheKey` vì Interactions không phơi ra field cache key kiểu OpenAI, đồng
+thời không nhận resource `cached_content` explicit của API `generateContent` cũ.
+
+Giữ system instruction, tool definition và lịch sử cũ ổn định, đứng trước turn
+mới nhất. Cache hit được báo bằng `cacheReadTokens`, ánh xạ từ
+`usage.total_cached_tokens` của Gemini. `store` điều khiển retention của
+interaction; nó không bật hoặc tắt implicit caching.
+
+Xem [Prompt caching](/vi/09-providers/prompt-caching) để so sánh các provider.
 
 ### Không có model id dựng sẵn
 
@@ -251,4 +275,5 @@ thành lỗi có kiểu, không thành hành vi trôi lệch.
 
 - [OpenAI](/vi/09-providers/openai) · [Anthropic](/vi/09-providers/anthropic) · [Codex](/vi/09-providers/codex)
 - [Protocols](/vi/09-providers/protocols)
+- [Prompt caching](/vi/09-providers/prompt-caching)
 - [Structured Output](/vi/02-agents/structured-output)

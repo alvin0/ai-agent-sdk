@@ -25,8 +25,20 @@ export type WireDocumentSource =
   | { type: 'url'; url: string }
   | { type: 'file'; file_id: string }
 
+/**
+ * A cache breakpoint. Marks "everything up through this block" as worth
+ * keeping warm — this API charges a premium to WRITE the cache once and a
+ * steep discount to READ it on every later request that repeats the same
+ * prefix verbatim, which is exactly what a multi-turn conversation does.
+ */
+export interface WireCacheControl {
+  type: 'ephemeral'
+  /** Defaults to this API's own default (5 minutes) when omitted. */
+  ttl?: '5m' | '1h'
+}
+
 /** A request-side content block. */
-export type WireRequestBlock =
+export type WireRequestBlock = (
   | { type: 'text'; text: string; citations?: WireCitation[] }
   | { type: 'image'; source: WireImageSource }
   | {
@@ -51,6 +63,7 @@ export type WireRequestBlock =
   | { type: 'redacted_thinking'; data: string }
   | WireServerToolUseBlock
   | WireWebSearchToolResultBlock
+) & { cache_control?: WireCacheControl }
 
 export interface WireServerToolUseBlock {
   type: 'server_tool_use'
@@ -105,7 +118,14 @@ export interface WireWebSearchTool {
   }
 }
 
-export type WireTool = WireFunctionTool | WireWebSearchTool
+export type WireTool = (WireFunctionTool | WireWebSearchTool) & { cache_control?: WireCacheControl }
+
+/** A `system` block, when caching needs one to attach a breakpoint to. */
+export interface WireSystemBlock {
+  type: 'text'
+  text: string
+  cache_control?: WireCacheControl
+}
 
 /** How the model must choose among the offered tools. */
 export type WireToolChoice =
@@ -116,14 +136,17 @@ export type WireToolChoice =
 
 /** Extended-thinking configuration. */
 export type WireThinking =
+  | { type: 'adaptive' }
   | { type: 'enabled'; budget_tokens: number }
   | { type: 'disabled' }
 
 export interface WireOutputConfig {
-  format: {
+  format?: {
     type: 'json_schema'
     schema: Readonly<Record<string, unknown>>
   }
+  /** The GA reasoning-effort field: `"low" | "medium" | "high" | "xhigh" | "max"`, sent verbatim. */
+  effort?: string
 }
 
 /** The request body. */
@@ -132,7 +155,8 @@ export interface WireRequest {
   /** REQUIRED by this API, unlike most others — the adapter always resolves one. */
   max_tokens: number
   messages: WireMessage[]
-  system?: string
+  /** A plain string, or blocks when a cache breakpoint needs to attach to one. */
+  system?: string | WireSystemBlock[]
   tools?: WireTool[]
   tool_choice?: WireToolChoice
   temperature?: number

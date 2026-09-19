@@ -56,6 +56,24 @@ export interface ModelInfo {
   nativeTools?: readonly NativeToolName[]
 }
 
+/**
+ * SDK-wide fallbacks, applied only when neither the model nor its route names a
+ * value. Never overrides an adapter-declared fact — it fills the gap when one
+ * is genuinely silent.
+ *
+ * There is deliberately no `reasoningEffort` here: effort is pure pass-through
+ * (see {@link ReasoningEffortId}), and materializing one nobody asked for would
+ * be exactly the guess this package no longer makes.
+ */
+export interface RuntimeDefaults {
+  /** Combined request/response budget assumed when a route names none. */
+  readonly contextWindow?: number
+  /** Output cap sent when neither the caller nor the route names one. */
+  readonly maxTokens?: number
+  /** Accepted request modalities assumed when a route names none. */
+  readonly inputModalities?: readonly ModelModality[]
+}
+
 /** Provider-owned context capacity for one exact model route. */
 export interface ModelContext {
   /** Operating budget for combined request and response tokens. */
@@ -80,15 +98,17 @@ export interface ReasoningEffortInfo {
   description?: string
 }
 
-/** Selectable reasoning efforts for one exact model route. */
+/**
+ * Selectable reasoning efforts for one exact model route.
+ *
+ * ADVISORY ONLY: a UI may use this to populate a selector, but the registry
+ * never validates a caller's {@link GenerateOptions.reasoningEffort} against
+ * it and never materializes an effort the caller omitted. Effort is pure
+ * pass-through — the provider is the only judge of what a model accepts.
+ */
 export interface ModelReasoningInfo {
   /** Supported efforts, in adapter-preferred display order. */
   efforts: readonly ReasoningEffortInfo[]
-  /**
-   * Effort materialized into requests when the caller omits one.
-   * Absence preserves the provider's own default.
-   */
-  defaultEffort?: ReasoningEffortId
 }
 
 /** Exact-route model metadata, resolved by the adapter that owns the route. */

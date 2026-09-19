@@ -259,7 +259,7 @@ function generationConfigOf(
 ): WireGenerationConfig {
   const options = request.options
   return {
-    max_output_tokens: request.maxTokens,
+    ...(request.maxTokens === undefined ? {} : { max_output_tokens: request.maxTokens }),
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
     ...(options.topP === undefined ? {} : { top_p: options.topP }),
     ...(options.stop === undefined || options.stop.length === 0

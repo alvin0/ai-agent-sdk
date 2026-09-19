@@ -6,9 +6,12 @@ import {
   type ModelTarget,
 } from '@alvin0/ai-agent-sdk-core/provider'
 import type {
+  HeaderContext,
   HttpModelAdapter,
   ProviderCatalogModel,
   ProviderRequestLogger,
+  ProviderResponseLogger,
+  RequestContext,
 } from '@alvin0/ai-agent-sdk-provider-http'
 import {
   createHttpProvider,
@@ -20,7 +23,6 @@ import {
   geminiInteractionsProtocol,
   type GeminiInteractionsDialect,
 } from '@alvin0/ai-agent-sdk-protocol-gemini-interactions'
-import { geminiContextPolicy } from './context-policy.ts'
 
 /** Google Gemini API v1beta base. The protocol appends only `/interactions`. */
 export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
@@ -32,14 +34,41 @@ export interface GeminiAdapterOptions {
   apiKey: GeminiCredential
   /** Endpoint base; defaults to {@link GEMINI_BASE_URL}. */
   baseUrl?: string
+  /**
+   * Name this endpoint uses in diagnostics and error messages. Defaults to
+   * `'Gemini'`; set it to the real vendor name when pointing this provider at a
+   * compatible gateway, so a rejection names who rejected it.
+   */
+  displayName?: string
   /** Extra endpoint headers, captured once per operation. Reserved names and collisions fail. */
-  headers?: Readonly<Record<string, string>> | (() => Readonly<Record<string, string>>)
+  headers?: Readonly<Record<string, string>> | ((ctx: HeaderContext) => Readonly<Record<string, string>>)
   /** Permit cleartext HTTP explicitly for trusted local gateways. */
   allowInsecureHttp?: boolean
+  /** Override the request path this protocol would otherwise pick (e.g. a gateway deployment path). */
+  path?: string
+  /** Extra query-string parameters, or a resolver for them. Never for secrets. */
+  query?: Readonly<Record<string, string>> | (() => Readonly<Record<string, string>>)
+  /**
+   * Fields to deep-merge into the serialized body. The caller's value always
+   * wins, even over a field the SDK set. A `null` value deletes the field.
+   */
+  body?: Readonly<Record<string, unknown>>
+  /** Last-resort hook with full authority over the body, run after `body` is merged in. */
+  transformRequest?: (body: unknown, ctx: RequestContext) => unknown
   /** Advisory catalog; built-in context policies do not advertise model availability. */
   models?: readonly ProviderCatalogModel[]
-  /** Whether Google may retain interactions. Defaults to false. */
+  /**
+   * Whether Google may retain interactions. Defaults to false.
+   *
+   * This is not a prompt-cache switch: Interactions performs implicit prefix
+   * caching automatically for supported models and exposes no cache-key field.
+   */
   store?: boolean
+  /**
+   * How the API key travels. Defaults to `'x-goog-api-key'`, this API's own
+   * header — but a gateway sitting in front of it may expect Bearer instead.
+   */
+  authHeader?: 'x-goog-api-key' | 'bearer'
   defaultMaxTokens?: number
   defaultContextWindow?: number
   streamIdleTimeoutMs?: number
@@ -53,27 +82,25 @@ export interface GeminiAdapterOptions {
   requestLoggerTimeoutMs?: number
   retryPolicy?: RetryPolicyConfig
   requestLogger?: ProviderRequestLogger
+  responseLogger?: ProviderResponseLogger
   fetch?: typeof globalThis.fetch
 }
 
 export function geminiAdapter(options: GeminiAdapterOptions): HttpModelAdapter {
   return createHttpProvider({
-    displayName: 'Gemini',
-    describeModel: geminiContextPolicy(options),
+    displayName: options.displayName ?? 'Gemini',
     protocol: geminiInteractionsProtocol,
     baseUrl: options.baseUrl ?? GEMINI_BASE_URL,
-    auth: {
-      kind: 'header', name: 'x-goog-api-key', value: options.apiKey,
-      label: 'the `apiKey` option',
-    },
+    auth: authOf(options),
     dialect: dialectOf(options),
     ...(options.models === undefined ? {} : { models: options.models }),
-    defaultMaxTokens: options.defaultMaxTokens ?? 8_192,
-    defaultContextWindow: options.defaultContextWindow ?? 200_000,
+    ...(options.defaultMaxTokens === undefined ? {} : { defaultMaxTokens: options.defaultMaxTokens }),
+    ...(options.defaultContextWindow === undefined ? {} : { defaultContextWindow: options.defaultContextWindow }),
     ...(options.streamIdleTimeoutMs === undefined ? {} : { streamIdleTimeoutMs: options.streamIdleTimeoutMs }),
     ...transportLimits(options),
     ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),
     ...(options.requestLogger === undefined ? {} : { requestLogger: options.requestLogger }),
+    ...(options.responseLogger === undefined ? {} : { responseLogger: options.responseLogger }),
   })
 }
 
@@ -102,7 +129,7 @@ export function geminiPlugin(
   return defineModelProviderPlugin({
     id,
     family: 'gemini',
-    displayName: 'Gemini',
+    displayName: options.displayName ?? 'Gemini',
     routes,
     ...runtimeDefaultModel(options.defaultModel, routes),
     setup(registrar) {
@@ -117,7 +144,7 @@ function legacyGeminiPlugin(options: GeminiPluginOptions): ModelProviderPlugin {
   const adapter = geminiAdapter(options)
   return Object.freeze({
     id: 'gemini',
-    displayName: 'Gemini',
+    displayName: options.displayName ?? 'Gemini',
     setup(registrar: ModelProviderRegistrar) {
       registrar.registerAdapter(routes, adapter)
     },
@@ -126,27 +153,44 @@ function legacyGeminiPlugin(options: GeminiPluginOptions): ModelProviderPlugin {
 
 function createRuntimeGeminiAdapter(options: GeminiProviderOptions): HttpModelAdapter {
   return createRuntimeHttpProvider({
-    describeModel: geminiContextPolicy(options),
-    displayName: 'Gemini',
+    displayName: options.displayName ?? 'Gemini',
     protocol: geminiInteractionsProtocol,
     baseUrl: options.baseUrl ?? GEMINI_BASE_URL,
-    auth: {
-      kind: 'header', name: 'x-goog-api-key', value: options.apiKey,
-      label: 'the `apiKey` option',
-    },
+    auth: authOf(options),
     dialect: dialectOf(options),
     ...(options.models === undefined ? {} : { models: options.models }),
-    defaultMaxTokens: options.defaultMaxTokens ?? 8_192,
-    defaultContextWindow: options.defaultContextWindow ?? 200_000,
+    ...(options.defaultMaxTokens === undefined ? {} : { defaultMaxTokens: options.defaultMaxTokens }),
+    ...(options.defaultContextWindow === undefined ? {} : { defaultContextWindow: options.defaultContextWindow }),
     ...(options.streamIdleTimeoutMs === undefined ? {} : { streamIdleTimeoutMs: options.streamIdleTimeoutMs }),
     ...transportLimits(options),
     ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),
     ...(options.requestLogger === undefined ? {} : { requestLogger: options.requestLogger }),
+    ...(options.responseLogger === undefined ? {} : { responseLogger: options.responseLogger }),
   })
 }
 
 function dialectOf(options: Pick<GeminiAdapterOptions, 'store'>): Partial<GeminiInteractionsDialect> {
   return options.store === undefined ? {} : { store: options.store }
+}
+
+/**
+ * This API's own header is `x-goog-api-key`, unlike most others' `authorization:
+ * Bearer` — but a gateway sitting in front of it may expect Bearer instead.
+ */
+/**
+ * Generic over the credential type on purpose: the two call sites accept
+ * DIFFERENT ones — the legacy adapter takes {@link GeminiCredential}
+ * (`provider-http`'s string-or-resolver), the composable one takes core's
+ * broader `CredentialInput`. A non-generic parameter union would widen
+ * `apiKey` to the union of both and fit neither target scheme.
+ */
+function authOf<Credential>(options: {
+  readonly authHeader?: 'x-goog-api-key' | 'bearer'
+  readonly apiKey: Credential
+}) {
+  return options.authHeader === 'bearer'
+    ? { kind: 'bearer' as const, token: options.apiKey, label: 'the `apiKey` option' }
+    : { kind: 'header' as const, name: 'x-goog-api-key', value: options.apiKey, label: 'the `apiKey` option' }
 }
 
 function usesRuntimeComposition(
@@ -174,6 +218,10 @@ function transportLimits(options: GeminiAdapterOptions | GeminiProviderOptions) 
   return {
     ...(options.allowInsecureHttp === undefined ? {} : { allowInsecureHttp: options.allowInsecureHttp }),
     headers: endpointHeaders(options.headers),
+    ...(options.path === undefined ? {} : { path: options.path }),
+    ...(options.query === undefined ? {} : { query: options.query }),
+    ...(options.body === undefined ? {} : { body: options.body }),
+    ...(options.transformRequest === undefined ? {} : { transformRequest: options.transformRequest }),
     ...(options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs }),
     ...(options.maxRequestBytes === undefined ? {} : { maxRequestBytes: options.maxRequestBytes }),
     ...(options.maxResponseBytes === undefined ? {} : { maxResponseBytes: options.maxResponseBytes }),

@@ -8,27 +8,28 @@ For any endpoint speaking a protocol this package already implements, adding it
 is **configuration**. No new file, no new folder, no edit to the SDK.
 
 ```ts
-import { openAiResponsesProtocol } from '@alvin0/ai-agent-sdk-protocol-responses'
+import { openAiChatCompletionsProtocol } from '@alvin0/ai-agent-sdk-protocol-openai-chat-completions'
 import { createHttpProvider } from '@alvin0/ai-agent-sdk-provider-http'
 import { envCredential } from '@alvin0/ai-agent-sdk-auth-node/env'
 
 registry.registerAdapter(['openrouter'], createHttpProvider({
   displayName: 'OpenRouter',
-  protocol: openAiResponsesProtocol,
+  protocol: openAiChatCompletionsProtocol,
   baseUrl: 'https://openrouter.ai/api/v1',
   auth: { kind: 'bearer', token: envCredential('OPENROUTER_API_KEY') },
 }))
 ```
 
-Three protocols ship today:
+Four protocols ship today:
 
 | Protocol | Package |
 | --- | --- |
 | OpenAI Responses / Codex | `@alvin0/ai-agent-sdk-protocol-responses` |
+| OpenAI Chat Completions | `@alvin0/ai-agent-sdk-protocol-openai-chat-completions` |
 | Anthropic Messages | `@alvin0/ai-agent-sdk-protocol-anthropic-messages` |
 | Gemini Interactions | `@alvin0/ai-agent-sdk-protocol-gemini-interactions` |
 
-All three are Universal, own no endpoint or credentials, and depend only on
+All four are Universal, own no endpoint or credentials, and depend only on
 `@alvin0/ai-agent-sdk-core`.
 
 ### OAuth needs no subclass

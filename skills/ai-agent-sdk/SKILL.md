@@ -14,9 +14,11 @@ Codex, GitHub Copilot, and Gemini Interactions.
 
 1. **Streaming-only.** `generate()` drains the same stream `stream()` exposes.
    There is no separate non-streaming call.
-2. **`model` is required.** No default model exists, except `defineAgent()` with
-   `provider`/`model`/`effort` all omitted, which selects Codex `gpt-5.6-luna`
-   at `medium` effort.
+2. **A runtime route needs a model.** Provider plugins do not ship a model id;
+   configure one explicitly or set the route's `defaultModel`. The lower-level
+   `defineAgent()` authoring API defaults an omitted provider/model to Codex
+   `gpt-5.6-luna`, but omitted effort stays omitted — the SDK never invents or
+   validates a reasoning level.
 3. **Credentials are injected.** Provider packages are Universal and never read
    env vars or files. `envCredential()` from `@alvin0/ai-agent-sdk-auth-node` is
    the Node wrapper that does.
@@ -81,6 +83,7 @@ Load only the file the task needs. Each is self-contained.
 | Task memory, compaction, snapshots, resume | [references/memory.md](references/memory.md) |
 | Multi-step flows, agent teams, `mode: 'deep'`, human gates | [references/orchestration.md](references/orchestration.md) |
 | Point the SDK at a new endpoint, or author a provider | [references/providers.md](references/providers.md) |
+| Keep long-session prefixes cache-warm across OpenAI, Anthropic, or Gemini | [references/prompt-caching.md](references/prompt-caching.md) |
 | `runtime.embeddingModel()`, `embed()`, `embedMany()`, embedding providers, `Space_Id` | [references/providers.md](references/providers.md) |
 | Instructions, always-on moving context, `AGENTS.md` files | [references/context-and-instructions.md](references/context-and-instructions.md) |
 | Messages, content blocks, images and vision, PDF/document input | [references/messages-and-content.md](references/messages-and-content.md) |
@@ -134,14 +137,10 @@ carry the fix; this is the index.
 | `confine()` throws `SANDBOX_UNAVAILABLE` on Windows | references/sandbox.md |
 | A request entry granting `write` throws | references/sandbox.md |
 
-## Where the prose docs and the typings disagree
+## Source priority when surfaces move
 
-`web-documents/en/**` (81 pages, mirrored in `vi/`) carries the reasoning behind
-the design. These references carry what compiles: every imported name here is
-checked against the built `.d.ts` files and the code paths are compiled under
-`--strict`. In a handful of places the narrative docs describe an older shape —
-memory stores and scopes, the two skill-provider contracts, the credential
-overloads, `resource`, `McpCloseReport`, the browser observability lifecycle,
-`registerAdapter` argument order, and `runtime.agent(definedAgent)`. The
-references follow the **typings** there and flag the difference inline. Trust
-these files over the prose when writing code.
+Use the current package typings and source as the executable contract, then the
+matching reference in this folder for the operational explanation. The English
+and Vietnamese web docs add longer design guidance, but examples can drift
+between releases. For provider work in particular, check the exact adapter
+option type and protocol dialect before copying a gateway configuration.

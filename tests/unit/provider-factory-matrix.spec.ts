@@ -330,7 +330,7 @@ describe('official preferred provider factory identity', () => {
     expect(anthropic).toMatchObject({
       url: 'https://anthropic-gateway.example.test/v1/messages',
       body: expect.objectContaining({
-        model: 'claude-model', thinking: { type: 'enabled', budget_tokens: 1_024 },
+        model: 'claude-model', output_config: { effort: 'high' },
       }),
     })
     expect(anthropic?.headers.get('x-api-key')).toBe('anthropic-key')

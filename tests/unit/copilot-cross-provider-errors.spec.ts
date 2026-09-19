@@ -67,6 +67,7 @@ import {
   type StreamChunk,
 } from '@alvin0/ai-agent-sdk-core'
 import type { HttpModelAdapter, ProviderCatalogModel } from '@alvin0/ai-agent-sdk-provider-http'
+import type { ModelAdapter } from '@alvin0/ai-agent-sdk-core'
 import { describe, expect, it } from 'vitest'
 import {
   COPILOT_ERROR_CODES,
@@ -376,7 +377,7 @@ function copilotFor(endpoint: CopilotConformanceEndpoint, fetchImpl: typeof glob
   })
 }
 
-function referenceFor(fetchImpl: typeof globalThis.fetch): HttpModelAdapter {
+function referenceFor(fetchImpl: typeof globalThis.fetch): ModelAdapter {
   return openAiAdapter({
     apiKey: 'reference-provider-api-key',
     baseUrl: REFERENCE_BASE,
@@ -386,7 +387,7 @@ function referenceFor(fetchImpl: typeof globalThis.fetch): HttpModelAdapter {
 }
 
 /** Run one generation and return the failure it raised. */
-async function failureOf(adapter: HttpModelAdapter, route: string, trace: string): Promise<ModelError> {
+async function failureOf(adapter: ModelAdapter, route: string, trace: string): Promise<ModelError> {
   const chunks: StreamChunk[] = []
   try {
     for await (const chunk of adapter.stream({
@@ -414,7 +415,7 @@ interface Answer {
 }
 
 async function answerOf(
-  adapter: HttpModelAdapter,
+  adapter: ModelAdapter,
   route: string,
   deployment: Scripted,
   trace: string,

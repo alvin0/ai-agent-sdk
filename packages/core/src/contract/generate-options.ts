@@ -8,6 +8,7 @@ import type { Message } from '../message/message.ts'
 import type { ReasoningEffortId } from '../primitives/brand.ts'
 import type { ModelToolSchema, ToolChoice } from './tool.ts'
 import type { ModelOutputFormat } from './output-format.ts'
+import type { ModelModality } from './model-info.ts'
 
 /** One fully assembled model request. */
 export interface GenerateOptions {
@@ -42,5 +43,9 @@ export interface GenerateOptions {
   maxTokens?: number
   /** Stop sequences; generation halts on any of them, and the string is excluded from output. */
   stop?: readonly string[]
+  /** Overrides the model/route/runtime-defaults tiers, same precedence as `maxTokens`. */
+  contextWindow?: number
+  /** Overrides the model/route/runtime-defaults tiers, same precedence as `maxTokens`. */
+  inputModalities?: readonly ModelModality[]
   signal?: AbortSignal
 }

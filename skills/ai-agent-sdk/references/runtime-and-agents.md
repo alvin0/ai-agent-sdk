@@ -19,6 +19,7 @@ createAgentRuntime(options: AgentRuntimeOptions): Promise<AgentRuntime>
 | --- | --- |
 | `providers` | **Required.** `readonly ComposableModelProviderPlugin[]` |
 | `defaultProvider` | Route used when an agent omits `model.provider` |
+| `defaults` | SDK fallbacks for `contextWindow`, `maxTokens`, and `inputModalities`; used only when agent/model/route is silent |
 | `signal` | Aborts startup |
 | `resource` | `{ serviceName?, serviceVersion?, environment?, attributes? }` — the runtime label is detected, not passed |
 | `observability` | See references/observability.md |
@@ -30,6 +31,13 @@ Async because plugins have a `ready()` boundary — that is where a capability
 acquires resources. Registration is **transactional**: route claims are declared
 up front, a conflict fails before setup completes, and a failed startup rolls
 back every partial registration.
+
+The last-resort context default is 200,000 tokens and the last-resort input
+modalities are text, image, and document. No vendor model table is compiled into
+core. Set `defaults` for your host, route/model catalog values for endpoint facts,
+or agent values when the agent owns the override. No output-token field is sent
+unless one of those layers supplies a value (except protocols such as Anthropic
+Messages that require their own protocol fallback).
 
 ```ts
 interface AgentRuntime {
@@ -54,8 +62,10 @@ const agent = runtime.agent({
 
   // Model route
   model: { provider: 'openai', id: 'gpt-5.4' },
-  effort: 'medium',               // validated against the model's declared efforts
+  effort: 'medium',               // opaque provider value; sent only when set
   maxTokens: 16_384,              // checked against the hard limit before I/O
+  contextWindow: 200_000,         // optional agent-owned override
+  inputModalities: ['text', 'image', 'document'],
   outputFormat: { type: 'text' },
 
   // Behaviour
@@ -77,8 +87,19 @@ const agent = runtime.agent({
   memory: memoryBinding,          // a full MemoryBinding; `false` is session-only
   compaction: { thresholdRatio: 0.8, retainRatio: 0.2 },
   contextSections: [projectFacts],
+
+  // Provider escape hatch; agent values win over route/model values.
+  providerOptions: {
+    headers: { 'x-agent-purpose': 'release-review' },
+    body: { metadata: { workflow: 'release-review' } },
+  },
 })
 ```
+
+`effort` is pure pass-through. The SDK neither fills a default nor rejects a
+value absent from `model.reasoning.efforts`; the provider is authoritative and
+its own rejection reaches the caller. `contextWindow` and `inputModalities`
+belong to the agent configuration and therefore survive a per-call model switch.
 
 `maxTurns` also accepts `'auto'`, which removes the step ceiling without
 removing resource limits. Brokers do **not** belong here: `approvals`,
@@ -93,7 +114,7 @@ with nothing to close and no `ready()` step.
 model: { provider: 'openai', id: 'gpt-5.4' }  → exact route + exact model
 model: { provider: 'openai' }                  → route's configured default model
 model omitted                                  → runtime's selected or unique-default provider
-defineAgent() with no provider/model/effort    → Codex gpt-5.6-luna, effort medium
+defineAgent() with provider/model omitted      → Codex gpt-5.6-luna; effort remains omitted
 ```
 
 ## `defineAgent()` — the reusable definition
@@ -173,14 +194,14 @@ activation, and restores definition-level memory seeds.
 A session has no `close()`. Persist it with `snapshot()`; discard it by dropping
 the reference.
 
-### Per-call model, effort, and ceiling
+### Per-call model and output ceiling
 
-`run()`, `stream()`, and `compact()` accept `model`, `effort`, and `maxTokens`
-for that call alone:
+`run()`, `stream()`, and `compact()` accept `model` and `maxTokens` for that call
+alone. Effort is definition-level; changing it requires deriving/binding another
+agent rather than mutating one invocation:
 
 ```ts
 await session.run('draft it')                                  // the bound model
-await session.run('check it', { effort: 'high' })              // same model, more effort
 await session.run('summarize', { model: { provider: 'codex', id: 'gpt-reserve' } })
 await session.run('continue')                                  // back to the bound model
 ```
@@ -188,9 +209,9 @@ await session.run('continue')                                  // back to the bo
 `agent.model` never changes. The override resolves against the configured routes
 before the run acquires anything, so `MODEL_ROUTE_UNAVAILABLE`,
 `MODEL_DEFAULT_MISSING`, and `MODEL_TARGET_INVALID` cost no request; `{ provider }`
-alone takes that route's default model. Changing model **drops** an inherited
-effort and output ceiling unless the same call restates them, because both belong
-to the model that published them.
+alone takes that route's default model. A model switch drops the bound output
+ceiling unless the call restates it. Agent-owned `contextWindow` and
+`inputModalities` remain in force.
 
 No failover: a failure on the chosen model reaches the caller, and retries stay
 on that model. `embeddingModel()` has no per-call override at all — a handle keeps

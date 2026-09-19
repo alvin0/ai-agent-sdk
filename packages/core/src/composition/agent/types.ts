@@ -11,7 +11,7 @@ import type { ContextSection } from '../../agent/context/types.ts'
 import type { TurnHooks } from '../../agent/loop/types.ts'
 import type { UserInputBroker, UserInputDecision, UserInputRequest } from '../../agent/mode/user-input.ts'
 import type { UsagePolicy } from '../../agent/accounting/report.ts'
-import type { ModelOutputFormat, NativeToolSchema, ToolChoice } from '../../contract/index.ts'
+import type { ModelModality, ModelOutputFormat, NativeToolSchema, ToolChoice } from '../../contract/index.ts'
 import type { JsonValue } from '../../primitives/index.ts'
 import type { ModelTarget } from '../provider/types.ts'
 import type { RuntimeRunReport } from '../observation/final-report.ts'
@@ -31,6 +31,10 @@ export interface RuntimeAgentDefinitionInput {
   readonly instructions: string
   readonly effort?: string
   readonly maxTokens?: number
+  /** Overrides the model/route/runtime-defaults tiers, same precedence as `maxTokens`. */
+  readonly contextWindow?: number
+  /** Overrides the model/route/runtime-defaults tiers, same precedence as `maxTokens`. */
+  readonly inputModalities?: readonly ModelModality[]
   readonly mode?: 'basic' | 'deep' | 'deep-human-in-loop'
   readonly tools?: readonly ToolDefinition[]
   readonly nativeTools?: readonly NativeToolSchema[]
@@ -53,6 +57,11 @@ export interface RuntimeAgentDefinitionInput {
   readonly maxTurns?: number | 'auto'
   readonly maxToolCalls?: number
   readonly commentary?: 'auto' | 'concise' | 'off'
+  /** Extra headers/body fields for this agent's provider requests; this agent's value wins where it collides with the route's own. */
+  readonly providerOptions?: {
+    readonly headers?: Readonly<Record<string, string>>
+    readonly body?: Readonly<Record<string, unknown>>
+  }
 }
 
 export interface RuntimeAgentDefinition extends RuntimeAgentDefinitionInput {}
@@ -119,16 +128,7 @@ export interface RuntimeAgentInvocationOptions {
    * chosen one fails — the failure is raised to the caller.
    */
   readonly model?: { readonly provider: string; readonly id?: string }
-  /**
-   * Reasoning effort for this invocation only.
-   *
-   * Alone it re-runs the agent's own model at a different effort. With `model`
-   * it applies to that model. Omitted alongside a `model` that differs from the
-   * binding, the agent's effort is NOT carried over: an effort belongs to the
-   * ladder of the model that offers it, and the route decides the default.
-   */
-  readonly effort?: string
-  /** Output ceiling for this invocation only; dropped like `effort` on a model switch. */
+  /** Output ceiling for this invocation only; dropped, like effort, on a model switch. */
   readonly maxTokens?: number
   /** One schema adapter supplies the provider schema and a synchronous runtime validator. */
   readonly structuredOutput?: {

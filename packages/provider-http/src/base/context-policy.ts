@@ -1,4 +1,4 @@
-import type { ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core'
+import type { ModelContext, ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core'
 import type { ProviderCatalogModel } from './http-adapter.ts'
 
 /** Context facts only: never advertises models or guesses their capabilities. */
@@ -15,7 +15,7 @@ export interface ModelContextPolicyOptions {
 }
 
 export function applyModelContextPolicy(
-  info: ResolvedModelInfo,
+  info: Omit<ResolvedModelInfo, 'context'> & { readonly context?: Partial<ModelContext> },
   policy: ModelContextPolicy | undefined,
   configured?: ProviderCatalogModel,
   providerOverride?: number,
@@ -36,7 +36,14 @@ export function applyModelContextPolicy(
     (contextWindow !== undefined && contextWindow > maxContextWindow)
     || (defaultContextWindow !== undefined && defaultContextWindow > maxContextWindow)
   )) throw new RangeError('contextWindow exceeds maxContextWindow')
-  if (contextWindow === undefined) return info
+  // A partial `context` with no `contextWindow` (e.g. only a route's own
+  // `defaultContextWindow` hint, carried here so it can outrank correctly —
+  // see `resolvedCatalogModelInfo`) is not a real `ModelContext` and must never
+  // leak downstream as one.
+  if (contextWindow === undefined) {
+    const { context: _partial, ...withoutContext } = info
+    return withoutContext
+  }
   return { ...info, context: {
     contextWindow,
     ...(defaultContextWindow === undefined ? {} : { defaultContextWindow }),

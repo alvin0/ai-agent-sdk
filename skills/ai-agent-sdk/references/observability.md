@@ -4,6 +4,27 @@ One structured observation bus records model calls, physical provider attempts,
 usage coverage, retries, credential/catalog operations, safe errors, and
 correlated application logs — with `content: 'none'` as the default.
 
+## Exact wire logging is a separate diagnostic surface
+
+HTTP providers accept `requestLogger` and `responseLogger`. They are for
+compatibility debugging and can contain prompts, tool output, and provider SSE
+frames; they are not ordinary structured-observation exporters.
+
+```ts
+openAiPlugin({
+  apiKey,
+  requestLogger: request => saveWireRequest(request),
+  responseLogger: response => saveWireResponse(response),
+})
+```
+
+Both records share the SDK-generated `id`. Request headers are credential-
+redacted; response headers are redacted and `frames` preserve the provider's
+decoded wire vocabulary before translation to `StreamChunk`. The response
+logger fires from stream cleanup on success, error, or abort. A slow, throwing,
+or timed-out logger cannot delay or fail the provider call. Treat stored bodies
+as sensitive and require an explicit diagnostic opt-in.
+
 ## Compose it
 
 Two exporter shapes exist and they are **not** interchangeable — tsc will say so:

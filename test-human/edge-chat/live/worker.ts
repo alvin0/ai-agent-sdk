@@ -94,7 +94,7 @@ async function createSession(conversationId: string, environment: LiveEnvironmen
     models: [{ id: model, name: model, contextWindow: 272_000, maxTokens: 32_000,
       inputModalities: ['text', 'image'], outputModalities: ['text'],
       nativeTools: ['web-search'],
-      reasoning: { efforts: [{ id: effort, name: effort }], defaultEffort: effort } }],
+      reasoning: { efforts: [{ id: effort, name: effort }] } }],
     requestTimeoutMs: 180_000, streamIdleTimeoutMs: 45_000,
     fetch: createCodexRelayFetch(environment),
   })

@@ -2,7 +2,8 @@ import type { GenerateOptions, StreamChunk, UsageCounters } from '@alvin0/ai-age
 
 export interface ProtocolRequest {
   readonly options: GenerateOptions
-  readonly maxTokens: number
+  /** Absent when neither the caller, the model, nor the route names an output cap. */
+  readonly maxTokens?: number
 }
 
 export interface ProtocolSseEvent {

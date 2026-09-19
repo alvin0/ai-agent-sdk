@@ -30,6 +30,16 @@ function scopeFor(key: object, runId: string, supplied?: ObservationRunScope): O
   return scope
 }
 
+/**
+ * Carry the failure's own message through to the report untouched.
+ *
+ * A provider's rejection often names the exact reason (an unsupported
+ * `reasoning.effort` value, a missing field, a quota message) that the
+ * generic classification code cannot express — an agent or its caller reading
+ * `report.error.message` needs that, not a pointer back to the code. Content
+ * redaction belongs to the observation exporters (`observability.content` /
+ * `redactors`), never to what this report itself carries.
+ */
 function safeFailureFromFinish(
   chunk: Extract<StreamChunk, { type: 'finish' }>,
   isRetryable?: (code: string) => boolean,
@@ -38,9 +48,7 @@ function safeFailureFromFinish(
   const failure = chunk.reason.failure
   return Object.freeze({
     type: 'ModelError',
-    message: chunk.reason.kind === 'aborted'
-      ? 'model call was aborted; inspect the stable code for classification'
-      : 'model call failed; inspect the stable code and provider request ID',
+    message: failure.message,
     code: failure.code,
     ...isRetryable === undefined ? {} : { retryable: isRetryable(failure.code) },
     ...failure.status === undefined ? {} : { status: failure.status },
@@ -391,6 +399,8 @@ export function createModelCallHandle(input: CreateModelCallHandleOptions): Mode
     terminalCheckpointOwner: input.context?.terminalCheckpointOwner ?? 'model-call',
     scope,
     ...(input.context?.logger === undefined ? {} : { logger: input.context.logger }),
+    ...(input.context?.agentId === undefined ? {} : { agentId: input.context.agentId }),
+    ...(input.context?.providerOptions === undefined ? {} : { providerOptions: input.context.providerOptions }),
     declareProviderAttemptAccounting: () => { providerAttemptAccountingDeclared = true },
     startProviderAttempt,
     recordProviderRetry,

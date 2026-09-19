@@ -66,7 +66,7 @@ export {
 | `anthropicPlugin(options)` | **Khuyến nghị.** Đăng ký có giao dịch. |
 | `anthropicAdapter(options)` | Tự đăng ký tuyến. |
 | `ANTHROPIC_VERSION` | Header phiên bản API đã ghim mà adapter gửi đi. |
-| `DEFAULT_THINKING_BUDGETS` | Ánh xạ mức nỗ lực suy luận sang ngân sách token suy nghĩ. |
+| `DEFAULT_THINKING_BUDGETS` | Ánh xạ effort sang budget kiểu cũ, chỉ dùng với `reasoningFormat: 'thinking-budget'`. |
 
 ```ts
 import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
@@ -82,33 +82,59 @@ const registry = new ModelRegistry()
 registry.install(anthropicPlugin({ apiKey }))
 ```
 
-## Suy luận ánh xạ sang ngân sách suy nghĩ
+## Mức nỗ lực suy luận
 
-Anthropic biểu diễn suy luận bằng **ngân sách token**, không phải mức nỗ lực.
-Adapter làm cầu từ `effort` trung lập sang một ngân sách qua
-`DEFAULT_THINKING_BUDGETS`:
+Mặc định, model hiện hành nhận thẳng giá trị `effort` trung lập qua
+`output_config.effort`:
 
 ```ts
 runtime.agent({
   id: 'analyst',
   model: { provider: 'anthropic', id: 'claude-sonnet-4-5' },
   instructions: '…',
-  effort: 'medium',        // → một ngân sách token suy nghĩ
+  effort: 'medium',        // → output_config.effort
 })
 ```
 
-Ghi đè phép ánh xạ khi model hoặc khối lượng công việc của bạn cần một đường
-cong khác:
+Với model cũ hoặc gateway tương thích chỉ nhận ngân sách token suy nghĩ, bật
+tường minh phép ánh xạ cũ:
 
 ```ts
 anthropicPlugin({
   apiKey,
+  reasoningFormat: 'thinking-budget',
   thinkingBudgets: { low: 1_024, medium: 8_192, high: 32_768 },
 })
 ```
 
 `AnthropicReasoningState` mang trạng thái suy luận riêng tư của adapter, cần cho
 việc phát lại.
+
+## Prompt caching cho session dài
+
+Bật tường minh các breakpoint `cache_control` native của provider:
+
+```ts
+anthropicPlugin({
+  apiKey,
+  promptCaching: true,
+  promptCachingTtl: '1h', // tuỳ chọn; bỏ qua để dùng mặc định API (5m)
+})
+```
+
+Serializer đánh dấu prefix ổn định mà không đổi message contract trung lập:
+
+- system prompt;
+- tool definition cuối cùng, bao phủ danh sách tool đứng trước;
+- content block cuối của wire message áp chót, bao phủ lịch sử trước turn mới nhất.
+
+Cách này dùng tối đa ba breakpoint và để trống một trong bốn slot breakpoint của
+Anthropic. Ở turn đầu chưa có prefix message ổn định, nên chỉ system/tool prefix
+nếu có mới được đánh dấu.
+
+Nếu gateway Messages tương thích trả HTTP 400 nêu rõ `cache_control`, adapter
+thử lại một lần không dùng caching và ghi nhớ việc hạ cấp. Xem
+[Prompt caching](/vi/09-providers/prompt-caching).
 
 ## Năng lực
 
@@ -183,4 +209,5 @@ thành lỗi có kiểu, chứ không thành hành vi trôi lệch.
 
 - [OpenAI](/vi/09-providers/openai) · [Codex](/vi/09-providers/codex)
 - [Protocols](/vi/09-providers/protocols)
+- [Prompt caching](/vi/09-providers/prompt-caching)
 - [Native Tools](/vi/03-tools/native-tools)

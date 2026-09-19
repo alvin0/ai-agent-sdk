@@ -151,6 +151,11 @@ describe('declarative agent definitions', () => {
     expect(() => defineAgent({ id: 'valid', instructions: '  ' })).toThrow(/instructions/)
     expect(() => defineAgent({ id: 'valid', instructions: 'Valid.', maxTurns: 0 })).toThrow(/maxTurns/)
     expect(() => defineAgent({ id: 'valid', instructions: 'Valid.', maxToolCalls: 0 })).toThrow(/maxToolCalls/)
+    expect(() => defineAgent({ id: 'valid', instructions: 'Valid.', contextWindow: 0 })).toThrow(/contextWindow/)
+    expect(() => defineAgent({ id: 'valid', instructions: 'Valid.', inputModalities: [] })).toThrow(/inputModalities/)
+    expect(() => defineAgent({
+      id: 'valid', instructions: 'Valid.', inputModalities: ['text', 'text'],
+    })).toThrow(/inputModalities/)
 
     const tool = defineTool({
       name: 'lookup', description: 'Look up a value.', parameters: { type: 'object' },
@@ -179,18 +184,23 @@ describe('declarative agent definitions', () => {
       skillIds: ['typescript-review'],
     })
 
-    const deeper = base.with({ mode: 'deep', maxTurns: 24, maxToolCalls: 96 })
+    const deeper = base.with({
+      mode: 'deep', maxTurns: 24, maxToolCalls: 96,
+      contextWindow: 128_000, inputModalities: ['text', 'image'],
+    })
     const reviewer = cloneAgent(base, { id: 'reviewer', name: 'Reviewer', instructions: 'Review carefully.' })
 
     expect(deeper).toMatchObject({
       id: 'ada', name: 'Ada', mode: 'deep', maxTurns: 24, maxToolCalls: 96, model: 'small',
-      skillIds: ['typescript-review'],
+      skillIds: ['typescript-review'], contextWindow: 128_000, inputModalities: ['text', 'image'],
     })
     expect(reviewer).toMatchObject({
       id: 'reviewer', name: 'Reviewer', instructions: 'Review carefully.', provider: 'test', model: 'small',
       skillIds: ['typescript-review'],
     })
     expect(base).toMatchObject({ id: 'ada', mode: 'basic', maxTurns: 16 })
+    expect(base.contextWindow).toBeUndefined()
+    expect(base.inputModalities).toBeUndefined()
   })
 
   it('captures, freezes, validates, and forwards the selected output format', async () => {

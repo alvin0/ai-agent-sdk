@@ -50,12 +50,12 @@ not hide in a health UI.
 
 | Property | Status |
 | --- | --- |
-| Version | `0.1.3` |
-| npm publication | `0.1.3` release candidate under `@alvin0/ai-agent-sdk-*` |
+| Version | `0.1.4` |
+| npm publication | `0.1.4` release candidate under `@alvin0/ai-agent-sdk-*` |
 | Release path | A `main` merge triggers guarded npm publication with provenance |
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.3.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.4.tgz
 ```
 
 Every `pnpm add @alvin0/ai-agent-sdk-...` command in this documentation uses the

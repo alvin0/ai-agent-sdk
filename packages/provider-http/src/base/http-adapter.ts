@@ -59,6 +59,7 @@ import {
   boundedResponseBody,
   catalogModelInfo,
   raceWithSignal,
+  redactHeaders,
   resolvedCatalogModelInfo,
 } from './transport.ts'
 
@@ -95,7 +96,11 @@ export interface ProviderCatalogModel {
   maxTokens?: number
   /** Default output budget, independently of the ceiling. Falls back to maxTokens. */
   defaultMaxTokens?: number
-  /** Accepted request modalities; omission is treated as text-only. */
+  /**
+   * Accepted request modalities. Omission is UNKNOWN, not text-only — the
+   * registry fills the SDK's own permissive default (text + image + document)
+   * when neither this nor a runtime default names one. See RuntimeDefaults.
+   */
   inputModalities?: readonly ModelModality[]
   /** Modalities this model route may return. */
   outputModalities?: readonly ModelModality[]
@@ -103,6 +108,10 @@ export interface ProviderCatalogModel {
   nativeTools?: readonly NativeToolName[]
   /** Reasoning levels this model offers, when any. */
   reasoning?: ModelReasoningInfo
+  /** Extra headers for requests to this exact model; wins over the route's own, loses to the agent's. */
+  headers?: Readonly<Record<string, string>>
+  /** Fields to deep-merge into the body for requests to this exact model; wins over the route's own, loses to the agent's. */
+  body?: Readonly<Record<string, unknown>>
 }
 
 /**
@@ -128,10 +137,18 @@ export interface HttpConnection extends HttpTransportConnection {
   readonly maxSseEventChars?: number
   /** Advisory catalog; requests are never restricted to it. */
   readonly models: readonly ProviderCatalogModel[]
-  /** Output cap applied when neither the caller nor the model entry names one. */
-  readonly defaultMaxTokens: number
-  /** Context capacity used when the selected model has no exact value. */
-  readonly defaultContextWindow: number
+  /**
+   * Output cap applied when neither the caller nor the model entry names one.
+   * Absent means this ROUTE names no default either — the registry's own
+   * RuntimeDefaults tier may still fill it; if nothing does, no cap is sent.
+   */
+  readonly defaultMaxTokens?: number
+  /**
+   * Context capacity used when the selected model has no exact value. Absent
+   * means this route names no default either — the registry's own
+   * RuntimeDefaults/SDK-constant tier fills it instead of this connection.
+   */
+  readonly defaultContextWindow?: number
 }
 
 /** What {@link HttpModelAdapter.buildBody} and `translate` receive. */
@@ -142,8 +159,17 @@ export interface ProviderRequest {
   readonly model: ResolvedModelInfo
   /** The connection snapshot this call is bound to. */
   readonly connection: HttpConnection
-  /** Output cap to send; always resolved to a number, which some APIs require. */
-  readonly maxTokens: number
+  /**
+   * Output cap to send. Absent when neither the caller, the model, nor the
+   * route names one — an endpoint that requires the field regardless (such as
+   * Anthropic's Messages API) supplies its own fallback at the protocol layer,
+   * not here.
+   */
+  readonly maxTokens?: number
+  /** Stable code-owned agent identity, when this call belongs to one and the caller supplied it. */
+  readonly agentId?: string
+  /** The agent's own body fields, when it configured one. Merged in by `buildBody`, agent wins over the route. */
+  readonly providerOptionsBody?: Readonly<Record<string, unknown>>
 }
 
 /**
@@ -174,6 +200,41 @@ export interface ProviderRequestLogRecord {
  */
 export type ProviderRequestLogger = (
   record: ProviderRequestLogRecord,
+) => Promise<void> | void
+
+/**
+ * The provider's exact wire answer to one streamed call, observed once the
+ * stream ends (successfully, with an error, or aborted).
+ *
+ * The counterpart {@link ProviderRequestLogRecord} misses entirely: a trace
+ * that shows what went OUT but not what came BACK still leaves "did the
+ * provider actually receive this the way I meant it" unanswered from the
+ * response alone. `frames` is every decoded SSE event in arrival order,
+ * BEFORE this provider's own `translate()` reshapes them into the SDK's
+ * neutral `StreamChunk`s — this is the provider's own vocabulary
+ * (`response.output_text.delta`, `content_block_delta`, …), not a
+ * lossy summary of it.
+ */
+export interface ProviderResponseLogRecord {
+  /** Version of this durable/debug record shape. */
+  readonly schemaVersion: 1
+  readonly type: 'provider-response'
+  /** Same value as the matching {@link ProviderRequestLogRecord.id}. */
+  readonly id: string
+  readonly timestamp: string
+  readonly provider: string
+  readonly model: string
+  readonly status: number
+  /** Response headers; redacted the same way as the request's. */
+  readonly headers: Readonly<Record<string, string>>
+  readonly providerRequestId?: string
+  /** Every decoded SSE frame, in arrival order. May contain the full answer. */
+  readonly frames: readonly SseEvent[]
+}
+
+/** Optional observer for exact provider-wire responses. */
+export type ProviderResponseLogger = (
+  record: ProviderResponseLogRecord,
 ) => Promise<void> | void
 
 /**
@@ -218,6 +279,23 @@ function resolveSseLimits(connection: HttpConnection): ResolvedSseLimits {
   })
 }
 
+/**
+ * Mirror every decoded SSE event into `sink` on the way through, unchanged.
+ *
+ * `sink` grows only as fast as `parseSseBounded` already lets it — bounded by
+ * the SAME `maxEvents`/`maxEventChars` this generator's caller resolved — so
+ * this adds no bound of its own and no risk of it drifting from the real one.
+ */
+async function* tapSseEvents(
+  events: AsyncGenerator<SseEvent>,
+  sink: SseEvent[],
+): AsyncGenerator<SseEvent> {
+  for await (const event of events) {
+    sink.push(event)
+    yield event
+  }
+}
+
 /** Base for every HTTP provider adapter in this package. */
 export abstract class HttpModelAdapter extends ModelAdapter {
   /** Human-readable provider name reported by {@link providerInfo}. */
@@ -230,11 +308,16 @@ export abstract class HttpModelAdapter extends ModelAdapter {
    * credential here, together with the endpoint.
    * @param provider - the route being served.
    * @param signal - cancellation for any I/O this resolution performs.
+   * @param context - correlation/accounting context, when the caller has one.
+   * @param model - the exact model id, when the caller already knows it (absent
+   *   for `listModels()`, which resolves a connection before any one model is
+   *   chosen).
    */
   protected abstract connect(
     provider: string,
     signal?: AbortSignal,
     context?: ModelInvocationContext,
+    model?: string,
   ): Promise<HttpConnection>
 
   /** Path appended to {@link HttpConnection.baseUrl}, e.g. `/v1/messages`. */
@@ -276,6 +359,16 @@ export abstract class HttpModelAdapter extends ModelAdapter {
   protected observeRequest(_record: ProviderRequestLogRecord): Promise<void> | void {}
 
   /**
+   * Observe the exact, header-redacted wire response once a stream ends.
+   *
+   * The default is a no-op so library users do not silently persist model
+   * output. Fired best-effort from a `finally`, after the consumer has
+   * already seen every chunk — a slow or failing sink here can neither delay
+   * nor break the real call.
+   */
+  protected observeResponse(_record: ProviderResponseLogRecord): Promise<void> | void {}
+
+  /**
    * Map a non-2xx response to a stable code. Override only to add codes this
    * provider reports that the shared mapping cannot infer from the status.
    */
@@ -297,7 +390,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     model: string,
     signal?: AbortSignal,
   ): Promise<ResolvedModelInfo> {
-    const connection = this.captureConnection(await this.connect(provider, signal))
+    const connection = this.captureConnection(await this.connect(provider, signal, undefined, model))
     return this.decorateModel(this.modelInfoFor(connection, provider, model), connection)
   }
 
@@ -310,7 +403,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     context?.declareProviderAttemptAccounting?.()
     // Snapshot once, then bind both the capability answer and the eventual
     // dispatch to it, so the two cannot come from different generations.
-    const connection = this.captureConnection(await this.connect(provider, signal, context))
+    const connection = this.captureConnection(await this.connect(provider, signal, context, model))
     const info = this.decorateModel(this.modelInfoFor(connection, provider, model), connection)
     const wireBody: PreparedWireBodyCache = {}
     return {
@@ -339,7 +432,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
   private async * runResolving(options: GenerateOptions, context?: ModelInvocationContext): AsyncGenerator<StreamChunk> {
     context?.declareProviderAttemptAccounting?.()
     const connection = this.captureConnection(
-      await this.connect(options.provider, options.signal, context),
+      await this.connect(options.provider, options.signal, context, options.model),
     )
     const info = this.decorateModel(
       this.modelInfoFor(connection, options.provider, options.model),
@@ -389,26 +482,36 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     wireBodyCache: PreparedWireBodyCache = {},
   ): AsyncGenerator<StreamChunk> {
     context?.declareProviderAttemptAccounting?.()
+    // Undefined `inputModalities` is UNKNOWN, not a negative capability claim
+    // (see `resolvedCatalogModelInfo`'s doc comment) — the registry's own
+    // permissive default (text + image + document) applies. This guard is a
+    // fallback for direct adapter usage that bypasses `ModelRegistry` (whose
+    // own `streamAdapter()` already enforces `imagePolicy`/`documentPolicy`
+    // against the DEFAULTED modalities before ever reaching here), so it must
+    // only reject a modality the catalog EXPLICITLY excludes.
     if (options.messages.some(message => contentHasImage(message.content))
-      && model.inputModalities?.includes('image') !== true) {
+      && model.inputModalities !== undefined && !model.inputModalities.includes('image')) {
       throw new ModelError(
         `${this.displayName} model "${options.model}" does not accept image input`,
         MODEL_ERROR_CODES.UNSUPPORTED_CONTENT,
       )
     }
     if (options.messages.some(message => contentHasDocument(message.content))
-      && model.inputModalities?.includes('document') !== true) {
+      && model.inputModalities !== undefined && !model.inputModalities.includes('document')) {
       throw new ModelError(
         `${this.displayName} model "${options.model}" does not accept document input`,
         MODEL_ERROR_CODES.UNSUPPORTED_CONTENT,
       )
     }
 
+    const resolvedMaxTokens = options.maxTokens ?? model.defaultMaxTokens ?? connection.defaultMaxTokens
     const request: ProviderRequest = {
       options,
       model,
       connection,
-      maxTokens: options.maxTokens ?? model.defaultMaxTokens ?? connection.defaultMaxTokens,
+      ...(resolvedMaxTokens === undefined ? {} : { maxTokens: resolvedMaxTokens }),
+      ...(context?.agentId === undefined ? {} : { agentId: context.agentId }),
+      ...(context?.providerOptions?.body === undefined ? {} : { providerOptionsBody: context.providerOptions.body }),
     }
 
     const sseLimits = resolveSseLimits(connection)
@@ -485,7 +588,8 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       this.displayName,
       30_000,
     )
-    const events = parseSseBounded(boundedResponseBody(
+    const rawFrames: SseEvent[] = []
+    const events = tapSseEvents(parseSseBounded(boundedResponseBody(
       response.body,
       maxResponseBytes,
       session.limits.maxResponseChunks,
@@ -494,38 +598,68 @@ export abstract class HttpModelAdapter extends ModelAdapter {
     ), idleDeadline.activity, 30_000, {
       maxEvents: sse.maxEvents,
       maxEventChars: sse.maxEventChars,
-    })
+    }), rawFrames)
     const translated = requireTerminalFinish(this.translate(events, request), this.displayName)
-    for await (const chunk of idleDeadline.guard(translated)) {
-      if (chunk.type === 'usage-progress') {
-        session.reportUsage(chunk.usage, false)
-        const validated = validateUsageCounters(chunk.usage, true)
-        if (Object.keys(validated.reported).length > 0) {
-          yield { type: 'usage-progress', usage: validated.reported,
-            ...(session.attemptId === undefined ? {} : { attemptId: session.attemptId }) }
+    try {
+      for await (const chunk of idleDeadline.guard(translated)) {
+        if (chunk.type === 'usage-progress') {
+          session.reportUsage(chunk.usage, false)
+          const validated = validateUsageCounters(chunk.usage, true)
+          if (Object.keys(validated.reported).length > 0) {
+            yield { type: 'usage-progress', usage: validated.reported,
+              ...(session.attemptId === undefined ? {} : { attemptId: session.attemptId }) }
+          }
+          continue
         }
-        continue
+        if (chunk.type === 'usage') {
+          session.reportUsage(chunk.usage)
+          const validated = validateUsageCounters(chunk.usage, true)
+          // Partial and malformed reports remain provider-attempt evidence but
+          // never escape as the SDK's exact TokenUsage contract.
+          if (!validated.complete) continue
+          yield { type: 'usage', usage: validated.reported as TokenUsage }
+          continue
+        }
+        if (chunk.type === 'finish') {
+          const status = chunk.reason.kind === 'aborted' ? 'aborted'
+            : chunk.reason.kind === 'error' ? 'error' : 'success'
+          session.reportOutcome(
+            status,
+            chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted'
+              ? chunk.reason.failure
+              : undefined,
+          )
+        }
+        yield chunk
       }
-      if (chunk.type === 'usage') {
-        session.reportUsage(chunk.usage)
-        const validated = validateUsageCounters(chunk.usage, true)
-        // Partial and malformed reports remain provider-attempt evidence but
-        // never escape as the SDK's exact TokenUsage contract.
-        if (!validated.complete) continue
-        yield { type: 'usage', usage: validated.reported as TokenUsage }
-        continue
-      }
-      if (chunk.type === 'finish') {
-        const status = chunk.reason.kind === 'aborted' ? 'aborted'
-          : chunk.reason.kind === 'error' ? 'error' : 'success'
-        session.reportOutcome(
-          status,
-          chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted'
-            ? chunk.reason.failure
-            : undefined,
-        )
-      }
-      yield chunk
+    } finally {
+      // Fired after the consumer has already seen everything real; a slow or
+      // failing sink here can no longer delay or break the call it describes.
+      void this.emitResponseLog(request, session, rawFrames)
+    }
+  }
+
+  /** Best-effort delivery of one response record; see `observeResponse`'s doc comment. */
+  private async emitResponseLog(
+    request: ProviderRequest,
+    session: HttpTransportSession,
+    frames: readonly SseEvent[],
+  ): Promise<void> {
+    try {
+      await this.observeResponse({
+        schemaVersion: 1,
+        type: 'provider-response',
+        id: session.requestLogId,
+        timestamp: new Date().toISOString(),
+        provider: request.options.provider,
+        model: request.options.model,
+        status: session.response.status,
+        headers: redactHeaders(Object.fromEntries(session.response.headers.entries())),
+        ...(session.providerRequestId === undefined ? {} : { providerRequestId: session.providerRequestId }),
+        frames,
+      })
+    } catch {
+      // Contained by contract; see `observeResponse` above.
     }
   }
 

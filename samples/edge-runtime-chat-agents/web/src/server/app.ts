@@ -163,13 +163,14 @@ export function createEdgeChatApp(basePath = '/api') {
       return streamAutoRun(managed.lead.stream(message.trim(), { signal: abort.signal }), abort, context)
     }
     const session = entry.session as RuntimeAgentSession
-    // The model and effort for THIS turn, not for the session. The visitor can
-    // change either between turns and keep the conversation: the agent's own
-    // binding is untouched, and a turn that names neither runs on it again.
+    // The model for THIS turn, not for the session: the SDK still lets a
+    // per-call `model` override run without disturbing the conversation. Effort
+    // has no such override — it was already baked into this session's agent by
+    // `acquireSession` when the visitor's effort choice was last read — so it is
+    // never repeated here.
     return streamRun(session.stream(message.trim(), {
       includeTraceEvents: true,
       model: { provider: 'openai', id: config.model },
-      ...(config.effort === undefined ? {} : { effort: config.effort }),
     }), context)
   })
 

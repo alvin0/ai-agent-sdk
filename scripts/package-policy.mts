@@ -27,7 +27,14 @@ export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {
   },
   [scoped('provider-openai')]: {
     runtime: 'universal',
-    workspaceDependencies: [scoped('core'), scoped('provider-http'), scoped('protocol-responses')],
+    // Both OpenAI protocols: this provider serves Responses and Chat
+    // Completions from one route, choosing per model (`models[].api`).
+    workspaceDependencies: [
+      scoped('core'),
+      scoped('provider-http'),
+      scoped('protocol-responses'),
+      scoped('protocol-openai-chat-completions'),
+    ],
     externalRuntimeDependencies: [],
   },
   [scoped('provider-codex')]: {

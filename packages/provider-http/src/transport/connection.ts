@@ -32,6 +32,10 @@ export interface HttpTransportConnection {
   readonly headers: Readonly<Record<string, string>>
   /** Auth-produced names that must be redacted regardless of spelling. */
   readonly sensitiveHeaderNames?: readonly string[]
+  /** Auth-produced query-string parameters (`auth: [{ kind: 'query', ... }]`), merged onto the request path. */
+  readonly queryOverrides?: Readonly<Record<string, string>>
+  /** Names in {@link queryOverrides} that must be redacted in logs. */
+  readonly sensitiveQueryParamNames?: readonly string[]
   /** End-to-end request/stream timeout. */
   readonly requestTimeoutMs?: number
   /** Maximum serialized outbound request bytes. */

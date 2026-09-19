@@ -173,10 +173,12 @@ All three source kinds work on all three protocols — unlike images, where
 Anthropic rejects `{ kind: 'file' }`. Anthropic's Files API id is in fact the
 recommended path for a PDF large enough to strain its 32 MB request cap.
 
-**A model must declare the `document` modality or the PDF is silently projected
-to text.** An omitted modality is a negative capability claim, and this bites
-hardest on Codex, whose discovery reports only `text` and `image` even for models
-that do accept PDFs:
+An omitted `inputModalities` declaration means **unknown** and is permissive:
+the SDK sends the PDF rather than assuming the model is text-only. Projection
+happens only when the resolved model/route/agent configuration explicitly omits
+`document`. This still bites on Codex when discovery positively reports only
+`text` and `image` for a model that does accept PDFs; override that stale or
+incomplete declaration at the route or agent:
 
 ```ts
 codexNodeAdapter({
@@ -185,9 +187,11 @@ codexNodeAdapter({
 })
 ```
 
-Gemini ships no built-in catalog, so declare it there too. `documentPolicy:
-'strict'` on an invocation fails loudly instead of degrading the PDF — use it
-whenever the answer depends on the file actually arriving.
+Gemini ships no built-in generation catalog, but it no longer needs a declaration
+merely to permit document input. `documentPolicy: 'strict'` on an invocation
+fails loudly instead of degrading a PDF when some explicit capability layer says
+the chosen model cannot receive it — use it whenever the answer depends on the
+file actually arriving.
 
 #### Token estimation and `pages`
 

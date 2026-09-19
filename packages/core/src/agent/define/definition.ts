@@ -1,6 +1,6 @@
 /** Declarative, code-first agent definitions. */
 
-import type { ModelOutputFormat, ToolChoice, NativeToolSchema } from '../../contract/index.ts'
+import type { ModelOutputFormat, ToolChoice, NativeToolSchema, ModelModality } from '../../contract/index.ts'
 import { ReasoningEffortId, type ReasoningEffortId as ReasoningEffort } from '../../primitives/index.ts'
 import type { AgentMode } from '../mode/run-agent.ts'
 import type { ToolDefinition } from '../tool/definition.ts'
@@ -32,6 +32,17 @@ import {
 } from './session.ts'
 import { captureOutputFormat } from './output-format.ts'
 
+/**
+ * Fields to hand a provider's HTTP adapter for this agent's calls: extra
+ * headers, or fields deep-merged into the serialized request body. The
+ * caller's value always wins, even over a field the route itself set;
+ * `null` in `body` deletes a field the route set.
+ */
+export interface AgentProviderOptions {
+  readonly headers?: Readonly<Record<string, string>>
+  readonly body?: Readonly<Record<string, unknown>>
+}
+
 export interface AgentDefinitionInput {
   /** Stable code-owned identity used by traces and catalogs. */
   readonly id: string
@@ -45,14 +56,19 @@ export interface AgentDefinitionInput {
   /**
    * Provider reasoning effort. Omitted means no preference.
    *
-   * An agent that never asked for a level should not be given one: the value
-   * is validated against the model's own ladder, so an invented default makes
-   * the agent unrunnable on every provider that declares no efforts — and
-   * silently overrides the provider's own default everywhere else.
+   * Pure pass-through: omitted, no effort field reaches the wire request at
+   * all; set, the exact string is forwarded to the provider's own effort
+   * field verbatim. The SDK never validates it against a ladder or invents a
+   * default — an unsupported value is the provider's rejection to make, in
+   * its own error shape, not a guess this package would get stale.
    */
   readonly effort?: string
   /** Requested output budget; omission uses the selected model's declared default/cap. */
   readonly maxTokens?: number
+  /** Overrides the model/route/runtime-defaults tiers, same precedence as `maxTokens`. */
+  readonly contextWindow?: number
+  /** Overrides the model/route/runtime-defaults tiers, same precedence as `maxTokens`. */
+  readonly inputModalities?: readonly ModelModality[]
   /** The agent's stable system instructions. */
   readonly instructions: string
   /** Execution policy; defaults to `basic`. */
@@ -89,6 +105,8 @@ export interface AgentDefinitionInput {
   readonly memory?: AgentMemoryConfigInput
   /** Automatic context checkpointing; false disables it. Defaults to enabled. */
   readonly compaction?: AgentCompactionOptions | false
+  /** Extra headers/body fields for this agent's provider requests; this agent's value wins where it collides with the route's own. */
+  readonly providerOptions?: AgentProviderOptions
 }
 
 export interface AgentDefinition {
@@ -99,6 +117,8 @@ export interface AgentDefinition {
   readonly model: string
   readonly effort: ReasoningEffort | undefined
   readonly maxTokens: number | undefined
+  readonly contextWindow: number | undefined
+  readonly inputModalities: readonly ModelModality[] | undefined
   readonly instructions: string
   readonly mode: AgentMode
   readonly tools: readonly ToolDefinition<any>[]
@@ -114,6 +134,7 @@ export interface AgentDefinition {
   readonly commentary: 'auto' | 'concise' | 'off'
   readonly memory: AgentMemoryConfig
   readonly compaction: AgentCompactionConfig | false
+  readonly providerOptions: AgentProviderOptions | undefined
 }
 
 export interface DefinedAgent extends AgentDefinition {
@@ -139,6 +160,8 @@ class DefinedAgentValue implements DefinedAgent {
   readonly model: string
   readonly effort: ReasoningEffort | undefined
   readonly maxTokens: number | undefined
+  readonly contextWindow: number | undefined
+  readonly inputModalities: readonly ModelModality[] | undefined
   readonly instructions: string
   readonly mode: AgentMode
   readonly tools: readonly ToolDefinition<any>[]
@@ -154,6 +177,7 @@ class DefinedAgentValue implements DefinedAgent {
   readonly commentary: 'auto' | 'concise' | 'off'
   readonly memory: AgentMemoryConfig
   readonly compaction: AgentCompactionConfig | false
+  readonly providerOptions: AgentProviderOptions | undefined
 
   constructor(input: AgentDefinitionInput) {
     validate(input)
@@ -164,6 +188,8 @@ class DefinedAgentValue implements DefinedAgent {
     this.model = input.model ?? 'gpt-5.6-luna'
     this.effort = input.effort === undefined ? undefined : ReasoningEffortId(input.effort)
     this.maxTokens = input.maxTokens
+    this.contextWindow = input.contextWindow
+    this.inputModalities = input.inputModalities === undefined ? undefined : Object.freeze([...input.inputModalities])
     this.instructions = input.instructions
     this.mode = input.mode ?? 'basic'
     this.tools = Object.freeze([...(input.tools ?? [])])
@@ -179,6 +205,10 @@ class DefinedAgentValue implements DefinedAgent {
     this.commentary = input.commentary ?? 'concise'
     this.memory = resolveMemoryConfig(input.memory)
     this.compaction = input.compaction === false ? false : resolveCompactionConfig(input.compaction)
+    this.providerOptions = input.providerOptions === undefined ? undefined : Object.freeze({
+      ...(input.providerOptions.headers === undefined ? {} : { headers: Object.freeze({ ...input.providerOptions.headers }) }),
+      ...(input.providerOptions.body === undefined ? {} : { body: Object.freeze({ ...input.providerOptions.body }) }),
+    })
     Object.freeze(this)
   }
 
@@ -214,6 +244,9 @@ function mergedInput(
   const outputFormat = overrides.outputFormat ?? source.outputFormat
   const skillIds = overrides.skillIds ?? source.skillIds
   const maxTokens = overrides.maxTokens ?? source.maxTokens
+  const contextWindow = overrides.contextWindow ?? source.contextWindow
+  const inputModalities = overrides.inputModalities ?? source.inputModalities
+  const providerOptions = overrides.providerOptions ?? source.providerOptions
   return {
     id: overrides.id ?? source.id,
     name: overrides.name ?? source.name,
@@ -224,6 +257,8 @@ function mergedInput(
       ? {}
       : { effort: (overrides.effort ?? source.effort) as string },
     ...(maxTokens === undefined ? {} : { maxTokens }),
+    ...(contextWindow === undefined ? {} : { contextWindow }),
+    ...(inputModalities === undefined ? {} : { inputModalities }),
     instructions: overrides.instructions ?? source.instructions,
     mode: overrides.mode ?? source.mode,
     tools: overrides.tools ?? source.tools,
@@ -239,6 +274,7 @@ function mergedInput(
     commentary: overrides.commentary ?? source.commentary,
     memory: overrides.memory ?? source.memory,
     compaction: overrides.compaction ?? compactionInput(source.compaction),
+    ...(providerOptions === undefined ? {} : { providerOptions }),
   }
 }
 
@@ -289,6 +325,15 @@ function validate(input: AgentDefinitionInput): void {
   if (input.maxTokens !== undefined
     && (!Number.isSafeInteger(input.maxTokens) || input.maxTokens < 1)) {
     throw new RangeError('agent maxTokens must be a positive safe integer')
+  }
+  if (input.contextWindow !== undefined
+    && (!Number.isSafeInteger(input.contextWindow) || input.contextWindow < 1)) {
+    throw new RangeError('agent contextWindow must be a positive safe integer')
+  }
+  if (input.inputModalities !== undefined
+    && (input.inputModalities.length === 0
+      || new Set(input.inputModalities).size !== input.inputModalities.length)) {
+    throw new RangeError('agent inputModalities must be non-empty and unique')
   }
   if (input.maxToolCalls !== undefined
     && (!Number.isInteger(input.maxToolCalls) || input.maxToolCalls < 1)) {

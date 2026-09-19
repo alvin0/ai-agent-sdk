@@ -70,6 +70,7 @@ import {
   transportJson,
   type EmbeddingCatalogModel,
   type EmbeddingHttpConnection,
+  type HeaderContext,
 } from '@alvin0/ai-agent-sdk-provider-http'
 import { OPENAI_BASE_URL } from './adapter.ts'
 
@@ -166,7 +167,7 @@ class OpenAiEmbeddingAdapter extends EmbeddingAdapter {
   private readonly baseUrl: string
   private readonly models: readonly EmbeddingCatalogModel[]
   private readonly retry: ResolvedRetryPolicy
-  private readonly headers: () => Readonly<Record<string, string>>
+  private readonly headers: (ctx: HeaderContext) => Readonly<Record<string, string>>
 
   constructor(private readonly options: OpenAiEmbeddingProviderOptions) {
     super()
@@ -249,7 +250,7 @@ class OpenAiEmbeddingAdapter extends EmbeddingAdapter {
     signal?: AbortSignal,
     context?: ModelInvocationContext,
   ): Promise<PreparedEmbeddingCall> {
-    const connection = await this.connect(signal, context)
+    const connection = await this.connect(provider, signal, context)
     const resolved = resolvedEmbeddingCatalogModelInfo(provider, model, connection.models)
     const profile = this.embeddingProfile(resolved, options)
     return Object.freeze({
@@ -273,7 +274,7 @@ class OpenAiEmbeddingAdapter extends EmbeddingAdapter {
     batch: EmbeddingBatchRequest,
     context?: ModelInvocationContext,
   ): Promise<EmbeddingBatchResult> {
-    const connection = await this.connect(batch.signal, context)
+    const connection = await this.connect(batch.provider, batch.signal, context)
     const model = resolvedEmbeddingCatalogModelInfo(
       batch.provider,
       batch.model,
@@ -284,10 +285,15 @@ class OpenAiEmbeddingAdapter extends EmbeddingAdapter {
 
   /** Everything one embedding request needs, read together, once per operation. */
   private async connect(
+    provider: string,
     signal?: AbortSignal,
     context?: ModelInvocationContext,
   ): Promise<EmbeddingHttpConnection> {
-    const extraHeaders = this.headers()
+    const extraHeaders = this.headers({
+      provider,
+      ...(context?.agentId === undefined ? {} : { agentId: context.agentId }),
+      ...(signal === undefined ? {} : { signal }),
+    })
     const token = await resolveApiKey(this.options.apiKey, signal, context)
     // The credential and the endpoint-scoped account headers travel together as
     // the auth layer; the transport merges its own layer and attribution on top,

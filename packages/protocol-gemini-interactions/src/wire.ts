@@ -68,7 +68,7 @@ export type WireToolChoice =
   }
 
 export interface WireGenerationConfig {
-  max_output_tokens: number
+  max_output_tokens?: number
   temperature?: number
   top_p?: number
   stop_sequences?: string[]

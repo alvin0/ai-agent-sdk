@@ -166,8 +166,8 @@ export interface WireRequest {
   parallel_tool_calls?: boolean
   reasoning?: WireReasoning
   text?: WireTextControls
-  /** Whether the provider retains the response server-side. */
-  store: boolean
+  /** Whether the provider retains the response server-side. Omitted for endpoints that reject the field. */
+  store?: boolean
   stream: boolean
   /** Extra payloads to include, e.g. `reasoning.encrypted_content`. */
   include?: string[]
@@ -275,8 +275,11 @@ export interface ResponsesDialect {
   readonly maxOutputTokens: boolean
   /** Whether the endpoint accepts `text.format` JSON Schema controls. */
   readonly structuredOutputs: boolean
-  /** Value for `store`. Codex always sends false. */
-  readonly store: boolean
+  /**
+   * Value for `store`. Codex always sends false.
+   * `undefined` omits the field entirely, for an endpoint that rejects it outright.
+   */
+  readonly store?: boolean
   /** Values for `include`. */
   readonly include: readonly string[]
   /** Whether to ask for reasoning summaries, and how detailed. */

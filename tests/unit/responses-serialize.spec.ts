@@ -332,6 +332,28 @@ describe('serializeResponsesRequest', () => {
     expect(body.max_output_tokens).toBe(1_234)
   })
 
+  it('sends `store` when the dialect has a value for it', () => {
+    const body = serializeResponsesRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+    }), { ...dialect, store: true })
+    expect(body.store).toBe(true)
+  })
+
+  it('omits `store` entirely for an endpoint that rejects the field', () => {
+    const { store: _store, ...rest } = dialect
+    const body = serializeResponsesRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+    }), rest)
+    expect('store' in body).toBe(false)
+  })
+
+  it('omits `include` entirely for an endpoint that rejects the field', () => {
+    const body = serializeResponsesRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+    }), { ...dialect, include: [] })
+    expect('include' in body).toBe(false)
+  })
+
   it('maps the neutral tool-choice vocabulary', () => {
     const named = serializeResponsesRequest(providerRequest({
       messages: [createTextMessage('hi')],

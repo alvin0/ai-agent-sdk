@@ -5,8 +5,9 @@ Available in SDK **0.1.2**.
 ## Configure a compatible endpoint
 
 OpenAI, Anthropic, and Gemini generation adapters/plugins accept `baseUrl`,
-`models`, `fetch`, and `headers`. OpenAI and Gemini embedding adapters/plugins
-also accept custom headers.
+`displayName`, `models`, `fetch`, `headers`, `path`, `query`, `body`, and
+`transformRequest`. OpenAI and Gemini embedding adapters/plugins also accept
+custom headers.
 
 ```ts
 import { openAiEmbeddingPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
@@ -38,16 +39,24 @@ are reserved. A different authentication scheme can use a
 
 | Provider capability | Required wire protocol/path |
 | --- | --- |
-| OpenAI generation | Responses, `/responses` |
+| OpenAI generation | Responses, `/responses`; or Chat Completions, `/chat/completions` |
 | Anthropic generation | Messages, `/v1/messages` |
 | Gemini generation | Interactions, `/interactions` |
 | OpenAI embeddings | `/embeddings` |
 | Gemini embeddings | `models/{model}:batchEmbedContents` |
 
-A model name alone does not establish compatibility. A gateway implementing only
-Chat Completions or Gemini `generateContent` does not match those generation
-plugins. Supply model capabilities in `models` when the endpoint supports them.
-For trusted local HTTP endpoints, opt in with `allowInsecureHttp: true`.
+A model name alone does not establish compatibility. Select
+`api: 'chat-completions'` for an OpenAI-compatible endpoint that exposes that
+wire instead of Responses. Gemini `generateContent` still does not match the
+Gemini Interactions plugin. Supply model capabilities in `models` when the
+endpoint supports them. For trusted local HTTP endpoints, opt in with
+`allowInsecureHttp: true`.
+
+Optional prompt-cache fields are gateway-safe. When an OpenAI-compatible or
+Anthropic-compatible gateway returns a field-specific HTTP 400 for
+`prompt_cache_key` or `cache_control`, the adapter retries once without that
+field and permanently remembers the downgrade for that instance. See
+[Prompt caching](/en/09-providers/prompt-caching).
 
 ## Store Codex and Copilot credentials in a database
 

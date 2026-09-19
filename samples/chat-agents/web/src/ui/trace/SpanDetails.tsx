@@ -122,6 +122,23 @@ function ApiCall({ call }: { call: NonNullable<WireSpan['apiCall']> }) {
       )}
       <Block title="Request" body={JSON.stringify(request, null, 2)} />
       <Block title="Response" body={JSON.stringify(call.response, null, 2)} />
+      {call.raw === undefined
+        ? (
+          <p className={css.empty}>
+            This provider was not configured to report its exact wire payload.
+          </p>
+        )
+        : (
+          <>
+            <Block title="Raw request body" body={JSON.stringify(call.raw.request.body, null, 2)} />
+            <Block
+              title="Raw response (every decoded SSE frame, before translation)"
+              body={call.raw.response.frames
+                .map(frame => (frame.event === undefined ? frame.data : `event: ${frame.event}\n${frame.data}`))
+                .join('\n\n')}
+            />
+          </>
+        )}
     </>
   )
 }

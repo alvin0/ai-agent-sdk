@@ -33,8 +33,8 @@ import { addToTally, recordUsage, turnShortfall, usageOf } from './usage'
 import type { UsageTally } from './usage'
 import { EventProjector } from './event-projection'
 import { RunTrace } from './traces'
-import { recordProviderCalls } from './provider-calls'
-import type { CallFingerprint, CallSink } from './provider-calls'
+import { RawCallCorrelator, recordProviderCalls } from './provider-calls'
+import type { CallFingerprint, CallSink, RawApiCall } from './provider-calls'
 import type { StoredNode } from './event-projection'
 import type {
   WireApiCall, WireApproval, WireApprovalScope, WireAttachment, WireEvent, WireQuestion,
@@ -734,12 +734,20 @@ export async function* runPrompt(
    */
   const recordedCalls: { call: WireApiCall; id: CallFingerprint }[] = []
   let onProviderCall: CallSink = (call, callId) => { recordedCalls.push({ call, id: callId }) }
-  const recorder = recordProviderCalls((call, callId) => { onProviderCall(call, callId) })
+  const correlator = new RawCallCorrelator()
+  const recordedRaw: { raw: RawApiCall; id: CallFingerprint }[] = []
+  let onRawCall = (raw: RawApiCall, callId: CallFingerprint): void => {
+    recordedRaw.push({ raw, id: callId })
+  }
+  const recorder = recordProviderCalls((call, callId) => { onProviderCall(call, callId) }, correlator)
 
   let model
   let effort: string | undefined
   try {
-    model = await resolveModel(selection, recorder)
+    model = await resolveModel(selection, recorder, {
+      correlator,
+      sink: (raw, callId) => { onRawCall(raw, callId) },
+    })
     // The conversation's remembered effort against the model it actually ran
     // on. Switching a conversation to a model with a different ladder — or
     // none — otherwise fails every later prompt with a provider rejection.
@@ -928,6 +936,11 @@ export async function* runPrompt(
     wake.ring()
   }
   for (const buffered of recordedCalls.splice(0)) onProviderCall(buffered.call, buffered.id)
+  onRawCall = (raw, callId) => {
+    for (const wire of trace.attachRaw(raw, callId)) queued.push(wire)
+    wake.ring()
+  }
+  for (const buffered of recordedRaw.splice(0)) onRawCall(buffered.raw, buffered.id)
 
   const feed = createMemberFeed(project, (event) => { queued.push(event) })
   const onMemberEvent = (member: string, event: AgentRunEvent): void => {

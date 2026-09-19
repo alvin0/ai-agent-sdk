@@ -390,11 +390,13 @@ export function serializeResponsesRequest(
         },
       },
     ...text === undefined ? {} : { text },
-    store: dialect.store,
+    ...dialect.store === undefined ? {} : { store: dialect.store },
     stream: true,
     ...dialect.include.length === 0 ? {} : { include: [...dialect.include] },
     ...dialect.promptCacheKey === undefined ? {} : { prompt_cache_key: dialect.promptCacheKey },
-    ...dialect.maxOutputTokens ? { max_output_tokens: request.maxTokens } : {},
+    ...dialect.maxOutputTokens && request.maxTokens !== undefined
+      ? { max_output_tokens: request.maxTokens }
+      : {},
     ...dialect.sampling && options.temperature !== undefined
       ? { temperature: options.temperature }
       : {},

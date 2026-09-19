@@ -10,15 +10,15 @@ describe('long-running research model metadata', () => {
     const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
     const max = ReasoningEffortId('max')
     const discoverModels = vi.fn().mockResolvedValueOnce([{ id: 'research-model', reasoning: {
-      efforts: [{ id: max, name: 'Max' }], defaultEffort: max,
+      efforts: [{ id: max, name: 'Max' }],
     } }]).mockRejectedValue(new Error('catalogue temporarily unavailable'))
     const adapter = createHttpProvider({ displayName: 'Research provider', baseUrl: 'https://provider.test',
       auth: { kind: 'none' }, protocol: openAiResponsesProtocol, discoverModels, catalogStaleTtlMs: stale })
     try {
-      expect((await adapter.resolveModel('test', 'research-model')).reasoning?.defaultEffort).toBe('max')
+      expect((await adapter.resolveModel('test', 'research-model')).reasoning?.efforts[0]?.id).toBe('max')
       now += 6 * 60_000 // The normal five-minute catalogue cache has expired.
       const prepared = await adapter.prepareCall('test', 'research-model')
-      expect(prepared.model.reasoning?.defaultEffort).toBe(stale === 0 ? undefined : 'max')
+      expect(prepared.model.reasoning?.efforts[0]?.id).toBe(stale === 0 ? undefined : 'max')
       now += 31 * 60_000
       expect((await adapter.resolveModel('test', 'research-model')).reasoning).toBeUndefined()
     } finally { clock.mockRestore() }

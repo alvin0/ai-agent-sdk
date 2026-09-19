@@ -41,6 +41,11 @@ describe('Universal Gemini provider plugin', () => {
     expect(resolutions).toBe(0)
   })
 
+  it('lets `displayName` name a compatible gateway in diagnostics instead of "Gemini"', () => {
+    const adapter = geminiAdapter({ apiKey: 'key', displayName: 'AI Studio Compatible' })
+    expect(adapter.providerInfo('compat')).toEqual({ id: 'compat', name: 'AI Studio Compatible' })
+  })
+
   it('sends only the Interactions route with a redacted API-key auth layer', async () => {
     let requestedUrl = ''
     let requestedHeaders: Headers | undefined
@@ -67,6 +72,30 @@ describe('Universal Gemini provider plugin', () => {
     expect(requestedUrl).toBe('https://generativelanguage.googleapis.com/v1beta/interactions')
     expect(requestedHeaders?.get('x-goog-api-key')).toBe('private-gemini-key')
     expect(loggedHeaders?.['x-goog-api-key']).toBe('[REDACTED]')
+  })
+
+  it('sends the key as `Authorization: Bearer` when `authHeader: \'bearer\'` is set', async () => {
+    let requestedHeaders: Headers | undefined
+    const adapter = geminiAdapter({
+      apiKey: 'private-gemini-key',
+      authHeader: 'bearer',
+      fetch: async (_input, init) => {
+        requestedHeaders = new Headers(init?.headers)
+        const frames = [
+          ...GEMINI_TEXT,
+          'event: interaction.completed\ndata: {"event_type":"interaction.completed","interaction":{"status":"completed"}}',
+        ].join('\n\n')
+        return new Response(`${frames}\n\n`, {
+          status: 200, headers: { 'content-type': 'text/event-stream' },
+        })
+      },
+    })
+    for await (const _chunk of adapter.stream({
+      provider: 'gemini', model: 'gemini-test',
+      messages: [],
+    })) { /* drain */ }
+    expect(requestedHeaders?.get('authorization')).toBe('Bearer private-gemini-key')
+    expect(requestedHeaders?.has('x-goog-api-key')).toBe(false)
   })
 
   it('creates independent composable instances with route-scoped defaults', async () => {

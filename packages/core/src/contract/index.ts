@@ -24,6 +24,7 @@ export type {
   ProviderInfo,
   ReasoningEffortInfo,
   ResolvedModelInfo,
+  RuntimeDefaults,
 } from './model-info.ts'
 export {
   MAX_TIMER_DELAY_MS,

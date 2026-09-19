@@ -19,13 +19,15 @@ export const DEFAULT_TRANSPORT_HEADERS = Object.freeze({
 })
 
 const HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
+/**
+ * Connection-level names `fetch` itself forbids or that would corrupt the
+ * request no matter which layer sets them. Never overridable, by design
+ * (decision 12): this is the one category ordinary layering cannot reach.
+ */
 const FORBIDDEN_TRANSPORT_NAMES = new Set([
   'connection', 'content-length', 'host', 'proxy-authorization', 'proxy-authenticate',
   'te', 'trailer', 'transfer-encoding', 'upgrade',
 ])
-const TRANSPORT_OWNED_NAMES = new Set(['accept', 'content-type'])
-const SDK_OWNED_NAMES = new Set(['user-agent'])
-const SDK_OWNED_PREFIXES = ['x-ai-agent-sdk-'] as const
 const SENSITIVE_NAME = /authorization|api[-_]?key|token|secret|cookie|account[-_]?id|signature/i
 
 /** Conservative fallback used in addition to exact authentication provenance. */
@@ -53,26 +55,31 @@ export function captureHeaderLayer(input: HeaderLayerInput): HeaderLayerInput {
   return Object.freeze({ layer: input.layer, headers: Object.freeze(output) })
 }
 
-/** Validate five case-insensitive ownership layers and return one detached snapshot. */
+/**
+ * Merge case-insensitive header layers in precedence order and return one
+ * detached snapshot.
+ *
+ * A later layer in `layers` wins over an earlier one for the same name — the
+ * caller's array order IS the precedence order (transport, sdk-attribution,
+ * wire-protocol, endpoint, auth, per decision 12: the user's own
+ * configuration always outranks what the SDK sets for itself). Only two
+ * things stay hard-blocked regardless of position: a connection-level name
+ * `fetch` itself forbids ({@link FORBIDDEN_TRANSPORT_NAMES}, plus `sec-*` /
+ * `proxy-*`), and a credential-shaped name arriving from any layer other
+ * than `'auth'` — not because it cannot be overridden, but so the SDK always
+ * knows which headers to redact in logs.
+ */
 export function mergeHeaderLayers(layers: readonly HeaderLayerInput[]): HeaderMergeResult {
   const output: Record<string, string> = Object.create(null) as Record<string, string>
-  const owners = new Map<string, HeaderLayer>()
   const sensitive = new Set<string>()
 
   for (const raw of layers) {
     const input = captureHeaderLayer(raw)
     for (const [name, value] of Object.entries(input.headers)) {
-      const first = owners.get(name)
-      if (first !== undefined) {
-        throw headerError(
-          `Header ownership collision between ${first} and ${input.layer}`,
-          'HEADER_COLLISION',
-        )
-      }
       validateHeaderOwnership(name, input.layer)
-      owners.set(name, input.layer)
       output[name] = value
       if (input.layer === 'auth') sensitive.add(name)
+      else sensitive.delete(name)
     }
   }
 
@@ -103,15 +110,6 @@ function validateHeaderShape(name: string, value: unknown): asserts value is str
 function validateHeaderOwnership(name: string, layer: HeaderLayer): void {
   if (FORBIDDEN_TRANSPORT_NAMES.has(name) || name.startsWith('sec-') || name.startsWith('proxy-')) {
     throw headerError('Header name is reserved by the transport', 'HEADER_RESERVED')
-  }
-  if (TRANSPORT_OWNED_NAMES.has(name) && layer !== 'transport') {
-    throw headerError('Header name is owned by the transport layer', 'HEADER_RESERVED')
-  }
-  if (SDK_OWNED_NAMES.has(name) && layer !== 'sdk-attribution') {
-    throw headerError('Header name is owned by SDK attribution', 'HEADER_RESERVED')
-  }
-  if (SDK_OWNED_PREFIXES.some(prefix => name.startsWith(prefix)) && layer !== 'sdk-attribution') {
-    throw headerError('Header prefix is owned by SDK attribution', 'HEADER_RESERVED')
   }
   if (isSensitiveHeaderName(name) && layer !== 'auth') {
     throw headerError('Credential headers must be supplied by auth', 'HEADER_RESERVED')

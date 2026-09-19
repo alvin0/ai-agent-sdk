@@ -15,7 +15,6 @@ import { TOOL_ERROR_CODES } from '../../agent/tool/errors.ts'
 import { AgentSdkError } from '../../errors/agent-sdk-error.ts'
 import type { ModelRegistry } from '../../runtime/registry.ts'
 import type { ProviderSelection } from '../provider/types.ts'
-import type { ReasoningEffortId } from '../../primitives/brand.ts'
 import { atDeadline } from '../lifecycle/bounded.ts'
 import type { RuntimeOperations } from '../lifecycle/operations.ts'
 import type { RuntimeObservationPort } from '../observation/port.ts'
@@ -436,12 +435,10 @@ function createRuntimeSession(
 /** Project one captured invocation onto the low-level per-run model overlay. */
 function modelOverlay(options: CapturedInvocationOptions): {
   readonly model?: { readonly provider: string; readonly model: string }
-  readonly reasoningEffort?: ReturnType<typeof ReasoningEffortId>
   readonly maxTokens?: number
 } {
   return {
     ...(options.model === undefined ? {} : { model: { provider: options.model.provider, model: options.model.id } }),
-    ...(options.effort === undefined ? {} : { reasoningEffort: options.effort }),
     ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
   }
 }

@@ -18,7 +18,7 @@ import { asc, desc, eq } from 'drizzle-orm'
 import type { AgentRunEvent } from '@alvin0/ai-agent-sdk-core/agent'
 import { database, schema } from './db/client'
 import { fingerprintOf } from './provider-calls'
-import type { CallFingerprint } from './provider-calls'
+import type { CallFingerprint, RawApiCall } from './provider-calls'
 import type { WireApiCall, WireEvent, WireSpan, WireSpanUsage } from './wire'
 
 /** One run's trace, as the conversation's trace picker lists them. */
@@ -299,6 +299,13 @@ export class RunTrace {
   private readonly waiting: HarnessStep[] = []
   /** Provider calls whose round has not opened its span yet. */
   private readonly waitingCalls: { call: WireApiCall; id: CallFingerprint }[] = []
+  /**
+   * Raw wire payloads whose round has not opened its span yet, OR whose
+   * summary has not attached yet — a `WireApiCall.raw` field needs a
+   * `WireApiCall` to live on, so a raw payload with nowhere to go waits here
+   * regardless of which of the two is still missing.
+   */
+  private readonly waitingRaw: { raw: RawApiCall; id: CallFingerprint }[] = []
 
   constructor(conversationId: string, runId: string, prompt: string) {
     this.conversationId = conversationId
@@ -347,9 +354,34 @@ export class RunTrace {
       const model = span.attributes?.['gen_ai.request.model']
       if (typeof model !== 'string') continue
       if (fingerprintOf(model, span.input) !== id) continue
-      return [this.merge({ ...span, apiCall: call })]
+      return [this.merge({ ...span, apiCall: withWaitingRaw(call, id, this.waitingRaw) })]
     }
     this.waitingCalls.push({ call, id })
+    return []
+  }
+
+  /**
+   * Attach one call's exact wire payload to the round that made it.
+   *
+   * Arrives on its own schedule, independent of {@link attachCall}: the
+   * adapter's `requestLogger`/`responseLogger` and the SDK's own span/summary
+   * plumbing finish in whichever order they finish, so this can land before
+   * OR after the summary — even before the round's own span opens at all.
+   * Only a span that already carries a `WireApiCall` has anywhere to put a
+   * `raw` field, so a payload that beats the summary here waits instead.
+   * @param raw - The exact wire payload.
+   * @param id - Its fingerprint — the SAME one {@link attachCall} uses.
+   * @returns The wire events to forward; empty when there is nowhere yet to put it.
+   */
+  attachRaw(raw: RawApiCall, id: CallFingerprint): readonly WireEvent[] {
+    for (const span of this.spans.values()) {
+      if (span.kind !== 'chat' || span.apiCall === undefined || span.apiCall.raw !== undefined) continue
+      const model = span.attributes?.['gen_ai.request.model']
+      if (typeof model !== 'string') continue
+      if (fingerprintOf(model, span.input) !== id) continue
+      return [this.merge({ ...span, apiCall: { ...span.apiCall, raw } })]
+    }
+    this.waitingRaw.push({ raw, id })
     return []
   }
 
@@ -406,7 +438,10 @@ export class RunTrace {
         const waiting = index === -1 ? undefined : this.waitingCalls.splice(index, 1)[0]
         const span = this.spans.get(event.trace.spanId)
         if (waiting !== undefined && span !== undefined) {
-          claimed.push(this.merge({ ...span, apiCall: waiting.call }))
+          claimed.push(this.merge({
+            ...span,
+            apiCall: withWaitingRaw(waiting.call, waiting.id, this.waitingRaw),
+          }))
         }
       }
       return [opened, ...notes, ...claimed]
@@ -529,4 +564,23 @@ export class RunTrace {
 function stamp(at: string): number {
   const parsed = Date.parse(at)
   return Number.isFinite(parsed) ? parsed : Date.now()
+}
+
+/**
+ * Fold a raw payload already waiting for this fingerprint into a summary
+ * that just arrived, removing it from `waiting` when found.
+ * @param call - The summary about to attach to a span.
+ * @param id - Its fingerprint.
+ * @param waiting - The queue to check and, on a match, splice from.
+ * @returns `call`, with `raw` attached when one was waiting.
+ */
+function withWaitingRaw(
+  call: WireApiCall,
+  id: CallFingerprint,
+  waiting: { raw: RawApiCall; id: CallFingerprint }[],
+): WireApiCall {
+  const index = waiting.findIndex(entry => entry.id === id)
+  if (index === -1) return call
+  const raw = waiting.splice(index, 1)[0]?.raw
+  return raw === undefined ? call : { ...call, raw }
 }

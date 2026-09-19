@@ -88,10 +88,18 @@ registry.registerAdapter(['gemini'], geminiAdapter({ apiKey }))
 interface GeminiAdapterOptions {
   apiKey: GeminiCredential          // required; injected
   baseUrl?: string                  // defaults to GEMINI_BASE_URL
+  displayName?: string
+  headers?: Record<string, string> | ((context: HeaderContext) => Record<string, string>)
+  allowInsecureHttp?: boolean
+  path?: string
+  query?: Record<string, string> | (() => Record<string, string>)
+  body?: Record<string, unknown>
+  transformRequest?: (body: unknown, context: RequestContext) => unknown
   models?: readonly ProviderCatalogModel[]
-  store?: boolean                   // may Google retain the interaction? default false
-  defaultMaxTokens?: number         // 8,192
-  defaultContextWindow?: number     // 1,000,000
+  store?: boolean                   // retention control, not a prompt-cache switch
+  authHeader?: 'x-goog-api-key' | 'bearer'
+  defaultMaxTokens?: number
+  defaultContextWindow?: number
   streamIdleTimeoutMs?: number
   requestTimeoutMs?: number
   maxRequestBytes?: number
@@ -103,6 +111,7 @@ interface GeminiAdapterOptions {
   requestLoggerTimeoutMs?: number
   retryPolicy?: RetryPolicyConfig
   requestLogger?: ProviderRequestLogger
+  responseLogger?: ProviderResponseLogger
   fetch?: typeof globalThis.fetch
 }
 ```
@@ -128,6 +137,23 @@ geminiPlugin({ apiKey, store: true })   // default is false
 `store: false` is the default, so Google is asked **not** to retain the request
 and interaction unless you opt in. It maps to the protocol dialect, not to a
 per-request flag.
+
+### Prompt caching is implicit
+
+Gemini Interactions performs implicit prefix caching automatically on supported
+models, in both stateless and stateful conversation modes. This provider uses
+the stateless Interactions request shape and resends the normalized history.
+There is no `promptCacheKey` option because Interactions exposes no
+OpenAI-style cache-key field, and it does not accept the explicit
+`cached_content` resources used by the legacy `generateContent` API.
+
+Keep system instructions, tool definitions, and older history stable and ahead
+of the newest turn. Cache hits are reported as `cacheReadTokens`, mapped from
+Gemini's `usage.total_cached_tokens`. `store` controls interaction retention; it
+does not enable or disable implicit caching.
+
+See [Prompt caching](/en/09-providers/prompt-caching) for a side-by-side provider
+comparison.
 
 ### No built-in model ids
 
@@ -250,4 +276,5 @@ as typed errors, not behaviour drift.
 
 - [OpenAI](/en/09-providers/openai) · [Anthropic](/en/09-providers/anthropic) · [Codex](/en/09-providers/codex)
 - [Protocols](/en/09-providers/protocols)
+- [Prompt caching](/en/09-providers/prompt-caching)
 - [Structured Output](/en/02-agents/structured-output)

@@ -429,7 +429,7 @@ describe('Feature: github-copilot-provider, Property 40: Cờ dialect tắt ⇒ 
         systemRole: pick(rng, ['system', 'developer'] as const),
         stop: bool(rng),
         seed: bool(rng),
-        reasoningEffort: bool(rng),
+        reasoningFormat: pick(rng, ['openai', 'deepseek', false] as const),
         ...promptCacheKey === undefined ? {} : { promptCacheKey },
         path: '/chat/completions',
       }
@@ -457,7 +457,8 @@ describe('Feature: github-copilot-provider, Property 40: Cờ dialect tắt ⇒ 
         ['temperature', dialect.sampling],
         ['top_p', dialect.sampling],
         ['stop', dialect.stop],
-        ['reasoning_effort', dialect.reasoningEffort],
+        ['reasoning_effort', dialect.reasoningFormat !== false],
+        ['thinking', dialect.reasoningFormat === 'deepseek'],
         ['stream_options', dialect.streamUsage],
         ['tools', dialect.tools],
         ['tool_choice', dialect.tools],
@@ -483,6 +484,57 @@ describe('Feature: github-copilot-provider, Property 40: Cờ dialect tắt ⇒ 
       // Absent means absent: not `null`, not `undefined`, at any depth.
       expect(emptyValuePaths(body), trace).toEqual([])
       expect(body.messages[0], trace).toEqual({ role: dialect.systemRole, content: 'be terse' })
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// reasoningFormat switch
+// ---------------------------------------------------------------------------
+
+describe('reasoningFormat: which field(s) carry effort, per endpoint family', () => {
+  const request = (effort: string | undefined) => chatRequest({
+    messages: [createUserMessage({
+      content: [{ type: 'text', text: 'hi' }],
+      source: { kind: 'user' },
+    })],
+    ...effort === undefined ? {} : { reasoningEffort: ReasoningEffortId(effort) },
+  })
+
+  it('"openai": sends reasoning_effort alone, value passed through verbatim', () => {
+    const dialect: ChatCompletionsDialect = { ...DEFAULT_DIALECT, reasoningFormat: 'openai' }
+    const body = serializeChatCompletionsRequest(request('xhigh'), dialect)
+    expect(body.reasoning_effort).toBe('xhigh')
+    expect(has(body, 'thinking')).toBe(false)
+  })
+
+  it('"deepseek": non-"off" effort sends thinking:enabled beside reasoning_effort', () => {
+    const dialect: ChatCompletionsDialect = { ...DEFAULT_DIALECT, reasoningFormat: 'deepseek' }
+    const body = serializeChatCompletionsRequest(request('high'), dialect)
+    expect(body.reasoning_effort).toBe('high')
+    expect(body.thinking).toEqual({ type: 'enabled' })
+  })
+
+  it('"deepseek": "off" sends thinking:disabled and omits reasoning_effort', () => {
+    const dialect: ChatCompletionsDialect = { ...DEFAULT_DIALECT, reasoningFormat: 'deepseek' }
+    const body = serializeChatCompletionsRequest(request('off'), dialect)
+    expect(has(body, 'reasoning_effort')).toBe(false)
+    expect(body.thinking).toEqual({ type: 'disabled' })
+  })
+
+  it('false: sends neither field, regardless of the effort the caller asked for', () => {
+    const dialect: ChatCompletionsDialect = { ...DEFAULT_DIALECT, reasoningFormat: false }
+    const body = serializeChatCompletionsRequest(request('high'), dialect)
+    expect(has(body, 'reasoning_effort')).toBe(false)
+    expect(has(body, 'thinking')).toBe(false)
+  })
+
+  it('no effort requested: sends neither field under any format', () => {
+    for (const reasoningFormat of ['openai', 'deepseek', false] as const) {
+      const dialect: ChatCompletionsDialect = { ...DEFAULT_DIALECT, reasoningFormat }
+      const body = serializeChatCompletionsRequest(request(undefined), dialect)
+      expect(has(body, 'reasoning_effort'), reasoningFormat as unknown as string).toBe(false)
+      expect(has(body, 'thinking'), reasoningFormat as unknown as string).toBe(false)
     }
   })
 })

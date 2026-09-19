@@ -4,7 +4,7 @@ Một package giao thức sở hữu **lược đồ wire, bộ tuần tự hoá
 luồng, và bản ghi phương ngữ**. Nó không sở hữu endpoint, thông tin xác thực,
 hiện thực fetch, truy cập hệ tệp, hay API của Node.
 
-Cả ba package đều **Universal**, phụ thuộc runtime duy nhất là
+Cả bốn package đều **Universal**, phụ thuộc runtime duy nhất là
 `@alvin0/ai-agent-sdk-core`, slot ghép nối là `provider-author.protocol`, và vòng đời là
 `inert-value` — chọn một cái trong `createRuntimeHttpProvider()` mà không có
 nghĩa vụ khởi động hay dọn dẹp nào.
@@ -44,7 +44,24 @@ createRuntimeHttpProvider({ protocol: openAiResponsesProtocol, baseUrl, auth })
 ```
 
 Hỗ trợ web search native và sinh ảnh, ảnh đầu vào dạng
-`{ kind: 'file', fileId }`, và `detail: 'original'`.
+`{ kind: 'file', fileId }`, `detail: 'original'`, và field phương ngữ tuỳ chọn
+`prompt_cache_key`.
+
+---
+
+## `@alvin0/ai-agent-sdk-protocol-openai-chat-completions`
+
+Wire OpenAI Chat Completions cho endpoint tương thích không phơi ra Responses.
+Phương ngữ của nó điều khiển riêng định dạng reasoning, field output token,
+system role, structured output, tools, streaming usage, stop, seed và
+`prompt_cache_key`.
+
+```bash
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-protocol-openai-chat-completions
+```
+
+`provider-openai` chọn protocol này bằng `api: 'chat-completions'`; thông thường
+caller không cần tự dựng nó.
 
 ---
 
@@ -59,7 +76,9 @@ pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-protocol-gemini-interact
 ```
 
 Giao thức giữ chữ ký thought qua các vòng function-call và ánh xạ JSON Schema
-output sang `response_format` với `application/json`.
+output sang `response_format` với `application/json`. Model được hỗ trợ thực hiện
+implicit prefix caching; protocol này không có field cache key trong request và
+ánh xạ `usage.total_cached_tokens` được báo về thành cache-read usage trung lập.
 
 ---
 
@@ -95,7 +114,8 @@ export type * from './wire.ts'
 
 Ánh xạ web search native và giữ trạng thái phát lại kết quả/trích dẫn đã mã hoá.
 Báo phần sinh ảnh native và ảnh đầu vào theo file-id không hỗ trợ thành lỗi
-`INVALID_REQUEST` có kiểu, thay vì âm thầm bỏ qua.
+`INVALID_REQUEST` có kiểu, thay vì âm thầm bỏ qua. Phương ngữ caching opt-in thêm
+breakpoint `cache_control` vào prefix system, tool và history ổn định.
 
 ---
 

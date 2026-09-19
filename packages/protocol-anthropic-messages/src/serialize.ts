@@ -26,6 +26,7 @@ import type { ContentBlock, DocumentSource, ImageSource } from '@alvin0/ai-agent
 import type { Message } from '@alvin0/ai-agent-sdk-core'
 import type { ProtocolRequest } from './contract.ts'
 import type {
+  WireCacheControl,
   WireDocumentSource,
   WireImageSource,
   WireCitation,
@@ -33,6 +34,7 @@ import type {
   WireOutputConfig,
   WireRequest,
   WireRequestBlock,
+  WireSystemBlock,
   WireThinking,
   WireTool,
   WireToolChoice,
@@ -225,8 +227,16 @@ function requestBlocks(block: ContentBlock): WireRequestBlock[] {
  * Build the message list, merging consecutive same-role messages.
  *
  * See the module note for why merging matters.
+ * @param messages - the normalized conversation.
+ * @param cacheControl - when set, attached to the LAST block of the
+ *   SECOND-TO-LAST wire message — everything but the newest turn, which is
+ *   the only part of the history that changed since the previous request.
+ *   A history of fewer than two wire messages has nothing stable to mark yet.
  */
-function messagesOf(messages: readonly Message[]): WireMessage[] {
+function messagesOf(
+  messages: readonly Message[],
+  cacheControl: WireCacheControl | undefined,
+): WireMessage[] {
   const result: WireMessage[] = []
   for (const message of messages) {
     if (message.role === 'system') continue // hoisted to the `system` field
@@ -238,11 +248,26 @@ function messagesOf(messages: readonly Message[]): WireMessage[] {
     if (previous !== undefined && previous.role === role) previous.content.push(...blocks)
     else result.push({ role, content: blocks })
   }
+  if (cacheControl !== undefined && result.length >= 2) {
+    const boundary = result[result.length - 2]
+    const lastBlock = boundary?.content.at(-1)
+    if (lastBlock !== undefined) lastBlock.cache_control = cacheControl
+  }
   return result
 }
 
-/** Collect the system prompt from the request plus any system-role messages. */
-function systemOf(request: ProtocolRequest): string | undefined {
+/**
+ * Collect the system prompt from the request plus any system-role messages.
+ * @param request - the resolved request.
+ * @param cacheControl - when set, the joined text comes back as ONE block
+ *   carrying this breakpoint instead of a plain string — the system prompt is
+ *   as stable a prefix as a conversation has, so it is always the first thing
+ *   marked when caching is on.
+ */
+function systemOf(
+  request: ProtocolRequest,
+  cacheControl: WireCacheControl | undefined,
+): string | WireSystemBlock[] | undefined {
   const fromMessages = request.options.messages
     .filter(message => message.role === 'system')
     .flatMap(message => message.content)
@@ -252,7 +277,9 @@ function systemOf(request: ProtocolRequest): string | undefined {
     ? fromMessages
     : [request.options.system, ...fromMessages]
   const joined = all.join('\n\n')
-  return joined.length === 0 ? undefined : joined
+  if (joined.length === 0) return undefined
+  if (cacheControl === undefined) return joined
+  return [{ type: 'text', text: joined, cache_control: cacheControl }]
 }
 
 /** Map the neutral tool-choice vocabulary onto this API's. */
@@ -301,23 +328,67 @@ function toolOf(tool: ModelToolSchema): WireTool {
   )
 }
 
-/** How a reasoning effort becomes a thinking token budget. */
+/** How a reasoning effort becomes a thinking token budget, for `reasoningFormat: 'thinking-budget'`. */
 export type ThinkingBudgets = Readonly<Record<string, number>>
+
+/** Which field carries reasoning effort on the wire. */
+export type AnthropicReasoningFormat = 'output-config' | 'thinking-budget'
 
 /** Options controlling how the request is built. */
 export interface AnthropicSerializeOptions {
-  /** Effort id to thinking-token budget. An absent or zero budget disables thinking. */
+  /**
+   * `'output-config'` (default, current models): effort is pass-through —
+   * sent verbatim as `output_config.effort`, exactly what the caller gave.
+   * `'thinking-budget'` (older models, or a gateway that only understands a
+   * token budget): effort is looked up in `budgets` and converted to
+   * `thinking.budget_tokens` instead — the SDK does the conversion because the
+   * endpoint has no `effort` field to receive the raw string at all.
+   */
+  reasoningFormat?: AnthropicReasoningFormat
+  /** Effort id to thinking-token budget; only consulted under `'thinking-budget'`. */
   budgets: ThinkingBudgets
+  /**
+   * Extended-thinking mode, sent only when set — omission means "say nothing",
+   * which is this API's own way of leaving the model's default behavior alone.
+   * Ignored under `'thinking-budget'`, which derives `thinking` from the effort instead.
+   */
+  thinking?: 'adaptive' | 'disabled'
+  /**
+   * Mark the stable prefix of one request as a cache breakpoint: the system
+   * prompt, the last tool definition (if any), and every message but the
+   * newest — up to 3 of this API's 4-breakpoint ceiling, leaving one spare.
+   * A conversation resending its whole history on every turn (this API is
+   * stateless) pays full price for that history without this; with it, a
+   * later turn reads the unchanged prefix at a steep discount instead of
+   * paying to reprocess it.
+   *
+   * Off by default: not every account or Anthropic-COMPATIBLE gateway
+   * behind this same adapter understands `cache_control`, and a route that
+   * doesn't should not silently be asked to. See `dialectOf()` in
+   * `provider-anthropic/src/adapter.ts` for the live-discovered fallback
+   * that turns this off automatically, permanently, the first time a
+   * gateway rejects it.
+   */
+  promptCaching?: boolean
+  /** Cache breakpoint lifetime. Defaults to this API's own default (5 minutes). */
+  promptCachingTtl?: '5m' | '1h'
 }
 
 /**
- * Resolve the `thinking` field for this request.
+ * Last-resort `max_tokens`, used only when neither the caller, the model, nor
+ * the route names one. This API rejects a request that omits the field
+ * entirely, unlike most others — see {@link serializeAnthropicRequest}.
+ */
+export const DEFAULT_MAX_TOKENS = 8_192
+
+/**
+ * Resolve the `thinking` field under `reasoningFormat: 'thinking-budget'`.
  *
  * The budget must leave room for a real answer, so it is capped below
  * `max_tokens` — this API requires `budget_tokens < max_tokens` and rejects the
  * request otherwise.
  */
-function thinkingOf(
+function thinkingFromBudget(
   effort: string | undefined,
   maxTokens: number,
   budgets: ThinkingBudgets,
@@ -331,15 +402,25 @@ function thinkingOf(
   return capped < 1_024 ? { type: 'disabled' } : { type: 'enabled', budget_tokens: capped }
 }
 
-function outputConfig(format: ModelOutputFormat | undefined): WireOutputConfig | undefined {
-  if (format === undefined || format.type === 'text') return undefined
-  return { format: { type: 'json_schema', schema: format.schema } }
+function outputConfig(
+  format: ModelOutputFormat | undefined,
+  effort: string | undefined,
+): WireOutputConfig | undefined {
+  const formatPart = format === undefined || format.type === 'text'
+    ? undefined
+    : { type: 'json_schema' as const, schema: format.schema }
+  if (formatPart === undefined && effort === undefined) return undefined
+  return {
+    ...(formatPart === undefined ? {} : { format: formatPart }),
+    ...(effort === undefined ? {} : { effort }),
+  }
 }
 
 /**
  * Build the Messages request body.
  * @param request - the resolved request, model, and connection.
- * @param options - thinking-budget mapping.
+ * @param options - which field carries effort, its budget table, and the
+ * explicit-thinking switch.
  * @returns the wire body, ready to serialize.
  */
 export function serializeAnthropicRequest(
@@ -347,32 +428,50 @@ export function serializeAnthropicRequest(
   options: AnthropicSerializeOptions,
 ): WireRequest {
   const { options: call } = request
-  const system = systemOf(request)
+  const cacheControl: WireCacheControl | undefined = options.promptCaching === true
+    ? { type: 'ephemeral', ...(options.promptCachingTtl === undefined ? {} : { ttl: options.promptCachingTtl }) }
+    : undefined
+  const system = systemOf(request, cacheControl)
   const tools = call.tools === undefined || call.tools.length === 0
     ? undefined
     : call.tools.map(toolOf)
-  const thinking = thinkingOf(
-    call.reasoningEffort === undefined ? undefined : String(call.reasoningEffort),
-    request.maxTokens,
-    options.budgets,
-  )
-  const thinkingEnabled = thinking?.type === 'enabled'
-  const output = outputConfig(call.outputFormat)
+  // The LAST tool carries the breakpoint: tool definitions are serialized in
+  // one fixed block ahead of every message, so marking the final one caches
+  // the whole list — same reasoning as the system prompt.
+  if (cacheControl !== undefined && tools !== undefined) {
+    const lastTool = tools[tools.length - 1]
+    if (lastTool !== undefined) lastTool.cache_control = cacheControl
+  }
+  // Required by this API — unlike most others, omitting it is an error — so
+  // this is the one field the SDK still defaults on the caller's behalf when
+  // nothing upstream (caller, model, or route) named a value.
+  const maxTokens = request.maxTokens ?? DEFAULT_MAX_TOKENS
+  const reasoningFormat = options.reasoningFormat ?? 'output-config'
+  const effort = call.reasoningEffort === undefined ? undefined : String(call.reasoningEffort)
+  const budgetThinking = reasoningFormat === 'thinking-budget'
+    ? thinkingFromBudget(effort, maxTokens, options.budgets)
+    : undefined
+  // Under 'output-config', `thinking` is an independent, explicit switch — not
+  // derived from effort — so it is sent only when the caller configured one.
+  const thinking = reasoningFormat === 'thinking-budget'
+    ? budgetThinking
+    : options.thinking === undefined
+      ? undefined
+      : options.thinking === 'adaptive' ? { type: 'adaptive' as const } : { type: 'disabled' as const }
+  const output = outputConfig(call.outputFormat, reasoningFormat === 'output-config' ? effort : undefined)
 
   return {
     model: call.model,
-    // Required by this API — unlike most others, omitting it is an error.
-    max_tokens: request.maxTokens,
-    messages: messagesOf(call.messages),
+    max_tokens: maxTokens,
+    messages: messagesOf(call.messages, cacheControl),
     ...system === undefined ? {} : { system },
     ...tools === undefined ? {} : { tools },
     ...call.toolChoice === undefined ? {} : { tool_choice: toolChoiceOf(call.toolChoice) },
-    // Extended thinking is incompatible with sampling adjustments; sending both
-    // is rejected, so the sampling knobs are dropped when thinking is on.
-    ...!thinkingEnabled && call.temperature !== undefined
-      ? { temperature: call.temperature }
-      : {},
-    ...!thinkingEnabled && call.topP !== undefined ? { top_p: call.topP } : {},
+    // Pass-through: the caller's own sampling choices are forwarded as given.
+    // An endpoint that rejects temperature/top_p alongside thinking says so in
+    // its own error — the SDK no longer guesses and drops them first.
+    ...call.temperature === undefined ? {} : { temperature: call.temperature },
+    ...call.topP === undefined ? {} : { top_p: call.topP },
     ...call.stop === undefined || call.stop.length === 0
       ? {}
       : { stop_sequences: [...call.stop] },

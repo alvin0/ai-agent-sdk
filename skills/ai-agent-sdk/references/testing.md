@@ -270,7 +270,7 @@ packages and is not published to npm. Consume it from a workspace or a local
 tarball:
 
 ```bash
-pnpm add -D ./artifacts/alvin0-ai-agent-sdk-testkit-0.1.2.tgz
+pnpm add -D ./artifacts/alvin0-ai-agent-sdk-testkit-0.1.4.tgz
 ```
 
 ## Runtime-tier checks
@@ -296,9 +296,10 @@ the endpoint, not an SDK embedding adapter: there is no
 
 ## Repository CI and release gate
 
-The current workspace release line is `0.1.2`. Every
+The current workspace release line is `0.1.4`. Every
 `packages/*/package.json`, including the private testkit, must carry the same
-version before release. The Release workflow packs only non-private packages.
+version before release. There are 26 top-level package manifests: 25 publishable packages
+and the private testkit. The Release workflow packs only non-private packages.
 
 For a local equivalent of the PR CI gates, run:
 

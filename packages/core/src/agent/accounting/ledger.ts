@@ -85,6 +85,11 @@ export interface RunLedgerOptions {
   readonly conversationId?: string
   readonly sessionId?: string
   readonly agentId: string
+  /** Extra headers/body fields for this agent's provider requests. */
+  readonly providerOptions?: {
+    readonly headers?: Readonly<Record<string, string>>
+    readonly body?: Readonly<Record<string, unknown>>
+  }
   readonly mode: string
   readonly maxTurns: number | 'auto'
   readonly usagePolicy?: UsagePolicy
@@ -160,10 +165,12 @@ export class RunLedger implements RunAccountingPort {
     const logger = options.logger?.(this.runSpan.correlation)
     this.modelInvocation = Object.freeze({
       observation: this.port,
+      agentId: options.agentId,
       correlation: this.runSpan.correlation,
       terminalCheckpointOwner: 'agent-run' as const,
       scope: this.scope,
       ...(logger === undefined ? {} : { logger }),
+      ...(options.providerOptions === undefined ? {} : { providerOptions: options.providerOptions }),
     })
     this.capture(this.event('sdk.agent.run', 'start', this.runSpan.correlation, {
       agentId: options.agentId,

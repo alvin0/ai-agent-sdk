@@ -24,7 +24,8 @@ import type { ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core/provider'
 export interface ProtocolRequest {
   readonly options: GenerateOptions
   readonly model: ResolvedModelInfo
-  readonly maxTokens: number
+  /** Absent when neither the caller, the model, nor the route names an output cap. */
+  readonly maxTokens?: number
 }
 
 /** One decoded SSE event, expressed without depending on an HTTP transport. */

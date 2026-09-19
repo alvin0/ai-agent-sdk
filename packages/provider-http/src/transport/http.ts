@@ -234,6 +234,22 @@ export function redactHeaders(
   ]))
 }
 
+/** Replace credential-bearing query-string values, by name, before logging a URL. */
+export function redactQueryUrl(url: string, sensitiveParamNames: readonly string[] = []): string {
+  if (sensitiveParamNames.length === 0) return url
+  const provenance = new Set(sensitiveParamNames.map(name => name.toLowerCase()))
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return url
+  }
+  for (const name of [...parsed.searchParams.keys()]) {
+    if (provenance.has(name.toLowerCase())) parsed.searchParams.set(name, '[REDACTED]')
+  }
+  return parsed.href
+}
+
 /** Local correlation id for a diagnostic record, without requiring a crypto global. */
 export function requestLogId(): string {
   return globalThis.crypto?.randomUUID?.()

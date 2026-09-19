@@ -21,7 +21,13 @@ export interface ProtocolRequest {
   readonly options: GenerateOptions
   readonly model: ResolvedModelInfo
   readonly connection: HttpConnection
-  readonly maxTokens: number
+  /**
+   * Output cap to send. Absent when neither the caller, the model, nor the
+   * route names one; an endpoint that requires the field regardless (such as
+   * Anthropic's Messages API) supplies its own fallback in its own protocol
+   * package, not here.
+   */
+  readonly maxTokens?: number
 }
 
 /** Versioned executable protocol accepted by the runtime HTTP adapter. */

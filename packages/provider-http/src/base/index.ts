@@ -13,6 +13,8 @@ export {
   type ProviderRequest,
   type ProviderRequestLogger,
   type ProviderRequestLogRecord,
+  type ProviderResponseLogger,
+  type ProviderResponseLogRecord,
 } from './http-adapter.ts'
 export {
   httpErrorCode,

@@ -1,4 +1,5 @@
 import type { JsonObject } from '../../primitives/index.ts'
+import type { RuntimeDefaults } from '../../contract/model-info.ts'
 import type { DeliveryMode, ObservationResourceInput } from '../../observation/index.ts'
 import type { LogLevel, SdkLogger } from '../../logging/types.ts'
 import type { ContentRedactor, ObservationProcessor } from '../../observation/telemetry-types.ts'
@@ -47,6 +48,12 @@ export interface RuntimeOwnerOptions {
    */
   readonly providers: readonly ComposableRuntimeProviderPlugin[]
   readonly defaultProvider?: string
+  /**
+   * SDK-wide fallbacks (context window, output cap, accepted modalities) for
+   * every route this runtime owns, used only when neither a model nor its
+   * route names a value. See {@link RuntimeDefaults}.
+   */
+  readonly defaults?: RuntimeDefaults
   readonly signal?: AbortSignal
   readonly resource?: RuntimeObservationResourceInput
   readonly observability?: RuntimeOwnerObservabilityOptions

@@ -7,13 +7,17 @@
 | **Universal** | ECMAScript, Fetch types, Web Streams, `AbortController`, Web Crypto only. No Node built-ins, `process`, `Buffer`, paths, filesystem, child processes, stdio. Runs on Edge/Worker, Deno, Bun, browser, Node. |
 | **Node** | Elevated: uses Node built-ins. Install only in a Node process. |
 
-## The 23 published packages
+## The 25 published packages
+
+The workspace contains 26 top-level package manifests. The 25 below are publishable;
+`@alvin0/ai-agent-sdk-testkit` is private and used from the workspace or a local
+tarball.
 
 | Package | Tier | Role |
 | --- | --- | --- |
 | `@alvin0/ai-agent-sdk-core` | Universal | Runtime, agents, sessions, tools, the loop |
 | `@alvin0/ai-agent-sdk-provider-anthropic` | Universal | Messages API, injected `apiKey` |
-| `@alvin0/ai-agent-sdk-provider-openai` | Universal | Responses API, injected `apiKey` |
+| `@alvin0/ai-agent-sdk-provider-openai` | Universal | Responses and Chat Completions APIs, injected `apiKey` |
 | `@alvin0/ai-agent-sdk-provider-codex` | Universal | ChatGPT-backed Codex, injected `CodexAuthStore` |
 | `@alvin0/ai-agent-sdk-provider-gemini` | Universal | Gemini Interactions API, injected `apiKey` |
 | `@alvin0/ai-agent-sdk-provider-copilot` | Universal | GitHub Copilot subscription surface, injected `CopilotCredentialStore` |
@@ -156,8 +160,10 @@ answers:
 | `path` | any string | A gateway is free to mount the endpoint anywhere; a hard-coded path would make it unreachable without forking the protocol |
 | `systemRole` | `'system' \| 'developer'` | Which role the system prompt travels under in `messages[0]` |
 
-The defaults are conservative in one direction on purpose:
-`parallelToolCalls`, `seed`, and `reasoningEffort` are **off**. A field an
+The protocol defaults are conservative in one direction on purpose:
+`parallelToolCalls`, `seed`, and `reasoningFormat` are **off**. The first-party
+OpenAI provider selects `'openai'` for Chat Completions; a custom protocol user
+must opt in deliberately. A field an
 endpoint does not understand is usually a hard HTTP 400, while a field left
 unsent merely forgoes a feature — so opt in per endpoint rather than discovering
 the rejection in production. Every disabled flag means the wire field is absent
@@ -279,19 +285,22 @@ openAiPlugin({
 | Setting | Meaning |
 | --- | --- |
 | `models[].contextWindow` | Combined input/output capacity for that exact ID |
-| `models[].maxTokens` | Default output budget **and** SDK ceiling for that ID |
+| `models[].maxTokens` | Hard output ceiling for that ID; also the default when `models[].defaultMaxTokens` is absent |
+| `models[].defaultMaxTokens` | Default output budget for that ID, bounded by `models[].maxTokens` when both exist |
 | `defaultContextWindow` | Fallback when the model declares none |
-| `defaultMaxTokens` | Fallback default and ceiling |
+| route `defaultMaxTokens` | Fallback output default only; it does not invent a hard ceiling |
 | agent `maxTokens` | Output budget; may be lower than the ceiling |
 
 Fallback is per field. Exceeding a declared ceiling rejects with
 `OUTPUT_TOKEN_LIMIT_EXCEEDED` — the SDK never silently clamps. Declaring these
 values does not raise real server limits.
 
-Before any provider I/O the registry rejects an unsupported reasoning effort
-(`UNSUPPORTED_REASONING_EFFORT`), an unsupported native tool
-(`UNSUPPORTED_NATIVE_TOOL`), and an output reservation that would consume the
-whole context window.
+Before provider I/O the registry rejects an unsupported native tool
+(`UNSUPPORTED_NATIVE_TOOL`), an output request above a declared hard ceiling
+(`OUTPUT_TOKEN_LIMIT_EXCEEDED`), and an output reservation that would consume
+the whole context window. Reasoning effort is different: it is an opaque string
+passed to the selected provider only when the caller set one. Catalog effort
+ladders are advisory UI metadata, not a validation boundary.
 
 ## Model discovery
 

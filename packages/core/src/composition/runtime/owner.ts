@@ -178,7 +178,8 @@ export async function createRuntimeCompositionOwner(
       ...(options.diagnosticMaxEvents === undefined ? {} : { diagnosticMaxEvents: options.diagnosticMaxEvents }),
       ...(options.diagnosticMaxBytes === undefined ? {} : { diagnosticMaxBytes: options.diagnosticMaxBytes }),
     })
-    const registry = new ModelRegistry({ observation, observationResource: resource })
+    const registry = new ModelRegistry({ observation, observationResource: resource,
+      ...(options.defaults === undefined ? {} : { defaults: options.defaults }) })
     const capabilities = await activateRuntimeCapabilities(plan, registry,
       observation.logger({ scope: 'sdk.provider.setup' }), resources, {
         startupTimeoutMs: options.startupTimeoutMs, rollbackTimeoutMs: options.closeTimeoutMs,

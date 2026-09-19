@@ -108,7 +108,7 @@ describe('core observation identities and model-call handles', () => {
 
     expect(observed.events.map(event => [event.phase, event.sequence])).toEqual([['start', 1], ['end', 2]])
     expect(observed.events.every(event => Object.isFrozen(event))).toBe(true)
-    expect(observed.events[0]?.resource.sdkVersion).toBe('0.1.3')
+    expect(observed.events[0]?.resource.sdkVersion).toBe('0.1.4')
     expect(report).toMatchObject({ status: 'success', coverage: 'complete', authoritative: true })
     expect(report.reported).toEqual({ inputTokens: 3, outputTokens: 2, reasoningTokens: 1, totalTokens: 5 })
     expect(observed.ended).toHaveBeenCalledTimes(1)
@@ -256,6 +256,9 @@ describe('core observation identities and model-call handles', () => {
       coverage: 'missing',
       possiblyBilledAttemptsWithoutUsage: 1,
       authoritative: false,
+      // The report is honest: the provider's own message reaches the caller
+      // verbatim, never replaced by a generic "inspect the stable code" line.
+      error: { message: 'provider rejected request', code: 'INVALID_REQUEST' },
     })
   })
 

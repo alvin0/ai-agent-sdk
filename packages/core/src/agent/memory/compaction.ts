@@ -351,7 +351,10 @@ export class ContextCompactor {
         const info = await raceWithSignal(this.input.registry.resolveModelInfo(
           config.provider, config.model, signal,
         ), signal)
-        const contextWindow = info.context?.contextWindow
+        // The agent tier (CallConfig.contextWindow) wins over the model's own
+        // resolved value, same precedence `resolveCallWithModelInfo` applies
+        // at dispatch — this budget must agree with what actually gets sent.
+        const contextWindow = config.contextWindow ?? info.context?.contextWindow
         this.modelBudget = { key, budget: contextWindow === undefined
           ? null
           : {

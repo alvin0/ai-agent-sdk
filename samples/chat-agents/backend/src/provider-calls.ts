@@ -19,6 +19,11 @@
  */
 
 import type { GenerateOptions, StreamChunk, StreamMiddleware } from '@alvin0/ai-agent-sdk-core'
+import type {
+  ProviderRequestLogger,
+  ProviderRequestLogRecord,
+  ProviderResponseLogger,
+} from '@alvin0/ai-agent-sdk-provider-http'
 import type { WireApiCall } from './wire'
 
 /** What identifies one round's request, on both sides of the recording. */
@@ -54,6 +59,83 @@ export function fingerprintOf(model: string, input: unknown): CallFingerprint | 
     summary.messageCount,
     typeof summary.lastMessageId === 'string' ? summary.lastMessageId : undefined,
   )
+}
+
+/** The exact wire payload for one round, once both halves have arrived. */
+export type RawApiCall = NonNullable<WireApiCall['raw']>
+
+/** Where a completed raw payload goes. */
+export type RawCallSink = (raw: RawApiCall, id: CallFingerprint) => void
+
+/**
+ * Correlates each adapter's `requestLogger`/`responseLogger` — which know
+ * only `provider`/`model`/the wire body, nothing about message identity —
+ * back to the SAME {@link CallFingerprint} the trace already keys spans by.
+ *
+ * The adapter options that carry these two loggers are built ONCE per
+ * provider, before any call happens, so they cannot receive a fingerprint as
+ * an argument the way {@link recordProviderCalls}'s middleware can (it runs
+ * fresh per round, with `GenerateOptions` in hand). What both loggers CAN
+ * rely on: `requestLogger` fires synchronously, in program order, before the
+ * middleware's own `next()` starts being pulled — so a FIFO queue, pushed to
+ * by the middleware at round start and shifted by `requestLogger`, pairs each
+ * HTTP attempt with the round that made it. `requestLogger` and
+ * `responseLogger` then correlate to EACH OTHER exactly, via the wire
+ * record's own `id` (shared by construction — see `provider-http`'s
+ * `ProviderResponseLogRecord` doc comment) — no ordering assumption needed
+ * for that half at all, which matters because responses do not necessarily
+ * complete in the order their requests were sent.
+ */
+export class RawCallCorrelator {
+  private readonly pendingFingerprints = new Map<string, CallFingerprint[]>()
+  private readonly pendingRequests = new Map<string, { fingerprint: CallFingerprint; request: ProviderRequestLogRecord }>()
+
+  /** Call at the START of one middleware round, before `next()` is pulled. */
+  expect(provider: string, id: CallFingerprint): void {
+    const queue = this.pendingFingerprints.get(provider) ?? []
+    queue.push(id)
+    this.pendingFingerprints.set(provider, queue)
+  }
+
+  /** Build the `requestLogger` one provider's adapter should be constructed with. */
+  requestLoggerFor(provider: string): ProviderRequestLogger {
+    return record => {
+      const queue = this.pendingFingerprints.get(provider)
+      const id = queue?.shift()
+      // No round is expecting a request: this adapter was called outside
+      // `recordProviderCalls`'s middleware (should not happen in this app,
+      // but dropping silently is correct either way — there is nothing to
+      // attach this payload to).
+      if (id === undefined) return
+      this.pendingRequests.set(record.id, { fingerprint: id, request: record })
+    }
+  }
+
+  /**
+   * Build the `responseLogger` the SAME provider's adapter should be
+   * constructed with. Takes no provider argument: unlike `requestLoggerFor`,
+   * matching is purely by the wire record's own `id`, which is already
+   * globally unique.
+   */
+  responseLoggerFor(sink: RawCallSink): ProviderResponseLogger {
+    return record => {
+      const pending = this.pendingRequests.get(record.id)
+      if (pending === undefined) return
+      this.pendingRequests.delete(record.id)
+      sink({
+        request: {
+          headers: pending.request.headers,
+          body: pending.request.body,
+          bodyBytes: pending.request.bodyBytes,
+        },
+        response: {
+          status: record.status,
+          headers: record.headers,
+          frames: record.frames,
+        },
+      }, pending.fingerprint)
+    }
+  }
 }
 
 /**
@@ -112,13 +194,20 @@ export type CallSink = (call: WireApiCall, id: CallFingerprint) => void
 /**
  * Record every model call of one run.
  * @param sink - Receives each finished call with its fingerprint.
+ * @param correlator - When given, registers each round's fingerprint so the
+ *   SAME provider's `requestLogger`/`responseLogger` can attach the raw wire
+ *   payload to it later. See {@link RawCallCorrelator}'s doc comment.
  * @returns The middleware to install on the run's registry.
  */
-export function recordProviderCalls(sink: CallSink): StreamMiddleware {
+export function recordProviderCalls(sink: CallSink, correlator?: RawCallCorrelator): StreamMiddleware {
   return (request, next) => {
     const model = String(request.model)
     const messages = request.messages ?? []
     const id = fingerprint(model, messages.length, messages.at(-1)?.id)
+    // Registered before `next()` is ever pulled, so the request this round
+    // dispatches — whenever that happens — always finds its fingerprint
+    // waiting.
+    correlator?.expect(String(request.provider), id)
     const at = Date.now()
     const cuts = { any: messages.length > MAX_MESSAGES }
     const kept = messages.slice(-MAX_MESSAGES).map(message => messageOf(message, cuts))

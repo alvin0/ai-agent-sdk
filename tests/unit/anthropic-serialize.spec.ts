@@ -281,44 +281,90 @@ describe('serializeAnthropicRequest', () => {
     ])
   })
 
-  it('drops sampling knobs when extended thinking is enabled', () => {
-    // Sending both is rejected by this API.
+  // --- 'output-config' (default): effort is pure pass-through to output_config.effort ---
+
+  it('sends effort verbatim to output_config.effort by default, never guessing a thinking field', () => {
+    const body = serializeAnthropicRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+      reasoningEffort: ReasoningEffortId('high'),
+    }), options)
+    expect(body.output_config).toEqual({ effort: 'high' })
+    // No ladder, no budget conversion, no auto-derived `thinking` — the SDK
+    // does not validate or convert this string at all under this format.
+    expect(body).not.toHaveProperty('thinking')
+  })
+
+  it('combines effort with a structured-output schema in the same output_config', () => {
+    const schema = { type: 'object', properties: { a: { type: 'string' } }, required: ['a'], additionalProperties: false } as const
+    const body = serializeAnthropicRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+      reasoningEffort: ReasoningEffortId('xhigh'),
+      outputFormat: { type: 'json_schema', name: 'answer', schema },
+    }), options)
+    expect(body.output_config).toEqual({ format: { type: 'json_schema', schema }, effort: 'xhigh' })
+  })
+
+  it('never drops temperature/top_p on the caller\'s behalf, with or without effort', () => {
     const body = serializeAnthropicRequest(providerRequest({
       messages: [createTextMessage('hi')],
       reasoningEffort: ReasoningEffortId('high'),
       temperature: 0.7,
       topP: 0.9,
-    }, 40_000), options)
-    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 24_576 })
-    expect(body.temperature).toBeUndefined()
-    expect(body.top_p).toBeUndefined()
+    }), options)
+    expect(body.temperature).toBe(0.7)
+    expect(body.top_p).toBe(0.9)
   })
 
-  it('keeps sampling knobs when thinking is off', () => {
+  it('sends `thinking` only when explicitly configured, independent of effort', () => {
+    const withAdaptive = serializeAnthropicRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+    }), { ...options, thinking: 'adaptive' })
+    expect(withAdaptive.thinking).toEqual({ type: 'adaptive' })
+
+    const withoutConfig = serializeAnthropicRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+      reasoningEffort: ReasoningEffortId('high'),
+    }), options)
+    expect(withoutConfig).not.toHaveProperty('thinking')
+  })
+
+  // --- 'thinking-budget' (compat: older models, or a gateway with no effort field) ---
+
+  it('converts effort to a thinking budget only under reasoningFormat: thinking-budget', () => {
+    const body = serializeAnthropicRequest(providerRequest({
+      messages: [createTextMessage('hi')],
+      reasoningEffort: ReasoningEffortId('high'),
+    }, 40_000), { ...options, reasoningFormat: 'thinking-budget' as const })
+    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 24_576 })
+    // No output_config.effort under this format — the endpoint has no such field.
+    expect(body).not.toHaveProperty('output_config')
+  })
+
+  it('keeps sampling knobs when thinking is off, under thinking-budget', () => {
     const body = serializeAnthropicRequest(providerRequest({
       messages: [createTextMessage('hi')],
       reasoningEffort: ReasoningEffortId('off'),
       temperature: 0.7,
-    }), options)
+    }), { ...options, reasoningFormat: 'thinking-budget' as const })
     expect(body.thinking).toEqual({ type: 'disabled' })
     expect(body.temperature).toBe(0.7)
   })
 
-  it('caps the thinking budget below max_tokens so an answer still fits', () => {
+  it('caps the thinking budget below max_tokens so an answer still fits, under thinking-budget', () => {
     // This API requires budget_tokens < max_tokens and rejects the request
     // otherwise, so a large effort against a small cap must be reduced.
     const body = serializeAnthropicRequest(providerRequest({
       messages: [createTextMessage('hi')],
       reasoningEffort: ReasoningEffortId('high'),
-    }, 4_000), options)
+    }, 4_000), { ...options, reasoningFormat: 'thinking-budget' as const })
     expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 3_000 })
   })
 
-  it('disables thinking when the cap leaves less than the provider minimum', () => {
+  it('disables thinking when the cap leaves less than the provider minimum, under thinking-budget', () => {
     const body = serializeAnthropicRequest(providerRequest({
       messages: [createTextMessage('hi')],
       reasoningEffort: ReasoningEffortId('high'),
-    }, 1_000), options)
+    }, 1_000), { ...options, reasoningFormat: 'thinking-budget' as const })
     expect(body.thinking).toEqual({ type: 'disabled' })
   })
 
@@ -331,5 +377,66 @@ describe('serializeAnthropicRequest', () => {
     }), options)
     expect(body.messages).toHaveLength(1)
     expect(body.messages[0]?.content).toEqual([{ type: 'text', text: 'real' }])
+  })
+
+  describe('promptCaching', () => {
+    it('marks no cache_control anywhere by default', () => {
+      const body = serializeAnthropicRequest(providerRequest({
+        system: 'be terse',
+        messages: [createTextMessage('one'), createAssistantMessage({ content: [{ type: 'text', text: 'ack' }], source: { provider: 'p', model: 'm' } }), createTextMessage('two')],
+        tools: [{ name: 'lookup', description: 'Look something up.', parameters: { type: 'object' } }],
+      }), options)
+      expect(body.system).toBe('be terse')
+      expect(JSON.stringify(body)).not.toContain('cache_control')
+    })
+
+    it('marks the system prompt, the last tool, and everything but the newest message', () => {
+      const body = serializeAnthropicRequest(providerRequest({
+        system: 'be terse',
+        messages: [createTextMessage('one'), createAssistantMessage({ content: [{ type: 'text', text: 'ack' }], source: { provider: 'p', model: 'm' } }), createTextMessage('two')],
+        tools: [
+          { name: 'lookup', description: 'Look something up.', parameters: { type: 'object' } },
+          { name: 'search', description: 'Search the web.', parameters: { type: 'object' } },
+        ],
+      }), { ...options, promptCaching: true })
+      // System: one block, carrying the breakpoint.
+      expect(body.system).toEqual([
+        { type: 'text', text: 'be terse', cache_control: { type: 'ephemeral' } },
+      ])
+      // Tools: only the LAST one is marked — caches the whole list.
+      expect(body.tools?.[0]).not.toHaveProperty('cache_control')
+      expect(body.tools?.[1]).toMatchObject({ cache_control: { type: 'ephemeral' } })
+      // Messages: [user 'one', assistant 'ack', user 'two'] — the breakpoint
+      // sits on the SECOND-TO-LAST wire message (assistant 'ack'), not the
+      // newest ('two'), since only 'two' is new since the previous request.
+      expect(body.messages).toHaveLength(3)
+      expect(body.messages[0]?.content[0]).not.toHaveProperty('cache_control')
+      expect(body.messages[1]?.content[0]).toMatchObject({ cache_control: { type: 'ephemeral' } })
+      expect(body.messages[2]?.content[0]).not.toHaveProperty('cache_control')
+    })
+
+    it('marks no message breakpoint on the very first turn — nothing stable exists yet', () => {
+      const body = serializeAnthropicRequest(providerRequest({
+        system: 'be terse',
+        messages: [createTextMessage('first message ever')],
+      }), { ...options, promptCaching: true })
+      expect(body.messages).toHaveLength(1)
+      expect(body.messages[0]?.content[0]).not.toHaveProperty('cache_control')
+      // System still gets marked: it is stable from the very first call.
+      expect(body.system).toEqual([
+        { type: 'text', text: 'be terse', cache_control: { type: 'ephemeral' } },
+      ])
+    })
+
+    it('passes an explicit ttl through to every breakpoint', () => {
+      const body = serializeAnthropicRequest(providerRequest({
+        system: 'be terse',
+        messages: [createTextMessage('one'), createAssistantMessage({ content: [{ type: 'text', text: 'ack' }], source: { provider: 'p', model: 'm' } }), createTextMessage('two')],
+      }), { ...options, promptCaching: true, promptCachingTtl: '1h' })
+      expect(body.system).toEqual([
+        { type: 'text', text: 'be terse', cache_control: { type: 'ephemeral', ttl: '1h' } },
+      ])
+      expect(body.messages[1]?.content[0]).toMatchObject({ cache_control: { type: 'ephemeral', ttl: '1h' } })
+    })
   })
 })

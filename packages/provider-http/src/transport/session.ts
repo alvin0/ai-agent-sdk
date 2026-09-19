@@ -48,6 +48,7 @@ import {
   raceWithSignal,
   readBoundedText,
   redactHeaders,
+  redactQueryUrl,
   rejectProviderRedirect,
   requestLogId,
   safeProviderFailure,
@@ -141,6 +142,13 @@ export interface HttpTransportSession {
   readonly signal: AbortSignal
   /** Provider correlation id, when the response carried one. */
   readonly providerRequestId?: ProviderRequestId
+  /**
+   * The id this request's own diagnostic record carries, whether or not
+   * `observeRequest` was configured to receive one. A response-side observer
+   * reuses it so the two halves of one call — sent and received — correlate
+   * without either side having to compute a fingerprint of its own.
+   */
+  readonly requestLogId: string
   /** Media type the pipeline asked for; see {@link HttpTransportRequestInput.accept}. */
   readonly accept: string
   readonly limits: ResolvedTransportLimits
@@ -206,6 +214,10 @@ export async function* withTransportSession<T>(
     const url = endpoint.href
     const origin = endpoint.origin
     const headers = connection.headers
+    // Generated unconditionally, not just when `observeRequest` is set: a
+    // response-side observer reuses it to correlate with this request's own
+    // record, and it must exist whether or not anyone is logging requests.
+    const logId = requestLogId()
 
     // Logging is deliberately best-effort. A full disk or broken debug sink
     // must not turn a valid provider request into an application outage.
@@ -217,12 +229,12 @@ export async function* withTransportSession<T>(
       await raceWithSignal(Promise.resolve(input.observeRequest?.({
         schemaVersion: 1,
         type: 'provider-request',
-        id: requestLogId(),
+        id: logId,
         timestamp: new Date().toISOString(),
         provider,
         model,
         method: 'POST',
-        url,
+        url: redactQueryUrl(url, connection.sensitiveQueryParamNames),
         headers: redactHeaders(headers, connection.sensitiveHeaderNames),
         body: preparedBody.value,
         bodyBytes: preparedBody.bytes,
@@ -285,6 +297,7 @@ export async function* withTransportSession<T>(
         url,
         origin,
         signal,
+        requestLogId: logId,
         accept: input.accept,
         limits,
         ...providerRequestId === undefined ? {} : { providerRequestId },

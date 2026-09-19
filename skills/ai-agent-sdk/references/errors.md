@@ -80,7 +80,6 @@ automatic compaction may compact and retry once (`maxOverflowRetries`).
 
 | Code | Cause |
 | --- | --- |
-| `UNSUPPORTED_REASONING_EFFORT` | Effort the model does not declare |
 | `UNSUPPORTED_NATIVE_TOOL` | Native tool the model does not support |
 | `UNSUPPORTED_IMAGE_INPUT` | `imagePolicy: 'strict'` and the model declares no image modality |
 | `UNSUPPORTED_DOCUMENT_INPUT` | `documentPolicy: 'strict'` and the model declares no document modality |
@@ -88,6 +87,11 @@ automatic compaction may compact and retry once (`maxOverflowRetries`).
 | `OUTPUT_TOKEN_LIMIT_EXCEEDED` | Output selection above the model's hard ceiling |
 | `INVALID_ARGUMENTS` | A tool's `parse` threw — reported to the model, which can correct it |
 | `CONTEXT_SECTION_INVALID` | A context section broke its id/size contract |
+
+There is intentionally no `UNSUPPORTED_REASONING_EFFORT` anymore. Effort is an
+opaque provider value: omitted means no effort field is sent, and a value the
+selected endpoint does not support fails with that endpoint's own error message
+and classification.
 
 ## Embedding codes
 

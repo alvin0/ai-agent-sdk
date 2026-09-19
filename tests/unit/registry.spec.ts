@@ -328,14 +328,15 @@ describe('ModelRegistry middleware and modality handling', () => {
       .toThrow(/config changed/)
   })
 
-  it('refuses an effort the model does not offer, before any provider I/O', async () => {
+  it('passes an effort through untouched, even when the model declares no ladder', async () => {
     const registry = new ModelRegistry()
     registry.registerAdapter(['fake'], new FakeAdapter(textStream))
-    await expect(registry.prepareCall({
+    const prepared = await registry.prepareCall({
       provider: 'fake',
       model: 'm',
       reasoningEffort: 'nonexistent' as never,
-    })).rejects.toThrow(/does not offer reasoning effort/)
+    })
+    expect(prepared.config.reasoningEffort).toBe('nonexistent')
   })
 
   it('binds a complete capability snapshot and enforces the hard output ceiling', async () => {
@@ -386,5 +387,89 @@ describe('ModelRegistry middleware and modality handling', () => {
     expect(chunks.at(-1)).toMatchObject({
       type: 'finish', reason: { kind: 'error', failure: { code: 'UNSUPPORTED_NATIVE_TOOL' } },
     })
+  })
+})
+
+describe('ModelRegistry runtime defaults', () => {
+  it('falls back to the SDK constant when neither the model nor the runtime names a context window', async () => {
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['fake'], new FakeAdapter(textStream))
+    const info = await registry.resolveModelInfo('fake', 'm')
+    expect(info.context?.contextWindow).toBe(200_000)
+  })
+
+  it('falls back to the SDK constant set: text, image, and document, when nothing restricts input', async () => {
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['fake'], new FakeAdapter(textStream))
+    const info = await registry.resolveModelInfo('fake', 'm')
+    expect(info.inputModalities).toEqual(['text', 'image', 'document'])
+  })
+
+  it('does not send maxTokens at all when nobody — caller, model, or runtime — names one', async () => {
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['fake'], new FakeAdapter(textStream))
+    const prepared = await registry.prepareCall({ provider: 'fake', model: 'm' })
+    expect(prepared.config.maxTokens).toBeUndefined()
+  })
+
+  it('lets a runtime default fill a context window, output cap, and modality list the model leaves silent', async () => {
+    const registry = new ModelRegistry({
+      defaults: { contextWindow: 272_000, maxTokens: 32_000, inputModalities: ['text'] },
+    })
+    registry.registerAdapter(['fake'], new FakeAdapter(textStream))
+    const info = await registry.resolveModelInfo('fake', 'm')
+    expect(info.context?.contextWindow).toBe(272_000)
+    expect(info.inputModalities).toEqual(['text'])
+    const prepared = await registry.prepareCall({ provider: 'fake', model: 'm' })
+    expect(prepared.config.maxTokens).toBe(32_000)
+  })
+
+  it('lets a model or route override still win over the runtime default', async () => {
+    const registry = new ModelRegistry({ defaults: { contextWindow: 272_000, maxTokens: 32_000 } })
+    registry.registerAdapter(['fake'], new FakeAdapter(textStream, {
+      context: { contextWindow: 8_000 }, defaultMaxTokens: 1_000, inputModalities: ['text', 'image'],
+    }))
+    const info = await registry.resolveModelInfo('fake', 'm')
+    expect(info.context?.contextWindow).toBe(8_000)
+    expect(info.inputModalities).toEqual(['text', 'image'])
+    const prepared = await registry.prepareCall({ provider: 'fake', model: 'm' })
+    expect(prepared.config.maxTokens).toBe(1_000)
+  })
+
+  it('lets an explicit per-call maxTokens win over every other tier', async () => {
+    const registry = new ModelRegistry({ defaults: { maxTokens: 32_000 } })
+    registry.registerAdapter(['fake'], new FakeAdapter(textStream, { defaultMaxTokens: 1_000 }))
+    const prepared = await registry.prepareCall({ provider: 'fake', model: 'm', maxTokens: 500 })
+    expect(prepared.config.maxTokens).toBe(500)
+  })
+
+  it('rejects a malformed runtime default at construction, before any call', () => {
+    expect(() => new ModelRegistry({ defaults: { contextWindow: -1 } })).toThrow(RangeError)
+    expect(() => new ModelRegistry({ defaults: { inputModalities: [] } })).toThrow(RangeError)
+  })
+
+  it('lets an agent-tier contextWindow win over the model, route, and runtime default', async () => {
+    const registry = new ModelRegistry({ defaults: { contextWindow: 272_000 } })
+    registry.registerAdapter(['fake'], new FakeAdapter(textStream, { context: { contextWindow: 8_000 } }))
+    const prepared = await registry.prepareCall({ provider: 'fake', model: 'm', contextWindow: 64_000 })
+    expect(prepared.model.context?.contextWindow).toBe(8_000)
+    expect(prepared.config.contextWindow).toBe(64_000)
+  })
+
+  it('lets an agent-tier inputModalities list win over the model, route, and runtime default', async () => {
+    const registry = new ModelRegistry({ defaults: { inputModalities: ['text', 'image'] } })
+    registry.registerAdapter(['fake'], new FakeAdapter(textStream, { inputModalities: ['text', 'image', 'document'] }))
+    const prepared = await registry.prepareCall({ provider: 'fake', model: 'm', inputModalities: ['text'] })
+    expect(prepared.model.inputModalities).toEqual(['text', 'image', 'document'])
+    expect(prepared.inputModalities).toEqual(['text'])
+  })
+
+  it('rejects an agent-tier contextWindow above the model\'s technical ceiling', async () => {
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['fake'], new FakeAdapter(textStream, {
+      context: { contextWindow: 8_000, maxContextWindow: 8_000 },
+    }))
+    await expect(registry.prepareCall({ provider: 'fake', model: 'm', contextWindow: 16_000 }))
+      .rejects.toMatchObject({ code: 'INVALID_MODEL_INFO' })
   })
 })

@@ -41,7 +41,9 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { BlockAssembler, ModelRegistry, createTextMessage } from '@alvin0/ai-agent-sdk-core'
 import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
+import { ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
 import { copilotAdapter } from '../../packages/provider-copilot/src/adapter.ts'
+import type { CopilotDialect } from '../../packages/provider-copilot/src/dual-protocol.ts'
 import {
   COPILOT_DEFAULT_MAX_CATALOG_MODELS,
   partitionCopilotCatalog,
@@ -115,7 +117,11 @@ interface LiveStream {
  * @param endpoint - the endpoint to pin it to.
  * @returns the assembled text, the terminal chunk, and every recorded decision.
  */
-async function liveStream(model: string, endpoint: CopilotEndpoint): Promise<LiveStream> {
+async function liveStream(
+  model: string,
+  endpoint: CopilotEndpoint,
+  options?: { readonly dialect?: Partial<CopilotDialect>; readonly reasoningEffort?: string },
+): Promise<LiveStream> {
   const decisions: CopilotEndpointDecision[] = []
   const registry = new ModelRegistry()
   registry.registerAdapter([PROVIDER], copilotAdapter({
@@ -123,6 +129,7 @@ async function liveStream(model: string, endpoint: CopilotEndpoint): Promise<Liv
     endpointOverrides: { [model]: endpoint },
     onEndpointDecision: decision => { decisions.push(decision) },
     requestTimeoutMs: REQUEST_TIMEOUT_MS,
+    ...(options?.dialect === undefined ? {} : { dialect: options.dialect }),
   }))
   const assembler = new BlockAssembler()
   let finish: StreamChunk | undefined
@@ -131,6 +138,7 @@ async function liveStream(model: string, endpoint: CopilotEndpoint): Promise<Liv
     model,
     messages: [createTextMessage(PROMPT)],
     maxTokens: MAX_TOKENS,
+    ...(options?.reasoningEffort === undefined ? {} : { reasoningEffort: ReasoningEffortId(options.reasoningEffort) }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })) {
     assembler.push(chunk)
@@ -240,6 +248,31 @@ describe.skipIf(!copilotLive)('copilot generation (live)', () => {
     // stream, assembled into real text. `gpt-4o-mini` answered `pong` on a live run.
     expect(finish?.type).toBe('finish')
     expect(text.length).toBeGreaterThan(0)
+  }, REQUEST_TIMEOUT_MS + 30_000)
+
+  it('recognizes `reasoning_effort` on /chat/completions once opted in via `dialect.reasoningFormat`', async () => {
+    // Off by default (see `dual-protocol.ts`'s `CopilotDialect.reasoningFormat`
+    // doc comment): the original design assumed an UNRECOGNIZED field would 400
+    // the request generically. Live-verified 2026-09-19 that the real rejection is
+    // the opposite of that assumption: the backend parses the field, names it and
+    // the exact model in its own message, and rejects it as a MODEL CAPABILITY
+    // mismatch — not as an unknown field. That is strong evidence `reasoning_effort`
+    // is real, understood infrastructure on this surface; this account's one
+    // chat-completions-entitled model (`gpt-4o-mini`) just does not support
+    // reasoning, so this is the exact response a caller who opts in should expect.
+    const model = modelFor('chat-completions')
+    if (model === undefined) return
+    const { finish } = await liveStream(model, 'chat-completions', {
+      dialect: { reasoningFormat: 'openai' }, reasoningEffort: 'low',
+    })
+    expect(finish?.type).toBe('finish')
+    if (finish?.type !== 'finish') return
+    expect(finish.reason.kind).toBe('error')
+    if (finish.reason.kind !== 'error') return
+    // Decision 7 (redesign plan): the provider's own rejection text, verbatim —
+    // not a generic "unknown field" or "model not supported" catch-all.
+    expect(finish.reason.failure?.message).toContain('reasoning_effort')
+    expect(finish.reason.failure?.message).toContain('does not support reasoning effort')
   }, REQUEST_TIMEOUT_MS + 30_000)
 
   it('dispatches to /responses and gets either a stream or the endpoint own model refusal', async () => {

@@ -91,7 +91,7 @@ function modelInfo(provider: string, model: string): ResolvedModelInfo {
   const medium = ReasoningEffortId('medium')
   return {
     provider, id: model, name: model,
-    reasoning: { efforts: [{ id: medium, name: 'medium' }], defaultEffort: medium },
+    reasoning: { efforts: [{ id: medium, name: 'medium' }] },
   }
 }
 

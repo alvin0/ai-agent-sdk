@@ -257,6 +257,10 @@
           "link": "/en/09-providers/embeddings"
         },
         {
+          "text": "Prompt Caching",
+          "link": "/en/09-providers/prompt-caching"
+        },
+        {
           "text": "Gateways & Database Credentials",
           "link": "/en/09-providers/gateways-and-credentials"
         },
@@ -671,6 +675,10 @@
         {
           "text": "Embeddings",
           "link": "/vi/09-providers/embeddings"
+        },
+        {
+          "text": "Prompt Caching",
+          "link": "/vi/09-providers/prompt-caching"
         },
         {
           "text": "Gateway & Credential Database",

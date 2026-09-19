@@ -2,7 +2,7 @@ import type { ModelAdapter, PreparedAdapterCall } from '../contract/adapter.ts'
 import { callConfigEquals, type CallConfig } from '../contract/call-config.ts'
 import type { GenerateOptions } from '../contract/generate-options.ts'
 import { isNativeToolSchema } from '../contract/tool.ts'
-import type { ProviderInfo, ResolvedModelInfo } from '../contract/model-info.ts'
+import type { ProviderInfo, ResolvedModelInfo, RuntimeDefaults } from '../contract/model-info.ts'
 import type { ResolvedRetryPolicy } from '../contract/retry-policy.ts'
 import { normalizeModelFailure } from '../errors/failure.ts'
 import { MODEL_ERROR_CODES, ModelError, REGISTRY_ERROR_CODES } from '../errors/model-error.ts'
@@ -39,6 +39,7 @@ export interface AdapterStreamInput {
   readonly onDispatch: () => void
   readonly prepared?: PreparedDispatch
   readonly maxCatalogBytes: number
+  readonly defaults: RuntimeDefaults
   readonly registration: (provider: string) => RuntimeAdapterRegistration
   readonly registeredAdapter: (provider: string) => ModelAdapter | undefined
 }
@@ -54,11 +55,14 @@ export async function* streamAdapter(input: AdapterStreamInput): AsyncGenerator<
     const withConfig = callConfigEquals(options, prepared.config)
       ? options
       : { ...options, ...prepared.config }
-    const hasUnsupportedImages = prepared.modelInfo.inputModalities !== undefined
-      && !prepared.modelInfo.inputModalities.includes('image')
+    // The agent tier (CallConfig.inputModalities, folded into `withConfig` by
+    // `resolveCallWithModelInfo`) wins over the model's own declared value.
+    const effectiveInputModalities = withConfig.inputModalities ?? prepared.modelInfo.inputModalities
+    const hasUnsupportedImages = effectiveInputModalities !== undefined
+      && !effectiveInputModalities.includes('image')
       && withConfig.messages.some(message => contentHasImage(message.content))
-    const hasUnsupportedDocuments = prepared.modelInfo.inputModalities !== undefined
-      && !prepared.modelInfo.inputModalities.includes('document')
+    const hasUnsupportedDocuments = effectiveInputModalities !== undefined
+      && !effectiveInputModalities.includes('document')
       && withConfig.messages.some(message => contentHasDocument(message.content))
     if (withConfig.imagePolicy !== undefined && withConfig.imagePolicy !== 'strict' && withConfig.imagePolicy !== 'project') throw new ModelError('invalid image policy', 'INVALID_IMAGE_POLICY')
     if (withConfig.documentPolicy !== undefined && withConfig.documentPolicy !== 'strict' && withConfig.documentPolicy !== 'project') throw new ModelError('invalid document policy', 'INVALID_DOCUMENT_POLICY')
@@ -106,11 +110,11 @@ async function prepareDispatch(
     options.provider, options.model, options.signal, context,
   )
   const modelInfo = normalizeResolvedModelInfo(
-    registration.provider.id, options.model, adapterCall.model, input.maxCatalogBytes,
+    registration.provider.id, options.model, adapterCall.model, input.maxCatalogBytes, input.defaults,
   )
   return {
     modelInfo,
-    config: resolveCallWithModelInfo(options, modelInfo).config,
+    config: resolveCallWithModelInfo(options, modelInfo, input.defaults).config,
     dispatch: (request, activeContext) => adapterCall.stream(request, activeContext),
   }
 }

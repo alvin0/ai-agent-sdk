@@ -24,6 +24,7 @@ import {
   type ModelDiscoveryContext,
   type ProviderRequest,
   type ProviderRequestLogRecord,
+  type ProviderResponseLogRecord,
   type SseEvent,
   type WireProtocol,
 } from '@alvin0/ai-agent-sdk-provider-http'
@@ -219,6 +220,44 @@ describe('createRuntimeHttpProvider', () => {
     expect(authorization).toBe('Bearer runtime-secret')
   })
 
+  it('resolves an array of auth schemes and unions their headers', async () => {
+    let headers: Headers | undefined
+    const fetch = vi.fn((_input: string | URL | Request, init?: RequestInit) => {
+      headers = new Headers(init?.headers)
+      return Promise.resolve(sseResponse(['data: hello']))
+    })
+    const provider = createRuntimeHttpProvider({
+      displayName: 'Runtime Layered Gateway',
+      protocol: runtimeProtocol(),
+      baseUrl: 'https://gateway.invalid',
+      auth: [
+        { kind: 'header', name: 'cf-aig-authorization', value: 'gateway-secret' },
+        { kind: 'bearer', token: 'upstream-secret' },
+      ],
+      fetch,
+    })
+    await drain(provider.stream({ provider: 'gateway', model: 'm', messages: [] }))
+    expect(headers?.get('cf-aig-authorization')).toBe('gateway-secret')
+    expect(headers?.get('authorization')).toBe('Bearer upstream-secret')
+  })
+
+  it('resolves a `query`-kind auth scheme onto the request URL (runtime extension)', async () => {
+    let requestedUrl = ''
+    const fetch = vi.fn((input: string | URL | Request) => {
+      requestedUrl = String(input)
+      return Promise.resolve(sseResponse(['data: hello']))
+    })
+    const provider = createRuntimeHttpProvider({
+      displayName: 'Runtime Azure Key Query',
+      protocol: runtimeProtocol(),
+      baseUrl: 'https://azure.invalid',
+      auth: { kind: 'query', name: 'key', value: 'azure-secret' },
+      fetch,
+    })
+    await drain(provider.stream({ provider: 'azure', model: 'm', messages: [] }))
+    expect(requestedUrl).toBe('https://azure.invalid/generate?key=azure-secret')
+  })
+
   it('rotates header credentials and dynamic endpoint headers per logical operation', async () => {
     let credentialGeneration = 0
     let headerGeneration = 0
@@ -251,6 +290,79 @@ describe('createRuntimeHttpProvider', () => {
       { key: 'secret-2', operation: 'operation-2' },
     ])
     expect(provider.providerRetryPolicy('rotating')).toMatchObject({ mode: 'normal', maxRetries: 2 })
+  })
+
+  it('lets `path` override the protocol default and `query` add static or resolved params', async () => {
+    let requestedUrl = ''
+    const fetch = vi.fn((input: string | URL | Request) => {
+      requestedUrl = String(input)
+      return Promise.resolve(sseResponse(['data: hello']))
+    })
+    const provider = createRuntimeHttpProvider({
+      displayName: 'Runtime Path Query',
+      protocol: runtimeProtocol(),
+      baseUrl: 'https://azure.invalid/openai/deployments/gpt',
+      auth: { kind: 'none' },
+      path: '/chat/completions',
+      query: () => ({ 'api-version': '2026-06-01' }),
+      fetch,
+    })
+    await drain(provider.stream({ provider: 'azure', model: 'm', messages: [] }))
+    expect(requestedUrl)
+      .toBe('https://azure.invalid/openai/deployments/gpt/chat/completions?api-version=2026-06-01')
+  })
+
+  it('rejects a runtime `query` whose values are not strings', () => {
+    expect(() => createRuntimeHttpProvider({
+      displayName: 'Bad Query',
+      protocol: runtimeProtocol(),
+      baseUrl: 'https://runtime.invalid',
+      auth: { kind: 'none' },
+      query: { limit: 5 as unknown as string },
+    })).toThrow(/must be strings/)
+  })
+
+  it('deep-merges `body` onto the serialized request, `null` deleting an SDK-set field', async () => {
+    let requestedBody: Record<string, unknown> | undefined
+    const fetch = vi.fn((_input: string | URL | Request, init?: RequestInit) => {
+      requestedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return Promise.resolve(sseResponse(['data: hello']))
+    })
+    const provider = createRuntimeHttpProvider({
+      displayName: 'Runtime Body',
+      protocol: runtimeProtocol(),
+      baseUrl: 'https://runtime.invalid',
+      auth: { kind: 'none' },
+      // The base body from `runtimeProtocol().serialize` is `{ model: ... }`.
+      body: { model: null, extra: { nested: true } },
+      fetch,
+    })
+    await drain(provider.stream({ provider: 'runtime', model: 'runtime-model', messages: [] }))
+    expect(requestedBody).toEqual({ extra: { nested: true } })
+  })
+
+  it('runs `transformRequest` last, with full authority over the merged body', async () => {
+    let requestedBody: Record<string, unknown> | undefined
+    let seenCtx: { provider: string; model: string } | undefined
+    const fetch = vi.fn((_input: string | URL | Request, init?: RequestInit) => {
+      requestedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return Promise.resolve(sseResponse(['data: hello']))
+    })
+    const provider = createRuntimeHttpProvider({
+      displayName: 'Runtime Transform',
+      protocol: runtimeProtocol(),
+      baseUrl: 'https://runtime.invalid',
+      auth: { kind: 'none' },
+      body: { extra: 'from-body' },
+      transformRequest: (body, ctx) => {
+        seenCtx = { provider: ctx.provider, model: ctx.model }
+        return { ...(body as Record<string, unknown>), stamped: true }
+      },
+      fetch,
+    })
+    await drain(provider.stream({ provider: 'runtime', model: 'runtime-model', messages: [] }))
+    expect(requestedBody).toMatchObject({ extra: 'from-body', stamped: true })
+    expect(seenCtx).toEqual({ provider: 'runtime', model: 'runtime-model' })
   })
 
   it('passes exact route/base context to dynamic auth and discovery', async () => {
@@ -722,6 +834,84 @@ describe('createHttpProvider: adding an endpoint with no new code', () => {
     expect(request?.headers.accept).toBe('text/event-stream')
   })
 
+  it('lets `path` override the protocol default and `query` add static or resolved params', async () => {
+    const captured = stubFetch([() => sseResponse(RESPONSES_OK)])
+    let apiVersion = 'first'
+    const gateway = createHttpProvider({
+      displayName: 'Azure-like',
+      protocol: openAiResponsesProtocol,
+      baseUrl: 'https://azure.invalid/openai/deployments/gpt',
+      auth: { kind: 'none' },
+      path: '/chat/completions',
+      query: () => ({ 'api-version': apiVersion }),
+    })
+    await drain(gateway.stream({
+      provider: 'azure', model: 'm', messages: [createTextMessage('hello')],
+    }))
+    expect(captured[0]?.url)
+      .toBe('https://azure.invalid/openai/deployments/gpt/chat/completions?api-version=first')
+
+    apiVersion = 'second'
+    await drain(gateway.stream({
+      provider: 'azure', model: 'm', messages: [createTextMessage('hello')],
+    }))
+    expect(captured[1]?.url)
+      .toBe('https://azure.invalid/openai/deployments/gpt/chat/completions?api-version=second')
+  })
+
+  it('deep-merges `body` and runs `transformRequest` last, in-process', async () => {
+    const captured = stubFetch([() => sseResponse(RESPONSES_OK)])
+    const provider = createHttpProvider({
+      displayName: 'Body Merge',
+      protocol: openAiResponsesProtocol,
+      baseUrl: 'https://headers.invalid/v1',
+      auth: { kind: 'none' },
+      body: { store: null, metadata: { tag: 'from-body' } },
+      transformRequest: (body, ctx) => ({
+        ...(body as Record<string, unknown>), stampedFor: ctx.model,
+      }),
+    })
+    await drain(provider.stream({
+      provider: 'headers', model: 'stamped-model', messages: [createTextMessage('hello')],
+    }))
+    expect(captured[0]?.body).toMatchObject({
+      metadata: { tag: 'from-body' }, stampedFor: 'stamped-model',
+    })
+    expect(captured[0]?.body).not.toHaveProperty('store')
+  })
+
+  it('lets `models[].headers`/`.body` win over the route, and the agent win over both (decision 12)', async () => {
+    const captured = stubFetch([() => sseResponse(RESPONSES_OK)])
+    const provider = createHttpProvider({
+      displayName: 'Model Tier',
+      protocol: openAiResponsesProtocol,
+      baseUrl: 'https://headers.invalid/v1',
+      auth: { kind: 'none' },
+      headers: { 'x-route-only': 'route', 'x-shared': 'route' },
+      body: { routeOnly: 'route', shared: 'route' },
+      models: [{
+        id: 'special-model',
+        headers: { 'x-model-only': 'model', 'x-shared': 'model' },
+        body: { modelOnly: 'model', shared: 'model' },
+      }],
+    })
+    await drain(provider.stream({
+      provider: 'headers', model: 'special-model', messages: [createTextMessage('hello')],
+    }))
+    expect(captured[0]?.headers['x-route-only']).toBe('route')
+    expect(captured[0]?.headers['x-model-only']).toBe('model')
+    expect(captured[0]?.headers['x-shared']).toBe('model')
+    expect(captured[0]?.body).toMatchObject({ routeOnly: 'route', modelOnly: 'model', shared: 'model' })
+
+    // A different model on the same route never sees the first model's overrides.
+    await drain(provider.stream({
+      provider: 'headers', model: 'plain-model', messages: [createTextMessage('hello')],
+    }))
+    expect(captured[1]?.headers['x-model-only']).toBeUndefined()
+    expect(captured[1]?.headers['x-shared']).toBe('route')
+    expect(captured[1]?.body).not.toHaveProperty('modelOnly')
+  })
+
   it('carries a wholly third-party protocol', async () => {
     // Protocols are passed by value, not looked up in a mutable global registry,
     // so a caller can add one this package has never heard of.
@@ -805,6 +995,60 @@ describe('createHttpProvider: adding an endpoint with no new code', () => {
     expect(observed[0]?.bodyBytes).toBeGreaterThan(0)
   })
 
+  it('observes the exact wire response, every SSE frame verbatim, correlated to its request', async () => {
+    const requests: ProviderRequestLogRecord[] = []
+    const responses: ProviderResponseLogRecord[] = []
+    stubFetch([() => sseResponse(RESPONSES_OK, { headers: { 'x-request-id': 'req-42' } })])
+    const provider = createHttpProvider({
+      displayName: 'Logged',
+      protocol: openAiResponsesProtocol,
+      baseUrl: 'https://logged.invalid/v1',
+      auth: { kind: 'none' },
+      requestLogger: record => void requests.push(record),
+      responseLogger: record => void responses.push(record),
+    })
+
+    await drain(provider.stream({
+      provider: 'logged', model: 'm', messages: [createTextMessage('hello')],
+    }))
+
+    expect(responses).toHaveLength(1)
+    expect(responses[0]).toMatchObject({
+      schemaVersion: 1,
+      type: 'provider-response',
+      provider: 'logged',
+      model: 'm',
+      status: 200,
+      providerRequestId: 'req-42',
+    })
+    // The two halves of one call share an id, without either side computing a
+    // fingerprint of the other.
+    expect(responses[0]?.id).toBe(requests[0]?.id)
+    // Every raw frame, in the provider's own vocabulary — before `translate()`
+    // reshapes any of it into a `StreamChunk`.
+    expect(responses[0]?.frames).toEqual(RESPONSES_OK.map(frame => ({
+      event: undefined,
+      data: frame.replace(/^data: /, ''),
+    })))
+  })
+
+  it('contains response-logger failures without affecting the stream already delivered', async () => {
+    const captured = stubFetch([() => sseResponse(RESPONSES_OK)])
+    const provider = createHttpProvider({
+      displayName: 'BrokenResponseLogger',
+      protocol: openAiResponsesProtocol,
+      baseUrl: 'https://logged.invalid/v1',
+      auth: { kind: 'none' },
+      responseLogger: () => { throw new Error('disk full') },
+    })
+
+    const chunks = await drain(provider.stream({
+      provider: 'logged', model: 'm', messages: [createTextMessage('still dispatch')],
+    }))
+    expect(captured).toHaveLength(1)
+    expect(chunks.at(-1)).toEqual({ type: 'finish', reason: { kind: 'stop' } })
+  })
+
   it('contains request-logger failures instead of blocking provider dispatch', async () => {
     const captured = stubFetch([() => sseResponse(RESPONSES_OK)])
     const provider = createHttpProvider({
@@ -861,12 +1105,90 @@ describe('createHttpProvider: auth schemes', () => {
     expect(captured[0]?.headers['x-api-key']).toBe('abc')
   })
 
-  it('rejects cross-layer, case-variant, reserved, and static credential headers', async () => {
+  it('resolves an array of auth schemes and unions their headers (gateway key + upstream key)', async () => {
+    const captured = stubFetch([() => sseResponse(RESPONSES_OK)])
+    const provider = createHttpProvider({
+      displayName: 'Layered Gateway',
+      protocol: openAiResponsesProtocol,
+      baseUrl: 'https://gateway.invalid',
+      auth: [
+        { kind: 'header', name: 'cf-aig-authorization', value: 'gateway-secret' },
+        { kind: 'bearer', token: 'upstream-secret' },
+      ],
+    })
+    await drain(provider.stream({
+      provider: 'gateway', model: 'm', messages: [createTextMessage('x')],
+    }))
+    expect(captured[0]?.headers['cf-aig-authorization']).toBe('gateway-secret')
+    expect(captured[0]?.headers.authorization).toBe('Bearer upstream-secret')
+  })
+
+  it('rejects two auth schemes that both produce the same header name', async () => {
+    const fetch = vi.fn()
+    const provider = createHttpProvider({
+      displayName: 'Colliding Auth',
+      protocol: openAiResponsesProtocol,
+      baseUrl: 'https://gateway.invalid',
+      auth: [
+        { kind: 'bearer', token: 'first' },
+        { kind: 'bearer', token: 'second' },
+      ],
+      fetch,
+    })
+    await expect(drain(provider.stream({
+      provider: 'gateway', model: 'm', messages: [createTextMessage('x')],
+    }))).rejects.toMatchObject({ code: HTTP_PROVIDER_ERROR_CODES.HEADER_COLLISION })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('resolves a `query`-kind auth scheme onto the request URL and redacts it in the request logger', async () => {
+    const captured = stubFetch([() => sseResponse(RESPONSES_OK)])
+    const observed: ProviderRequestLogRecord[] = []
+    const provider = createHttpProvider({
+      displayName: 'Azure Key Query',
+      protocol: openAiResponsesProtocol,
+      baseUrl: 'https://azure.invalid/openai/deployments/gpt',
+      query: { 'api-version': '2026-06-01' },
+      auth: { kind: 'query', name: 'key', value: 'azure-secret' },
+      requestLogger: record => { observed.push(record) },
+    })
+    await drain(provider.stream({
+      provider: 'gateway', model: 'm', messages: [createTextMessage('x')],
+    }))
+    expect(captured[0]?.url).toBe(
+      'https://azure.invalid/openai/deployments/gpt/responses?api-version=2026-06-01&key=azure-secret',
+    )
+    expect(observed).toHaveLength(1)
+    expect(observed[0]?.url).toBe(
+      'https://azure.invalid/openai/deployments/gpt/responses?api-version=2026-06-01&key=%5BREDACTED%5D',
+    )
+  })
+
+  it('rejects two auth schemes that both produce the same query param name', async () => {
+    const fetch = vi.fn()
+    const provider = createHttpProvider({
+      displayName: 'Colliding Query Auth',
+      protocol: openAiResponsesProtocol,
+      baseUrl: 'https://gateway.invalid',
+      auth: [
+        { kind: 'query', name: 'key', value: 'first' },
+        { kind: 'query', name: 'key', value: 'second' },
+      ],
+      fetch,
+    })
+    await expect(drain(provider.stream({
+      provider: 'gateway', model: 'm', messages: [createTextMessage('x')],
+    }))).rejects.toMatchObject({ code: HTTP_PROVIDER_ERROR_CODES.HEADER_COLLISION })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects reserved, connection-level, and static credential headers', async () => {
+    // Decision 12: only a connection-level name `fetch` itself forbids, and a
+    // credential-shaped name arriving outside `auth`, stay hard errors —
+    // everything else the SDK sets for itself (transport/attribution/protocol
+    // headers) the caller may now override; see the "overrides" test below.
     const cases = [
-      { headers: { Accept: 'application/json' }, code: HTTP_PROVIDER_ERROR_CODES.HEADER_COLLISION },
-      { headers: { 'User-Agent': 'spoofed' }, code: HTTP_PROVIDER_ERROR_CODES.HEADER_COLLISION },
       { headers: { Host: 'other.example' }, code: HTTP_PROVIDER_ERROR_CODES.HEADER_RESERVED },
-      { headers: { 'X-AI-Agent-SDK-Trace': 'spoofed' }, code: HTTP_PROVIDER_ERROR_CODES.HEADER_RESERVED },
       { headers: { 'X-Api-Key': 'static-secret' }, code: HTTP_PROVIDER_ERROR_CODES.HEADER_RESERVED },
       { headers: { 'ChatGPT-Account-Id': 'static-account' }, code: HTTP_PROVIDER_ERROR_CODES.HEADER_RESERVED },
       { headers: { 'X-Invalid': 'line\r\nbreak' }, code: HTTP_PROVIDER_ERROR_CODES.HEADER_INVALID },
@@ -887,62 +1209,67 @@ describe('createHttpProvider: auth schemes', () => {
       }))).rejects.toMatchObject({ code: entry.code })
       expect(fetch).not.toHaveBeenCalled()
     }
+  })
 
-    const collisionFetch = vi.fn()
-    const collision = createHttpProvider({
-      displayName: 'Header Collision',
+  it('lets a caller override transport, SDK-attribution, and protocol headers (decision 12)', async () => {
+    const captured = stubFetch([() => sseResponse(RESPONSES_OK)])
+    const provider = createHttpProvider({
+      displayName: 'Header Overrides',
       protocol: {
         ...openAiResponsesProtocol,
         protocolHeaders: () => ({ 'X-Custom': 'protocol' }),
       },
       baseUrl: 'https://headers.invalid/v1',
       auth: { kind: 'none' },
-      headers: { 'x-custom': 'endpoint' },
-      fetch: collisionFetch,
+      headers: {
+        accept: 'application/json',
+        'user-agent': 'spoofed',
+        'x-ai-agent-sdk-trace': 'spoofed',
+        'x-custom': 'endpoint',
+      },
     })
-    await expect(drain(collision.stream({
+    await drain(provider.stream({
       provider: 'headers', model: 'm', messages: [createTextMessage('hello')],
-    }))).rejects.toMatchObject({ code: HTTP_PROVIDER_ERROR_CODES.HEADER_COLLISION })
-    expect(collisionFetch).not.toHaveBeenCalled()
+    }))
+    expect(captured[0]?.headers.accept).toBe('application/json')
+    expect(captured[0]?.headers['user-agent']).toBe('spoofed')
+    expect(captured[0]?.headers['x-ai-agent-sdk-trace']).toBe('spoofed')
+    expect(captured[0]?.headers['x-custom']).toBe('endpoint')
   })
 
-  it('reports non-auth layer collisions before resolving credentials', async () => {
+  it('still fails fast on a forbidden connection-level header before resolving credentials', async () => {
     const resolve = vi.fn(() => ({ 'x-auth-proof': 'private' }))
     const fetch = vi.fn()
     const provider = createHttpProvider({
-      displayName: 'Collision Ordering',
-      protocol: {
-        ...openAiResponsesProtocol,
-        protocolHeaders: () => ({ 'X-Shared': 'protocol' }),
-      },
+      displayName: 'Fail Fast',
+      protocol: openAiResponsesProtocol,
       baseUrl: 'https://headers.invalid/v1',
       auth: { kind: 'dynamic', resolve },
-      headers: { 'x-shared': 'endpoint' },
+      headers: { host: 'other.example' },
       fetch,
     })
 
     await expect(drain(provider.stream({
       provider: 'headers', model: 'm', messages: [createTextMessage('hello')],
-    }))).rejects.toMatchObject({ code: HTTP_PROVIDER_ERROR_CODES.HEADER_COLLISION })
+    }))).rejects.toMatchObject({ code: HTTP_PROVIDER_ERROR_CODES.HEADER_RESERVED })
     expect(resolve).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('rejects endpoint/auth collisions case-insensitively before dispatch', async () => {
-    const fetch = vi.fn()
+  it('lets `auth` override a same-named endpoint header case-insensitively (auth wins last)', async () => {
+    const captured = stubFetch([() => sseResponse(RESPONSES_OK)])
     const provider = createHttpProvider({
-      displayName: 'Auth Collision',
+      displayName: 'Auth Overrides',
       protocol: openAiResponsesProtocol,
       baseUrl: 'https://headers.invalid/v1',
       auth: { kind: 'dynamic', resolve: () => ({ 'X-Custom-Proof': 'private' }) },
       headers: { 'x-custom-proof': 'static' },
-      fetch,
     })
 
-    await expect(drain(provider.stream({
+    await drain(provider.stream({
       provider: 'headers', model: 'm', messages: [createTextMessage('hello')],
-    }))).rejects.toMatchObject({ code: HTTP_PROVIDER_ERROR_CODES.HEADER_COLLISION })
-    expect(fetch).not.toHaveBeenCalled()
+    }))
+    expect(captured[0]?.headers['x-custom-proof']).toBe('private')
   })
 
   it('redacts every dynamic-auth header by provenance, including custom signatures', async () => {
@@ -1080,7 +1407,7 @@ describe('createHttpProvider: catalog and errors', () => {
       models: [{
         id: 'declared-model', contextWindow: 64_000, maxTokens: 2_048,
         inputModalities: ['text', 'image'], nativeTools: ['web-search'],
-        reasoning: { efforts: [{ id: high, name: 'High' }], defaultEffort: high },
+        reasoning: { efforts: [{ id: high, name: 'High' }] },
       }],
       discoverModels: discover,
       fetch,
@@ -1093,7 +1420,7 @@ describe('createHttpProvider: catalog and errors', () => {
     await expect(provider.resolveModel('static-route', 'declared-model')).resolves.toMatchObject({
       id: 'declared-model', context: { contextWindow: 64_000 },
       defaultMaxTokens: 2_048, maxOutputTokens: 2_048,
-      reasoning: { defaultEffort: 'high' }, nativeTools: ['web-search'],
+      reasoning: { efforts: [{ id: 'high' }] }, nativeTools: ['web-search'],
     })
     expect(resolve).not.toHaveBeenCalled()
     expect(discover).not.toHaveBeenCalled()
@@ -1154,7 +1481,7 @@ describe('createHttpProvider: catalog and errors', () => {
     expect(signalSeen?.aborted).toBe(true)
   })
 
-  it('refuses document input for a model that does not declare it, and sends it for one that does', async () => {
+  it('refuses document input only for a model that explicitly excludes it; an uncatalogued one is permissive', async () => {
     const documentMessage = {
       ...createTextMessage('summarize'),
       content: [{
@@ -1177,14 +1504,21 @@ describe('createHttpProvider: catalog and errors', () => {
       message: /does not accept document input/,
     })
 
-    // An uncatalogued model defaults to text-only, so it is refused too.
+    // An uncatalogued model declares nothing — absence is UNKNOWN, not a
+    // negative capability claim (see `resolvedCatalogModelInfo`'s doc
+    // comment), so it gets the SDK's own permissive default and the document
+    // goes through rather than being refused.
+    const uncataloguedCaptured = stubFetch([() => sseResponse(RESPONSES_OK)])
     const uncatalogued = createHttpProvider({
       displayName: 'Uncatalogued', protocol: openAiResponsesProtocol,
       baseUrl: 'https://uncatalogued.invalid', auth: { kind: 'none' },
     })
-    await expect(drain(uncatalogued.stream({
+    await drain(uncatalogued.stream({
       provider: 'uncatalogued', model: 'm', messages: [documentMessage],
-    }))).rejects.toMatchObject({ code: MODEL_ERROR_CODES.UNSUPPORTED_CONTENT })
+    }))
+    expect(uncataloguedCaptured[0]?.body).toMatchObject({
+      input: [{ type: 'message', content: [{ type: 'input_file', filename: 'report.pdf' }] }],
+    })
 
     const captured = stubFetch([() => sseResponse(RESPONSES_OK)])
     const capable = createHttpProvider({
