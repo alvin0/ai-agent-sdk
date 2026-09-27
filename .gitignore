@@ -47,6 +47,13 @@ web_modules/
 # TypeScript cache
 *.tsbuildinfo
 
+# Python analyzer bytecode
+__pycache__/
+*.py[cod]
+
+# Isolated Next.js live-check output
+.next-live/
+
 # Optional npm cache directory
 .npm
 

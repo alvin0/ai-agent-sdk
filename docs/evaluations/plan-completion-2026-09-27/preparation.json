@@ -1,0 +1,8 @@
+{
+  "root": "artifacts/plan-completion-hHIqY2",
+  "baselineArchiveSha256": "9e722716fa839f5d62eb3877abe44a32e4d5defaef7aad9f9b5d76e5330bf0a8",
+  "baselineRevision": "5b589b6abe6d0a61da3f55b549713456ccc8c7c4",
+  "candidatePatchSha256": "055229ab7ad31aecb71d09a0a5908462db728e28bca545b3ed4caf98b1eb3200",
+  "stagedSha256": "e2448bb66e174723fcb779621db92ec725d7f1645d556b5d5bb49c079d5a15ca",
+  "preparedAt": "2026-09-27T01:57:10.897Z"
+}

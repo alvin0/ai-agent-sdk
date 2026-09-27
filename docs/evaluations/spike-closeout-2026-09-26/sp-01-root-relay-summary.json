@@ -1,0 +1,1772 @@
+{
+  "spike": "SP-01",
+  "candidate": "Same-root run-owned relay",
+  "cases": [
+    {
+      "kind": "normal",
+      "passed": true,
+      "bodies": 1,
+      "forwarded": 1,
+      "policies": 2,
+      "checkpoints": 5,
+      "closed": true,
+      "workerFinished": true,
+      "rootLimit": 24,
+      "rootTraces": 1,
+      "terminalText": "{\"guest\":\"result\",\"value\":{\"id\":\"row-0\",\"private\":\"ROOT_RELAY_SENTINEL\"}}",
+      "codes": [
+        "USAGE_MISSING",
+        "USAGE_MISSING",
+        "USAGE_MISSING"
+      ],
+      "report": {
+        "kind": "run-terminal-record",
+        "runId": "f21bc726a181435acbe9425d158b7c53",
+        "traceId": "177f92480a2853f10997758d50f1f2a2",
+        "startedAt": "2026-09-26T05:37:47.231Z",
+        "endedAt": "2026-09-26T05:37:47.276Z",
+        "durationMs": 44.867833000000005,
+        "status": "success",
+        "usage": {
+          "reported": {},
+          "coverage": {
+            "logicalCalls": 3,
+            "attempts": 0,
+            "complete": 0,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 3,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 3
+          },
+          "authoritative": false
+        },
+        "modelCalls": [
+          {
+            "runId": "f21bc726a181435acbe9425d158b7c53",
+            "traceId": "177f92480a2853f10997758d50f1f2a2",
+            "modelCallId": "c3d411590d1ee71678266fd82fada80c",
+            "spanId": "429b24a228d00a0a",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.235Z",
+            "endedAt": "2026-09-26T05:37:47.236Z",
+            "durationMs": 1.0864169999999973,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 40,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "f21bc726a181435acbe9425d158b7c53",
+            "traceId": "177f92480a2853f10997758d50f1f2a2",
+            "modelCallId": "5fa1e9f71515a91d0088b11ec4e8f9b2",
+            "spanId": "896e386e49778dde",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.241Z",
+            "endedAt": "2026-09-26T05:37:47.272Z",
+            "durationMs": 31.05291600000001,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 40,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "f21bc726a181435acbe9425d158b7c53",
+            "traceId": "177f92480a2853f10997758d50f1f2a2",
+            "modelCallId": "97792d236ab5483761dd88c7828324cf",
+            "spanId": "aeff85f59aba067e",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.274Z",
+            "endedAt": "2026-09-26T05:37:47.274Z",
+            "durationMs": 0.8476249999999936,
+            "finishReason": "stop",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 40,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          }
+        ],
+        "operationCounts": {
+          "turn": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "model-call": {
+            "total": 3,
+            "success": 3,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "provider-attempt": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "tool": {
+            "total": 2,
+            "success": 2,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "compaction": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "hook": {
+            "total": 8,
+            "success": 8,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "user-input": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "skill": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "memory": {
+            "total": 4,
+            "success": 4,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "credential": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "integration": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          }
+        },
+        "toolSourceSnapshots": [],
+        "errors": [
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 3,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 3,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 3
+            },
+            "possiblyBilledAttemptsWithoutUsage": 3
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 3,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 3,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 3
+            },
+            "possiblyBilledAttemptsWithoutUsage": 3
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 3,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 3,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 3
+            },
+            "possiblyBilledAttemptsWithoutUsage": 3
+          }
+        ],
+        "delivery": {
+          "mode": "operational",
+          "requiredBoundary": "none",
+          "reachedBoundary": "none",
+          "complete": true,
+          "acceptedCritical": 41,
+          "rejectedCritical": 0,
+          "pendingCritical": 0
+        }
+      }
+    },
+    {
+      "kind": "root-budget",
+      "passed": true,
+      "bodies": 2,
+      "forwarded": 2,
+      "policies": 3,
+      "checkpoints": 8,
+      "closed": true,
+      "workerFinished": false,
+      "rootLimit": 3,
+      "rootTraces": 1,
+      "terminalText": "",
+      "codes": [
+        "USAGE_MISSING",
+        "USAGE_MISSING",
+        "USAGE_MISSING",
+        "USAGE_MISSING",
+        "USAGE_MISSING"
+      ],
+      "report": {
+        "kind": "run-terminal-record",
+        "runId": "3dbecb886d31d2d8de512c3107df4c24",
+        "traceId": "cbb497fc7a301db4753a88ebe42bb7ac",
+        "startedAt": "2026-09-26T05:37:47.280Z",
+        "endedAt": "2026-09-26T05:37:47.314Z",
+        "durationMs": 34.328125,
+        "status": "error",
+        "usage": {
+          "reported": {},
+          "coverage": {
+            "logicalCalls": 5,
+            "attempts": 0,
+            "complete": 0,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 5,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 5
+          },
+          "authoritative": false
+        },
+        "modelCalls": [
+          {
+            "runId": "3dbecb886d31d2d8de512c3107df4c24",
+            "traceId": "cbb497fc7a301db4753a88ebe42bb7ac",
+            "modelCallId": "dff60aad0caa7c9cdca60c5099b352e4",
+            "spanId": "000e957821a4fbef",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.281Z",
+            "endedAt": "2026-09-26T05:37:47.281Z",
+            "durationMs": 0.20616699999999355,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 62,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "3dbecb886d31d2d8de512c3107df4c24",
+            "traceId": "cbb497fc7a301db4753a88ebe42bb7ac",
+            "modelCallId": "aa014a80ef45153033ff282700c77038",
+            "spanId": "00eae1225e757bd9",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.282Z",
+            "endedAt": "2026-09-26T05:37:47.309Z",
+            "durationMs": 26.869833,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 62,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "3dbecb886d31d2d8de512c3107df4c24",
+            "traceId": "cbb497fc7a301db4753a88ebe42bb7ac",
+            "modelCallId": "5d56181817df0e187a56ad53a037225f",
+            "spanId": "026a073bedb835ba",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.311Z",
+            "endedAt": "2026-09-26T05:37:47.311Z",
+            "durationMs": 0.18054200000000264,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 62,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "3dbecb886d31d2d8de512c3107df4c24",
+            "traceId": "cbb497fc7a301db4753a88ebe42bb7ac",
+            "modelCallId": "ca413e762202aa97f27923d950790dee",
+            "spanId": "5e2a33c6e65ccd59",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.312Z",
+            "endedAt": "2026-09-26T05:37:47.312Z",
+            "durationMs": 0.1547079999999994,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 62,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "3dbecb886d31d2d8de512c3107df4c24",
+            "traceId": "cbb497fc7a301db4753a88ebe42bb7ac",
+            "modelCallId": "70d675c1552eb3c13186295bf17e3b74",
+            "spanId": "83abf8f77cbdb3b2",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.313Z",
+            "endedAt": "2026-09-26T05:37:47.314Z",
+            "durationMs": 0.21587499999998272,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 62,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          }
+        ],
+        "operationCounts": {
+          "turn": {
+            "total": 1,
+            "success": 0,
+            "error": 1,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "model-call": {
+            "total": 5,
+            "success": 5,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "provider-attempt": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "tool": {
+            "total": 4,
+            "success": 4,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "compaction": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "hook": {
+            "total": 13,
+            "success": 13,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "user-input": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "skill": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "memory": {
+            "total": 6,
+            "success": 6,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "credential": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "integration": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          }
+        },
+        "toolSourceSnapshots": [],
+        "errors": [
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 5,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 5,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 5
+            },
+            "possiblyBilledAttemptsWithoutUsage": 5
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 5,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 5,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 5
+            },
+            "possiblyBilledAttemptsWithoutUsage": 5
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 5,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 5,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 5
+            },
+            "possiblyBilledAttemptsWithoutUsage": 5
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 5,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 5,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 5
+            },
+            "possiblyBilledAttemptsWithoutUsage": 5
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 5,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 5,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 5
+            },
+            "possiblyBilledAttemptsWithoutUsage": 5
+          }
+        ],
+        "delivery": {
+          "mode": "operational",
+          "requiredBoundary": "none",
+          "reachedBoundary": "none",
+          "complete": true,
+          "acceptedCritical": 63,
+          "rejectedCritical": 0,
+          "pendingCritical": 0
+        }
+      }
+    },
+    {
+      "kind": "post-policy",
+      "passed": true,
+      "bodies": 1,
+      "forwarded": 0,
+      "policies": 2,
+      "checkpoints": 5,
+      "closed": true,
+      "workerFinished": true,
+      "rootLimit": 24,
+      "rootTraces": 1,
+      "terminalText": "{\"guest\":\"error\",\"error\":\"STRUCTURED_OUTPUT_UNAVAILABLE\"}",
+      "codes": [
+        "USAGE_MISSING",
+        "USAGE_MISSING",
+        "USAGE_MISSING"
+      ],
+      "report": {
+        "kind": "run-terminal-record",
+        "runId": "77f45000b591b9cc673899ce3f23195b",
+        "traceId": "1a065b88f85d537201c4c31e0b797caf",
+        "startedAt": "2026-09-26T05:37:47.319Z",
+        "endedAt": "2026-09-26T05:37:47.352Z",
+        "durationMs": 32.947790999999995,
+        "status": "success",
+        "usage": {
+          "reported": {},
+          "coverage": {
+            "logicalCalls": 3,
+            "attempts": 0,
+            "complete": 0,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 3,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 3
+          },
+          "authoritative": false
+        },
+        "modelCalls": [
+          {
+            "runId": "77f45000b591b9cc673899ce3f23195b",
+            "traceId": "1a065b88f85d537201c4c31e0b797caf",
+            "modelCallId": "1347c6296b8967656aa6269444e7b348",
+            "spanId": "2d6861ecf5952caf",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.320Z",
+            "endedAt": "2026-09-26T05:37:47.320Z",
+            "durationMs": 0.13616700000000037,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 40,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "77f45000b591b9cc673899ce3f23195b",
+            "traceId": "1a065b88f85d537201c4c31e0b797caf",
+            "modelCallId": "99656fd4385b8269cc4848de2f6206fd",
+            "spanId": "3675c10e7d9f1e28",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.321Z",
+            "endedAt": "2026-09-26T05:37:47.349Z",
+            "durationMs": 28.325249999999983,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 40,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "77f45000b591b9cc673899ce3f23195b",
+            "traceId": "1a065b88f85d537201c4c31e0b797caf",
+            "modelCallId": "ca09c060688b4d8192f8750461374a86",
+            "spanId": "4db25f1ac23a4122",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.351Z",
+            "endedAt": "2026-09-26T05:37:47.352Z",
+            "durationMs": 1.0304590000000076,
+            "finishReason": "stop",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 40,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          }
+        ],
+        "operationCounts": {
+          "turn": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "model-call": {
+            "total": 3,
+            "success": 3,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "provider-attempt": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "tool": {
+            "total": 2,
+            "success": 2,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "compaction": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "hook": {
+            "total": 8,
+            "success": 8,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "user-input": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "skill": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "memory": {
+            "total": 4,
+            "success": 4,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "credential": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "integration": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          }
+        },
+        "toolSourceSnapshots": [],
+        "errors": [
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 3,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 3,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 3
+            },
+            "possiblyBilledAttemptsWithoutUsage": 3
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 3,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 3,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 3
+            },
+            "possiblyBilledAttemptsWithoutUsage": 3
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 3,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 3,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 3
+            },
+            "possiblyBilledAttemptsWithoutUsage": 3
+          }
+        ],
+        "delivery": {
+          "mode": "operational",
+          "requiredBoundary": "none",
+          "reachedBoundary": "none",
+          "complete": true,
+          "acceptedCritical": 41,
+          "rejectedCritical": 0,
+          "pendingCritical": 0
+        }
+      }
+    },
+    {
+      "kind": "exempt-cap",
+      "passed": true,
+      "bodies": 3,
+      "forwarded": 3,
+      "policies": 4,
+      "checkpoints": 9,
+      "closed": true,
+      "workerFinished": true,
+      "rootLimit": 24,
+      "rootTraces": 1,
+      "terminalText": "{\"guest\":\"result\",\"value\":\"done\"}",
+      "codes": [
+        "USAGE_MISSING",
+        "USAGE_MISSING",
+        "USAGE_MISSING",
+        "USAGE_MISSING",
+        "USAGE_MISSING"
+      ],
+      "report": {
+        "kind": "run-terminal-record",
+        "runId": "640ad3455966b617ce44671bea29edf9",
+        "traceId": "25f983f1e5df65a8228656d4eca4e008",
+        "startedAt": "2026-09-26T05:37:47.355Z",
+        "endedAt": "2026-09-26T05:37:47.388Z",
+        "durationMs": 33.435666999999995,
+        "status": "success",
+        "usage": {
+          "reported": {},
+          "coverage": {
+            "logicalCalls": 5,
+            "attempts": 0,
+            "complete": 0,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 5,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 5
+          },
+          "authoritative": false
+        },
+        "modelCalls": [
+          {
+            "runId": "640ad3455966b617ce44671bea29edf9",
+            "traceId": "25f983f1e5df65a8228656d4eca4e008",
+            "modelCallId": "53d612133de0c2238ddb2d195785a5de",
+            "spanId": "b516d5f84ddb153b",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.356Z",
+            "endedAt": "2026-09-26T05:37:47.356Z",
+            "durationMs": 0.11733300000000213,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 64,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "640ad3455966b617ce44671bea29edf9",
+            "traceId": "25f983f1e5df65a8228656d4eca4e008",
+            "modelCallId": "df651f8bea517f673178cb9281dba5cc",
+            "spanId": "c0e565c060d31a91",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.357Z",
+            "endedAt": "2026-09-26T05:37:47.384Z",
+            "durationMs": 27.50454099999999,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 64,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "640ad3455966b617ce44671bea29edf9",
+            "traceId": "25f983f1e5df65a8228656d4eca4e008",
+            "modelCallId": "5c9a57f3000945f142af4b4513717a4b",
+            "spanId": "2f59b512adce5590",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.386Z",
+            "endedAt": "2026-09-26T05:37:47.386Z",
+            "durationMs": 0.11479200000002265,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 64,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "640ad3455966b617ce44671bea29edf9",
+            "traceId": "25f983f1e5df65a8228656d4eca4e008",
+            "modelCallId": "d2cbd7e5f06b56ac616a34555948b411",
+            "spanId": "6963a5c9c0f3f82b",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.387Z",
+            "endedAt": "2026-09-26T05:37:47.387Z",
+            "durationMs": 0.12450000000001182,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 64,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "640ad3455966b617ce44671bea29edf9",
+            "traceId": "25f983f1e5df65a8228656d4eca4e008",
+            "modelCallId": "c8584aca82a92ee098c5544c0990effa",
+            "spanId": "379db3486b690061",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.388Z",
+            "endedAt": "2026-09-26T05:37:47.388Z",
+            "durationMs": 0.2985840000000053,
+            "finishReason": "stop",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 64,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          }
+        ],
+        "operationCounts": {
+          "turn": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "model-call": {
+            "total": 5,
+            "success": 5,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "provider-attempt": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "tool": {
+            "total": 4,
+            "success": 4,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "compaction": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "hook": {
+            "total": 14,
+            "success": 14,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "user-input": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "skill": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "memory": {
+            "total": 6,
+            "success": 6,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "credential": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "integration": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          }
+        },
+        "toolSourceSnapshots": [],
+        "errors": [
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 5,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 5,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 5
+            },
+            "possiblyBilledAttemptsWithoutUsage": 5
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 5,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 5,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 5
+            },
+            "possiblyBilledAttemptsWithoutUsage": 5
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 5,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 5,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 5
+            },
+            "possiblyBilledAttemptsWithoutUsage": 5
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 5,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 5,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 5
+            },
+            "possiblyBilledAttemptsWithoutUsage": 5
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 5,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 5,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 5
+            },
+            "possiblyBilledAttemptsWithoutUsage": 5
+          }
+        ],
+        "delivery": {
+          "mode": "operational",
+          "requiredBoundary": "none",
+          "reachedBoundary": "none",
+          "complete": true,
+          "acceptedCritical": 65,
+          "rejectedCritical": 0,
+          "pendingCritical": 0
+        }
+      }
+    },
+    {
+      "kind": "invalid-schema",
+      "passed": true,
+      "bodies": 1,
+      "forwarded": 0,
+      "policies": 2,
+      "checkpoints": 5,
+      "closed": true,
+      "workerFinished": true,
+      "rootLimit": 24,
+      "rootTraces": 1,
+      "terminalText": "{\"guest\":\"error\",\"error\":\"STRUCTURED_OUTPUT_UNAVAILABLE\"}",
+      "codes": [
+        "USAGE_MISSING",
+        "USAGE_MISSING",
+        "USAGE_MISSING"
+      ],
+      "report": {
+        "kind": "run-terminal-record",
+        "runId": "d3bedccaf35083e7933b631965b6ebad",
+        "traceId": "b8d0cb6ec562e30d7ae8ed23ee2e63cb",
+        "startedAt": "2026-09-26T05:37:47.393Z",
+        "endedAt": "2026-09-26T05:37:47.427Z",
+        "durationMs": 34.35691600000001,
+        "status": "success",
+        "usage": {
+          "reported": {},
+          "coverage": {
+            "logicalCalls": 3,
+            "attempts": 0,
+            "complete": 0,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 3,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 3
+          },
+          "authoritative": false
+        },
+        "modelCalls": [
+          {
+            "runId": "d3bedccaf35083e7933b631965b6ebad",
+            "traceId": "b8d0cb6ec562e30d7ae8ed23ee2e63cb",
+            "modelCallId": "a53898635cdca60f17d53c02f60c06c2",
+            "spanId": "6390fcc2d1528d3e",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.394Z",
+            "endedAt": "2026-09-26T05:37:47.394Z",
+            "durationMs": 0.13862499999999045,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 40,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "d3bedccaf35083e7933b631965b6ebad",
+            "traceId": "b8d0cb6ec562e30d7ae8ed23ee2e63cb",
+            "modelCallId": "5464a60d4063365d83df4376e964fa9b",
+            "spanId": "ebb1d101da043cdb",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.396Z",
+            "endedAt": "2026-09-26T05:37:47.424Z",
+            "durationMs": 28.593665999999985,
+            "finishReason": "tool-calls",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 40,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          },
+          {
+            "runId": "d3bedccaf35083e7933b631965b6ebad",
+            "traceId": "b8d0cb6ec562e30d7ae8ed23ee2e63cb",
+            "modelCallId": "5557727a20906ced56e0d8144452353f",
+            "spanId": "5fe0d1bdc4e40f08",
+            "provider": "fixture",
+            "providerFamily": "fixture",
+            "providerPluginId": "fixture",
+            "model": "scripted",
+            "status": "success",
+            "startedAt": "2026-09-26T05:37:47.426Z",
+            "endedAt": "2026-09-26T05:37:47.427Z",
+            "durationMs": 1.209459000000038,
+            "finishReason": "stop",
+            "dispatchState": "unknown",
+            "coverage": "missing",
+            "reported": {},
+            "attempts": [],
+            "possiblyBilledAttemptsWithoutUsage": 1,
+            "authoritative": false,
+            "delivery": {
+              "mode": "operational",
+              "requiredBoundary": "none",
+              "reachedBoundary": "none",
+              "complete": true,
+              "acceptedCritical": 40,
+              "rejectedCritical": 0,
+              "pendingCritical": 0
+            },
+            "error": {
+              "type": "Error",
+              "message": "Agent operation failed",
+              "code": "USAGE_MISSING"
+            }
+          }
+        ],
+        "operationCounts": {
+          "turn": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "model-call": {
+            "total": 3,
+            "success": 3,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "provider-attempt": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "tool": {
+            "total": 2,
+            "success": 2,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "compaction": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "hook": {
+            "total": 8,
+            "success": 8,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "user-input": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "skill": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "memory": {
+            "total": 4,
+            "success": 4,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "credential": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "integration": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          }
+        },
+        "toolSourceSnapshots": [],
+        "errors": [
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 3,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 3,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 3
+            },
+            "possiblyBilledAttemptsWithoutUsage": 3
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 3,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 3,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 3
+            },
+            "possiblyBilledAttemptsWithoutUsage": 3
+          },
+          {
+            "code": "USAGE_MISSING",
+            "stage": "model-call",
+            "message": "Provider operation failed",
+            "provider": "fixture",
+            "route": "fixture",
+            "dispatchState": "unknown",
+            "usageCoverage": {
+              "logicalCalls": 3,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 3,
+              "notApplicable": 0,
+              "possiblyBilledAttemptsWithoutUsage": 3
+            },
+            "possiblyBilledAttemptsWithoutUsage": 3
+          }
+        ],
+        "delivery": {
+          "mode": "operational",
+          "requiredBoundary": "none",
+          "reachedBoundary": "none",
+          "complete": true,
+          "acceptedCritical": 41,
+          "rejectedCritical": 0,
+          "pendingCritical": 0
+        }
+      }
+    }
+  ],
+  "passed": true,
+  "decision": "needs-review",
+  "architectureGatePassed": false,
+  "liveBenchmarkAllowed": false,
+  "limitations": [
+    "Only five focused root-path feasibility cases; not full PTC-A01…15",
+    "start_program returns started; ordinary outer execute_program result lifecycle is not implemented",
+    "Child results remain in canonical model history; no provider projection/catalog metadata implementation",
+    "No MCP output schema/capture/revision proof or guest handle owner/TTL store",
+    "No benchmark/cost conclusion; synthetic model adapter rounds are not remote LLM calls"
+  ]
+}

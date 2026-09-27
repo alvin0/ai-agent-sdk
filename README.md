@@ -445,7 +445,8 @@ itself explaining that it was reached. These are SDK policies, not tenancy,
 billing, or deployment-control-plane features, and every threshold is host
 configurable.
 
-`commentary: 'concise'` asks the model for short, user-visible progress narration
+Progress narration defaults to `commentary: 'auto'`, leaving communication style
+to the caller's instructions and the model. `commentary: 'concise'` opts into short, user-visible progress narration
 before tools and after results. This is deliberately separate from reasoning:
 `assistant-reasoning` contains only reasoning summary/content the provider actually
 emitted, while `assistant-text` is public text classified as `commentary` or

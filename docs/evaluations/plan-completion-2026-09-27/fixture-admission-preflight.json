@@ -1,0 +1,40 @@
+{
+  "audit": {
+    "rawLimit": 65536,
+    "modelFacingTokenLimit": 2048,
+    "largestRawResult": {
+      "variantId": "DOC-04:en",
+      "resource": "documents",
+      "bytes": 24813
+    },
+    "outputsAudited": 110
+  },
+  "results": [
+    {
+      "sdk": "baseline-sdk",
+      "passed": true,
+      "toolCounts": {
+        "total": 2,
+        "success": 2,
+        "error": 0,
+        "aborted": 0,
+        "rejected": 0,
+        "unknown": 0
+      },
+      "spillRetrievalAvailable": true
+    },
+    {
+      "sdk": "candidate-sdk",
+      "passed": true,
+      "toolCounts": {
+        "total": 2,
+        "success": 2,
+        "error": 0,
+        "aborted": 0,
+        "rejected": 0,
+        "unknown": 0
+      },
+      "spillRetrievalAvailable": true
+    }
+  ]
+}

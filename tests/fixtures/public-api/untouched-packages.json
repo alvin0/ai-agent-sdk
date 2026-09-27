@@ -448,7 +448,14 @@
           "DefinedAgentTeamMemberInput",
           "DefinedAgentTeamOptions",
           "DispatchToolCallOptions",
+          "EXPERIMENTAL_NESTED_TOOL_ERROR_CODES",
           "ExhaustedBudget",
+          "ExperimentalNestedCallOptions",
+          "ExperimentalNestedLoadResult",
+          "ExperimentalNestedToolDescriptor",
+          "ExperimentalNestedToolPort",
+          "ExperimentalNestedToolResult",
+          "ExperimentalProgramGrant",
           "History",
           "HistoryEntry",
           "HistoryEvent",
@@ -617,6 +624,7 @@
           "estimateTextBlockTokens",
           "estimateTextTokens",
           "executionModeOf",
+          "experimentalNestedToolPort",
           "finalizeToolCall",
           "fixedApprovalBroker",
           "fixedUserInputBroker",
@@ -646,7 +654,7 @@
           "validateSkillSource",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "3405a78516221c90f61d1fa56dc308df96ef116a24d7c60451ca248d28efabe1"
+        "declarationSha256": "ad215be60863385087335c8a5ce1269ec588d62c64eb7e5b87a74a48cec36958"
       },
       "./memory": {
         "exports": [
@@ -803,6 +811,13 @@
           "AuthorizationOutcome",
           "AuthorizedToolCall",
           "DispatchToolCallOptions",
+          "EXPERIMENTAL_NESTED_TOOL_ERROR_CODES",
+          "ExperimentalNestedCallOptions",
+          "ExperimentalNestedLoadResult",
+          "ExperimentalNestedToolDescriptor",
+          "ExperimentalNestedToolPort",
+          "ExperimentalNestedToolResult",
+          "ExperimentalProgramGrant",
           "InteractiveApprovalBroker",
           "InteractiveApprovalBrokerOptions",
           "JsonObject",
@@ -862,6 +877,7 @@
           "estimateTextBlockTokens",
           "estimateTextTokens",
           "executionModeOf",
+          "experimentalNestedToolPort",
           "finalizeToolCall",
           "fixedApprovalBroker",
           "localToolExecutionBackend",
@@ -874,7 +890,7 @@
           "truncateMiddleToTokens",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "ec9e12dac16791f067b340c9f3730e2869a9890ed0bb0e7869352c40a71abcea"
+        "declarationSha256": "0e6f370d440049d2a2c9bf72acfdd4bc791fadc650fb395e2ece56e767f2f3ba"
       },
       "./observability": {
         "exports": [

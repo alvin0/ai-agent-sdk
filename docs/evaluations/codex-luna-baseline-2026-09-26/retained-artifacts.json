@@ -1,0 +1,25 @@
+{
+  "rawDirectory": "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1",
+  "sourceRevision": "5b589b6abe6d0a61da3f55b549713456ccc8c7c4",
+  "rawChecksums": {
+    "manifest.json": "c89e1e1364a3269ea16a95d26e3d2c0786502c2132cd14ad395827daebf544c7",
+    "fixtures.json": "f49711d024f8e2d960cbe6387d555e7f4d4d9fa598951ded6be351e36e1eb7c6",
+    "sdk-source.tar": "9e722716fa839f5d62eb3877abe44a32e4d5defaef7aad9f9b5d76e5330bf0a8",
+    "sdk.patch": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs.jsonl": "7b43187cd79871bc389c49e64c84c4546b6aa0800f45e388937c9142da8e4bec",
+    "summary.json": "54ede8b7fe18fbaee94fa30a83cef47b1f66eb82d0d37d4d27aa7bf4884d2662",
+    "cases.ts": "a91e3d9689b8dae757cdf3339b0dcc8f84f07874ee1c12143dbdfc86e25fb786",
+    "grading.ts": "3509df295587aca5fa4ca3e23df4608289611be7cc1ecc79a9983a6bb6aeb903",
+    "runner.ts": "fb9516626634a886e7d6bfa1b5289d85bb78b3f2106b47f760ecc3477bf42d51"
+  },
+  "copies": {
+    "runs.jsonl": "7b43187cd79871bc389c49e64c84c4546b6aa0800f45e388937c9142da8e4bec",
+    "review-queue.json": "2d9896e07f94953f94a97c15975ea18b483644b98e20cca0d0677835569b29ec",
+    "manifest.json": "c89e1e1364a3269ea16a95d26e3d2c0786502c2132cd14ad395827daebf544c7",
+    "analysis.json": "9bb531f8104cd6024e27aa816bf65efbcd9710d41795aa004aeeba5d1b21cffd",
+    "fixtures.json": "f49711d024f8e2d960cbe6387d555e7f4d4d9fa598951ded6be351e36e1eb7c6"
+  },
+  "coverage": "Initial author-exposed frozen regression cohort; dedicated capability gates remain open.",
+  "analysisScriptHash": "b70633e76358c0f38584a3d489eda3a29c1043df3b6eb93d088d8c2ec10bf81b",
+  "harnessSelfTestHash": "0fb6b4da9b176a9b2f617a5f23659a561cdca8533cad3c9aee442d0e9ed1cbaf"
+}

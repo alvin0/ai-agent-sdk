@@ -333,11 +333,12 @@ export function readSpillTool(store: SpillStore, defaultLimit = 8_000): ToolDefi
 
 function unknownLocator(locator: string): JsonObject {
   // A store that has evicted or lost the entry is a normal outcome, not a
-  // crash: the model needs to know to re-run the original call instead.
+  // crash. Losing output does not establish that the original operation failed.
   return {
     locator,
-    error: 'no saved output for this locator; it may have expired. Re-run the original call'
-      + ' more narrowly if you still need it.',
+    error: 'Saved output is unavailable; the locator may have expired. This does not mean'
+      + ' the original operation failed. Check an existing receipt or current state.'
+      + ' Repeat the operation only when the host confirms it is safe.',
   }
 }
 

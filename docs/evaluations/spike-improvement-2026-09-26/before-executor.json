@@ -1,0 +1,216 @@
+{
+  "spike": "SP-01",
+  "status": "completed",
+  "decision": "no-go",
+  "candidate": "Fresh child-session bridge",
+  "executor": {
+    "package": "quickjs-emscripten",
+    "version": "0.32.0",
+    "license": "MIT",
+    "isolationScope": "QuickJS WASM in Node worker; no ambient host APIs, not kernel confinement",
+    "heapLimitBytes": 8388608
+  },
+  "cases": [
+    {
+      "id": "EXEC-NO-process",
+      "passed": true,
+      "evidence": {
+        "type": "result",
+        "value": "undefined",
+        "calls": 0,
+        "dispatches": 0,
+        "deadline": false,
+        "terminationCode": 0,
+        "elapsedMs": 33.538875000000004
+      }
+    },
+    {
+      "id": "EXEC-NO-require",
+      "passed": true,
+      "evidence": {
+        "type": "result",
+        "value": "undefined",
+        "calls": 0,
+        "dispatches": 0,
+        "deadline": false,
+        "terminationCode": 1,
+        "elapsedMs": 26.028875
+      }
+    },
+    {
+      "id": "EXEC-NO-fetch",
+      "passed": true,
+      "evidence": {
+        "type": "result",
+        "value": "undefined",
+        "calls": 0,
+        "dispatches": 0,
+        "deadline": false,
+        "terminationCode": 1,
+        "elapsedMs": 27.448959000000002
+      }
+    },
+    {
+      "id": "EXEC-NO-WebSocket",
+      "passed": true,
+      "evidence": {
+        "type": "result",
+        "value": "undefined",
+        "calls": 0,
+        "dispatches": 0,
+        "deadline": false,
+        "terminationCode": 1,
+        "elapsedMs": 32.021874999999994
+      }
+    },
+    {
+      "id": "EXEC-JSON-BRIDGE",
+      "passed": true,
+      "evidence": {
+        "type": "result",
+        "value": "allowed-row",
+        "calls": 1,
+        "dispatches": 1,
+        "deadline": false,
+        "terminationCode": 1,
+        "elapsedMs": 32.13370899999998
+      }
+    },
+    {
+      "id": "EXEC-ALLOWLIST",
+      "passed": true,
+      "evidence": {
+        "type": "error",
+        "error": "ALLOWLIST_DENIED",
+        "dispatches": 0,
+        "deadline": false,
+        "terminationCode": 1,
+        "elapsedMs": 32.516875
+      }
+    },
+    {
+      "id": "EXEC-ARGS",
+      "passed": true,
+      "evidence": {
+        "type": "error",
+        "error": "INVALID_ARGS",
+        "dispatches": 0,
+        "deadline": false,
+        "terminationCode": 1,
+        "elapsedMs": 31.660415999999998
+      }
+    },
+    {
+      "id": "EXEC-HARD-CAP-CATCH",
+      "passed": false,
+      "evidence": {
+        "type": "result",
+        "value": "done",
+        "calls": 10,
+        "dispatches": 3,
+        "deadline": false,
+        "terminationCode": 1,
+        "elapsedMs": 34.982124999999996
+      }
+    },
+    {
+      "id": "EXEC-FATAL-LATCH-CATCH",
+      "passed": false,
+      "evidence": {
+        "type": "result",
+        "value": "false-success",
+        "calls": 3,
+        "dispatches": 3,
+        "deadline": false,
+        "terminationCode": 1,
+        "elapsedMs": 42.80366699999996
+      }
+    },
+    {
+      "id": "EXEC-CPU",
+      "passed": true,
+      "evidence": {
+        "type": "error",
+        "error": "interrupted",
+        "dispatches": 0,
+        "deadline": false,
+        "terminationCode": 1,
+        "elapsedMs": 239.54695800000007
+      }
+    },
+    {
+      "id": "EXEC-MEMORY-TERMINATION",
+      "passed": true,
+      "evidence": {
+        "type": "timeout",
+        "dispatches": 0,
+        "deadline": true,
+        "terminationCode": 1,
+        "elapsedMs": 2010.4930830000003
+      }
+    },
+    {
+      "id": "EXEC-PROJECTION",
+      "passed": true,
+      "evidence": {
+        "type": "error",
+        "error": "PROJECTION_CAP",
+        "dispatches": 0,
+        "deadline": false,
+        "terminationCode": 1,
+        "elapsedMs": 27.510291999999936
+      }
+    },
+    {
+      "id": "EXEC-RESULT-CAP",
+      "passed": true,
+      "evidence": {
+        "type": "error",
+        "error": "RESULT_CAP",
+        "dispatches": 1,
+        "deadline": false,
+        "terminationCode": 1,
+        "elapsedMs": 27.913125000000036
+      }
+    },
+    {
+      "id": "EXEC-PENDING-TERMINATED",
+      "passed": true,
+      "evidence": {
+        "type": "timeout",
+        "dispatches": 1,
+        "deadline": true,
+        "terminationCode": 1,
+        "elapsedMs": 403.57108400000016
+      }
+    },
+    {
+      "id": "ROOT-COUNTEREXAMPLE",
+      "passed": true,
+      "evidence": {
+        "rootLimit": 3,
+        "childBodies": 10,
+        "childCheckpoints": 30,
+        "childPolicies": 10,
+        "parentStatus": "success",
+        "architectureGatePassed": false,
+        "counterexampleReproduced": true
+      }
+    }
+  ],
+  "harnessPassed": false,
+  "architectureGatePassed": false,
+  "liveBenchmarkAllowed": false,
+  "sourceHashes": {
+    "ptc-probe.ts": "3f9d47ba7054c8b2f908bf4dff43a912c5b2cdcbf2be99e0f6355ad6a1c8894d",
+    "ptc-worker.mjs": "931de9c3fe9e5de2cb4b394fed890061dbc89f3b891e52d6c5cd0fced3f4c8bd"
+  },
+  "limitations": [
+    "Standalone executor cases are not integrated PTC-A01…15 conformance",
+    "Fresh child runs bypass root admission/accounting despite their own policy/checkpoints",
+    "No MCP output-contract capture/refresh implementation",
+    "No cost or live utility conclusion",
+    "Heap cap is configured, but this probe proves bounded worker termination rather than a total RSS bound"
+  ],
+  "nextAction": "Design and test a scheduler-owned nested admission port before another PTC candidate; no direct tool.execute bridge or production export."
+}

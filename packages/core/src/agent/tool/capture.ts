@@ -22,6 +22,16 @@ export function captureToolDefinition<Args>(input: ToolDefinition<Args>): ToolDe
       maxKeyBytes: TOOL_DEFINITION_LIMITS.schemaKeyBytes,
       maxBytes: TOOL_DEFINITION_LIMITS.schemaBytes,
     })
+    const outputSchema = optionalOwnData(receiver, 'experimentalOutputSchema') === undefined
+      ? undefined
+      : snapshotJsonObject(ownData(receiver, 'experimentalOutputSchema'), {
+        maxObjectFields: TOOL_DEFINITION_LIMITS.schemaFields,
+        maxArrayItems: TOOL_DEFINITION_LIMITS.schemaArrayItems,
+        maxDepth: TOOL_DEFINITION_LIMITS.schemaDepth,
+        maxNodes: TOOL_DEFINITION_LIMITS.schemaNodes,
+        maxKeyBytes: TOOL_DEFINITION_LIMITS.schemaKeyBytes,
+        maxBytes: TOOL_DEFINITION_LIMITS.schemaBytes,
+      })
     const execute = method<[Args, ToolRunContext], Promise<JsonValue | void> | JsonValue | void>(receiver, 'execute', true)!
     const parse = method<[unknown], Args>(receiver, 'parse', false)
     const render = method<[JsonValue | undefined, Args], readonly ContentBlock[]>(receiver, 'render', false)
@@ -47,6 +57,7 @@ export function captureToolDefinition<Args>(input: ToolDefinition<Args>): ToolDe
       ...(budgetExempt === undefined ? {} : { budgetExempt: true as const }),
       ...(completionExempt === undefined ? {} : { completionExempt: true as const }),
       ...(maxOutputTokens === undefined ? {} : { maxOutputTokens: Number(maxOutputTokens) }),
+      ...(outputSchema === undefined ? {} : { experimentalOutputSchema: outputSchema }),
     })
   } catch (error) {
     if (error instanceof AgentSdkError && error.code === TOOL_REGISTRY_ERROR_CODES.INVALID_TOOL) throw error

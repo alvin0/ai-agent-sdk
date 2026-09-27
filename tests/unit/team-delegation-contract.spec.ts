@@ -67,12 +67,6 @@ function teamOf(
 }
 
 describe('the delegation contract the lead is given', () => {
-  /**
-   * These assertions are about prose, and prose is what was missing: the lead
-   * divided agents without dividing work because nothing had ever told it how.
-   * Deleting a rule is a regression no mechanism test can see, which is the
-   * whole reason the rules are asserted here.
-   */
   class CaptureLead extends StubAdapter {
     readonly requests: GenerateOptions[] = []
     async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
@@ -81,22 +75,15 @@ describe('the delegation contract the lead is given', () => {
     }
   }
 
-  it('tells the lead to plan, keep the blocking step, and split write scopes', async () => {
+  it('describes lifecycle without imposing a delegation strategy', async () => {
     const adapter = new CaptureLead()
     await teamOf(adapter).run('build something')
     const prompt = JSON.stringify(adapter.requests[0])
-
-    // Plan first: the trace spawned three workers before establishing that
-    // there was anything to divide.
-    expect(prompt).toContain('PLAN BEFORE YOU DELEGATE')
-    // Keep the critical path local rather than delegating and waiting on it.
-    expect(prompt).toContain('Do the blocking step yourself')
-    // Two workers were given the same file to build.
-    expect(prompt).toContain('DISJOINT SET OF FILES TO WRITE')
-    // An auditor spawned over an empty workspace produced a checklist.
-    expect(prompt).toMatch(/not delegate review, audit or verification against nothing/i)
-    // Order is declared and enforced, not remembered.
-    expect(prompt).toContain('EXPRESS ORDER WITH `dependsOn`, NOT BY SPAWNING LATE')
+    expect(prompt).toContain('already registered producer instances')
+    expect(prompt).toContain('not filesystem authorization')
+    expect(prompt).not.toContain('PLAN BEFORE YOU DELEGATE')
+    expect(prompt).not.toContain('Do the blocking step yourself')
+    expect(prompt).not.toContain('Synthesize worker results yourself')
   })
 
   it('offers the lead a context choice on spawn_agent', async () => {

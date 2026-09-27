@@ -1,0 +1,32 @@
+{
+  "sourceSha256": "a309931111eda0027f0f5a6284426325adb91726d682f3ec54902dd16aac3b59",
+  "reviewSha256": "be29398be416f626c7ada06f14d3145d28d051c08242700d3dbbb204a84be723",
+  "method": "NFC, case folding and whitespace normalization after JSON parsing; diagnostic flags for manual inspection, not automatic semantic equivalence or regrading",
+  "inconsistentGroups": [
+    {
+      "variantId": "LANG-05:vi",
+      "normalizedOutput": "{\"rewrite\":\"kính đề nghị chuyển lịch họp sang 10 giờ ngày mai tại phòng b.\"}",
+      "ratings": [
+        {
+          "pairId": "LANG-05:vi:1",
+          "arm": "CANDIDATE",
+          "passed": true,
+          "text": "{\"rewrite\":\"Kính đề nghị chuyển lịch họp sang 10 giờ ngày mai tại Phòng B.\"}"
+        },
+        {
+          "pairId": "LANG-05:vi:3",
+          "arm": "CANDIDATE",
+          "passed": false,
+          "text": "{\"rewrite\":\"Kính đề nghị chuyển lịch họp sang 10 giờ ngày mai tại Phòng B.\"}"
+        },
+        {
+          "pairId": "LANG-05:vi:4",
+          "arm": "BASE",
+          "passed": true,
+          "text": "{\"rewrite\":\"Kính đề nghị chuyển lịch họp sang 10 giờ ngày mai tại phòng B.\"}"
+        }
+      ]
+    }
+  ],
+  "primaryScoresChanged": false
+}

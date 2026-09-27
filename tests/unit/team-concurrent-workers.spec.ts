@@ -181,7 +181,7 @@ describe('spawn_agent no longer waits', () => {
     const leadRun = await managed.lead.run('are we done?', {})
     expect(leadRun.outcome.reason.kind).toBe('completed')
     const held = JSON.stringify(adapter.leadRequests.at(-1))
-    expect(held).toContain('Not finished')
+    expect(held).toContain('Outstanding managed workers:')
     expect(held).toContain('second')
 
     adapter.release?.()

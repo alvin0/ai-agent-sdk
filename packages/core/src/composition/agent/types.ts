@@ -1,3 +1,4 @@
+import type { ExperimentalProgramGrant } from '../../agent/tool/nested.ts'
 import type { AgentInput } from '../../agent/define/session/types.ts'
 import type { Message } from '../../message/index.ts'
 import type { AgentRunEvent } from '../../agent/mode/run-agent.ts'
@@ -91,6 +92,11 @@ export interface RuntimeAgentSessionOptions {
    * truncate, and gives the model `read_tool_output` to read the rest back.
    */
   readonly spillStore?: SpillStore
+  /**
+   * Experimental: program tools and the tools each may call. Off by default.
+   * Child calls spend this turn's tool budget and never enter model history.
+   */
+  readonly experimentalPrograms?: readonly ExperimentalProgramGrant[]
   readonly interceptors?: readonly ToolInterceptor[]
   /**
    * Model-visible context recomputed before every model round.

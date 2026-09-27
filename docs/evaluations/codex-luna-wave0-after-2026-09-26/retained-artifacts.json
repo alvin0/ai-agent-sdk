@@ -1,0 +1,30 @@
+{
+  "rawDirectory": "artifacts/neutral-evaluation/codex-luna-wave0-after-20260926-v1",
+  "rawChecksums": {
+    "manifest.json": "df4acfbffaa1f33dbf78ed1f76d0947716c5b3518a9093294d275666c90f578e",
+    "fixtures.json": "f49711d024f8e2d960cbe6387d555e7f4d4d9fa598951ded6be351e36e1eb7c6",
+    "sdk-source.tar": "9e722716fa839f5d62eb3877abe44a32e4d5defaef7aad9f9b5d76e5330bf0a8",
+    "sdk.patch": "fcb5a5e58f33dbb370894b7f8c242ce95767832966f99fc6668da7d9f3f3218c",
+    "runs.jsonl": "e90d9bc6876e0bc5d19fd4737af28eae965d23d28752b367f3bc80655beda107",
+    "summary.json": "5bbb5f45be4ef35e0bd3c3d31eeb1066df4d3d4e95b60b73e420e8f58c979ab9",
+    "cases.ts": "a91e3d9689b8dae757cdf3339b0dcc8f84f07874ee1c12143dbdfc86e25fb786",
+    "grading.ts": "3509df295587aca5fa4ca3e23df4608289611be7cc1ecc79a9983a6bb6aeb903",
+    "runner.ts": "fb9516626634a886e7d6bfa1b5289d85bb78b3f2106b47f760ecc3477bf42d51"
+  },
+  "copies": {
+    "summary.json": "5bbb5f45be4ef35e0bd3c3d31eeb1066df4d3d4e95b60b73e420e8f58c979ab9",
+    "runs.jsonl": "e90d9bc6876e0bc5d19fd4737af28eae965d23d28752b367f3bc80655beda107",
+    "comparison.json": "fa5ba57cfcdded66b1d0c4b6f998e15001170584e19bf75d9ebdadcd6b492460",
+    "sdk.patch": "fcb5a5e58f33dbb370894b7f8c242ce95767832966f99fc6668da7d9f3f3218c",
+    "review-queue.json": "323befb0381c0361e0cd84819aa5293634d3879540d3b8c520c33cffcfb61fe6",
+    "manifest.json": "df4acfbffaa1f33dbf78ed1f76d0947716c5b3518a9093294d275666c90f578e",
+    "fixtures.json": "f49711d024f8e2d960cbe6387d555e7f4d4d9fa598951ded6be351e36e1eb7c6"
+  },
+  "limitations": [
+    "Sequential time/provider drift",
+    "Author-exposed synthetic cohort",
+    "No causal utility claim for output wording",
+    "10 prose reviews pending",
+    "DATA-04 retention fixture issue remains frozen"
+  ]
+}

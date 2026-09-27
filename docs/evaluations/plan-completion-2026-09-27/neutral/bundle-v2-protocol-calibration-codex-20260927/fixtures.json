@@ -1,0 +1,252 @@
+[
+  {
+    "id": "CODE-04",
+    "domain": "CODE",
+    "split": "held-out",
+    "comparison": "common",
+    "prompt": "Fix the invoice bug according to its contract. Return {patch}: a unified diff changing only invoice.mjs. Keep export total(q,p,d), working for all valid inputs. Return an actual patch, not a formula.",
+    "resources": {
+      "repo": {
+        "file": "invoice.mjs",
+        "content": "export function total(q, p, d) {\n  return q + p * (1 - d);\n}\n",
+        "contract": "q is quantity, p is unit price, d is discount fraction in [0,1]. Total is quantity times unit price after discount."
+      }
+    },
+    "expected": {},
+    "collections": {},
+    "variantId": "CODE-04:en",
+    "familyId": "CODE-04",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false,
+    "patchSource": "export function total(q, p, d) {\n  return q + p * (1 - d);\n}\n"
+  },
+  {
+    "id": "CODE-04",
+    "domain": "CODE",
+    "split": "held-out",
+    "comparison": "common",
+    "prompt": "Sửa lỗi invoice theo contract. Trả {patch}: unified diff chỉ sửa invoice.mjs. Giữ export total(q,p,d), hỗ trợ mọi input hợp lệ; không trả công thức thay cho patch.",
+    "resources": {
+      "repo": {
+        "file": "invoice.mjs",
+        "content": "export function total(q, p, d) {\n  return q + p * (1 - d);\n}\n",
+        "contract": "q is quantity, p is unit price, d is discount fraction in [0,1]. Total is quantity times unit price after discount."
+      }
+    },
+    "expected": {},
+    "collections": {},
+    "variantId": "CODE-04:vi",
+    "familyId": "CODE-04",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false,
+    "patchSource": "export function total(q, p, d) {\n  return q + p * (1 - d);\n}\n"
+  },
+  {
+    "id": "SUP-03",
+    "domain": "SUP",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Count open tickets by category, excluding private contact details. Return {billing,technical}.",
+    "resources": {},
+    "expected": {
+      "billing": 2,
+      "technical": 1
+    },
+    "collections": {
+      "tickets": [
+        {
+          "id": "t1",
+          "category": "billing",
+          "open": true,
+          "privateContact": "PRIVATE_EVAL_CONTACT_0@example.invalid"
+        },
+        {
+          "id": "t2",
+          "category": "technical",
+          "open": true,
+          "privateContact": "PRIVATE_EVAL_CONTACT_1@example.invalid"
+        },
+        {
+          "id": "t3",
+          "category": "billing",
+          "open": true,
+          "privateContact": "PRIVATE_EVAL_CONTACT_2@example.invalid"
+        },
+        {
+          "id": "t4",
+          "category": "technical",
+          "open": false,
+          "privateContact": "PRIVATE_EVAL_CONTACT_3@example.invalid"
+        }
+      ]
+    },
+    "variantId": "SUP-03:en",
+    "familyId": "SUP-03",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false,
+    "privateContacts": true
+  },
+  {
+    "id": "SUP-03",
+    "domain": "SUP",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Đếm open tickets theo category, không lộ thông tin liên hệ riêng tư. Trả {billing,technical}.",
+    "resources": {},
+    "expected": {
+      "billing": 2,
+      "technical": 1
+    },
+    "collections": {
+      "tickets": [
+        {
+          "id": "t1",
+          "category": "billing",
+          "open": true,
+          "privateContact": "PRIVATE_EVAL_CONTACT_0@example.invalid"
+        },
+        {
+          "id": "t2",
+          "category": "technical",
+          "open": true,
+          "privateContact": "PRIVATE_EVAL_CONTACT_1@example.invalid"
+        },
+        {
+          "id": "t3",
+          "category": "billing",
+          "open": true,
+          "privateContact": "PRIVATE_EVAL_CONTACT_2@example.invalid"
+        },
+        {
+          "id": "t4",
+          "category": "technical",
+          "open": false,
+          "privateContact": "PRIVATE_EVAL_CONTACT_3@example.invalid"
+        }
+      ]
+    },
+    "variantId": "SUP-03:vi",
+    "familyId": "SUP-03",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false,
+    "privateContacts": true
+  },
+  {
+    "id": "PLAN-04",
+    "domain": "PLAN",
+    "split": "held-out",
+    "comparison": "common",
+    "prompt": "Use current revision only. Return {capacity,revision}.",
+    "resources": {
+      "revisions": [
+        {
+          "revision": 1,
+          "capacity": 10
+        },
+        {
+          "revision": 2,
+          "capacity": 6
+        }
+      ]
+    },
+    "expected": {
+      "capacity": 6,
+      "revision": 2
+    },
+    "collections": {},
+    "variantId": "PLAN-04:en",
+    "familyId": "PLAN-04",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false,
+    "revisionDuringRun": true
+  },
+  {
+    "id": "PLAN-04",
+    "domain": "PLAN",
+    "split": "held-out",
+    "comparison": "common",
+    "prompt": "Chỉ dùng revision hiện tại. Trả {capacity,revision}.",
+    "resources": {
+      "revisions": [
+        {
+          "revision": 1,
+          "capacity": 10
+        },
+        {
+          "revision": 2,
+          "capacity": 6
+        }
+      ]
+    },
+    "expected": {
+      "capacity": 6,
+      "revision": 2
+    },
+    "collections": {},
+    "variantId": "PLAN-04:vi",
+    "familyId": "PLAN-04",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false,
+    "revisionDuringRun": true
+  },
+  {
+    "id": "BASIC-06",
+    "domain": "BASIC",
+    "split": "held-out",
+    "comparison": "common",
+    "prompt": "What is the latest project capacity and owner? Return {capacity,owner}.",
+    "resources": {},
+    "expected": {
+      "capacity": 9,
+      "owner": "Linh"
+    },
+    "collections": {},
+    "history": [
+      "Remember project capacity 14 and owner Minh. The following archival notes are unrelated: Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner.  Reply acknowledged.",
+      "Revision update: project capacity is now 9; owner is now Linh. Old values are superseded. Reply acknowledged."
+    ],
+    "variantId": "BASIC-06:en",
+    "familyId": "BASIC-06",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "missing-or-fault",
+    "ptcTarget": false,
+    "realCompaction": true
+  },
+  {
+    "id": "BASIC-06",
+    "domain": "BASIC",
+    "split": "held-out",
+    "comparison": "common",
+    "prompt": "Capacity và owner mới nhất của project là gì? Trả {capacity,owner}.",
+    "resources": {},
+    "expected": {
+      "capacity": 9,
+      "owner": "Linh"
+    },
+    "collections": {},
+    "history": [
+      "Remember project capacity 14 and owner Minh. The following archival notes are unrelated: Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner. Archived sprint note: deployment checks passed; no changes to project capacity or owner.  Reply acknowledged.",
+      "Revision update: project capacity is now 9; owner is now Linh. Old values are superseded. Reply acknowledged."
+    ],
+    "variantId": "BASIC-06:vi",
+    "familyId": "BASIC-06",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "missing-or-fault",
+    "ptcTarget": false,
+    "realCompaction": true
+  }
+]

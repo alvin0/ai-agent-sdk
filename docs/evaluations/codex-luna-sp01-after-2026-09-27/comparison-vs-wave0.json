@@ -1,0 +1,2076 @@
+{
+  "schemaVersion": 1,
+  "baseline": {
+    "schemaVersion": 1,
+    "phase": "after",
+    "runId": "codex-luna-wave0-after-20260926-v1",
+    "seed": 260926,
+    "repeats": 5,
+    "provider": "codex",
+    "model": "gpt-6-luna",
+    "effort": "medium",
+    "sdkRevision": "5b589b6abe6d0a61da3f55b549713456ccc8c7c4",
+    "sdkDiffHash": "e2cbcf939d7c1a9710e951786cb183cbf9b296c587bfc9d82343ff5c637df319",
+    "lockfileHash": "95f95dcc7dff30ffd2411d71fad64eacbdd384af541c41b43dfe961e2e47defc",
+    "node": "v24.9.0",
+    "harnessHashes": {
+      "cases.ts": "a91e3d9689b8dae757cdf3339b0dcc8f84f07874ee1c12143dbdfc86e25fb786",
+      "grading.ts": "3509df295587aca5fa4ca3e23df4608289611be7cc1ecc79a9983a6bb6aeb903",
+      "runner.ts": "fb9516626634a886e7d6bfa1b5289d85bb78b3f2106b47f760ecc3477bf42d51"
+    },
+    "startedAt": "2026-09-26T04:39:47.232Z",
+    "exposure": "author-exposed frozen regression cohort; not a blind benchmark",
+    "limits": {
+      "maxTurns": 12,
+      "maxToolCalls": 24,
+      "timeoutMs": 120000,
+      "maxTotalTokens": 40000,
+      "maxToolResultTokens": 2048,
+      "maxToolResultBytes": 8192
+    },
+    "pricing": "not configured; tokens are not USD cost",
+    "selected": [
+      {
+        "id": "CODE-01",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "CODE-02",
+        "split": "calibration",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "CODE-03",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "CODE-04",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "CODE-05",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "CODE-06",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "DATA-01",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "DATA-02",
+        "split": "calibration",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "DATA-03",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "DATA-04",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "DATA-05",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "DATA-06",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "DOC-01",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "DOC-02",
+        "split": "calibration",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "DOC-03",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "DOC-04",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "DOC-05",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "DOC-06",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "HIST-01",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "HIST-02",
+        "split": "calibration",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "HIST-03",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "HIST-04",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "HIST-05",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "HIST-06",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "OPS-01",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "OPS-02",
+        "split": "calibration",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "OPS-03",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "OPS-04",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "OPS-05",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "OPS-06",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "BIZ-01",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "BIZ-02",
+        "split": "calibration",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "BIZ-03",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "BIZ-04",
+        "split": "held-out",
+        "comparison": "feature",
+        "unsupported": "Baseline has a durable store contract but no real durable adapter/checkpoint process harness. Requires SP-02; not scored as task failure."
+      },
+      {
+        "id": "BIZ-05",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "BIZ-06",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "SUP-01",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "SUP-02",
+        "split": "calibration",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "SUP-03",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "SUP-04",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "SUP-05",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "SUP-06",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "PLAN-01",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "PLAN-02",
+        "split": "calibration",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "PLAN-03",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "PLAN-04",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "PLAN-05",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "PLAN-06",
+        "split": "held-out",
+        "comparison": "feature",
+        "unsupported": "Cross-process durable task ownership is not a baseline capability. Requires a runner; process-local team tests are recorded separately."
+      },
+      {
+        "id": "LANG-01",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "LANG-02",
+        "split": "calibration",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "LANG-03",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "LANG-04",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "LANG-05",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "LANG-06",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "BASIC-01",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "BASIC-02",
+        "split": "calibration",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "BASIC-03",
+        "split": "development",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "BASIC-04",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "BASIC-05",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      },
+      {
+        "id": "BASIC-06",
+        "split": "held-out",
+        "comparison": "common",
+        "unsupported": null
+      }
+    ]
+  },
+  "overall": {
+    "counts": {
+      "passed": 147,
+      "failed": 13,
+      "unsupported": 2,
+      "needs-review": 10
+    },
+    "executed": 170,
+    "automaticallyScored": 160,
+    "failureCategories": {
+      "factual-or-source": 12,
+      "format": 1
+    },
+    "autoPassRate": 0.91875,
+    "effects": 0,
+    "latencyMs": {
+      "median": 4129.251833000104,
+      "p95": 9159.515707999934
+    },
+    "reportedTokensIncludingHistory": {
+      "input": 180896,
+      "output": 8232,
+      "total": 189128,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "reasoning": 2300
+    },
+    "authoritativeUsageRecords": 180,
+    "usageRecords": 180,
+    "runsWithoutUsage": 0
+  },
+  "heldOut": {
+    "counts": {
+      "passed": 118,
+      "failed": 12,
+      "unsupported": 2,
+      "needs-review": 10
+    },
+    "executed": 140,
+    "automaticallyScored": 130,
+    "failureCategories": {
+      "factual-or-source": 11,
+      "format": 1
+    },
+    "autoPassRate": 0.9076923076923077,
+    "effects": 0,
+    "latencyMs": {
+      "median": 4080.477041999926,
+      "p95": 9658.112458999967
+    },
+    "reportedTokensIncludingHistory": {
+      "input": 148037,
+      "output": 6921,
+      "total": 154958,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "reasoning": 2102
+    },
+    "authoritativeUsageRecords": 150,
+    "usageRecords": 150,
+    "runsWithoutUsage": 0
+  },
+  "macro": {
+    "evaluatedDomains": 10,
+    "equalDomainAutoPassRate": 0.9199999999999999,
+    "note": "Automatic factual/constraint checks only. Pending prose review remains separate, so this is not overall human quality."
+  },
+  "domains": {
+    "CODE": {
+      "counts": {
+        "passed": 18
+      },
+      "executed": 18,
+      "automaticallyScored": 18,
+      "failureCategories": {},
+      "autoPassRate": 1,
+      "effects": 0,
+      "latencyMs": {
+        "median": 4207.951709000001,
+        "p95": 9159.515707999934
+      },
+      "reportedTokensIncludingHistory": {
+        "input": 19337,
+        "output": 666,
+        "total": 20003,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 0
+      },
+      "authoritativeUsageRecords": 18,
+      "usageRecords": 18,
+      "runsWithoutUsage": 0
+    },
+    "DATA": {
+      "counts": {
+        "passed": 13,
+        "failed": 5
+      },
+      "executed": 18,
+      "automaticallyScored": 18,
+      "failureCategories": {
+        "factual-or-source": 5
+      },
+      "autoPassRate": 0.7222222222222222,
+      "effects": 0,
+      "latencyMs": {
+        "median": 5616.936083999928,
+        "p95": 30934.626624999975
+      },
+      "reportedTokensIncludingHistory": {
+        "input": 39423,
+        "output": 3173,
+        "total": 42596,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 1889
+      },
+      "authoritativeUsageRecords": 18,
+      "usageRecords": 18,
+      "runsWithoutUsage": 0
+    },
+    "DOC": {
+      "counts": {
+        "passed": 13,
+        "failed": 5
+      },
+      "executed": 18,
+      "automaticallyScored": 18,
+      "failureCategories": {
+        "factual-or-source": 5
+      },
+      "autoPassRate": 0.7222222222222222,
+      "effects": 0,
+      "latencyMs": {
+        "median": 4726.211917000008,
+        "p95": 7666.024334000074
+      },
+      "reportedTokensIncludingHistory": {
+        "input": 21377,
+        "output": 748,
+        "total": 22125,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 0
+      },
+      "authoritativeUsageRecords": 18,
+      "usageRecords": 18,
+      "runsWithoutUsage": 0
+    },
+    "HIST": {
+      "counts": {
+        "passed": 18
+      },
+      "executed": 18,
+      "automaticallyScored": 18,
+      "failureCategories": {},
+      "autoPassRate": 1,
+      "effects": 0,
+      "latencyMs": {
+        "median": 3953.219374999986,
+        "p95": 6595.035167000024
+      },
+      "reportedTokensIncludingHistory": {
+        "input": 15268,
+        "output": 475,
+        "total": 15743,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 0
+      },
+      "authoritativeUsageRecords": 18,
+      "usageRecords": 18,
+      "runsWithoutUsage": 0
+    },
+    "OPS": {
+      "counts": {
+        "passed": 16,
+        "failed": 2
+      },
+      "executed": 18,
+      "automaticallyScored": 18,
+      "failureCategories": {
+        "factual-or-source": 2
+      },
+      "autoPassRate": 0.8888888888888888,
+      "effects": 0,
+      "latencyMs": {
+        "median": 4559.793249999988,
+        "p95": 8077.094917000039
+      },
+      "reportedTokensIncludingHistory": {
+        "input": 15335,
+        "output": 669,
+        "total": 16004,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 163
+      },
+      "authoritativeUsageRecords": 18,
+      "usageRecords": 18,
+      "runsWithoutUsage": 0
+    },
+    "BIZ": {
+      "counts": {
+        "passed": 13,
+        "unsupported": 1
+      },
+      "executed": 13,
+      "automaticallyScored": 13,
+      "failureCategories": {},
+      "autoPassRate": 1,
+      "effects": 0,
+      "latencyMs": {
+        "median": 3772.767666000058,
+        "p95": 6082.053707999992
+      },
+      "reportedTokensIncludingHistory": {
+        "input": 11156,
+        "output": 463,
+        "total": 11619,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 106
+      },
+      "authoritativeUsageRecords": 13,
+      "usageRecords": 13,
+      "runsWithoutUsage": 0
+    },
+    "SUP": {
+      "counts": {
+        "passed": 18
+      },
+      "executed": 18,
+      "automaticallyScored": 18,
+      "failureCategories": {},
+      "autoPassRate": 1,
+      "effects": 0,
+      "latencyMs": {
+        "median": 4056.1161250000005,
+        "p95": 6074.587749999948
+      },
+      "reportedTokensIncludingHistory": {
+        "input": 17487,
+        "output": 599,
+        "total": 18086,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 16
+      },
+      "authoritativeUsageRecords": 18,
+      "usageRecords": 18,
+      "runsWithoutUsage": 0
+    },
+    "PLAN": {
+      "counts": {
+        "passed": 13,
+        "unsupported": 1
+      },
+      "executed": 13,
+      "automaticallyScored": 13,
+      "failureCategories": {},
+      "autoPassRate": 1,
+      "effects": 0,
+      "latencyMs": {
+        "median": 3753.416124999989,
+        "p95": 6027.3475409999955
+      },
+      "reportedTokensIncludingHistory": {
+        "input": 9263,
+        "output": 305,
+        "total": 9568,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 31
+      },
+      "authoritativeUsageRecords": 13,
+      "usageRecords": 13,
+      "runsWithoutUsage": 0
+    },
+    "LANG": {
+      "counts": {
+        "passed": 8,
+        "needs-review": 10
+      },
+      "executed": 18,
+      "automaticallyScored": 8,
+      "failureCategories": {},
+      "autoPassRate": 1,
+      "effects": 0,
+      "latencyMs": {
+        "median": 3970.2057499999646,
+        "p95": 7431.385042000096
+      },
+      "reportedTokensIncludingHistory": {
+        "input": 12857,
+        "output": 549,
+        "total": 13406,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 19
+      },
+      "authoritativeUsageRecords": 18,
+      "usageRecords": 18,
+      "runsWithoutUsage": 0
+    },
+    "BASIC": {
+      "counts": {
+        "passed": 17,
+        "failed": 1
+      },
+      "executed": 18,
+      "automaticallyScored": 18,
+      "failureCategories": {
+        "format": 1
+      },
+      "autoPassRate": 0.9444444444444444,
+      "effects": 0,
+      "latencyMs": {
+        "median": 3935.4091670000926,
+        "p95": 8422.548542000004
+      },
+      "reportedTokensIncludingHistory": {
+        "input": 19393,
+        "output": 585,
+        "total": 19978,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 76
+      },
+      "authoritativeUsageRecords": 28,
+      "usageRecords": 28,
+      "runsWithoutUsage": 0
+    }
+  },
+  "notes": [
+    "Author-exposed synthetic cohort; not blind or production evidence.",
+    "Prose requires human review; unsupported is reported separately.",
+    "Latency includes history turns. All attempts retained. Tokens are not USD cost."
+  ],
+  "comparison": {
+    "after": {
+      "schemaVersion": 1,
+      "phase": "after",
+      "runId": "codex-luna-sp01-after-20260927-v1",
+      "seed": 260926,
+      "repeats": 5,
+      "provider": "codex",
+      "model": "gpt-6-luna",
+      "effort": "medium",
+      "sdkRevision": "5b589b6abe6d0a61da3f55b549713456ccc8c7c4",
+      "sdkDiffHash": "4571d925bcb023600b53c561433235ecf3d86985e44ada39f77e1f0b9801db61",
+      "lockfileHash": "95f95dcc7dff30ffd2411d71fad64eacbdd384af541c41b43dfe961e2e47defc",
+      "node": "v24.9.0",
+      "harnessHashes": {
+        "cases.ts": "a91e3d9689b8dae757cdf3339b0dcc8f84f07874ee1c12143dbdfc86e25fb786",
+        "grading.ts": "3509df295587aca5fa4ca3e23df4608289611be7cc1ecc79a9983a6bb6aeb903",
+        "runner.ts": "fb9516626634a886e7d6bfa1b5289d85bb78b3f2106b47f760ecc3477bf42d51"
+      },
+      "startedAt": "2026-09-26T17:10:52.407Z",
+      "exposure": "author-exposed frozen regression cohort; not a blind benchmark",
+      "limits": {
+        "maxTurns": 12,
+        "maxToolCalls": 24,
+        "timeoutMs": 120000,
+        "maxTotalTokens": 40000,
+        "maxToolResultTokens": 2048,
+        "maxToolResultBytes": 8192
+      },
+      "pricing": "not configured; tokens are not USD cost",
+      "selected": [
+        {
+          "id": "CODE-01",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "CODE-02",
+          "split": "calibration",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "CODE-03",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "CODE-04",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "CODE-05",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "CODE-06",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "DATA-01",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "DATA-02",
+          "split": "calibration",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "DATA-03",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "DATA-04",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "DATA-05",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "DATA-06",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "DOC-01",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "DOC-02",
+          "split": "calibration",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "DOC-03",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "DOC-04",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "DOC-05",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "DOC-06",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "HIST-01",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "HIST-02",
+          "split": "calibration",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "HIST-03",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "HIST-04",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "HIST-05",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "HIST-06",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "OPS-01",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "OPS-02",
+          "split": "calibration",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "OPS-03",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "OPS-04",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "OPS-05",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "OPS-06",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "BIZ-01",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "BIZ-02",
+          "split": "calibration",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "BIZ-03",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "BIZ-04",
+          "split": "held-out",
+          "comparison": "feature",
+          "unsupported": "Baseline has a durable store contract but no real durable adapter/checkpoint process harness. Requires SP-02; not scored as task failure."
+        },
+        {
+          "id": "BIZ-05",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "BIZ-06",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "SUP-01",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "SUP-02",
+          "split": "calibration",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "SUP-03",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "SUP-04",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "SUP-05",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "SUP-06",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "PLAN-01",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "PLAN-02",
+          "split": "calibration",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "PLAN-03",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "PLAN-04",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "PLAN-05",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "PLAN-06",
+          "split": "held-out",
+          "comparison": "feature",
+          "unsupported": "Cross-process durable task ownership is not a baseline capability. Requires a runner; process-local team tests are recorded separately."
+        },
+        {
+          "id": "LANG-01",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "LANG-02",
+          "split": "calibration",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "LANG-03",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "LANG-04",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "LANG-05",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "LANG-06",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "BASIC-01",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "BASIC-02",
+          "split": "calibration",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "BASIC-03",
+          "split": "development",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "BASIC-04",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "BASIC-05",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        },
+        {
+          "id": "BASIC-06",
+          "split": "held-out",
+          "comparison": "common",
+          "unsupported": null
+        }
+      ]
+    },
+    "afterOverall": {
+      "counts": {
+        "passed": 148,
+        "failed": 12,
+        "unsupported": 2,
+        "needs-review": 10
+      },
+      "executed": 170,
+      "automaticallyScored": 160,
+      "failureCategories": {
+        "factual-or-source": 12
+      },
+      "autoPassRate": 0.925,
+      "effects": 0,
+      "latencyMs": {
+        "median": 5436.215416999999,
+        "p95": 19227.538708999986
+      },
+      "reportedTokensIncludingHistory": {
+        "input": 212820,
+        "output": 11032,
+        "total": 231532,
+        "cacheRead": 7680,
+        "cacheWrite": 0,
+        "reasoning": 3461
+      },
+      "authoritativeUsageRecords": 180,
+      "usageRecords": 180,
+      "runsWithoutUsage": 0
+    },
+    "pairs": [
+      {
+        "id": "CODE-04",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "CODE-05",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "CODE-06",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-04",
+        "repeat": 0,
+        "before": "failed",
+        "after": "failed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-05",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-06",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DOC-04",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DOC-05",
+        "repeat": 0,
+        "before": "failed",
+        "after": "failed",
+        "delta": 0
+      },
+      {
+        "id": "DOC-06",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-04",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-05",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-06",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "OPS-04",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "OPS-05",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "OPS-06",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BIZ-05",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BIZ-06",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-04",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-05",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-06",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "PLAN-04",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "PLAN-05",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "LANG-04",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-04",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-05",
+        "repeat": 0,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-06",
+        "repeat": 0,
+        "before": "failed",
+        "after": "passed",
+        "delta": 1
+      },
+      {
+        "id": "CODE-04",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "CODE-05",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "CODE-06",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-04",
+        "repeat": 1,
+        "before": "failed",
+        "after": "failed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-05",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-06",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DOC-04",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DOC-05",
+        "repeat": 1,
+        "before": "failed",
+        "after": "failed",
+        "delta": 0
+      },
+      {
+        "id": "DOC-06",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-04",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-05",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-06",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "OPS-04",
+        "repeat": 1,
+        "before": "passed",
+        "after": "failed",
+        "delta": -1
+      },
+      {
+        "id": "OPS-05",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "OPS-06",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BIZ-05",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BIZ-06",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-04",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-05",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-06",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "PLAN-04",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "PLAN-05",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "LANG-04",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-04",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-05",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-06",
+        "repeat": 1,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "CODE-04",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "CODE-05",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "CODE-06",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-04",
+        "repeat": 2,
+        "before": "failed",
+        "after": "failed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-05",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-06",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DOC-04",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DOC-05",
+        "repeat": 2,
+        "before": "passed",
+        "after": "failed",
+        "delta": -1
+      },
+      {
+        "id": "DOC-06",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-04",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-05",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-06",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "OPS-04",
+        "repeat": 2,
+        "before": "failed",
+        "after": "passed",
+        "delta": 1
+      },
+      {
+        "id": "OPS-05",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "OPS-06",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BIZ-05",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BIZ-06",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-04",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-05",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-06",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "PLAN-04",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "PLAN-05",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "LANG-04",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-04",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-05",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-06",
+        "repeat": 2,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "CODE-04",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "CODE-05",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "CODE-06",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-04",
+        "repeat": 3,
+        "before": "failed",
+        "after": "failed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-05",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-06",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DOC-04",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DOC-05",
+        "repeat": 3,
+        "before": "failed",
+        "after": "passed",
+        "delta": 1
+      },
+      {
+        "id": "DOC-06",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-04",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-05",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-06",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "OPS-04",
+        "repeat": 3,
+        "before": "failed",
+        "after": "failed",
+        "delta": 0
+      },
+      {
+        "id": "OPS-05",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "OPS-06",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BIZ-05",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BIZ-06",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-04",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-05",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-06",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "PLAN-04",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "PLAN-05",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "LANG-04",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-04",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-05",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-06",
+        "repeat": 3,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "CODE-05",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "CODE-06",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-04",
+        "repeat": 4,
+        "before": "failed",
+        "after": "failed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-05",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DATA-06",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DOC-04",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "DOC-05",
+        "repeat": 4,
+        "before": "failed",
+        "after": "passed",
+        "delta": 1
+      },
+      {
+        "id": "DOC-06",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-04",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-05",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "HIST-06",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "OPS-04",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "OPS-05",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "OPS-06",
+        "repeat": 4,
+        "before": "passed",
+        "after": "failed",
+        "delta": -1
+      },
+      {
+        "id": "BIZ-05",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BIZ-06",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-04",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-05",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "SUP-06",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "PLAN-04",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "PLAN-05",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "LANG-04",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-04",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-05",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "BASIC-06",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      },
+      {
+        "id": "CODE-04",
+        "repeat": 4,
+        "before": "passed",
+        "after": "passed",
+        "delta": 0
+      }
+    ],
+    "qualityDelta": 0.006666666666666666,
+    "familyBootstrap95": [
+      -0.013333333333333332,
+      0.026666666666666665
+    ],
+    "note": "Paired by family/repeat; confidence interval resamples families within domains, then gives domains equal weight. Sequential-before-after retains provider/time drift as a limitation. No efficiency claim from failed tasks."
+  }
+}

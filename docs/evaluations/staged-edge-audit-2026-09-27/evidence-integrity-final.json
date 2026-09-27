@@ -1,0 +1,11 @@
+{
+  "checked": {
+    "JSONL files": 68,
+    "JSONL rows": 6837,
+    "JSON": 447,
+    "SHA entries": 1099
+  },
+  "errors": [],
+  "exactPinnedFilesRestored": 27,
+  "historicalGradesAndChecksumsRewritten": false
+}

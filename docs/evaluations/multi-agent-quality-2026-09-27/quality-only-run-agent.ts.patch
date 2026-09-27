@@ -1,0 +1,11 @@
+--- artifacts/multi-agent-audit-n62xvl_w/final-sdk-v10/packages/core/src/agent/mode/run-agent.ts	2026-09-27 14:04:16
++++ packages/core/src/agent/mode/run-agent.ts	2026-09-27 16:14:28
+@@ -210,7 +210,7 @@
+     ...hooks === undefined ? {} : { hooks },
+     signal,
+     ...options.logger === undefined ? {} : { logger: options.logger },
+-    commentary: options.commentary ?? 'concise',
++    commentary: options.commentary ?? 'auto',
+     teardownTimeoutMs: options.teardownTimeoutMs ?? 30_000,
+     ...options.modelTimeoutMs === undefined ? {} : { modelTimeoutMs: options.modelTimeoutMs },
+     ...options.maxModelRequestBytes === undefined ? {} : { maxModelRequestBytes: options.maxModelRequestBytes },

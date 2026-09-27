@@ -1,0 +1,83 @@
+{
+  "sdkRevision": "5b589b6abe6d0a61da3f55b549713456ccc8c7c4",
+  "sdkDiffHash": "e2cbcf939d7c1a9710e951786cb183cbf9b296c587bfc9d82343ff5c637df319",
+  "lockfileHash": "95f95dcc7dff30ffd2411d71fad64eacbdd384af541c41b43dfe961e2e47defc",
+  "sources": {
+    ".temp/openclaw": "37259b7cab6b1816211d381200848048a05f197d",
+    ".temp/hermes-agent": "9fc7f17906eab1dd81ddfdf8a1edeecac1e79940"
+  },
+  "reports": {
+    "SP-01-executor": {
+      "rawDirectory": "artifacts/spikes/ptc-probe-2026-09-26T05-32-56-346Z",
+      "publicReport": "sp-01-executor-summary.json",
+      "cases": 14,
+      "passed": true,
+      "decision": "no-go",
+      "summarySha256": "b5349b1db2f6548c2bead1323c83e74be8cb620209e332d02184650d66d18a3d",
+      "sourceHashes": {
+        "ptc-worker.mjs": "931de9c3fe9e5de2cb4b394fed890061dbc89f3b891e52d6c5cd0fced3f4c8bd",
+        "ptc-probe.ts": "76a1607014c6cc9c171f803728ff2fe7722781857c7c94a80a91c7f4480935a5"
+      }
+    },
+    "SP-01-root-relay": {
+      "rawDirectory": "artifacts/spikes/ptc-root-relay-2026-09-26T05-37-47-223Z",
+      "publicReport": "sp-01-root-relay-summary.json",
+      "cases": 5,
+      "passed": true,
+      "decision": "needs-review",
+      "summarySha256": "9ff870292e4219c001f92cbed719868b8b841300e5f0b44313b402d2ae3b1f98",
+      "sourceHashes": {
+        "ptc-root-relay.ts": "ad74fc8341d098dceedb8e7181ce0c31d219c46d4b405de71e0fc58d804a9ada",
+        "ptc-worker.mjs": "931de9c3fe9e5de2cb4b394fed890061dbc89f3b891e52d6c5cd0fced3f4c8bd"
+      }
+    },
+    "SP-02": {
+      "rawDirectory": "artifacts/spikes/durable-2026-09-26T05-41-03-073Z",
+      "publicReport": "sp-02-summary.json",
+      "cases": 45,
+      "passed": true,
+      "decision": "go-for-local-host-spike",
+      "summarySha256": "203833be1a76455fceb2b7bb982529490e6a40afed5175fb5ac6080c1a74b5ed",
+      "sourceHashes": {
+        "durable-operation.ts": "0ff10bf67892613d7cea038e8a35add36401af060e70ebd9922b3e6780253471"
+      }
+    },
+    "SP-03": {
+      "rawDirectory": "artifacts/spikes/recall-2026-09-26T05-33-55-410Z",
+      "publicReport": "sp-03-summary.json",
+      "cases": 15,
+      "passed": true,
+      "decision": "go-for-host-sample",
+      "summarySha256": "c91781ba9f3d5a691ef9052fcf103d2d31864b33777b7120c33c37064422cef5",
+      "sourceHashes": {
+        "scoped-recall.ts": "3a8e1f2b38491a4cd088c30c9f2d1dbd144ed8cc7538cd5328ca5655790bbefb",
+        "fixture-runtime.ts": "bd7f6f5326926793d1abdeaea1f6487f09726e10a69c43a34e22317ae5e7e079"
+      }
+    },
+    "SP-04": {
+      "rawDirectory": "artifacts/spikes/process-2026-09-26T05-43-16-235Z",
+      "publicReport": "sp-04-summary.json",
+      "cases": 25,
+      "passed": true,
+      "decision": "go-for-host-protocol-sample",
+      "summarySha256": "aa34986eb764cfe080fae3d7af16d0180012d3e2d720011ccc8474b27d014dd5",
+      "sourceHashes": {
+        "process-environment.ts": "416cae07a21f75c906b65f64107397efb3de34928d5a30d9e777480318e1dda9",
+        "fixture-runtime.ts": "bd7f6f5326926793d1abdeaea1f6487f09726e10a69c43a34e22317ae5e7e079"
+      }
+    },
+    "SP-05": {
+      "rawDirectory": "artifacts/spikes/proposal-2026-09-26T05-33-55-410Z",
+      "publicReport": "sp-05-summary.json",
+      "cases": 19,
+      "passed": true,
+      "decision": "go-for-proposal-only",
+      "summarySha256": "fedad79d746370b0801b4dd492afd29ad4e13647bfe27b2c9be5a97012519518",
+      "sourceHashes": {
+        "skill-proposal.ts": "a216b907f43aba21d1c7392ebfa95ddee48aaa7e2e42d96ea5908d92c3978449",
+        "fixture-runtime.ts": "bd7f6f5326926793d1abdeaea1f6487f09726e10a69c43a34e22317ae5e7e079"
+      }
+    }
+  },
+  "productionSourceMatchesWave0After": true
+}

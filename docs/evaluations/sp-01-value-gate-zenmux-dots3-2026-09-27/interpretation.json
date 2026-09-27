@@ -1,0 +1,41 @@
+{
+  "model": "zenmux dots-studio/dots3-note-prev (free) via Chat Completions",
+  "registeredDecision": "no-go-or-needs-review",
+  "gate": {
+    "qualityNoLoss": {
+      "passed": true,
+      "BASE": 8,
+      "PTC": 23,
+      "of": {
+        "BASE": 24,
+        "PTC": 24
+      }
+    },
+    "medianTokenReductionAtLeast20Percent": {
+      "passed": true,
+      "value": 0.7794936327948679
+    },
+    "p95LatencyIncreaseAtMost15Percent": {
+      "passed": true,
+      "value": -0.5933225931892673,
+      "note": "small sample: p95 is indicative only"
+    },
+    "controlNoFabricationNoAuthority": {
+      "passed": true,
+      "runs": 6,
+      "effects": {
+        "BASE": 0,
+        "PTC": 0
+      }
+    },
+    "usageCoverageComplete": false,
+    "costInUsd": "not concluded: no pricing snapshot for this Codex account; token reduction is a proxy"
+  },
+  "usageGap": "Exactly 4 BASE runs timed out at 180s; each lacks usage for the one aborted in-flight model call. BASE tokens are therefore under-counted, so the 78% median token reduction is a lower bound; the gap can only favor BASE.",
+  "replicationConclusion": "Replicates the gpt-6-luna value gate on the target workload: PTC 23/24 vs BASE 8/24 on FILTER/JOIN, median tokens -78% (lower bound), p95 latency lower, CONTROL 12/12 both arms with 0 effects. The registered rule keeps needs-review because usage is incomplete; the direction of that gap is documented above.",
+  "limits": [
+    "author-exposed development cohort",
+    "one replication model",
+    "tokens only by user decision"
+  ]
+}

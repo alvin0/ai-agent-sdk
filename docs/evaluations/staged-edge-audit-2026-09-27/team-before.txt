@@ -1,0 +1,77 @@
+
+ RUN  v4.1.11 /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk
+
+ ❯ tests/unit/team-task-ordering.spec.ts (22 tests | 2 failed) 5165ms
+     × retains the claim of a running follow-up (bounded close: false) 32ms
+     × retains the claim of a running follow-up (bounded close: true) 34ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/team-task-ordering.spec.ts > write claims during follow-up and bounded close > retains the claim of a running follow-up (bounded close: false)
+AssertionError: promise resolved "{ name: 'conflict', …(7) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "agentId": "conflict",
++   "context": "fresh",
++   "conversationId": "b385583a-76ca-4c75-afe1-6dadea6b3853",
++   "dependsOn": [],
++   "name": "conflict",
++   "status": "running",
++   "task": "Write.",
++   "writes": [
++     "src/file.ts",
++   ],
+  }
+
+ ❯ tests/unit/team-task-ordering.spec.ts:131:94
+    129|       expect(adapter.started.filter(name => name === 'writer')).toHave…
+    130|       if (close) await team.closeWorker('writer')
+    131|       await expect(team.spawn({ name: 'conflict', task: 'Write.', writ…
+       |                                                                                              ^
+    132|       // A bounded close must still allow unrelated work to proceed.
+    133|       await team.spawn({ name: 'reader', task: 'Read.' })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/unit/team-task-ordering.spec.ts > write claims during follow-up and bounded close > retains the claim of a running follow-up (bounded close: true)
+AssertionError: promise resolved "{ name: 'conflict', …(7) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "agentId": "conflict",
++   "context": "fresh",
++   "conversationId": "4cbedd19-c373-4a38-b826-2690a6512ddd",
++   "dependsOn": [],
++   "name": "conflict",
++   "status": "running",
++   "task": "Write.",
++   "writes": [
++     "src/file.ts",
++   ],
+  }
+
+ ❯ tests/unit/team-task-ordering.spec.ts:131:94
+    129|       expect(adapter.started.filter(name => name === 'writer')).toHave…
+    130|       if (close) await team.closeWorker('writer')
+    131|       await expect(team.spawn({ name: 'conflict', task: 'Write.', writ…
+       |                                                                                              ^
+    132|       // A bounded close must still allow unrelated work to proceed.
+    133|       await team.spawn({ name: 'reader', task: 'Read.' })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 20 passed (22)
+   Start at  17:24:12
+   Duration  6.21s (transform 790ms, setup 0ms, import 963ms, tests 5.16s, environment 0ms)
+

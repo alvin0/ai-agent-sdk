@@ -1,0 +1,32 @@
+{
+  "primaryGradeUnchanged": true,
+  "rows": [
+    {
+      "provider": "zenmux",
+      "id": "late-dependency:en",
+      "repeat": 0,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": 20.0,
+        "sourceIds": [
+          "evidence-a-0"
+        ],
+        "status": "completed",
+        "totalBaseline": 100,
+        "totalObserved": 120
+      },
+      "semanticAnswerMatches": true,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "format-only: embedded answer matches all frozen facts/IDs; raw strict grade stays fail",
+      "textSHA256": "d103ac0054c603d732c9bae6639f9fea7a8f1cceeac95a0b275dded1e8d28b06",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    }
+  ]
+}

@@ -110,7 +110,7 @@ blocks with a language tag.`
 
 const REPORTING_INSTRUCTIONS = `For multi-step work, publish a plan with write_todos and keep it updated as work progresses.
 Before your final answer, reconcile the plan: mark only verified work done and explain pending items or blockers.
-Always finish with a substantive report of findings or changes, evidence or sources, checks performed, and remaining uncertainty.
+Always finish with a substantive report of findings or changes, evidence or sources, checks performed, and remaining uncertainty — unless the user asked for a specific output format (for example only JSON or only a number); then reply in exactly that format.
 A self-check submission is not the final report. After it is accepted, write the answer for the user.
 For research, include source links and observation dates; distinguish observed facts from forecasts and unavailable future data.
 Respect the user's source and retry limits, including during team follow-ups. If permitted sources fail or cannot verify the requested date, finish with an unavailable-data finding and explain what could not be verified. Do not keep searching merely to obtain a number or mark a todo done. A report of unavailable evidence can complete the investigation; it does not verify the missing fact.
@@ -331,8 +331,24 @@ function definitionFor(
  * @returns Whether it was accepted.
  */
 function steerSession(session: { inject: (input: string) => number }, text: string): boolean {
-  session.inject(text)
+  session.inject(steeringMessage(text))
   return true
+}
+
+/**
+ * What the model reads for a mid-run message.
+ *
+ * Bare, a steer is indistinguishable from the prompt that started the run, and
+ * a model that already planned around that prompt often finishes the original
+ * plan (observed live: a "write the number as words" correction ignored in half
+ * of Codex runs). Saying when it arrived and that it wins on conflict is what
+ * the user meant by typing it mid-run. The transcript keeps the typed text.
+ * @param text - What the user typed while the agent was working.
+ * @returns The message injected into the run's history.
+ */
+export function steeringMessage(text: string): string {
+  return '[Sent by the user while you were working. It updates the current task: where it conflicts with'
+    + ' earlier instructions in this request, follow this message.]\n\n' + text
 }
 
 /**
@@ -477,7 +493,7 @@ export async function startRun(
       // The harness's own steering, not the bare session's: a message typed
       // while the lead is idle and its workers are still running has to be
       // read by something, and an injection schedules nothing.
-      steer: text => managed.steer(text),
+      steer: text => managed.steer(steeringMessage(text)),
       // Deliberately NOT disposed: its workers are meant to keep running
       // past the end of this run. The conversation owns the harness now, and
       // drops it when the conversation goes.

@@ -49,7 +49,7 @@ const agent = runtime.agent({
 | `maxTokens` | `number` | Output ceiling. Checked against the model's hard limit before provider I/O. |
 | `outputFormat` | `ModelOutputFormat` | Plain text or a named JSON Schema for the final answer. |
 | `mode` | `'basic' \| 'deep' \| 'deep-human-in-loop'` | Execution policy. |
-| `commentary` | `'auto' \| 'concise' \| 'off'` | Progress narration. |
+| `commentary` | `'auto' \| 'concise' \| 'off'` | Progress narration. Default `auto` leaves the style to caller instructions and the model; opt into `concise` for short progress updates. |
 | `maxTurns` | `number` | Model steps. Default 16. |
 | `maxToolCalls` | `number` | Dispatched tools. Default 64. |
 | `tools` | `ToolDefinition[]` | Host functions the scheduler executes. |

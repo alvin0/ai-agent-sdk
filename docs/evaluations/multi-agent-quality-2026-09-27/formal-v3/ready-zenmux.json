@@ -1,0 +1,23 @@
+[
+  {
+    "ready": true,
+    "sdkRoot": "/Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/artifacts/plan-completion-hHIqY2/candidate-sdk",
+    "coreEntryHash": "ec7ee6fb35b09fc44648447f7970bf08906fc5ce78508d3969186093aec99d69",
+    "managedHash": "2965094c93d899ed6c150f48b5a8b1886d6848c9f82ef81cb13bbadef1eb3765",
+    "teamHash": "7963e395244cd3a70567066a3b40540d3928f48ab396ade8a5f395ca60a66ece"
+  },
+  {
+    "ready": true,
+    "sdkRoot": "/Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/artifacts/multi-agent-audit-n62xvl_w/final-sdk-v10",
+    "coreEntryHash": "ec7ee6fb35b09fc44648447f7970bf08906fc5ce78508d3969186093aec99d69",
+    "managedHash": "412c09253de7bee093706bf7e123f79abe29f266d81fef5da5d3d0c5dc711d1e",
+    "teamHash": "0cac9e1e276b03bc0e94829e58c20e8f1774139c83ed3638f586243fbd59fdba"
+  },
+  {
+    "ready": true,
+    "sdkRoot": "/Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/artifacts/multi-agent-quality-8c_f2p6p/candidate-sdk-v3",
+    "coreEntryHash": "ec7ee6fb35b09fc44648447f7970bf08906fc5ce78508d3969186093aec99d69",
+    "managedHash": "78e5eb07027d4f12ea686e110248462211a9f288ffacafdaea5e90b74f0bf90e",
+    "teamHash": "d409348ec096aeb00d0fc2afa4561bfd3103d2ffd29e5f7fa8d41a2813f91a9b"
+  }
+]

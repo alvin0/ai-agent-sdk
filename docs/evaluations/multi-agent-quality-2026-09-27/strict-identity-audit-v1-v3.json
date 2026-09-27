@@ -1,0 +1,12 @@
+{
+  "formal-v1": {
+    "rows": 216,
+    "strictArrayIdentityMatchesSavedGrade": true,
+    "collisionRows": []
+  },
+  "formal-v3": {
+    "rows": 216,
+    "strictArrayIdentityMatchesSavedGrade": true,
+    "collisionRows": []
+  }
+}

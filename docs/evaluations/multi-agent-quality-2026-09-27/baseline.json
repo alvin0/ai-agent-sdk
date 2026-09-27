@@ -1,0 +1,10 @@
+{
+  "createdAt": "2026-09-27T07:33:47.630057+00:00",
+  "head": "5b589b6abe6d0a61da3f55b549713456ccc8c7c4",
+  "initialCachedSHA256": "bf68b0d8b8c547d51ece2aa4e2391f00b0e1a9a25bf0ca02aaf11311b4fef0c9",
+  "referenceSDK": "artifacts/multi-agent-audit-n62xvl_w/final-sdk-v10",
+  "legacyBaselineSDK": "artifacts/plan-completion-hHIqY2/candidate-sdk",
+  "fixtureSHA256": "7d51e180fc40ab36a71f16c467fcf9cfd9f661b52e340152b7b2ebf94414c68e",
+  "initialProductionPatchSHA256": "40bd9830b1011e0be18299039e15feb83b2648964b09a93dd2ff589ffc004294",
+  "gateIntent": "Zero new primary pair losses against both frozen baselines on the final measured cohort. Compare token/latency on common complete-success pairs and retain all-attempt counters. No favorable regrade or selective retry. No claim of universal guarantees."
+}

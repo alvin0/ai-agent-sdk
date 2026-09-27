@@ -1,0 +1,1871 @@
+{
+  "primaryGradeUnchanged": true,
+  "rows": [
+    {
+      "provider": "zenmux",
+      "id": "late-dependency:en",
+      "repeat": 0,
+      "arm": "CANDIDATE",
+      "newPairedLoss": true,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": 20,
+        "sourceIds": [
+          "evidence-a-0"
+        ],
+        "status": "completed",
+        "totalBaseline": 100,
+        "totalObserved": 120
+      },
+      "semanticAnswerMatches": true,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "format-only: embedded answer matches all frozen facts/IDs; raw strict grade stays fail",
+      "textSHA256": "9f7716d38a0050a94946640d0b085a5bcb836141a3e6b34634a12b18b834b69f",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "closed-multi-dependency:en",
+      "repeat": 0,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-1"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-1"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "f3c2881ecccf7e4e31de958bb24931e43cceedf610664d8f6d3698b767be779d",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "closed-multi-dependency:en",
+      "repeat": 0,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": null,
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "ff540ca561c7924e09546dada92967a5c0d7603b2fc382891e29e12488efebb0",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "closed-multi-dependency:en",
+      "repeat": 0,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-1"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-1"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "3cb33fc585b3392b872ab4c5415d26cfea216f649ebbdfff02d3bcb7dc636df0",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "closed-multi-dependency:vi",
+      "repeat": 0,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": null,
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "64729aaecabd8173d2f6e860be308e34ab6c6e462e7b0493496a1eb74e6ea0c5",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "closed-multi-dependency:vi",
+      "repeat": 0,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-1"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-1"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "eab55c44fe90c89f8df5359588d828d65f803f87a17bebaa77619afe2100fe78",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "closed-multi-dependency:vi",
+      "repeat": 0,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-1"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-1"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "3cb33fc585b3392b872ab4c5415d26cfea216f649ebbdfff02d3bcb7dc636df0",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "early-dependency-control:en",
+      "repeat": 0,
+      "arm": "CANDIDATE",
+      "newPairedLoss": true,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": 34,
+        "sourceIds": [
+          "evidence-a-2"
+        ],
+        "status": "completed",
+        "totalBaseline": 100,
+        "totalObserved": 134
+      },
+      "semanticAnswerMatches": true,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "format-only: embedded answer matches all frozen facts/IDs; raw strict grade stays fail",
+      "textSHA256": "bd085e3aa2d5dda70a38fc89ef3f96177ec3fa46ddc7673e11b49daf1b734b4d",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "early-dependency-control:vi",
+      "repeat": 0,
+      "arm": "CANDIDATE",
+      "newPairedLoss": true,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": null,
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "91ff68ccfe46811ccc2713c11882f76f16d0bbb0b252d9a5c45b2b378b360317",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "parallel-synthesis-control:en",
+      "repeat": 0,
+      "arm": "CANDIDATE",
+      "newPairedLoss": true,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": 15,
+        "sourceIds": [
+          "evidence-a-3",
+          "evidence-b-3"
+        ],
+        "status": "completed",
+        "totalBaseline": 200,
+        "totalObserved": 230
+      },
+      "semanticAnswerMatches": true,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "format-only: embedded answer matches all frozen facts/IDs; raw strict grade stays fail",
+      "textSHA256": "4b69db5a05a7c2df5e5bf36ce3f97710e9f6f4ee96467e5b82cc25a944586b20",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "failed-dependency-control:en",
+      "repeat": 0,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "231d46226c451ac320622c744da868bc18fc29c9eec90b906d51360404a2bcf8",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "failed-dependency-control:vi",
+      "repeat": 0,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "377b6b300c4802dfdd9a0a60b4144641bd0c774157757582856e5591823df183",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "failed-dependency-control:en",
+      "repeat": 0,
+      "arm": "CANDIDATE",
+      "newPairedLoss": true,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "source_a"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "f0e0ff547678b62ae8d7592752f43b16bf6e125d3061ea11abdb5af87190a676",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "failed-dependency-control:vi",
+      "repeat": 0,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "source_a"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "f0e0ff547678b62ae8d7592752f43b16bf6e125d3061ea11abdb5af87190a676",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "failed-dependency-control:vi",
+      "repeat": 0,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "source_a"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "f0e0ff547678b62ae8d7592752f43b16bf6e125d3061ea11abdb5af87190a676",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "reused-address-dependency:en",
+      "repeat": 0,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "replacement-must-not-rebind",
+            "evidence-b-5"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "replacement-must-not-rebind",
+          "evidence-b-5"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "4acae38d0afca6f38772316673fd4617edddfb7e6935f8e78ba9a177fe943a7f",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "failed-dependency-control:vi",
+      "repeat": 0,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "80082a1b094a354b1c876757226ac45acbcb3cea802636e1c95d53fd6ecdb4ec",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "reused-address-dependency:en",
+      "repeat": 0,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": true,
+        "actual": {
+          "status": "completed",
+          "totalObserved": 1094,
+          "totalBaseline": 101,
+          "changePercent": 983.17,
+          "sourceIds": [
+            "replacement-must-not-rebind",
+            "evidence-b-5"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": 983.17,
+        "sourceIds": [
+          "replacement-must-not-rebind",
+          "evidence-b-5"
+        ],
+        "status": "completed",
+        "totalBaseline": 101,
+        "totalObserved": 1094
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": true,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "9adf1b3d61004da2d722c0babf7caa24774fe16f80167609e8ab7b5642f0d8a1",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "reused-address-dependency:vi",
+      "repeat": 0,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-5"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-5"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "433b269940ad8b1308afea8e70379918c4415eb66fc12f95f9933c4e4c363e48",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "reused-address-dependency:vi",
+      "repeat": 0,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": true,
+        "actual": {
+          "status": "completed",
+          "totalObserved": 1094,
+          "totalBaseline": 101,
+          "changePercent": 983.17,
+          "sourceIds": [
+            "replacement-must-not-rebind",
+            "evidence-b-5"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": 983.17,
+        "sourceIds": [
+          "replacement-must-not-rebind",
+          "evidence-b-5"
+        ],
+        "status": "completed",
+        "totalBaseline": 101,
+        "totalObserved": 1094
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": true,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "9a6abb38a154b8b1dd61fe9b98cb98161070dfbce67a178a37fd230cd722ab7c",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "closed-multi-dependency:en",
+      "repeat": 1,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-1"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-1"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "3cb33fc585b3392b872ab4c5415d26cfea216f649ebbdfff02d3bcb7dc636df0",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "closed-multi-dependency:en",
+      "repeat": 1,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-1"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-1"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "f3c2881ecccf7e4e31de958bb24931e43cceedf610664d8f6d3698b767be779d",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "closed-multi-dependency:vi",
+      "repeat": 1,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-1"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-1"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "3cb33fc585b3392b872ab4c5415d26cfea216f649ebbdfff02d3bcb7dc636df0",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "closed-multi-dependency:vi",
+      "repeat": 1,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-1"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "c0f1f70fffeb4d6e268b6c528af2297ecb74edc17d98319cd1268ce4ece58702",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "parallel-synthesis-control:en",
+      "repeat": 1,
+      "arm": "CANDIDATE",
+      "newPairedLoss": true,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": 15.0,
+        "sourceIds": [
+          "evidence-a-3",
+          "evidence-b-3"
+        ],
+        "status": "completed",
+        "totalBaseline": 200,
+        "totalObserved": 230
+      },
+      "semanticAnswerMatches": true,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "format-only: embedded answer matches all frozen facts/IDs; raw strict grade stays fail",
+      "textSHA256": "0379648b558ddd7c8fd0fe4554734493fa3db6ee7c9687a828c53eb5d60b2271",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "failed-dependency-control:en",
+      "repeat": 1,
+      "arm": "CANDIDATE",
+      "newPairedLoss": true,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "source_a"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "f0e0ff547678b62ae8d7592752f43b16bf6e125d3061ea11abdb5af87190a676",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "parallel-synthesis-control:vi",
+      "repeat": 1,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": 15.0,
+        "sourceIds": [
+          "evidence-a-3",
+          "evidence-b-3"
+        ],
+        "status": "completed",
+        "totalBaseline": 200,
+        "totalObserved": 230
+      },
+      "semanticAnswerMatches": true,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "format-only: embedded answer matches all frozen facts/IDs; raw strict grade stays fail",
+      "textSHA256": "325a567f7e5d6083708771ecb009a5d659e6e445d1cd8c4664c0610906aa9b62",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "failed-dependency-control:vi",
+      "repeat": 1,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "source_a"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "f0e0ff547678b62ae8d7592752f43b16bf6e125d3061ea11abdb5af87190a676",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "failed-dependency-control:vi",
+      "repeat": 1,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "source_a"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "f0e0ff547678b62ae8d7592752f43b16bf6e125d3061ea11abdb5af87190a676",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "failed-dependency-control:en",
+      "repeat": 1,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "d73219b94a22975e1ed942ee1297050d74d69502e9aedd7d056951c5144cf4f6",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "failed-dependency-control:en",
+      "repeat": 1,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": true,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "format-only: embedded answer matches all frozen facts/IDs; raw strict grade stays fail",
+      "textSHA256": "a6c77556ad4c7a002efda0e5ab03ea62d0bbfc592f235bc8e439e904e3c54084",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "failed-dependency-control:vi",
+      "repeat": 1,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": true,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "format-only: embedded answer matches all frozen facts/IDs; raw strict grade stays fail",
+      "textSHA256": "e7710826de4a44d73052ec32d604a214b35df71cda1c7086068c421ba87bb32c",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "failed-dependency-control:vi",
+      "repeat": 1,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": null,
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "98ed577338e7ccd41bf6b4185d76917bc8e514f0eb0a56feed6bbb55884e7947",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "reused-address-dependency:en",
+      "repeat": 1,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-5"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-5"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "433b269940ad8b1308afea8e70379918c4415eb66fc12f95f9933c4e4c363e48",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "reused-address-dependency:vi",
+      "repeat": 1,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-5"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-5"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "433b269940ad8b1308afea8e70379918c4415eb66fc12f95f9933c4e4c363e48",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "reused-address-dependency:en",
+      "repeat": 1,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-5"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "f279912942d6a6b665da303515bdb12c4ece98f242baa2558ce14dbfc70a3bc5",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "reused-address-dependency:vi",
+      "repeat": 1,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": true,
+        "actual": {
+          "status": "completed",
+          "totalObserved": 1094,
+          "totalBaseline": 101,
+          "changePercent": 983.1683168316832,
+          "sourceIds": [
+            "replacement-must-not-rebind",
+            "evidence-b-5"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": 983.1683168316832,
+        "sourceIds": [
+          "replacement-must-not-rebind",
+          "evidence-b-5"
+        ],
+        "status": "completed",
+        "totalBaseline": 101,
+        "totalObserved": 1094
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": true,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "cff55eef18898bcbcd82fc53ca6ddecef42e4ff2f005917c948a842bfe163de8",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "late-dependency:en",
+      "repeat": 2,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": 20,
+        "sourceIds": [
+          "evidence-a-0"
+        ],
+        "status": "completed",
+        "totalBaseline": 100,
+        "totalObserved": 120
+      },
+      "semanticAnswerMatches": true,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "format-only: embedded answer matches all frozen facts/IDs; raw strict grade stays fail",
+      "textSHA256": "51bd01bf93da639030d74d7ca6b4cf9339c7a781d7889aefe1b2f31d16228a69",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "closed-multi-dependency:en",
+      "repeat": 2,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-1"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-1"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "3cb33fc585b3392b872ab4c5415d26cfea216f649ebbdfff02d3bcb7dc636df0",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "late-dependency:vi",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": null,
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "04cd0908d30765f2ae57279f1f7853425e2b02eee6a9efc4b4655c0c198e16fa",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "late-dependency:vi",
+      "repeat": 2,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": 20,
+        "sourceIds": [
+          "evidence-a-0"
+        ],
+        "status": "completed",
+        "totalBaseline": 100,
+        "totalObserved": 120
+      },
+      "semanticAnswerMatches": true,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "format-only: embedded answer matches all frozen facts/IDs; raw strict grade stays fail",
+      "textSHA256": "7e0e64fe05a9c665fc26fa3221512b55cb66d862f22e55037a5702055f7afe61",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "closed-multi-dependency:vi",
+      "repeat": 2,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-1"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-1"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "3cb33fc585b3392b872ab4c5415d26cfea216f649ebbdfff02d3bcb7dc636df0",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "closed-multi-dependency:en",
+      "repeat": 2,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a",
+          "source_b"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "daa4e4b82a974b523867032a641e01f02f7a52e97adca71a771186e9d3411ebd",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "closed-multi-dependency:en",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": null,
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "01131da9f57d02cef7e6eca3fc7cff87de3fac93f6cfc02ef57b8714b173e016",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "closed-multi-dependency:vi",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": null,
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "b3d65c930440410704b4b08910a9e3fadf6feca9d8d813de7d1db9613b236d7a",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "closed-multi-dependency:vi",
+      "repeat": 2,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "6e7872997f98b2db24990c2c430ad2f11eec601a965784d733665b5b6560d647",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "early-dependency-control:en",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "newPairedLoss": true,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": 34,
+        "sourceIds": [
+          "evidence-a-2"
+        ],
+        "status": "completed",
+        "totalBaseline": 100,
+        "totalObserved": 134
+      },
+      "semanticAnswerMatches": true,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "format-only: embedded answer matches all frozen facts/IDs; raw strict grade stays fail",
+      "textSHA256": "7f21dfd53ddcde8761b11c23b302dbf608c6d9eb868dd5574a86b2db999cc330",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "early-dependency-control:vi",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "newPairedLoss": true,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": null,
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "1b2e43cb0e2a5de94ccd95cb82bf83e01b1f7bc563aa40052c93023afec3d631",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "failed-dependency-control:en",
+      "repeat": 2,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "source_a"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "f0e0ff547678b62ae8d7592752f43b16bf6e125d3061ea11abdb5af87190a676",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "failed-dependency-control:en",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "source_a"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "f0e0ff547678b62ae8d7592752f43b16bf6e125d3061ea11abdb5af87190a676",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "parallel-synthesis-control:en",
+      "repeat": 2,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": 15.0,
+        "sourceIds": [
+          "evidence-a-3",
+          "evidence-b-3"
+        ],
+        "status": "completed",
+        "totalBaseline": 200,
+        "totalObserved": 230
+      },
+      "semanticAnswerMatches": true,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "format-only: embedded answer matches all frozen facts/IDs; raw strict grade stays fail",
+      "textSHA256": "737f32fcfff7cbcae12ba00ffd5e5163d00262074f1422ab026e762f5da0e5bb",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "failed-dependency-control:vi",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "newPairedLoss": true,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "source_a"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "f0e0ff547678b62ae8d7592752f43b16bf6e125d3061ea11abdb5af87190a676",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "reused-address-dependency:en",
+      "repeat": 2,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-5"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-5"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "433b269940ad8b1308afea8e70379918c4415eb66fc12f95f9933c4e4c363e48",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "parallel-synthesis-control:en",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": 15.0,
+        "sourceIds": [
+          "evidence-a-3",
+          "evidence-b-3"
+        ],
+        "status": "completed",
+        "totalBaseline": 200,
+        "totalObserved": 230
+      },
+      "semanticAnswerMatches": true,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "format-only: embedded answer matches all frozen facts/IDs; raw strict grade stays fail",
+      "textSHA256": "4246ba8e1b2d2125009466774e64e439789c51e14447ef66322221a0a0d90b77",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "codex",
+      "id": "reused-address-dependency:vi",
+      "repeat": 2,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "evidence-b-5"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "evidence-b-5"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "433b269940ad8b1308afea8e70379918c4415eb66fc12f95f9933c4e4c363e48",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "failed-dependency-control:en",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "newPairedLoss": true,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "source_a"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "7d847c720561a7ba90e850e09ba6ff4f802db28fba8c1d3d60f035165cd26769",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "failed-dependency-control:vi",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "source_a"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "65fcca8760aeac9fa52a8b6015ede567bb82bcc66224f59359f1b7a9cd913232",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "failed-dependency-control:vi",
+      "repeat": 2,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": {
+        "changePercent": null,
+        "sourceIds": [
+          "source_a"
+        ],
+        "status": "unknown",
+        "totalBaseline": null,
+        "totalObserved": null
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": null,
+      "reason": "unknown/no fabricated numbers, but sourceIds is not empty: oracle requires verified evidence IDs; task does not explicitly specify empty IDs for failed sources",
+      "textSHA256": "74162db1bc0d69e6dd08d0fc958f2d8e113939bd87ba8316f9a78895b7a1f31d",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "reused-address-dependency:en",
+      "repeat": 2,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": true,
+        "actual": {
+          "status": "completed",
+          "totalObserved": 1094,
+          "totalBaseline": 101,
+          "changePercent": 983.17,
+          "sourceIds": [
+            "replacement-must-not-rebind",
+            "evidence-b-5"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": 983.17,
+        "sourceIds": [
+          "replacement-must-not-rebind",
+          "evidence-b-5"
+        ],
+        "status": "completed",
+        "totalBaseline": 101,
+        "totalObserved": 1094
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": true,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "9adf1b3d61004da2d722c0babf7caa24774fe16f80167609e8ab7b5642f0d8a1",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "reused-address-dependency:en",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "secondaryAnswer": null,
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": false,
+      "requiredEvidencePresentAtModelBoundary": true,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "c87f1f29206b4c4cc84ee769433c3c59142d7a3a69deaf831dc9e6dcde9b5f56",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    },
+    {
+      "provider": "zenmux",
+      "id": "reused-address-dependency:vi",
+      "repeat": 2,
+      "arm": "BASE",
+      "newPairedLoss": false,
+      "rawGrade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": true,
+        "actual": {
+          "status": "completed",
+          "totalObserved": 1094,
+          "totalBaseline": 101,
+          "changePercent": 983.17,
+          "sourceIds": [
+            "replacement-must-not-rebind",
+            "evidence-b-5"
+          ]
+        }
+      },
+      "secondaryAnswer": {
+        "changePercent": 983.17,
+        "sourceIds": [
+          "replacement-must-not-rebind",
+          "evidence-b-5"
+        ],
+        "status": "completed",
+        "totalBaseline": 101,
+        "totalObserved": 1094
+      },
+      "semanticAnswerMatches": false,
+      "unsupportedCompletion": true,
+      "requiredEvidencePresentAtModelBoundary": false,
+      "reason": "semantic or missing answer: inspect actual, model evidence-presence and provider status; raw grade stays fail",
+      "textSHA256": "9adf1b3d61004da2d722c0babf7caa24774fe16f80167609e8ab7b5642f0d8a1",
+      "disposition": "retain primary failure; no favorable regrade, selective retry or SDK regression dismissal"
+    }
+  ]
+}

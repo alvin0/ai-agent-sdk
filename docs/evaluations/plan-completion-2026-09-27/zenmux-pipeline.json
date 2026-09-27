@@ -1,0 +1,36 @@
+{
+  "provider": "zenmux",
+  "steps": [
+    {
+      "name": "final-integrity",
+      "startedAt": "2026-09-27T03:50:59.674Z",
+      "status": "completed",
+      "finishedAt": "2026-09-27T03:51:00.312Z",
+      "exitCode": 0
+    },
+    {
+      "name": "ptc-pilot",
+      "startedAt": "2026-09-27T03:51:00.312Z",
+      "status": "completed",
+      "finishedAt": "2026-09-27T03:55:28.578Z",
+      "exitCode": 0
+    },
+    {
+      "name": "ptc-development",
+      "startedAt": "2026-09-27T03:55:28.578Z",
+      "status": "completed",
+      "finishedAt": "2026-09-27T04:59:37.305Z",
+      "exitCode": 0
+    },
+    {
+      "name": "ptc-analysis",
+      "startedAt": "2026-09-27T04:59:37.316Z",
+      "status": "completed",
+      "finishedAt": "2026-09-27T04:59:37.407Z",
+      "exitCode": 0
+    }
+  ],
+  "startedAt": "2026-09-27T02:49:28.952Z",
+  "finishedAt": "2026-09-27T04:59:37.407Z",
+  "status": "completed"
+}

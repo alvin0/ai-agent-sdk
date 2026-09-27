@@ -1,0 +1,76 @@
+{
+  "status": "completed",
+  "productionSampleSourceHashes": {
+    "packages/core/src/agent/define/session.ts": "0e5067adc111ba4da130ab68de784184d1ee1c5dcc300bcc0a1f7789438294a3",
+    "packages/core/src/agent/loop/program.ts": "d7cc9c7bb397edf33478dc8488a48a1374a29f3f30976239e54f71a71370c5b1",
+    "packages/core/src/agent/loop/schedule.ts": "41efd8c20a38fd5a482f6e4b821384e8c8f9144b6f1affb200c9bccf705ecb77",
+    "packages/core/src/agent/loop/turn/model-round.ts": "aafcbf581915db056fabce55e5dc00c3f82a617a67034720aba6ef1f1edb37f0",
+    "packages/core/src/agent/tool/nested.ts": "6489e68b5f7d6e6deaced0d888ec3c7e90c166a6c5a01c8329fc16ebf7bc1994",
+    "packages/core/src/agent/tool/output-schema.ts": "80895f644d437187f278deabcf86f78c43db8101bc89a27a5f035aa08259eefb",
+    "samples/durable-operations/README.md": "e75e25ee1e965a307c5410cea4d66234050c9ed7d0cacc562d45d931db06345d",
+    "samples/durable-operations/journal.ts": "09a03a4b3fcc0721a2a02c050f068ae44ad1342eddce60a78503a930663605b8",
+    "samples/programmatic-tools/README.md": "8ce97caee45359b183f4debe077fe1a5a667795217f7dcb8d638885bd3d61c2c",
+    "samples/programmatic-tools/program-worker-async.mjs": "16a9008427d16728bd44b9ed2d190989029a046f47ecf5c2f58c7067a8971e62",
+    "samples/programmatic-tools/program-worker.mjs": "3d4166302bc7a05c23e077a95a50b7884ee45562ceb3d9c9da461a18649883c0",
+    "packages/core/src/agent/loop/turn/model-request-boundary.ts": "5ad25838e1eefc4a1876b1e18898917cf8f1dfb9d225eb88b5dfbc8d39b77f74",
+    "samples/programmatic-tools/guest-json.mjs": "e2e6a546a34156901aac2cdc07502949b739bc3966307bf4bd742ae3060682f9"
+  },
+  "sourceMatchesDeepAudit": true,
+  "candidatePatchSha256": "055229ab7ad31aecb71d09a0a5908462db728e28bca545b3ed4caf98b1eb3200",
+  "artifacts": {
+    "conformance-sync.json": "artifacts/spikes/ptc-conformance-2026-09-27T02-28-59-101Z/summary.json",
+    "conformance-async.json": "artifacts/spikes/ptc-conformance-2026-09-27T02-28-59-200Z/summary.json",
+    "durable-summary.json": "artifacts/spikes/durable-2026-09-27T02-28-51-586Z/summary.json",
+    "process-summary.json": "artifacts/spikes/process-2026-09-27T02-28-51-592Z/summary.json",
+    "recall-summary.json": "artifacts/spikes/recall-2026-09-27T02-28-51-594Z/summary.json",
+    "skill-summary.json": "artifacts/spikes/proposal-2026-09-27T02-28-51-602Z/summary.json",
+    "fixture-admission-preflight.json": "artifacts/plan-completion-hHIqY2/fixture-admission-preflight.json",
+    "preparation.json": "artifacts/plan-completion-hHIqY2/preparation.json"
+  },
+  "pending": [],
+  "verifiedAt": "2026-09-27T05:01:46.849199+00:00",
+  "currentIndexSha256": "555d10093617fc23e461d31dae1d28c2f1d2b1b547765fac632a61f417879e63",
+  "indexObservation": "Index changed externally from preparation; this task did not stage, reset, commit, or push and did not restore the user index.",
+  "local": {
+    "fullTestFiles": 235,
+    "fullTests": 3009,
+    "focusedTests": 12,
+    "workspacePackagesBuilt": 26,
+    "checks": [
+      "workspace typecheck",
+      "CLI build",
+      "package tests",
+      "26-package publint/types/packed Node/browser/worker applicable matrix",
+      "lint",
+      "negative boundary fixtures",
+      "supply chain",
+      "docs",
+      "human coverage"
+    ]
+  },
+  "limits": [
+    "No new hosted CI, browser visual, or production validation",
+    "Author-exposed regression cohort; no blind generalization claim",
+    "One model prose reviewer; ratings retained including inconsistency",
+    "ZenMux value has new paired losses and partial usage; no-go/needs-review",
+    "USD out of scope"
+  ],
+  "validationLogs": {
+    "local-validation/local-ci-build.log": "61496414412e896d5f8750519818a091791a06a1f08dcba2fcf00da7e93a7776",
+    "local-validation/closeout-human.log": "57079a43ce5129a0ca18d615b0153072f309fb74712e1425d0ed217eb5ba124e",
+    "local-validation/local-ci-packages.log": "2e99bc2ef4f41c5f35455acbfbea2ffe9d2cd0b7940834853ca7d2785b3a5820",
+    "local-validation/preparation-cli-verification.log": "e554c7cabe86f20d60f1fa1f6209de5f7e55cfdfaf47408c840602a5a6135943",
+    "local-validation/paired-latency-lint.log": "de0832924b90123854e16eead733c19a0751f59566c21c8ca0c7d1876d137c79",
+    "local-validation/closeout-docs.log": "1fcf3ee1272c809b3bad12129c5d776bc386865ca9341d161d1f55a8336e3cd9",
+    "local-validation/paired-latency-types.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "local-validation/local-ci-packed.log": "0e40cbc307c0d98d36bd4bc6fd87b24ee84359e0b1c752133d72a6ba8b923b8d",
+    "local-validation/paired-latency-full-vitest.log": "9ff31e2fa971090dfc703aa79a3fed226f542b31dc06cbc4874476989fea393f",
+    "local-validation/paired-latency-regression.log": "2863a1897d82b8e0b644be009eb96b52d4f5c398c24907ae6b8fc0752adf8e7f",
+    "local-validation/closeout-lint.log": "de0832924b90123854e16eead733c19a0751f59566c21c8ca0c7d1876d137c79",
+    "local-validation/local-ci-boundary-fixtures.log": "f399eecc5dbc6fd0051e3bdc7ab972d56a025f6dda44b5c56e654e833c8b295e",
+    "local-validation/local-ci-workspace-types.log": "b6ed69653421ab10e906414cfeb8a0ff130e6952c4e845dac580af9b2e946aa0",
+    "local-validation/local-ci-supply-chain.log": "2057c407772bd437b1adea625a670786e89e979f995cd603a670bbc4f7cff8f8",
+    "local-validation/local-ci-cli.log": "32eaa8f16638d74c08272865452b85c8c5ea97baedd2dfc03002e97375ff658d",
+    "local-validation/preparation-cli-preflight.log": "c1cbd58f9c9cae4f8e08eacd8d7167366dbf0c5ffef5cf9c0afac0de9ed21995"
+  }
+}

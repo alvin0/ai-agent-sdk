@@ -1,0 +1,2 @@
+$ node scripts/test-packed.mts
+packed core runtime matrix passed: packages/core/artifacts/core-packed-WqC5eJ/alvin0-ai-agent-sdk-core-0.1.4.tgz

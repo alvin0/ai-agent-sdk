@@ -1,0 +1,73 @@
+{
+  "rawAttempts": 216,
+  "pilot": false,
+  "gates": {
+    "codex": {
+      "zeroNewPrimaryLossesVsBASE": true,
+      "zeroNewPrimaryLossesVsREFERENCE": true,
+      "comparisonVsBASE": {
+        "pairs": 36,
+        "wins": 17,
+        "newLosses": 0,
+        "ties": 19
+      },
+      "comparisonVsREFERENCE": {
+        "pairs": 36,
+        "wins": 6,
+        "newLosses": 0,
+        "ties": 30
+      },
+      "completeSuccessPairsVsREFERENCE": 30,
+      "noPairedTokenIncreaseVsREFERENCE": true,
+      "noPairedLatencyIncreaseVsREFERENCE": true,
+      "allAttemptTokenMeansVsREFERENCE": {
+        "before": 2404.972222222222,
+        "after": 2283.3611111111113
+      },
+      "allAttemptLatencyMeansVsREFERENCE": {
+        "before": 11317.792605388891,
+        "after": 9681.381482583325
+      },
+      "fullUsageCoverage": true,
+      "allAttemptCandidateCorrect": 36,
+      "allAttemptReferenceCorrect": 30
+    },
+    "zenmux": {
+      "zeroNewPrimaryLossesVsBASE": false,
+      "zeroNewPrimaryLossesVsREFERENCE": false,
+      "comparisonVsBASE": {
+        "pairs": 36,
+        "wins": 18,
+        "newLosses": 3,
+        "ties": 15
+      },
+      "comparisonVsREFERENCE": {
+        "pairs": 36,
+        "wins": 18,
+        "newLosses": 2,
+        "ties": 16
+      },
+      "completeSuccessPairsVsREFERENCE": 10,
+      "noPairedTokenIncreaseVsREFERENCE": false,
+      "noPairedLatencyIncreaseVsREFERENCE": false,
+      "allAttemptTokenMeansVsREFERENCE": {
+        "before": 6122.722222222223,
+        "after": 4686.916666666667
+      },
+      "allAttemptLatencyMeansVsREFERENCE": {
+        "before": 12217.991563638889,
+        "after": 11172.425107611109
+      },
+      "fullUsageCoverage": true,
+      "allAttemptCandidateCorrect": 28,
+      "allAttemptReferenceCorrect": 12
+    }
+  },
+  "qualityGatePassed": false,
+  "pairedEfficiencyGatePassed": false,
+  "limitations": [
+    "Author-exposed task families; repeated variants share facts. Not a universal or statistical guarantee.",
+    "Derived comparisons share the same candidate attempts, not independent replication.",
+    "Missing usage is unknown. No favorable primary regrade or selective retry."
+  ]
+}

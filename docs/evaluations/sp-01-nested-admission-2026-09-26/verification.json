@@ -1,0 +1,171 @@
+{
+  "spike": "SP-01",
+  "step": "(a) nested admission owner",
+  "date": "2026-09-26",
+  "sdkRevision": "5b589b6abe6d0a61da3f55b549713456ccc8c7c4",
+  "productionSourceMatchesWave0After": false,
+  "note": "First SP-01 production-source change. Budget semantics for normal sessions unchanged (regression below). Programs are reachable only through the internal scheduleToolCalls option; no public export.",
+  "environment": {
+    "node": "v24.9.0",
+    "os": "darwin"
+  },
+  "sourceHashes": {
+    "packages/core/src/agent/loop/admission.ts": "b7feab2b17c5604e514627c6a0a402733132890dd1c4f6294668e9753073c7b0",
+    "packages/core/src/agent/loop/schedule.ts": "aa459d792193328f616af3d0faedcaf1a2e141cf7d53a0d2c816766a85b933b5",
+    "packages/core/src/agent/loop/run-turn.ts": "677febf68edd21eb2f14b13ad9aff3d3c5ef961b2bde9398c746d4c07437bc83",
+    "packages/core/src/agent/loop/events.ts": "d9a6055e881e89df00369cebd2ae11e683c630df7e681bc028747729ca5e044b",
+    "packages/core/src/agent/tool/nested.ts": "63010c83cc13b0b04bce6e03b6537e1fc116f4046d13137ac3f200943dc7a4a2",
+    "packages/core/src/agent/tool/pipeline.ts": "7b318f0e5bff550b2b1704e74aab00bce2865362afb5778571c47412b8dca3c3",
+    "tests/unit/nested-tool-admission.spec.ts": "76d54b9a8b5da31712082dbf543a43a8e32d14151f06ec3b0a2b5b369f2fa744",
+    "tests/unit/tool-output-budget.spec.ts": "64745d1617a1333a00384bacbaf1761b5ff58bd7e147011418bce30a050d134c"
+  },
+  "gates": [
+    {
+      "name": "8-file tool/loop regression before change",
+      "result": "221/221 passed"
+    },
+    {
+      "name": "8-file tool/loop regression after ToolAdmission refactor",
+      "result": "221/221 passed"
+    },
+    {
+      "name": "tests/unit/nested-tool-admission.spec.ts",
+      "result": "15/15 passed"
+    },
+    {
+      "name": "mutation: child admission on separate counter",
+      "result": "detected (PTC-A02 failed)"
+    },
+    {
+      "name": "mutation: no catalog recheck after approval",
+      "result": "detected (PTC-A13 failed)"
+    },
+    {
+      "name": "vitest run tests/unit",
+      "result": "2868/2868 passed after fixing wave-0 sentinel literal PRIVATE_SENTINEL -> PRIVATE/SENTINEL (privacy-sentinel-policy)"
+    },
+    {
+      "name": "pnpm test:contract",
+      "result": "57/57 passed"
+    },
+    {
+      "name": "tsc --noEmit (root)",
+      "result": "passed"
+    },
+    {
+      "name": "pnpm lint",
+      "result": "passed"
+    },
+    {
+      "name": "core check:types / check:publint / test:pack",
+      "result": "passed"
+    },
+    {
+      "name": "pnpm check:docs / check:human",
+      "result": "passed"
+    }
+  ],
+  "cases": [
+    {
+      "id": "PTC-A01",
+      "status": "passed-deterministic",
+      "evidence": [
+        "not granted / later-registered name refused; granted name swapped after start -> STALE_CATALOG"
+      ]
+    },
+    {
+      "id": "PTC-A02",
+      "status": "passed-deterministic",
+      "evidence": [
+        "limit 3: outer 1 + 2 child bodies; outcome.budgeted 3"
+      ]
+    },
+    {
+      "id": "PTC-A03",
+      "status": "passed-deterministic",
+      "evidence": [
+        "budget-exempt child stopped at maxCalls 3; outcome.budgeted 1"
+      ]
+    },
+    {
+      "id": "PTC-A04",
+      "status": "partial",
+      "evidence": [
+        "post-policy replace -> STRUCTURED_OUTPUT_UNAVAILABLE; sentinel absent from events/history/results"
+      ],
+      "remaining": "full value/meta/additionalContext matrix at step (b)"
+    },
+    {
+      "id": "PTC-A05",
+      "status": "passed-deterministic",
+      "evidence": [
+        "exclusive program beside parallel sibling completes; parallel program refused PROGRAM_CONFIGURATION"
+      ]
+    },
+    {
+      "id": "PTC-A06",
+      "status": "partial",
+      "evidence": [
+        "fatal child fails the outer call after port close"
+      ],
+      "remaining": "sibling admission failure while program in flight"
+    },
+    {
+      "id": "PTC-A07",
+      "status": "passed-deterministic",
+      "evidence": [
+        "cancel during child approval: waiter settled, late allow runs no body"
+      ]
+    },
+    {
+      "id": "PTC-A11",
+      "status": "passed-deterministic",
+      "evidence": [
+        "program catches fatal and calls again -> PROGRAM_CLOSED; outer rethrows fatal"
+      ]
+    },
+    {
+      "id": "PTC-A13",
+      "status": "passed-deterministic",
+      "evidence": [
+        "definition swapped during approval -> no dispatch, STALE_CATALOG"
+      ]
+    },
+    {
+      "id": "PTC-A14",
+      "status": "partial",
+      "evidence": [
+        "no grant -> no port, budget 1; full unit suite unchanged"
+      ],
+      "remaining": "AgentRuntime/session path once public enablement exists"
+    },
+    {
+      "id": "PTC-A08",
+      "status": "not-evaluated"
+    },
+    {
+      "id": "PTC-A09",
+      "status": "not-evaluated"
+    },
+    {
+      "id": "PTC-A10",
+      "status": "not-evaluated"
+    },
+    {
+      "id": "PTC-A12",
+      "status": "not-evaluated"
+    },
+    {
+      "id": "PTC-A15",
+      "status": "not-evaluated"
+    }
+  ],
+  "architectureGatePassed": false,
+  "liveBenchmarkAllowed": false,
+  "limitations": [
+    "Deterministic scheduler-level tests with a JavaScript program body, not QuickJS guest",
+    "Not yet reachable through AgentRuntime/session: public enablement is step (b)",
+    "One child in flight per program (MVP)"
+  ],
+  "nextAction": "Step (b): public enablement surface and outer execute_program projection/history; then AgentRuntime-path conformance"
+}

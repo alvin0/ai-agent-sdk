@@ -1,0 +1,84 @@
+{
+  "spike": "SP-01",
+  "decision": "needs-review",
+  "liveBenchmarkAllowed": false,
+  "fixtureSha256": "f801f6047e75c9cf904a31a0c67067fa34e3a1e25b035029da86fe07b0750254",
+  "gates": [
+    {
+      "id": "PTC-A01",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A02",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A03",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A04",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A05",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A06",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A07",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A08",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A09",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A10",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A11",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A12",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A13",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A14",
+      "status": "not-evaluated",
+      "evidence": []
+    },
+    {
+      "id": "PTC-A15",
+      "status": "not-evaluated",
+      "evidence": []
+    }
+  ],
+  "note": "Preparation is not conformance. No guest, nested admission or isolation claim; every gate requires executable evidence before live comparison."
+}

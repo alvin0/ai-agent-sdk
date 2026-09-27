@@ -1,0 +1,9 @@
+
+ RUN  v4.1.11 /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk
+
+
+ Test Files  1 passed (1)
+      Tests  23 passed (23)
+   Start at  17:45:11
+   Duration  7.75s (transform 2.16s, setup 0ms, import 2.50s, tests 5.13s, environment 0ms)
+

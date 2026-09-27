@@ -1,0 +1,34 @@
+diff --git a/packages/core/src/agent/loop/schedule.ts b/packages/core/src/agent/loop/schedule.ts
+index 715f079..8956a98 100644
+--- a/packages/core/src/agent/loop/schedule.ts
++++ b/packages/core/src/agent/loop/schedule.ts
+@@ -470,7 +470,8 @@ async function boundOutput(
+   const truncated = truncateMiddleToTokens(full, budget)
+   return replaceText(result, truncated.text
+     + `\n\n[Output was ${String(truncated.originalTokens)} estimated tokens, over this call's `
+-    + `budget of ${String(budget)}. Re-run more narrowly if you need the omitted part.]`, {
++    + `budget of ${String(budget)}. Omitted output does not mean the operation failed. `
++    + 'Check an existing receipt or current state; repeat the operation only when the host confirms it is safe.]', {
+     outputTruncated: { estimatedTokens: truncated.originalTokens, budget },
+   })
+ }
+diff --git a/packages/core/src/agent/tool/output-budget.ts b/packages/core/src/agent/tool/output-budget.ts
+index 16bac44..ab9461d 100644
+--- a/packages/core/src/agent/tool/output-budget.ts
++++ b/packages/core/src/agent/tool/output-budget.ts
+@@ -333,11 +333,12 @@ export function readSpillTool(store: SpillStore, defaultLimit = 8_000): ToolDefi
+ 
+ function unknownLocator(locator: string): JsonObject {
+   // A store that has evicted or lost the entry is a normal outcome, not a
+-  // crash: the model needs to know to re-run the original call instead.
++  // crash. Losing output does not establish that the original operation failed.
+   return {
+     locator,
+-    error: 'no saved output for this locator; it may have expired. Re-run the original call'
+-      + ' more narrowly if you still need it.',
++    error: 'Saved output is unavailable; the locator may have expired. This does not mean'
++      + ' the original operation failed. Check an existing receipt or current state.'
++      + ' Repeat the operation only when the host confirms it is safe.',
+   }
+ }
+ 

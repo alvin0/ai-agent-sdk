@@ -1,0 +1,13 @@
+{
+  "manifest.json": "c01bd8fb135f01dcdadab9ef4ba29989cb262adc902a95489b1a47985607076f",
+  "fixtures.json": "b1af82a91030f792d0911f476c0623cba803cf91db7309b04ddff654419c61b3",
+  "sdk-source.tar": "9e722716fa839f5d62eb3877abe44a32e4d5defaef7aad9f9b5d76e5330bf0a8",
+  "sdk.patch": "8ce9c13c28677f47c9bed708c89bd9b915ab91726cab14a3e662f26e41ba276c",
+  "runs.jsonl": "20cace33bef44c7ec38d9a0683d7989d1af72413dc4412e6dfad2d7bcfba9eee",
+  "summary.json": "82ece488055a092e75693fecd51295c75016b8797a455ecd80a50d3f082df4c9",
+  "cases.ts": "a91e3d9689b8dae757cdf3339b0dcc8f84f07874ee1c12143dbdfc86e25fb786",
+  "grading.ts": "3509df295587aca5fa4ca3e23df4608289611be7cc1ecc79a9983a6bb6aeb903",
+  "runner-paired.ts": "d816d12e2396f700f265c91d997bed7ee859fe2b94023662f33eebced835bd7d",
+  "program-tool.ts": "908f5abfdfed52cebeb13cc1dcdc7053533acb5a8bb5a6ffb086357ef6397ab1",
+  "program-worker.mjs": "a0dd0a6fe84b4ea55984280b3a59ed2643a79eb55ce813dde56765a76abd0215"
+}

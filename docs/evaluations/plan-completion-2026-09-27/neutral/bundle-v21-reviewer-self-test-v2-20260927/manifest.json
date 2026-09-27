@@ -1,0 +1,15 @@
+{
+  "source": "",
+  "inputHash": null,
+  "reviewer": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "effort": "high"
+  },
+  "reviewerCount": 1,
+  "independence": "different model from evaluated candidates, blind A/B labels; no human consensus claim",
+  "scope": "semantic prose assistance only; deterministic contract/state/ACL failures cannot be overridden",
+  "retryPolicy": "none; retain failed reviews",
+  "startedAt": "2026-09-27T02:27:26.138Z",
+  "harnessHash": "7ef8e662204bd0bc51ea02b6027226a02433b828eae0527371347e3cecd6e8b6"
+}

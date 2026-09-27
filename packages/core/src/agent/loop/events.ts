@@ -154,6 +154,8 @@ export type CheckpointContext =
   | { readonly kind: 'before-model-request'; readonly request: GenerateOptions; readonly snapshot: HistorySnapshot;
       readonly signal?: AbortSignal; readonly logger?: SdkLogger }
   | { readonly kind: 'before-tool-dispatch'; readonly call: ToolCallRequest; readonly snapshot: HistorySnapshot;
+      /** Set when a program tool made this call; the id of that outer call. */
+      readonly parentCallId?: ToolCallRequest['callId']
       readonly signal?: AbortSignal; readonly logger?: SdkLogger }
 export interface TurnEndContext {
   readonly outcome: TurnOutcome

@@ -1,0 +1,1024 @@
+[
+  {
+    "id": "CODE-01",
+    "domain": "CODE",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Inspect resource repo. Return {caller,source}; caller is the function name responsible for passing cents to a dollars function; source is its exact file path, not the enclosing resource name.",
+    "resources": {
+      "repo": {
+        "files": {
+          "price.ts": "export function dollars(x:number){return x}",
+          "checkout.ts": "import {dollars} from \"./price\"; export function total(cents:number){return dollars(cents)}",
+          "view.ts": "export const title=\"shop\""
+        }
+      }
+    },
+    "expected": {
+      "caller": "total",
+      "source": "checkout.ts"
+    },
+    "collections": {},
+    "variantId": "CODE-01:en",
+    "familyId": "CODE-01",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "CODE-01",
+    "domain": "CODE",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Đọc repo. Trả {caller,source}; caller là tên function truyền cents vào function dollars; source là file path chính xác, không phải tên resource chứa file.",
+    "resources": {
+      "repo": {
+        "files": {
+          "price.ts": "export function dollars(x:number){return x}",
+          "checkout.ts": "import {dollars} from \"./price\"; export function total(cents:number){return dollars(cents)}",
+          "view.ts": "export const title=\"shop\""
+        }
+      }
+    },
+    "expected": {
+      "caller": "total",
+      "source": "checkout.ts"
+    },
+    "collections": {},
+    "variantId": "CODE-01:vi",
+    "familyId": "CODE-01",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "DATA-01",
+    "domain": "DATA",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "In records, select group a with amount >= 50. Return {ids,total} for all matches; ids is a set and total is their amount sum.",
+    "resources": {},
+    "expected": {
+      "ids": [
+        "r3",
+        "r9",
+        "r15",
+        "r21",
+        "r27",
+        "r33",
+        "r39"
+      ],
+      "total": 448
+    },
+    "collections": {
+      "records": [
+        {
+          "id": "r0",
+          "amount": 10,
+          "group": "a"
+        },
+        {
+          "id": "r1",
+          "amount": 27,
+          "group": "b"
+        },
+        {
+          "id": "r2",
+          "amount": 44,
+          "group": "b"
+        },
+        {
+          "id": "r3",
+          "amount": 61,
+          "group": "a"
+        },
+        {
+          "id": "r4",
+          "amount": 78,
+          "group": "b"
+        },
+        {
+          "id": "r5",
+          "amount": 95,
+          "group": "b"
+        },
+        {
+          "id": "r6",
+          "amount": 11,
+          "group": "a"
+        },
+        {
+          "id": "r7",
+          "amount": 28,
+          "group": "b"
+        },
+        {
+          "id": "r8",
+          "amount": 45,
+          "group": "b"
+        },
+        {
+          "id": "r9",
+          "amount": 62,
+          "group": "a"
+        },
+        {
+          "id": "r10",
+          "amount": 79,
+          "group": "b"
+        },
+        {
+          "id": "r11",
+          "amount": 96,
+          "group": "b"
+        },
+        {
+          "id": "r12",
+          "amount": 12,
+          "group": "a"
+        },
+        {
+          "id": "r13",
+          "amount": 29,
+          "group": "b"
+        },
+        {
+          "id": "r14",
+          "amount": 46,
+          "group": "b"
+        },
+        {
+          "id": "r15",
+          "amount": 63,
+          "group": "a"
+        },
+        {
+          "id": "r16",
+          "amount": 80,
+          "group": "b"
+        },
+        {
+          "id": "r17",
+          "amount": 97,
+          "group": "b"
+        },
+        {
+          "id": "r18",
+          "amount": 13,
+          "group": "a"
+        },
+        {
+          "id": "r19",
+          "amount": 30,
+          "group": "b"
+        },
+        {
+          "id": "r20",
+          "amount": 47,
+          "group": "b"
+        },
+        {
+          "id": "r21",
+          "amount": 64,
+          "group": "a"
+        },
+        {
+          "id": "r22",
+          "amount": 81,
+          "group": "b"
+        },
+        {
+          "id": "r23",
+          "amount": 98,
+          "group": "b"
+        },
+        {
+          "id": "r24",
+          "amount": 14,
+          "group": "a"
+        },
+        {
+          "id": "r25",
+          "amount": 31,
+          "group": "b"
+        },
+        {
+          "id": "r26",
+          "amount": 48,
+          "group": "b"
+        },
+        {
+          "id": "r27",
+          "amount": 65,
+          "group": "a"
+        },
+        {
+          "id": "r28",
+          "amount": 82,
+          "group": "b"
+        },
+        {
+          "id": "r29",
+          "amount": 99,
+          "group": "b"
+        },
+        {
+          "id": "r30",
+          "amount": 15,
+          "group": "a"
+        },
+        {
+          "id": "r31",
+          "amount": 32,
+          "group": "b"
+        },
+        {
+          "id": "r32",
+          "amount": 49,
+          "group": "b"
+        },
+        {
+          "id": "r33",
+          "amount": 66,
+          "group": "a"
+        },
+        {
+          "id": "r34",
+          "amount": 83,
+          "group": "b"
+        },
+        {
+          "id": "r35",
+          "amount": 100,
+          "group": "b"
+        },
+        {
+          "id": "r36",
+          "amount": 16,
+          "group": "a"
+        },
+        {
+          "id": "r37",
+          "amount": 33,
+          "group": "b"
+        },
+        {
+          "id": "r38",
+          "amount": 50,
+          "group": "b"
+        },
+        {
+          "id": "r39",
+          "amount": 67,
+          "group": "a"
+        },
+        {
+          "id": "r40",
+          "amount": 84,
+          "group": "b"
+        },
+        {
+          "id": "r41",
+          "amount": 0,
+          "group": "b"
+        },
+        {
+          "id": "r42",
+          "amount": 17,
+          "group": "a"
+        },
+        {
+          "id": "r43",
+          "amount": 34,
+          "group": "b"
+        },
+        {
+          "id": "r44",
+          "amount": 51,
+          "group": "b"
+        }
+      ]
+    },
+    "variantId": "DATA-01:en",
+    "familyId": "DATA-01",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": true
+  },
+  {
+    "id": "DATA-01",
+    "domain": "DATA",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Chọn mọi record thuộc group a có amount >= 50. Trả {ids,total}; ids là tập ID và total là tổng amount.",
+    "resources": {},
+    "expected": {
+      "ids": [
+        "r3",
+        "r9",
+        "r15",
+        "r21",
+        "r27",
+        "r33",
+        "r39"
+      ],
+      "total": 448
+    },
+    "collections": {
+      "records": [
+        {
+          "id": "r0",
+          "amount": 10,
+          "group": "a"
+        },
+        {
+          "id": "r1",
+          "amount": 27,
+          "group": "b"
+        },
+        {
+          "id": "r2",
+          "amount": 44,
+          "group": "b"
+        },
+        {
+          "id": "r3",
+          "amount": 61,
+          "group": "a"
+        },
+        {
+          "id": "r4",
+          "amount": 78,
+          "group": "b"
+        },
+        {
+          "id": "r5",
+          "amount": 95,
+          "group": "b"
+        },
+        {
+          "id": "r6",
+          "amount": 11,
+          "group": "a"
+        },
+        {
+          "id": "r7",
+          "amount": 28,
+          "group": "b"
+        },
+        {
+          "id": "r8",
+          "amount": 45,
+          "group": "b"
+        },
+        {
+          "id": "r9",
+          "amount": 62,
+          "group": "a"
+        },
+        {
+          "id": "r10",
+          "amount": 79,
+          "group": "b"
+        },
+        {
+          "id": "r11",
+          "amount": 96,
+          "group": "b"
+        },
+        {
+          "id": "r12",
+          "amount": 12,
+          "group": "a"
+        },
+        {
+          "id": "r13",
+          "amount": 29,
+          "group": "b"
+        },
+        {
+          "id": "r14",
+          "amount": 46,
+          "group": "b"
+        },
+        {
+          "id": "r15",
+          "amount": 63,
+          "group": "a"
+        },
+        {
+          "id": "r16",
+          "amount": 80,
+          "group": "b"
+        },
+        {
+          "id": "r17",
+          "amount": 97,
+          "group": "b"
+        },
+        {
+          "id": "r18",
+          "amount": 13,
+          "group": "a"
+        },
+        {
+          "id": "r19",
+          "amount": 30,
+          "group": "b"
+        },
+        {
+          "id": "r20",
+          "amount": 47,
+          "group": "b"
+        },
+        {
+          "id": "r21",
+          "amount": 64,
+          "group": "a"
+        },
+        {
+          "id": "r22",
+          "amount": 81,
+          "group": "b"
+        },
+        {
+          "id": "r23",
+          "amount": 98,
+          "group": "b"
+        },
+        {
+          "id": "r24",
+          "amount": 14,
+          "group": "a"
+        },
+        {
+          "id": "r25",
+          "amount": 31,
+          "group": "b"
+        },
+        {
+          "id": "r26",
+          "amount": 48,
+          "group": "b"
+        },
+        {
+          "id": "r27",
+          "amount": 65,
+          "group": "a"
+        },
+        {
+          "id": "r28",
+          "amount": 82,
+          "group": "b"
+        },
+        {
+          "id": "r29",
+          "amount": 99,
+          "group": "b"
+        },
+        {
+          "id": "r30",
+          "amount": 15,
+          "group": "a"
+        },
+        {
+          "id": "r31",
+          "amount": 32,
+          "group": "b"
+        },
+        {
+          "id": "r32",
+          "amount": 49,
+          "group": "b"
+        },
+        {
+          "id": "r33",
+          "amount": 66,
+          "group": "a"
+        },
+        {
+          "id": "r34",
+          "amount": 83,
+          "group": "b"
+        },
+        {
+          "id": "r35",
+          "amount": 100,
+          "group": "b"
+        },
+        {
+          "id": "r36",
+          "amount": 16,
+          "group": "a"
+        },
+        {
+          "id": "r37",
+          "amount": 33,
+          "group": "b"
+        },
+        {
+          "id": "r38",
+          "amount": 50,
+          "group": "b"
+        },
+        {
+          "id": "r39",
+          "amount": 67,
+          "group": "a"
+        },
+        {
+          "id": "r40",
+          "amount": 84,
+          "group": "b"
+        },
+        {
+          "id": "r41",
+          "amount": 0,
+          "group": "b"
+        },
+        {
+          "id": "r42",
+          "amount": 17,
+          "group": "a"
+        },
+        {
+          "id": "r43",
+          "amount": 34,
+          "group": "b"
+        },
+        {
+          "id": "r44",
+          "amount": 51,
+          "group": "b"
+        }
+      ]
+    },
+    "variantId": "DATA-01:vi",
+    "familyId": "DATA-01",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": true
+  },
+  {
+    "id": "DOC-01",
+    "domain": "DOC",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "According to the pinned manual, return {retentionDays,source}.",
+    "resources": {
+      "manual": {
+        "id": "manual-7",
+        "retentionDays": 30,
+        "vendorBlog": "Some unrelated products retain 90 days."
+      }
+    },
+    "expected": {
+      "retentionDays": 30,
+      "source": "manual-7"
+    },
+    "collections": {},
+    "variantId": "DOC-01:en",
+    "familyId": "DOC-01",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "DOC-01",
+    "domain": "DOC",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Theo manual đã pin, trả {retentionDays,source}.",
+    "resources": {
+      "manual": {
+        "id": "manual-7",
+        "retentionDays": 30,
+        "vendorBlog": "Some unrelated products retain 90 days."
+      }
+    },
+    "expected": {
+      "retentionDays": 30,
+      "source": "manual-7"
+    },
+    "collections": {},
+    "variantId": "DOC-01:vi",
+    "familyId": "DOC-01",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "HIST-01",
+    "domain": "HIST",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Find the past storage decision in history. Return {choice,source}.",
+    "resources": {
+      "history": [
+        {
+          "id": "m1",
+          "kind": "decision",
+          "choice": "PostgreSQL"
+        },
+        {
+          "id": "m2",
+          "kind": "comment",
+          "choice": "Redis might be useful"
+        }
+      ]
+    },
+    "expected": {
+      "choice": "PostgreSQL",
+      "source": "m1"
+    },
+    "collections": {},
+    "variantId": "HIST-01:en",
+    "familyId": "HIST-01",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "HIST-01",
+    "domain": "HIST",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Tìm quyết định storage trước đây trong history. Trả {choice,source}.",
+    "resources": {
+      "history": [
+        {
+          "id": "m1",
+          "kind": "decision",
+          "choice": "PostgreSQL"
+        },
+        {
+          "id": "m2",
+          "kind": "comment",
+          "choice": "Redis might be useful"
+        }
+      ]
+    },
+    "expected": {
+      "choice": "PostgreSQL",
+      "source": "m1"
+    },
+    "collections": {},
+    "variantId": "HIST-01:vi",
+    "familyId": "HIST-01",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "OPS-01",
+    "domain": "OPS",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Use logs to identify the component causing the failure, not its downstream symptom. Return {component,event}; event is the exact log event id.",
+    "resources": {
+      "logs": [
+        {
+          "id": "ev1",
+          "component": "db",
+          "error": "connection refused",
+          "at": 1
+        },
+        {
+          "id": "ev2",
+          "component": "api",
+          "error": "database unavailable",
+          "at": 2
+        },
+        {
+          "id": "ev3",
+          "component": "ui",
+          "error": "HTTP 503",
+          "at": 3
+        }
+      ]
+    },
+    "expected": {
+      "component": "db",
+      "event": "ev1"
+    },
+    "collections": {},
+    "variantId": "OPS-01:en",
+    "familyId": "OPS-01",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "OPS-01",
+    "domain": "OPS",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Đọc logs và xác định component gây lỗi, không chọn triệu chứng downstream. Trả {component,event}; event là log event ID chính xác.",
+    "resources": {
+      "logs": [
+        {
+          "id": "ev1",
+          "component": "db",
+          "error": "connection refused",
+          "at": 1
+        },
+        {
+          "id": "ev2",
+          "component": "api",
+          "error": "database unavailable",
+          "at": 2
+        },
+        {
+          "id": "ev3",
+          "component": "ui",
+          "error": "HTTP 503",
+          "at": 3
+        }
+      ]
+    },
+    "expected": {
+      "component": "db",
+      "event": "ev1"
+    },
+    "collections": {},
+    "variantId": "OPS-01:vi",
+    "familyId": "OPS-01",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "BIZ-01",
+    "domain": "BIZ",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Match invoices to orders. Return {mismatchIds} where amounts differ.",
+    "resources": {},
+    "expected": {
+      "mismatchIds": [
+        "i2"
+      ]
+    },
+    "collections": {
+      "invoices": [
+        {
+          "id": "i1",
+          "orderId": "o1",
+          "amount": 10
+        },
+        {
+          "id": "i2",
+          "orderId": "o2",
+          "amount": 51
+        }
+      ],
+      "orders": [
+        {
+          "id": "o1",
+          "amount": 10
+        },
+        {
+          "id": "o2",
+          "amount": 50
+        }
+      ]
+    },
+    "variantId": "BIZ-01:en",
+    "familyId": "BIZ-01",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": true
+  },
+  {
+    "id": "BIZ-01",
+    "domain": "BIZ",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Đối chiếu invoices với orders. Trả {mismatchIds} gồm invoice có amount khác order.",
+    "resources": {},
+    "expected": {
+      "mismatchIds": [
+        "i2"
+      ]
+    },
+    "collections": {
+      "invoices": [
+        {
+          "id": "i1",
+          "orderId": "o1",
+          "amount": 10
+        },
+        {
+          "id": "i2",
+          "orderId": "o2",
+          "amount": 51
+        }
+      ],
+      "orders": [
+        {
+          "id": "o1",
+          "amount": 10
+        },
+        {
+          "id": "o2",
+          "amount": 50
+        }
+      ]
+    },
+    "variantId": "BIZ-01:vi",
+    "familyId": "BIZ-01",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": true
+  },
+  {
+    "id": "SUP-01",
+    "domain": "SUP",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "From manual return {resetButtonSeconds,source}.",
+    "resources": {
+      "manual": {
+        "id": "support-manual",
+        "resetButtonSeconds": 8
+      }
+    },
+    "expected": {
+      "resetButtonSeconds": 8,
+      "source": "support-manual"
+    },
+    "collections": {},
+    "variantId": "SUP-01:en",
+    "familyId": "SUP-01",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "SUP-01",
+    "domain": "SUP",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Theo manual, trả {resetButtonSeconds,source}.",
+    "resources": {
+      "manual": {
+        "id": "support-manual",
+        "resetButtonSeconds": 8
+      }
+    },
+    "expected": {
+      "resetButtonSeconds": 8,
+      "source": "support-manual"
+    },
+    "collections": {},
+    "variantId": "SUP-01:vi",
+    "familyId": "SUP-01",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "PLAN-01",
+    "domain": "PLAN",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Schedule A (duration 2) before B (duration 1), one worker, start >= 0, finish <= 5. Return {starts:{A:number,B:number}}. Any feasible schedule is valid.",
+    "resources": {},
+    "expected": {},
+    "collections": {},
+    "grader": "schedule",
+    "variantId": "PLAN-01:en",
+    "familyId": "PLAN-01",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "PLAN-01",
+    "domain": "PLAN",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Một worker xếp A (duration 2) trước B (duration 1), start >= 0 và finish <= 5. Trả {starts:{A:number,B:number}}. Mọi lịch hợp lệ đều được chấp nhận.",
+    "resources": {},
+    "expected": {},
+    "collections": {},
+    "grader": "schedule",
+    "variantId": "PLAN-01:vi",
+    "familyId": "PLAN-01",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "LANG-01",
+    "domain": "LANG",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Summarize notice in English in at most 45 words, preserving its facts without inventing any. Return {summary,ngay,soLuong,diaDiem}.",
+    "resources": {
+      "notice": "Ngày 2026-10-02, 24 nhân viên tham gia tại Đà Nẵng. Đây là thông báo chính thức."
+    },
+    "expected": {
+      "ngay": "2026-10-02",
+      "soLuong": 24,
+      "diaDiem": "Đà Nẵng"
+    },
+    "collections": {},
+    "grader": "manual",
+    "variantId": "LANG-01:en",
+    "familyId": "LANG-01",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false,
+    "reviewRubric": [
+      "all notice facts preserved",
+      "no unsupported claim",
+      "coherent summary",
+      "requested answer language",
+      "at most 45 words"
+    ]
+  },
+  {
+    "id": "LANG-01",
+    "domain": "LANG",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Tóm tắt notice bằng tiếng Việt trong tối đa 45 từ. Trả {summary,ngay,soLuong,diaDiem}; giữ số liệu và không thêm thông tin chưa có nguồn.",
+    "resources": {
+      "notice": "Ngày 2026-10-02, 24 nhân viên tham gia tại Đà Nẵng. Đây là thông báo chính thức."
+    },
+    "expected": {
+      "ngay": "2026-10-02",
+      "soLuong": 24,
+      "diaDiem": "Đà Nẵng"
+    },
+    "collections": {},
+    "grader": "manual",
+    "variantId": "LANG-01:vi",
+    "familyId": "LANG-01",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false,
+    "reviewRubric": [
+      "all notice facts preserved",
+      "no unsupported claim",
+      "coherent summary",
+      "requested answer language",
+      "at most 45 words"
+    ]
+  },
+  {
+    "id": "BASIC-01",
+    "domain": "BASIC",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Return {value} for 10 * 13 + 4.",
+    "resources": {},
+    "expected": {
+      "value": 134
+    },
+    "collections": {},
+    "variantId": "BASIC-01:en",
+    "familyId": "BASIC-01",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "BASIC-01",
+    "domain": "BASIC",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Trả {value} cho phép tính 10 * 13 + 4.",
+    "resources": {},
+    "expected": {
+      "value": 134
+    },
+    "collections": {},
+    "variantId": "BASIC-01:vi",
+    "familyId": "BASIC-01",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  }
+]

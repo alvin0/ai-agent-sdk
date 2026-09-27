@@ -49,7 +49,7 @@ const agent = runtime.agent({
 | `maxTokens` | `number` | Trần output. Đối chiếu trần cứng của model trước khi có I/O. |
 | `outputFormat` | `ModelOutputFormat` | Văn bản hoặc JSON Schema có tên cho câu trả lời cuối. |
 | `mode` | `'basic' \| 'deep' \| 'deep-human-in-loop'` | Chính sách thực thi. |
-| `commentary` | `'auto' \| 'concise' \| 'off'` | Tường thuật tiến độ. |
+| `commentary` | `'auto' \| 'concise' \| 'off'` | Tường thuật tiến độ. Mặc định `auto` để caller và model quyết định; chọn `concise` để yêu cầu cập nhật tiến độ ngắn. |
 | `maxTurns` | `number` | Số bước model. Mặc định 16. |
 | `maxToolCalls` | `number` | Số tool được điều phối. Mặc định 64. |
 | `tools` | `ToolDefinition[]` | Hàm của host, do bộ lập lịch thực thi. |

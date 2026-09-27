@@ -1,0 +1,4140 @@
+[
+  {
+    "provider": "codex",
+    "id": "failed-dependency-control:en",
+    "repeat": 0,
+    "BASE": {
+      "id": "failed-dependency-control:en",
+      "family": "failed-dependency-control",
+      "language": "en",
+      "repeat": 0,
+      "arm": "BASE",
+      "provider": "codex",
+      "model": "gpt-6-luna",
+      "order": [
+        "CANDIDATE",
+        "BASE",
+        "REFERENCE"
+      ],
+      "result": {
+        "text": "{\"status\":\"unknown\",\"totalObserved\":null,\"totalBaseline\":null,\"changePercent\":null,\"sourceIds\":[]}",
+        "status": "completed",
+        "terminals": [
+          {
+            "worker": "source_a",
+            "runId": "3f60437aae5a9bc4fa07e8cf2bd5ec65",
+            "data": {
+              "status": "error",
+              "durationMs": 1.6301669999957085,
+              "completed": false,
+              "usage": {
+                "reported": {},
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 0,
+                  "complete": 0,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 1,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 1
+                },
+                "authoritative": false
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 0,
+                  "error": 1,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 0,
+                  "error": 1,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 2
+            }
+          },
+          {
+            "worker": "consumer",
+            "runId": "fe2d3c2ac17812150383e198d0cc7647",
+            "data": {
+              "status": "success",
+              "durationMs": 9948.808124999981,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 1998,
+                  "outputTokens": 183,
+                  "totalTokens": 2181,
+                  "reasoningTokens": 105
+                },
+                "budgetTokens": 2181,
+                "coverage": {
+                  "logicalCalls": 2,
+                  "attempts": 2,
+                  "complete": 2,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 5,
+                  "success": 5,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          }
+        ],
+        "modelEnds": [
+          {
+            "worker": "source_a",
+            "data": {
+              "status": "error",
+              "durationMs": 0.4068330000154674,
+              "finishReason": "error",
+              "dispatchState": "unknown",
+              "coverage": "missing",
+              "reported": {},
+              "attemptCount": 0
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 3666.691041999962,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 791,
+                "outputTokens": 70,
+                "totalTokens": 861,
+                "reasoningTokens": 22
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 6278.523124999949,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 1207,
+                "outputTokens": 113,
+                "totalTokens": 1320,
+                "reasoningTokens": 83
+              },
+              "attemptCount": 1
+            }
+          }
+        ],
+        "calls": [
+          {
+            "worker": "consumer",
+            "tool": "list_agents"
+          }
+        ],
+        "evidence": [
+          {
+            "worker": "source_a",
+            "bytes": 1157,
+            "sourceIdsPresent": [
+              "evidence-a-4"
+            ]
+          },
+          {
+            "worker": "consumer",
+            "bytes": 1620,
+            "sourceIdsPresent": []
+          },
+          {
+            "worker": "consumer",
+            "bytes": 5123,
+            "sourceIdsPresent": []
+          }
+        ],
+        "effects": 0,
+        "effectScope": "no state-changing tool or external write authority exposed",
+        "elapsedMs": 9954.226082999958
+      },
+      "grade": {
+        "correct": true,
+        "exactSourceIdentity": true,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": []
+        }
+      },
+      "originalArm": "BASE",
+      "measurement": {
+        "initialRequiredSourceIdsVisible": null,
+        "reportedTokenSubtotal": 2181,
+        "completeTokenEvidence": true,
+        "coverage": {
+          "logicalCalls": 2,
+          "attempts": 2,
+          "complete": 2,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "modelCalls": 2,
+        "toolCalls": 1,
+        "providerAttempts": 2,
+        "elapsedMs": 9954.226082999958,
+        "terminalRuns": 1,
+        "modelEndRecords": 2,
+        "tokenReconciliation": true
+      }
+    },
+    "CANDIDATE": {
+      "id": "failed-dependency-control:en",
+      "family": "failed-dependency-control",
+      "language": "en",
+      "repeat": 0,
+      "arm": "CANDIDATE",
+      "provider": "codex",
+      "model": "gpt-6-luna",
+      "order": [
+        "CANDIDATE",
+        "BASE",
+        "REFERENCE"
+      ],
+      "result": {
+        "text": "{\"status\":\"unknown\",\"totalObserved\":null,\"totalBaseline\":null,\"changePercent\":null,\"sourceIds\":[\"source_a\"]}",
+        "status": "completed",
+        "terminals": [
+          {
+            "worker": "source_a",
+            "runId": "6f83076b4940e7ac3a56473efa07a889",
+            "data": {
+              "status": "error",
+              "durationMs": 1.408707999973558,
+              "completed": false,
+              "usage": {
+                "reported": {},
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 0,
+                  "complete": 0,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 1,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 1
+                },
+                "authoritative": false
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 0,
+                  "error": 1,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 0,
+                  "error": 1,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 2
+            }
+          },
+          {
+            "worker": "consumer",
+            "runId": "c187adda3c935413817bc0d37c2cc2e4",
+            "data": {
+              "status": "success",
+              "durationMs": 4179.447959000012,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 937,
+                  "outputTokens": 84,
+                  "totalTokens": 1021,
+                  "reasoningTokens": 51
+                },
+                "budgetTokens": 1021,
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 1,
+                  "complete": 1,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          }
+        ],
+        "modelEnds": [
+          {
+            "worker": "source_a",
+            "data": {
+              "status": "error",
+              "durationMs": 0.563750000030268,
+              "finishReason": "error",
+              "dispatchState": "unknown",
+              "coverage": "missing",
+              "reported": {},
+              "attemptCount": 0
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 4178.666417,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 937,
+                "outputTokens": 84,
+                "totalTokens": 1021,
+                "reasoningTokens": 51
+              },
+              "attemptCount": 1
+            }
+          }
+        ],
+        "calls": [],
+        "evidence": [
+          {
+            "worker": "source_a",
+            "bytes": 1157,
+            "sourceIdsPresent": [
+              "evidence-a-4"
+            ]
+          },
+          {
+            "worker": "consumer",
+            "bytes": 2443,
+            "sourceIdsPresent": []
+          }
+        ],
+        "effects": 0,
+        "effectScope": "no state-changing tool or external write authority exposed",
+        "elapsedMs": 4182.522958000016
+      },
+      "grade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "source_a"
+          ]
+        }
+      },
+      "originalArm": "CANDIDATE",
+      "measurement": {
+        "initialRequiredSourceIdsVisible": null,
+        "reportedTokenSubtotal": 1021,
+        "completeTokenEvidence": true,
+        "coverage": {
+          "logicalCalls": 1,
+          "attempts": 1,
+          "complete": 1,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "providerAttempts": 1,
+        "elapsedMs": 4182.522958000016,
+        "terminalRuns": 1,
+        "modelEndRecords": 1,
+        "tokenReconciliation": true
+      }
+    }
+  },
+  {
+    "provider": "zenmux",
+    "id": "parallel-synthesis-control:en",
+    "repeat": 0,
+    "BASE": {
+      "id": "parallel-synthesis-control:en",
+      "family": "parallel-synthesis-control",
+      "language": "en",
+      "repeat": 0,
+      "arm": "BASE",
+      "provider": "zenmux",
+      "model": "dots-studio/dots3-note-prev",
+      "order": [
+        "BASE",
+        "REFERENCE",
+        "CANDIDATE"
+      ],
+      "result": {
+        "text": "\n\n```json\n{\"status\":\"completed\",\"totalObserved\":230,\"totalBaseline\":200,\"changePercent\":15.0,\"sourceIds\":[\"evidence-a-3\",\"evidence-b-3\"]}\n```",
+        "status": "completed",
+        "terminals": [
+          {
+            "worker": "source_b",
+            "runId": "bd731f1b4a0f23d89826405d1a527b63",
+            "data": {
+              "status": "success",
+              "durationMs": 1940.8779999999679,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 987,
+                  "outputTokens": 135,
+                  "totalTokens": 1122
+                },
+                "budgetTokens": 1122,
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 1,
+                  "complete": 1,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          },
+          {
+            "worker": "source_a",
+            "runId": "7d073416415a1be42bc59c8ad5bab32b",
+            "data": {
+              "status": "success",
+              "durationMs": 2922.920625000028,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 991,
+                  "outputTokens": 161,
+                  "totalTokens": 1152
+                },
+                "budgetTokens": 1152,
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 1,
+                  "complete": 1,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          },
+          {
+            "worker": "lead",
+            "runId": "633fc086fc680d6c33a0907217f3f941",
+            "data": {
+              "status": "success",
+              "durationMs": 8466.597624999995,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 3763,
+                  "outputTokens": 680,
+                  "totalTokens": 13147,
+                  "cacheReadTokens": 8704
+                },
+                "budgetTokens": 13147,
+                "coverage": {
+                  "logicalCalls": 4,
+                  "attempts": 4,
+                  "complete": 4,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 4,
+                  "success": 4,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 4,
+                  "success": 4,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 3,
+                  "success": 3,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 12,
+                  "success": 12,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 5,
+                  "success": 5,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          }
+        ],
+        "modelEnds": [
+          {
+            "worker": "source_b",
+            "data": {
+              "status": "success",
+              "durationMs": 1938.3903329999885,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 987,
+                "outputTokens": 135,
+                "totalTokens": 1122
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "source_a",
+            "data": {
+              "status": "success",
+              "durationMs": 2919.682291999983,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 991,
+                "outputTokens": 161,
+                "totalTokens": 1152
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "lead",
+            "data": {
+              "status": "success",
+              "durationMs": 2605.724917000043,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 2680,
+                "outputTokens": 278,
+                "totalTokens": 2958
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "lead",
+            "data": {
+              "status": "success",
+              "durationMs": 3157.229417000024,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 563,
+                "outputTokens": 304,
+                "totalTokens": 3427,
+                "cacheReadTokens": 2560
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "lead",
+            "data": {
+              "status": "success",
+              "durationMs": 1140.7322079999722,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 231,
+                "outputTokens": 38,
+                "totalTokens": 3341,
+                "cacheReadTokens": 3072
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "lead",
+            "data": {
+              "status": "success",
+              "durationMs": 1549.72683400003,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 289,
+                "outputTokens": 60,
+                "totalTokens": 3421,
+                "cacheReadTokens": 3072
+              },
+              "attemptCount": 1
+            }
+          }
+        ],
+        "calls": [
+          {
+            "worker": "lead",
+            "tool": "list_agents"
+          },
+          {
+            "worker": "lead",
+            "tool": "close_agent"
+          },
+          {
+            "worker": "lead",
+            "tool": "close_agent"
+          }
+        ],
+        "evidence": [
+          {
+            "worker": "source_a",
+            "bytes": 1157,
+            "sourceIdsPresent": [
+              "evidence-a-3"
+            ]
+          },
+          {
+            "worker": "source_b",
+            "bytes": 1155,
+            "sourceIdsPresent": [
+              "evidence-b-3"
+            ]
+          },
+          {
+            "worker": "lead",
+            "bytes": 2397,
+            "sourceIdsPresent": [
+              "evidence-a-3",
+              "evidence-b-3"
+            ]
+          },
+          {
+            "worker": "lead",
+            "bytes": 4336,
+            "sourceIdsPresent": [
+              "evidence-a-3",
+              "evidence-b-3"
+            ]
+          },
+          {
+            "worker": "lead",
+            "bytes": 5348,
+            "sourceIdsPresent": [
+              "evidence-a-3",
+              "evidence-b-3"
+            ]
+          },
+          {
+            "worker": "lead",
+            "bytes": 6031,
+            "sourceIdsPresent": [
+              "evidence-a-3",
+              "evidence-b-3"
+            ]
+          }
+        ],
+        "effects": 0,
+        "effectScope": "no state-changing tool or external write authority exposed",
+        "elapsedMs": 11393.671417000005
+      },
+      "grade": {
+        "correct": true,
+        "exactSourceIdentity": true,
+        "falseCompletion": false,
+        "actual": {
+          "status": "completed",
+          "totalObserved": 230,
+          "totalBaseline": 200,
+          "changePercent": 15,
+          "sourceIds": [
+            "evidence-a-3",
+            "evidence-b-3"
+          ]
+        }
+      },
+      "originalArm": "BASE",
+      "measurement": {
+        "initialRequiredSourceIdsVisible": true,
+        "reportedTokenSubtotal": 15421,
+        "completeTokenEvidence": true,
+        "coverage": {
+          "logicalCalls": 6,
+          "attempts": 6,
+          "complete": 6,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "modelCalls": 6,
+        "toolCalls": 3,
+        "providerAttempts": 6,
+        "elapsedMs": 11393.671417000005,
+        "terminalRuns": 3,
+        "modelEndRecords": 6,
+        "tokenReconciliation": true
+      }
+    },
+    "CANDIDATE": {
+      "id": "parallel-synthesis-control:en",
+      "family": "parallel-synthesis-control",
+      "language": "en",
+      "repeat": 0,
+      "arm": "CANDIDATE",
+      "provider": "zenmux",
+      "model": "dots-studio/dots3-note-prev",
+      "order": [
+        "BASE",
+        "REFERENCE",
+        "CANDIDATE"
+      ],
+      "result": {
+        "text": "\n\n{\n  \"status\": \"completed\",\n  \"totalObserved\": 230,\n  \"totalBaseline\": 200,\n  \"changePercent\": 15,\n  \"sourceIds\": [\"source_a\", \"source_b\"]\n}",
+        "status": "completed",
+        "terminals": [
+          {
+            "worker": "source_b",
+            "runId": "fa02aad4ac1724033efe124413483255",
+            "data": {
+              "status": "success",
+              "durationMs": 2194.4414579999866,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 953,
+                  "outputTokens": 103,
+                  "totalTokens": 1056
+                },
+                "budgetTokens": 1056,
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 1,
+                  "complete": 1,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          },
+          {
+            "worker": "source_a",
+            "runId": "b57eaf69269ec9d17944a652e540b0e6",
+            "data": {
+              "status": "success",
+              "durationMs": 2396.975124999997,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 955,
+                  "outputTokens": 149,
+                  "totalTokens": 1104
+                },
+                "budgetTokens": 1104,
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 1,
+                  "complete": 1,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          },
+          {
+            "worker": "lead",
+            "runId": "eaa659b6beec3d041d5bb7eda4d59c58",
+            "data": {
+              "status": "success",
+              "durationMs": 6720.668833000003,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 2073,
+                  "outputTokens": 714,
+                  "totalTokens": 2787
+                },
+                "budgetTokens": 2787,
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 1,
+                  "complete": 1,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 3,
+                  "success": 3,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          }
+        ],
+        "modelEnds": [
+          {
+            "worker": "source_b",
+            "data": {
+              "status": "success",
+              "durationMs": 2189.878457999963,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 953,
+                "outputTokens": 103,
+                "totalTokens": 1056
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "source_a",
+            "data": {
+              "status": "success",
+              "durationMs": 2392.1772919999785,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 955,
+                "outputTokens": 149,
+                "totalTokens": 1104
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "lead",
+            "data": {
+              "status": "success",
+              "durationMs": 6718.539916000038,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 2073,
+                "outputTokens": 714,
+                "totalTokens": 2787
+              },
+              "attemptCount": 1
+            }
+          }
+        ],
+        "calls": [],
+        "evidence": [
+          {
+            "worker": "source_a",
+            "bytes": 1157,
+            "sourceIdsPresent": [
+              "evidence-a-3"
+            ]
+          },
+          {
+            "worker": "source_b",
+            "bytes": 1155,
+            "sourceIdsPresent": [
+              "evidence-b-3"
+            ]
+          },
+          {
+            "worker": "lead",
+            "bytes": 2383,
+            "sourceIdsPresent": [
+              "evidence-a-3",
+              "evidence-b-3"
+            ]
+          }
+        ],
+        "effects": 0,
+        "effectScope": "no state-changing tool or external write authority exposed",
+        "elapsedMs": 9124.135624999995
+      },
+      "grade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": true,
+        "actual": {
+          "status": "completed",
+          "totalObserved": 230,
+          "totalBaseline": 200,
+          "changePercent": 15,
+          "sourceIds": [
+            "source_a",
+            "source_b"
+          ]
+        }
+      },
+      "originalArm": "CANDIDATE",
+      "measurement": {
+        "initialRequiredSourceIdsVisible": true,
+        "reportedTokenSubtotal": 4947,
+        "completeTokenEvidence": true,
+        "coverage": {
+          "logicalCalls": 3,
+          "attempts": 3,
+          "complete": 3,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "modelCalls": 3,
+        "toolCalls": 0,
+        "providerAttempts": 3,
+        "elapsedMs": 9124.135624999995,
+        "terminalRuns": 3,
+        "modelEndRecords": 3,
+        "tokenReconciliation": true
+      }
+    }
+  },
+  {
+    "provider": "zenmux",
+    "id": "early-dependency-control:en",
+    "repeat": 2,
+    "BASE": {
+      "id": "early-dependency-control:en",
+      "family": "early-dependency-control",
+      "language": "en",
+      "repeat": 2,
+      "arm": "BASE",
+      "provider": "zenmux",
+      "model": "dots-studio/dots3-note-prev",
+      "order": [
+        "CANDIDATE",
+        "BASE",
+        "REFERENCE"
+      ],
+      "result": {
+        "text": "\n\n{\"status\":\"completed\",\"totalObserved\":134,\"totalBaseline\":100,\"changePercent\":34,\"sourceIds\":[\"evidence-a-2\"]}",
+        "status": "completed",
+        "terminals": [
+          {
+            "worker": "source_a",
+            "runId": "03a785a58e80af91508d1a16c2239283",
+            "data": {
+              "status": "success",
+              "durationMs": 2267.3493749999907,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 987,
+                  "outputTokens": 119,
+                  "totalTokens": 1106
+                },
+                "budgetTokens": 1106,
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 1,
+                  "complete": 1,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          },
+          {
+            "worker": "consumer",
+            "runId": "d04013de13ca1079ad8c167e600ee626",
+            "data": {
+              "status": "success",
+              "durationMs": 5280.275541999843,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 1390,
+                  "outputTokens": 571,
+                  "totalTokens": 2985,
+                  "cacheReadTokens": 1024
+                },
+                "budgetTokens": 2985,
+                "coverage": {
+                  "logicalCalls": 2,
+                  "attempts": 2,
+                  "complete": 2,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 5,
+                  "success": 5,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          }
+        ],
+        "modelEnds": [
+          {
+            "worker": "source_a",
+            "data": {
+              "status": "success",
+              "durationMs": 2264.396290999837,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 987,
+                "outputTokens": 119,
+                "totalTokens": 1106
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 3444.061791999964,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 1139,
+                "outputTokens": 418,
+                "totalTokens": 1557
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 1831.331790999975,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 251,
+                "outputTokens": 153,
+                "totalTokens": 1428,
+                "cacheReadTokens": 1024
+              },
+              "attemptCount": 1
+            }
+          }
+        ],
+        "calls": [
+          {
+            "worker": "consumer",
+            "tool": "send_message"
+          }
+        ],
+        "evidence": [
+          {
+            "worker": "source_a",
+            "bytes": 1157,
+            "sourceIdsPresent": [
+              "evidence-a-2"
+            ]
+          },
+          {
+            "worker": "consumer",
+            "bytes": 2183,
+            "sourceIdsPresent": [
+              "evidence-a-2"
+            ]
+          },
+          {
+            "worker": "consumer",
+            "bytes": 3090,
+            "sourceIdsPresent": [
+              "evidence-a-2"
+            ]
+          }
+        ],
+        "effects": 0,
+        "effectScope": "no state-changing tool or external write authority exposed",
+        "elapsedMs": 7550.722249999875
+      },
+      "grade": {
+        "correct": true,
+        "exactSourceIdentity": true,
+        "falseCompletion": false,
+        "actual": {
+          "status": "completed",
+          "totalObserved": 134,
+          "totalBaseline": 100,
+          "changePercent": 34,
+          "sourceIds": [
+            "evidence-a-2"
+          ]
+        }
+      },
+      "originalArm": "BASE",
+      "measurement": {
+        "initialRequiredSourceIdsVisible": true,
+        "reportedTokenSubtotal": 4091,
+        "completeTokenEvidence": true,
+        "coverage": {
+          "logicalCalls": 3,
+          "attempts": 3,
+          "complete": 3,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "modelCalls": 3,
+        "toolCalls": 1,
+        "providerAttempts": 3,
+        "elapsedMs": 7550.722249999875,
+        "terminalRuns": 2,
+        "modelEndRecords": 3,
+        "tokenReconciliation": true
+      }
+    },
+    "CANDIDATE": {
+      "id": "early-dependency-control:en",
+      "family": "early-dependency-control",
+      "language": "en",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "provider": "zenmux",
+      "model": "dots-studio/dots3-note-prev",
+      "order": [
+        "CANDIDATE",
+        "BASE",
+        "REFERENCE"
+      ],
+      "result": {
+        "text": "\n\nThe source_a producer has completed with evidence. I have the full result payload:\n\n- observed: 134\n- baseline: 100\n- sourceId: evidence-a-2\n\nComputing the combined values:\n- totalObserved = 134\n- totalBaseline = 100\n- changePercent = ((134 - 100) / 100) × 100 = 34.0%\n\nAll required evidence is present, so status is \"completed\".\n\n```json\n{\"status\":\"completed\",\"totalObserved\":134,\"totalBaseline\":100,\"changePercent\":34.0,\"sourceIds\":[\"evidence-a-2\"]}\n```",
+        "status": "completed",
+        "terminals": [
+          {
+            "worker": "source_a",
+            "runId": "df68d4cd29dbc64f8e618f6b40f0a9fb",
+            "data": {
+              "status": "success",
+              "durationMs": 2266.6334999999963,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 952,
+                  "outputTokens": 100,
+                  "totalTokens": 1052
+                },
+                "budgetTokens": 1052,
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 1,
+                  "complete": 1,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          },
+          {
+            "worker": "consumer",
+            "runId": "2eff77418a3b14b3d585385d4e9088a1",
+            "data": {
+              "status": "success",
+              "durationMs": 8544.839457999915,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 2102,
+                  "outputTokens": 724,
+                  "totalTokens": 5386,
+                  "cacheReadTokens": 2560
+                },
+                "budgetTokens": 5386,
+                "coverage": {
+                  "logicalCalls": 3,
+                  "attempts": 3,
+                  "complete": 3,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 3,
+                  "success": 3,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 3,
+                  "success": 3,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 8,
+                  "success": 8,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 3,
+                  "success": 3,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          }
+        ],
+        "modelEnds": [
+          {
+            "worker": "source_a",
+            "data": {
+              "status": "success",
+              "durationMs": 2261.436041999841,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 952,
+                "outputTokens": 100,
+                "totalTokens": 1052
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 3313.6211670001503,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 1255,
+                "outputTokens": 209,
+                "totalTokens": 1464
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 2614.9533339999616,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 626,
+                "outputTokens": 269,
+                "totalTokens": 1919,
+                "cacheReadTokens": 1024
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 2606.586084000068,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 221,
+                "outputTokens": 246,
+                "totalTokens": 2003,
+                "cacheReadTokens": 1536
+              },
+              "attemptCount": 1
+            }
+          }
+        ],
+        "calls": [
+          {
+            "worker": "consumer",
+            "tool": "list_agents"
+          },
+          {
+            "worker": "consumer",
+            "tool": "read_dependency_result"
+          }
+        ],
+        "evidence": [
+          {
+            "worker": "source_a",
+            "bytes": 1157,
+            "sourceIdsPresent": [
+              "evidence-a-2"
+            ]
+          },
+          {
+            "worker": "consumer",
+            "bytes": 2456,
+            "sourceIdsPresent": [
+              "evidence-a-2"
+            ]
+          },
+          {
+            "worker": "consumer",
+            "bytes": 4195,
+            "sourceIdsPresent": [
+              "evidence-a-2"
+            ]
+          },
+          {
+            "worker": "consumer",
+            "bytes": 5061,
+            "sourceIdsPresent": [
+              "evidence-a-2"
+            ]
+          }
+        ],
+        "effects": 0,
+        "effectScope": "no state-changing tool or external write authority exposed",
+        "elapsedMs": 10817.571375000058
+      },
+      "grade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "originalArm": "CANDIDATE",
+      "measurement": {
+        "initialRequiredSourceIdsVisible": true,
+        "reportedTokenSubtotal": 6438,
+        "completeTokenEvidence": true,
+        "coverage": {
+          "logicalCalls": 4,
+          "attempts": 4,
+          "complete": 4,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "modelCalls": 4,
+        "toolCalls": 2,
+        "providerAttempts": 4,
+        "elapsedMs": 10817.571375000058,
+        "terminalRuns": 2,
+        "modelEndRecords": 4,
+        "tokenReconciliation": true
+      }
+    }
+  },
+  {
+    "provider": "zenmux",
+    "id": "early-dependency-control:vi",
+    "repeat": 2,
+    "BASE": {
+      "id": "early-dependency-control:vi",
+      "family": "early-dependency-control",
+      "language": "vi",
+      "repeat": 2,
+      "arm": "BASE",
+      "provider": "zenmux",
+      "model": "dots-studio/dots3-note-prev",
+      "order": [
+        "BASE",
+        "CANDIDATE",
+        "REFERENCE"
+      ],
+      "result": {
+        "text": "\n\n```json\n{\"status\":\"completed\",\"totalObserved\":134,\"totalBaseline\":100,\"changePercent\":34.0,\"sourceIds\":[\"evidence-a-2\"]}\n```",
+        "status": "completed",
+        "terminals": [
+          {
+            "worker": "source_a",
+            "runId": "9ff8668712c7eff9941ec8778c336600",
+            "data": {
+              "status": "success",
+              "durationMs": 2279.274459000211,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 1001,
+                  "outputTokens": 92,
+                  "totalTokens": 1093
+                },
+                "budgetTokens": 1093,
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 1,
+                  "complete": 1,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          },
+          {
+            "worker": "consumer",
+            "runId": "e1206fa693c61a82f046cd175a70c683",
+            "data": {
+              "status": "success",
+              "durationMs": 6649.664875000017,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 1608,
+                  "outputTokens": 601,
+                  "totalTokens": 3233,
+                  "cacheReadTokens": 1024
+                },
+                "budgetTokens": 3233,
+                "coverage": {
+                  "logicalCalls": 2,
+                  "attempts": 2,
+                  "complete": 2,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 5,
+                  "success": 5,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          }
+        ],
+        "modelEnds": [
+          {
+            "worker": "source_a",
+            "data": {
+              "status": "success",
+              "durationMs": 2277.8478339998983,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 1001,
+                "outputTokens": 92,
+                "totalTokens": 1093
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 3479.1039579999633,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 1192,
+                "outputTokens": 299,
+                "totalTokens": 1491
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 3167.749957999913,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 416,
+                "outputTokens": 302,
+                "totalTokens": 1742,
+                "cacheReadTokens": 1024
+              },
+              "attemptCount": 1
+            }
+          }
+        ],
+        "calls": [
+          {
+            "worker": "consumer",
+            "tool": "send_message"
+          }
+        ],
+        "evidence": [
+          {
+            "worker": "source_a",
+            "bytes": 1157,
+            "sourceIdsPresent": [
+              "evidence-a-2"
+            ]
+          },
+          {
+            "worker": "consumer",
+            "bytes": 2243,
+            "sourceIdsPresent": [
+              "evidence-a-2"
+            ]
+          },
+          {
+            "worker": "consumer",
+            "bytes": 3471,
+            "sourceIdsPresent": [
+              "evidence-a-2"
+            ]
+          }
+        ],
+        "effects": 0,
+        "effectScope": "no state-changing tool or external write authority exposed",
+        "elapsedMs": 8932.214750000043
+      },
+      "grade": {
+        "correct": true,
+        "exactSourceIdentity": true,
+        "falseCompletion": false,
+        "actual": {
+          "status": "completed",
+          "totalObserved": 134,
+          "totalBaseline": 100,
+          "changePercent": 34,
+          "sourceIds": [
+            "evidence-a-2"
+          ]
+        }
+      },
+      "originalArm": "BASE",
+      "measurement": {
+        "initialRequiredSourceIdsVisible": true,
+        "reportedTokenSubtotal": 4326,
+        "completeTokenEvidence": true,
+        "coverage": {
+          "logicalCalls": 3,
+          "attempts": 3,
+          "complete": 3,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "modelCalls": 3,
+        "toolCalls": 1,
+        "providerAttempts": 3,
+        "elapsedMs": 8932.214750000043,
+        "terminalRuns": 2,
+        "modelEndRecords": 3,
+        "tokenReconciliation": true
+      }
+    },
+    "CANDIDATE": {
+      "id": "early-dependency-control:vi",
+      "family": "early-dependency-control",
+      "language": "vi",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "provider": "zenmux",
+      "model": "dots-studio/dots3-note-prev",
+      "order": [
+        "BASE",
+        "CANDIDATE",
+        "REFERENCE"
+      ],
+      "result": {
+        "text": "\n\nBased on the producer result from `source_a`, I have the evidence needed:\n\n- **observed**: 134\n- **baseline**: 100\n- **sourceId**: evidence-a-2\n\nCalculating:\n- `totalObserved` = 134\n- `totalBaseline` = 100\n- `changePercent` = ((134 - 100) / 100) × 100 = 34.0\n\n```json\n{\"status\":\"completed\",\"totalObserved\":134,\"totalBaseline\":100,\"changePercent\":34.0,\"sourceIds\":[\"evidence-a-2\"]}\n```",
+        "status": "completed",
+        "terminals": [
+          {
+            "worker": "source_a",
+            "runId": "0dba4f5de98a2f09d46f2474bf0c48e4",
+            "data": {
+              "status": "success",
+              "durationMs": 2102.6724159999285,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 966,
+                  "outputTokens": 90,
+                  "totalTokens": 1056
+                },
+                "budgetTokens": 1056,
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 1,
+                  "complete": 1,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          },
+          {
+            "worker": "consumer",
+            "runId": "81a6b588b46680bf42040c20dace33a6",
+            "data": {
+              "status": "success",
+              "durationMs": 8367.751042000018,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 1944,
+                  "outputTokens": 675,
+                  "totalTokens": 3643,
+                  "cacheReadTokens": 1024
+                },
+                "budgetTokens": 3643,
+                "coverage": {
+                  "logicalCalls": 2,
+                  "attempts": 2,
+                  "complete": 2,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 5,
+                  "success": 5,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          }
+        ],
+        "modelEnds": [
+          {
+            "worker": "source_a",
+            "data": {
+              "status": "success",
+              "durationMs": 2099.223166999873,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 966,
+                "outputTokens": 90,
+                "totalTokens": 1056
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 5441.7221250000875,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 1290,
+                "outputTokens": 416,
+                "totalTokens": 1706
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 2921.7213749999646,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 654,
+                "outputTokens": 259,
+                "totalTokens": 1937,
+                "cacheReadTokens": 1024
+              },
+              "attemptCount": 1
+            }
+          }
+        ],
+        "calls": [
+          {
+            "worker": "consumer",
+            "tool": "list_agents"
+          }
+        ],
+        "evidence": [
+          {
+            "worker": "source_a",
+            "bytes": 1157,
+            "sourceIdsPresent": [
+              "evidence-a-2"
+            ]
+          },
+          {
+            "worker": "consumer",
+            "bytes": 2488,
+            "sourceIdsPresent": [
+              "evidence-a-2"
+            ]
+          },
+          {
+            "worker": "consumer",
+            "bytes": 4211,
+            "sourceIdsPresent": [
+              "evidence-a-2"
+            ]
+          }
+        ],
+        "effects": 0,
+        "effectScope": "no state-changing tool or external write authority exposed",
+        "elapsedMs": 10474.884040999925
+      },
+      "grade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false
+      },
+      "originalArm": "CANDIDATE",
+      "measurement": {
+        "initialRequiredSourceIdsVisible": true,
+        "reportedTokenSubtotal": 4699,
+        "completeTokenEvidence": true,
+        "coverage": {
+          "logicalCalls": 3,
+          "attempts": 3,
+          "complete": 3,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "modelCalls": 3,
+        "toolCalls": 1,
+        "providerAttempts": 3,
+        "elapsedMs": 10474.884040999925,
+        "terminalRuns": 2,
+        "modelEndRecords": 3,
+        "tokenReconciliation": true
+      }
+    }
+  },
+  {
+    "provider": "zenmux",
+    "id": "failed-dependency-control:en",
+    "repeat": 2,
+    "BASE": {
+      "id": "failed-dependency-control:en",
+      "family": "failed-dependency-control",
+      "language": "en",
+      "repeat": 2,
+      "arm": "BASE",
+      "provider": "zenmux",
+      "model": "dots-studio/dots3-note-prev",
+      "order": [
+        "BASE",
+        "REFERENCE",
+        "CANDIDATE"
+      ],
+      "result": {
+        "text": "\n\n```json\n{\"status\":\"unknown\",\"totalObserved\":null,\"totalBaseline\":null,\"changePercent\":null,\"sourceIds\":[]}\n```",
+        "status": "completed",
+        "terminals": [
+          {
+            "worker": "source_a",
+            "runId": "605c67fb06a434521c6e95b207cc106e",
+            "data": {
+              "status": "error",
+              "durationMs": 6.883417000062764,
+              "completed": false,
+              "usage": {
+                "reported": {},
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 0,
+                  "complete": 0,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 1,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 1
+                },
+                "authoritative": false
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 0,
+                  "error": 1,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 0,
+                  "error": 1,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 2
+            }
+          },
+          {
+            "worker": "consumer",
+            "runId": "9df0505a8aee218a8aebc1378eccac2b",
+            "data": {
+              "status": "success",
+              "durationMs": 8335.881708000088,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 2004,
+                  "outputTokens": 399,
+                  "totalTokens": 4451,
+                  "cacheReadTokens": 2048
+                },
+                "budgetTokens": 4451,
+                "coverage": {
+                  "logicalCalls": 3,
+                  "attempts": 3,
+                  "complete": 3,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 3,
+                  "success": 3,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 3,
+                  "success": 3,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 8,
+                  "success": 8,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 3,
+                  "success": 3,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          }
+        ],
+        "modelEnds": [
+          {
+            "worker": "source_a",
+            "data": {
+              "status": "error",
+              "durationMs": 2.797874999931082,
+              "finishReason": "error",
+              "dispatchState": "unknown",
+              "coverage": "missing",
+              "reported": {},
+              "attemptCount": 0
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 1841.1801670000423,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 1044,
+                "outputTokens": 114,
+                "totalTokens": 1158
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 4383.8322080001235,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 402,
+                "outputTokens": 224,
+                "totalTokens": 1650,
+                "cacheReadTokens": 1024
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 2101.1275839998852,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 558,
+                "outputTokens": 61,
+                "totalTokens": 1643,
+                "cacheReadTokens": 1024
+              },
+              "attemptCount": 1
+            }
+          }
+        ],
+        "calls": [
+          {
+            "worker": "consumer",
+            "tool": "list_agents"
+          },
+          {
+            "worker": "consumer",
+            "tool": "send_message"
+          }
+        ],
+        "evidence": [
+          {
+            "worker": "source_a",
+            "bytes": 1157,
+            "sourceIdsPresent": [
+              "evidence-a-4"
+            ]
+          },
+          {
+            "worker": "consumer",
+            "bytes": 1620,
+            "sourceIdsPresent": []
+          },
+          {
+            "worker": "consumer",
+            "bytes": 3372,
+            "sourceIdsPresent": []
+          },
+          {
+            "worker": "consumer",
+            "bytes": 4412,
+            "sourceIdsPresent": []
+          }
+        ],
+        "effects": 0,
+        "effectScope": "no state-changing tool or external write authority exposed",
+        "elapsedMs": 8350.59325000015
+      },
+      "grade": {
+        "correct": true,
+        "exactSourceIdentity": true,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": []
+        }
+      },
+      "originalArm": "BASE",
+      "measurement": {
+        "initialRequiredSourceIdsVisible": null,
+        "reportedTokenSubtotal": 4451,
+        "completeTokenEvidence": true,
+        "coverage": {
+          "logicalCalls": 3,
+          "attempts": 3,
+          "complete": 3,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "modelCalls": 3,
+        "toolCalls": 2,
+        "providerAttempts": 3,
+        "elapsedMs": 8350.59325000015,
+        "terminalRuns": 1,
+        "modelEndRecords": 3,
+        "tokenReconciliation": true
+      }
+    },
+    "CANDIDATE": {
+      "id": "failed-dependency-control:en",
+      "family": "failed-dependency-control",
+      "language": "en",
+      "repeat": 2,
+      "arm": "CANDIDATE",
+      "provider": "zenmux",
+      "model": "dots-studio/dots3-note-prev",
+      "order": [
+        "BASE",
+        "REFERENCE",
+        "CANDIDATE"
+      ],
+      "result": {
+        "text": "\n\n```json\n{\"status\":\"unknown\",\"totalObserved\":null,\"totalBaseline\":null,\"changePercent\":null,\"sourceIds\":[\"source_a\"]}\n```",
+        "status": "completed",
+        "terminals": [
+          {
+            "worker": "source_a",
+            "runId": "d17873da067b8ea7d1ace15aac6fac95",
+            "data": {
+              "status": "error",
+              "durationMs": 2.4646250000223517,
+              "completed": false,
+              "usage": {
+                "reported": {},
+                "coverage": {
+                  "logicalCalls": 1,
+                  "attempts": 0,
+                  "complete": 0,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 1,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 1
+                },
+                "authoritative": false
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 0,
+                  "error": 1,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 1,
+                  "success": 0,
+                  "error": 1,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 2,
+                  "success": 2,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 2
+            }
+          },
+          {
+            "worker": "consumer",
+            "runId": "6daec2f934d64da7891e099f3b59bfed",
+            "data": {
+              "status": "success",
+              "durationMs": 15151.395166000118,
+              "completed": true,
+              "usage": {
+                "reported": {
+                  "inputTokens": 4056,
+                  "outputTokens": 1214,
+                  "totalTokens": 7318,
+                  "cacheReadTokens": 2048
+                },
+                "budgetTokens": 7318,
+                "coverage": {
+                  "logicalCalls": 4,
+                  "attempts": 4,
+                  "complete": 4,
+                  "partial": 0,
+                  "estimated": 0,
+                  "missing": 0,
+                  "notApplicable": 0,
+                  "possiblyBilledAttemptsWithoutUsage": 0
+                },
+                "authoritative": true
+              },
+              "operationCounts": {
+                "turn": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "model-call": {
+                  "total": 4,
+                  "success": 4,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "provider-attempt": {
+                  "total": 4,
+                  "success": 4,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "tool": {
+                  "total": 3,
+                  "success": 3,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "compaction": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "hook": {
+                  "total": 11,
+                  "success": 11,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "user-input": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "skill": {
+                  "total": 1,
+                  "success": 1,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "memory": {
+                  "total": 4,
+                  "success": 4,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "credential": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                },
+                "integration": {
+                  "total": 0,
+                  "success": 0,
+                  "error": 0,
+                  "aborted": 0,
+                  "rejected": 0,
+                  "unknown": 0
+                }
+              },
+              "errorCount": 0
+            }
+          }
+        ],
+        "modelEnds": [
+          {
+            "worker": "source_a",
+            "data": {
+              "status": "error",
+              "durationMs": 0.35183300008066,
+              "finishReason": "error",
+              "dispatchState": "unknown",
+              "coverage": "missing",
+              "reported": {},
+              "attemptCount": 0
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 8467.885167000117,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 1241,
+                "outputTokens": 877,
+                "totalTokens": 2118
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 2226.387124999892,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 303,
+                "outputTokens": 100,
+                "totalTokens": 1427,
+                "cacheReadTokens": 1024
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 2746.3000419999007,
+              "finishReason": "tool-calls",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 683,
+                "outputTokens": 163,
+                "totalTokens": 1870,
+                "cacheReadTokens": 1024
+              },
+              "attemptCount": 1
+            }
+          },
+          {
+            "worker": "consumer",
+            "data": {
+              "status": "success",
+              "durationMs": 1704.0169999999925,
+              "finishReason": "stop",
+              "dispatchState": "sent",
+              "coverage": "complete",
+              "reported": {
+                "inputTokens": 1829,
+                "outputTokens": 74,
+                "totalTokens": 1903
+              },
+              "attemptCount": 1
+            }
+          }
+        ],
+        "calls": [
+          {
+            "worker": "consumer",
+            "tool": "read_dependency_result"
+          },
+          {
+            "worker": "consumer",
+            "tool": "list_agents"
+          },
+          {
+            "worker": "consumer",
+            "tool": "send_message"
+          }
+        ],
+        "evidence": [
+          {
+            "worker": "source_a",
+            "bytes": 1157,
+            "sourceIdsPresent": [
+              "evidence-a-4"
+            ]
+          },
+          {
+            "worker": "consumer",
+            "bytes": 2443,
+            "sourceIdsPresent": []
+          },
+          {
+            "worker": "consumer",
+            "bytes": 3254,
+            "sourceIdsPresent": []
+          },
+          {
+            "worker": "consumer",
+            "bytes": 5006,
+            "sourceIdsPresent": []
+          },
+          {
+            "worker": "consumer",
+            "bytes": 5847,
+            "sourceIdsPresent": []
+          }
+        ],
+        "effects": 0,
+        "effectScope": "no state-changing tool or external write authority exposed",
+        "elapsedMs": 15158.487167000072
+      },
+      "grade": {
+        "correct": false,
+        "exactSourceIdentity": false,
+        "falseCompletion": false,
+        "actual": {
+          "status": "unknown",
+          "totalObserved": null,
+          "totalBaseline": null,
+          "changePercent": null,
+          "sourceIds": [
+            "source_a"
+          ]
+        }
+      },
+      "originalArm": "CANDIDATE",
+      "measurement": {
+        "initialRequiredSourceIdsVisible": null,
+        "reportedTokenSubtotal": 7318,
+        "completeTokenEvidence": true,
+        "coverage": {
+          "logicalCalls": 4,
+          "attempts": 4,
+          "complete": 4,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "modelCalls": 4,
+        "toolCalls": 3,
+        "providerAttempts": 4,
+        "elapsedMs": 15158.487167000072,
+        "terminalRuns": 1,
+        "modelEndRecords": 4,
+        "tokenReconciliation": true
+      }
+    }
+  }
+]

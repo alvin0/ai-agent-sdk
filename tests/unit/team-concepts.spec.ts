@@ -172,20 +172,20 @@ describe('two agent-team concepts', () => {
 
     expect(response.text).toBe('Lead synthesized both worker results.')
     expect(adapter.maxActiveWorkers).toBe(2)
-    expect(adapter.requests[0]?.system).toContain('managed dynamic team')
+    expect(adapter.requests[0]?.system).toContain('Your task and coordination strategy are defined by the host instructions')
     const workerSystem = adapter.requests.find(request =>
       request.tools?.every(tool => tool.name !== 'spawn_agent'))?.system
-    expect(workerSystem).toContain('dynamically created worker')
+    expect(workerSystem).toContain("You are managed worker 'worker_a'")
     // A worker read send_message as the way to report and called it on its own
     // name, which is refused. Finishing is what reports.
-    expect(workerSystem).toContain('do not use send_message to report it')
-    expect(workerSystem).toContain('never to yourself')
+    expect(workerSystem).toContain('Your terminal result is delivered')
+    expect(workerSystem).toContain('cannot target yourself')
 
     // A reader that declares a placeholder scope collides with every other
     // reader using the same stand-in, so the lead is told to declare nothing.
-    expect(adapter.requests[0]?.system).toContain('A WORKER THAT ONLY READS DECLARES NOTHING')
+    expect(adapter.requests[0]?.system).toContain('Omit it when no write scope is needed')
     expect(JSON.stringify(adapter.requests[0]?.tools))
-      .toContain('OMIT this entirely for a worker that only reads')
+      .toContain('Omit when no writes are declared')
     const workerTools = adapter.requests
       .find(request => request.tools?.every(tool => tool.name !== 'spawn_agent'))
       ?.tools

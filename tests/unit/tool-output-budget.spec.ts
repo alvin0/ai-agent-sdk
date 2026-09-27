@@ -7,6 +7,7 @@ import { resolveBounds } from '../../packages/core/src/agent/loop/turn/config.ts
 import { resolveRuntimeLimits } from '../../packages/core/src/agent/define/session/config.ts'
 import { ModelAdapter, ModelRegistry, ToolCallId, createTextMessage } from '@alvin0/ai-agent-sdk-core'
 import type { GenerateOptions, StreamChunk } from '@alvin0/ai-agent-sdk-core'
+import { evaluationCases } from '../../test-human/evaluation/cases.ts'
 
 class ScriptedAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []
@@ -64,6 +65,73 @@ function textOf(result: ToolExecutionResult | undefined): string {
 }
 
 describe('tool output budget', () => {
+  it('OUT-01: retrieving an evicted mutation output does not replay the body or lose its receipt', async () => {
+    const backing = createMemorySpillStore({ maxEntries: 1 })
+    const store: SpillStore = { ...backing, async save(text, context) {
+      const record = await backing.save(text, context)
+      await backing.save('unrelated output', { toolName: 'other', callId: 'other' })
+      return record
+    } }
+    const state = setup([toolRound([{ id: 'create', name: 'create_record' }]),
+      toolRound([{ id: 'read', name: 'read_tool_output', arguments: '{"locator":"spill:create_record:1"}' }]), textRound('done')])
+    let effects = 0
+    state.tools.register(defineTool({ name: 'create_record', description: 'Create a record once.', parameters: { type: 'object' },
+      execute: () => { effects++; return { status: 'completed', receipt: 'receipt-1', detail: BIG } } }))
+    state.tools.register(readSpillTool(store))
+    for await (const _ of runTurn({ registry: state.registry, config: { provider: 'test', model: 'm' },
+      history: state.history, tools: state.tools, spillStore: store, bounds: { maxToolResultTokens: 100 } })) { /* drain */ }
+    const results = state.history.entries().flatMap(e => e.event.kind === 'tool-result' ? [e.event.result] : [])
+    expect(effects).toBe(1)
+    expect(results[0]?.isError).toBe(false)
+    const completed = results[0]
+    if (completed?.isError === false) expect(completed.value).toMatchObject({ status: 'completed', receipt: 'receipt-1' })
+    expect(textOf(results[1])).toContain('host confirms it is safe')
+    expect(textOf(results[1])).not.toContain('Re-run the original call')
+  })
+
+  it('OUT-03: failed save preserves completed result and provides safe recovery guidance', async () => {
+    const backing = createMemorySpillStore()
+    const store: SpillStore = { ...backing, save() { throw new Error('fixture unavailable') } }
+    const state = setup([toolRound([{ id: 'dump', name: 'dump' }]), textRound('done')])
+    for await (const _ of runTurn({ registry: state.registry, config: { provider: 'test', model: 'm' },
+      history: state.history, tools: state.tools, spillStore: store, bounds: { maxToolResultTokens: 100 } })) { /* drain */ }
+    expect(resultOf(state.history)?.isError).toBe(false)
+    const completed = resultOf(state.history)
+    if (completed?.isError === false) expect(completed.value).toBe(BIG)
+    expect(textOf(resultOf(state.history))).toContain('host confirms it is safe')
+  })
+
+  it('OUT-05: spill receives only post-policy output and cannot recover redacted raw value', async () => {
+    const store = createMemorySpillStore()
+    const state = setup([toolRound([{ id: 'dump', name: 'dump' }]), textRound('done')], 'PRIVATE/SENTINEL' + BIG)
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({ registry: state.registry, config: { provider: 'test', model: 'm' },
+      history: state.history, tools: state.tools, spillStore: store, bounds: { maxToolResultTokens: 100 },
+      interceptors: [{ name: 'redact', async after() { return { kind: 'replace', content: [{ type: 'text', text: BIG }] } } }] })) events.push(event)
+    const result = resultOf(state.history)
+    expect(result?.isError).toBe(false)
+    if (result?.isError === false) expect(result.value).toBeUndefined()
+    const locator = (result?.meta as { outputSpilled: { locator: string } }).outputSpilled.locator
+    expect(await store.read(locator, { offset: 0, limit: 100_000 })).toMatchObject({ text: BIG })
+    expect(JSON.stringify(events)).not.toContain('PRIVATE/SENTINEL')
+  })
+
+  it('diagnoses DATA-04: text spill does not bypass the raw-result retention byte cap', async () => {
+    const fixture = evaluationCases().find(c => c.id === 'DATA-04')!
+    const page = { records: fixture.collections.items!.slice(0, 40), nextOffset: 40, total: 180 }
+    expect(new TextEncoder().encode(JSON.stringify(page)).byteLength).toBeGreaterThan(8192)
+    for (const cap of [8192, 65536]) {
+      const state = setup([toolRound([{ id: 'items', name: 'items' }]), textRound('done')])
+      state.tools.register(defineTool({ name: 'items', description: 'Read a fixture page.', parameters: { type: 'object' }, execute: () => page }))
+      for await (const _ of runTurn({ registry: state.registry, config: { provider: 'test', model: 'm' },
+        history: state.history, tools: state.tools, spillStore: createMemorySpillStore(),
+        bounds: { maxToolResultTokens: 2048, maxToolResultBytes: cap } })) { /* drain */ }
+      expect(resultOf(state.history)?.isError).toBe(cap === 8192)
+      if (cap === 8192) expect(textOf(resultOf(state.history))).toContain('retention limit')
+      else expect(resultOf(state.history)?.meta).toHaveProperty('outputSpilled')
+    }
+  })
+
   it('truncates the middle when nothing is mounted to spill into', async () => {
     const state = setup([
       toolRound([{ id: 'd1', name: 'dump' }]),
@@ -79,7 +147,8 @@ describe('tool output budget', () => {
     // Two ends kept, middle gone, and the model is told what it is looking at.
     expect(text.length).toBeLessThan(1_000)
     expect(text).toContain('estimated tokens omitted from the middle')
-    expect(text).toContain('Re-run more narrowly')
+    expect(text).not.toMatch(/Re-run more narrowly/i)
+    expect(text).toContain('host confirms it is safe')
     expect(result?.meta).toMatchObject({ outputTruncated: { estimatedTokens: 10_000, budget: 100 } })
   })
 
@@ -213,8 +282,9 @@ describe('tool output budget', () => {
     expect(found).toMatchObject({ matches: ['2: beta'] })
 
     const missing = await tool.execute(tool.parse?.({ locator: 'spill:nope:1' }) as never, {} as never)
-    // Eviction is normal, not a crash: the model is told to re-run instead.
-    expect(JSON.stringify(missing)).toContain('Re-run the original call')
+    expect(JSON.stringify(missing)).not.toContain('Re-run the original call')
+    expect(JSON.stringify(missing)).toContain('does not mean the original operation failed')
+    expect(JSON.stringify(missing)).toContain('host confirms it is safe')
   })
 
   it('keeps the retrieval tool outside the tool-call budget', () => {

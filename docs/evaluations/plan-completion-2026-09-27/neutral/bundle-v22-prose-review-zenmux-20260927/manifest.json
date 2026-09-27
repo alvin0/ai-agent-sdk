@@ -1,0 +1,17 @@
+{
+  "source": "artifacts/neutral-evaluation/bundle-v22-final-zenmux-20260927",
+  "inputHash": "5ad5f9cf0ed39543f44d7ef8b6ca44e5949fbd276a19c885f56d8c30f204da49",
+  "reference": null,
+  "referenceHash": null,
+  "reviewer": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "effort": "high"
+  },
+  "reviewerCount": 1,
+  "independence": "different model from evaluated candidates, blind A/B labels; no human consensus claim",
+  "scope": "semantic prose assistance only; deterministic contract/state/ACL failures cannot be overridden",
+  "retryPolicy": "none; retain failed reviews",
+  "startedAt": "2026-09-27T04:26:13.927Z",
+  "harnessHash": "816e11eb764db4b403a08a8f012d47576715144c50d0f4e6418e857f2559ff39"
+}

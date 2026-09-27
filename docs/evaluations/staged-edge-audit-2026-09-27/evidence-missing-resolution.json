@@ -1,0 +1,458 @@
+[
+  {
+    "file": "docs/evaluations/codex-luna-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "fixtures.json",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/fixtures.json",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/fixtures.json"
+    ]
+  },
+  {
+    "file": "docs/evaluations/codex-luna-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "sdk-source.tar",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v2/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-pilot-20260926-01/sdk-source.tar",
+      "artifacts/neutral-evaluation/preflight-20260926-02/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-pilot-clarity-ops-20260926/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-policy-preflight-20260926/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-sp01-after-20260927-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/pilot-20260926-01/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-preflight-20260926-01/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-wave0-after-20260926-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-preflight-20260926/sdk-source.tar"
+    ]
+  },
+  {
+    "file": "docs/evaluations/codex-luna-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "sdk.patch",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/sdk.patch",
+      "artifacts/neutral-evaluation/codex-luna-sp01-after-20260927-v1/sdk.patch",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/sdk.patch"
+    ]
+  },
+  {
+    "file": "docs/evaluations/codex-luna-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "cases.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/bundle-v21-pilot-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v2/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-transport-preflight-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v21-final-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-large-results-calibration-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-ablation-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-protocol-calibration-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-transport-preflight-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-final-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-pilot-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v21-pilot-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-sp01-after-20260927-v1/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-pilot-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-pilot-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-revision-diagnostic-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v21-protocol-calibration-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-pilot-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v21-final-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-final-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-wave0-after-20260926-v1/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-preflight-20260926/cases.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/codex-luna-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "grading.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/bundle-v21-pilot-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v2/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-transport-preflight-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v21-final-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-large-results-calibration-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-ablation-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-pilot-20260926-01/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-protocol-calibration-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-transport-preflight-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-pilot-clarity-ops-20260926/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-final-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-policy-preflight-20260926/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-pilot-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v21-pilot-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v1/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-sp01-after-20260927-v1/grading.ts",
+      "artifacts/neutral-evaluation/pilot-20260926-01/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-pilot-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-pilot-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-revision-diagnostic-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-preflight-20260926-01/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v21-protocol-calibration-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-pilot-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v21-final-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-final-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-wave0-after-20260926-v1/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-preflight-20260926/grading.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/codex-luna-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "runner-paired.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/runner-paired.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/runner-paired.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/codex-luna-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "program-tool.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/program-tool.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/program-tool.ts",
+      "artifacts/spikes/ptc-development-zenmux-dots3-20260927-v1/program-tool.ts",
+      "artifacts/spikes/ptc-pilot-zenmux-dots3-20260927-v1/program-tool.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/codex-luna-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "program-worker.mjs",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/program-worker.mjs",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/program-worker.mjs",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/program-worker.mjs",
+      "artifacts/spikes/ptc-development-zenmux-dots3-20260927-v1/program-worker.mjs",
+      "artifacts/spikes/ptc-pilot-zenmux-dots3-20260927-v1/program-worker.mjs"
+    ]
+  },
+  {
+    "file": "docs/evaluations/codex-luna-sp01-after-2026-09-27/SHA256SUMS.json",
+    "entry": "fixtures.json",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v2/fixtures.json",
+      "artifacts/neutral-evaluation/codex-luna-sp01-after-20260927-v1/fixtures.json",
+      "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1/fixtures.json",
+      "artifacts/neutral-evaluation/codex-luna-wave0-after-20260926-v1/fixtures.json"
+    ]
+  },
+  {
+    "file": "docs/evaluations/codex-luna-sp01-after-2026-09-27/SHA256SUMS.json",
+    "entry": "sdk-source.tar",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v2/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-pilot-20260926-01/sdk-source.tar",
+      "artifacts/neutral-evaluation/preflight-20260926-02/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-pilot-clarity-ops-20260926/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-policy-preflight-20260926/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-sp01-after-20260927-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/pilot-20260926-01/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-preflight-20260926-01/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-wave0-after-20260926-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-preflight-20260926/sdk-source.tar"
+    ]
+  },
+  {
+    "file": "docs/evaluations/codex-luna-sp01-after-2026-09-27/SHA256SUMS.json",
+    "entry": "cases.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/bundle-v21-pilot-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v2/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-transport-preflight-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v21-final-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-large-results-calibration-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-ablation-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-protocol-calibration-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-transport-preflight-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-final-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-pilot-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v21-pilot-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-sp01-after-20260927-v1/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-pilot-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-pilot-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-revision-diagnostic-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v21-protocol-calibration-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-pilot-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v21-final-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-final-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-wave0-after-20260926-v1/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-preflight-20260926/cases.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/codex-luna-sp01-after-2026-09-27/SHA256SUMS.json",
+    "entry": "grading.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/bundle-v21-pilot-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v2/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-transport-preflight-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v21-final-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-large-results-calibration-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-ablation-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-pilot-20260926-01/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-protocol-calibration-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-transport-preflight-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-pilot-clarity-ops-20260926/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-final-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-policy-preflight-20260926/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-pilot-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v21-pilot-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v1/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-sp01-after-20260927-v1/grading.ts",
+      "artifacts/neutral-evaluation/pilot-20260926-01/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-pilot-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-pilot-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-revision-diagnostic-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-preflight-20260926-01/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v21-protocol-calibration-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-pilot-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v21-final-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-final-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-wave0-after-20260926-v1/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-preflight-20260926/grading.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/codex-luna-sp01-after-2026-09-27/SHA256SUMS.json",
+    "entry": "runner.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-luna-sp01-after-20260927-v1/runner.ts",
+      "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1/runner.ts",
+      "artifacts/neutral-evaluation/codex-luna-wave0-after-20260926-v1/runner.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/sp-01-value-gate-2026-09-26/SHA256SUMS.json",
+    "entry": "ptc-benchmark.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/spikes/ptc-development-20260926-v2/ptc-benchmark.ts",
+      "artifacts/spikes/ptc-pilot-20260926-v2/ptc-benchmark.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/sp-01-value-gate-2026-09-26/SHA256SUMS.json",
+    "entry": "ptc-program-tool.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/spikes/ptc-development-20260926-v2/ptc-program-tool.ts",
+      "artifacts/spikes/ptc-pilot-20260926-v2/ptc-program-tool.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/sp-01-value-gate-2026-09-26/SHA256SUMS.json",
+    "entry": "ptc-program-worker.mjs",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/spikes/ptc-development-20260926-v2/ptc-program-worker.mjs",
+      "artifacts/spikes/ptc-pilot-20260926-v2/ptc-program-worker.mjs"
+    ]
+  },
+  {
+    "file": "docs/evaluations/sp-01-value-gate-zenmux-dots3-2026-09-27/SHA256SUMS.json",
+    "entry": "ptc-benchmark.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/spikes/ptc-development-zenmux-dots3-20260927-v1/ptc-benchmark.ts",
+      "artifacts/spikes/ptc-pilot-zenmux-dots3-20260927-v1/ptc-benchmark.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/sp-01-value-gate-zenmux-dots3-2026-09-27/SHA256SUMS.json",
+    "entry": "program-tool.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/program-tool.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/program-tool.ts",
+      "artifacts/spikes/ptc-development-zenmux-dots3-20260927-v1/program-tool.ts",
+      "artifacts/spikes/ptc-pilot-zenmux-dots3-20260927-v1/program-tool.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/sp-01-value-gate-zenmux-dots3-2026-09-27/SHA256SUMS.json",
+    "entry": "program-worker.mjs",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/program-worker.mjs",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/program-worker.mjs",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/program-worker.mjs",
+      "artifacts/spikes/ptc-development-zenmux-dots3-20260927-v1/program-worker.mjs",
+      "artifacts/spikes/ptc-pilot-zenmux-dots3-20260927-v1/program-worker.mjs"
+    ]
+  },
+  {
+    "file": "docs/evaluations/zenmux-dots3-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "fixtures.json",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/fixtures.json",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/fixtures.json"
+    ]
+  },
+  {
+    "file": "docs/evaluations/zenmux-dots3-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "sdk-source.tar",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v2/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-pilot-20260926-01/sdk-source.tar",
+      "artifacts/neutral-evaluation/preflight-20260926-02/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-pilot-clarity-ops-20260926/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-policy-preflight-20260926/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-sp01-after-20260927-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/pilot-20260926-01/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-preflight-20260926-01/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-wave0-after-20260926-v1/sdk-source.tar",
+      "artifacts/neutral-evaluation/codex-luna-preflight-20260926/sdk-source.tar"
+    ]
+  },
+  {
+    "file": "docs/evaluations/zenmux-dots3-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "sdk.patch",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/sdk.patch"
+    ]
+  },
+  {
+    "file": "docs/evaluations/zenmux-dots3-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "cases.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/bundle-v21-pilot-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v2/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-transport-preflight-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v21-final-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-large-results-calibration-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-ablation-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-protocol-calibration-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-transport-preflight-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-final-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-pilot-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v21-pilot-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-sp01-after-20260927-v1/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-pilot-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-pilot-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-revision-diagnostic-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v21-protocol-calibration-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v2-pilot-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v21-final-zenmux-20260927/cases.ts",
+      "artifacts/neutral-evaluation/bundle-v22-final-codex-20260927/cases.ts",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-wave0-after-20260926-v1/cases.ts",
+      "artifacts/neutral-evaluation/codex-luna-preflight-20260926/cases.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/zenmux-dots3-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "grading.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/bundle-v21-pilot-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v2/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-transport-preflight-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v21-final-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-large-results-calibration-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-ablation-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-pilot-20260926-01/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-protocol-calibration-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-transport-preflight-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-pilot-clarity-ops-20260926/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-final-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-policy-preflight-20260926/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-pilot-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v21-pilot-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-baseline-20260926-v1/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-sp01-after-20260927-v1/grading.ts",
+      "artifacts/neutral-evaluation/pilot-20260926-01/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-pilot-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-pilot-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-revision-diagnostic-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-preflight-20260926-01/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v21-protocol-calibration-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v2-pilot-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v21-final-zenmux-20260927/grading.ts",
+      "artifacts/neutral-evaluation/bundle-v22-final-codex-20260927/grading.ts",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-wave0-after-20260926-v1/grading.ts",
+      "artifacts/neutral-evaluation/codex-luna-preflight-20260926/grading.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/zenmux-dots3-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "runner-paired.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/runner-paired.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/zenmux-dots3-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "program-tool.ts",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/program-tool.ts",
+      "artifacts/spikes/ptc-final-source-pilot-codex-20260927/program-tool.ts",
+      "artifacts/spikes/ptc-final-source-pilot-zenmux-20260927/program-tool.ts",
+      "artifacts/spikes/ptc-final-source-development-codex-20260927/program-tool.ts",
+      "artifacts/spikes/ptc-final-source-development-zenmux-20260927/program-tool.ts"
+    ]
+  },
+  {
+    "file": "docs/evaluations/zenmux-dots3-ptc-paired-final-2026-09-27/SHA256SUMS.json",
+    "entry": "program-worker.mjs",
+    "kind": "hash target missing",
+    "matches": [
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-pilot-20260927-v1/program-worker.mjs",
+      "artifacts/neutral-evaluation/codex-luna-ptc-paired-final-20260927-v1/program-worker.mjs",
+      "artifacts/neutral-evaluation/zenmux-dots3-ptc-paired-final-20260927-v1/program-worker.mjs",
+      "artifacts/spikes/ptc-development-zenmux-dots3-20260927-v1/program-worker.mjs",
+      "artifacts/spikes/ptc-pilot-zenmux-dots3-20260927-v1/program-worker.mjs"
+    ]
+  }
+]

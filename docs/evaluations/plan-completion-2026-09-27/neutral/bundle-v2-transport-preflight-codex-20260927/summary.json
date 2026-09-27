@@ -1,0 +1,7 @@
+{
+  "records": 4,
+  "expectedAttempts": 4,
+  "consumedTokens": 1908,
+  "completed": true,
+  "finishedAt": "2026-09-27T02:08:16.460Z"
+}

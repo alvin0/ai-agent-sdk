@@ -1,0 +1,46 @@
+{
+  "run": "codex-luna-sp01-after-20260927-v1",
+  "purpose": "EV-01 REGRESSION: final SP-01/SP-02 source with PTC off, same frozen runner/cases/grader/model/effort/limits as baseline and wave-0 after",
+  "autoPass": {
+    "baseline": "143/160",
+    "wave0After": "147/160",
+    "sp01After": "148/160"
+  },
+  "equalDomainMacro": {
+    "baseline": 0.89,
+    "wave0After": 0.92
+  },
+  "effects": {
+    "sp01After": 0
+  },
+  "usage": "180/180 authoritative",
+  "latency": {
+    "wave0After": {
+      "median": 4129,
+      "p95": 9160
+    },
+    "sp01After": {
+      "median": 5436,
+      "p95": 19228
+    },
+    "twoModelCallRuns": {
+      "wave0After": {
+        "p50": 4108,
+        "p90": 6595
+      },
+      "sp01After": {
+        "p50": 5704,
+        "p90": 14862
+      }
+    }
+  },
+  "latencyDiagnosis": [
+    "Same model-call counts on slow two-call runs: per-call provider latency, not added SDK work",
+    "Hermetic sdk-stress (no network) 3x: 12/12 passed, 5120 iterations, total 1.77-1.79s vs baseline 1.97s: no local SDK slowdown",
+    "Sequential before/after comparison carries provider/time drift; local CPU load from conformance runs during this run is a further confounder",
+    "Paired interleaved final (runner-paired.ts) controls drift for BASE vs PTC"
+  ],
+  "data04": "Always fails (known fixture cap design, see progress doc); call counts vary run to run: baseline 5-24, wave0 4-8, sp01 11-24",
+  "decision": "No quality or safety regression observed with PTC off. Latency increase attributed to provider/time drift and confounded local load; not attributed to the SDK change, but not disproven either for this sequential comparison.",
+  "scope": "author-exposed frozen regression cohort; not blind"
+}

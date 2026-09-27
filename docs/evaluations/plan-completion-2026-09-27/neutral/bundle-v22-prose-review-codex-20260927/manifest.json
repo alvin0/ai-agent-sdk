@@ -1,0 +1,17 @@
+{
+  "source": "artifacts/neutral-evaluation/bundle-v22-final-codex-20260927",
+  "inputHash": "a309931111eda0027f0f5a6284426325adb91726d682f3ec54902dd16aac3b59",
+  "reference": null,
+  "referenceHash": null,
+  "reviewer": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "effort": "high"
+  },
+  "reviewerCount": 1,
+  "independence": "different model from evaluated candidates, blind A/B labels; no human consensus claim",
+  "scope": "semantic prose assistance only; deterministic contract/state/ACL failures cannot be overridden",
+  "retryPolicy": "none; retain failed reviews",
+  "startedAt": "2026-09-27T04:21:37.587Z",
+  "harnessHash": "816e11eb764db4b403a08a8f012d47576715144c50d0f4e6418e857f2559ff39"
+}

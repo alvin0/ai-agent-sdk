@@ -210,7 +210,7 @@ async function driveAgent(
     ...hooks === undefined ? {} : { hooks },
     signal,
     ...options.logger === undefined ? {} : { logger: options.logger },
-    commentary: options.commentary ?? 'concise',
+    commentary: options.commentary ?? 'auto',
     teardownTimeoutMs: options.teardownTimeoutMs ?? 30_000,
     ...options.modelTimeoutMs === undefined ? {} : { modelTimeoutMs: options.modelTimeoutMs },
     ...options.maxModelRequestBytes === undefined ? {} : { maxModelRequestBytes: options.maxModelRequestBytes },
@@ -221,6 +221,7 @@ async function driveAgent(
     ...options.trace === undefined ? {} : { trace: options.trace },
     ...options.accounting === undefined ? {} : { accounting: options.accounting },
     ...options.spillStore === undefined ? {} : { spillStore: options.spillStore },
+    ...options.experimentalPrograms === undefined ? {} : { experimentalPrograms: options.experimentalPrograms },
     ...options.contextSections === undefined ? {} : { contextSections: options.contextSections },
   }
 
@@ -298,7 +299,7 @@ function completionTool(): ToolDefinition<CompletionSubmission> {
       accepted: true,
       summary: submission.summary,
       evidence: [...submission.evidence],
-      instruction: 'This self-check is accepted for the current run. Now provide the substantive final report itself: findings or changes, evidence or sources, checks performed, and remaining limitations. Do not merely say the self-check passed or refer to an earlier message. Do not call submit_result again in this run unless you perform new substantive tool work that invalidates this submission. A later user request or worker follow-up starts a new run and needs its own self-check.',
+      instruction: 'This self-check is accepted for the current run. Now provide the substantive final report itself: findings or changes, evidence or sources, checks performed, and remaining limitations. If the user asked for a specific output format (for example only JSON or only a number), reply in exactly that format instead: it is the report. Do not merely say the self-check passed or refer to an earlier message. Do not call submit_result again in this run unless you perform new substantive tool work that invalidates this submission. A later user request or worker follow-up starts a new run and needs its own self-check.',
     }),
   })
 }

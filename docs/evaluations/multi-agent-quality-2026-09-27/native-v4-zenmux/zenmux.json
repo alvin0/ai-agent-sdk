@@ -1,0 +1,567 @@
+{
+  "model": {
+    "provider": "zenmux",
+    "id": "dots-studio/dots3-note-prev",
+    "effort": null
+  },
+  "checks": {
+    "finalAnswer": false,
+    "nativeSpawn": true,
+    "bothActualMeasurements": true,
+    "dependencyConsumer": true
+  },
+  "text": "\n\nAll workers completed and closed. The final result:\n\n```json\n{\n  \"status\": \"completed\",\n  \"totalObserved\": 250,\n  \"totalBaseline\": 200,\n  \"changePercent\": 25.0,\n  \"sourceIds\": [\"native-a\", \"native-b\"]\n}\n```\n\n**Workflow summary:**\n\n| Worker | Role | Result |\n|---|---|---|\n| `source_a` | Read measurement | `sourceId=\"native-a\"`, `observed=155`, `baseline=100` |\n| `source_b` | Read measurement | `sourceId=\"native-b\"`, `observed=95`, `baseline=100` |\n| `consumer` | Combine (dependsOn both) | `totalObserved=250`, `totalBaseline=200`, `changePercent=25.0`, `status=\"completed\"` |\n\nAll calculations verified: 155 + 95 = 250 ✓, 100 + 100 = 200 ✓, ((250 − 200) / 200) × 100 = 25.0% ✓. Both sources returned valid data, so status is `completed`.",
+  "calls": [
+    {
+      "member": "lead",
+      "tool": "list_agents"
+    },
+    {
+      "member": "lead",
+      "tool": "spawn_agent"
+    },
+    {
+      "member": "lead",
+      "tool": "spawn_agent"
+    },
+    {
+      "member": "source_b",
+      "tool": "read_measurement"
+    },
+    {
+      "member": "source_a",
+      "tool": "read_measurement"
+    },
+    {
+      "member": "lead",
+      "tool": "wait_agents"
+    },
+    {
+      "member": "lead",
+      "tool": "wait_agents"
+    },
+    {
+      "member": "lead",
+      "tool": "spawn_agent"
+    },
+    {
+      "member": "lead",
+      "tool": "wait_agents"
+    },
+    {
+      "member": "lead",
+      "tool": "close_agent"
+    },
+    {
+      "member": "lead",
+      "tool": "close_agent"
+    },
+    {
+      "member": "lead",
+      "tool": "close_agent"
+    }
+  ],
+  "terminals": [
+    {
+      "member": "source_a",
+      "conversationId": "native-zenmux-1",
+      "data": {
+        "status": "success",
+        "durationMs": 2480.4853329999996,
+        "completed": true,
+        "usage": {
+          "reported": {
+            "inputTokens": 1388,
+            "outputTokens": 137,
+            "totalTokens": 2037,
+            "cacheReadTokens": 512
+          },
+          "budgetTokens": 2037,
+          "coverage": {
+            "logicalCalls": 2,
+            "attempts": 2,
+            "complete": 2,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 0,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 0
+          },
+          "authoritative": true
+        },
+        "operationCounts": {
+          "turn": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "model-call": {
+            "total": 2,
+            "success": 2,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "provider-attempt": {
+            "total": 2,
+            "success": 2,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "tool": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "compaction": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "hook": {
+            "total": 5,
+            "success": 5,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "user-input": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "skill": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "memory": {
+            "total": 2,
+            "success": 2,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "credential": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "integration": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          }
+        },
+        "errorCount": 0
+      }
+    },
+    {
+      "member": "source_b",
+      "conversationId": "native-zenmux-2",
+      "data": {
+        "status": "success",
+        "durationMs": 2491.3839159999998,
+        "completed": true,
+        "usage": {
+          "reported": {
+            "inputTokens": 1399,
+            "outputTokens": 127,
+            "totalTokens": 2038,
+            "cacheReadTokens": 512
+          },
+          "budgetTokens": 2038,
+          "coverage": {
+            "logicalCalls": 2,
+            "attempts": 2,
+            "complete": 2,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 0,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 0
+          },
+          "authoritative": true
+        },
+        "operationCounts": {
+          "turn": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "model-call": {
+            "total": 2,
+            "success": 2,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "provider-attempt": {
+            "total": 2,
+            "success": 2,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "tool": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "compaction": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "hook": {
+            "total": 5,
+            "success": 5,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "user-input": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "skill": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "memory": {
+            "total": 2,
+            "success": 2,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "credential": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "integration": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          }
+        },
+        "errorCount": 0
+      }
+    },
+    {
+      "member": "consumer",
+      "conversationId": "native-zenmux-3",
+      "data": {
+        "status": "success",
+        "durationMs": 2103.129041,
+        "completed": true,
+        "usage": {
+          "reported": {
+            "inputTokens": 1367,
+            "outputTokens": 262,
+            "totalTokens": 1629
+          },
+          "budgetTokens": 1629,
+          "coverage": {
+            "logicalCalls": 1,
+            "attempts": 1,
+            "complete": 1,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 0,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 0
+          },
+          "authoritative": true
+        },
+        "operationCounts": {
+          "turn": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "model-call": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "provider-attempt": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "tool": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "compaction": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "hook": {
+            "total": 2,
+            "success": 2,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "user-input": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "skill": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "memory": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "credential": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "integration": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          }
+        },
+        "errorCount": 0
+      }
+    },
+    {
+      "member": "lead",
+      "conversationId": "ff36795c-4afd-426b-b4dc-d7ec1f789cb9",
+      "data": {
+        "status": "success",
+        "durationMs": 18473.767333,
+        "completed": true,
+        "usage": {
+          "reported": {
+            "inputTokens": 6167,
+            "outputTokens": 1558,
+            "totalTokens": 26157,
+            "cacheReadTokens": 18432
+          },
+          "budgetTokens": 26157,
+          "coverage": {
+            "logicalCalls": 8,
+            "attempts": 8,
+            "complete": 8,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 0,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 0
+          },
+          "authoritative": true
+        },
+        "operationCounts": {
+          "turn": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "model-call": {
+            "total": 8,
+            "success": 8,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "provider-attempt": {
+            "total": 8,
+            "success": 8,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "tool": {
+            "total": 10,
+            "success": 10,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "compaction": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "hook": {
+            "total": 27,
+            "success": 27,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "user-input": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "skill": {
+            "total": 1,
+            "success": 1,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "memory": {
+            "total": 9,
+            "success": 9,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "credential": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          },
+          "integration": {
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "aborted": 0,
+            "rejected": 0,
+            "unknown": 0
+          }
+        },
+        "errorCount": 0
+      }
+    }
+  ],
+  "commissioned": [
+    {
+      "name": "source_a",
+      "dependsOn": [],
+      "conversationId": "native-zenmux-1"
+    },
+    {
+      "name": "source_b",
+      "dependsOn": [],
+      "conversationId": "native-zenmux-2"
+    },
+    {
+      "name": "consumer",
+      "dependsOn": [
+        "source_a",
+        "source_b"
+      ],
+      "conversationId": "native-zenmux-3"
+    }
+  ],
+  "workers": [],
+  "scope": "candidate-only public native-tool acceptance, per-session limits; no comparison or shared workflow-budget claim"
+}

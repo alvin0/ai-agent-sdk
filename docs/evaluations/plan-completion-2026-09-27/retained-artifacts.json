@@ -1,0 +1,247 @@
+{
+  "retained": [
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v2-pilot-codex-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v2-pilot-codex-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v2-pilot-zenmux-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v2-pilot-zenmux-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v2-protocol-calibration-codex-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v2-protocol-calibration-codex-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v2-revision-diagnostic-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v2-revision-diagnostic-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v2-transport-preflight-codex-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v2-transport-preflight-codex-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v2-transport-preflight-zenmux-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v2-transport-preflight-zenmux-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v21-final-codex-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v21-final-codex-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v21-final-zenmux-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v21-final-zenmux-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v21-pilot-codex-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v21-pilot-codex-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v21-pilot-zenmux-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v21-pilot-zenmux-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v21-protocol-calibration-codex-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v21-protocol-calibration-codex-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v21-reviewer-self-test-v2-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v21-reviewer-self-test-v2-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v22-ablation-codex-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v22-ablation-codex-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v22-final-codex-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v22-final-codex-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v22-final-zenmux-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v22-final-zenmux-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v22-large-results-calibration-codex-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v22-large-results-calibration-codex-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v22-pilot-codex-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v22-pilot-codex-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v22-pilot-zenmux-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v22-pilot-zenmux-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v22-prose-review-ablation-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v22-prose-review-ablation-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v22-prose-review-codex-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v22-prose-review-codex-20260927"
+    },
+    {
+      "source": "artifacts/neutral-evaluation/bundle-v22-prose-review-zenmux-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/neutral/bundle-v22-prose-review-zenmux-20260927"
+    },
+    {
+      "source": "artifacts/spikes/ptc-final-source-pilot-codex-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/ptc/ptc-final-source-pilot-codex-20260927"
+    },
+    {
+      "source": "artifacts/spikes/ptc-final-source-development-codex-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/ptc/ptc-final-source-development-codex-20260927"
+    },
+    {
+      "source": "artifacts/spikes/ptc-final-source-pilot-zenmux-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/ptc/ptc-final-source-pilot-zenmux-20260927"
+    },
+    {
+      "source": "artifacts/spikes/ptc-final-source-development-zenmux-20260927",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/ptc/ptc-final-source-development-zenmux-20260927"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/codex-followups-status.json",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/codex-pipeline.json"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/zenmux-followups-status.json",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/zenmux-pipeline.json"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/candidate.patch",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/final-candidate-sdk.patch"
+    },
+    {
+      "source": "test-human/evaluation/bundle-statistics.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/evaluation/bundle-statistics.ts"
+    },
+    {
+      "source": "test-human/evaluation/bundle-integrity.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/evaluation/bundle-integrity.ts"
+    },
+    {
+      "source": "test-human/evaluation/review-integrity.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/evaluation/review-integrity.ts"
+    },
+    {
+      "source": "test-human/evaluation/analyze-bundles.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/evaluation/analyze-bundles.ts"
+    },
+    {
+      "source": "test-human/evaluation/analyze-ablation.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/evaluation/analyze-ablation.ts"
+    },
+    {
+      "source": "test-human/evaluation/review-losses.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/evaluation/review-losses.ts"
+    },
+    {
+      "source": "test-human/evaluation/integrity.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/evaluation/integrity.ts"
+    },
+    {
+      "source": "test-human/evaluation/cohort-v2.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/evaluation/cohort-v2.ts"
+    },
+    {
+      "source": "test-human/evaluation/cases.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/evaluation/cases.ts"
+    },
+    {
+      "source": "test-human/evaluation/grading.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/evaluation/grading.ts"
+    },
+    {
+      "source": "test-human/evaluation/grading-v2.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/evaluation/grading-v2.ts"
+    },
+    {
+      "source": "test-human/evaluation/review-prose.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/evaluation/review-prose.ts"
+    },
+    {
+      "source": "test-human/evaluation/bundle-protocol.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/evaluation/bundle-protocol.ts"
+    },
+    {
+      "source": "test-human/spikes/ptc-integrity.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/spikes/ptc-integrity.ts"
+    },
+    {
+      "source": "test-human/spikes/ptc-analyze.ts",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/analysis-source/spikes/ptc-analyze.ts"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/inspect_review_consistency.py",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/methods/inspect_review_consistency.py"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/historical-ptc-paired-latency-codex.json",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/methods/historical-ptc-paired-latency-codex.json"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/historical-ptc-paired-latency-zenmux.json",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/methods/historical-ptc-paired-latency-zenmux.json"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/paired-latency-full-vitest.log",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/local-validation/paired-latency-full-vitest.log"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/paired-latency-regression.log",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/local-validation/paired-latency-regression.log"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/paired-latency-lint.log",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/local-validation/paired-latency-lint.log"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/paired-latency-types.log",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/local-validation/paired-latency-types.log"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/local-ci-build.log",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/local-validation/local-ci-build.log"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/local-ci-workspace-types.log",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/local-validation/local-ci-workspace-types.log"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/local-ci-cli.log",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/local-validation/local-ci-cli.log"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/local-ci-packages.log",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/local-validation/local-ci-packages.log"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/local-ci-packed.log",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/local-validation/local-ci-packed.log"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/local-ci-boundary-fixtures.log",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/local-validation/local-ci-boundary-fixtures.log"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/local-ci-supply-chain.log",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/local-validation/local-ci-supply-chain.log"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/preparation-cli-verification.log",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/local-validation/preparation-cli-verification.log"
+    },
+    {
+      "source": "artifacts/plan-completion-hHIqY2/preparation-cli-preflight.log",
+      "retained": "docs/evaluations/plan-completion-2026-09-27/local-validation/preparation-cli-preflight.log"
+    }
+  ],
+  "baseline": {
+    "archive": "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1/sdk-source.tar",
+    "sha256": "9e722716fa839f5d62eb3877abe44a32e4d5defaef7aad9f9b5d76e5330bf0a8",
+    "revision": "5b589b6abe6d0a61da3f55b549713456ccc8c7c4"
+  },
+  "preparedSDKs": "artifacts/plan-completion-hHIqY2",
+  "portability": "Frozen manifests retain original execution paths. The mapping locates retained raw evidence; rebuilding snapshots additionally needs the original archive or its pinned Git revision. No credentials or node_modules are copied."
+}

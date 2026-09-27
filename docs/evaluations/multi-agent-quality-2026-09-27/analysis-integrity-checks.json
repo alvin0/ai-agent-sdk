@@ -1,0 +1,18 @@
+{
+  "forged-grade": {
+    "rejected": true,
+    "exitCode": 1
+  },
+  "protocol-fixture-drift": {
+    "rejected": true,
+    "exitCode": 1
+  },
+  "duplicate-row": {
+    "rejected": true,
+    "exitCode": 1
+  },
+  "missing-attempt-start": {
+    "rejected": true,
+    "exitCode": 1
+  }
+}

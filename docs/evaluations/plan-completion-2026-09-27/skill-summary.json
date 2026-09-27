@@ -1,0 +1,161 @@
+{
+  "spike": "SP-05",
+  "status": "completed",
+  "decision": "go-for-proposal-only",
+  "cases": [
+    {
+      "id": "DRAFT-DOES-NOT-MUTATE",
+      "passed": true,
+      "evidence": {
+        "status": "draft",
+        "id": "e88a0597-c32b-40fa-9eb0-c66aa375676a"
+      }
+    },
+    {
+      "id": "LEARNER-NO-PUBLISH-CAPABILITY",
+      "passed": true,
+      "evidence": "success"
+    },
+    {
+      "id": "TARGET-pinned",
+      "passed": true,
+      "evidence": {
+        "status": "denied",
+        "reason": "target-authority"
+      }
+    },
+    {
+      "id": "TARGET-external",
+      "passed": true,
+      "evidence": {
+        "status": "denied",
+        "reason": "target-authority"
+      }
+    },
+    {
+      "id": "TARGET-user-owned",
+      "passed": true,
+      "evidence": {
+        "status": "denied",
+        "reason": "target-authority"
+      }
+    },
+    {
+      "id": "TARGET-unknown",
+      "passed": true,
+      "evidence": {
+        "status": "denied",
+        "reason": "target-authority"
+      }
+    },
+    {
+      "id": "EVIDENCE-dependency",
+      "passed": true,
+      "evidence": {
+        "status": "denied",
+        "reason": "evidence-authority"
+      }
+    },
+    {
+      "id": "EVIDENCE-withdrawn",
+      "passed": true,
+      "evidence": {
+        "status": "denied",
+        "reason": "evidence-authority"
+      }
+    },
+    {
+      "id": "EVIDENCE-missing",
+      "passed": true,
+      "evidence": {
+        "status": "denied",
+        "reason": "evidence-authority"
+      }
+    },
+    {
+      "id": "VALIDATE-NO-MUTATION",
+      "passed": true,
+      "evidence": {
+        "status": "validated",
+        "id": "e88a0597-c32b-40fa-9eb0-c66aa375676a"
+      }
+    },
+    {
+      "id": "PUBLISH-VALIDATED",
+      "passed": true,
+      "evidence": {
+        "status": "published",
+        "id": "e88a0597-c32b-40fa-9eb0-c66aa375676a"
+      }
+    },
+    {
+      "id": "PUBLISH-NO-DUPLICATE",
+      "passed": true,
+      "evidence": {
+        "status": "denied",
+        "reason": "writer-or-validation"
+      }
+    },
+    {
+      "id": "ROLLBACK-STALE-CAS",
+      "passed": true,
+      "evidence": {
+        "status": "conflict"
+      }
+    },
+    {
+      "id": "ROLLBACK-NEW-REVISION",
+      "passed": true,
+      "evidence": {
+        "status": "rolled-back"
+      }
+    },
+    {
+      "id": "EDIT-AFTER-APPROVAL-CAS",
+      "passed": true,
+      "evidence": {
+        "status": "conflict"
+      }
+    },
+    {
+      "id": "SOURCE-REVOKED-AFTER-APPROVAL",
+      "passed": true,
+      "evidence": {
+        "status": "denied",
+        "reason": "commit-authority"
+      }
+    },
+    {
+      "id": "PROMPT-CANNOT-GRANT-AUTHORITY",
+      "passed": true,
+      "evidence": {
+        "status": "denied",
+        "reason": "writer-or-validation"
+      }
+    },
+    {
+      "id": "VALIDATION-REQUIRED",
+      "passed": true,
+      "evidence": {
+        "status": "denied",
+        "reason": "writer-or-validation"
+      }
+    },
+    {
+      "id": "WRITER-REVOKED-AFTER-AWAIT",
+      "passed": true,
+      "evidence": {
+        "status": "denied",
+        "reason": "commit-authority"
+      }
+    }
+  ],
+  "passed": true,
+  "limitations": [
+    "Fixed development validator is illustrative; no blinded skill efficacy or general prompt quality conclusion",
+    "Host capabilities, SQLite revision/CAS and source lifecycle demonstrated locally only",
+    "No auto-learning/consolidation/archive/publish",
+    "No public SDK package or user-owned skill changes"
+  ],
+  "nextAction": "Consumer must provide independent held-out skill evaluation before adopting publish workflow"
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "BASIC-01",
+    "domain": "BASIC",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Return {value} for 10 * 13 + 4.",
+    "resources": {},
+    "expected": {
+      "value": 134
+    },
+    "collections": {},
+    "variantId": "BASIC-01:en",
+    "familyId": "BASIC-01",
+    "language": "en",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  },
+  {
+    "id": "BASIC-01",
+    "domain": "BASIC",
+    "split": "development",
+    "comparison": "common",
+    "prompt": "Trả {value} cho phép tính 10 * 13 + 4.",
+    "resources": {},
+    "expected": {
+      "value": 134
+    },
+    "collections": {},
+    "variantId": "BASIC-01:vi",
+    "familyId": "BASIC-01",
+    "language": "vi",
+    "mixedLanguageSource": false,
+    "difficulty": "multi-step",
+    "ptcTarget": false
+  }
+]

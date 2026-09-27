@@ -6,7 +6,9 @@ import { authoritativeTokenUsage, budgetTokenTotal, summarizeModelCallUsage } fr
 import { createSpanId, createTraceId, type TraceRef } from '../trace/trace.ts'
 import type { AgentEvent, ExhaustedBudget, ToolDeclineReason, TurnHooks, TurnOutcome } from './types.ts'
 import { AwaitedEventQueue } from './queue.ts'
-import { runToolCalls } from './schedule.ts'
+import { scheduleToolCalls } from './schedule.ts'
+import { captureProgramGrants } from '../tool/nested.ts'
+import { ProgramResultStore } from '../tool/program-results.ts'
 import { type RunTurnOptions } from './turn/types.ts'
 import { resolveBounds, positiveFinite, snapshotRunTurnOptions } from './turn/config.ts'
 import { codedRuntimeError, messageOf, errorCodeOf, now } from './turn/common.ts'
@@ -140,6 +142,9 @@ async function driveTurn(
   let rootStarted = false
   let rootEnded = false
   const callableTools = hasCallableTools(options)
+  const programs = options.experimentalPrograms === undefined ? undefined : captureProgramGrants(options.experimentalPrograms)
+  // Handles programs retain live for this turn only.
+  const programResults = programs === undefined ? undefined : new ProgramResultStore()
   const dedicatedFinalOutput = options.outputFormat?.type === 'json_schema' && callableTools
   const turnOperationId = options.accounting?.startOperation('turn', {
     data: { turn, model: options.config.model },
@@ -363,7 +368,7 @@ async function driveTurn(
     // is bounded by steps, tokens, and the run-level ledger instead. Guards
     // that mean "this is not working" still decline, whatever the setting.
     const budgetIsAWall = bounds.onExhausted !== 'continue'
-    const scheduled = await runToolCalls({
+    const scheduled = await scheduleToolCalls({
       calls: round.calls, catalog: options.tools, history: options.history,
       position: { turn, step,
         ...(options.accounting === undefined ? {} : { runId: options.accounting.runId }),
@@ -388,6 +393,10 @@ async function driveTurn(
           Promise.resolve(options.hooks?.checkpoint?.(context)), options, signal, 'checkpoint',
         ),
       },
+    }, {
+      admissionLimit: guardDeclined ? 0 : budgetIsAWall ? remaining : 'unbounded',
+      ...programs === undefined ? {} : { programs },
+      ...programResults === undefined ? {} : { programResults },
     })
     // Results commit in model order, one per requested call, so the pairing
     // holds for declined calls too. A short result list means a sibling failed
@@ -568,6 +577,16 @@ async function driveTurn(
   outcome = candidate
   break
   }
+  if (outcome.reason.kind === 'aborted') {
+    // Without this, the next turn sees an unfinished request and a cancelled
+    // tool call, and a model resumes the abandoned work instead of answering
+    // the new message (observed live). Codex and Claude Code record the same
+    // interruption marker.
+    options.history.append({ kind: 'user', message: createUserMessage({
+      source: { kind: 'app', producer: 'turn-interrupted' },
+      content: [{ type: 'text', text: 'The previous request was interrupted before it finished. Use the next message to determine what to do next.' }],
+    }) })
+  }
   await emit({
     type: 'span-end', trace: root, at: now(),
     status: outcome.reason.kind === 'error' ? 'error' : outcome.reason.kind === 'aborted' ? 'aborted' : 'success',
@@ -606,6 +625,8 @@ async function driveTurn(
       turnOperationEnded = true
     }
     throw error
+  } finally {
+    programResults?.close()
   }
 }
 

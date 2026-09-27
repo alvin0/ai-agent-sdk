@@ -1,0 +1,387 @@
+{
+  "run": "artifacts/spikes/ptc-final-source-development-zenmux-20260927",
+  "stopReason": "completed",
+  "attempts": 72,
+  "completePairs": 36,
+  "target": [
+    {
+      "name": "FILTER",
+      "attempts": {
+        "BASE": 12,
+        "PTC": 12
+      },
+      "passed": {
+        "BASE": 4,
+        "PTC": 12
+      },
+      "effects": {
+        "BASE": 0,
+        "PTC": 0
+      },
+      "medianTokens": {
+        "BASE": 73538,
+        "PTC": 8920
+      },
+      "latencyMs": {
+        "BASE": {
+          "p50": 144500.5,
+          "p95": 180021
+        },
+        "PTC": {
+          "p50": 11438,
+          "p95": 101993
+        }
+      },
+      "pairs": 12,
+      "pairedBothPassed": 4,
+      "tokenRatio": {
+        "allPairs": {
+          "median": 0.12276964857817485,
+          "perPair": [
+            0.097,
+            0.131,
+            0.137,
+            0.087,
+            0.097,
+            0.283,
+            0.123,
+            0.158,
+            0.11,
+            0.048,
+            1.208,
+            0.123
+          ]
+        },
+        "bothPassed": {
+          "median": 0.11725115613118683
+        }
+      },
+      "latencyRatio": {
+        "allPairs": {
+          "median": 0.11467447424285016
+        }
+      },
+      "perTask": [
+        {
+          "task": "FILTER-1",
+          "BASE": [
+            "runtime-error/69876",
+            "passed/73444",
+            "failed/130439"
+          ],
+          "PTC": [
+            "passed/6788",
+            "passed/11610",
+            "passed/15982"
+          ]
+        },
+        {
+          "task": "FILTER-2",
+          "BASE": [
+            "runtime-error/49542",
+            "passed/69246",
+            "failed/125223"
+          ],
+          "PTC": [
+            "passed/6467",
+            "passed/6746",
+            "passed/13798"
+          ]
+        },
+        {
+          "task": "FILTER-3",
+          "BASE": [
+            "passed/99408",
+            "failed/22842",
+            "failed/137316"
+          ],
+          "PTC": [
+            "passed/13627",
+            "passed/6458",
+            "passed/6551"
+          ]
+        },
+        {
+          "task": "FILTER-4",
+          "BASE": [
+            "passed/73632",
+            "runtime-error/89843",
+            "runtime-error/33538"
+          ],
+          "PTC": [
+            "passed/6437",
+            "passed/11052",
+            "passed/40503"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "JOIN",
+      "attempts": {
+        "BASE": 12,
+        "PTC": 12
+      },
+      "passed": {
+        "BASE": 8,
+        "PTC": 10
+      },
+      "effects": {
+        "BASE": 0,
+        "PTC": 0
+      },
+      "medianTokens": {
+        "BASE": 57089,
+        "PTC": 19872.5
+      },
+      "latencyMs": {
+        "BASE": {
+          "p50": 88931,
+          "p95": 180011
+        },
+        "PTC": {
+          "p50": 31426,
+          "p95": 180013
+        }
+      },
+      "pairs": 12,
+      "pairedBothPassed": 6,
+      "tokenRatio": {
+        "allPairs": {
+          "median": 0.3478752307244042,
+          "perPair": [
+            1.063,
+            0.722,
+            1.164,
+            0.376,
+            0.16,
+            0.32,
+            0.192,
+            1.116,
+            0.267,
+            0.241,
+            1.108,
+            0.181
+          ]
+        },
+        "bothPassed": {
+          "median": 0.2802788655047826
+        }
+      },
+      "latencyRatio": {
+        "allPairs": {
+          "median": 0.28043516052402906
+        }
+      },
+      "perTask": [
+        {
+          "task": "JOIN-1",
+          "BASE": [
+            "passed/21499",
+            "failed/92319",
+            "passed/59288"
+          ],
+          "PTC": [
+            "passed/22864",
+            "passed/14805",
+            "passed/10712"
+          ]
+        },
+        {
+          "task": "JOIN-2",
+          "BASE": [
+            "passed/38113",
+            "passed/56639",
+            "passed/67316"
+          ],
+          "PTC": [
+            "passed/27532",
+            "passed/18111",
+            "runtime-error/17958"
+          ]
+        },
+        {
+          "task": "JOIN-3",
+          "BASE": [
+            "passed/41072",
+            "passed/45224",
+            "passed/58261"
+          ],
+          "PTC": [
+            "runtime-error/47794",
+            "passed/8663",
+            "passed/14029"
+          ]
+        },
+        {
+          "task": "JOIN-4",
+          "BASE": [
+            "failed/57539",
+            "runtime-error/32998",
+            "failed/97214"
+          ],
+          "PTC": [
+            "passed/21634",
+            "passed/36816",
+            "passed/107706"
+          ]
+        }
+      ]
+    }
+  ],
+  "control": {
+    "attempts": {
+      "BASE": 12,
+      "PTC": 12
+    },
+    "passed": {
+      "BASE": 12,
+      "PTC": 12
+    },
+    "effects": {
+      "BASE": 0,
+      "PTC": 0
+    },
+    "medianTokens": {
+      "BASE": 1906,
+      "PTC": 2268.5
+    },
+    "latencyMs": {
+      "BASE": {
+        "p50": 4719,
+        "p95": 23554
+      },
+      "PTC": {
+        "p50": 7479.5,
+        "p95": 19230
+      }
+    },
+    "pairs": 12,
+    "pairedBothPassed": 12,
+    "tokenRatio": {
+      "allPairs": {
+        "median": 1.201113256727108,
+        "perPair": [
+          1.174,
+          1.145,
+          1.206,
+          2.761,
+          1.226,
+          3.954,
+          1.089,
+          1.632,
+          1.197,
+          1.154,
+          1.167,
+          1.414
+        ]
+      },
+      "bothPassed": {
+        "median": 1.201113256727108
+      }
+    },
+    "latencyRatio": {
+      "allPairs": {
+        "median": 0.8338801648789442
+      }
+    },
+    "perTask": [
+      {
+        "task": "CONTROL-1",
+        "BASE": [
+          "passed/845",
+          "passed/807",
+          "passed/814"
+        ],
+        "PTC": [
+          "passed/992",
+          "passed/989",
+          "passed/974"
+        ]
+      },
+      {
+        "task": "CONTROL-2",
+        "BASE": [
+          "passed/1956",
+          "passed/1768",
+          "passed/1906"
+        ],
+        "PTC": [
+          "passed/2239",
+          "passed/6990",
+          "passed/2199"
+        ]
+      },
+      {
+        "task": "CONTROL-3",
+        "BASE": [
+          "passed/1906",
+          "passed/2122",
+          "passed/1867"
+        ],
+        "PTC": [
+          "passed/2298",
+          "passed/2311",
+          "passed/2178"
+        ]
+      },
+      {
+        "task": "CONTROL-4",
+        "BASE": [
+          "passed/4994",
+          "passed/4988",
+          "passed/7904"
+        ],
+        "PTC": [
+          "passed/13790",
+          "passed/8139",
+          "passed/11180"
+        ]
+      }
+    ]
+  },
+  "gate": {
+    "qualityNoLoss": {
+      "passed": false,
+      "newLossPairs": [
+        "JOIN-3:0",
+        "JOIN-2:2"
+      ],
+      "BASE": 12,
+      "PTC": 22,
+      "of": {
+        "BASE": 24,
+        "PTC": 24
+      }
+    },
+    "medianTokenReductionAtLeast20Percent": {
+      "passed": true,
+      "value": 0.7853065530119354,
+      "denominator": "paired successful target tasks",
+      "pairs": 10
+    },
+    "p95LatencyIncreaseAtMost15Percent": {
+      "passed": true,
+      "value": -0.7623839531241805,
+      "denominator": "paired successful target tasks",
+      "pairs": 10,
+      "note": "small sample: p95 is indicative only; all-attempt latency remains descriptive in category reports"
+    },
+    "controlNoFabricationNoAuthority": {
+      "passed": true,
+      "runs": 6,
+      "effects": {
+        "BASE": 0,
+        "PTC": 0
+      }
+    },
+    "usageCoverageComplete": false,
+    "costInUsd": "out of scope by user decision; token reduction only, no monetary savings claim"
+  },
+  "decision": "no-go-or-needs-review",
+  "provider": "zenmux",
+  "model": "dots-studio/dots3-note-prev",
+  "effort": null,
+  "comparisonKind": "PTC on/off on the same current SDK; ablation, not original-versus-final SDK",
+  "scope": "author-exposed development cohort; not held-out; configured provider/model above; FILTER/JOIN target workload only"
+}

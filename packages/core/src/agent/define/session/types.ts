@@ -1,3 +1,4 @@
+import type { ExperimentalProgramGrant } from '../../tool/nested.ts'
 import type { ApprovalBroker } from '../../tool/approval.ts'
 import type { ToolDefinition } from '../../tool/definition.ts'
 import type { ToolInterceptor } from '../../tool/pipeline.ts'
@@ -109,6 +110,11 @@ export interface AgentSessionOptions {
    * back what was taken out of its context.
    */
   readonly spillStore?: SpillStore
+  /**
+   * Experimental: program tools and the tools each may call. Off by default.
+   * Child calls spend this turn's tool budget and never enter model history.
+   */
+  readonly experimentalPrograms?: readonly ExperimentalProgramGrant[]
   readonly interceptors?: readonly ToolInterceptor[]
   /**
    * Model-visible context recomputed before every model round.

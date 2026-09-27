@@ -1,0 +1,38 @@
+{
+  "status": "in-progress",
+  "productionSampleSourceHashes": {
+    "packages/core/src/agent/define/session.ts": "0e5067adc111ba4da130ab68de784184d1ee1c5dcc300bcc0a1f7789438294a3",
+    "packages/core/src/agent/loop/program.ts": "d7cc9c7bb397edf33478dc8488a48a1374a29f3f30976239e54f71a71370c5b1",
+    "packages/core/src/agent/loop/schedule.ts": "41efd8c20a38fd5a482f6e4b821384e8c8f9144b6f1affb200c9bccf705ecb77",
+    "packages/core/src/agent/loop/turn/model-round.ts": "aafcbf581915db056fabce55e5dc00c3f82a617a67034720aba6ef1f1edb37f0",
+    "packages/core/src/agent/tool/nested.ts": "6489e68b5f7d6e6deaced0d888ec3c7e90c166a6c5a01c8329fc16ebf7bc1994",
+    "packages/core/src/agent/tool/output-schema.ts": "80895f644d437187f278deabcf86f78c43db8101bc89a27a5f035aa08259eefb",
+    "samples/durable-operations/README.md": "e75e25ee1e965a307c5410cea4d66234050c9ed7d0cacc562d45d931db06345d",
+    "samples/durable-operations/journal.ts": "09a03a4b3fcc0721a2a02c050f068ae44ad1342eddce60a78503a930663605b8",
+    "samples/programmatic-tools/README.md": "8ce97caee45359b183f4debe077fe1a5a667795217f7dcb8d638885bd3d61c2c",
+    "samples/programmatic-tools/program-worker-async.mjs": "16a9008427d16728bd44b9ed2d190989029a046f47ecf5c2f58c7067a8971e62",
+    "samples/programmatic-tools/program-worker.mjs": "3d4166302bc7a05c23e077a95a50b7884ee45562ceb3d9c9da461a18649883c0",
+    "packages/core/src/agent/loop/turn/model-request-boundary.ts": "5ad25838e1eefc4a1876b1e18898917cf8f1dfb9d225eb88b5dfbc8d39b77f74",
+    "samples/programmatic-tools/guest-json.mjs": "e2e6a546a34156901aac2cdc07502949b739bc3966307bf4bd742ae3060682f9"
+  },
+  "sourceMatchesDeepAudit": true,
+  "candidatePatchSha256": "055229ab7ad31aecb71d09a0a5908462db728e28bca545b3ed4caf98b1eb3200",
+  "artifacts": {
+    "conformance-sync.json": "artifacts/spikes/ptc-conformance-2026-09-27T02-28-59-101Z/summary.json",
+    "conformance-async.json": "artifacts/spikes/ptc-conformance-2026-09-27T02-28-59-200Z/summary.json",
+    "durable-summary.json": "artifacts/spikes/durable-2026-09-27T02-28-51-586Z/summary.json",
+    "process-summary.json": "artifacts/spikes/process-2026-09-27T02-28-51-592Z/summary.json",
+    "recall-summary.json": "artifacts/spikes/recall-2026-09-27T02-28-51-594Z/summary.json",
+    "skill-summary.json": "artifacts/spikes/proposal-2026-09-27T02-28-51-602Z/summary.json",
+    "fixture-admission-preflight.json": "artifacts/plan-completion-hHIqY2/fixture-admission-preflight.json",
+    "preparation.json": "artifacts/plan-completion-hHIqY2/preparation.json"
+  },
+  "pending": [
+    "full original-versus-final primary and replication",
+    "OFF ablation",
+    "current-source PTC value reruns",
+    "independent prose reviews",
+    "raw-new-loss review",
+    "final interpretation and docs closeout"
+  ]
+}

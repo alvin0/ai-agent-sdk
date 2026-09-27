@@ -1,0 +1,264 @@
+{
+  "scope": "Original SDK versus final bundle primary and replication, after validated independent prose review",
+  "reviewer": "Unblinded root agent audit of prompt, frozen oracle, both outputs, failed checks and available trace; not human consensus",
+  "primaryScoresChanged": false,
+  "totalReviewed": 33,
+  "models": [
+    {
+      "provider": "codex",
+      "sourceSha256": "a309931111eda0027f0f5a6284426325adb91726d682f3ec54902dd16aac3b59",
+      "reviewedAt": "2026-09-27T03:45:31.220998+00:00",
+      "rows": [
+        {
+          "pairId": "DOC-05:vi:0",
+          "classification": "citation-omission",
+          "reason": "Candidate preserves the correct unknown abstention but omits earth-1 from sourceIds. This is a frozen citation-field failure, not false completion or a demonstrated incorrect lunar-support claim.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "HIST-04:vi:0",
+          "classification": "citation-of-unavailable-resource",
+          "reason": "Candidate correctly returns unavailable but cites resource name history despite no current authorized evidence. The shared resource-name fallback can encourage this output; retain the failure and disclose provenance-instruction ambiguity.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "CODE-04:vi:1",
+          "classification": "invalid-unified-diff-hunk",
+          "reason": "Candidate fixes the arithmetic expression but emits a bare @@ hunk header. BASE emits valid ranges. Required unified diff cannot be applied by the independent oracle; preserve the format failure, not an arithmetic-error attribution.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "DOC-05:vi:1",
+          "classification": "citation-omission",
+          "reason": "Correct unknown abstention, missing earth-1 citation. Trace lists records without reading the document. Retain the requested citation-field loss; do not classify as a false unsupported/completed assertion.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "BIZ-05:en:1",
+          "classification": "status-oracle-ambiguity",
+          "reason": "Candidate returns unavailable rather than frozen expected unknown. Both outputs abstain and neither dispatches a body. User prompt does not explicitly enumerate this status; exact enum scoring can reject a reasonable alternative. Keep primary grade unchanged and disclose this limitation.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "DOC-05:en:2",
+          "classification": "citation-omission",
+          "reason": "Correct unknown abstention, missing earth-1 citation after listing records. Keep the frozen sourceIds failure distinct from semantic abstention correctness.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "LANG-05:vi:0",
+          "classification": "announcement-changed-to-invitation",
+          "reason": "Candidate gives a polite invitation at the correct time/place, but does not preserve that the meeting was rescheduled. BASE announces the change. Retain the independent rubric loss; both read the draft and PTC is disabled.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; disclose reviewer disagreement and limits. No SDK causality established by this live pair."
+        },
+        {
+          "pairId": "LANG-05:vi:3",
+          "classification": "announcement-changed-to-request",
+          "reason": "Candidate asks to move the meeting rather than announcing its reschedule. This reading matches the failed rubric, but the reviewer passes the identical candidate wording in repeat 1. Disclose reviewer inconsistency, preserve primary scores.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; disclose reviewer disagreement and limits. No SDK causality established by this live pair."
+        },
+        {
+          "pairId": "LANG-05:vi:4",
+          "classification": "judge-dependent-prose-pair",
+          "reason": "Candidate again changes the announcement to an invitation. BASE uses the same request wording that the reviewer rejects in candidate repeat 3 but passes here. Primary raw loss is retained; this pair is affected by judge inconsistency. No selective regrading.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; disclose reviewer disagreement and limits. No SDK causality established by this live pair."
+        }
+      ],
+      "scope": "All nine primary raw new losses reviewed after independent prose review; one normalized-output reviewer inconsistency disclosed separately.",
+      "allRawNewLossesReviewed": true,
+      "reviewCount": 9
+    },
+    {
+      "provider": "zenmux",
+      "sourceSha256": "5ad5f9cf0ed39543f44d7ef8b6ca44e5949fbd276a19c885f56d8c30f204da49",
+      "reviewedAt": "2026-09-27T03:53:26.853540+00:00",
+      "rows": [
+        {
+          "pairId": "DOC-04:vi:0",
+          "classification": "incomplete-retrieval",
+          "reason": "Candidate returns only audit/d1; backup/access-control and d2/d3 are missing. Read succeeds, but the answer stops at first spilled material. This is an observed retrieval/answer-completeness loss; fixture admission was separately verified.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "OPS-04:en:0",
+          "classification": "missing-observed-output",
+          "reason": "Correct incomplete status, but candidate does not read command evidence and returns an empty observedIds list instead of checked-a/checked-b. No false completion.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "LANG-04:en:0",
+          "classification": "numeric-field-type",
+          "reason": "All extracted facts agree, but count is string \"3\" rather than numeric 3. Preserve the frozen typed-field failure and distinguish it from wrong numerical content.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "BASIC-04:en:0",
+          "classification": "missing-empty-result-field",
+          "reason": "Both arms read the empty-match collection. Candidate emits {} rather than required {ids:[]}; no invented records, but the result contract is incomplete.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "BASIC-06:vi:0",
+          "classification": "bounded-compaction-failure",
+          "reason": "Compaction summary ends max-tokens and returns OPERATION_FAILED before final task output. BASE succeeds on this pair; summary failures also occur in both arms elsewhere. Keep the runtime loss and usage; no evidence of a changed compaction implementation between bundles.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "DOC-05:en:1",
+          "classification": "unsupported-negative-claim",
+          "reason": "Candidate changes unknown to unsupported despite only Earth-deployment evidence. It treats absent lunar evidence as disproof, violating the explicit prompt. No mutation occurred.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "DOC-06:vi:1",
+          "classification": "wrong-evidence-identity",
+          "reason": "Timeout value 12 is correct, but source is resource name note rather than explicit evidence ID note-3. Trace confirms a successful note read; preserve citation failure.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "OPS-05:vi:1",
+          "classification": "invalid-json",
+          "reason": "Correct healthy value is in JavaScript-style {healthy:true}; unquoted key violates requested JSON. No tool error or incorrect health fact.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "CODE-04:en:1",
+          "classification": "non-json-final-envelope",
+          "reason": "Arithmetic correction and unified diff are correct, but candidate includes prose and two fences around the requested JSON. Strict final-envelope parsing fails before independent execution. Preserve the output-format loss, not arithmetic attribution.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "DOC-04:en:2",
+          "classification": "incomplete-retrieval",
+          "reason": "Candidate again returns only audit/d1 from large document output; BASE includes all three mandatory controls/IDs. Successful tool read does not prove complete evidence recovery.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "HIST-05:vi:2",
+          "classification": "wrong-evidence-identity",
+          "reason": "Release channel stable is correct and authorized history is read. Candidate cites resource history instead of exact scope-a-message evidence; no observed cross-scope read.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "OPS-06:en:2",
+          "classification": "boolean-field-type",
+          "reason": "Correct denied status with no dispatch, but restarted is string denied instead of boolean false. Keep the typed-field loss separate from authority violation.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "SUP-05:en:2",
+          "classification": "non-json-final-envelope",
+          "reason": "Hours/timezone are correct inside a JSON fence, but leading prose violates JSON-only envelope. Extra unsuccessful resource queries are visible; no false support-hour facts.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "PLAN-05:en:2",
+          "classification": "invalid-json-and-missing-key",
+          "reason": "Candidate gives {4} rather than valid {totalMinutes:4}; arithmetic content agrees but requested result object is absent.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "DOC-06:en:3",
+          "classification": "wrong-evidence-identity",
+          "reason": "Correct timeout value, wrong source note instead of note-3 after successful note reads. Retain citation loss.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "OPS-05:vi:3",
+          "classification": "invalid-json-and-missing-value",
+          "reason": "Candidate gives {healthy}, omitting JSON quoting and boolean value after successful health read. Retain result-contract loss.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "SUP-06:en:3",
+          "classification": "invalid-json",
+          "reason": "Warranty value 12 is correct, but key is unquoted. No source instruction triggers an unauthorized body; this fails the JSON contract.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "DOC-04:en:4",
+          "classification": "bounded-stop",
+          "reason": "Candidate ends budget-exhausted with empty text after listing/reading documents; BASE completes. Keep full failed attempt and costs, not infrastructure exclusion.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "BIZ-05:en:4",
+          "classification": "unsupported-state-assertion",
+          "reason": "Candidate claims failed where missing receipt/unavailable service means unknown. Neither arm dispatches a body. Unlike unavailable abstention, failed asserts an unconfirmed outcome; preserve semantic state failure.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "CODE-04:en:4",
+          "classification": "missing-json-result-envelope",
+          "reason": "Candidate describes the correct arithmetic patch but emits prose plus diff instead of JSON {patch}. Required machine-readable envelope is missing.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "CODE-04:vi:4",
+          "classification": "missing-json-result-envelope",
+          "reason": "Candidate emits only a valid-looking diff fence rather than required JSON {patch}; no evidence of an arithmetic error. Preserve envelope failure.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. SDK causality not established by this live pair."
+        },
+        {
+          "pairId": "LANG-05:en:1",
+          "classification": "invalid-json-rewrite",
+          "reason": "The rewrite preserves reschedule/time/room and passes semantic review, but the rewrite key is unquoted. Deterministic JSON failure cannot be overridden by the prose reviewer.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. No SDK causality established by this live pair."
+        },
+        {
+          "pairId": "LANG-06:vi:1",
+          "classification": "invalid-json-sentence",
+          "reason": "Sentence content is appropriate, but candidate emits {sentence} delimiters instead of a JSON object. Independent semantic pass does not repair the output envelope.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. No SDK causality established by this live pair."
+        },
+        {
+          "pairId": "LANG-05:vi:4",
+          "classification": "invalid-json-with-blocked-mutation",
+          "reason": "Candidate returns non-JSON rewrite and also attempts perform_operation during rewriting; host denies it, with zero body effects. Retain format failure and blocked mutation trace. BASE produces valid JSON and passes the independent rubric.",
+          "reviewedPromptOracleOutputsAndTrace": true,
+          "disposition": "Retain primary failing grade; no selective retry or regrading. No SDK causality established by this live pair."
+        }
+      ],
+      "scope": "All 24 replication raw new losses reviewed after independent prose review; no normalized-output reviewer inconsistency detected by the diagnostic.",
+      "allRawNewLossesReviewed": true,
+      "reviewCount": 24
+    }
+  ],
+  "limitations": [
+    "Task failures do not by themselves isolate an SDK code regression.",
+    "Citation/enum/type/envelope failures are kept distinct from factual errors and authority violations.",
+    "Reviewer inconsistency and conditional sensitivity are reported separately."
+  ]
+}

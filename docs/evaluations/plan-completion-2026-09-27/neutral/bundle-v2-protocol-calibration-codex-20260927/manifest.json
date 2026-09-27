@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 2,
+  "cohort": "neutral-v2-matched-en-vi",
+  "comparisonKind": "original-sdk-versus-final-bundle",
+  "runId": "bundle-v2-protocol-calibration-codex-20260927",
+  "phase": "pilot",
+  "provider": "codex",
+  "model": "gpt-6-luna",
+  "effort": "medium",
+  "seed": 260926,
+  "repeats": 1,
+  "arms": [
+    "BASE",
+    "CANDIDATE"
+  ],
+  "expectedAttempts": 16,
+  "preparation": {
+    "root": "artifacts/plan-completion-hHIqY2",
+    "baselineArchiveSha256": "9e722716fa839f5d62eb3877abe44a32e4d5defaef7aad9f9b5d76e5330bf0a8",
+    "baselineRevision": "5b589b6abe6d0a61da3f55b549713456ccc8c7c4",
+    "candidatePatchSha256": "055229ab7ad31aecb71d09a0a5908462db728e28bca545b3ed4caf98b1eb3200",
+    "stagedSha256": "e2448bb66e174723fcb779621db92ec725d7f1645d556b5d5bb49c079d5a15ca",
+    "preparedAt": "2026-09-27T01:57:10.897Z"
+  },
+  "startedAt": "2026-09-27T02:12:30.867Z",
+  "node": "v24.9.0",
+  "exposure": "author-exposed frozen regression cohort; family-disjoint split; not blind",
+  "languageProtocol": "matched en/vi variants within each family; source-language quotes and IDs unchanged; variants are not independent families",
+  "candidatePolicy": "PTC enabled only on preregistered DATA-01..04/BIZ-01..02 target families; async sample; all other tasks use ordinary tools",
+  "order": "pairs alternate arm order by repeat plus variant index; repeat rotates family schedule; one in-flight request per provider",
+  "limits": {
+    "maxTurns": 12,
+    "maxToolCalls": 24,
+    "timeoutMs": 120000,
+    "maxTotalTokens": 40000,
+    "maxToolResultTokens": 2048,
+    "maxToolResultBytes": 8192
+  },
+  "stopPolicy": {
+    "tokenCeiling": 1000000,
+    "maxAttempts": 16,
+    "retries": 0,
+    "killSwitch": "/Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/artifacts/neutral-evaluation/bundle-v2-protocol-calibration-codex-20260927/STOP",
+    "unknownUsageReserve": 40000
+  },
+  "pricing": {
+    "currencyConclusion": "not evaluated",
+    "reason": "Codex subscription and ZenMux billing tariffs are not configured in the host. Token ceilings bound usage; tokens are not a USD price.",
+    "snapshotAt": "2026-09-27T02:12:30.867Z"
+  },
+  "gates": {
+    "primary": "equal-domain macro paired task success",
+    "nonInferiorityMargin": 0.05,
+    "zeroNewDeterministicViolations": true,
+    "efficiency": "only after quality pass, report all attempts and paired success separately; currency gate inconclusive without tariffs",
+    "bootstrap": "4000 stratified family draws; preserve all paired languages/repeats within family",
+    "sampleExpansion": "none; inconclusive rather than rerun until success"
+  },
+  "selected": [
+    {
+      "id": "CODE-04",
+      "variantId": "CODE-04:en",
+      "familyId": "CODE-04",
+      "domain": "CODE",
+      "split": "held-out",
+      "language": "en",
+      "comparison": "common",
+      "unsupported": null,
+      "ptcTarget": false
+    },
+    {
+      "id": "CODE-04",
+      "variantId": "CODE-04:vi",
+      "familyId": "CODE-04",
+      "domain": "CODE",
+      "split": "held-out",
+      "language": "vi",
+      "comparison": "common",
+      "unsupported": null,
+      "ptcTarget": false
+    },
+    {
+      "id": "SUP-03",
+      "variantId": "SUP-03:en",
+      "familyId": "SUP-03",
+      "domain": "SUP",
+      "split": "development",
+      "language": "en",
+      "comparison": "common",
+      "unsupported": null,
+      "ptcTarget": false
+    },
+    {
+      "id": "SUP-03",
+      "variantId": "SUP-03:vi",
+      "familyId": "SUP-03",
+      "domain": "SUP",
+      "split": "development",
+      "language": "vi",
+      "comparison": "common",
+      "unsupported": null,
+      "ptcTarget": false
+    },
+    {
+      "id": "PLAN-04",
+      "variantId": "PLAN-04:en",
+      "familyId": "PLAN-04",
+      "domain": "PLAN",
+      "split": "held-out",
+      "language": "en",
+      "comparison": "common",
+      "unsupported": null,
+      "ptcTarget": false
+    },
+    {
+      "id": "PLAN-04",
+      "variantId": "PLAN-04:vi",
+      "familyId": "PLAN-04",
+      "domain": "PLAN",
+      "split": "held-out",
+      "language": "vi",
+      "comparison": "common",
+      "unsupported": null,
+      "ptcTarget": false
+    },
+    {
+      "id": "BASIC-06",
+      "variantId": "BASIC-06:en",
+      "familyId": "BASIC-06",
+      "domain": "BASIC",
+      "split": "held-out",
+      "language": "en",
+      "comparison": "common",
+      "unsupported": null,
+      "ptcTarget": false
+    },
+    {
+      "id": "BASIC-06",
+      "variantId": "BASIC-06:vi",
+      "familyId": "BASIC-06",
+      "domain": "BASIC",
+      "split": "held-out",
+      "language": "vi",
+      "comparison": "common",
+      "unsupported": null,
+      "ptcTarget": false
+    }
+  ]
+}

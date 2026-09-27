@@ -1,0 +1,14 @@
+{
+  "manifest.json": "213c74db88edad5b4a9ff76be58eb9b7872ee4a5e4a38e3b5ad2a2c9b0cf2d57",
+  "fixtures.json": "71dc91c17d6ff15cb065dbb3471f80c6f2750d0278bfc45fda200439398af11e",
+  "runs.jsonl": "2d8a9e5d307a84eeac7183fae92e0a8b557158e2b9d2964a74191770e5f60ddd",
+  "summary.json": "12d765133ec39949332bb83dd23d94f997139e657e4dffd45ef0ba70c5b9f850",
+  "loaded-bundles.json": "b951a36c607aad8644cb600a8f58edc2d18074682b226563b9f2667cc5fa42d0",
+  "cases.ts": "a91e3d9689b8dae757cdf3339b0dcc8f84f07874ee1c12143dbdfc86e25fb786",
+  "grading.ts": "3509df295587aca5fa4ca3e23df4608289611be7cc1ecc79a9983a6bb6aeb903",
+  "cohort-v2.ts": "dec39828bc83308930721b351b946a82402873848d9fdcb9fa0242d84c9b8020",
+  "grading-v2.ts": "c678c918d09f97abe0ec9c0633574e92b5f7947948c3bcb9f2ba3e84324f13ee",
+  "runner-bundles.ts": "e5755df9937124158d2ad59d29c70956258e6ec9d306c53343cd3e47715e48f5",
+  "bundle-worker.ts": "1ca26c10a89ceb120b315c2f85360e460c83902f26da78b3aa102ff14d6c2d27",
+  "bundle-protocol.ts": "787cb663f9449b43da9e5ccbc06bd40dadaacdc17fb424420f23ced3e7caeae6"
+}

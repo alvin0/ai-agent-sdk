@@ -13,6 +13,7 @@ import { serializedBytes, modelFailureFinish, modelAbortedFinish, messageOf, now
 import { validateStreamChunk } from './validation.ts'
 import { StreamAbortError, nextWithAbort, closeIterator } from './cancellation.ts'
 import { runOptionalHook } from './hooks.ts'
+import { observeModelRequestBoundary } from './model-request-boundary.ts'
 import { accountingUsageStop } from './usage-stop.ts'
 import {
   classifyTextPhases, dropDuplicateToolCalls, invalidHostToolCall, contentTiming,
@@ -155,6 +156,7 @@ export async function modelRound(
     ...outputFormat === undefined ? {} : { outputFormat },
   }
   const checkpointRequest: GenerateOptions = { ...requestBase, signal }
+  observeModelRequestBoundary(options.history)
   try {
     await runOptionalHook(options.hooks?.checkpoint, [{
       kind: 'before-model-request', request: checkpointRequest,
