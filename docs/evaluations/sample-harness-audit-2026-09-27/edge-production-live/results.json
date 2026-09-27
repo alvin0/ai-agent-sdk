@@ -1,0 +1,173 @@
+{
+  "base": "http://127.0.0.1:3368",
+  "model": "gpt-4.1-mini",
+  "secondary": "gpt-4o-mini",
+  "rows": [
+    {
+      "id": "single-and-model-switch-preserve-history",
+      "passed": true,
+      "elapsedMs": 2940,
+      "evidence": {
+        "texts": [
+          "ACK",
+          "edge-4827"
+        ],
+        "traces": [
+          {
+            "runId": "8cdaadfd7a450179eddf5e82dbdbd10f",
+            "traceId": "dfc13c9b2ab809381e5f219a1f286d47",
+            "startedAt": 1790523179366,
+            "durationMs": 1162,
+            "status": "success",
+            "spans": 2,
+            "prompt": "Return only the exact marker I gave previously.",
+            "members": [],
+            "usage": {
+              "inputTokens": 345,
+              "cacheReadTokens": 0,
+              "outputTokens": 6
+            }
+          },
+          {
+            "runId": "4e16ac84476feba9d11f10e51dd3a836",
+            "traceId": "fcc26f4b41df8fae8362c4a2fba9fb2c",
+            "startedAt": 1790523177687,
+            "durationMs": 1672,
+            "status": "success",
+            "spans": 2,
+            "prompt": "Remember this exact marker: edge-4827. Reply only ACK.",
+            "members": [],
+            "usage": {
+              "inputTokens": 327,
+              "cacheReadTokens": 0,
+              "outputTokens": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "clock-tool-real-execution",
+      "passed": true,
+      "elapsedMs": 2033,
+      "evidence": {
+        "terminal": {
+          "t": "done",
+          "text": "The current date in UTC is 2026-09-27.",
+          "usage": {
+            "inputTokens": 744,
+            "outputTokens": 32,
+            "totalTokens": 776
+          }
+        }
+      }
+    },
+    {
+      "id": "bounded-https-tool-real-execution",
+      "passed": true,
+      "elapsedMs": 3017,
+      "evidence": {
+        "terminal": {
+          "t": "done",
+          "text": "The page explains that certain domains like example.com and example.org are reserved for documentation and illustrative purposes as described in RFC 2606 and RFC 6761, are not available for registration, and provide a basic informational web service but are not intended to support production applications.",
+          "usage": {
+            "inputTokens": 1005,
+            "outputTokens": 80,
+            "totalTokens": 1085
+          }
+        }
+      }
+    },
+    {
+      "id": "provider-error-and-recovery",
+      "passed": true,
+      "elapsedMs": 1605,
+      "evidence": {
+        "failed": {
+          "t": "error",
+          "code": "INVALID_REQUEST",
+          "message": "Provider operation failed",
+          "stage": "provider-attempt",
+          "status": 404,
+          "detail": "The model `definitely-no-such-model-sdk-harness-audit` does not exist or you do not have access to it."
+        },
+        "recovered": {
+          "t": "done",
+          "text": "RECOVERED",
+          "usage": {
+            "inputTokens": 317,
+            "outputTokens": 5,
+            "totalTokens": 322
+          }
+        }
+      }
+    },
+    {
+      "id": "credential-scoped-traces-and-close",
+      "passed": true,
+      "elapsedMs": 1017,
+      "evidence": {
+        "foreign": {
+          "spans": []
+        },
+        "denied": {
+          "closed": false
+        },
+        "ownSpanCount": 2
+      }
+    },
+    {
+      "id": "fixed-team-peer-report-and-synthesis",
+      "passed": true,
+      "elapsedMs": 4351,
+      "evidence": {
+        "terminal": {
+          "t": "done",
+          "text": "TEAM_FIXED_OK",
+          "usage": {
+            "inputTokens": 3892,
+            "outputTokens": 55,
+            "totalTokens": 3947
+          }
+        }
+      }
+    },
+    {
+      "id": "team-auto-workers-released-between-turns",
+      "passed": false,
+      "elapsedMs": 10227,
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ 'Findings:\\n' +\n+   '- An analyst agent named \"first\" was created as requested.\\n' +\n+   '- This agent replied exactly with \"AUTO_PEER_OK\" to the prompt.\\n' +\n+   `- Following the analyst's response, the final reply \"AUTO_TEAM_OK\" was sent as required.\\n` +\n+   '\\n' +\n+   'Evidence:\\n' +\n+   '- The agent \"first\" produced the exact response \"AUTO_PEER_OK.\"\\n' +\n+   `- The final response \"AUTO_TEAM_OK\" was provided after receiving the analyst's message.\\n` +\n+   \"- There were no errors, missing elements, or deviations from the user's objective and constraints.\\n\" +\n+   '\\n' +\n+   'Checks Performed:\\n' +\n+   \"- Confirmed the analyst agent's identity and role.\\n\" +\n+   '- Verified that the analyst replied with the exact phrase requested.\\n' +\n+   \"- Verified that the final response matches the user's instruction precisely.\\n\" +\n+   '- Confirmed that the entire workflow fulfilled the initial task without outstanding issues.\\n' +\n+   '\\n' +\n+   'Remaining Limitations:\\n' +\n+   '- None; the task was fully completed, and all constraints were met.'\n- 'AUTO_TEAM_OK'\n"
+    },
+    {
+      "id": "disconnect-aborts-provider-and-allows-next-turn",
+      "passed": true,
+      "elapsedMs": 2303,
+      "evidence": {
+        "abortedTrace": {
+          "runId": "40e570a8d22aff9aab33782a8ad0db3a",
+          "traceId": "ae39bad5ed8c316f5c96ee3631d8ed09",
+          "startedAt": 1790523202823,
+          "durationMs": 1167,
+          "status": "aborted",
+          "spans": 2,
+          "prompt": "Write 800 words about oceans.",
+          "members": [],
+          "usage": {
+            "inputTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0
+          }
+        },
+        "next": {
+          "t": "done",
+          "text": "AFTER_ABORT",
+          "usage": {
+            "inputTokens": 351,
+            "outputTokens": 5,
+            "totalTokens": 356
+          }
+        }
+      }
+    }
+  ]
+}

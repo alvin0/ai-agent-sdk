@@ -13,7 +13,7 @@ import type {
 import type { AgentRunEvent, AgentRunHandle, AgentSession } from '@alvin0/ai-agent-sdk-core/agent'
 import { readConfig } from './config'
 import {
-  SessionCapacityError, acquireSession, activeSessions, dropSession, findSession, findTrace, leadName,
+  SessionBusyError, SessionCapacityError, acquireSession, activeSessions, dropSession, findSession, findTrace, leadName,
   type WarmSession,
 } from './sessions'
 import type { RunTrace } from './traces'
@@ -129,15 +129,15 @@ export function createEdgeChatApp(basePath = '/api') {
     }
 
     let entry
-    try { entry = await acquireSession(conversationId, config) }
+    try { entry = await acquireSession(conversationId, config, true) }
     catch (error) {
+      if (error instanceof SessionBusyError) return c.json({ error: 'conversation_busy' }, 409)
       if (error instanceof SessionCapacityError) return c.json({ error: 'session_capacity' }, 503)
       return c.json({ error: 'provider_initialization_failed', message: reason(error) }, 503)
     }
     // One conversation runs one turn at a time: the session owns the history,
     // and two interleaved runs would write into it in an order neither the user
     // nor the model can reconstruct.
-    if (entry.session.isRunning) return c.json({ error: 'conversation_busy' }, 409)
     entry.touchedAt = Date.now()
 
     // A failure recorded during an earlier run must not be offered as the
@@ -154,24 +154,36 @@ export function createEdgeChatApp(basePath = '/api') {
       mode: config.mode,
       ...(config.mode === 'team' ? { members: config.team } : {}),
       entry,
+      requestSignal: c.req.raw.signal,
     }
-    if (entry.kind === 'team-auto') {
-      const managed = entry.managedTeam
-      if (managed === undefined) return c.json({ error: 'team_auto_unavailable' }, 503)
-      const abort = new AbortController()
-      entry.activeAbort = abort
-      return streamAutoRun(managed.lead.stream(message.trim(), { signal: abort.signal }), abort, context)
+    const abort = new AbortController()
+    const disconnected = () => abort.abort(new Error('Response request disconnected'))
+    if (context.requestSignal.aborted) disconnected()
+    else context.requestSignal.addEventListener('abort', disconnected, { once: true })
+    context.release = () => {
+      context.requestSignal.removeEventListener('abort', disconnected)
+      if (entry.activeAbort === abort) entry.activeAbort = undefined
+      entry.activeResponse = false
     }
-    const session = entry.session as RuntimeAgentSession
-    // The model for THIS turn, not for the session: the SDK still lets a
-    // per-call `model` override run without disturbing the conversation. Effort
-    // has no such override — it was already baked into this session's agent by
-    // `acquireSession` when the visitor's effort choice was last read — so it is
-    // never repeated here.
-    return streamRun(session.stream(message.trim(), {
-      includeTraceEvents: true,
-      model: { provider: 'openai', id: config.model },
-    }), context)
+    entry.activeAbort = abort
+    try {
+      if (entry.kind === 'team-auto') {
+        const managed = entry.managedTeam
+        if (managed === undefined) { context.release(); return c.json({ error: 'team_auto_unavailable' }, 503) }
+        return streamAutoRun(managed.lead.stream(message.trim(), { signal: abort.signal }), abort, context)
+      }
+      const session = entry.session as RuntimeAgentSession
+      // The model for THIS turn, not for the session: the SDK still lets a
+      // per-call `model` override run without disturbing the conversation. Effort
+      // has no such override — it was already baked into this session's agent by
+      // `acquireSession` when the visitor's effort choice was last read — so it is
+      // never repeated here.
+      return streamRun(session.stream(message.trim(), {
+        includeTraceEvents: true,
+        model: { provider: 'openai', id: config.model },
+        signal: abort.signal,
+      }), context)
+    } catch (error) { context.release(); throw error }
   })
 
   app.post('/close', async (c) => {
@@ -253,6 +265,7 @@ function streamRun(handle: RuntimeAgentRunHandle, context: RunContext): Response
       })
       const trace = context.entry.traceStore.start(handle.runId, context.prompt)
       void pump(handle, send, { ...context, trace }).finally(() => {
+        context.release?.()
         closed = true
         controller = undefined
         try { target.close() } catch { /* the client is already gone */ }
@@ -262,6 +275,7 @@ function streamRun(handle: RuntimeAgentRunHandle, context: RunContext): Response
       closed = true
       controller = undefined
       handle.abort()
+      context.entry.activeAbort?.abort(new Error('Response body cancelled'))
       await handle.report.catch(() => undefined)
     },
   })
@@ -313,6 +327,7 @@ function streamAutoRun(
       })
       const trace = context.entry.traceStore.start(handle.runId, context.prompt)
       void pumpAuto(handle, abort, send, { ...context, trace }).finally(() => {
+        context.release?.()
         closed = true
         controller = undefined
         try { target.close() } catch { /* the client is already gone */ }
@@ -348,6 +363,7 @@ async function pumpAuto(
   if (managed === undefined) return
   const started = new Set<string>()
   const ended = new Set<string>()
+  let leadFollowupFailed = false
   const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
 
   const account = (event: AgentRunEvent): void => {
@@ -361,6 +377,7 @@ async function pumpAuto(
   const projectQueued = (member: string, event: AgentRunEvent): void => {
     account(event)
     const lead = member === managed.leadName
+    if (lead && event.type === 'agent-end') leadFollowupFailed = !event.outcome.completed
     const span = context.trace?.observe(event, member)
     if (span !== undefined) send({ t: 'span', span })
     if (!lead && !started.has(member)) {
@@ -392,12 +409,14 @@ async function pumpAuto(
       projectAgentEvent(event, send, managed.leadName)
     }
     const initial = await handle.result
+    if (!initial.outcome.completed) throw new Error('Team Auto lead did not complete')
     drain()
     // Workers are intentionally detached from the original lead handle. Keep
     // this response open through their reports and any synthesis turn they
     // wake on the lead, matching chat-agents' Team Auto lifecycle.
     await managed.whenQuiet(abort.signal)
     drain()
+    if (leadFollowupFailed) throw new Error('Team Auto follow-up lead did not complete')
     const text = lastAssistantTextFromSession(managed.lead) ?? initial.text
     if (usage.totalTokens === 0) {
       const reported = usageOf(initial.report.usage.reported)
@@ -405,11 +424,11 @@ async function pumpAuto(
       usage.outputTokens = reported.outputTokens
       usage.totalTokens = reported.totalTokens
     }
-    send({ t: 'done', text, usage })
     await closeAutoWorkers(context.entry)
+    send({ t: 'done', text, usage })
   } catch {
     drain()
-    if (abort.signal.aborted) return
+    if (abort.signal.aborted) { await closeAutoWorkers(context.entry); return }
     const report = await handle.report.catch(() => undefined)
     const last = report?.errors.at(-1)
     const call = report?.modelCalls.findLast(entry => entry.error !== undefined)
@@ -448,6 +467,8 @@ interface RunContext {
   readonly mode: RunMode
   readonly members?: readonly WireMember[]
   readonly entry: WarmSession
+  readonly requestSignal: AbortSignal
+  release?: () => void
   readonly trace?: RunTrace
 }
 
@@ -466,6 +487,8 @@ async function pump(
   try {
     for await (const event of handle) {
       watcher?.drain()
+      const span = context.trace?.observe(event, lead)
+      if (span !== undefined) send({ t: 'span', span })
       project(event, send, lead)
     }
     const result = await handle.result

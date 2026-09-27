@@ -227,7 +227,7 @@ const scenarios: Scenario[] = [
       turn(`${session}-a`, 'Reply with only the word alpha.'),
       turn(`${session}-b`, 'How many data rows (excluding header) are in sales.csv? Reply with only the number.'),
     ])
-    return { passed: /alpha/i.test(a.text) && !/\b50\b/.test(a.text) && /\b50\b/.test(b.text), detail: { a: a.text.slice(0, 40), b: b.text.slice(0, 40) }, turns: [a, b] }
+    return { passed: a.reason === 'completed' && b.reason === 'completed' && a.text.trim() === 'alpha' && b.text.trim() === String(SALES.length), detail: { a: a.text.slice(0, 40), b: b.text.slice(0, 40), tools: tools(b) }, turns: [a, b] }
   } },
   { id: 'S13', title: 'find a marker deep in a large file', run: async session => {
     await conversation(session)
@@ -260,13 +260,17 @@ const scenarios: Scenario[] = [
   } },
 ]
 
+if (!Number.isSafeInteger(REPEAT) || REPEAT < 1) throw new Error('--repeat must be a positive safe integer')
+if (ONLY !== undefined && ONLY.some(id => !scenarios.some(s => s.id === id))) throw new Error('--only must contain known scenario IDs')
+const selected = scenarios.filter(s => ONLY === undefined || ONLY.includes(s.id))
+if (selected.length === 0) throw new Error('No scenarios selected')
 const stamp = new Date().toISOString().replace(/[:.]/g, '-')
 const out = resolve('artifacts/chat-agents-live', `${PROVIDER}-${MODEL.replace(/[^A-Za-z0-9._-]/g, '_')}-${stamp}`)
 await mkdir(out, { recursive: true })
 const results = []
 for (let repeat = 0; repeat < REPEAT; repeat++) {
   await seed()
-  for (const scenario of scenarios.filter(s => ONLY === undefined || ONLY.includes(s.id))) {
+  for (const scenario of selected) {
     const session = `live-${stamp}-${scenario.id}-${String(repeat)}`
     const started = performance.now()
     try {
@@ -290,3 +294,4 @@ for (let repeat = 0; repeat < REPEAT; repeat++) {
 await writeFile(join(out, 'summary.json'), JSON.stringify({ base: BASE, provider: PROVIDER, model: MODEL, repeat: REPEAT,
   passed: results.filter(r => r.passed).length, total: results.length }, null, 2))
 console.log(`Retained: ${out}`)
+if (results.length !== selected.length * REPEAT || results.some(r => !r.passed)) process.exitCode = 1

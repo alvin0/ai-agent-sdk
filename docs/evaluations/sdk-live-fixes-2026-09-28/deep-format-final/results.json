@@ -1,0 +1,101 @@
+{
+  "model": "gpt-6-luna",
+  "rows": [
+    {
+      "id": "json",
+      "passed": true,
+      "elapsedMs": 3671,
+      "modelRequests": 2,
+      "text": "{\"answer\":37}",
+      "completion": {
+        "summary": "Returned the requested JSON object exactly.",
+        "evidence": [
+          "Output is {\"answer\":37} with no Markdown fences."
+        ]
+      },
+      "usage": {
+        "reported": {
+          "inputTokens": 904,
+          "outputTokens": 50,
+          "totalTokens": 954
+        },
+        "budgetTokens": 954,
+        "coverage": {
+          "logicalCalls": 2,
+          "attempts": 2,
+          "complete": 2,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "authoritative": true
+      }
+    },
+    {
+      "id": "number",
+      "passed": true,
+      "elapsedMs": 3385,
+      "modelRequests": 2,
+      "text": "83",
+      "completion": {
+        "summary": "Prepared the requested number-only response.",
+        "evidence": [
+          "The final response will contain only 83."
+        ]
+      },
+      "usage": {
+        "reported": {
+          "inputTokens": 1458,
+          "outputTokens": 42,
+          "totalTokens": 1500
+        },
+        "budgetTokens": 1500,
+        "coverage": {
+          "logicalCalls": 2,
+          "attempts": 2,
+          "complete": 2,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "authoritative": true
+      }
+    },
+    {
+      "id": "exact-text",
+      "passed": true,
+      "elapsedMs": 3513,
+      "modelRequests": 2,
+      "text": "FORMAT_OK",
+      "completion": {
+        "summary": "Prepared the exact requested response.",
+        "evidence": [
+          "The response is the literal string FORMAT_OK with no extra text."
+        ]
+      },
+      "usage": {
+        "reported": {
+          "inputTokens": 1996,
+          "outputTokens": 46,
+          "totalTokens": 2042
+        },
+        "budgetTokens": 2042,
+        "coverage": {
+          "logicalCalls": 2,
+          "attempts": 2,
+          "complete": 2,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "authoritative": true
+      }
+    }
+  ]
+}

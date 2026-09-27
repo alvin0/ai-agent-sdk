@@ -1,0 +1,21 @@
+{
+  "checks/build-cli-final.log": "7dd48ca3a186eeca059e12fd3959d8bdbabcb76ff3c295c596d6bf131e36355d",
+  "checks/build.log": "23a0251c8d94174a1bada6a654a9c799d770f0d82e952bb4d16789e4b40809c2",
+  "checks/core-packed-node22.log": "a52c7d6b0c3ef3f70f0500dbf30b303ad39f6737b7d837690d1514a96baf2d5b",
+  "checks/deno-version.txt": "5f8f88bfc0a7ec4206c73f3b83ac426b1d9facd4e5bd6dad5e38a877007597b3",
+  "checks/docs-final.log": "1fcf3ee1272c809b3bad12129c5d776bc386865ca9341d161d1f55a8336e3cd9",
+  "checks/human-typecheck.log": "57079a43ce5129a0ca18d615b0153072f309fb74712e1425d0ed217eb5ba124e",
+  "checks/no-follow-final.log": "1ebd1d10efac8c0f76e8e2b71323d133051747cd6ca916006dda781d008bfbc3",
+  "checks/observability-browser-test.log": "8850266b09ce62a2ee1f910871e01567cfbc1afacd35f0c6a810bc84e0953a93",
+  "checks/package-tests.log": "1fd2589c1220c875bcde9dd4e1f7cc3fec6af0fe8af35ab27366a8d60c04ea85",
+  "checks/packed-runner-typecheck-after.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "checks/packed-runner-typecheck-before.log": "1b7e5ed6896c9ed04a41eaf0c8c839cb04daa0cafd779e2ab92a90711c77d0d4",
+  "checks/packed.log": "7cc2e2b52868142dc1ccac1071dff61ffa9c6be16679fee4ce5aa3456815e2a5",
+  "checks/root-tests-final.log": "a1b166874d5c3d09885e94e83f1544a3ecc0fe571087c92dc5895c7ced3e1d4b",
+  "checks/static.log": "c455f8966924ee056a20a62ee8e2bba034cd9c6b967349bf26339f117a2bb02f",
+  "checks/tarball-verification.json": "93d5620036fc664387a65d5049d83b6b35f4e8359401d0f6a97d88c3c61623b2",
+  "checks/typecheck.log": "6cbefdfb0bd244774707087765fabd13b492bbdf1d935f649b48de2cf73c2079",
+  "checks/worktree-verification.json": "1a1c17956d67243ea28b6fb1efcb21a1d33412b5d4c66af9cf2c550a6933c736",
+  "findings.md": "f99e3a5e95d7cb6b7aa03bd607694cb74d0350fcab2d9a85675ff2fb13b5de5a",
+  "report.json": "08181df674fcd83ff58a9dca1b9a5f9e2498d377dcb22c03e64899e799a051ea"
+}

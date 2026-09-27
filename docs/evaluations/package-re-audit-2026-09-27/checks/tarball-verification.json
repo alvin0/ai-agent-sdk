@@ -1,0 +1,187 @@
+{
+  "checked": 26,
+  "records": [
+    {
+      "package": "@alvin0/ai-agent-sdk-a2a",
+      "tarball": "packages/a2a/artifacts/alvin0-ai-agent-sdk-a2a-0.1.4.tgz",
+      "sha256": "0d43220e66e058a3bd10027398c3f8b57a7420c51bc82d8f6c4565a47b157015",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-auth-node",
+      "tarball": "packages/auth-node/artifacts/alvin0-ai-agent-sdk-auth-node-0.1.4.tgz",
+      "sha256": "673780146f5873468617c4f03e670c2a55b49712ea8ef61e473b971c2aa9ea14",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-core",
+      "tarball": "packages/core/artifacts/core-packed-ar20y6/alvin0-ai-agent-sdk-core-0.1.4.tgz",
+      "sha256": "02d83daf23c3aa023260976b833f679c6c9adc0b908e63d671d023a37dcbe3fb",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-instructions-node",
+      "tarball": "packages/instructions-node/artifacts/alvin0-ai-agent-sdk-instructions-node-0.1.4.tgz",
+      "sha256": "9d5b0832ef836291659c67272336c794e0035e938e137c753d0f135916fe3d6b",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-mcp",
+      "tarball": "packages/mcp/artifacts/alvin0-ai-agent-sdk-mcp-0.1.4.tgz",
+      "sha256": "892bcef6e5592181fa565226f896913937661a298eced73a05ae0114a6651aeb",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-mcp-node",
+      "tarball": "packages/mcp-node/artifacts/alvin0-ai-agent-sdk-mcp-node-0.1.4.tgz",
+      "sha256": "00b5f7c210ea2ed779da2e9d3ae5d77aa21bb31473dda3b6b2331ab70156eaca",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-mcp-node-server",
+      "tarball": "packages/mcp-node-server/artifacts/alvin0-ai-agent-sdk-mcp-node-server-0.1.4.tgz",
+      "sha256": "033a4e1613997ff972c3e335a73a1eeaf5be755e3acb0c50cc767c4476c295e0",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-mcp-server",
+      "tarball": "packages/mcp-server/artifacts/alvin0-ai-agent-sdk-mcp-server-0.1.4.tgz",
+      "sha256": "de37eb221b1f0ea3fdcd8d8fc5f23af3c3116d2d5d024eac266d87dc2cfc6c7e",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-observability-browser",
+      "tarball": "packages/observability-browser/artifacts/alvin0-ai-agent-sdk-observability-browser-0.1.4.tgz",
+      "sha256": "5d5abcd8e8c10d2817912086c41981d033efa6141d3f16d4ee02e795508bb8fe",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-observability-fetch",
+      "tarball": "packages/observability-fetch/artifacts/alvin0-ai-agent-sdk-observability-fetch-0.1.4.tgz",
+      "sha256": "3e9fe0ab02048a9dea73073eeb78df3506d54f640b8f02657bbc3593c6169400",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-observability-node",
+      "tarball": "packages/observability-node/artifacts/alvin0-ai-agent-sdk-observability-node-0.1.4.tgz",
+      "sha256": "14328fed2872420c24839a6ceeb8cd799058495420742d112a8f3d33a757142d",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-observability-otel",
+      "tarball": "packages/observability-otel/artifacts/alvin0-ai-agent-sdk-observability-otel-0.1.4.tgz",
+      "sha256": "e9636775f72805955b7d9444439fbfe268a9f369a819450b0d1702c96fe53ef8",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-protocol-anthropic-messages",
+      "tarball": "packages/protocol-anthropic-messages/artifacts/alvin0-ai-agent-sdk-protocol-anthropic-messages-0.1.4.tgz",
+      "sha256": "de3ae03e61e1ec2f717a5a0045aa746ce5c7ce39f7e899b13234bf1c34bc0c41",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-protocol-gemini-interactions",
+      "tarball": "packages/protocol-gemini-interactions/artifacts/alvin0-ai-agent-sdk-protocol-gemini-interactions-0.1.4.tgz",
+      "sha256": "2ac90742ea9fecac6c06b04557392632d76903c3a21eed3a0607fe8ef60ea657",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-protocol-openai-chat-completions",
+      "tarball": "packages/protocol-openai-chat-completions/artifacts/alvin0-ai-agent-sdk-protocol-openai-chat-completions-0.1.4.tgz",
+      "sha256": "7d9828c866fd82fc48bc788532cd81b61f4cd00b3daff50f64c2784661710ea3",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-protocol-responses",
+      "tarball": "packages/protocol-responses/artifacts/alvin0-ai-agent-sdk-protocol-responses-0.1.4.tgz",
+      "sha256": "e310390438d7397a7488cd385a2cb7c14907a46e65a069af80e905ca34f30ab0",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-provider-anthropic",
+      "tarball": "packages/provider-anthropic/artifacts/alvin0-ai-agent-sdk-provider-anthropic-0.1.4.tgz",
+      "sha256": "af58ad9a82ad2b114af8df2ac74fa632217b17083bf2fc3f44ca9f2d98cf557a",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-provider-codex",
+      "tarball": "packages/provider-codex/artifacts/alvin0-ai-agent-sdk-provider-codex-0.1.4.tgz",
+      "sha256": "fdbc95aafa68f770cc24c8afaa30fe81a7b3ce3be662a86303842bd7cd40593f",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-provider-copilot",
+      "tarball": "packages/provider-copilot/artifacts/alvin0-ai-agent-sdk-provider-copilot-0.1.4.tgz",
+      "sha256": "f14888c23297336d5cf4334f756ee5af00b0a6794df9fcbb9099c902045b1b99",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-provider-gemini",
+      "tarball": "packages/provider-gemini/artifacts/alvin0-ai-agent-sdk-provider-gemini-0.1.4.tgz",
+      "sha256": "e1679aa081d619b8e0f3ec9d117af17ab59b44c3d50539709ff9f90d55728918",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-provider-http",
+      "tarball": "packages/provider-http/artifacts/alvin0-ai-agent-sdk-provider-http-0.1.4.tgz",
+      "sha256": "3d5f91e898a6e69ffd68e9b5b01dcd06a202c68cbc4f31008df3f3e07093443f",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-provider-openai",
+      "tarball": "packages/provider-openai/artifacts/alvin0-ai-agent-sdk-provider-openai-0.1.4.tgz",
+      "sha256": "be1f126ecd2ad1f2d7eb581347b56d2407897fa9803330de481702086c263475",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-sandbox",
+      "tarball": "packages/sandbox/artifacts/alvin0-ai-agent-sdk-sandbox-0.1.4.tgz",
+      "sha256": "061eebb87d5c7d5cc434208ef9b60b13a9bf31dda7027626e0ce01151e8d8585",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-sandbox-node",
+      "tarball": "packages/sandbox-node/artifacts/alvin0-ai-agent-sdk-sandbox-node-0.1.4.tgz",
+      "sha256": "44c3de82c12d720f2ee09c025cb99af267bc7507041964cbcc337aa7e3114917",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-skill-filesystem",
+      "tarball": "packages/skill-filesystem/artifacts/alvin0-ai-agent-sdk-skill-filesystem-0.1.4.tgz",
+      "sha256": "c5a6aa690cc01ab5c7c88c5e73f20867244b17234d7e598da1ec0f45a1b112c8",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    },
+    {
+      "package": "@alvin0/ai-agent-sdk-testkit",
+      "tarball": "packages/testkit/artifacts/alvin0-ai-agent-sdk-testkit-0.1.4.tgz",
+      "sha256": "31b2ad470c5198c7dccde29fca313cfafbd5b207abdb3a06d086666ca6c08cac",
+      "unsafeArtifactPaths": [],
+      "filesMatchingKnownCredentials": 0
+    }
+  ]
+}

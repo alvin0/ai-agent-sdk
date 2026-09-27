@@ -1,0 +1,173 @@
+{
+  "base": "http://127.0.0.1:3368",
+  "model": "gpt-4.1-mini",
+  "secondary": "gpt-4o-mini",
+  "rows": [
+    {
+      "id": "single-and-model-switch-preserve-history",
+      "passed": true,
+      "elapsedMs": 2657,
+      "evidence": {
+        "texts": [
+          "ACK",
+          "edge-4827"
+        ],
+        "traces": [
+          {
+            "runId": "0ee7dfe915981f0022f05a92edb923d3",
+            "traceId": "8b50ffdc9f2fde800cf3a982a53ece70",
+            "startedAt": 1790523563830,
+            "durationMs": 1244,
+            "status": "success",
+            "spans": 2,
+            "prompt": "Return only the exact marker I gave previously.",
+            "members": [],
+            "usage": {
+              "inputTokens": 345,
+              "cacheReadTokens": 0,
+              "outputTokens": 6
+            }
+          },
+          {
+            "runId": "ba33a866b90049fa0ec43c7edbc2c86c",
+            "traceId": "8385c98b2829d7a920656fe094bdc6c4",
+            "startedAt": 1790523562555,
+            "durationMs": 1258,
+            "status": "success",
+            "spans": 2,
+            "prompt": "Remember this exact marker: edge-4827. Reply only ACK.",
+            "members": [],
+            "usage": {
+              "inputTokens": 327,
+              "cacheReadTokens": 0,
+              "outputTokens": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "clock-tool-real-execution",
+      "passed": true,
+      "elapsedMs": 1643,
+      "evidence": {
+        "terminal": {
+          "t": "done",
+          "text": "The current date in UTC is 27 September 2026.",
+          "usage": {
+            "inputTokens": 744,
+            "outputTokens": 31,
+            "totalTokens": 775
+          }
+        }
+      }
+    },
+    {
+      "id": "bounded-https-tool-real-execution",
+      "passed": true,
+      "elapsedMs": 2377,
+      "evidence": {
+        "terminal": {
+          "t": "done",
+          "text": "The page explains that certain domains like example.com and example.org are reserved for documentation and illustrative purposes as described in RFC 2606 and RFC 6761, are not available for registration, and provide basic informational web services without being intended for production use.",
+          "usage": {
+            "inputTokens": 1005,
+            "outputTokens": 77,
+            "totalTokens": 1082
+          }
+        }
+      }
+    },
+    {
+      "id": "provider-error-and-recovery",
+      "passed": true,
+      "elapsedMs": 1185,
+      "evidence": {
+        "failed": {
+          "t": "error",
+          "code": "INVALID_REQUEST",
+          "message": "Provider operation failed",
+          "stage": "provider-attempt",
+          "status": 404,
+          "detail": "The model `definitely-no-such-model-sdk-harness-audit` does not exist or you do not have access to it."
+        },
+        "recovered": {
+          "t": "done",
+          "text": "RECOVERED",
+          "usage": {
+            "inputTokens": 317,
+            "outputTokens": 5,
+            "totalTokens": 322
+          }
+        }
+      }
+    },
+    {
+      "id": "credential-scoped-traces-and-close",
+      "passed": true,
+      "elapsedMs": 823,
+      "evidence": {
+        "foreign": {
+          "spans": []
+        },
+        "denied": {
+          "closed": false
+        },
+        "ownSpanCount": 2
+      }
+    },
+    {
+      "id": "fixed-team-peer-report-and-synthesis",
+      "passed": true,
+      "elapsedMs": 4528,
+      "evidence": {
+        "terminal": {
+          "t": "done",
+          "text": "TEAM_FIXED_OK",
+          "usage": {
+            "inputTokens": 3883,
+            "outputTokens": 61,
+            "totalTokens": 3944
+          }
+        }
+      }
+    },
+    {
+      "id": "team-auto-workers-released-between-turns",
+      "passed": false,
+      "elapsedMs": 16376,
+      "error": "Worker and lead must honor their distinct assigned outputs on both turns\n+ actual - expected\n\n+ [\n+   `first lead: \"The task was to create an analyst agent named \\\\\"first\\\\\" with the specific task of replying exactly \\\\\"AUTO_PEER_OK.\\\\\" After the agent was spawned, we waited for its result, which was received exactly as requested: \\\\\"AUTO_PEER_OK.\\\\\" Following this, the final response to the user was given as \\\\\"AUTO_TEAM_OK,\\\\\" fulfilling the original user instruction perfectly.\\\\n\\\\nEvidence:\\\\n- The analyst named \\\\\"first\\\\\" was spawned with the defined task.\\\\n- The agent \\\\\"first\\\\\" completed its task by replying exactly \\\\\"AUTO_PEER_OK.\\\\\"\\\\n- The user's final requested response, \\\\\"AUTO_TEAM_OK,\\\\\" was provided immediately after receiving the agent's output.\\\\n\\\\nAll steps matched the objective precisely, and no additional actions were necessary. There are no remaining limitations or outstanding items related to this request.\"`,\n+   'second worker: \"The task was to reply exactly with the phrase \\\\\"AUTO_PEER_OK.\\\\\" The assistant complied by providing the exact requested phrase \\\\\"AUTO_PEER_OK\\\\\" in the response. This matches the user’s explicit instruction without deviation.\\\\n\\\\nEvidence:\\\\n- User instruction: reply exactly \\\\\"AUTO_PEER_OK.\\\\\"\\\\n- Assistant response: \\\\\"AUTO_PEER_OK\\\\\"\\\\n\\\\nNo discrepancies or errors were found. The output aligns fully with the original objective and constraints. No additional information or action is required.\\\\n\\\\nThe task is complete and satisfactorily fulfilled.\"',\n+   `second lead: \"The task was to create an analyst agent named \\\\\"second\\\\\" with the precise task of replying exactly \\\\\"AUTO_PEER_OK.\\\\\" The analyst was successfully spawned and completed its task by responding with the exact phrase \\\\\"AUTO_PEER_OK.\\\\\" Subsequently, the final reply to the user was given as \\\\\"AUTO_TEAM_OK\\\\\" in accordance with the user's instructions.\\\\n\\\\nEvidence:\\\\n- Spawned the analyst named \\\\\"second\\\\\" with the defined task.\\\\n- The \\\\\"second\\\\\" agent finished its task and replied exactly \\\\\"AUTO_PEER_OK.\\\\\"\\\\n- The user was finally replied to with \\\\\"AUTO_TEAM_OK\\\\\" as requested.\\\\n\\\\nAll aspects of the task were fulfilled accurately without any deviations or errors. There are no outstanding issues or further actions required related to this request.\"`\n+ ]\n- []\n"
+    },
+    {
+      "id": "disconnect-aborts-provider-and-allows-next-turn",
+      "passed": true,
+      "elapsedMs": 1769,
+      "evidence": {
+        "abortedTrace": {
+          "runId": "491c240346601c45be317eeea212553e",
+          "traceId": "6a5005548ef0916d5290e26015130ba4",
+          "startedAt": 1790523592039,
+          "durationMs": 783,
+          "status": "aborted",
+          "spans": 2,
+          "prompt": "Write 800 words about oceans.",
+          "members": [],
+          "usage": {
+            "inputTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0
+          }
+        },
+        "next": {
+          "t": "done",
+          "text": "AFTER_ABORT",
+          "usage": {
+            "inputTokens": 351,
+            "outputTokens": 5,
+            "totalTokens": 356
+          }
+        }
+      }
+    }
+  ]
+}

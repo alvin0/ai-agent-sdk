@@ -30,6 +30,10 @@ node --experimental-strip-types test-human/chat-agents-live/run.ts --base http:/
 
 The harness re-seeds the workspace for each repeat. Results, per-scenario event
 streams and a summary go to `artifacts/chat-agents-live/<provider>-<model>-<time>/`.
+The process exits with code 1 if any scenario fails. Unknown or empty scenario
+selections and non-positive, fractional, or invalid repeat counts are rejected
+before the workspace is seeded. S12 requires completed runs and exact `alpha`
+and data-row-count answers.
 
 | ID | Workflow |
 |---|---|

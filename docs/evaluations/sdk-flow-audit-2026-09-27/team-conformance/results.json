@@ -1,0 +1,388 @@
+{
+  "total": 33,
+  "passed": 33,
+  "results": [
+    {
+      "id": "host-controls-worker-tools",
+      "passed": true,
+      "observed": {
+        "offered": {
+          "full": [
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents"
+          ],
+          "reporting": [
+            "list_agents",
+            "send_message"
+          ],
+          "false": []
+        },
+        "advertised": {
+          "full": [
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents"
+          ],
+          "reporting": [
+            "list_agents",
+            "send_message"
+          ],
+          "false": []
+        }
+      },
+      "elapsedMs": 18.077292
+    },
+    {
+      "id": "host-controls-lead-turns",
+      "passed": true,
+      "observed": {
+        "returnedWhileWorkerRunning": true,
+        "callsBeforeCompletion": 2,
+        "callsAfterCompletion": 2
+      },
+      "elapsedMs": 73.60425000000001
+    },
+    {
+      "id": "silent-worker-completion",
+      "passed": true,
+      "observed": {
+        "receipts": 1,
+        "status": "completed",
+        "text": "",
+        "succeeded": true,
+        "expected": "completed"
+      },
+      "elapsedMs": 3.6305830000000014
+    },
+    {
+      "id": "required-worker-text-policy",
+      "passed": true,
+      "observed": {
+        "receipts": 1,
+        "status": "failed",
+        "error": "it produced no answer",
+        "expected": "failed"
+      },
+      "elapsedMs": 6.389249999999947
+    },
+    {
+      "id": "late-dependency-result",
+      "passed": true,
+      "observed": {
+        "dependencyEvidenceInRequest": true
+      },
+      "elapsedMs": 6.604667000000006
+    },
+    {
+      "id": "closed-multi-dependency-result",
+      "passed": true,
+      "observed": {
+        "fastEvidence": true,
+        "slowEvidence": true
+      },
+      "elapsedMs": 4.82487500000002
+    },
+    {
+      "id": "concurrent-write-admission",
+      "passed": true,
+      "observed": {
+        "factories": 1,
+        "accepted": 1,
+        "statuses": [
+          {
+            "ok": true,
+            "value": {
+              "name": "first",
+              "agentId": "lead",
+              "conversationId": "faa61a85-cfdb-4d05-8dc1-a66e35147878",
+              "task": "Write app.",
+              "status": "running",
+              "context": "fresh",
+              "dependsOn": [],
+              "writes": [
+                "app"
+              ]
+            }
+          },
+          {
+            "ok": false,
+            "error": "Error: worker 'second' would write files another running worker writes: 'first' also writes app/page.ts. Add 'first' to dependsOn so it runs after, or narrow the scopes — or omit writes entirely if this worker only reads."
+          }
+        ]
+      },
+      "elapsedMs": 1.488207999999986
+    },
+    {
+      "id": "equivalent-write-scope",
+      "passed": true,
+      "observed": {
+        "scope": "app/./shared.ts",
+        "accepted": false
+      },
+      "elapsedMs": 4.058207999999979
+    },
+    {
+      "id": "escaping-write-scope",
+      "passed": true,
+      "observed": {
+        "scope": "../outside.ts",
+        "accepted": false
+      },
+      "elapsedMs": 0.2506249999999568
+    },
+    {
+      "id": "failed-spawn-cleanup",
+      "passed": true,
+      "observed": {
+        "result": "rejected",
+        "retainedWorkerSlots": 0,
+        "stillRegistered": false
+      },
+      "elapsedMs": 0.38962500000002365
+    },
+    {
+      "id": "dispose-during-setup",
+      "passed": true,
+      "observed": {
+        "result": {
+          "ok": false,
+          "error": "Error: managed agent team disposed"
+        },
+        "workersAfterDispose": 0,
+        "modelDispatches": 0
+      },
+      "elapsedMs": 1.1692500000000337
+    },
+    {
+      "id": "dispose-pending-chain",
+      "passed": true,
+      "observed": {
+        "consumerDispatches": 0,
+        "remainingWorkers": 0
+      },
+      "elapsedMs": 2.423458000000039
+    },
+    {
+      "id": "abort-await-worker",
+      "passed": true,
+      "observed": {
+        "rejectedBeforeWorkerFinished": true,
+        "workerStillRunning": true
+      },
+      "elapsedMs": 3.565166999999974
+    },
+    {
+      "id": "abort-when-quiet",
+      "passed": true,
+      "observed": {
+        "rejectedBeforeWorkerFinished": true,
+        "workerStillRunning": true
+      },
+      "elapsedMs": 4.646250000000009
+    },
+    {
+      "id": "quiet-waits-for-report",
+      "passed": true,
+      "observed": {
+        "returnedBeforeDelivery": false,
+        "deliveredReports": 1
+      },
+      "elapsedMs": 14.21674999999999
+    },
+    {
+      "id": "independent-parallel-control",
+      "passed": true,
+      "observed": {
+        "concurrentRunningWorkers": 2
+      },
+      "elapsedMs": 3.9397500000000036
+    },
+    {
+      "id": "ordered-write-control",
+      "passed": true,
+      "observed": {
+        "held": true,
+        "producerEvidence": true
+      },
+      "elapsedMs": 4.0796660000000315
+    },
+    {
+      "id": "failed-dependency-control",
+      "passed": true,
+      "observed": {
+        "failureNoticeDelivered": true
+      },
+      "elapsedMs": 6.682208000000003
+    },
+    {
+      "id": "dependency-completes-during-setup",
+      "passed": true,
+      "observed": {
+        "producerEvidenceInRequest": true
+      },
+      "elapsedMs": 2.0715410000000247
+    },
+    {
+      "id": "dependency-closes-during-setup",
+      "passed": true,
+      "observed": {
+        "producerEvidenceInRequest": true
+      },
+      "elapsedMs": 5.401749999999993
+    },
+    {
+      "id": "dependency-name-reuse",
+      "passed": true,
+      "observed": {
+        "originalEvidence": true,
+        "consumerStarted": true
+      },
+      "elapsedMs": 10.85529200000002
+    },
+    {
+      "id": "fork-scoped-history-limit",
+      "passed": true,
+      "observed": {
+        "result": "rejected",
+        "configuredMaxEntries": 1
+      },
+      "elapsedMs": 0.5082910000000425
+    },
+    {
+      "id": "host-spawn-setup-timeout",
+      "passed": true,
+      "observed": {
+        "rejectedBeforeFactoryFinished": true,
+        "setupLimitMs": 10,
+        "workerLimitMs": 5000
+      },
+      "elapsedMs": 45.404791999999986
+    },
+    {
+      "id": "quiet-waits-for-setup",
+      "passed": true,
+      "observed": {
+        "returnedDuringSetup": false
+      },
+      "elapsedMs": 4.399499999999989
+    },
+    {
+      "id": "close-coalesces-instance",
+      "passed": true,
+      "observed": {
+        "replacementRetained": true,
+        "originalCancelCalls": 1
+      },
+      "elapsedMs": 5.541375000000016
+    },
+    {
+      "id": "failed-dependency-handoff-no-dispatch",
+      "passed": true,
+      "observed": {
+        "dispatched": false,
+        "status": "failed",
+        "error": "dependency handoff failed: Host refused dependency context"
+      },
+      "elapsedMs": 5.680708999999979
+    },
+    {
+      "id": "oversized-worker-notification",
+      "passed": true,
+      "observed": {
+        "reports": 1,
+        "head": true,
+        "tail": true
+      },
+      "elapsedMs": 10.83054199999998
+    },
+    {
+      "id": "closed-dependency-full-read",
+      "passed": true,
+      "observed": {
+        "scopedFullReadTool": true,
+        "fullPageRecovered": true,
+        "unauthorizedDenied": true,
+        "modelCalls": 2
+      },
+      "elapsedMs": 20.91345799999999
+    },
+    {
+      "id": "wake-budget-failure-truth",
+      "passed": true,
+      "observed": {
+        "status": "failed",
+        "outcome": {
+          "kind": "failed",
+          "message": "member run did not complete (max-tokens)",
+          "text": "Partial evidence only."
+        }
+      },
+      "elapsedMs": 33.11254100000002
+    },
+    {
+      "id": "steer-interrupts-automatic-hold",
+      "passed": true,
+      "observed": {
+        "callsBeforeWorkerFinished": 2,
+        "holdWaitMs": 1000
+      },
+      "elapsedMs": 88.11237499999999
+    },
+    {
+      "id": "close-bounds-host-cancellation",
+      "passed": true,
+      "observed": {
+        "completedBeforeHostReleased": true,
+        "closeTimeoutMs": 10
+      },
+      "elapsedMs": 43.800792
+    },
+    {
+      "id": "unicode-dependency-pagination",
+      "passed": true,
+      "observed": {
+        "pages": [
+          {
+            "text": "�",
+            "nextOffset": 1
+          },
+          {
+            "text": "😀",
+            "nextOffset": 3
+          },
+          {
+            "text": "𐍈",
+            "nextOffset": 5
+          },
+          {
+            "text": "中",
+            "nextOffset": 6
+          },
+          {
+            "text": "é",
+            "nextOffset": 7
+          },
+          {
+            "text": "�",
+            "nextOffset": null
+          }
+        ],
+        "invalidBoundaryDenied": true
+      },
+      "elapsedMs": 15.804459000000065
+    },
+    {
+      "id": "aborted-setup-rejection-observed",
+      "passed": true,
+      "observed": {
+        "rejected": true,
+        "unhandled": [],
+        "retainedWorkers": 0
+      },
+      "elapsedMs": 0.9939999999999145
+    }
+  ]
+}

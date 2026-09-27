@@ -1,0 +1,10 @@
+{
+  "kind": "algorithm-microbenchmark",
+  "bytes": 2600000,
+  "reads": 20,
+  "offset": 0,
+  "limit": 1,
+  "previousMaterializationMs": 203.696499,
+  "currentStoreMs": 0.4243780000000186,
+  "note": "Previous read algorithm versus current memory store, same in-process data. Timings vary with runtime and GC; no provider latency claim."
+}

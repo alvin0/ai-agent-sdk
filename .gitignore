@@ -177,3 +177,7 @@ vite.config.ts.timestamp-*
 # Isolated chat sample live-check output
 .playwright-cli/
 .next-feedback/
+
+# Isolated sample harness audit/build output
+.next-harness-audit/
+.next-harness-build/

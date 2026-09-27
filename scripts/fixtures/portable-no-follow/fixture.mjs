@@ -45,7 +45,9 @@ export async function runPortableNoFollowFixture(endpoint) {
   const mcp = createMcpHttpClient({
     serverName: 'native-no-follow', url: `${base}/mcp/start`,
     reconnect: false, legacySse: false, allowRedirects: false,
-    allowPrivateNetwork: true,
+    // This fixture deliberately serves plain HTTP on loopback. Opt into that
+    // local transport without relaxing the SDK's HTTPS default or redirect guard.
+    allowPrivateNetwork: true, requireHttps: false,
     operationTimeoutMs: 5_000, closeTimeoutMs: 1_000,
   })
   const mcpRejected = await rejects(() => mcp.connect())

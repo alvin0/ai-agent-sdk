@@ -1,0 +1,9 @@
+[Extractive log; status: fail; original line numbers]
+250: Compiling ordinary module
+251: FAIL auth.spec.ts:37
+252: Expected true
+253: Received false
+254:   at auth.ts:19:2
+255: Tests 1 failed, 3 passed
+256: exit code 1
+257: 

@@ -17,7 +17,7 @@ import {
 } from '@alvin0/ai-agent-sdk-core/agent'
 import type {
   AgentResponse, AgentRunEvent, ApprovalBroker, DefinedAgent, ManagedAgentTeam,
-  ToolDefinition, ToolInterceptor,
+  ToolDefinition, ToolInterceptor, TurnHooks,
 } from '@alvin0/ai-agent-sdk-core/agent'
 import type {
   AgentInput, ContextSection, ModelRegistry, SkillSource, UserInputBroker,
@@ -116,6 +116,7 @@ For research, include source links and observation dates; distinguish observed f
 Respect the user's source and retry limits, including during team follow-ups. If permitted sources fail or cannot verify the requested date, finish with an unavailable-data finding and explain what could not be verified. Do not keep searching merely to obtain a number or mark a todo done. A report of unavailable evidence can complete the investigation; it does not verify the missing fact.
 Use fetch_url.fetchedAt only as the retrieval timestamp. Never invent an observation date or treat a current quote as a historical quote without a source timestamp.
 If quote tables require JavaScript, check an independent credible source or documented public data endpoint. If still unavailable, report that gap instead of repeatedly fetching similar empty quote pages. Follow-ups should request specific new evidence or resolve a concrete discrepancy, not restart the same unavailable-data search.
+For numerical claims over files or tables, including row counts and aggregations, calculate with run_command and check the result against the source data. Parse the data according to its format; account explicitly for headers and empty lines when counting records. Do not use visual counting or mental addition as verification. When leading a team, require computational evidence for numerical claims before synthesizing them.
 When leading a team, collect worker results and synthesize one answer covering the original request, including failed or incomplete contributions.`
 
 /** Everything a run needs that is decided outside the SDK. */
@@ -138,6 +139,8 @@ export interface RunContext {
    * the answer is always no.
    */
   readonly onRetry?: (notice: RetryNotice) => void
+  /** Acknowledges steering at actual lead request preparation, not queued UI events. */
+  readonly onLeadModelRequest?: () => void
   /** Where a call that needs permission parks until the user answers. */
   readonly approvals?: ApprovalBroker
   /** Pre-call policy; this is what decides a call needs permission at all. */
@@ -400,6 +403,15 @@ export async function startRun(
     ...context.approvals === undefined ? {} : { approvals: context.approvals },
     ...context.interceptors === undefined ? {} : { interceptors: context.interceptors },
   }
+  const leadSessionOptions = {
+    ...sessionOptions,
+    hooks: {
+      ...sessionOptions.hooks,
+      checkpoint(checkpoint: Parameters<NonNullable<TurnHooks['checkpoint']>>[0]) {
+        if (checkpoint.kind === 'before-model-request') context.onLeadModelRequest?.()
+      },
+    },
+  }
 
   if (context.mode === 'team') {
     // A declared roster: every preset marked as a team member becomes an
@@ -421,7 +433,7 @@ export async function startRun(
           // Only the lead resumes the conversation's history: a member keeps
           // its own, and sharing one History object across sessions would
           // interleave their turns.
-          sessionOptions: { ...sessionOptions, history: context.history },
+          sessionOptions: { ...leadSessionOptions, history: context.history },
         },
         ...members.map(row => ({
           name: row.name,
@@ -467,7 +479,7 @@ export async function startRun(
       ),
       leadName: 'lead',
       workerTemplate: definitionFor(context.agent, context, { id: 'worker' }, tools, skills, instructions),
-      leadSessionOptions: sessionOptions,
+      leadSessionOptions,
       workerSessionOptions: sessionOptions,
       onWorkerEvent: report,
       // Every worker here runs on the lead's own workspace, so a fresh worker
@@ -514,7 +526,7 @@ export async function startRun(
   // context window instead of growing until the provider refuses it — which is
   // what both reference harnesses do, and what a chat that lasts all day needs.
   const session = definitionFor(context.agent, context, { id: 'agent' }, tools, skills, instructions)
-    .createSession({ ...sessionOptions, history: context.history })
+    .createSession({ ...leadSessionOptions, history: context.history })
   const handle = session.stream(prompt, { signal: context.signal })
   return {
     steer: text => steerSession(session, text),

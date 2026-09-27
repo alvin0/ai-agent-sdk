@@ -1,0 +1,104 @@
+{
+  "requests": [
+    "[]",
+    "[]"
+  ],
+  "results": [
+    {
+      "outcome": {
+        "reason": {
+          "kind": "error",
+          "failure": {
+            "message": "One of \"input\" or \"previous_response_id\" or 'prompt' or 'conversation' must be provided.",
+            "code": "INVALID_REQUEST",
+            "status": 400,
+            "requestId": "a41ac9b2eb198106-HKG"
+          }
+        },
+        "text": "",
+        "steps": 1,
+        "usageReport": {
+          "reported": {},
+          "coverage": {
+            "logicalCalls": 1,
+            "attempts": 1,
+            "complete": 0,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 1,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 1
+          },
+          "authoritative": false
+        },
+        "toolCalls": 0,
+        "traceId": "0149a30e2d450e7cc424d33034992fb5",
+        "mode": "basic",
+        "completed": false
+      },
+      "text": "",
+      "usage": {
+        "reported": {},
+        "coverage": {
+          "logicalCalls": 1,
+          "attempts": 1,
+          "complete": 0,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 1,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 1
+        },
+        "authoritative": false
+      }
+    },
+    {
+      "outcome": {
+        "reason": {
+          "kind": "error",
+          "failure": {
+            "message": "One of \"input\" or \"previous_response_id\" or 'prompt' or 'conversation' must be provided.",
+            "code": "INVALID_REQUEST",
+            "status": 400,
+            "requestId": "a41ac9b1bc5fd62b-HKG"
+          }
+        },
+        "text": "",
+        "steps": 1,
+        "usageReport": {
+          "reported": {},
+          "coverage": {
+            "logicalCalls": 1,
+            "attempts": 1,
+            "complete": 0,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 1,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 1
+          },
+          "authoritative": false
+        },
+        "toolCalls": 0,
+        "traceId": "e33efd5f5ec9d43a6052526b415915a9",
+        "mode": "basic",
+        "completed": false
+      },
+      "text": "",
+      "usage": {
+        "reported": {},
+        "coverage": {
+          "logicalCalls": 1,
+          "attempts": 1,
+          "complete": 0,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 1,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 1
+        },
+        "authoritative": false
+      }
+    }
+  ]
+}

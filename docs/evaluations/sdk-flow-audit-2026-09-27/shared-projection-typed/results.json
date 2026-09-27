@@ -1,0 +1,56 @@
+{
+  "model": "gpt-6-luna",
+  "rows": [
+    {
+      "id": "shared-projection-parallel-real-provider-isolation",
+      "passed": true,
+      "elapsedMs": 2539,
+      "modelRequests": 2,
+      "canaryAbsentFromEveryProviderRequest": true,
+      "texts": [
+        "37",
+        "37"
+      ],
+      "usage": [
+        {
+          "reported": {
+            "inputTokens": 64,
+            "outputTokens": 5,
+            "totalTokens": 69
+          },
+          "budgetTokens": 69,
+          "coverage": {
+            "logicalCalls": 1,
+            "attempts": 1,
+            "complete": 1,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 0,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 0
+          },
+          "authoritative": true
+        },
+        {
+          "reported": {
+            "inputTokens": 64,
+            "outputTokens": 5,
+            "totalTokens": 69
+          },
+          "budgetTokens": 69,
+          "coverage": {
+            "logicalCalls": 1,
+            "attempts": 1,
+            "complete": 1,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 0,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 0
+          },
+          "authoritative": true
+        }
+      ]
+    }
+  ]
+}

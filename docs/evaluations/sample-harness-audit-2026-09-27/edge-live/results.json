@@ -1,0 +1,123 @@
+{
+  "base": "http://127.0.0.1:3368",
+  "model": "gpt-4o-mini",
+  "secondary": "gpt-4.1-mini",
+  "rows": [
+    {
+      "id": "single-and-model-switch-preserve-history",
+      "passed": true,
+      "elapsedMs": 0,
+      "evidence": {
+        "texts": [
+          "ACK",
+          "edge-4827"
+        ],
+        "traces": [
+          {
+            "runId": "9f3c63ed5ab4afe571ff0c638c95fd5e",
+            "traceId": "",
+            "startedAt": 1790522212784,
+            "durationMs": null,
+            "status": "unknown",
+            "spans": 0,
+            "prompt": "Remember this exact marker: edge-4827. Reply only ACK.",
+            "members": [],
+            "usage": {
+              "inputTokens": 0,
+              "cacheReadTokens": 0,
+              "outputTokens": 0
+            }
+          },
+          {
+            "runId": "1d9d4f23b57054bdc55b7ae581cb4d1b",
+            "traceId": "",
+            "startedAt": 1790522212784,
+            "durationMs": null,
+            "status": "unknown",
+            "spans": 0,
+            "prompt": "Return only the exact marker I gave previously.",
+            "members": [],
+            "usage": {
+              "inputTokens": 0,
+              "cacheReadTokens": 0,
+              "outputTokens": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "clock-tool-real-execution",
+      "passed": true,
+      "elapsedMs": 0,
+      "evidence": {
+        "terminal": {
+          "t": "done",
+          "text": "The current date in UTC is **September 27, 2026**.",
+          "usage": {
+            "inputTokens": 660,
+            "outputTokens": 34,
+            "totalTokens": 694
+          }
+        }
+      }
+    },
+    {
+      "id": "bounded-https-tool-real-execution",
+      "passed": false,
+      "elapsedMs": 12736,
+      "error": "The expression evaluated to a falsy value:\n\n  assert.ok(result.seen.some(event => event.t === 'tool-result' && event.name === 'fetch_url' && event.status === 'completed'))\n"
+    },
+    {
+      "id": "provider-error-and-recovery",
+      "passed": false,
+      "elapsedMs": 3180,
+      "error": "Expected values to be strictly equal:\n\n'OK.' !== 'RECOVERED'\n"
+    },
+    {
+      "id": "credential-scoped-traces-and-close",
+      "passed": false,
+      "elapsedMs": 1170,
+      "error": "The expression evaluated to a falsy value:\n\n  assert.ok(own.spans.length > 0)\n"
+    },
+    {
+      "id": "fixed-team-peer-report-and-synthesis",
+      "passed": false,
+      "elapsedMs": 3912,
+      "error": "The expression evaluated to a falsy value:\n\n  assert.ok(result.seen.some(event => event.t === 'member-start' && event.member === 'peer'))\n"
+    },
+    {
+      "id": "team-auto-workers-released-between-turns",
+      "passed": true,
+      "elapsedMs": 0,
+      "evidence": {
+        "terminals": [
+          {
+            "t": "done",
+            "text": "AUTO_TEAM_OK",
+            "usage": {
+              "inputTokens": 12207,
+              "outputTokens": 191,
+              "totalTokens": 12398
+            }
+          },
+          {
+            "t": "done",
+            "text": "AUTO_TEAM_OK",
+            "usage": {
+              "inputTokens": 11998,
+              "outputTokens": 168,
+              "totalTokens": 14342
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "disconnect-aborts-provider-and-allows-next-turn",
+      "passed": false,
+      "elapsedMs": 11815,
+      "error": "{\"runId\":\"f36b47667c9d661245fce06314302fda\",\"traceId\":\"\",\"startedAt\":1790522269881,\"durationMs\":null,\"status\":\"unknown\",\"spans\":0,\"prompt\":\"Write 800 words about oceans.\",\"members\":[],\"usage\":{\"inputTokens\":0,\"cacheReadTokens\":0,\"outputTokens\":0}}"
+    }
+  ]
+}

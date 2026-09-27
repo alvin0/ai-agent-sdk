@@ -1,0 +1,2 @@
+{"id":"S1","repeat":0,"title":"plain Q&A","passed":true,"detail":{"text":"391","reason":"completed"},"ms":2586,"tokens":1608,"notices":[],"errors":[],"reasons":["completed"]}
+{"id":"S8","repeat":0,"title":"run a command and report its output","passed":true,"detail":{"text":"51","tools":["run_command"],"approvals":1},"ms":5882,"tokens":1840,"notices":[],"errors":[],"reasons":["completed"]}

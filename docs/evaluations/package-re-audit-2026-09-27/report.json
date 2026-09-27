@@ -1,0 +1,67 @@
+{
+  "generatedAt": "2026-09-27T16:46:43.139733+00:00",
+  "baselineHead": "40b47747b0dc78d39b45448f2a941ca0b0ed6897",
+  "indexUnchanged": true,
+  "changedPackageSource": {
+    "packages/core/README.md": "2e8a644d15a1b367d2769a57d802d919bb0882e5c000b58216f6e051464fc666",
+    "packages/core/fixtures/browser/index.html": "92662461dd2ec3606cba1df71b283748d9878d422c0044166c3d2dc35d44bd7a",
+    "packages/core/fixtures/node/smoke.mjs": "aeff847f133f12932694e8451b63f58390bd248b6cc779560b15ccac5ec27492",
+    "packages/core/fixtures/shared/context-optimization.js": "72ffc590b30b0e5041c7d6fbcd66302763763dd891532a03b9fe62bb04933acf",
+    "packages/core/fixtures/standards/smoke.mjs": "93ae9a199448b4e6264d05c156cc2a3fb4320ccad9855341fe6bb358fe02e23c",
+    "packages/core/fixtures/types/context-optimization.ts": "4e27c05d834206deff2c75e0eeb0d1422ccb96247dec4136e6769026045d6820",
+    "packages/core/fixtures/worker/worker.mjs": "2d0012068df96beb1569b0c6ae1be094178346e77615676d69439a6391a92c51",
+    "packages/core/scripts/test-packed.mts": "69b666d2a2b338d543d1c4a11f5feb172a0eb85f3819e5cab7c26d687a0491a3",
+    "packages/core/src/agent/define/session.ts": "3ebfc096a13586551ff0b0fc404ae0c0fccce783c6a8688c6a9b806b676d89d9",
+    "packages/core/src/agent/loop/events.ts": "22165e74f06ff7c774763fe32173625f16b915a0131b28273e96e43a1ebc3287",
+    "packages/core/src/agent/loop/turn/hooks.ts": "ff22e1c4f78a738d07479b27c4731b407704b241f77fdd11e400629e968d32d7",
+    "packages/core/src/agent/loop/turn/model-round.ts": "416c101510fcc05915a66df9c58b79281a6d0323d8c03c60cd3734d6ca6c312b",
+    "packages/core/src/agent/loop/turn/step-projection.ts": "f55ae62fa2211c83142d5b5149114339bf35d41362a3df2a8abebf0ab25ebee4",
+    "packages/core/src/agent/memory/context-optimizer.ts": "3b778fad6ef3c57b1031ccd09df0cc64f9c20f7b9a579e1bc53f4820182c2e3b",
+    "packages/core/src/agent/memory/index.ts": "8564f96752a13a87983cd6315b07f41e55a9e2b58c6bc0544a808f5f2730d819",
+    "packages/core/src/agent/tool/action-fusion.ts": "e041cfe58edcbd6df93e3391af99652ed39b9ab2f7cabc6d8cc05e71c6933655",
+    "packages/core/src/agent/tool/evidence-reducer.ts": "d49d466850743c1e2570c67b47b4ff7d617914b2e73813f25d21d92d9b81679c",
+    "packages/core/src/agent/tool/index.ts": "55aa0c6053cb3a9d058cb5a6c4f1a3433990f98858ccc445fef13f7521914ab7",
+    "packages/core/src/agent/tool/output-budget.ts": "55bffa22dd920458bd92b5756bf39e62b7eed8261d57d36994883b07e0987cce"
+  },
+  "rootTests": {
+    "node": "22.18.0",
+    "files": 246,
+    "tests": 3172,
+    "status": "passed"
+  },
+  "packageSuites": {
+    "node": "22.18.0",
+    "vitestPackages": 25,
+    "files": 117,
+    "tests": 1754,
+    "browserPackage": "passed",
+    "status": "passed",
+    "overlapRootSuite": true
+  },
+  "packedPackages": {
+    "node": "24.9.0",
+    "packages": 26,
+    "status": "passed"
+  },
+  "corePackedCiRuntime": {
+    "node": "22.18.0",
+    "status": "passed"
+  },
+  "portableNoFollow": {
+    "node": "22.18.0",
+    "deno": "2.9.6",
+    "chromium": "passed",
+    "workerd": "passed",
+    "status": "passed"
+  },
+  "newConfirmedDefects": [
+    {
+      "file": "packages/core/scripts/test-packed.mts",
+      "line": 117,
+      "kind": "harness typing",
+      "error": "TS2339: optimization was absent from the fixture result type",
+      "fixed": true
+    }
+  ],
+  "liveProvidersRerunThisTurn": false
+}

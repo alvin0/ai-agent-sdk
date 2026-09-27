@@ -1,0 +1,269 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - button "Collapse sidebar" [ref=e6] [cursor=pointer]
+        - generic [ref=e9]: Chat Agents
+      - generic [ref=e10]:
+        - button "New chat" [ref=e11] [cursor=pointer]
+        - generic [ref=e18]:
+          - generic [ref=e19]:
+            - button "Projects" [expanded] [ref=e20] [cursor=pointer]
+            - button "Open a folder…" [ref=e24] [cursor=pointer]
+          - list [ref=e89]:
+            - listitem [ref=e90]:
+              - button "Default" [ref=e92] [cursor=pointer]
+              - list [ref=e97]:
+                - listitem [ref=e187]:
+                  - button "Call read_file for hello.txt and reply with its exact conten" [ref=e237] [cursor=pointer]
+                - listitem [ref=e238]:
+                  - 'button "Use helpers: one computes the total amount in sales.csv, ano" [ref=e239] [cursor=pointer]'
+                - listitem [ref=e184]:
+                  - 'button "Use helpers: one computes the total amount in sales.csv, ano" [ref=e185] [cursor=pointer]'
+                - listitem [ref=e199]:
+                  - button "Use write_file to create feedback-abort-f1f54526-7e75-43ea-b" [ref=e200] [cursor=pointer]
+                - listitem [ref=e202]:
+                  - button "Use write_file to create feedback-deny-3891fcdb-013a-4ae4-8f" [ref=e203] [cursor=pointer]
+                - listitem [ref=e205]:
+                  - button "Use write_file to create feedback-allow-6f1083b8-82a8-4aa8-a" [ref=e206] [cursor=pointer]
+                - listitem [ref=e101]:
+                  - button "Delete keep.txt from the workspace." [ref=e102] [cursor=pointer]
+                - listitem [ref=e98]:
+                  - button "Create pending.txt containing the word wait." [ref=e99] [cursor=pointer]
+                - listitem [ref=e122]:
+                  - button "Show more" [ref=e123] [cursor=pointer]
+      - generic [ref=e27]:
+        - generic [ref=e28]: codex · gpt-6-luna
+        - button "Switch to dark theme" [ref=e29] [cursor=pointer]
+        - button "Settings" [ref=e32] [cursor=pointer]
+    - generic [ref=e38]:
+      - banner [ref=e39]:
+        - navigation "Location" [ref=e40]:
+          - button "Default" [ref=e124] [cursor=pointer]
+          - generic [aria-hidden] [ref=e46]: ›
+          - generic [ref=e47]: Call read_file for hello.txt and reply with its exact conten
+        - generic [ref=e48]:
+          - button "Trace" [active] [ref=e49] [cursor=pointer]
+          - button "Settings" [ref=e53] [cursor=pointer]
+      - generic [ref=e59]:
+        - generic [ref=e208]: Call read_file for hello.txt and reply with its exact contents.
+        - button "Process · 7s ·1 step" [ref=e242] [cursor=pointer]:
+          - generic [ref=e245]: Process · 7s
+          - generic [ref=e246]: ·1 step
+        - region "Final response" [ref=e247]:
+          - generic [ref=e248]: Final answer
+          - paragraph [ref=e252]:
+            - code [ref=e253]: hello.txt
+            - text: "could not be read: it does not exist in the workspace."
+        - generic [ref=e267]: "New task: read browser-source.txt. Reply only its exact contents."
+        - button "Process · 7s ·1 step" [ref=e298] [cursor=pointer]:
+          - generic [ref=e301]: Process · 7s
+          - generic [ref=e302]: ·1 step
+        - region "Final response" [ref=e303]:
+          - generic [ref=e304]: Final answer
+          - paragraph [ref=e308]: NODE_BROWSER_RECEIPT_4827
+      - generic [ref=e64]:
+        - textbox "Ask anything about the workspace…" [ref=e309]
+        - generic [ref=e68]:
+          - button "Attach files" [ref=e69] [cursor=pointer]
+          - generic [ref=e72]:
+            - button "gpt-6-luna provider default" [ref=e183] [cursor=pointer]:
+              - generic [ref=e75]: gpt-6-luna
+              - generic [ref=e76]: provider default
+            - button "Basic" [ref=e80] [cursor=pointer]
+          - button "Send" [disabled] [ref=e310]
+  - button "Open Next.js Dev Tools" [ref=e130] [cursor=pointer]
+  - alert [ref=e88]: Work in this workspace
+  - dialog "Trace" [ref=e314]:
+    - banner [ref=e315]:
+      - heading "Trace" [level=2] [ref=e316]
+      - paragraph [ref=e317]: 2 runs in this conversation
+      - generic [ref=e318]:
+        - button "Expand all" [ref=e319] [cursor=pointer]
+        - button "Collapse all" [ref=e320] [cursor=pointer]
+        - button "Reload from the server" [ref=e321] [cursor=pointer]
+        - button "Close" [ref=e324] [cursor=pointer]
+    - generic [ref=e328]:
+      - generic [ref=e329]:
+        - generic [ref=e330]:
+          - button "Call read_file for hello.txt and reply with its exact contents. Success Sep 27, 10:25:26 PM 6.75s 6 steps 3.3k in · 60 out" [expanded] [ref=e331] [cursor=pointer]:
+            - generic [ref=e335]:
+              - generic [ref=e336]: Call read_file for hello.txt and reply with its exact contents.
+              - generic [ref=e337]:
+                - generic [ref=e338]: Success
+                - generic [ref=e339]: Sep 27, 10:25:26 PM
+                - generic [ref=e340]: 6.75s
+                - generic [ref=e341]: 6 steps
+                - generic [ref=e342]: 3.3k in · 60 out
+          - tree "Execution spans" [ref=e343]:
+            - treeitem "Collapse invoke_agent agent agent agent in 3.3k cache 0 out 60 6.74s" [expanded] [selected] [ref=e344]:
+              - button "Collapse invoke_agent agent" [ref=e346] [cursor=pointer]
+              - button "agent agent" [ref=e349] [cursor=pointer]:
+                - generic [ref=e350]: agent
+                - generic [ref=e351]: agent
+              - generic [ref=e352]:
+                - generic [ref=e353]:
+                  - generic [ref=e354]: in
+                  - text: 3.3k
+                - generic [ref=e355]:
+                  - generic [ref=e356]: cache
+                  - text: "0"
+                - generic [ref=e357]:
+                  - generic [ref=e358]: out
+                  - text: "60"
+              - generic [ref=e359]: 6.74s
+            - treeitem "context instructions none found · looked for AGENTS.override.md, AGENTS.md 8ms" [ref=e360]:
+              - button "context instructions none found · looked for AGENTS.override.md, AGENTS.md" [ref=e362] [cursor=pointer]:
+                - generic [ref=e365]: context
+                - generic [ref=e366]: instructions
+                - generic [ref=e367]: none found · looked for AGENTS.override.md, AGENTS.md
+              - generic [ref=e368]: 8ms
+            - treeitem "context skills 0 discovered 1ms" [ref=e369]:
+              - button "context skills 0 discovered" [ref=e371] [cursor=pointer]:
+                - generic [ref=e374]: context
+                - generic [ref=e375]: skills
+                - generic [ref=e376]: 0 discovered
+              - generic [ref=e377]: 1ms
+            - treeitem "Collapse chat gpt-6-luna model gpt-6-luna in 1.6k cache 0 out 39 4.09s" [expanded] [ref=e378]:
+              - button "Collapse chat gpt-6-luna" [ref=e380] [cursor=pointer]
+              - button "model gpt-6-luna" [ref=e383] [cursor=pointer]:
+                - generic [ref=e386]: model
+                - generic [ref=e387]: gpt-6-luna
+              - generic [ref=e388]:
+                - generic [ref=e389]:
+                  - generic [ref=e390]: in
+                  - text: 1.6k
+                - generic [ref=e391]:
+                  - generic [ref=e392]: cache
+                  - text: "0"
+                - generic [ref=e393]:
+                  - generic [ref=e394]: out
+                  - text: "39"
+              - generic [ref=e395]: 4.09s
+            - treeitem "tool read_file hello.txt 8ms" [ref=e396]:
+              - button "tool read_file hello.txt" [ref=e398] [cursor=pointer]:
+                - generic [ref=e402]: tool
+                - generic [ref=e403]: read_file
+                - generic [ref=e404]: hello.txt
+              - generic [ref=e405]: 8ms
+            - treeitem "model gpt-6-luna in 1.7k cache 0 out 21 2.62s" [ref=e406]:
+              - button "model gpt-6-luna" [ref=e408] [cursor=pointer]:
+                - generic [ref=e411]: model
+                - generic [ref=e412]: gpt-6-luna
+              - generic [ref=e413]:
+                - generic [ref=e414]:
+                  - generic [ref=e415]: in
+                  - text: 1.7k
+                - generic [ref=e416]:
+                  - generic [ref=e417]: cache
+                  - text: "0"
+                - generic [ref=e418]:
+                  - generic [ref=e419]: out
+                  - text: "21"
+              - generic [ref=e420]: 2.62s
+        - generic [ref=e421]:
+          - 'button "New task: read browser-source.txt. Reply only its exact contents. Running Sep 27, 10:26:41 PM 7.02s 6 steps 2.0k in · 1.5k cached · 54 out" [expanded] [ref=e422] [cursor=pointer]':
+            - generic [ref=e426]:
+              - generic [ref=e427]: "New task: read browser-source.txt. Reply only its exact contents."
+              - generic [ref=e428]:
+                - generic [ref=e429]: Running
+                - generic [ref=e430]: Sep 27, 10:26:41 PM
+                - generic [ref=e431]: 7.02s
+                - generic [ref=e432]: 6 steps
+                - generic [ref=e433]: 2.0k in · 1.5k cached · 54 out
+          - tree "Execution spans" [ref=e434]:
+            - treeitem "Collapse invoke_agent agent agent agent in 2.0k cache 1.5k out 54 7.02s" [expanded] [ref=e435]:
+              - button "Collapse invoke_agent agent" [ref=e437] [cursor=pointer]
+              - button "agent agent" [ref=e440] [cursor=pointer]:
+                - generic [ref=e441]: agent
+                - generic [ref=e442]: agent
+              - generic [ref=e443]:
+                - generic [ref=e444]:
+                  - generic [ref=e445]: in
+                  - text: 2.0k
+                - generic [ref=e446]:
+                  - generic [ref=e447]: cache
+                  - text: 1.5k
+                - generic [ref=e448]:
+                  - generic [ref=e449]: out
+                  - text: "54"
+              - generic [ref=e450]: 7.02s
+            - treeitem "context instructions none found · looked for AGENTS.override.md, AGENTS.md 0ms" [ref=e451]:
+              - button "context instructions none found · looked for AGENTS.override.md, AGENTS.md" [ref=e453] [cursor=pointer]:
+                - generic [ref=e456]: context
+                - generic [ref=e457]: instructions
+                - generic [ref=e458]: none found · looked for AGENTS.override.md, AGENTS.md
+              - generic [ref=e459]: 0ms
+            - treeitem "context skills 0 discovered 1ms" [ref=e460]:
+              - button "context skills 0 discovered" [ref=e462] [cursor=pointer]:
+                - generic [ref=e465]: context
+                - generic [ref=e466]: skills
+                - generic [ref=e467]: 0 discovered
+              - generic [ref=e468]: 1ms
+            - treeitem "Collapse chat gpt-6-luna model gpt-6-luna in 1.7k cache 0 out 42 3.04s" [expanded] [ref=e469]:
+              - button "Collapse chat gpt-6-luna" [ref=e471] [cursor=pointer]
+              - button "model gpt-6-luna" [ref=e474] [cursor=pointer]:
+                - generic [ref=e477]: model
+                - generic [ref=e478]: gpt-6-luna
+              - generic [ref=e479]:
+                - generic [ref=e480]:
+                  - generic [ref=e481]: in
+                  - text: 1.7k
+                - generic [ref=e482]:
+                  - generic [ref=e483]: cache
+                  - text: "0"
+                - generic [ref=e484]:
+                  - generic [ref=e485]: out
+                  - text: "42"
+              - generic [ref=e486]: 3.04s
+            - treeitem "tool read_file browser-source.txt 10ms" [ref=e487]:
+              - button "tool read_file browser-source.txt" [ref=e489] [cursor=pointer]:
+                - generic [ref=e493]: tool
+                - generic [ref=e494]: read_file
+                - generic [ref=e495]: browser-source.txt
+              - generic [ref=e496]: 10ms
+            - treeitem "model gpt-6-luna in 252 cache 1.5k out 12 3.40s" [ref=e497]:
+              - button "model gpt-6-luna" [ref=e499] [cursor=pointer]:
+                - generic [ref=e502]: model
+                - generic [ref=e503]: gpt-6-luna
+              - generic [ref=e504]:
+                - generic [ref=e505]:
+                  - generic [ref=e506]: in
+                  - text: "252"
+                - generic [ref=e507]:
+                  - generic [ref=e508]: cache
+                  - text: 1.5k
+                - generic [ref=e509]:
+                  - generic [ref=e510]: out
+                  - text: "12"
+              - generic [ref=e511]: 3.40s
+      - generic [ref=e513]:
+        - banner [ref=e514]:
+          - generic [ref=e515]:
+            - heading "invoke_agent agent" [level=3] [ref=e516]
+            - generic [ref=e517]: 6.74s
+          - paragraph [ref=e521]: 9/27/2026, 10:25:26 PM
+        - navigation "Span details" [ref=e522]:
+          - button "Input + Output" [ref=e523] [cursor=pointer]
+          - button "Metadata" [ref=e524] [cursor=pointer]
+        - generic [ref=e525]:
+          - generic [ref=e526]:
+            - generic [ref=e527]:
+              - term [ref=e528]: input
+              - definition [ref=e529]: "3282"
+            - generic [ref=e530]:
+              - term [ref=e531]: output
+              - definition [ref=e532]: "60"
+            - generic [ref=e533]:
+              - term [ref=e534]: total
+              - definition [ref=e535]: "3342"
+          - generic [ref=e536]:
+            - generic [ref=e537]:
+              - heading "Input" [level=4] [ref=e538]
+              - button "Copy input" [ref=e539] [cursor=pointer]
+            - generic [ref=e542]: Call read_file for hello.txt and reply with its exact contents.
+          - generic [ref=e543]:
+            - generic [ref=e544]:
+              - heading "Output" [level=4] [ref=e545]
+              - button "Copy output" [ref=e546] [cursor=pointer]
+            - generic [ref=e549]: "{ \"reason\": { \"kind\": \"completed\" }, \"text\": \"`hello.txt` could not be read: it does not exist in the workspace.\" }"

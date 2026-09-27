@@ -1,0 +1,26 @@
+
+ RUN  v4.1.11 /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk
+
+ ❯ tests/unit/edge-sample-harness-boundaries.spec.ts (9 tests | 1 failed) 162ms
+     × scopes history, traces and close to the supplied credential 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/edge-sample-harness-boundaries.spec.ts > Edge sample actual harness admission and terminal boundaries > scopes history, traces and close to the supplied credential
+AssertionError: expected 0 to be greater than 0
+ ❯ tests/unit/edge-sample-harness-boundaries.spec.ts:132:30
+    130|     const owner = await createEdgeChatApp().fetch(new Request(`https:/…
+    131|     const own = await owner.json() as { spans: { kind: string; status:…
+    132|     expect(own.spans.length).toBeGreaterThan(0)
+       |                              ^
+    133|     expect(own.spans).toEqual(expect.arrayContaining([expect.objectCon…
+    134|     expect(first.some(event => event.t === 'span')).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 8 passed (9)
+   Start at  22:22:51
+   Duration  1.15s (transform 711ms, setup 0ms, import 894ms, tests 162ms, environment 0ms)
+

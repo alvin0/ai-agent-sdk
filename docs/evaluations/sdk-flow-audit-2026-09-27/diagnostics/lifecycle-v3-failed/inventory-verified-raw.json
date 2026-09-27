@@ -1,0 +1,332 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "seq": 1,
+      "event": {
+        "kind": "user",
+        "message": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Call read_inventory exactly once with {}. Then reply only LOADED."
+            }
+          ],
+          "source": {
+            "kind": "user"
+          },
+          "role": "user",
+          "id": "cda18de0-83b9-4745-8494-2cf4af2f2748"
+        }
+      },
+      "surfaceOp": "append"
+    },
+    {
+      "seq": 2,
+      "event": {
+        "kind": "assistant",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool-call",
+              "id": "call_3IT1wqV2amagbHKcaqtHfhRA",
+              "name": "read_inventory",
+              "arguments": "{}"
+            }
+          ],
+          "source": {
+            "kind": "model",
+            "provider": "codex",
+            "model": "gpt-6-luna"
+          },
+          "id": "555c4a7a-f09b-4793-8c36-a24be9022212"
+        },
+        "usage": {
+          "inputTokens": 308,
+          "outputTokens": 14,
+          "totalTokens": 322
+        }
+      },
+      "surfaceOp": "append"
+    },
+    {
+      "seq": 3,
+      "event": {
+        "kind": "tool-call",
+        "callId": "call_3IT1wqV2amagbHKcaqtHfhRA",
+        "name": "read_inventory",
+        "rawArguments": "{}"
+      },
+      "surfaceOp": "append"
+    },
+    {
+      "seq": 4,
+      "event": {
+        "kind": "tool-result",
+        "callId": "call_3IT1wqV2amagbHKcaqtHfhRA",
+        "message": {
+          "source": {
+            "kind": "tool",
+            "callId": "call_3IT1wqV2amagbHKcaqtHfhRA"
+          },
+          "content": [
+            {
+              "type": "tool-result",
+              "toolCallId": "call_3IT1wqV2amagbHKcaqtHfhRA",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "inventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\nEVIDENCE_MARKER=fixture-7391\n"
+                }
+              ],
+              "isError": false
+            }
+          ],
+          "role": "user",
+          "id": "9dcd194b-d8f0-48eb-b8ef-7f059ceee8ed"
+        },
+        "result": {
+          "isError": false,
+          "value": "inventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\nEVIDENCE_MARKER=fixture-7391\n",
+          "content": [
+            {
+              "type": "text",
+              "text": "inventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\ninventory row: ordinary fixture data\nEVIDENCE_MARKER=fixture-7391\n"
+            }
+          ]
+        }
+      },
+      "surfaceOp": "append"
+    },
+    {
+      "seq": 5,
+      "event": {
+        "kind": "assistant",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "LOADED",
+              "phase": "final-answer"
+            }
+          ],
+          "source": {
+            "kind": "model",
+            "provider": "codex",
+            "model": "gpt-6-luna"
+          },
+          "id": "52e2cc05-c9ab-4add-b58e-89729538dd6e"
+        },
+        "usage": {
+          "inputTokens": 3494,
+          "outputTokens": 6,
+          "totalTokens": 3500
+        }
+      },
+      "surfaceOp": "append"
+    },
+    {
+      "seq": 6,
+      "event": {
+        "kind": "user",
+        "message": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Reply only ACK. Do not call tools."
+            }
+          ],
+          "source": {
+            "kind": "user"
+          },
+          "role": "user",
+          "id": "51c48429-1811-4a4b-b1ef-fb2bd24a81d0"
+        }
+      },
+      "surfaceOp": "append"
+    },
+    {
+      "seq": 7,
+      "event": {
+        "kind": "assistant",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "ACK",
+              "phase": "final-answer"
+            }
+          ],
+          "source": {
+            "kind": "model",
+            "provider": "codex",
+            "model": "gpt-6-luna"
+          },
+          "id": "c8ff6386-83db-46e8-a531-9e861700abf8"
+        },
+        "usage": {
+          "inputTokens": 955,
+          "outputTokens": 5,
+          "totalTokens": 3520,
+          "cacheReadTokens": 2560
+        }
+      },
+      "surfaceOp": "append"
+    },
+    {
+      "seq": 8,
+      "event": {
+        "kind": "user",
+        "message": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Use read_tool_output with the stored inventory locator, offset 16650, limit 100. Do not call read_inventory. Return only the EVIDENCE_MARKER value from that chunk."
+            }
+          ],
+          "source": {
+            "kind": "user"
+          },
+          "role": "user",
+          "id": "3aeb94c7-49c2-4168-b678-e4331954a3fc"
+        }
+      },
+      "surfaceOp": "append"
+    },
+    {
+      "seq": 9,
+      "event": {
+        "kind": "assistant",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool-call",
+              "id": "call_UJr2tSBwV2p9Zi8BR6xtAOlm",
+              "name": "read_tool_output",
+              "arguments": "{\"locator\":\"spill:read_inventory:1\",\"offset\":16650,\"limit\":100}"
+            }
+          ],
+          "source": {
+            "kind": "model",
+            "provider": "codex",
+            "model": "gpt-6-luna"
+          },
+          "id": "e3c78680-aa6c-44b3-88b4-56d8ef52e8db"
+        },
+        "usage": {
+          "inputTokens": 612,
+          "outputTokens": 33,
+          "totalTokens": 645
+        }
+      },
+      "surfaceOp": "append"
+    },
+    {
+      "seq": 10,
+      "event": {
+        "kind": "tool-call",
+        "callId": "call_UJr2tSBwV2p9Zi8BR6xtAOlm",
+        "name": "read_tool_output",
+        "rawArguments": "{\"locator\":\"spill:read_inventory:1\",\"offset\":16650,\"limit\":100}"
+      },
+      "surfaceOp": "append"
+    },
+    {
+      "seq": 11,
+      "event": {
+        "kind": "tool-result",
+        "callId": "call_UJr2tSBwV2p9Zi8BR6xtAOlm",
+        "message": {
+          "source": {
+            "kind": "tool",
+            "callId": "call_UJr2tSBwV2p9Zi8BR6xtAOlm"
+          },
+          "content": [
+            {
+              "type": "tool-result",
+              "toolCallId": "call_UJr2tSBwV2p9Zi8BR6xtAOlm",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\n  \"locator\": \"spill:read_inventory:1\",\n  \"offset\": 16650,\n  \"nextOffset\": null,\n  \"totalChars\": 16679,\n  \"text\": \"EVIDENCE_MARKER=fixture-7391\\n\"\n}"
+                }
+              ],
+              "isError": false
+            }
+          ],
+          "role": "user",
+          "id": "7049cab0-b9ac-45db-893c-17e54a12d285"
+        },
+        "result": {
+          "isError": false,
+          "value": {
+            "locator": "spill:read_inventory:1",
+            "offset": 16650,
+            "nextOffset": null,
+            "totalChars": 16679,
+            "text": "EVIDENCE_MARKER=fixture-7391\n"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\n  \"locator\": \"spill:read_inventory:1\",\n  \"offset\": 16650,\n  \"nextOffset\": null,\n  \"totalChars\": 16679,\n  \"text\": \"EVIDENCE_MARKER=fixture-7391\\n\"\n}"
+            }
+          ]
+        }
+      },
+      "surfaceOp": "append"
+    },
+    {
+      "seq": 12,
+      "event": {
+        "kind": "assistant",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "fixture-7391",
+              "phase": "final-answer"
+            }
+          ],
+          "source": {
+            "kind": "model",
+            "provider": "codex",
+            "model": "gpt-6-luna"
+          },
+          "id": "364ab292-e159-49a4-8b4f-1cece4cfdd02"
+        },
+        "usage": {
+          "inputTokens": 712,
+          "outputTokens": 8,
+          "totalTokens": 720
+        }
+      },
+      "surfaceOp": "append"
+    },
+    {
+      "seq": 13,
+      "event": {
+        "kind": "user",
+        "message": {
+          "content": [
+            {
+              "type": "text",
+              "text": "From verified retained state, return only the inventory evidence marker. Do not call tools."
+            }
+          ],
+          "source": {
+            "kind": "user"
+          },
+          "role": "user",
+          "id": "4e11d87f-8baf-4d93-b6bc-04e9ccb5415e"
+        }
+      },
+      "surfaceOp": "append"
+    }
+  ]
+}

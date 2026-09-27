@@ -1,0 +1,122 @@
+{
+  "requests": [
+    "[{\"role\":\"user\",\"source\":{\"kind\":\"app\",\"producer\":\"live-audit\"},\"content\":[{\"type\":\"text\",\"text\":\"Reply only with the number 37.\"}],\"id\":\"f655f5d0-70c2-4b5a-86e0-6060a778c38a\"}]",
+    "[{\"role\":\"user\",\"source\":{\"kind\":\"app\",\"producer\":\"live-audit\"},\"content\":[{\"type\":\"text\",\"text\":\"Reply only with the number 37.\"}],\"id\":\"f655f5d0-70c2-4b5a-86e0-6060a778c38a\"}]"
+  ],
+  "results": [
+    {
+      "outcome": {
+        "reason": {
+          "kind": "completed"
+        },
+        "text": "37",
+        "steps": 1,
+        "usageReport": {
+          "reported": {
+            "inputTokens": 64,
+            "outputTokens": 5,
+            "totalTokens": 69
+          },
+          "budgetTokens": 69,
+          "coverage": {
+            "logicalCalls": 1,
+            "attempts": 1,
+            "complete": 1,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 0,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 0
+          },
+          "authoritative": true
+        },
+        "toolCalls": 0,
+        "traceId": "afd68490b74742f680d9e477529fd96f",
+        "usage": {
+          "inputTokens": 64,
+          "outputTokens": 5,
+          "totalTokens": 69
+        },
+        "mode": "basic",
+        "completed": true
+      },
+      "text": "37",
+      "usage": {
+        "reported": {
+          "inputTokens": 64,
+          "outputTokens": 5,
+          "totalTokens": 69
+        },
+        "budgetTokens": 69,
+        "coverage": {
+          "logicalCalls": 1,
+          "attempts": 1,
+          "complete": 1,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "authoritative": true
+      }
+    },
+    {
+      "outcome": {
+        "reason": {
+          "kind": "completed"
+        },
+        "text": "37",
+        "steps": 1,
+        "usageReport": {
+          "reported": {
+            "inputTokens": 64,
+            "outputTokens": 5,
+            "totalTokens": 69
+          },
+          "budgetTokens": 69,
+          "coverage": {
+            "logicalCalls": 1,
+            "attempts": 1,
+            "complete": 1,
+            "partial": 0,
+            "estimated": 0,
+            "missing": 0,
+            "notApplicable": 0,
+            "possiblyBilledAttemptsWithoutUsage": 0
+          },
+          "authoritative": true
+        },
+        "toolCalls": 0,
+        "traceId": "923bd3bfe7faa61d8e1b1ae57a533a70",
+        "usage": {
+          "inputTokens": 64,
+          "outputTokens": 5,
+          "totalTokens": 69
+        },
+        "mode": "basic",
+        "completed": true
+      },
+      "text": "37",
+      "usage": {
+        "reported": {
+          "inputTokens": 64,
+          "outputTokens": 5,
+          "totalTokens": 69
+        },
+        "budgetTokens": 69,
+        "coverage": {
+          "logicalCalls": 1,
+          "attempts": 1,
+          "complete": 1,
+          "partial": 0,
+          "estimated": 0,
+          "missing": 0,
+          "notApplicable": 0,
+          "possiblyBilledAttemptsWithoutUsage": 0
+        },
+        "authoritative": true
+      }
+    }
+  ]
+}

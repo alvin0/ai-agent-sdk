@@ -50,3 +50,9 @@ The package includes message and stream contracts, model registry and retry prim
 The documented root plus `/agent`, `/memory`, `/observability`, `/provider`,
 `/skills`, `/tools`, and `./package.json` are public. Internal source paths are
 not compatibility contracts.
+
+Opt-in optimization helpers include `defineActionFusion` and
+`createModelEvidenceReducer` from `/tools`, and `createContextOptimizer` from
+`/memory`. Applications select pipeline steps, milestone summaries, log storage,
+and reducer models. See the [application guide](https://github.com/alvin0/ai-agent-sdk/blob/main/docs/context-optimization.md)
+for configuration, exact-evidence fallback, and runnable validation.

@@ -1,0 +1,34 @@
+{
+  "base": "http://127.0.0.1:3378",
+  "model": "gpt-6-luna",
+  "secondary": "gpt-6-luna",
+  "rows": [
+    {
+      "id": "team-auto-workers-released-between-turns",
+      "passed": true,
+      "elapsedMs": 19800,
+      "evidence": {
+        "terminals": [
+          {
+            "t": "done",
+            "text": "AUTO_TEAM_OK",
+            "usage": {
+              "inputTokens": 797,
+              "outputTokens": 82,
+              "totalTokens": 879
+            }
+          },
+          {
+            "t": "done",
+            "text": "AUTO_TEAM_OK",
+            "usage": {
+              "inputTokens": 800,
+              "outputTokens": 60,
+              "totalTokens": 860
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

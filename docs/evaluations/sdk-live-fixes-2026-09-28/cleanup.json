@@ -1,0 +1,18 @@
+{
+  "restoredGeneratedFiles": [
+    "samples/edge-runtime-chat-agents/web/next-env.d.ts",
+    "samples/edge-runtime-chat-agents/web/tsconfig.json",
+    "samples/chat-agents/web/next-env.d.ts",
+    "samples/chat-agents/web/tsconfig.json"
+  ],
+  "removedOwnedUntrackedBuilds": [
+    "samples/chat-agents/web/.next-harness-build",
+    "samples/edge-runtime-chat-agents/web/.next-harness-build"
+  ],
+  "indexUnchanged": true,
+  "ownedServersStopped": {
+    "3377": true,
+    "3378": true
+  },
+  "preexistingStagedAuditCaches": "preserved"
+}

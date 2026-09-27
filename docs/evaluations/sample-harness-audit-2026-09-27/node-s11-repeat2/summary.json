@@ -1,0 +1,8 @@
+{
+  "base": "http://127.0.0.1:3367",
+  "provider": "codex",
+  "model": "gpt-6-luna",
+  "repeat": 1,
+  "passed": 1,
+  "total": 1
+}

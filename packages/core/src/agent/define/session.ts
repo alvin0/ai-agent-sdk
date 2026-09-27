@@ -3,6 +3,7 @@ import { ModelError } from '../../errors/model-error.ts'
 import { type ToolCatalog } from '../tool/registry.ts'
 import { History } from '../history/history.ts'
 import { bindModelRequestBoundary } from '../loop/turn/model-request-boundary.ts'
+import { bindStepProjectionSources } from '../loop/turn/step-projection.ts'
 import { normalizeToolPairing } from '../history/normalize.ts'
 import type { TurnHooks } from '../loop/types.ts'
 import { ContextCompactor, type CompactionResult } from '../memory/compaction.ts'
@@ -760,12 +761,16 @@ export class AgentSession {
       beforeStep: async context => {
         // Before anything reads history for this request: model-round refreshes
         // its messages when entries changed, so delivered input is included.
-        this.drainInjections()
         const generation = this.currentHistory.generation()
+        const entries = this.currentHistory.entries().length
+        this.drainInjections()
+        const prepared = this.currentHistory.entries().length === entries
+          ? context
+          : { ...context, messages: normalizeToolPairing(this.currentHistory.messages()), snapshot: this.currentHistory.snapshot() }
         if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, accounting)
-        await this.compactor?.beforeStep(context)
+        await this.compactor?.beforeStep(prepared)
         if (accounting?.usageStop !== undefined) return { kind: 'proceed' as const }
-        const refreshed = this.currentHistory.generation() === generation
+        const refreshed = this.currentHistory.generation() === generation && this.currentHistory.entries().length === entries
           ? context
           : {
             ...context,
@@ -780,8 +785,9 @@ export class AgentSession {
           : { ...refreshed, messages: Object.freeze([...memory, ...refreshed.messages]) }
         const decision = await user?.beforeStep?.(current) ?? { kind: 'proceed' as const }
         if (decision.kind === 'reject') return decision
-        const prepend = [...memory, ...decision.prepend ?? []]
-        return prepend.length === 0 ? decision : { kind: 'proceed' as const, prepend }
+        // A projection sees injected memory already; do not inject it twice.
+        const prepend = [...decision.messages === undefined ? memory : [], ...decision.prepend ?? []]
+        return bindStepProjectionSources(prepend.length === 0 ? decision : { ...decision, prepend }, refreshed.messages)
       },
       onRequestError: async context => {
         if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, accounting)

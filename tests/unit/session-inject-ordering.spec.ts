@@ -9,6 +9,63 @@ import { defineAgent, defineTool, type AgentSessionSnapshot } from '@alvin0/ai-a
  * "steer, then the work that ignored it" and treated the steer as handled.
  */
 describe('AgentSession.inject during a run', () => {
+  it('keeps shared application projections isolated across parallel sessions', async () => {
+    const requests: GenerateOptions[] = []
+    class Model extends ModelAdapter {
+      override async resolveModel(provider: string, model: string) { return { provider, id: model, name: model, context: { contextWindow: 32_000 } } }
+      override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+        requests.push(options)
+        yield { type: 'block-end', index: 0, block: { type: 'text', text: 'done' } }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+      }
+    }
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['fixture'], new Model())
+    const projection = Object.freeze({ kind: 'proceed' as const, messages: Object.freeze([]) })
+    let entered = 0, release!: () => void
+    const barrier = new Promise<void>(resolve => { release = resolve })
+    const agent = defineAgent({ id: 'a', provider: 'fixture', model: 'm', instructions: 'x', compaction: false })
+    const sessions = [0, 1].map(() => agent.createSession({ registry, hooks: { async beforeStep() {
+      if (++entered === 2) release()
+      await barrier
+      return projection
+    } } }))
+    await Promise.all(sessions.map((session, index) => session.run(`PRIVATE/parallel%${index}`)))
+    expect(requests).toHaveLength(2)
+    expect(requests.map(request => request.messages)).toEqual([[], []])
+    expect(sessions.map(session => JSON.stringify(session.snapshot()).includes('PRIVATE/parallel%'))).toEqual([true, true])
+  })
+  it.each([false, true])('makes drained steering visible to application hooks before projection (redact=%s)', async redact => {
+    const requests: GenerateOptions[] = [], hookInputs: string[] = []
+    let session: ReturnType<ReturnType<typeof defineAgent>['createSession']>
+    class Model extends ModelAdapter {
+      override async resolveModel(provider: string, model: string) { return { provider, id: model, name: model, context: { contextWindow: 32_000 } } }
+      override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+        requests.push(options)
+        if (requests.length === 1) {
+          session.inject('PRIVATE/queued%constraint')
+          yield { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('read'), name: 'read', arguments: '{}' } }
+          yield { type: 'finish', reason: { kind: 'tool-calls' } }
+        } else {
+          yield { type: 'block-end', index: 0, block: { type: 'text', text: 'done' } }
+          yield { type: 'finish', reason: { kind: 'stop' } }
+        }
+      }
+    }
+    const registry = new ModelRegistry(); registry.registerAdapter(['fixture'], new Model())
+    session = defineAgent({ id: 'a', provider: 'fixture', model: 'm', instructions: 'x', maxTurns: 4, compaction: false,
+      tools: [defineTool({ name: 'read', description: 'Read', parameters: { type: 'object' }, execute: () => 'read receipt' })] }).createSession({ registry,
+      hooks: { beforeStep(context) {
+        hookInputs.push(JSON.stringify({ messages: context.messages, snapshot: context.snapshot }))
+        return { kind: 'proceed', messages: context.messages.filter(message => !redact || !JSON.stringify(message).includes('PRIVATE/queued%constraint')) }
+      } },
+    })
+    await session.run('start')
+    expect(hookInputs[1]).toContain('PRIVATE/queued%constraint')
+    const payload = JSON.stringify(requests[1]?.messages)
+    if (redact) expect(payload).not.toContain('PRIVATE/queued%constraint')
+    else expect(requests[1]?.messages.at(-1)?.content).toEqual([{ type: 'text', text: 'PRIVATE/queued%constraint' }])
+  })
   it('retains queued input in an active snapshot and resumes it without delivering it early', async () => {
     let session: ReturnType<ReturnType<typeof defineAgent>['createSession']>
     let captured: AgentSessionSnapshot | undefined

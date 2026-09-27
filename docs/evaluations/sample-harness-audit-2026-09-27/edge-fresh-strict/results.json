@@ -1,0 +1,13 @@
+{
+  "base": "http://127.0.0.1:3368",
+  "model": "gpt-4o-mini",
+  "secondary": "gpt-4.1-mini",
+  "rows": [
+    {
+      "id": "team-auto-workers-released-between-turns",
+      "passed": false,
+      "elapsedMs": 15168,
+      "error": "Worker and lead must honor their distinct assigned outputs on both turns\n+ actual - expected\n\n+ [\n+   'first worker: \"The response \\\\\"AUTO_PEER_OK\\\\\" has been successfully sent to the lead. \\\\n\\\\n### Summary\\\\n- **Action**: Sent response to lead.\\\\n- **Message**: \\\\\"AUTO_PEER_OK\\\\\"\\\\n\\\\n### Evidence\\\\n- Message sent to lead: \\\\\"AUTO_PEER_OK\\\\\"\\\\n\\\\nIf you need further assistance, feel free to ask!\"',\n+   'second worker: \"The task has been completed successfully. \\\\n\\\\n### Summary\\\\n- **Response**: The message \\\\\"AUTO_PEER_OK\\\\\" was sent to the lead.\\\\n- **Status**: Accepted.\\\\n\\\\n### Evidence\\\\n- The message was dispatched with confirmation of acceptance.\\\\n\\\\nIf you have any further requests, feel free to ask!\"'\n+ ]\n- []\n"
+    }
+  ]
+}

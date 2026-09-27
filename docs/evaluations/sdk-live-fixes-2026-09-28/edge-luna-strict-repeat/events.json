@@ -1,0 +1,3061 @@
+{
+  "audit-muk2jdgl-auto": [
+    {
+      "t": "start",
+      "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+      "conversationId": "audit-muk2jdgl-auto",
+      "model": "gpt-6-luna",
+      "mode": "team-auto",
+      "members": [
+        {
+          "name": "lead",
+          "role": "lead"
+        }
+      ]
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "2b23e768c093279b",
+        "parentSpanId": null,
+        "seq": 0,
+        "name": "invoke_agent edge-auto-lead",
+        "kind": "invoke_agent",
+        "startedAt": 1790528666877,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "invoke_agent",
+          "gen_ai.agent.id": "edge-auto-lead",
+          "gen_ai.agent.name": "edge-auto-lead",
+          "gen_ai.request.model": "gpt-6-luna",
+          "gen_ai.conversation.id": "audit-muk2jdgl-auto"
+        },
+        "input": "Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "b27f21521843eb23",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 1,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528666878,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 1,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 2,
+          "lastMessageId": "bc8b6ad1-68e2-42bd-88de-78877173efae",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "b27f21521843eb23",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 1,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528666878,
+        "durationMs": 1431,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 1,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 2,
+          "lastMessageId": "bc8b6ad1-68e2-42bd-88de-78877173efae",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            }
+          ]
+        },
+        "output": {
+          "text": "",
+          "commentary": [],
+          "reasoning": [],
+          "toolCalls": 1
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "ddded9cda3c06f2f",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 2,
+        "name": "execute_tool spawn_agent",
+        "kind": "execute_tool",
+        "startedAt": 1790528668310,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "spawn_agent",
+          "gen_ai.tool.call.id": "call_kLVqL5wfZ02cI0HVQUimRNMR"
+        },
+        "input": "{\"name\":\"first\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"}"
+      }
+    },
+    {
+      "t": "tool-call",
+      "callId": "call_kLVqL5wfZ02cI0HVQUimRNMR",
+      "name": "spawn_agent",
+      "input": {
+        "name": "first",
+        "task": "Reply exactly AUTO_PEER_OK.",
+        "specialty": "analyst",
+        "role": "analyst",
+        "context": "fresh"
+      },
+      "member": "lead"
+    },
+    {
+      "t": "member-start",
+      "member": "first"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "ef4a0a8d0ea3af7b4a87c3c9f2f8aaea",
+        "spanId": "b6d018f665e6e5cd",
+        "parentSpanId": null,
+        "seq": 3,
+        "name": "invoke_agent first",
+        "kind": "invoke_agent",
+        "startedAt": 1790528668312,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "first",
+        "attributes": {
+          "gen_ai.operation.name": "invoke_agent",
+          "gen_ai.agent.id": "first",
+          "gen_ai.agent.name": "first",
+          "gen_ai.request.model": "gpt-6-luna",
+          "gen_ai.conversation.id": "audit-muk2jdgl-auto-first"
+        },
+        "input": "Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+      }
+    },
+    {
+      "t": "tool-result",
+      "callId": "call_kLVqL5wfZ02cI0HVQUimRNMR",
+      "name": "spawn_agent",
+      "status": "completed",
+      "isError": false,
+      "member": "lead"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "ddded9cda3c06f2f",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 2,
+        "name": "execute_tool spawn_agent",
+        "kind": "execute_tool",
+        "startedAt": 1790528668310,
+        "durationMs": 2,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "spawn_agent",
+          "gen_ai.tool.call.id": "call_kLVqL5wfZ02cI0HVQUimRNMR"
+        },
+        "input": "{\"name\":\"first\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"}",
+        "output": {
+          "name": "first",
+          "agentId": "first",
+          "conversationId": "audit-muk2jdgl-auto-first",
+          "task": "Reply exactly AUTO_PEER_OK.",
+          "status": "running",
+          "context": "fresh",
+          "dependsOn": [],
+          "writes": [],
+          "role": "analyst",
+          "specialty": "analyst"
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "ef4a0a8d0ea3af7b4a87c3c9f2f8aaea",
+        "spanId": "68682448fc02d1a6",
+        "parentSpanId": "b6d018f665e6e5cd",
+        "seq": 4,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528668312,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "first",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 1,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 2,
+          "lastMessageId": "81987c5d-9cb6-406e-aabd-7ed079439193",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are dynamically assigned worker 'first'. You are the 'analyst' worker. Check assumptio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "list_agents",
+            "send_message",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Reply exactly AUTO_PEER_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message fd312e13-f221-49e6-8ca4-da62c8d53a43 from lead: Reply exactly AUTO_PEER_OK."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "b9e78463af45857e",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 5,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528668314,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 2,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 4,
+          "lastMessageId": "52cb3212-4edc-4b1c-932c-55beecc7d0f2",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "spawn_agent({\"name\":\"first\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"first\", \"agentId\": \"first\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "b9e78463af45857e",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 5,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528668314,
+        "durationMs": 1303,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 2,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 4,
+          "lastMessageId": "52cb3212-4edc-4b1c-932c-55beecc7d0f2",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "spawn_agent({\"name\":\"first\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"first\", \"agentId\": \"first\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            }
+          ]
+        },
+        "output": {
+          "text": "",
+          "commentary": [],
+          "reasoning": [],
+          "toolCalls": 1
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "bf40d2ddf78cf4c0",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 6,
+        "name": "execute_tool wait_agents",
+        "kind": "execute_tool",
+        "startedAt": 1790528669617,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "wait_agents",
+          "gen_ai.tool.call.id": "call_dC7zuB6w2mrrERc2i1qcLSki"
+        },
+        "input": "{\"targets\":[\"first\"],\"timeoutMs\":30000}"
+      }
+    },
+    {
+      "t": "tool-call",
+      "callId": "call_dC7zuB6w2mrrERc2i1qcLSki",
+      "name": "wait_agents",
+      "input": {
+        "targets": [
+          "first"
+        ],
+        "timeoutMs": 30000
+      },
+      "member": "lead"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "ef4a0a8d0ea3af7b4a87c3c9f2f8aaea",
+        "spanId": "68682448fc02d1a6",
+        "parentSpanId": "b6d018f665e6e5cd",
+        "seq": 4,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528668312,
+        "durationMs": 2280,
+        "status": "success",
+        "member": "first",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 1,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 2,
+          "lastMessageId": "81987c5d-9cb6-406e-aabd-7ed079439193",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are dynamically assigned worker 'first'. You are the 'analyst' worker. Check assumptio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "list_agents",
+            "send_message",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Reply exactly AUTO_PEER_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message fd312e13-f221-49e6-8ca4-da62c8d53a43 from lead: Reply exactly AUTO_PEER_OK."
+            }
+          ]
+        },
+        "output": {
+          "text": "",
+          "commentary": [],
+          "reasoning": [
+            ""
+          ],
+          "toolCalls": 1
+        },
+        "usage": {
+          "inputTokens": 797,
+          "outputTokens": 82,
+          "reasoningTokens": 16,
+          "totalTokens": 879
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "ef4a0a8d0ea3af7b4a87c3c9f2f8aaea",
+        "spanId": "e94f1a9d8d62d142",
+        "parentSpanId": "b6d018f665e6e5cd",
+        "seq": 7,
+        "name": "execute_tool submit_result",
+        "kind": "execute_tool",
+        "startedAt": 1790528670593,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "first",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "submit_result",
+          "gen_ai.tool.call.id": "call_nq8bXOzwQb8zXTETP2fgVtqN"
+        },
+        "input": "{\"summary\":\"Returned the exact requested text: AUTO_PEER_OK.\",\"evidence\":[\"The assigned A2A request explicitly says: “Reply exactly AUTO_PEER_OK.”\",\"The retained original objective also specifies the exact response AUTO_PEER_OK.\"]}"
+      }
+    },
+    {
+      "t": "tool-call",
+      "callId": "call_nq8bXOzwQb8zXTETP2fgVtqN",
+      "name": "submit_result",
+      "input": {
+        "summary": "Returned the exact requested text: AUTO_PEER_OK.",
+        "evidence": [
+          "The assigned A2A request explicitly says: “Reply exactly AUTO_PEER_OK.”",
+          "The retained original objective also specifies the exact response AUTO_PEER_OK."
+        ]
+      },
+      "member": "first"
+    },
+    {
+      "t": "tool-result",
+      "callId": "call_nq8bXOzwQb8zXTETP2fgVtqN",
+      "name": "submit_result",
+      "status": "completed",
+      "isError": false,
+      "member": "first"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "ef4a0a8d0ea3af7b4a87c3c9f2f8aaea",
+        "spanId": "e94f1a9d8d62d142",
+        "parentSpanId": "b6d018f665e6e5cd",
+        "seq": 7,
+        "name": "execute_tool submit_result",
+        "kind": "execute_tool",
+        "startedAt": 1790528670593,
+        "durationMs": 0,
+        "status": "success",
+        "member": "first",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "submit_result",
+          "gen_ai.tool.call.id": "call_nq8bXOzwQb8zXTETP2fgVtqN"
+        },
+        "input": "{\"summary\":\"Returned the exact requested text: AUTO_PEER_OK.\",\"evidence\":[\"The assigned A2A request explicitly says: “Reply exactly AUTO_PEER_OK.”\",\"The retained original objective also specifies the exact response AUTO_PEER_OK.\"]}",
+        "output": {
+          "accepted": true,
+          "summary": "Returned the exact requested text: AUTO_PEER_OK.",
+          "evidence": [
+            "The assigned A2A request explicitly says: “Reply exactly AUTO_PEER_OK.”",
+            "The retained original objective also specifies the exact response AUTO_PEER_OK."
+          ],
+          "instruction": "This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the final answer unless the task requests them. If the task requests a report, provide the substantive findings or changes, supporting evidence or sources, and relevant limitations. Do not merely say the self-check passed or refer to an earlier message. Do not call submit_result again in this run unless you perform new substantive tool work that invalidates this submission. A later user request or worker follow-up starts a new run and needs its own self-check."
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "ef4a0a8d0ea3af7b4a87c3c9f2f8aaea",
+        "spanId": "74bcc006ab7ac060",
+        "parentSpanId": "b6d018f665e6e5cd",
+        "seq": 8,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528670596,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "first",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 2,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 4,
+          "lastMessageId": "d292eb4a-e3e9-4b49-805c-cc36049c4df5",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are dynamically assigned worker 'first'. You are the 'analyst' worker. Check assumptio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "list_agents",
+            "send_message",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Reply exactly AUTO_PEER_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message fd312e13-f221-49e6-8ca4-da62c8d53a43 from lead: Reply exactly AUTO_PEER_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "submit_result({\"summary\":\"Returned the exact requested text: AUTO_PEER_OK.\",\"evidence\":[\"The assigned A2A request explicitly says: “Reply exactly AUTO_PEER_OK.”\",\"The retained original objective also specifies the exact response AUTO_PEER_OK.\"]})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Returned the exact requested text: AUTO_PEER_OK.\", \"evidence\": [ \"The assigned A2A request explicitly says: “Reply exactly AUTO_PEER_OK.”\", \"The retained original objective also specifies the exact response AUTO_PEER_OK.\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool resul…"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "t": "text-delta",
+      "text": "AUTO",
+      "blockId": "74bcc006ab7ac060:0",
+      "member": "first"
+    },
+    {
+      "t": "text-delta",
+      "text": "_PE",
+      "blockId": "74bcc006ab7ac060:0",
+      "member": "first"
+    },
+    {
+      "t": "text-delta",
+      "text": "ER",
+      "blockId": "74bcc006ab7ac060:0",
+      "member": "first"
+    },
+    {
+      "t": "text-delta",
+      "text": "_OK",
+      "blockId": "74bcc006ab7ac060:0",
+      "member": "first"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "ef4a0a8d0ea3af7b4a87c3c9f2f8aaea",
+        "spanId": "74bcc006ab7ac060",
+        "parentSpanId": "b6d018f665e6e5cd",
+        "seq": 8,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528670596,
+        "durationMs": 1101,
+        "status": "success",
+        "member": "first",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 2,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 4,
+          "lastMessageId": "d292eb4a-e3e9-4b49-805c-cc36049c4df5",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are dynamically assigned worker 'first'. You are the 'analyst' worker. Check assumptio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "list_agents",
+            "send_message",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Reply exactly AUTO_PEER_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message fd312e13-f221-49e6-8ca4-da62c8d53a43 from lead: Reply exactly AUTO_PEER_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "submit_result({\"summary\":\"Returned the exact requested text: AUTO_PEER_OK.\",\"evidence\":[\"The assigned A2A request explicitly says: “Reply exactly AUTO_PEER_OK.”\",\"The retained original objective also specifies the exact response AUTO_PEER_OK.\"]})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Returned the exact requested text: AUTO_PEER_OK.\", \"evidence\": [ \"The assigned A2A request explicitly says: “Reply exactly AUTO_PEER_OK.”\", \"The retained original objective also specifies the exact response AUTO_PEER_OK.\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool resul…"
+            }
+          ]
+        },
+        "output": {
+          "text": "AUTO_PEER_OK",
+          "commentary": [],
+          "reasoning": [],
+          "toolCalls": 0
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "ef4a0a8d0ea3af7b4a87c3c9f2f8aaea",
+        "spanId": "b6d018f665e6e5cd",
+        "parentSpanId": null,
+        "seq": 3,
+        "name": "invoke_agent first",
+        "kind": "invoke_agent",
+        "startedAt": 1790528668312,
+        "durationMs": 3386,
+        "status": "success",
+        "member": "first",
+        "attributes": {
+          "gen_ai.operation.name": "invoke_agent",
+          "gen_ai.agent.id": "first",
+          "gen_ai.agent.name": "first",
+          "gen_ai.request.model": "gpt-6-luna",
+          "gen_ai.conversation.id": "audit-muk2jdgl-auto-first"
+        },
+        "input": "Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK.",
+        "output": {
+          "reason": {
+            "kind": "completed"
+          },
+          "text": "AUTO_PEER_OK"
+        }
+      }
+    },
+    {
+      "t": "tool-result",
+      "callId": "call_dC7zuB6w2mrrERc2i1qcLSki",
+      "name": "wait_agents",
+      "status": "completed",
+      "isError": false,
+      "member": "lead"
+    },
+    {
+      "t": "member-end",
+      "member": "first"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "bf40d2ddf78cf4c0",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 6,
+        "name": "execute_tool wait_agents",
+        "kind": "execute_tool",
+        "startedAt": 1790528669617,
+        "durationMs": 2082,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "wait_agents",
+          "gen_ai.tool.call.id": "call_dC7zuB6w2mrrERc2i1qcLSki"
+        },
+        "input": "{\"targets\":[\"first\"],\"timeoutMs\":30000}",
+        "output": {
+          "agents": [
+            {
+              "name": "first",
+              "agentId": "first",
+              "kind": "local",
+              "conversationId": "audit-muk2jdgl-auto-first",
+              "role": "peer",
+              "status": "idle",
+              "protocol": "in-process",
+              "deliveries": [
+                "quiet",
+                "wakeup"
+              ],
+              "description": "analyst"
+            }
+          ],
+          "settled": "first",
+          "timedOut": false,
+          "waitedMs": 30000
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "46dcbbe0651a97ca",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 9,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528671701,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 3,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 6,
+          "lastMessageId": "3a4d63dd-3b19-44b2-a986-e92a10b445c6",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "spawn_agent({\"name\":\"first\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"first\", \"agentId\": \"first\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "wait_agents({\"targets\":[\"first\"],\"timeoutMs\":30000})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"agents\": [ { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\" } ], \"settled\": \"first\", \"timedOut\": false, \"waitedMs\": 30000 }"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "46dcbbe0651a97ca",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 9,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528671701,
+        "durationMs": 1629,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 3,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 6,
+          "lastMessageId": "3a4d63dd-3b19-44b2-a986-e92a10b445c6",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "spawn_agent({\"name\":\"first\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"first\", \"agentId\": \"first\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "wait_agents({\"targets\":[\"first\"],\"timeoutMs\":30000})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"agents\": [ { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\" } ], \"settled\": \"first\", \"timedOut\": false, \"waitedMs\": 30000 }"
+            }
+          ]
+        },
+        "output": {
+          "text": "",
+          "commentary": [],
+          "reasoning": [
+            ""
+          ],
+          "toolCalls": 1
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "e2cf72294b787586",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 10,
+        "name": "execute_tool list_agents",
+        "kind": "execute_tool",
+        "startedAt": 1790528673331,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "list_agents",
+          "gen_ai.tool.call.id": "call_s8xdy8JuVllVO9Uq37jI8uRM"
+        },
+        "input": "{}"
+      }
+    },
+    {
+      "t": "tool-call",
+      "callId": "call_s8xdy8JuVllVO9Uq37jI8uRM",
+      "name": "list_agents",
+      "input": {},
+      "member": "lead"
+    },
+    {
+      "t": "tool-result",
+      "callId": "call_s8xdy8JuVllVO9Uq37jI8uRM",
+      "name": "list_agents",
+      "status": "completed",
+      "isError": false,
+      "member": "lead"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "e2cf72294b787586",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 10,
+        "name": "execute_tool list_agents",
+        "kind": "execute_tool",
+        "startedAt": 1790528673331,
+        "durationMs": 0,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "list_agents",
+          "gen_ai.tool.call.id": "call_s8xdy8JuVllVO9Uq37jI8uRM"
+        },
+        "input": "{}",
+        "output": [
+          {
+            "name": "lead",
+            "agentId": "edge-auto-lead",
+            "kind": "local",
+            "conversationId": "audit-muk2jdgl-auto",
+            "role": "lead",
+            "status": "running",
+            "protocol": "in-process",
+            "deliveries": [
+              "quiet",
+              "wakeup"
+            ],
+            "description": "Chooses useful specialists and owns the final answer."
+          },
+          {
+            "name": "first",
+            "agentId": "first",
+            "kind": "local",
+            "conversationId": "audit-muk2jdgl-auto-first",
+            "role": "peer",
+            "status": "idle",
+            "protocol": "in-process",
+            "deliveries": [
+              "quiet",
+              "wakeup"
+            ],
+            "description": "analyst",
+            "outcome": {
+              "kind": "completed",
+              "text": "AUTO_PEER_OK"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "0a1e98cd874aabfd",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 11,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528673333,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 4,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 9,
+          "lastMessageId": "6f9e8a24-9a6d-43a0-b8a3-47bfa7ad09bd",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "earlierMessagesOmitted": 1,
+          "messages": [
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "spawn_agent({\"name\":\"first\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"first\", \"agentId\": \"first\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "wait_agents({\"targets\":[\"first\"],\"timeoutMs\":30000})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"agents\": [ { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\" } ], \"settled\": \"first\", \"timedOut\": false, \"waitedMs\": 30000 }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "list_agents({})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "[ { \"name\": \"lead\", \"agentId\": \"edge-auto-lead\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto\", \"role\": \"lead\", \"status\": \"running\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"Chooses useful specialists and owns the final answer.\" }, { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\", \"outcome\": { \"kind\": \"completed\", \"text\": \"AUTO_PEER_OK\" } } ]"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message b69a9759-9c06-4fd0-8267-54e1673a47a1 from first: Worker 'first' finished: AUTO_PEER_OK"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "0a1e98cd874aabfd",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 11,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528673333,
+        "durationMs": 1477,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 4,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 9,
+          "lastMessageId": "6f9e8a24-9a6d-43a0-b8a3-47bfa7ad09bd",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "earlierMessagesOmitted": 1,
+          "messages": [
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "spawn_agent({\"name\":\"first\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"first\", \"agentId\": \"first\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "wait_agents({\"targets\":[\"first\"],\"timeoutMs\":30000})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"agents\": [ { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\" } ], \"settled\": \"first\", \"timedOut\": false, \"waitedMs\": 30000 }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "list_agents({})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "[ { \"name\": \"lead\", \"agentId\": \"edge-auto-lead\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto\", \"role\": \"lead\", \"status\": \"running\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"Chooses useful specialists and owns the final answer.\" }, { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\", \"outcome\": { \"kind\": \"completed\", \"text\": \"AUTO_PEER_OK\" } } ]"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message b69a9759-9c06-4fd0-8267-54e1673a47a1 from first: Worker 'first' finished: AUTO_PEER_OK"
+            }
+          ]
+        },
+        "output": {
+          "text": "",
+          "commentary": [],
+          "reasoning": [],
+          "toolCalls": 1
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "66b1149808cc9a5a",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 12,
+        "name": "execute_tool submit_result",
+        "kind": "execute_tool",
+        "startedAt": 1790528674810,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "submit_result",
+          "gen_ai.tool.call.id": "call_RDx2uqsYlLmDSg9Du1TG9ZOy"
+        },
+        "input": "{\"summary\":\"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\",\"evidence\":[\"first completed with outcome text: AUTO_PEER_OK\"]}"
+      }
+    },
+    {
+      "t": "tool-call",
+      "callId": "call_RDx2uqsYlLmDSg9Du1TG9ZOy",
+      "name": "submit_result",
+      "input": {
+        "summary": "Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.",
+        "evidence": [
+          "first completed with outcome text: AUTO_PEER_OK"
+        ]
+      },
+      "member": "lead"
+    },
+    {
+      "t": "tool-result",
+      "callId": "call_RDx2uqsYlLmDSg9Du1TG9ZOy",
+      "name": "submit_result",
+      "status": "completed",
+      "isError": false,
+      "member": "lead"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "66b1149808cc9a5a",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 12,
+        "name": "execute_tool submit_result",
+        "kind": "execute_tool",
+        "startedAt": 1790528674810,
+        "durationMs": 1,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "submit_result",
+          "gen_ai.tool.call.id": "call_RDx2uqsYlLmDSg9Du1TG9ZOy"
+        },
+        "input": "{\"summary\":\"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\",\"evidence\":[\"first completed with outcome text: AUTO_PEER_OK\"]}",
+        "output": {
+          "accepted": true,
+          "summary": "Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.",
+          "evidence": [
+            "first completed with outcome text: AUTO_PEER_OK"
+          ],
+          "instruction": "This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the final answer unless the task requests them. If the task requests a report, provide the substantive findings or changes, supporting evidence or sources, and relevant limitations. Do not merely say the self-check passed or refer to an earlier message. Do not call submit_result again in this run unless you perform new substantive tool work that invalidates this submission. A later user request or worker follow-up starts a new run and needs its own self-check."
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "0ebadcb895c6b4bb",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 13,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528674813,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 5,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 11,
+          "lastMessageId": "04fdf8ef-88dd-4525-8350-9224db79d3e2",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "earlierMessagesOmitted": 3,
+          "messages": [
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"first\", \"agentId\": \"first\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "wait_agents({\"targets\":[\"first\"],\"timeoutMs\":30000})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"agents\": [ { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\" } ], \"settled\": \"first\", \"timedOut\": false, \"waitedMs\": 30000 }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "list_agents({})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "[ { \"name\": \"lead\", \"agentId\": \"edge-auto-lead\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto\", \"role\": \"lead\", \"status\": \"running\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"Chooses useful specialists and owns the final answer.\" }, { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\", \"outcome\": { \"kind\": \"completed\", \"text\": \"AUTO_PEER_OK\" } } ]"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message b69a9759-9c06-4fd0-8267-54e1673a47a1 from first: Worker 'first' finished: AUTO_PEER_OK"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "submit_result({\"summary\":\"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\",\"evidence\":[\"first completed with outcome text: AUTO_PEER_OK\"]})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\", \"evidence\": [ \"first completed with outcome text: AUTO_PEER_OK\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the…"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "t": "text-delta",
+      "text": "AUTO",
+      "blockId": "0ebadcb895c6b4bb:0",
+      "member": "lead"
+    },
+    {
+      "t": "text-delta",
+      "text": "_TEAM",
+      "blockId": "0ebadcb895c6b4bb:0",
+      "member": "lead"
+    },
+    {
+      "t": "text-delta",
+      "text": "_OK",
+      "blockId": "0ebadcb895c6b4bb:0",
+      "member": "lead"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "0ebadcb895c6b4bb",
+        "parentSpanId": "2b23e768c093279b",
+        "seq": 13,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528674813,
+        "durationMs": 1213,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 5,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 11,
+          "lastMessageId": "04fdf8ef-88dd-4525-8350-9224db79d3e2",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "earlierMessagesOmitted": 3,
+          "messages": [
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"first\", \"agentId\": \"first\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "wait_agents({\"targets\":[\"first\"],\"timeoutMs\":30000})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"agents\": [ { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\" } ], \"settled\": \"first\", \"timedOut\": false, \"waitedMs\": 30000 }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "list_agents({})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "[ { \"name\": \"lead\", \"agentId\": \"edge-auto-lead\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto\", \"role\": \"lead\", \"status\": \"running\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"Chooses useful specialists and owns the final answer.\" }, { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\", \"outcome\": { \"kind\": \"completed\", \"text\": \"AUTO_PEER_OK\" } } ]"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message b69a9759-9c06-4fd0-8267-54e1673a47a1 from first: Worker 'first' finished: AUTO_PEER_OK"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "submit_result({\"summary\":\"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\",\"evidence\":[\"first completed with outcome text: AUTO_PEER_OK\"]})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\", \"evidence\": [ \"first completed with outcome text: AUTO_PEER_OK\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the…"
+            }
+          ]
+        },
+        "output": {
+          "text": "AUTO_TEAM_OK",
+          "commentary": [],
+          "reasoning": [],
+          "toolCalls": 0
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "365a3ed9b7642a60e0950a77a4b4129a",
+        "traceId": "74d5f3bd01dc66638c898423a65c0e7e",
+        "spanId": "2b23e768c093279b",
+        "parentSpanId": null,
+        "seq": 0,
+        "name": "invoke_agent edge-auto-lead",
+        "kind": "invoke_agent",
+        "startedAt": 1790528666877,
+        "durationMs": 9150,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "invoke_agent",
+          "gen_ai.agent.id": "edge-auto-lead",
+          "gen_ai.agent.name": "edge-auto-lead",
+          "gen_ai.request.model": "gpt-6-luna",
+          "gen_ai.conversation.id": "audit-muk2jdgl-auto"
+        },
+        "input": "Use spawn_agent to create an analyst named first with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK.",
+        "output": {
+          "reason": {
+            "kind": "completed"
+          },
+          "text": "AUTO_TEAM_OK"
+        }
+      }
+    },
+    {
+      "t": "done",
+      "text": "AUTO_TEAM_OK",
+      "usage": {
+        "inputTokens": 797,
+        "outputTokens": 82,
+        "totalTokens": 879
+      }
+    },
+    {
+      "t": "start",
+      "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+      "conversationId": "audit-muk2jdgl-auto",
+      "model": "gpt-6-luna",
+      "mode": "team-auto",
+      "members": [
+        {
+          "name": "lead",
+          "role": "lead"
+        }
+      ]
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "f05b25efc2a19cc7",
+        "parentSpanId": null,
+        "seq": 0,
+        "name": "invoke_agent edge-auto-lead",
+        "kind": "invoke_agent",
+        "startedAt": 1790528676035,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "invoke_agent",
+          "gen_ai.agent.id": "edge-auto-lead",
+          "gen_ai.agent.name": "edge-auto-lead",
+          "gen_ai.request.model": "gpt-6-luna",
+          "gen_ai.conversation.id": "audit-muk2jdgl-auto"
+        },
+        "input": "Use spawn_agent to create an analyst named second with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "9b01d699b6bc0b86",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 1,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528676037,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 2,
+          "step": 1,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 13,
+          "lastMessageId": "b10af67a-aaab-42e4-82b2-49092515ff19",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "earlierMessagesOmitted": 5,
+          "messages": [
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"agents\": [ { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\" } ], \"settled\": \"first\", \"timedOut\": false, \"waitedMs\": 30000 }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "list_agents({})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "[ { \"name\": \"lead\", \"agentId\": \"edge-auto-lead\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto\", \"role\": \"lead\", \"status\": \"running\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"Chooses useful specialists and owns the final answer.\" }, { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\", \"outcome\": { \"kind\": \"completed\", \"text\": \"AUTO_PEER_OK\" } } ]"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message b69a9759-9c06-4fd0-8267-54e1673a47a1 from first: Worker 'first' finished: AUTO_PEER_OK"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "submit_result({\"summary\":\"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\",\"evidence\":[\"first completed with outcome text: AUTO_PEER_OK\"]})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\", \"evidence\": [ \"first completed with outcome text: AUTO_PEER_OK\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the…"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "AUTO_TEAM_OK"
+            },
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named second with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "9b01d699b6bc0b86",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 1,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528676037,
+        "durationMs": 1676,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 2,
+          "step": 1,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 13,
+          "lastMessageId": "b10af67a-aaab-42e4-82b2-49092515ff19",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "earlierMessagesOmitted": 5,
+          "messages": [
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"agents\": [ { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\" } ], \"settled\": \"first\", \"timedOut\": false, \"waitedMs\": 30000 }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "list_agents({})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "[ { \"name\": \"lead\", \"agentId\": \"edge-auto-lead\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto\", \"role\": \"lead\", \"status\": \"running\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"Chooses useful specialists and owns the final answer.\" }, { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\", \"outcome\": { \"kind\": \"completed\", \"text\": \"AUTO_PEER_OK\" } } ]"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message b69a9759-9c06-4fd0-8267-54e1673a47a1 from first: Worker 'first' finished: AUTO_PEER_OK"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "submit_result({\"summary\":\"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\",\"evidence\":[\"first completed with outcome text: AUTO_PEER_OK\"]})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\", \"evidence\": [ \"first completed with outcome text: AUTO_PEER_OK\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the…"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "AUTO_TEAM_OK"
+            },
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named second with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            }
+          ]
+        },
+        "output": {
+          "text": "",
+          "commentary": [],
+          "reasoning": [
+            ""
+          ],
+          "toolCalls": 1
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "6b651ecffd04223a",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 2,
+        "name": "execute_tool spawn_agent",
+        "kind": "execute_tool",
+        "startedAt": 1790528677713,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "spawn_agent",
+          "gen_ai.tool.call.id": "call_Gv0Dgnwln4THscM8nNE9WGkn"
+        },
+        "input": "{\"name\":\"second\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"}"
+      }
+    },
+    {
+      "t": "tool-call",
+      "callId": "call_Gv0Dgnwln4THscM8nNE9WGkn",
+      "name": "spawn_agent",
+      "input": {
+        "name": "second",
+        "task": "Reply exactly AUTO_PEER_OK.",
+        "specialty": "analyst",
+        "role": "analyst",
+        "context": "fresh"
+      },
+      "member": "lead"
+    },
+    {
+      "t": "member-start",
+      "member": "second"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "a08ac18b76801e7ecaa8eba284e856b6",
+        "spanId": "b4c418895d2c037a",
+        "parentSpanId": null,
+        "seq": 3,
+        "name": "invoke_agent second",
+        "kind": "invoke_agent",
+        "startedAt": 1790528677714,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "second",
+        "attributes": {
+          "gen_ai.operation.name": "invoke_agent",
+          "gen_ai.agent.id": "second",
+          "gen_ai.agent.name": "second",
+          "gen_ai.request.model": "gpt-6-luna",
+          "gen_ai.conversation.id": "audit-muk2jdgl-auto-second"
+        },
+        "input": "Use spawn_agent to create an analyst named second with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+      }
+    },
+    {
+      "t": "tool-result",
+      "callId": "call_Gv0Dgnwln4THscM8nNE9WGkn",
+      "name": "spawn_agent",
+      "status": "completed",
+      "isError": false,
+      "member": "lead"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "6b651ecffd04223a",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 2,
+        "name": "execute_tool spawn_agent",
+        "kind": "execute_tool",
+        "startedAt": 1790528677713,
+        "durationMs": 2,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "spawn_agent",
+          "gen_ai.tool.call.id": "call_Gv0Dgnwln4THscM8nNE9WGkn"
+        },
+        "input": "{\"name\":\"second\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"}",
+        "output": {
+          "name": "second",
+          "agentId": "second",
+          "conversationId": "audit-muk2jdgl-auto-second",
+          "task": "Reply exactly AUTO_PEER_OK.",
+          "status": "running",
+          "context": "fresh",
+          "dependsOn": [],
+          "writes": [],
+          "role": "analyst",
+          "specialty": "analyst"
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "a08ac18b76801e7ecaa8eba284e856b6",
+        "spanId": "975c26f02aa778ca",
+        "parentSpanId": "b4c418895d2c037a",
+        "seq": 4,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528677715,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "second",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 1,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 2,
+          "lastMessageId": "62ea1565-dc92-47ca-8b04-0c0a15f7e147",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are dynamically assigned worker 'second'. You are the 'analyst' worker. Check assumpti…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "list_agents",
+            "send_message",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Reply exactly AUTO_PEER_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message 808d74f2-fbbd-4de0-8299-6b649787f8a0 from lead: Reply exactly AUTO_PEER_OK."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "895c13b9a8db4094",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 5,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528677717,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 2,
+          "step": 2,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 15,
+          "lastMessageId": "f7e35503-b2c2-4a25-9952-e9ca2de851e3",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "earlierMessagesOmitted": 7,
+          "messages": [
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "[ { \"name\": \"lead\", \"agentId\": \"edge-auto-lead\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto\", \"role\": \"lead\", \"status\": \"running\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"Chooses useful specialists and owns the final answer.\" }, { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\", \"outcome\": { \"kind\": \"completed\", \"text\": \"AUTO_PEER_OK\" } } ]"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message b69a9759-9c06-4fd0-8267-54e1673a47a1 from first: Worker 'first' finished: AUTO_PEER_OK"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "submit_result({\"summary\":\"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\",\"evidence\":[\"first completed with outcome text: AUTO_PEER_OK\"]})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\", \"evidence\": [ \"first completed with outcome text: AUTO_PEER_OK\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the…"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "AUTO_TEAM_OK"
+            },
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named second with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "spawn_agent({\"name\":\"second\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"second\", \"agentId\": \"second\", \"conversationId\": \"audit-muk2jdgl-auto-second\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "a08ac18b76801e7ecaa8eba284e856b6",
+        "spanId": "975c26f02aa778ca",
+        "parentSpanId": "b4c418895d2c037a",
+        "seq": 4,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528677715,
+        "durationMs": 1476,
+        "status": "success",
+        "member": "second",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 1,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 2,
+          "lastMessageId": "62ea1565-dc92-47ca-8b04-0c0a15f7e147",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are dynamically assigned worker 'second'. You are the 'analyst' worker. Check assumpti…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "list_agents",
+            "send_message",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Reply exactly AUTO_PEER_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message 808d74f2-fbbd-4de0-8299-6b649787f8a0 from lead: Reply exactly AUTO_PEER_OK."
+            }
+          ]
+        },
+        "output": {
+          "text": "",
+          "commentary": [],
+          "reasoning": [
+            ""
+          ],
+          "toolCalls": 1
+        },
+        "usage": {
+          "inputTokens": 800,
+          "outputTokens": 60,
+          "reasoningTokens": 21,
+          "totalTokens": 860
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "a08ac18b76801e7ecaa8eba284e856b6",
+        "spanId": "304aa0ba475114a4",
+        "parentSpanId": "b4c418895d2c037a",
+        "seq": 6,
+        "name": "execute_tool submit_result",
+        "kind": "execute_tool",
+        "startedAt": 1790528679191,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "second",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "submit_result",
+          "gen_ai.tool.call.id": "call_4A0O4Opws7LblQXTHD76rWpP"
+        },
+        "input": "{\"summary\":\"Completed requested exact reply.\",\"evidence\":[\"Task instruction explicitly requires replying exactly AUTO_PEER_OK.\"]}"
+      }
+    },
+    {
+      "t": "tool-call",
+      "callId": "call_4A0O4Opws7LblQXTHD76rWpP",
+      "name": "submit_result",
+      "input": {
+        "summary": "Completed requested exact reply.",
+        "evidence": [
+          "Task instruction explicitly requires replying exactly AUTO_PEER_OK."
+        ]
+      },
+      "member": "second"
+    },
+    {
+      "t": "tool-result",
+      "callId": "call_4A0O4Opws7LblQXTHD76rWpP",
+      "name": "submit_result",
+      "status": "completed",
+      "isError": false,
+      "member": "second"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "a08ac18b76801e7ecaa8eba284e856b6",
+        "spanId": "304aa0ba475114a4",
+        "parentSpanId": "b4c418895d2c037a",
+        "seq": 6,
+        "name": "execute_tool submit_result",
+        "kind": "execute_tool",
+        "startedAt": 1790528679191,
+        "durationMs": 0,
+        "status": "success",
+        "member": "second",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "submit_result",
+          "gen_ai.tool.call.id": "call_4A0O4Opws7LblQXTHD76rWpP"
+        },
+        "input": "{\"summary\":\"Completed requested exact reply.\",\"evidence\":[\"Task instruction explicitly requires replying exactly AUTO_PEER_OK.\"]}",
+        "output": {
+          "accepted": true,
+          "summary": "Completed requested exact reply.",
+          "evidence": [
+            "Task instruction explicitly requires replying exactly AUTO_PEER_OK."
+          ],
+          "instruction": "This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the final answer unless the task requests them. If the task requests a report, provide the substantive findings or changes, supporting evidence or sources, and relevant limitations. Do not merely say the self-check passed or refer to an earlier message. Do not call submit_result again in this run unless you perform new substantive tool work that invalidates this submission. A later user request or worker follow-up starts a new run and needs its own self-check."
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "a08ac18b76801e7ecaa8eba284e856b6",
+        "spanId": "85c8a3cd39735f69",
+        "parentSpanId": "b4c418895d2c037a",
+        "seq": 7,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528679192,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "second",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 2,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 4,
+          "lastMessageId": "b1b89e07-31cf-42a1-b003-85627280bf0b",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are dynamically assigned worker 'second'. You are the 'analyst' worker. Check assumpti…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "list_agents",
+            "send_message",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Reply exactly AUTO_PEER_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message 808d74f2-fbbd-4de0-8299-6b649787f8a0 from lead: Reply exactly AUTO_PEER_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "submit_result({\"summary\":\"Completed requested exact reply.\",\"evidence\":[\"Task instruction explicitly requires replying exactly AUTO_PEER_OK.\"]})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Completed requested exact reply.\", \"evidence\": [ \"Task instruction explicitly requires replying exactly AUTO_PEER_OK.\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the final answer unless the task requests them. If the ta…"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "t": "text-delta",
+      "text": "AUTO",
+      "blockId": "85c8a3cd39735f69:0",
+      "member": "second"
+    },
+    {
+      "t": "text-delta",
+      "text": "_PE",
+      "blockId": "85c8a3cd39735f69:0",
+      "member": "second"
+    },
+    {
+      "t": "text-delta",
+      "text": "ER",
+      "blockId": "85c8a3cd39735f69:0",
+      "member": "second"
+    },
+    {
+      "t": "text-delta",
+      "text": "_OK",
+      "blockId": "85c8a3cd39735f69:0",
+      "member": "second"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "a08ac18b76801e7ecaa8eba284e856b6",
+        "spanId": "85c8a3cd39735f69",
+        "parentSpanId": "b4c418895d2c037a",
+        "seq": 7,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528679192,
+        "durationMs": 1097,
+        "status": "success",
+        "member": "second",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 1,
+          "step": 2,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 4,
+          "lastMessageId": "b1b89e07-31cf-42a1-b003-85627280bf0b",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are dynamically assigned worker 'second'. You are the 'analyst' worker. Check assumpti…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "list_agents",
+            "send_message",
+            "submit_result"
+          ],
+          "messages": [
+            {
+              "role": "user",
+              "producer": "app",
+              "text": "<task-memory> Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted. - objective [original-objective]: \"Reply exactly AUTO_PEER_OK.\" </task-memory>"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message 808d74f2-fbbd-4de0-8299-6b649787f8a0 from lead: Reply exactly AUTO_PEER_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "submit_result({\"summary\":\"Completed requested exact reply.\",\"evidence\":[\"Task instruction explicitly requires replying exactly AUTO_PEER_OK.\"]})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Completed requested exact reply.\", \"evidence\": [ \"Task instruction explicitly requires replying exactly AUTO_PEER_OK.\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the final answer unless the task requests them. If the ta…"
+            }
+          ]
+        },
+        "output": {
+          "text": "AUTO_PEER_OK",
+          "commentary": [],
+          "reasoning": [],
+          "toolCalls": 0
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "a08ac18b76801e7ecaa8eba284e856b6",
+        "spanId": "b4c418895d2c037a",
+        "parentSpanId": null,
+        "seq": 3,
+        "name": "invoke_agent second",
+        "kind": "invoke_agent",
+        "startedAt": 1790528677714,
+        "durationMs": 2579,
+        "status": "success",
+        "member": "second",
+        "attributes": {
+          "gen_ai.operation.name": "invoke_agent",
+          "gen_ai.agent.id": "second",
+          "gen_ai.agent.name": "second",
+          "gen_ai.request.model": "gpt-6-luna",
+          "gen_ai.conversation.id": "audit-muk2jdgl-auto-second"
+        },
+        "input": "Use spawn_agent to create an analyst named second with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK.",
+        "output": {
+          "reason": {
+            "kind": "completed"
+          },
+          "text": "AUTO_PEER_OK"
+        }
+      }
+    },
+    {
+      "t": "member-end",
+      "member": "second"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "895c13b9a8db4094",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 5,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528677717,
+        "durationMs": 5959,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 2,
+          "step": 2,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 15,
+          "lastMessageId": "f7e35503-b2c2-4a25-9952-e9ca2de851e3",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "earlierMessagesOmitted": 7,
+          "messages": [
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "[ { \"name\": \"lead\", \"agentId\": \"edge-auto-lead\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto\", \"role\": \"lead\", \"status\": \"running\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"Chooses useful specialists and owns the final answer.\" }, { \"name\": \"first\", \"agentId\": \"first\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-first\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\", \"outcome\": { \"kind\": \"completed\", \"text\": \"AUTO_PEER_OK\" } } ]"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message b69a9759-9c06-4fd0-8267-54e1673a47a1 from first: Worker 'first' finished: AUTO_PEER_OK"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "submit_result({\"summary\":\"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\",\"evidence\":[\"first completed with outcome text: AUTO_PEER_OK\"]})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\", \"evidence\": [ \"first completed with outcome text: AUTO_PEER_OK\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the…"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "AUTO_TEAM_OK"
+            },
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named second with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "spawn_agent({\"name\":\"second\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"second\", \"agentId\": \"second\", \"conversationId\": \"audit-muk2jdgl-auto-second\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            }
+          ]
+        },
+        "output": {
+          "text": "",
+          "commentary": [],
+          "reasoning": [],
+          "toolCalls": 1
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "945d94f56b2f0d17",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 8,
+        "name": "execute_tool wait_agents",
+        "kind": "execute_tool",
+        "startedAt": 1790528683677,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "wait_agents",
+          "gen_ai.tool.call.id": "call_xIBcvLeJZWziFFV7ZDr8VGXM"
+        },
+        "input": "{\"targets\":[\"second\"],\"timeoutMs\":30000}"
+      }
+    },
+    {
+      "t": "tool-call",
+      "callId": "call_xIBcvLeJZWziFFV7ZDr8VGXM",
+      "name": "wait_agents",
+      "input": {
+        "targets": [
+          "second"
+        ],
+        "timeoutMs": 30000
+      },
+      "member": "lead"
+    },
+    {
+      "t": "tool-result",
+      "callId": "call_xIBcvLeJZWziFFV7ZDr8VGXM",
+      "name": "wait_agents",
+      "status": "completed",
+      "isError": false,
+      "member": "lead"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "945d94f56b2f0d17",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 8,
+        "name": "execute_tool wait_agents",
+        "kind": "execute_tool",
+        "startedAt": 1790528683677,
+        "durationMs": 0,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "wait_agents",
+          "gen_ai.tool.call.id": "call_xIBcvLeJZWziFFV7ZDr8VGXM"
+        },
+        "input": "{\"targets\":[\"second\"],\"timeoutMs\":30000}",
+        "output": {
+          "agents": [
+            {
+              "name": "second",
+              "agentId": "second",
+              "kind": "local",
+              "conversationId": "audit-muk2jdgl-auto-second",
+              "role": "peer",
+              "status": "idle",
+              "protocol": "in-process",
+              "deliveries": [
+                "quiet",
+                "wakeup"
+              ],
+              "description": "analyst",
+              "outcome": {
+                "kind": "completed",
+                "text": "AUTO_PEER_OK"
+              }
+            }
+          ],
+          "settled": "second",
+          "timedOut": false,
+          "waitedMs": 30000
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "d4346bfe30a23582",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 9,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528683681,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 2,
+          "step": 3,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 18,
+          "lastMessageId": "cdf8cb5f-12e8-4435-85db-a94c2659fadd",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "earlierMessagesOmitted": 10,
+          "messages": [
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\", \"evidence\": [ \"first completed with outcome text: AUTO_PEER_OK\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the…"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "AUTO_TEAM_OK"
+            },
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named second with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "spawn_agent({\"name\":\"second\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"second\", \"agentId\": \"second\", \"conversationId\": \"audit-muk2jdgl-auto-second\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "wait_agents({\"targets\":[\"second\"],\"timeoutMs\":30000})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"agents\": [ { \"name\": \"second\", \"agentId\": \"second\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-second\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\", \"outcome\": { \"kind\": \"completed\", \"text\": \"AUTO_PEER_OK\" } } ], \"settled\": \"second\", \"timedOut\": false, \"waitedMs\": 30000 }"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message 3794fee7-2c6f-4b9b-91ee-f010de6f7c35 from second: Worker 'second' finished: AUTO_PEER_OK"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "d4346bfe30a23582",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 9,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528683681,
+        "durationMs": 1688,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 2,
+          "step": 3,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 18,
+          "lastMessageId": "cdf8cb5f-12e8-4435-85db-a94c2659fadd",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "earlierMessagesOmitted": 10,
+          "messages": [
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Created the analyst named first, waited for completion, and confirmed its exact response was AUTO_PEER_OK.\", \"evidence\": [ \"first completed with outcome text: AUTO_PEER_OK\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the…"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "AUTO_TEAM_OK"
+            },
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named second with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "spawn_agent({\"name\":\"second\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"second\", \"agentId\": \"second\", \"conversationId\": \"audit-muk2jdgl-auto-second\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "wait_agents({\"targets\":[\"second\"],\"timeoutMs\":30000})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"agents\": [ { \"name\": \"second\", \"agentId\": \"second\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-second\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\", \"outcome\": { \"kind\": \"completed\", \"text\": \"AUTO_PEER_OK\" } } ], \"settled\": \"second\", \"timedOut\": false, \"waitedMs\": 30000 }"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message 3794fee7-2c6f-4b9b-91ee-f010de6f7c35 from second: Worker 'second' finished: AUTO_PEER_OK"
+            }
+          ]
+        },
+        "output": {
+          "text": "",
+          "commentary": [],
+          "reasoning": [],
+          "toolCalls": 1
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "f85b46b102ade729",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 10,
+        "name": "execute_tool submit_result",
+        "kind": "execute_tool",
+        "startedAt": 1790528685369,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "submit_result",
+          "gen_ai.tool.call.id": "call_ODzuemzntyNGbPG6f1J5v0nM"
+        },
+        "input": "{\"summary\":\"Created analyst second, waited for its result, and verified it replied AUTO_PEER_OK.\",\"evidence\":[\"second completed with outcome text: AUTO_PEER_OK\"]}"
+      }
+    },
+    {
+      "t": "tool-call",
+      "callId": "call_ODzuemzntyNGbPG6f1J5v0nM",
+      "name": "submit_result",
+      "input": {
+        "summary": "Created analyst second, waited for its result, and verified it replied AUTO_PEER_OK.",
+        "evidence": [
+          "second completed with outcome text: AUTO_PEER_OK"
+        ]
+      },
+      "member": "lead"
+    },
+    {
+      "t": "tool-result",
+      "callId": "call_ODzuemzntyNGbPG6f1J5v0nM",
+      "name": "submit_result",
+      "status": "completed",
+      "isError": false,
+      "member": "lead"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "f85b46b102ade729",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 10,
+        "name": "execute_tool submit_result",
+        "kind": "execute_tool",
+        "startedAt": 1790528685369,
+        "durationMs": 1,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "submit_result",
+          "gen_ai.tool.call.id": "call_ODzuemzntyNGbPG6f1J5v0nM"
+        },
+        "input": "{\"summary\":\"Created analyst second, waited for its result, and verified it replied AUTO_PEER_OK.\",\"evidence\":[\"second completed with outcome text: AUTO_PEER_OK\"]}",
+        "output": {
+          "accepted": true,
+          "summary": "Created analyst second, waited for its result, and verified it replied AUTO_PEER_OK.",
+          "evidence": [
+            "second completed with outcome text: AUTO_PEER_OK"
+          ],
+          "instruction": "This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the final answer unless the task requests them. If the task requests a report, provide the substantive findings or changes, supporting evidence or sources, and relevant limitations. Do not merely say the self-check passed or refer to an earlier message. Do not call submit_result again in this run unless you perform new substantive tool work that invalidates this submission. A later user request or worker follow-up starts a new run and needs its own self-check."
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "c9f5d63afcca4fb5",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 11,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528685376,
+        "durationMs": null,
+        "status": "unknown",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 2,
+          "step": 4,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 20,
+          "lastMessageId": "7336fbb7-0ad4-4aca-ad0c-f379349688f9",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "earlierMessagesOmitted": 12,
+          "messages": [
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named second with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "spawn_agent({\"name\":\"second\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"second\", \"agentId\": \"second\", \"conversationId\": \"audit-muk2jdgl-auto-second\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "wait_agents({\"targets\":[\"second\"],\"timeoutMs\":30000})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"agents\": [ { \"name\": \"second\", \"agentId\": \"second\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-second\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\", \"outcome\": { \"kind\": \"completed\", \"text\": \"AUTO_PEER_OK\" } } ], \"settled\": \"second\", \"timedOut\": false, \"waitedMs\": 30000 }"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message 3794fee7-2c6f-4b9b-91ee-f010de6f7c35 from second: Worker 'second' finished: AUTO_PEER_OK"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "submit_result({\"summary\":\"Created analyst second, waited for its result, and verified it replied AUTO_PEER_OK.\",\"evidence\":[\"second completed with outcome text: AUTO_PEER_OK\"]})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Created analyst second, waited for its result, and verified it replied AUTO_PEER_OK.\", \"evidence\": [ \"second completed with outcome text: AUTO_PEER_OK\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the final answer unless …"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "t": "text-delta",
+      "text": "AUTO",
+      "blockId": "c9f5d63afcca4fb5:0",
+      "member": "lead"
+    },
+    {
+      "t": "text-delta",
+      "text": "_TEAM",
+      "blockId": "c9f5d63afcca4fb5:0",
+      "member": "lead"
+    },
+    {
+      "t": "text-delta",
+      "text": "_OK",
+      "blockId": "c9f5d63afcca4fb5:0",
+      "member": "lead"
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "c9f5d63afcca4fb5",
+        "parentSpanId": "f05b25efc2a19cc7",
+        "seq": 11,
+        "name": "chat gpt-6-luna",
+        "kind": "chat",
+        "startedAt": 1790528685376,
+        "durationMs": 1268,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-6-luna",
+          "turn": 2,
+          "step": 4,
+          "forcedFinal": false,
+          "phase": "standard"
+        },
+        "input": {
+          "messageCount": 20,
+          "lastMessageId": "7336fbb7-0ad4-4aca-ad0c-f379349688f9",
+          "system": "You are a helpful assistant running on a web Edge runtime. Answer in the language the user writes in. Keep answers direct and concrete. This is a chat conversation: the latest user request controls the task and response format. Earlier objectives in task memory are background; if the user changes their request, follow the new one even after a failed run. Use Markdown for structure, and fenced code blocks for code. You have no filesystem and no shell: say so plainly rather than pretending to run commands. You are the lead of a small dynamic team running on an Edge runtime. Answer simple questio…",
+          "tools": [
+            "current_time",
+            "fetch_url",
+            "spawn_agent",
+            "close_agent",
+            "list_agents",
+            "send_message",
+            "followup_task",
+            "wait_agents",
+            "submit_result"
+          ],
+          "earlierMessagesOmitted": 12,
+          "messages": [
+            {
+              "role": "user",
+              "producer": "user",
+              "text": "Use spawn_agent to create an analyst named second with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK."
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "text": "",
+              "toolCalls": [
+                "spawn_agent({\"name\":\"second\",\"task\":\"Reply exactly AUTO_PEER_OK.\",\"specialty\":\"analyst\",\"role\":\"analyst\",\"context\":\"fresh\"})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"name\": \"second\", \"agentId\": \"second\", \"conversationId\": \"audit-muk2jdgl-auto-second\", \"task\": \"Reply exactly AUTO_PEER_OK.\", \"status\": \"running\", \"context\": \"fresh\", \"dependsOn\": [], \"writes\": [], \"role\": \"analyst\", \"specialty\": \"analyst\" }"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "wait_agents({\"targets\":[\"second\"],\"timeoutMs\":30000})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"agents\": [ { \"name\": \"second\", \"agentId\": \"second\", \"kind\": \"local\", \"conversationId\": \"audit-muk2jdgl-auto-second\", \"role\": \"peer\", \"status\": \"idle\", \"protocol\": \"in-process\", \"deliveries\": [ \"quiet\", \"wakeup\" ], \"description\": \"analyst\", \"outcome\": { \"kind\": \"completed\", \"text\": \"AUTO_PEER_OK\" } } ], \"settled\": \"second\", \"timedOut\": false, \"waitedMs\": 30000 }"
+            },
+            {
+              "role": "user",
+              "producer": "agent-message",
+              "text": "A2A message 3794fee7-2c6f-4b9b-91ee-f010de6f7c35 from second: Worker 'second' finished: AUTO_PEER_OK"
+            },
+            {
+              "role": "assistant",
+              "producer": "model",
+              "toolCalls": [
+                "submit_result({\"summary\":\"Created analyst second, waited for its result, and verified it replied AUTO_PEER_OK.\",\"evidence\":[\"second completed with outcome text: AUTO_PEER_OK\"]})"
+              ]
+            },
+            {
+              "role": "user",
+              "producer": "tool",
+              "text": "{ \"accepted\": true, \"summary\": \"Created analyst second, waited for its result, and verified it replied AUTO_PEER_OK.\", \"evidence\": [ \"second completed with outcome text: AUTO_PEER_OK\" ], \"instruction\": \"This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the final answer unless …"
+            }
+          ]
+        },
+        "output": {
+          "text": "AUTO_TEAM_OK",
+          "commentary": [],
+          "reasoning": [],
+          "toolCalls": 0
+        }
+      }
+    },
+    {
+      "t": "span",
+      "span": {
+        "runId": "f4117e7a9d8b2e903154901f2a101d3c",
+        "traceId": "5369385940c03cd9487e087c0273447b",
+        "spanId": "f05b25efc2a19cc7",
+        "parentSpanId": null,
+        "seq": 0,
+        "name": "invoke_agent edge-auto-lead",
+        "kind": "invoke_agent",
+        "startedAt": 1790528676035,
+        "durationMs": 10611,
+        "status": "success",
+        "member": "lead",
+        "attributes": {
+          "gen_ai.operation.name": "invoke_agent",
+          "gen_ai.agent.id": "edge-auto-lead",
+          "gen_ai.agent.name": "edge-auto-lead",
+          "gen_ai.request.model": "gpt-6-luna",
+          "gen_ai.conversation.id": "audit-muk2jdgl-auto"
+        },
+        "input": "Use spawn_agent to create an analyst named second with task: reply exactly AUTO_PEER_OK. Wait for its result, then reply only AUTO_TEAM_OK.",
+        "output": {
+          "reason": {
+            "kind": "completed"
+          },
+          "text": "AUTO_TEAM_OK"
+        }
+      }
+    },
+    {
+      "t": "done",
+      "text": "AUTO_TEAM_OK",
+      "usage": {
+        "inputTokens": 800,
+        "outputTokens": 60,
+        "totalTokens": 860
+      }
+    }
+  ]
+}

@@ -139,7 +139,9 @@ export interface BeforeStepContext {
   emit(event: AgentMaintenanceEvent): Promise<void>
 }
 export type StepDecision =
-  | { readonly kind: 'proceed'; readonly prepend?: readonly Message[] }
+  | { readonly kind: 'proceed'; readonly prepend?: readonly Message[];
+      /** Model-only projection. Raw history and checkpoint snapshots remain unchanged. */
+      readonly messages?: readonly Message[] }
   | { readonly kind: 'reject'; readonly reason: string }
 export interface RequestErrorContext {
   readonly turn: number

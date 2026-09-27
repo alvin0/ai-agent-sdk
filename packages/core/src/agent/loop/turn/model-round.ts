@@ -13,6 +13,7 @@ import { serializedBytes, modelFailureFinish, modelAbortedFinish, messageOf, now
 import { validateStreamChunk } from './validation.ts'
 import { StreamAbortError, nextWithAbort, closeIterator } from './cancellation.ts'
 import { runOptionalHook } from './hooks.ts'
+import { stepProjectionSources } from './step-projection.ts'
 import { observeModelRequestBoundary } from './model-request-boundary.ts'
 import { accountingUsageStop } from './usage-stop.ts'
 import {
@@ -95,6 +96,7 @@ export async function modelRound(
   const finalOutput = phase === 'final' || forcedFinal
   const trace: TraceRef = { traceId: root.traceId, spanId: createSpanId(), parentSpanId: root.spanId }
   let messages = normalizeToolPairing(options.history.messages())
+  const initialMessages = messages
   const afterToolCallIds = recentToolResultIds(options.history)
   const generation = options.history.generation()
   const entries = options.history.entries().length
@@ -132,6 +134,23 @@ export async function modelRound(
   if (options.history.generation() !== generation
     || options.history.entries().length !== entries) {
     messages = normalizeToolPairing(options.history.messages())
+  }
+  if (decision?.messages !== undefined) {
+    const originalIds = stepProjectionSources(decision) ?? new Set(initialMessages.map(message => message.id))
+    const projectedIds = new Set(decision.messages.map(message => message.id))
+    const introduced = messages.filter(message => !originalIds.has(message.id) && !projectedIds.has(message.id))
+    const currentIds = new Set(messages.map(message => message.id))
+    const replaced = [...originalIds].some(id => !currentIds.has(id))
+    // A hook can await external I/O while live steering or replacement arrives.
+    // Replacements invalidate a stale projection; append-only steering stays at the tail.
+    const projectedById = new Map(decision.messages.map(message => [message.id, message]))
+    messages = normalizeToolPairing(replaced
+      ? [...decision.messages.filter(message => !originalIds.has(message.id) && !currentIds.has(message.id) && message.source.kind === 'app'),
+        ...messages.flatMap(message => {
+          const projected = projectedById.get(message.id)
+          return projected === undefined ? originalIds.has(message.id) ? [] : [message] : [projected]
+        })]
+      : [...decision.messages, ...introduced])
   }
   if (decision?.prepend !== undefined) messages = Object.freeze([...decision.prepend, ...messages])
   const system = systemText(options, forcedFinal)

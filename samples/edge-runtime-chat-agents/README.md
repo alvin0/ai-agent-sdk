@@ -96,13 +96,16 @@ The mode chip beside the model chip switches between a single agent and a team.
 A team is `runtime.team` from the SDK: the lead receives your message and the
 members get four tools for working together — `list_agents`, `send_message`,
 `followup_task`, and `wait_agents`. Delegation is the model's decision, not the
-host's.
+host's. `send_message` defaults to quiet delivery and does not start an idle peer;
+use `followup_task` when the peer must execute a new task.
 
 **Team · auto** starts with one lead and no fixed peers. The lead receives
 `spawn_agent` and creates bounded `researcher`, `analyst`, or `reviewer`
 workers only when the question benefits from them. Workers inherit the selected
-model and effort, start from a fork of the lead's conversation, and report back
-before the lead synthesizes the final answer. Simple questions can still be
+model and effort, start from their assigned task, and report back before the
+lead synthesizes the final answer. The lead can explicitly choose `fork` when
+a worker needs shared conversation facts; independent tasks use `fresh` to
+avoid copying unrelated history and its token cost. Simple questions can still be
 answered by the lead without creating a worker.
 
 The managed team belongs to the warm conversation rather than one request. Its
@@ -280,3 +283,16 @@ Vercel needs the project root set to `samples/edge-runtime-chat-agents/web`.
 Nothing else is required: the route already declares `runtime = 'edge'`, and
 visitors can supply their own key. Set `OPENAI_API_KEY` in the environment if
 the deployment should pay instead.
+
+## Harness validation
+
+Use `EDGE_CHAT_DIST_DIR=.next-harness-audit` for an isolated dev build, or
+`.next-harness-build` for a production build. Requests to one credential-scoped
+conversation are serialized: another run or a configuration change returns 409
+while its response is active. Pending session construction counts toward the
+isolate capacity. Changed host instructions, provider endpoint and run limits
+also rebuild idle sessions.
+
+The [live sample harness](../../test-human/edge-runtime-sample/README.md) checks
+the real HTTP/SSE route, provider, tool receipts, worker messages and trace
+access. Its exact-output failures remain visible in the saved report.

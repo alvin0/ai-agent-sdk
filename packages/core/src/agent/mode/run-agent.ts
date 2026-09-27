@@ -299,7 +299,7 @@ function completionTool(): ToolDefinition<CompletionSubmission> {
       accepted: true,
       summary: submission.summary,
       evidence: [...submission.evidence],
-      instruction: 'This self-check is accepted for the current run. Now provide the substantive final report itself: findings or changes, evidence or sources, checks performed, and remaining limitations. If the user asked for a specific output format (for example only JSON or only a number), reply in exactly that format instead: it is the report. Do not merely say the self-check passed or refer to an earlier message. Do not call submit_result again in this run unless you perform new substantive tool work that invalidates this submission. A later user request or worker follow-up starts a new run and needs its own self-check.',
+      instruction: 'This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the final answer unless the task requests them. If the task requests a report, provide the substantive findings or changes, supporting evidence or sources, and relevant limitations. Do not merely say the self-check passed or refer to an earlier message. Do not call submit_result again in this run unless you perform new substantive tool work that invalidates this submission. A later user request or worker follow-up starts a new run and needs its own self-check.',
     }),
   })
 }
@@ -382,7 +382,7 @@ function deepHooks(
           text: (state.completionInvalidated
             ? `Your previously accepted submission is no longer current because you called another substantive tool afterwards. Review the later tool results and call ${AGENT_CONTROL_TOOLS.complete} again when complete; the old instruction not to resubmit no longer applies. `
             : '')
-            + `Self-check required: this run has no accepted current self-check. Acceptance recorded in an earlier run does not complete this request or follow-up; an earlier instruction not to resubmit applied only to that earlier run. Compare the current result against the user's objective and every constraint. If anything is missing, continue with tools. If blocked and request_user_input is available, ask the user. Only when the work is actually complete, call ${AGENT_CONTROL_TOOLS.complete}. Rephrasing a completion claim without submitting does not satisfy this gate.`,
+            + `Self-check required: this run has no accepted current self-check. Acceptance recorded in an earlier run does not complete this request or follow-up; an earlier instruction not to resubmit applied only to that earlier run. Compare the current result against the user's objective and every constraint. If anything is missing, continue with tools. If blocked and request_user_input is available, ask the user. Only when the work is actually complete, call ${AGENT_CONTROL_TOOLS.complete}. Keep verification in that tool call and then deliver the current user or assigned task's requested output in its original format. This reminder does not change the task or request a process report. Rephrasing a completion claim without submitting does not satisfy this gate.`,
         }],
       }) })
     },
@@ -554,6 +554,7 @@ function modeSystem(mode: AgentMode, canAskUser: boolean): string {
   return [
     'Work autonomously in deep mode. After every tool result, compare the evidence against the user objective and all constraints; continue until gaps are closed.',
     `Do not treat a plausible draft as completion. When the work is actually complete, call ${AGENT_CONTROL_TOOLS.complete} with a summary and concrete evidence, then provide the final answer.`,
+    'Put verification summaries and evidence in the self-check tool call. Deliver the current user or assigned task\'s requested answer or artifact in its requested format, including exact text or JSON. Add verification commentary only when that format permits it.',
     ask, hil,
     'Never reveal private chain-of-thought. Use concise user-visible commentary for intent, progress, observations, and decisions.',
   ].filter(Boolean).join(' ')
