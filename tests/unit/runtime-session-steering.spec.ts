@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createAgentRuntime, ModelAdapter, ToolCallId } from '@alvin0/ai-agent-sdk-core'
 import type { GenerateOptions, RuntimeAgentSession, StreamChunk } from '@alvin0/ai-agent-sdk-core'
-import { defineTool } from '@alvin0/ai-agent-sdk-core/agent'
+import { defineTool, projectMessages, UNCHANGED_ANSWER_MARKER } from '@alvin0/ai-agent-sdk-core/agent'
 import { defineModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
 
 /**
@@ -152,11 +152,11 @@ describe('RuntimeAgentSession.inject while a run is in flight', () => {
     }, { tools: [noopTool('look')] })
   })
 
-  it('keeps steering that arrives during the final round, after the answer it could not change', async () => {
+  it('answers steering that arrives during the final round in the same run, after the answer it could not change', async () => {
     const started = gate(), release = gate()
-    await withSession(async function* () {
-      started.open(); await release.opened
-      yield* text('only round')
+    await withSession(async function* (_options, index) {
+      if (index === 1) { started.open(); await release.opened; yield* text('first answer'); return }
+      yield* text('answer to the steering')
     }, async ({ model, session }) => {
       const handle = session.stream('question')
       const done = drain(handle)
@@ -167,11 +167,15 @@ describe('RuntimeAgentSession.inject while a run is in flight', () => {
       await handle.result
       await session.whenIdle()
       expect(session.isRunning).toBe(false)
-      // The last round was already streaming, so this run does not answer it: it
-      // is kept, after that answer, for the caller to process with runPending().
-      expect(model.requests).toHaveLength(1)
+      // The round already streaming could not see it; the run answers it in
+      // one more round instead of leaving the person without a reply.
+      expect(model.requests).toHaveLength(2)
+      const second = JSON.stringify(model.requests[1]?.messages)
+      expect(second.indexOf('first answer')).toBeLessThan(second.indexOf('late steering'))
       expect(userTexts(session)).toEqual(['question', 'late steering'])
-      expect(session.snapshot().history.entries.at(-1)?.event.kind).toBe('user')
+      const answers = session.snapshot().history.entries.flatMap(entry => entry.event.kind === 'assistant'
+        ? entry.event.message.content.flatMap(block => block.type === 'text' ? [block.text] : []) : [])
+      expect(answers.at(-1)).toBe('answer to the steering')
     })
   })
 
@@ -273,5 +277,128 @@ describe('RuntimeAgentSession.inject while a run is in flight', () => {
       expect(userTexts(session)).toContain('keep it short')
       expect(session.isRunning).toBe(false)
     }, { mode: 'deep' })
+  })
+})
+
+describe('RuntimeAgentSession: deep-mode kept answer, end to end', () => {
+  const submitCall = (id: string): StreamChunk[] => [
+    { type: 'block-start', index: 0, blockType: 'tool-call' },
+    { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId(id), name: 'submit_result',
+      arguments: JSON.stringify({ summary: 'Checked.', evidence: ['reviewed'] }) } },
+    { type: 'finish', reason: { kind: 'tool-calls' } },
+  ]
+  const MARKER = UNCHANGED_ANSWER_MARKER
+  const DRAFT = 'The draft answer, complete.'
+
+  async function collectRun(session: RuntimeAgentSession, input: string, midRun?: () => void) {
+    const events: { type: string; [key: string]: unknown }[] = []
+    const handle = session.stream(input)
+    for await (const event of handle) {
+      events.push(event as never)
+      if (event.type === 'error') throw new Error('run reported an error event')
+      if (event.type === 'tool-result' && midRun) { midRun(); midRun = undefined }
+    }
+    return { events, result: await handle.result }
+  }
+
+  // What SDK consumers read back: the history surface. The raw log is
+  // append-only and keeps the marker entry, superseded by a replace entry.
+  const surface = (session: RuntimeAgentSession) => projectMessages(session.snapshot().history.entries)
+  const assistantTexts = (session: RuntimeAgentSession) => surface(session).flatMap(message =>
+    message.role === 'assistant' ? message.content.flatMap(block => block.type === 'text' ? [block.text] : []) : [])
+
+  it('returns the kept draft as the run result and never streams the marker', async () => {
+    await withSession(async function* (_options, index) {
+      yield* index === 1 ? text(DRAFT) : index === 2 ? submitCall('s1') : text(MARKER)
+    }, async ({ session }) => {
+      const { events, result } = await collectRun(session, 'question')
+      expect(result).toMatchObject({ completed: true, text: DRAFT })
+      const deltas = events.filter(event => event.type === 'assistant-delta').map(event => event.text).join('')
+      expect(deltas).toBe(DRAFT)
+      const leaks = events.filter(event => event.type !== 'tool-result' && event.type !== 'span-start' && event.type !== 'span-end')
+        .filter(event => JSON.stringify(event).includes(MARKER)).map(event => event.type)
+      expect(leaks).toEqual([])
+    }, { mode: 'deep' })
+  })
+
+  it('keeps the answer, then answers steering that arrived during the confirming round', async () => {
+    const started = gate(), release = gate()
+    await withSession(async function* (_options, index) {
+      if (index === 1) { yield* text(DRAFT); return }
+      if (index === 2) { yield* submitCall('s1'); return }
+      if (index === 3) { started.open(); await release.opened; yield* text(MARKER); return }
+      yield* text('Costs: about 20% more.')
+    }, async ({ session }) => {
+      const handle = session.stream('question')
+      const done = drain(handle)
+      await started.opened
+      session.inject('also mention costs')
+      release.open()
+      await done
+      // The steering is answered in the same run, so its answer is the result.
+      expect(await handle.result).toMatchObject({ completed: true, text: 'Costs: about 20% more.' })
+      await session.whenIdle()
+      // The kept answer, then the steering it could not see, then its answer.
+      expect(userTexts(session)).toEqual(['question', 'also mention costs'])
+      const order = surface(session).flatMap(message => message.content.flatMap(block => block.type === 'text'
+        && [DRAFT, 'also mention costs', 'Costs: about 20% more.'].includes(block.text) ? [block.text] : []))
+      // The stand-in repeats the draft where the marker was, so the model-facing
+      // surface carries it twice (the original and the kept answer). Known cost,
+      // cheaper than the rewrite it replaces; collapsing the range would erase
+      // steering or tool results that fall between them.
+      expect(order).toEqual([DRAFT, DRAFT, 'also mention costs', 'Costs: about 20% more.'])
+      expect(assistantTexts(session).some(value => value.includes(MARKER))).toBe(false)
+    }, { mode: 'deep' })
+  })
+
+  it('steering during the self-check tool round reaches the model before it confirms or rewrites', async () => {
+    await withSession(async function* (options, index) {
+      if (index === 1) { yield* text(DRAFT); return }
+      if (index === 2) { yield* submitCall('s1'); return }
+      // The steering changed the task, so the model rewrites rather than keeps.
+      const sawSteer = JSON.stringify(options.messages).includes('answer in one line')
+      yield* text(sawSteer ? 'One-line answer.' : MARKER)
+    }, async ({ session, model }) => {
+      const { result } = await collectRun(session, 'question', () => session.inject('answer in one line'))
+      expect(JSON.stringify(model.requests[2]?.messages)).toContain('answer in one line')
+      expect(result).toMatchObject({ completed: true, text: 'One-line answer.' })
+      expect(assistantTexts(session).at(-1)).toBe('One-line answer.')
+    }, { mode: 'deep' })
+  })
+
+  it('a follow-up run after a kept answer starts clean and answers the new question', async () => {
+    await withSession(async function* (_options, index) {
+      if (index === 1) { yield* text(DRAFT); return }
+      if (index === 2) { yield* submitCall('s1'); return }
+      if (index === 3) { yield* text(MARKER); return }
+      if (index === 4) { yield* submitCall('s2'); return }
+      yield* text('Second answer.')
+    }, async ({ session }) => {
+      expect((await collectRun(session, 'first')).result.text).toBe(DRAFT)
+      const second = await collectRun(session, 'second')
+      expect(second.result).toMatchObject({ completed: true, text: 'Second answer.' })
+      expect(assistantTexts(session).some(value => value.includes(MARKER))).toBe(false)
+    }, { mode: 'deep' })
+  })
+
+  it('a snapshot resumed after a kept answer replays the answer, not the marker', async () => {
+    let snapshot: unknown
+    await withSession(async function* (_options, index) {
+      yield* index === 1 ? text(DRAFT) : index === 2 ? submitCall('s1') : text(MARKER)
+    }, async ({ session }) => {
+      await collectRun(session, 'question')
+      snapshot = JSON.parse(JSON.stringify(session.snapshot()))
+    }, { mode: 'deep' })
+    // Replay into a fresh runtime: the model-facing history it sends must carry
+    // the kept answer as the last assistant turn.
+    const requests: GenerateOptions[] = []
+    await withSession(async function* (options) { requests.push(options); yield* text('ok') }, async ({ runtime }) => {
+      const resumed = runtime.agent({ id: 'steered', model: { provider: 'fixture', id: 'test' }, instructions: 'x', mode: 'basic' })
+        .resumeSession(snapshot as never)
+      await drain(resumed.stream('next'))
+      const sent = JSON.stringify(requests[0]?.messages)
+      expect(sent).toContain(DRAFT)
+      expect(sent.lastIndexOf(DRAFT)).toBeGreaterThan(sent.lastIndexOf(MARKER))
+    })
   })
 })

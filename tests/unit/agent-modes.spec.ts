@@ -399,6 +399,22 @@ describe('agent modes', () => {
     expect(events.findLast(event => event.type === 'assistant-message')).toMatchObject({
       message: { content: [{ type: 'text', text: 'A complete answer, already checked in spirit.' }] },
     })
+    // No content event describes the control reply, whatever its type. Only
+    // the submit_result result, whose instruction offers the marker, may name
+    // it — and trace spans, which record the real model exchange for audit and
+    // must not be rewritten.
+    const leaking = events
+      .filter(event => !(event.type === 'tool-result' && event.call.toolName === 'submit_result'))
+      .filter(event => event.type !== 'span-start' && event.type !== 'span-end')
+      .filter(event => JSON.stringify(event).includes(UNCHANGED_ANSWER_MARKER)).map(event => event.type)
+    expect(leaking).toEqual([])
+    // One stand-in identity, live and stored: the message event, the text event
+    // describing it, and the surfaced history entry are the same message.
+    const keptMessage = events.findLast(event => event.type === 'assistant-message')
+    const keptText = events.findLast(event => event.type === 'assistant-text')
+    const keptId = keptMessage?.type === 'assistant-message' ? keptMessage.message.id : undefined
+    expect(keptText).toMatchObject({ messageId: keptId, text: 'A complete answer, already checked in spirit.' })
+    expect(state.history.messages().filter(message => message.role === 'assistant').at(-1)?.id).toBe(keptId)
     // The accept told the model it could point back at its own answer
     // instead of being asked to retype it.
     expect(JSON.stringify(state.adapter.requests[2]?.messages)).toContain('reply with exactly')

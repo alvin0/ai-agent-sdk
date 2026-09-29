@@ -8,7 +8,7 @@ snapshot/resume remain available. The effort redesign already shipped in 0.1.4.
 | Consumer contract | Adjustment |
 | --- | --- |
 | Short progress narration by default | Set `commentary: 'concise'`; the new default is `auto`. |
-| Injection receipt used as persisted sequence | Mid-round receipts are provisional. Input queues behind in-flight output; use persisted history for durable IDs. Snapshots retain pending input. |
+| Injection receipt used as persisted sequence | Mid-round receipts are provisional. Input queues behind in-flight output; use persisted history for durable IDs. Snapshots retain pending input. From 0.1.6 a person's input queued during a final answer is answered in the same run; team deliveries still wait for the wake-up. |
 | Team relies on SDK planning/delegation prose | Put that strategy in lead/worker instructions. Automatic lead coordination remains on. |
 | Every worker must return text | Set `requireWorkerText: true`; clean empty completions are otherwise valid. |
 | Absolute `writes` scopes | Use workspace-relative paths; no escaping `..`. Omit scopes for read-only work. |

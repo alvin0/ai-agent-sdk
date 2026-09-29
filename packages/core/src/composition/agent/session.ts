@@ -137,6 +137,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
       get isRunning() { return owner.isRunning },
       inject(input: Parameters<TeamSessionPort['inject']>[0]) { return owner.injectForTeam(input) },
       whenIdle(signal?: AbortSignal) { return owner.whenIdle(signal) },
+      hasUnansweredInput() { return owner.session.hasUnansweredInput() },
       runPending(invocation = {}) { return owner.runPendingForTeam(invocation) },
     })
   }

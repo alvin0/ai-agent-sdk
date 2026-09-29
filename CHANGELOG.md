@@ -4,9 +4,23 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ## 0.1.6 - 2026-09-29
 
+### Changed
+
+- The Release workflow now creates the `v<version>` GitHub tag at the published source commit after the npm publish step succeeds. Dry runs create no tag; retries and later commits preserve an existing tag.
+
 ### Fixed
 
-- `RuntimeAgentSession.inject()` no longer throws `Cannot inject while a runtime session is active` while a run is in flight. Steering now reaches the underlying session, which queues it until the round that could not see it has finished and delivers it in arrival order, as the bare `AgentSession` and the team path already did. Input that arrives during the final (tool-free) round is kept after that answer and is available to `runPending()`; the run does not answer it. `reset()` and starting a second run mid-run still refuse.
+- `RuntimeAgentSession.inject()` no longer throws `Cannot inject while a runtime session is active` while a run is in flight. Steering reaches the underlying session, which queues it until the in-flight round finishes and delivers it in arrival order. `reset()` and starting a second run mid-run still refuse.
+- A person's input sent while the final answer is being written is answered in the same run: the loop delivers it after that answer and runs one more round, instead of leaving it for a later `runPending()` (a run with no steps left still leaves it for `runPending()`). Previously the person saw the steer accepted and never answered. Team deliveries keep their contract: queued behind the answer and processed once by the wake-up. The wake-up now skips a member whose run already answered everything, so a steer and a team message arriving together cost no extra model call (`TeamSessionPort.hasUnansweredInput`, optional; `AgentSession.hasUnansweredInput()`).
+- Deep-mode kept answers: the `assistant-text` event of a kept reply described the raw marker message (its text and id). It now carries the stand-in answer, and the live `assistant-message`, `assistant-text` and the history replacement share one message identity.
+- Deep mode no longer presents `UNCHANGED_ANSWER_MARKER` as a completed answer when there is no earlier answer in the run to keep (a model can imitate an earlier run's accept). The marker is not streamed; the model is asked once for the answer itself, and a repeat ends the run with an empty, incomplete result.
+- A confirming reply that is cut off (aborted, errored, out of tokens) while its text is still only the start of the marker no longer streams that fragment or replaces the earlier answer with it; the earlier answer stands and the run reports the interruption as incomplete.
+- A confirming reply from a reasoning model (reasoning block plus the marker) is recognised as the marker; previously the extra block made it stream to the user. Its reasoning is still emitted, now under the stand-in message id.
+- A failed history write while replacing a deep-mode marker now fails the run instead of reporting completion with a result that disagrees with persisted history.
+
+### Release scope
+
+- Behavioral changes are in `@alvin0/ai-agent-sdk-core`. All 26 workspace package manifests, root metadata, and `SDK_VERSION` remain at `0.1.6` for this release. The private testkit remains unpublished.
 
 ## 0.1.5 - 2026-09-29
 

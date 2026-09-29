@@ -649,6 +649,13 @@ export class AgentTeam implements TeamPort {
         signal.throwIfAborted()
         await member.session.whenIdle(signal)
         const through = member.wakeRequestedSeq
+        // The run that was active may already have answered this delivery
+        // (it answers a person's queued input before it ends, and delivers
+        // anything queued with it). Running again would only repeat itself.
+        if (member.session.hasUnansweredInput?.() === false) {
+          member.wakeConsumedSeq = through
+          continue
+        }
         this.emit({ type: 'member-run-start', member: member.name })
         try {
           const response = await member.session.runPending({

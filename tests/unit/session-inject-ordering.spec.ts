@@ -107,9 +107,15 @@ describe('AgentSession.inject during a run', () => {
   it('retains queued input in an active snapshot and resumes it without delivering it early', async () => {
     let session: ReturnType<ReturnType<typeof defineAgent>['createSession']>
     let captured: AgentSessionSnapshot | undefined
+    let rounds = 0
     class Model extends ModelAdapter {
       override async resolveModel(provider: string, model: string) { return { provider, id: model, name: model, context: { contextWindow: 32_000 } } }
       override async *stream(): AsyncIterable<StreamChunk> {
+        if (++rounds > 1) {
+          yield { type: 'block-end', index: 0, block: { type: 'text', text: 'answered the queued input' } }
+          yield { type: 'finish', reason: { kind: 'stop' } }
+          return
+        }
         session.inject('QUEUED INPUT')
         captured = session.snapshot()
         expect(session.history.messages().some(message => message.content.some(block => block.type === 'text' && block.text === 'QUEUED INPUT'))).toBe(false)
@@ -122,9 +128,15 @@ describe('AgentSession.inject during a run', () => {
     const agent = defineAgent({ id: 'a', provider: 'fixture', model: 'm', instructions: 'x', maxTurns: 2 })
     session = agent.createSession({ registry })
     await session.run('start')
+    // A snapshot taken mid-run keeps the queued input as the next thing to answer.
     const resumed = agent.resumeSession({ registry, snapshot: JSON.parse(JSON.stringify(captured)) })
     expect(resumed.history.messages().at(-1)?.content).toEqual([{ type: 'text', text: 'QUEUED INPUT' }])
-    expect(session.history.messages().at(-1)?.content).toEqual([{ type: 'text', text: 'QUEUED INPUT' }])
+    // The live run answers it itself, after the round that could not see it.
+    expect(rounds).toBe(2)
+    // Budget notices the loop adds for itself are app-sourced; compare the dialogue.
+    expect(session.history.messages().filter(message => message.source.kind !== 'app')
+      .map(message => message.content.map(block => block.type === 'text' ? block.text : '').join('')))
+      .toEqual(['start', 'done', 'QUEUED INPUT', 'answered the queued input'])
   })
 
   it('rejects an oversized mid-round input at admission rather than breaking later delivery', async () => {
@@ -210,16 +222,118 @@ describe('AgentSession.inject during a run', () => {
     registry.registerAdapter(['fixture'], new Model())
     const session = defineAgent({ id: 'a', provider: 'fixture', model: 'm', instructions: 'x', maxTurns: 2 }).createSession({
       registry, hooks: { async checkpoint(context) {
-        if (context.kind === 'before-model-request') {
+        if (context.kind === 'before-model-request' && requests.length === 0) {
           await Promise.resolve()
           session.inject('CHECKPOINT INPUT')
         }
       } },
     })
     await session.run('start')
+    // Never folded into the request that was already built...
     expect(requests[0]).not.toContain('CHECKPOINT INPUT')
-    expect(session.history.messages().slice(-2).map(message => message.role)).toEqual(['assistant', 'user'])
-    expect(session.history.messages().at(-1)?.content).toEqual([{ type: 'text', text: 'CHECKPOINT INPUT' }])
+    // ...but answered by the next one in the same run, after that answer.
+    expect(requests).toHaveLength(2)
+    expect(requests[1]?.indexOf('CHECKPOINT INPUT')).toBeGreaterThan(requests[1]?.indexOf('already requested') ?? Infinity)
+    expect(session.history.messages().filter(message => message.source.kind !== 'app').map(message => message.role))
+      .toEqual(['user', 'assistant', 'user', 'assistant'])
+  })
+
+  it('answers input sent during the final answer in the same run, in arrival order, after that answer', async () => {
+    const requests: string[][] = []
+    let session: ReturnType<ReturnType<typeof defineAgent>['createSession']>
+    class Model extends ModelAdapter {
+      override async resolveModel(provider: string, model: string) { return { provider, id: model, name: model, context: { contextWindow: 32_000 } } }
+      override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+        requests.push(options.messages.flatMap(message => message.content.flatMap(block => block.type === 'text' ? [block.text] : [])))
+        if (requests.length === 1) { session.inject('FIRST'); session.inject('SECOND') }
+        yield { type: 'block-end', index: 0, block: { type: 'text', text: 'answer ' + requests.length } }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+      }
+    }
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['fixture'], new Model())
+    session = defineAgent({ id: 'a', provider: 'fixture', model: 'm', instructions: 'x', maxTurns: 4, compaction: false }).createSession({ registry })
+    const result = await session.run('start')
+    expect(requests).toHaveLength(2)
+    expect(requests[1]?.slice(-3)).toEqual(['answer 1', 'FIRST', 'SECOND'])
+    expect(result.text).toBe('answer 2')
+    expect(session.isRunning).toBe(false)
+  })
+
+  it('leaves final-round input for runPending when the run has no steps left', async () => {
+    let session: ReturnType<ReturnType<typeof defineAgent>['createSession']>
+    let calls = 0
+    class Model extends ModelAdapter {
+      override async resolveModel(provider: string, model: string) { return { provider, id: model, name: model, context: { contextWindow: 32_000 } } }
+      override async *stream(): AsyncIterable<StreamChunk> {
+        if (++calls === 1) session.inject('LATE')
+        yield { type: 'block-end', index: 0, block: { type: 'text', text: 'answer ' + calls } }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+      }
+    }
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['fixture'], new Model())
+    session = defineAgent({ id: 'a', provider: 'fixture', model: 'm', instructions: 'x', maxTurns: 1, compaction: false }).createSession({ registry })
+    await session.run('start')
+    // One step allowed: the run cannot answer it, and it is not lost either.
+    expect(calls).toBe(1)
+    expect(session.history.messages().at(-1)?.content).toEqual([{ type: 'text', text: 'LATE' }])
+    await session.runPending()
+    expect(calls).toBe(2)
+    expect(session.history.messages().at(-1)?.role).toBe('assistant')
+  })
+
+  it('does not run an extra round when the run ends with nothing queued', async () => {
+    let calls = 0
+    class Model extends ModelAdapter {
+      override async resolveModel(provider: string, model: string) { return { provider, id: model, name: model, context: { contextWindow: 32_000 } } }
+      override async *stream(): AsyncIterable<StreamChunk> {
+        calls++
+        yield { type: 'block-end', index: 0, block: { type: 'text', text: 'done' } }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+      }
+    }
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['fixture'], new Model())
+    await defineAgent({ id: 'a', provider: 'fixture', model: 'm', instructions: 'x', maxTurns: 4, compaction: false })
+      .createSession({ registry }).run('start')
+    expect(calls).toBe(1)
+  })
+
+  it.each(['error', 'max-tokens'] as const)('keeps late input for recovery after %s without starting another round', async finish => {
+    let session: ReturnType<ReturnType<typeof defineAgent>['createSession']>
+    const requests: GenerateOptions[] = []
+    class Model extends ModelAdapter {
+      override async resolveModel(provider: string, model: string) { return { provider, id: model, name: model } }
+      override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+        requests.push(options)
+        if (requests.length === 1) {
+          session.inject('LATE RECOVERY INPUT')
+          yield { type: 'text-delta', index: 0, text: 'partial answer' }
+          yield { type: 'finish', reason: finish === 'error'
+            ? { kind: 'error', failure: { code: 'UNAVAILABLE', message: 'fixture unavailable' } }
+            : { kind: 'max-tokens' } }
+        } else {
+          yield { type: 'block-end', index: 0, block: { type: 'text', text: 'recovered answer' } }
+          yield { type: 'finish', reason: { kind: 'stop' } }
+        }
+      }
+    }
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['fixture'], new Model())
+    session = defineAgent({ id: 'a', provider: 'fixture', model: 'm', instructions: 'x', maxTurns: 4, compaction: false })
+      .createSession({ registry })
+    const first = await session.run('start')
+    expect(first.outcome.reason.kind).toBe(finish)
+    expect(requests).toHaveLength(1)
+    expect(session.hasUnansweredInput()).toBe(true)
+    expect(session.isRunning).toBe(false)
+    expect(session.history.messages().at(-1)?.content).toEqual([{ type: 'text', text: 'LATE RECOVERY INPUT' }])
+    const second = await session.runPending()
+    expect(second.text).toBe('recovered answer')
+    expect(requests).toHaveLength(2)
+    expect(requests[1]?.messages.at(-1)?.content).toEqual([{ type: 'text', text: 'LATE RECOVERY INPUT' }])
+    expect(session.hasUnansweredInput()).toBe(false)
   })
   it('delivers a mid-round message after the output of the round that could not see it', async () => {
     const requests: string[][] = []
