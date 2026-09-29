@@ -221,7 +221,11 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
   inject(input: AgentInput): number {
     this.host.operations.assertActive()
     this.assertOwnerActive()
-    if (this.active !== undefined) throw new Error('Cannot inject while a runtime session is active')
+    // A run in flight is the case steering exists for. The underlying session
+    // holds the message until the round that could not see it has finished,
+    // then delivers it in arrival order. Refusing here left the runtime
+    // surface unable to steer at all, while the same call on a bare session
+    // (and injectForTeam below) is accepted.
     return this.session.inject(input)
   }
 

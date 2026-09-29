@@ -2,7 +2,13 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
-## 0.1.5 (unreleased)
+## 0.1.6 - 2026-09-29
+
+### Fixed
+
+- `RuntimeAgentSession.inject()` no longer throws `Cannot inject while a runtime session is active` while a run is in flight. Steering now reaches the underlying session, which queues it until the round that could not see it has finished and delivers it in arrival order, as the bare `AgentSession` and the team path already did. Input that arrives during the final (tool-free) round is kept after that answer and is available to `runPending()`; the run does not answer it. `reset()` and starting a second run mid-run still refuse.
+
+## 0.1.5 - 2026-09-29
 
 ### Added
 
