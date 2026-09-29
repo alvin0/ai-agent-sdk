@@ -15,6 +15,7 @@ import { AgentSdkError } from '@alvin0/ai-agent-sdk-core'
 export const MAX_CREDENTIAL_FILE_BYTES = 1024 * 1024
 const LOCK_RETRY_MS = 10
 const LOCK_TIMEOUT_MS = 30_000
+const WINDOWS_DELETE_PENDING_RETRIES = 3
 
 /** Read one stable regular file without following its final symlink. */
 export async function readCredentialText(
@@ -55,6 +56,7 @@ export async function withCredentialFileLock<T>(
   await prepareDirectory(directory, signal)
   const lockPath = `${location}.lock`
   const startedAt = Date.now()
+  let deletePendingRetries = 0
   let handle: FileHandle | undefined
   while (handle === undefined) {
     signal?.throwIfAborted()
@@ -65,7 +67,13 @@ export async function withCredentialFileLock<T>(
         0o600,
       )
     } catch (error: unknown) {
-      if (errorCode(error) !== 'EEXIST') throw error
+      if (errorCode(error) !== 'EEXIST') {
+        // Windows can deny an exclusive open while the previous lock is pending deletion.
+        // Bound retries so genuine permission failures still surface promptly.
+        if (process.platform !== 'win32' || errorCode(error) !== 'EPERM'
+          || deletePendingRetries >= WINDOWS_DELETE_PENDING_RETRIES) throw error
+        deletePendingRetries += 1
+      }
       await rejectSymlink(lockPath)
       if (Date.now() - startedAt >= LOCK_TIMEOUT_MS) {
         throw credentialFileError(

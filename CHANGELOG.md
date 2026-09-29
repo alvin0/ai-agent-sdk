@@ -2,6 +2,17 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- Fixed deep/deep-human-in-loop modes rewriting an already-complete answer after an accepted `submit_result` self-check finds nothing to add. The accept instruction now tells the model it may reply with the new `UNCHANGED_ANSWER_MARKER` (exported from `@alvin0/ai-agent-sdk-core/agent`) when its earlier answer still stands; `runAgent` recovers that earlier text for the run's outcome and, via a history `replace` entry, for anyone re-reading the stored history afterward. A model that does have something to add or correct still writes the answer in full, exactly as before.
+- Kept-answer control replies no longer leak into assistant text streams; terminal events and `onTurnEnd` hooks receive the restored answer. Premature control replies cannot overwrite the retained draft.
+- Steering queued during a failed model checkpoint is delivered before recovery hooks and the retry request, including steering injected by the retry's `beforeStep` hook.
+- Task memory now explicitly treats retained objectives as background when newer user instructions conflict, preventing the original objective from overriding steering or later requests.
+- Credential writers briefly retry Windows delete-pending lock errors so concurrent commits retain revision-conflict semantics; persistent permission errors still surface promptly.
+- Made regression tests and the core packed runtime matrix portable across Windows and current Node versions; Python analyzer parity remains mandatory in CI.
+
 ## 0.1.4 - 2026-09-19
 
 ### Added

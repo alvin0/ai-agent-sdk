@@ -9,6 +9,44 @@ import { defineAgent, defineTool, type AgentSessionSnapshot } from '@alvin0/ai-a
  * "steer, then the work that ignored it" and treated the steer as handled.
  */
 describe('AgentSession.inject during a run', () => {
+  it('delivers steering before recovery and retry after a failed checkpoint', async () => {
+    const requests: string[][] = []
+    let preparations = 0
+    class Model extends ModelAdapter {
+      override async resolveModel(provider: string, model: string) { return { provider, id: model, name: model, context: { contextWindow: 32_000 } } }
+      override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+        requests.push(options.messages.flatMap(message => message.content.flatMap(block => block.type === 'text' ? [block.text] : [])))
+        yield { type: 'block-end', index: 0, block: { type: 'text', text: 'done' } }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+      }
+    }
+    const registry = new ModelRegistry(); registry.registerAdapter(['fixture'], new Model())
+    const session = defineAgent({ id: 'a', provider: 'fixture', model: 'm', instructions: 'x', maxTurns: 4, compaction: false }).createSession({
+      registry, hooks: {
+        checkpoint(context) {
+          if (context.kind === 'before-model-request' && preparations === 1) {
+            session.inject('CHECKPOINT STEERING')
+            throw new Error('checkpoint unavailable')
+          }
+        },
+        onRequestError() {
+          expect(session.history.messages().at(-1)?.content).toEqual([{ type: 'text', text: 'CHECKPOINT STEERING' }])
+          session.inject('RECOVERY STEERING')
+          return 'retry'
+        },
+        beforeStep() {
+          if (++preparations === 2) session.inject('RETRY HOOK STEERING')
+          return { kind: 'proceed' }
+        },
+      },
+    })
+    const result = await session.run('start')
+    expect(result.outcome.completed).toBe(true)
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.slice(-3)).toEqual(['CHECKPOINT STEERING', 'RECOVERY STEERING', 'RETRY HOOK STEERING'])
+    expect(session.history.messages().at(-1)?.role).toBe('assistant')
+  })
+
   it('keeps shared application projections isolated across parallel sessions', async () => {
     const requests: GenerateOptions[] = []
     class Model extends ModelAdapter {

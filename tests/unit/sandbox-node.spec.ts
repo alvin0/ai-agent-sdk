@@ -23,6 +23,22 @@ import {
 
 const roots: string[] = []
 
+// Directory junctions need no elevated privilege on Windows and exercise the
+// same realpath escape checks. File symlinks still require a host capability.
+const directoryLinkType = process.platform === 'win32' ? 'junction' : 'dir'
+const fileSymlinksSupported = await (async () => {
+  const probe = await mkdtemp(join(tmpdir(), 'sandbox-symlink-probe-'))
+  try {
+    await symlink(join(probe, 'missing'), join(probe, 'link'), 'file')
+    return true
+  } catch (error) {
+    if (process.platform === 'win32' && ['EPERM', 'EACCES'].includes((error as NodeJS.ErrnoException).code ?? '')) return false
+    throw error
+  } finally {
+    await rm(probe, { recursive: true, force: true })
+  }
+})()
+
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
 })
@@ -62,7 +78,7 @@ describe('in-process fence', () => {
   it('judges a path by where it would actually be created, not by its spelling', async () => {
     const root = await workspace()
     const outside = await workspace()
-    await symlink(outside, join(root, 'link'), 'dir')
+    await symlink(outside, join(root, 'link'), directoryLinkType)
     const fence = localSandbox({ probe: false, tempRoots: [] }).fence(policyFor(root))
     // The path is lexically inside the workspace, but resolves outside it.
     expect(await fence.isWritable(join(root, 'link', 'escaped.txt'))).toBe(false)
@@ -300,7 +316,7 @@ describe('a workspace reached through a symlink', () => {
     const real = await workspace()
     const parent = await workspace()
     const link = join(parent, 'linked-workspace')
-    await symlink(real, link, 'dir')
+    await symlink(real, link, directoryLinkType)
     const fence = localSandbox({ probe: false, tempRoots: [] }).fence(policyFor(link))
     expect(await fence.isWritable(join(link, 'note.txt'))).toBe(true)
     expect(await fence.isWritable(join(real, 'note.txt'))).toBe(true)
@@ -474,7 +490,7 @@ describe('check-then-write is not a boundary under concurrency', () => {
   // stale the moment it returns. Measured over twenty thousand rounds against a
   // process swapping a symlink, writes landed outside the workspace. The check
   // and the open have to be one step whose result is a descriptor.
-  it('refuses to open a final component that is a symlink', async () => {
+  it.skipIf(!fileSymlinksSupported)('refuses to open a final component that is a symlink (requires file symlink capability)', async () => {
     const root = await workspace()
     const outside = await workspace()
     const target = join(root, 'target')
@@ -488,7 +504,7 @@ describe('check-then-write is not a boundary under concurrency', () => {
     expect(existsSync(join(outside, 'canary.txt'))).toBe(false)
   })
 
-  it('judges a dangling symlink by where it leads, not by its own name', async () => {
+  it.skipIf(!fileSymlinksSupported)('judges a dangling symlink by where it leads, not by its own name (requires file symlink capability)', async () => {
     // `stat` follows links, so a link to a path that does not exist yet looked
     // absent — and the resolver then judged the link's own name, which is
     // inside the workspace. The link is what exists; its target is what counts.
@@ -503,8 +519,8 @@ describe('check-then-write is not a boundary under concurrency', () => {
   it('follows a symlink chain to where it actually lands', async () => {
     const root = await workspace()
     const outside = await workspace()
-    await symlink(outside, join(root, 'hop1'), 'dir')
-    await symlink(join(root, 'hop1'), join(root, 'hop2'), 'dir')
+    await symlink(outside, join(root, 'hop1'), directoryLinkType)
+    await symlink(join(root, 'hop1'), join(root, 'hop2'), directoryLinkType)
     const fence = localSandbox({ probe: false, tempRoots: [] }).fence(policyFor(root))
     expect(await fence.isWritable(join(root, 'hop2', 'x.txt'))).toBe(false)
   })

@@ -85,7 +85,8 @@ describe('what a first word hides', () => {
     // Reading `sudo rm -rf /` as a `sudo` call would miss the only thing worth
     // saying about it.
     const found = inside('sudo rm -rf /')
-    expect(found[0]?.title).toBe('Deletes the machine’s own files')
+    expect(found[0]?.title).toBe(process.platform === 'win32'
+      ? 'Deletes files outside the workspace' : 'Deletes the machine’s own files')
     expect(found.some(hazard => hazard.title === 'Runs as another user')).toBe(true)
   })
 
@@ -190,14 +191,17 @@ describe('commands that destroy more than files', () => {
 })
 
 describe('saying it loudly only where loudness is earned', () => {
-  it('reads a scratch directory as a warning, not as destruction', () => {
+  it('recognizes POSIX scratch directories on POSIX hosts', () => {
     // Still outside the workspace, still said out loud. But an agent clearing
     // its own scratch space is routine, and a card that shouts at
     // `rm -rf /tmp/build-cache` teaches the user to click through shouting.
     const found = inside('rm -rf /tmp/build-cache')
-    expect(found[0]?.severity).toBe('warning')
-    expect(found[0]?.title).toBe('Deletes files in a temporary directory')
-    expect(critical('rm -rf /var/folders/zz/T/agent')).toBe(false)
+    // On Windows these rooted paths resolve on the current drive; neither is
+    // the host's temp directory. Keep the conservative outside-workspace warning.
+    expect(found[0]?.severity).toBe(process.platform === 'win32' ? 'critical' : 'warning')
+    expect(found[0]?.title).toBe(process.platform === 'win32'
+      ? 'Deletes files outside the workspace' : 'Deletes files in a temporary directory')
+    expect(critical('rm -rf /var/folders/zz/T/agent')).toBe(process.platform === 'win32')
   })
 
   it('warns about work git cannot bring back', () => {
@@ -239,7 +243,8 @@ describe('spellings that used to read as harmless', () => {
   it('classifies by where the path ENDS, not where it starts', () => {
     // `/tmp/../etc` starts in scratch space and ends in a system directory.
     // Reading the word as typed called it a temporary file.
-    expect(titles('rm -rf /tmp/../etc')).toEqual(['Deletes the machine’s own files'])
+    expect(titles('rm -rf /tmp/../etc')).toEqual([process.platform === 'win32'
+      ? 'Deletes files outside the workspace' : 'Deletes the machine’s own files'])
     expect(titles('rm -rf $HOME/../../etc')).toEqual(['Deletes the machine’s own files'])
     expect(titles('rm -rf "/work/project/../other"'))
       .toEqual(['Deletes files outside the workspace'])

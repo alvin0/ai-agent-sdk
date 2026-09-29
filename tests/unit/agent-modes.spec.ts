@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { History } from '@alvin0/ai-agent-sdk-core/agent'
-import { runAgent, type AgentRunEvent } from '@alvin0/ai-agent-sdk-core/agent'
+import { runAgent, UNCHANGED_ANSWER_MARKER, type AgentRunEvent } from '@alvin0/ai-agent-sdk-core/agent'
 import { createUserInputBroker } from '@alvin0/ai-agent-sdk-core/agent'
 import { defineTool } from '@alvin0/ai-agent-sdk-core/agent'
 import { ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
@@ -361,6 +361,105 @@ describe('agent modes', () => {
     const reminder = state.adapter.requests[1]?.messages.flatMap(message => message.content)
       .find(block => block.type === 'text' && block.text.includes('Self-check required'))
     expect(reminder).toBeDefined()
+  })
+
+  it.each([false, true])('keeps the earlier answer without streaming the control reply (fragmented=%s)', async fragmented => {
+    const hookAnswers: string[] = []
+    const state = setup([
+      textRound('A complete answer, already checked in spirit.'),
+      toolRound('submit', 'submit_result', {
+        summary: 'Nothing new since the answer above.', evidence: ['reviewed the answer against the objective'],
+      }),
+      fragmented ? [
+        ...['  <<deep', '-mode:answer-', 'unchanged>>\n'].map((text): StreamChunk => ({ type: 'text-delta', index: 0, text })),
+        { type: 'block-end', index: 0, block: { type: 'text', text: `  ${UNCHANGED_ANSWER_MARKER}\n` } },
+        { type: 'finish', reason: { kind: 'stop' } },
+      ] : textRound(UNCHANGED_ANSWER_MARKER),
+    ])
+    const events = await collect({
+      mode: 'deep', registry: state.registry, config: { provider: 'test', model: 'm' },
+      history: state.history, tools: state.tools, maxTurns: 4,
+      hooks: { onTurnEnd: context => { hookAnswers.push(context.outcome.text) } },
+    })
+
+    const end = events.at(-1)
+    expect(end?.type).toBe('agent-end')
+    if (end?.type !== 'agent-end') return
+    // The marker is not itself an answer: the earlier one is recovered.
+    expect(end.outcome).toMatchObject({
+      completed: true, text: 'A complete answer, already checked in spirit.',
+      completion: { summary: 'Nothing new since the answer above.' },
+    })
+    expect(events.findLast(event => event.type === 'turn-end')).toMatchObject({
+      outcome: { text: 'A complete answer, already checked in spirit.' },
+    })
+    expect(hookAnswers.at(-1)).toBe('A complete answer, already checked in spirit.')
+    expect(events.filter(event => event.type === 'text-delta' || event.type === 'text-end')
+      .some(event => 'text' in event && event.text.includes(UNCHANGED_ANSWER_MARKER))).toBe(false)
+    expect(events.findLast(event => event.type === 'assistant-message')).toMatchObject({
+      message: { content: [{ type: 'text', text: 'A complete answer, already checked in spirit.' }] },
+    })
+    // The accept told the model it could point back at its own answer
+    // instead of being asked to retype it.
+    expect(JSON.stringify(state.adapter.requests[2]?.messages)).toContain('reply with exactly')
+
+    // Reopening the run must show the kept answer, not a reply that only
+    // pointed back at it: the marker never reaches the model-facing surface.
+    const surfaced = state.history.messages().flatMap(message => message.content)
+      .flatMap(block => block.type === 'text' ? [block.text] : [])
+    expect(surfaced).toContain('A complete answer, already checked in spirit.')
+    expect(surfaced.some(text => text.includes(UNCHANGED_ANSWER_MARKER))).toBe(false)
+  })
+
+  it('does not overwrite the draft with a premature unchanged marker', async () => {
+    const state = setup([
+      textRound('The original substantive answer.'),
+      textRound(UNCHANGED_ANSWER_MARKER),
+      toolRound('submit', 'submit_result', { summary: 'Checked.', evidence: ['reviewed'] }),
+      textRound(UNCHANGED_ANSWER_MARKER),
+    ])
+    const events = await collect({ mode: 'deep', registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, maxTurns: 5 })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: {
+      completed: true, text: 'The original substantive answer.',
+    } })
+  })
+
+  it('still writes a fresh answer when an accepted self-check finds something to add', async () => {
+    const state = setup([
+      textRound('First pass answer.'),
+      toolRound('submit', 'submit_result', {
+        summary: 'Found a gap to close.', evidence: ['spotted a missing case'],
+      }),
+      textRound('Corrected answer covering the missing case.'),
+    ])
+    const events = await collect({
+      mode: 'deep', registry: state.registry, config: { provider: 'test', model: 'm' },
+      history: state.history, tools: state.tools, maxTurns: 4,
+    })
+    const end = events.at(-1)
+    expect(end?.type === 'agent-end' ? end.outcome.text : undefined)
+      .toBe('Corrected answer covering the missing case.')
+    expect(state.history.messages().flatMap(message => message.content)
+      .some(block => block.type === 'text' && block.text === 'Corrected answer covering the missing case.'))
+      .toBe(true)
+  })
+
+  it('does not treat a real answer that merely starts like the marker as unchanged', async () => {
+    const state = setup([
+      textRound('Draft.'),
+      toolRound('submit', 'submit_result', { summary: 'Checked.', evidence: ['reviewed'] }),
+      // A model could legitimately write something that happens to share the
+      // marker's opening characters; only an exact, sole reply counts.
+      textRound(`${UNCHANGED_ANSWER_MARKER} — and one more finding.`),
+    ])
+    const events = await collect({
+      mode: 'deep', registry: state.registry, config: { provider: 'test', model: 'm' },
+      history: state.history, tools: state.tools, maxTurns: 4,
+    })
+    const end = events.at(-1)
+    expect(end?.type === 'agent-end' ? end.outcome.text : undefined)
+      .toBe(`${UNCHANGED_ANSWER_MARKER} — and one more finding.`)
   })
 
   it('deep human-in-loop parks by call id, supports suggestions and free-form, then resumes', async () => {

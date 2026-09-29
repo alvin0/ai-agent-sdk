@@ -597,6 +597,7 @@
           "TurnEndReason",
           "TurnHooks",
           "TurnOutcome",
+          "UNCHANGED_ANSWER_MARKER",
           "UsageCoverageSummary",
           "UsageEstimationInput",
           "UsageEstimator",
@@ -671,7 +672,7 @@
           "validateSkillSource",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "5274c150255a9e45065e7317a927f4d3ec3440e1fa0018b32c3c3c7e2fdf601a"
+        "declarationSha256": "65efd6a7188985fcac5353196467db849e523274ab3aedf702c4fd561702b788"
       },
       "./memory": {
         "exports": [

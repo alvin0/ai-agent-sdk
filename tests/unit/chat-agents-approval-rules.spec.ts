@@ -254,7 +254,7 @@ describe('the widths a filesystem prompt offers', () => {
     expect(description?.rules[0]?.key).toBe('write_file:dir:src/lib')
   })
 
-  it('does not read a separator inside a file NAME as a directory', async () => {
+  it('treats a backslash as a directory separator only on Windows', async () => {
     // On POSIX a backslash is an ordinary character in a file name, so
     // `a\\b.txt` is one root-level file. Treating it as `a/b.txt` would let a
     // grant on the real directory `a/` cover writes at the root.
@@ -263,7 +263,9 @@ describe('the widths a filesystem prompt offers', () => {
       content: 'x',
     })
     const scoped = (description?.matchKeys ?? []).filter(key => key.startsWith('write_file:dir:'))
-    expect(scoped).toEqual(['write_file:dir:.'])
+    expect(scoped).toEqual(process.platform === 'win32'
+      ? ['write_file:dir:a', 'write_file:dir:.']
+      : ['write_file:dir:.'])
   })
 
   it('names the working directory a command runs in', async () => {

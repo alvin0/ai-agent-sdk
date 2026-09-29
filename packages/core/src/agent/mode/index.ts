@@ -1,5 +1,6 @@
 export {
   AGENT_CONTROL_TOOLS,
+  UNCHANGED_ANSWER_MARKER,
   runAgent,
   type AgentMode,
   type AgentRunEvent,

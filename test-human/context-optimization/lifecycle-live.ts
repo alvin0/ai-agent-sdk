@@ -14,7 +14,7 @@ const option = (name: string) => { const at = process.argv.indexOf(`--${name}`);
 const output = resolve(option('output') ?? (() => { throw new Error('--output required') })())
 const model = option('model') ?? 'gpt-6-luna'
 const selectedCase = option('case')
-const cases = ['two-full-requests-paging-milestone-and-resume', 'live-reducer-evidence-in-main-model-request', 'corrupt-reducer-raw-fallback-in-main-model-request', 'queued-steering-application-redaction-before-real-provider', 'shared-projection-parallel-real-provider-isolation']
+const cases = ['two-full-requests-paging-milestone-and-resume', 'live-reducer-evidence-in-main-model-request', 'corrupt-reducer-raw-fallback-in-main-model-request', 'queued-steering-application-redaction-before-real-provider', 'shared-projection-parallel-real-provider-isolation', 'checkpoint-retry-steering-supersedes-original-objective']
 assert.ok(selectedCase === undefined || cases.includes(selectedCase), 'Unknown --case')
 await mkdir(output, { recursive: true })
 const runtime = await createAgentRuntime({ providers: [codexNodeProviderPlugin({ defaultModel: model })] })
@@ -41,6 +41,43 @@ async function runCase(id: string, action: () => Promise<Record<string, unknown>
 }
 
 try {
+  await runCase('checkpoint-retry-steering-supersedes-original-objective', async () => {
+    const registry = new ModelRegistry()
+    const remove = registry.registerAdapter(['codex'], codexNodeAdapter())
+    const requests: string[] = []
+    let preparations = 0
+    const session = defineAgent({ id: 'retry-steering', provider: 'codex', model, effort: 'low', mode: 'basic',
+      instructions: 'Follow the latest user request exactly.', compaction: false, maxTurns: 4,
+    }).createSession({ registry, hooks: {
+      beforeStep() {
+        if (++preparations === 2) session.inject('The latest instruction overrides the first request. Reply only with 83.')
+        return { kind: 'proceed' }
+      },
+      checkpoint(context) {
+        if (context.kind !== 'before-model-request') return
+        if (preparations === 1) {
+          session.inject('Checkpoint steering: change the requested number to 83.')
+          throw new Error('fixture: checkpoint unavailable')
+        }
+        requests.push(checkpointText(context.request))
+      },
+      onRequestError: () => 'retry',
+    } })
+    try {
+      const result = await session.run('Reply only with 37.', invoke)
+      await writeFile(resolve(output, 'checkpoint-retry-request-trace.json'), JSON.stringify(requests, null, 2))
+      assert.equal(result.outcome.completed, true)
+      assert.equal(result.text.trim(), '83', 'steering must supersede the pinned original objective')
+      assert.equal(requests.length, 1)
+      assert.equal(preparations, 2)
+      assert.ok(requests[0]?.includes('original-objective'), 'the original objective must remain retained')
+      assert.ok(requests[0]?.includes('Checkpoint steering'))
+      assert.ok(requests[0]?.includes('latest instruction'))
+      assert.ok(JSON.stringify(session.snapshot().history).includes('Reply only with 37.'), 'raw history must retain the original request')
+      return { text: result.text, preparations, modelRequests: requests.length, usage: result.report.usage }
+    } finally { remove() }
+  })
+
   await runCase('two-full-requests-paging-milestone-and-resume', async () => {
     const requests: { bytes: number; raw: boolean; packed: boolean; milestone: boolean }[] = []
     const requestTrace: string[] = []

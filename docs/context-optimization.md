@@ -212,6 +212,8 @@ node --experimental-strip-types test-human/context-optimization/run.ts --output 
 node --experimental-strip-types test-human/context-optimization/run.ts --output /tmp/sdk-optimization-live --live
 # Real primary-model requests with paging, milestone recall/resume and reducer fallback.
 node --experimental-strip-types test-human/context-optimization/lifecycle-live.ts --output /tmp/sdk-optimization-lifecycle
+# Isolate checkpoint recovery and steering that supersedes the retained original objective.
+node --experimental-strip-types test-human/context-optimization/lifecycle-live.ts --output /tmp/sdk-steering-live --case checkpoint-retry-steering-supersedes-original-objective
 ```
 
 The local script uses actual temporary files and subprocess tests and retains raw

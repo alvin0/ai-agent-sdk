@@ -175,7 +175,7 @@ export async function modelRound(
     ...outputFormat === undefined ? {} : { outputFormat },
   }
   const checkpointRequest: GenerateOptions = { ...requestBase, signal }
-  observeModelRequestBoundary(options.history)
+  observeModelRequestBoundary(options.history, true)
   try {
     await runOptionalHook(options.hooks?.checkpoint, [{
       kind: 'before-model-request', request: checkpointRequest,
@@ -183,6 +183,9 @@ export async function modelRound(
       ...(options.logger === undefined ? {} : { logger: options.logger }),
     }], options, signal, 'checkpoint')
   } catch (error: unknown) {
+    // No output will be recorded for this request. Release queued input before
+    // recovery hooks or the retry's beforeStep can read or inject into history.
+    observeModelRequestBoundary(options.history, false)
     const failure: ModelFailure = { message: `history checkpoint failed: ${messageOf(error)}`, code: 'CHECKPOINT_FAILED' }
     return {
       trace, finish: { kind: 'error', failure }, calls: [], afterToolCallIds,
@@ -190,7 +193,10 @@ export async function modelRound(
     }
   }
   const beforeDispatch = stopped()
-  if (beforeDispatch !== undefined) return beforeDispatch
+  if (beforeDispatch !== undefined) {
+    observeModelRequestBoundary(options.history, false)
+    return beforeDispatch
+  }
   await emit({ type: 'span-start', trace, at: now(), name: `chat ${options.config.model}`, kind: 'chat', attributes: {
     'gen_ai.operation.name': 'chat', 'gen_ai.request.model': options.config.model,
     // The effort is part of WHICH call this was: the same model at minimal and

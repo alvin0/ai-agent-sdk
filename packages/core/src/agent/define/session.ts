@@ -407,7 +407,10 @@ export class AgentSession {
       bindSkillProviderLogger(this.skillCatalog, ledger.modelInvocation.logger)
     }
     this.active = true
-    bindModelRequestBoundary(this.currentHistory, () => { this.roundInFlight = true })
+    bindModelRequestBoundary(this.currentHistory, inFlight => {
+      this.roundInFlight = inFlight
+      if (!inFlight) this.drainInjections()
+    })
     this.activeAdditionalInstructions = additionalInstructions
     this.activeInvocation = invocation
     const spanOperations = new Map<string, string>()
