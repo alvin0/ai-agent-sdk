@@ -10,6 +10,12 @@ message.
 
 ## Setup
 
+For the upcoming 0.1.5 release and changes from npm 0.1.4, read the
+[upgrade guide](docs/upgrading-from-0.1.4.md) and
+[context optimization guide](docs/context-optimization.md). Existing agent/tool
+APIs remain available; narration defaults and managed-team validation have
+changed, and the new optimization/program helpers are opt-in.
+
 For repository development:
 
 ```bash

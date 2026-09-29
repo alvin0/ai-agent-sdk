@@ -123,7 +123,16 @@ history của agent dẫn dắt, một `outcome` ghi trên roster và trả về
 tới khi `close_agent` giải phóng.
 
 Worker đã hoàn thành vẫn địa chỉ hoá được qua `list_agents`, `send_message`, và
-`followup_task` cho tới khi bị gỡ bằng `removeWorker()`.
+`followup_task` cho tới khi đóng bằng host `closeWorker(name)` hoặc model `close_agent`.
+
+Prompt managed team mô tả lifecycle; instructions của host quy định lập kế
+hoạch, phân công và tổng hợp. `autoLeadCoordination` mặc định true,
+`workerTeamTools` là `reporting`, `requireWorkerText` là false. Đặt option cuối
+thành true nếu bắt buộc có báo cáo text. `writes` phải tương đối trong workspace;
+`dependsOn` gắn với producer instance đã đăng ký kể cả khi tái sử dụng địa chỉ.
+`workerTimeoutMs` tính thực thi chủ động, không tính setup/thời gian đợi dependency.
+Xem [nâng cấp từ 0.1.4](/vi/01-introduction/upgrading-from-0-1-4) về validation
+và thay đổi ngữ nghĩa hoàn tất.
 
 ### Cô lập những gì mỗi worker được chạm tới
 

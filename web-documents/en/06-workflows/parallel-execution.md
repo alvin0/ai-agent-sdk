@@ -122,7 +122,16 @@ lead's history, an `outcome` recorded on the roster and returned by
 until `close_agent` releases it.
 
 Completed workers stay addressable through `list_agents`, `send_message`, and
-`followup_task` until removed with `removeWorker()`.
+`followup_task` until closed with host `closeWorker(name)` or model `close_agent`.
+
+Managed prompts describe lifecycle; host instructions supply planning,
+delegation, and synthesis strategy. `autoLeadCoordination` defaults to true,
+`workerTeamTools` to `reporting`, and `requireWorkerText` to false. Set the latter
+to true for mandatory textual reports. `writes` must stay workspace-relative;
+`dependsOn` binds registered producer instances across address reuse.
+`workerTimeoutMs` measures active execution, excluding setup/dependency waiting.
+See [upgrading from 0.1.4](/en/01-introduction/upgrading-from-0-1-4) for validation
+and completion changes.
 
 ### Isolating what each worker can touch
 

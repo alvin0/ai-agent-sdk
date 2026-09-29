@@ -105,6 +105,15 @@ mô tả.
 thực sự phát ra đến dưới dạng sự kiện suy luận riêng, không bao giờ trộn vào văn
 bản công khai.
 
+## Đồng bộ text cuối trong deep mode
+
+Sau self-check được chấp nhận, deep mode có thể giữ draft trước đó mà không
+stream thêm một bản sao. SDK lọc `UNCHANGED_ANSWER_MARKER` và khôi phục text
+trong response, assistant/terminal event và hook ở lớp thấp. Khi `handle.result`
+settle, đồng bộ UI câu trả lời theo `response.text`; chỉ tích lũy delta không
+phải hợp đồng kết quả cuối. Xem
+[nâng cấp từ 0.1.4](/vi/01-introduction/upgrading-from-0-1-4).
+
 ## Một phát
 
 ```ts

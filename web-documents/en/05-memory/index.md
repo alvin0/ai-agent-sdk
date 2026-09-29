@@ -105,6 +105,16 @@ session.memory.forget('release-constraint')
 session.memory.items()
 ```
 
+## Retained context and optional optimization
+
+Retained task memory is background, not a requirement to keep answering the
+first request. Newer user messages supersede conflicting retained objectives
+or constraints. Raw history and pinned items remain intact.
+
+An optional [context optimizer](/en/05-memory/context-optimization) can pack
+repeated observations and archive verified completed milestones. It is separate
+from automatic pressure compaction and immediate tool-output budgets.
+
 ## In this chapter
 
 | Page | Answers |

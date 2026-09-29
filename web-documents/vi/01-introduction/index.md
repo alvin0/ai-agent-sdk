@@ -94,6 +94,7 @@ Mọi thứ còn lại trong tài liệu này là biến thể của bốn bư�
 
 ## Đọc tiếp
 
+- [Nâng cấp từ 0.1.4](/vi/01-introduction/upgrading-from-0-1-4) — phần mới tùy chọn và mặc định thay đổi trong bản tiếp theo.
 - [Getting Started](/vi/01-introduction/getting-started) — SDK phân tầng thế nào,
   và bạn nên dùng tầng nào.
 - [Cài đặt](/vi/01-introduction/installation) — chọn tập runtime nhỏ nhất mà môi

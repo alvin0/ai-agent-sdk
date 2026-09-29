@@ -76,11 +76,13 @@ Load only the file the task needs. Each is self-contained.
 | --- | --- |
 | Pick packages, install profile, runtime tier, credentials | [references/packages.md](references/packages.md) |
 | `createAgentRuntime`, `runtime.agent`, `defineAgent`, sessions, hooks, close | [references/runtime-and-agents.md](references/runtime-and-agents.md) |
+| Upgrade an application from published 0.1.4 | [references/upgrading-from-0.1.4.md](references/upgrading-from-0.1.4.md) |
 | Stream events, render a live UI, cancellation, `stopReason` | [references/streaming.md](references/streaming.md) |
-| `defineTool`, `ToolRunContext`, parallelism, approvals, user input | [references/tools.md](references/tools.md) |
+| `defineTool`, approvals, program grants, action fusion | [references/tools.md](references/tools.md) |
 | Force JSON output with a schema | [references/structured-output.md](references/structured-output.md) |
 | Progressive-disclosure skills the model loads on demand | [references/skills.md](references/skills.md) |
 | Task memory, compaction, snapshots, resume | [references/memory.md](references/memory.md) |
+| Pack repeated observations, archive milestones, reduce exact log evidence | [references/context-optimization.md](references/context-optimization.md) |
 | Multi-step flows, agent teams, `mode: 'deep'`, human gates | [references/orchestration.md](references/orchestration.md) |
 | Point the SDK at a new endpoint, or author a provider | [references/providers.md](references/providers.md) |
 | Keep long-session prefixes cache-warm across OpenAI, Anthropic, or Gemini | [references/prompt-caching.md](references/prompt-caching.md) |
@@ -144,3 +146,8 @@ matching reference in this folder for the operational explanation. The English
 and Vietnamese web docs add longer design guidance, but examples can drift
 between releases. For provider work in particular, check the exact adapter
 option type and protocol dialect before copying a gateway configuration.
+
+The context optimizer, evidence reducer, action fusion, and experimental program
+APIs described here are additions in 0.1.5, currently unreleased. Check the
+installed package typings before using them and validate with packed workspace
+artifacts until 0.1.5 is published. These APIs are absent from npm 0.1.4.

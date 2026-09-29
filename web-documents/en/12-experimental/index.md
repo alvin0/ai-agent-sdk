@@ -1,12 +1,10 @@
 # Experimental
 
-> **Nothing in the SDK carries an `@experimental` marker.** There is no
-> `experimental` export, no unstable namespace, and no opt-in flag for
-> pre-release behaviour. Searching the source for `@experimental`, `@alpha`, or
-> `@unstable` returns nothing.
->
-> What *is* provisional is listed here explicitly, with the gate each one is
-> waiting on. Treat this page as the honest answer to "what might change".
+Experimental program tools are explicit, opt-in additions in 0.1.5, currently
+unreleased. Session `experimentalPrograms` grants enable child
+calls; tools may declare `experimentalOutputSchema` for child-result validation.
+Ordinary tools do not require either option. Other provisional areas and their
+runtime boundaries are listed below.
 
 ## 1. `@alvin0/ai-agent-sdk-a2a` is Node-elevated, pending promotion
 
@@ -50,12 +48,12 @@ not hide in a health UI.
 
 | Property | Status |
 | --- | --- |
-| Version | `0.1.4` |
-| npm publication | `0.1.4` release candidate under `@alvin0/ai-agent-sdk-*` |
+| Version | `0.1.5` |
+| npm publication | 0.1.5 release candidate; validate with local tarballs until npm publication |
 | Release path | A `main` merge triggers guarded npm publication with provenance |
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.4.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.5.tgz
 ```
 
 Every `pnpm add @alvin0/ai-agent-sdk-...` command in this documentation uses the
@@ -79,6 +77,15 @@ billing-authoritative. Applications needing exact pricing can set an absolute
 > Future tokenizer backends can replace the meter **without changing history or
 > session contracts**. That is the stability guarantee: the estimator may improve,
 > the surfaces around it will not move.
+
+## 5. Program tools require application grants
+
+Use `experimentalNestedToolPort` only inside a granted exclusive program tool.
+Child calls share existing policy, approval, checkpoint, cancellation, and tool
+budget boundaries. `defineActionFusion` builds a sequential tool/grant pair;
+it does not provide rollback or automatic mutation replay.
+See [program tools](/en/12-experimental/programmatic-tools) and
+[upgrading from 0.1.4](/en/01-introduction/upgrading-from-0-1-4).
 
 ## What is *not* provisional
 

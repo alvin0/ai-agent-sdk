@@ -108,7 +108,7 @@ Where the hooks sit inside one turn:
 
 ```ts
 type StepDecision =
-  | { kind: 'proceed'; prepend?: readonly Message[] }
+  | { kind: 'proceed'; prepend?: readonly Message[]; messages?: readonly Message[] }
   | { kind: 'reject'; reason: string }
 ```
 
@@ -119,6 +119,25 @@ engine. See [Conditional Execution](/en/06-workflows/conditional-execution).
 
 Hook invocations are observed as `sdk.hook.call` events with a closed hook kind
 and a safe error only, and are bounded by their own time limits.
+
+## Request projections, steering, and cancellation
+
+`messages` on a proceed decision replaces only that request's model-visible
+messages. Raw history and checkpoint snapshots remain unchanged; `prepend`
+still adds request-only context. An optimizer can compose this through
+[context optimization](/en/05-memory/context-optimization).
+
+`session.inject()` does not start a turn. Input arriving while a model request
+is fixed queues until its output is recorded, then appends in arrival order.
+Its immediate receipt is provisional rather than the eventual persisted
+sequence. `snapshot()` retains queued input in the v1 schema; low-level live
+history need not yet contain it. Checkpoint failure drains the queue before
+recovery/retry hooks. Task memory keeps older objectives as background and
+instructs the model to follow newer conflicting user requests.
+
+Forward hook callback signals to asynchronous work: hook timeout cancellation
+is composed into them. Do not infer run identity from signal object identity.
+See [upgrading from 0.1.4](/en/01-introduction/upgrading-from-0-1-4).
 
 ## Run reports
 

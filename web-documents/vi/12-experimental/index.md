@@ -1,13 +1,10 @@
 # Experimental
 
-> **Không có gì trong SDK mang nhãn `@experimental`.** Không có export
-> `experimental`, không có namespace bất ổn, và không có cờ bật để dùng hành vi
-> tiền phát hành. Tìm trong mã nguồn `@experimental`, `@alpha`, hay `@unstable`
-> đều không ra kết quả.
->
-> Những phần *thực sự* còn tạm thời được liệt kê tường minh ở đây, kèm cổng kiểm
-> tra mà mỗi phần đang chờ. Hãy coi trang này là câu trả lời trung thực cho câu
-> hỏi "cái gì có thể đổi".
+Program tool experimental là phần bổ sung rõ ràng, tùy chọn trong các thay đổi
+0.1.5, hiện chưa phát hành. Grant `experimentalPrograms` ở session bật child call;
+tool có thể khai báo `experimentalOutputSchema` để kiểm tra child result.
+Tool thông thường không cần hai option này. Những phần tạm thời khác và giới
+hạn runtime của chúng được liệt kê dưới đây.
 
 ## 1. `@alvin0/ai-agent-sdk-a2a` được nâng lên tầng Node, đang chờ được thăng cấp
 
@@ -52,12 +49,12 @@ HTTP**, và phương án dự phòng cố ý quan sát được để một tri�
 
 | Thuộc tính | Trạng thái |
 | --- | --- |
-| Phiên bản | `0.1.4` |
-| Publish npm | Bản release candidate `0.1.4` dưới tên `@alvin0/ai-agent-sdk-*` |
+| Phiên bản | `0.1.5` |
+| Publish npm | Release candidate 0.1.5; dùng tarball cục bộ đến khi phiên bản có trên npm |
 | Quy trình release | Merge vào `main` kích hoạt publish npm có gate và provenance |
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.4.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.5.tgz
 ```
 
 Mọi lệnh `pnpm add @alvin0/ai-agent-sdk-...` trong tài liệu này dùng đúng tên
@@ -80,6 +77,15 @@ có thẩm quyền tính tiền. Ứng dụng cần tính giá chính xác có t
 > Các tokenizer backend trong tương lai có thể thay bộ đo **mà không đổi hợp đồng
 > lịch sử hay session**. Đó là bảo đảm về tính ổn định: bộ ước lượng có thể tốt
 > lên, còn các bề mặt quanh nó thì không dịch chuyển.
+
+## 5. Program tool cần grant của ứng dụng
+
+Chỉ dùng `experimentalNestedToolPort` trong program exclusive được cấp grant.
+Child call dùng chung policy, approval, checkpoint, cancellation và tool budget
+hiện có. `defineActionFusion` tạo cặp tool/grant cho chuỗi tuần tự; nó không
+cung cấp rollback hay tự replay mutation.
+Xem [program tool](/vi/12-experimental/programmatic-tools) và
+[nâng cấp từ 0.1.4](/vi/01-introduction/upgrading-from-0-1-4).
 
 ## Phần nào *không* tạm thời
 

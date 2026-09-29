@@ -107,7 +107,7 @@ Hook nằm ở đâu trong một lượt:
 
 ```ts
 type StepDecision =
-  | { kind: 'proceed'; prepend?: readonly Message[] }
+  | { kind: 'proceed'; prepend?: readonly Message[]; messages?: readonly Message[] }
   | { kind: 'reject'; reason: string }
 ```
 
@@ -119,6 +119,25 @@ workflow engine. Xem
 
 Việc gọi hook được quan sát dưới dạng sự kiện `sdk.hook.call`, chỉ mang loại hook
 đã đóng và lỗi đã làm sạch, và bị chặn bởi giới hạn thời gian riêng của chúng.
+
+## Projection, steering và cancellation
+
+`messages` trong quyết định proceed chỉ thay model-visible message của request
+đó. Raw history và checkpoint snapshot không đổi; `prepend` vẫn thêm context
+chỉ cho request. Optimizer có thể phối hợp qua
+[tối ưu context](/vi/05-memory/context-optimization).
+
+`session.inject()` không bắt đầu lượt chạy. Input đến khi model request đã cố
+định sẽ đợi đến khi output của request ấy được ghi, rồi append theo thứ tự đến.
+Receipt tức thời là tạm thời, không phải sequence được persist cuối cùng.
+`snapshot()` giữ input đang đợi trong schema v1; live history ở lớp thấp có thể
+chưa chứa nó. Checkpoint thất bại drain queue trước recovery/retry hook. Task
+memory giữ objective cũ làm bối cảnh và hướng dẫn model theo user request mới
+khi có mâu thuẫn.
+
+Truyền tiếp signal từ callback hook cho công việc bất đồng bộ: signal có cả
+cancellation do timeout hook. Không suy luận run identity từ object identity
+của signal. Xem [nâng cấp từ 0.1.4](/vi/01-introduction/upgrading-from-0-1-4).
 
 ## Báo cáo lượt chạy
 

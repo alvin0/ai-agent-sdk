@@ -59,6 +59,12 @@ for await (const event of handle) {
 const response = await handle.result
 ```
 
+Reconcile the answer UI with `response.text` after completion. In deep modes an
+accepted self-check can keep a prior draft without streaming a second copy;
+the internal unchanged-answer marker is suppressed. On the low-level agent
+stream, `assistant-message`, terminal outcomes, and `onTurnEnd` carry the restored
+text. Mid-round steering follows the boundary rules in runtime-and-agents.md.
+
 ## One-shot
 
 ```ts

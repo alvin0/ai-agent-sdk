@@ -19,6 +19,7 @@ interface ToolDefinition<Args = unknown> extends ToolSchema {
   isConcurrencySafe?: (args: Args) => boolean
   maxOutputTokens?:   number
   budgetExempt?:      true
+  experimentalOutputSchema?: JsonObject // experimental child-result validation; not a provider field
 }
 ```
 
@@ -35,6 +36,35 @@ interface ToolDefinition<Args = unknown> extends ToolSchema {
 | `isConcurrencySafe` | — | **Fail-closed**: only exact `true` opts into parallel |
 | `maxOutputTokens` | — | Estimated result tokens the model may see; stricter of this and the turn budget wins |
 | `budgetExempt` | — | Exempt from the turn's tool-call budget and loop guards. For calls that END work — submitting, asking, delegating. Only exact `true` |
+| `experimentalOutputSchema` | — | Validates a program child's finalized value when its schema is supported; absent/unsupported schemas remain unchecked |
+
+## Experimental programs and action fusion
+
+These are additions in 0.1.5, currently unreleased. Register the program tool and
+its child tools, then mount `experimentalPrograms: [{ tool, allow, maxCalls }]`
+on the session. A program obtains `experimentalNestedToolPort(ctx)` inside
+`execute`; the model cannot supply that port. The port is undefined without a
+bound grant; handle that instead of bypassing the scheduler with a direct child
+`execute` call. Programs are exclusive, cannot be budget-exempt, and cannot call
+other granted programs, including themselves.
+`maxCalls` bounds child requests even when a child is budget-exempt.
+
+Children pass through the normal policy, approvals, checkpoints, cancellation,
+timeouts, and post-policy output handling. Non-exempt children and their outer
+call spend the shared root tool budget. Interceptors/checkpoints receive
+`parentCallId`; child calls do not enter model-visible history. Treat
+`schema: 'unchecked'` as unvalidated data; retained handles are scoped to the
+current turn and their capacity can be exhausted. MCP bridge output schemas
+validate the returned `structuredContent` envelope.
+
+`defineActionFusion({ name, description, parameters, parse, steps })` returns
+`{ tool, grant }`: register `tool` alongside children and mount `grant`. Each
+step supplies `{ tool, arguments, accept? }`; mappings and acceptance predicates
+are synchronous. The result's `ok` describes workflow success. A successful
+tool execution can still return `ok: false`; inspect it. Completed mutations
+are retained if a later step fails; there is no rollback or automatic replay.
+For an example and exact-evidence reduction, read
+[context-optimization.md](context-optimization.md).
 
 `parse` is the boundary between untrusted model output and typed code. It runs
 before `execute`, and its failure is reported to the model as a tool error, not

@@ -1,5 +1,9 @@
 # Configurable context and tool optimization
 
+This guide describes opt-in additions in **0.1.5**, currently unreleased.
+Validate them with the workspace or packed artifacts until npm publication.
+For existing applications, see [upgrading from 0.1.4](upgrading-from-0.1.4.md).
+
 These APIs are opt-in application building blocks in `@alvin0/ai-agent-sdk-core`.
 Existing sessions keep their current behavior. No provider, model price, shell
 command, source extension, or test framework is assumed by core. The core stays

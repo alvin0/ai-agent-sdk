@@ -1,5 +1,15 @@
 # Task memory, compaction, snapshots
 
+Retained objectives are background from earlier work. Newer user requests
+supersede conflicting objectives/constraints; keeping `original-objective` does
+not force every later turn to answer the first request. Raw history and memory
+items remain retained.
+
+For opt-in repeated-observation packing, archived milestones, and exact-line
+log reduction, read [context-optimization.md](context-optimization.md). These
+unreleased helpers are separate from automatic pressure compaction and the
+immediate tool-output budget.
+
 Long-running work has **two** continuity problems, kept separate:
 
 | Concern | Mechanism | Lossy? |
