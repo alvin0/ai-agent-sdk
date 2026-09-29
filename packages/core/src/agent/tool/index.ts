@@ -71,3 +71,17 @@ export { defineToolFromSchema, type RuntimeSchema } from './schema.ts'
 export { createToolExecutionInterceptor, localToolExecutionBackend, type ToolExecutionBackend, type ToolExecutionCapabilities, type ToolExecutionRequest, type ToolExecutionStore, type ToolOperation, type ToolOperationClaim } from './execution.ts'
 
 export { withApprovalPersistence, type ApprovalStateStore } from './approval.ts'
+export { defineActionFusion, type ActionFusionStep } from './action-fusion.ts'
+export { createModelEvidenceReducer, reduceEvidence, diagnosticLineNumbers, type EvidenceReducer, type EvidenceLine,
+  type EvidenceReductionInput, type EvidenceReductionResult } from './evidence-reducer.ts'
+
+export {
+  nestedToolPort as experimentalNestedToolPort,
+  NESTED_TOOL_ERROR_CODES as EXPERIMENTAL_NESTED_TOOL_ERROR_CODES,
+  type ExperimentalProgramGrant,
+  type NestedToolPort as ExperimentalNestedToolPort,
+  type NestedToolResult as ExperimentalNestedToolResult,
+  type NestedToolDescriptor as ExperimentalNestedToolDescriptor,
+  type NestedCallOptions as ExperimentalNestedCallOptions,
+  type NestedLoadResult as ExperimentalNestedLoadResult,
+} from './nested.ts'

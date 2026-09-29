@@ -316,7 +316,7 @@ describe('Feature: github-copilot-provider, Property 27: Truyền `models` thì 
     const touching: string[] = []
     for (const entry of files) {
       if (!entry.isFile() || !entry.name.endsWith('.ts')) continue
-      const path = `${entry.parentPath}/${entry.name}`.replace(/\/+/gu, '/')
+      const path = `${entry.parentPath}/${entry.name}`.replaceAll('\\', '/').replace(/\/+/gu, '/')
       const source = await readFile(path, 'utf8')
       // The literal path and the exported constant are the two ways to name it.
       if (/'\/models'|COPILOT_CATALOG_PATH/u.test(source)) {

@@ -75,14 +75,24 @@ export function createEdgeTools(
       return { url }
     },
     async execute(input, context) {
-      const target = publicHttpsUrl(input.url)
-      const response = await fetchImplementation(target.href, {
-        redirect: 'follow',
-        headers: { accept: 'text/html,text/plain;q=0.9,*/*;q=0.5' },
-        signal: context.signal,
-      })
+      let target = publicHttpsUrl(input.url)
+      let response: Response
+      for (let redirects = 0;; redirects++) {
+        context.signal.throwIfAborted()
+        response = await fetchImplementation(target.href, {
+          redirect: 'manual',
+          headers: { accept: 'text/html,text/plain;q=0.9,*/*;q=0.5' },
+          signal: context.signal,
+        })
+        if (![301, 302, 303, 307, 308].includes(response.status)) break
+        const location = response.headers.get('location')
+        await response.body?.cancel()
+        if (location === null) throw new Error('redirect destination missing')
+        if (redirects >= 5) throw new Error('too many redirects')
+        target = publicHttpsUrl(new URL(location, target).href)
+      }
       const contentType = response.headers.get('content-type') ?? 'unknown'
-      const body = await boundedText(response)
+      const body = await boundedText(response, context.signal)
       return {
         finalUrl: response.url === '' ? target.href : response.url,
         status: response.status,
@@ -115,31 +125,49 @@ function publicHttpsUrl(value: string): URL {
   const url = new URL(value)
   if (url.protocol !== 'https:') throw new Error('only https URLs can be fetched')
   if (url.username.length > 0 || url.password.length > 0) throw new Error('credentials in a URL are refused')
-  const host = url.hostname.toLowerCase()
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/gu, '').replace(/\.$/u, '')
+  if (host.includes(':')) {
+    // Only global unicast literals. Refuse mapped/translated local addresses,
+    // loopback, unique-local, link-local and multicast ranges.
+    const first = Number.parseInt(host.split(':')[0] ?? '', 16)
+    if (!(first >= 0x2000 && first <= 0x3fff) || /^2001:(?:db8|0):|^2002:/u.test(host)) {
+      throw new Error('private and loopback hosts are refused')
+    }
+  }
   if (host === 'localhost' || host === '::1' || host.endsWith('.localhost')
     || host.endsWith('.internal') || /^(?:127|10|0|169\.254)\./u.test(host)
-    || /^192\.168\./u.test(host) || /^172\.(?:1[6-9]|2\d|3[01])\./u.test(host)) {
+    || /^192\.168\./u.test(host) || /^172\.(?:1[6-9]|2\d|3[01])\./u.test(host)
+    || /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./u.test(host)
+    || /^(?:22[4-9]|23\d|24\d|25[0-5])\./u.test(host) || /^198\.(?:18|19)\./u.test(host)) {
     throw new Error('private and loopback hosts are refused')
   }
   return url
 }
 
 /** Read a response body up to the byte cap, dropping the rest. */
-async function boundedText(response: Response): Promise<string> {
+async function boundedText(response: Response, signal: AbortSignal): Promise<string> {
   const reader = response.body?.getReader()
   if (reader === undefined) return ''
   const decoder = new TextDecoder()
   let bytes = 0
   let out = ''
+  const abort = () => { void reader.cancel(signal.reason).catch(() => undefined) }
+  signal.addEventListener('abort', abort, { once: true })
   try {
+    signal.throwIfAborted()
     for (;;) {
       const chunk = await reader.read()
-      if (chunk.done) break
-      bytes += chunk.value.byteLength
-      out += decoder.decode(chunk.value, { stream: true })
+      signal.throwIfAborted()
+      if (chunk.done) { out += decoder.decode(); break }
+      const accepted = chunk.value.subarray(0, MAX_PAGE_BYTES - bytes)
+      bytes += accepted.byteLength
+      out += decoder.decode(accepted, { stream: true })
       if (bytes >= MAX_PAGE_BYTES) break
     }
-  } finally { await reader.cancel().catch(() => undefined) }
+  } finally {
+    signal.removeEventListener('abort', abort)
+    await reader.cancel().catch(() => undefined)
+  }
   return out
 }
 

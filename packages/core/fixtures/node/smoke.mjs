@@ -3,6 +3,7 @@ import metadata from '@alvin0/ai-agent-sdk-core/package.json' with { type: 'json
 import { ModelAdapter, ModelRegistry, createAgentRuntime, SDK_VERSION, createTraceId } from '@alvin0/ai-agent-sdk-core'
 import { logicReviewEvidence } from './shared/logic-review.js'
 import { overflowEvidence } from './shared/overflow.js'
+import { contextOptimizationEvidence } from './shared/context-optimization.js'
 
 class FixtureAdapter extends ModelAdapter {
   stream() {
@@ -22,4 +23,5 @@ for await (const _chunk of call) { /* drain */ }
 assert.deepEqual((await call.report).reported, { inputTokens: 1, outputTokens: 2, totalTokens: 3 })
 assert.equal((await overflowEvidence({ ModelAdapter, ModelRegistry })).settled, true)
 assert.equal((await logicReviewEvidence({ ModelAdapter, createAgentRuntime })).cancellation, true)
+assert.equal((await contextOptimizationEvidence({ ModelAdapter, createAgentRuntime })).packed, true)
 console.log('node:pass')

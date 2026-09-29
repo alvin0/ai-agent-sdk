@@ -63,6 +63,10 @@ tactics inside it, a person gates the irreversible steps.
 In `deep` mode, `stopReason === 'completed'` is **not** sufficient evidence of
 completion — an accepted submission is also required.
 
+After an accepted self-check, the model may keep its earlier answer. The SDK
+restores the answer instead of exposing `UNCHANGED_ANSWER_MARKER`; render the
+terminal response as authoritative text, not only accumulated deltas.
+
 ## Shape 1 — one agent with tools
 
 ```ts
@@ -125,6 +129,22 @@ concept cannot silently change the declared topology.
 
 `runtime.team(options)` is the runtime-level entry point for the same thing.
 
+Managed-team prompts supply protocol facts. Put required planning, delegation,
+and synthesis strategy in the host's instructions. `autoLeadCoordination`
+defaults to true; false leaves run scheduling to the host. `workerTeamTools`
+defaults to `reporting`, and also accepts `full` or false. A clean tool-only
+worker can finish with empty text; set `requireWorkerText: true` for mandatory
+text reports. Inspect completed/failed status rather than Promise resolution.
+
+`writes` scopes must be workspace-relative and cannot escape via `..`; omit them
+for readers. They enforce scheduling conflicts, not filesystem authorization.
+`dependsOn` binds already registered producer instances, even after address
+reuse. Read retained status/results before closing a worker. The 8 KiB default
+`maxDependencyReportBytes` accepts custom values of at least 4; full dependency
+evidence remains retrievable. `workerTimeoutMs` bounds active execution, not
+setup or time waiting on dependencies. Apply a host end-to-end deadline when
+those phases must also be bounded.
+
 ### Parallel delegation
 
 One `spawn_agent` call creates a real `DefinedAgent` clone and `AgentSession`.
@@ -140,7 +160,7 @@ finished worker keeps its `maxWorkers` slot accounting honest.
 
 ```ts
 type StepDecision =
-  | { kind: 'proceed'; prepend?: readonly Message[] }
+  | { kind: 'proceed'; prepend?: readonly Message[]; messages?: readonly Message[] }
   | { kind: 'reject'; reason: string }
 
 const session = agent.createSession({
@@ -159,6 +179,7 @@ const session = agent.createSession({
 | --- | --- |
 | `{ kind: 'proceed' }` | The step runs normally |
 | `{ kind: 'proceed', prepend }` | Messages are prepended to **that one request** |
+| `{ kind: 'proceed', messages }` | Model-only projection; raw history and checkpoint snapshots stay intact |
 | `{ kind: 'reject', reason }` | The step does not run; the reason is recorded |
 
 Choosing the right lever:

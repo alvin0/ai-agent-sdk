@@ -99,7 +99,7 @@ export interface AgentDefinitionInput {
   readonly maxTurns?: number | 'auto'
   /** Maximum host tool calls for one user turn; defaults to 64. */
   readonly maxToolCalls?: number
-  /** Public progress narration policy; defaults to `concise`. */
+  /** Public progress narration policy; defaults to `auto` (caller-defined style). */
   readonly commentary?: 'auto' | 'concise' | 'off'
   /** Durable task facts injected outside compactable conversation history. */
   readonly memory?: AgentMemoryConfigInput
@@ -202,7 +202,7 @@ class DefinedAgentValue implements DefinedAgent {
     this.outputFormat = captureOutputFormat(input.outputFormat)
     this.maxTurns = input.maxTurns ?? 16
     this.maxToolCalls = input.maxToolCalls ?? 64
-    this.commentary = input.commentary ?? 'concise'
+    this.commentary = input.commentary ?? 'auto'
     this.memory = resolveMemoryConfig(input.memory)
     this.compaction = input.compaction === false ? false : resolveCompactionConfig(input.compaction)
     this.providerOptions = input.providerOptions === undefined ? undefined : Object.freeze({

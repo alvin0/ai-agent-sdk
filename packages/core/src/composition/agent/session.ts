@@ -396,6 +396,7 @@ function createRuntimeSession(
     ...(options.userInput === undefined ? {} : { userInput: options.userInput }),
     ...(options.approvals === undefined ? {} : { approvals: options.approvals }),
     ...(options.spillStore === undefined ? {} : { spillStore: options.spillStore }),
+    ...(options.experimentalPrograms === undefined ? {} : { experimentalPrograms: options.experimentalPrograms }),
     ...(options.interceptors === undefined ? {} : { interceptors: options.interceptors }),
     ...(options.contextSections === undefined ? {} : { contextSections: options.contextSections }),
     ...(options.hooks === undefined ? {} : { hooks: options.hooks }),

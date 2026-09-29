@@ -19,6 +19,10 @@
         {
           "text": "Quick Start",
           "link": "/en/01-introduction/quick-start"
+        },
+        {
+          "text": "Upgrading from 0.1.4",
+          "link": "/en/01-introduction/upgrading-from-0-1-4"
         }
       ]
     },
@@ -139,6 +143,10 @@
         {
           "text": "Custom Memory Provider",
           "link": "/en/05-memory/custom-memory-provider"
+        },
+        {
+          "text": "Context Optimization",
+          "link": "/en/05-memory/context-optimization"
         }
       ]
     },
@@ -348,7 +356,11 @@
     },
     {
       "text": "12. Experimental",
-      "link": "/en/12-experimental/"
+      "collapsed": true,
+      "items": [
+        { "text": "Overview", "link": "/en/12-experimental/" },
+        { "text": "Program Tools", "link": "/en/12-experimental/programmatic-tools" }
+      ]
     },
     {
       "text": "13. API Reference",
@@ -439,6 +451,10 @@
         {
           "text": "Quick Start",
           "link": "/vi/01-introduction/quick-start"
+        },
+        {
+          "text": "Nâng cấp từ 0.1.4",
+          "link": "/vi/01-introduction/upgrading-from-0-1-4"
         }
       ]
     },
@@ -559,6 +575,10 @@
         {
           "text": "Custom Memory Provider",
           "link": "/vi/05-memory/custom-memory-provider"
+        },
+        {
+          "text": "Tối ưu context",
+          "link": "/vi/05-memory/context-optimization"
         }
       ]
     },
@@ -768,7 +788,11 @@
     },
     {
       "text": "12. Experimental",
-      "link": "/vi/12-experimental/"
+      "collapsed": true,
+      "items": [
+        { "text": "Tổng quan", "link": "/vi/12-experimental/" },
+        { "text": "Program tool", "link": "/vi/12-experimental/programmatic-tools" }
+      ]
     },
     {
       "text": "13. Tham chiếu API",

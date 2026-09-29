@@ -103,6 +103,16 @@ session.memory.forget('release-constraint')
 session.memory.items()
 ```
 
+## Context được giữ và tối ưu tùy chọn
+
+Task memory được giữ làm bối cảnh, không bắt mọi lượt tiếp tục trả lời request
+đầu tiên. User message mới ghi đè objective hoặc constraint cũ khi mâu thuẫn.
+Raw history và item đã ghim vẫn giữ nguyên.
+
+[Context optimizer](/vi/05-memory/context-optimization) tùy chọn có thể đóng gói
+observation lặp lại và lưu trữ milestone đã xác minh hoàn tất. Nó tách biệt với
+compaction theo áp lực context và tool-output budget tức thời.
+
 ## Trong chương này
 
 | Trang | Trả lời |

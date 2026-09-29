@@ -9,6 +9,7 @@ const rootEnv = resolve(process.cwd(), '../../../.env')
 if (existsSync(rootEnv)) process.loadEnvFile(rootEnv)
 
 const config: NextConfig = {
+  ...(process.env.EDGE_CHAT_DIST_DIR === undefined ? {} : { distDir: process.env.EDGE_CHAT_DIST_DIR }),
   // Nothing here is Node-specific, so no package needs transpiling and no
   // `serverExternalPackages` escape hatch applies: the Edge bundle has to
   // contain every module it calls.

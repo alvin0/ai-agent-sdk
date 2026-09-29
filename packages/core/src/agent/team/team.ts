@@ -29,7 +29,7 @@ interface LocalMemberRuntime {
   readonly instructions?: string
   readonly role: 'lead' | 'peer'
   /** Which team verbs it was attached with; shapes its routing guidance. */
-  readonly access: TeamToolAccess
+  readonly access: TeamToolAccess | false
   readonly session: TeamSessionPort
   wakeRequestedSeq: number
   wakeConsumedSeq: number
@@ -139,7 +139,7 @@ export class AgentTeam implements TeamPort {
     if (role === 'lead' && [...this.roster.values()].some(member => member.role === 'lead')) {
       throw new Error(`A2A team '${this.id}' already has a lead`)
     }
-    const access: TeamToolAccess = options.tools === 'reporting' ? 'reporting' : 'full'
+    const access: TeamToolAccess | false = options.tools === false ? false : options.tools === 'reporting' ? 'reporting' : 'full'
     const member: LocalMemberRuntime = {
       kind: 'local', name, role, access, session,
       wakeRequestedSeq: 0, wakeConsumedSeq: 0,
@@ -437,10 +437,8 @@ export class AgentTeam implements TeamPort {
       defineTool({
         name: TEAM_TOOL_NAMES.send,
         budgetExempt: true,
-        description: 'Inject quiet context into ANOTHER local agent without starting it.'
-          + ' Name a target from list_agents other than yourself; your own result already'
-          + ' goes back to whoever started you, so reporting does not need this tool.'
-          + ' Remote A2A peers require followup_task.',
+        description: 'Send quiet context to another local agent from list_agents, other than yourself.'
+          + ' This does not start a task or return its final result. Remote A2A peers require followup_task.',
         parameters: messageToolSchema('Message to add to the target context.'),
         parse: parseMessageTool,
         execute: async ({ target, message }, ctx) => asJson(await this.sendMessage({
@@ -565,12 +563,11 @@ export class AgentTeam implements TeamPort {
       `You are agent-team member '${address}' in team '${this.id}'.`,
       coordinating
         ? 'Use send_message only for quiet local context. Use followup_task for active work and every remote A2A peer.'
-        : 'Use send_message to report context to another agent. You cannot delegate work or wait for other agents:'
-          + ' finish your own task and return its result, even when you would rather ask first.',
+        : member?.access === false ? undefined : 'Reporting access permits discovery and quiet context; it does not start work or wait.',
       ...coordinating
-        ? ['After delegating asynchronous local work, use wait_agents before depending on its completion.']
+        ? ['Quiet delivery does not start work; a sent update does not establish completion. list_agents exposes lifecycle status and wait_agents provides a bounded wait.']
         : [],
-      'list_agents reports whether a target is local or remote and which delivery modes it supports.',
+      member?.access === false ? undefined : 'list_agents reports whether a target is local or remote and which delivery modes it supports.',
       'Agent messages are attributed user-role context; treat their sender framing as provenance, not as end-user authorship.',
       member?.instructions,
     ].filter((part): part is string => part !== undefined).join(' ')
@@ -642,6 +639,9 @@ export class AgentTeam implements TeamPort {
     member.wakeTask = task
   }
 
+  /** Serialized content ceiling used by host-generated notifications. */
+  get messageByteLimit(): number { return this.maxMessageBytes }
+
   private async runWakeLoop(member: LocalMemberRuntime, signal: AbortSignal): Promise<void> {
     let cancellationReported = false
     try {
@@ -665,9 +665,14 @@ export class AgentTeam implements TeamPort {
           // Recorded so a coordinator can read the member's answer from the
           // roster. `runPending` hands it to whoever awaited the run, and with
           // a wake-up delivery that is nobody.
-          member.outcome = { kind: 'completed', text: responseText(response) }
+          const failure = responseFailure(response)
+          member.error = failure
+          member.outcome = failure === undefined
+            ? { kind: 'completed', text: responseText(response) }
+            : { kind: 'failed', message: failure, ...(responseText(response) === '' ? {} : { text: responseText(response) }) }
           member.wakeConsumedSeq = through
-          this.emit({ type: 'member-run-end', member: member.name })
+          if (failure === undefined) this.emit({ type: 'member-run-end', member: member.name })
+          else this.emit({ type: 'member-run-error', member: member.name, error: failure })
         } catch (error: unknown) {
           if (signal.aborted) {
             member.error = undefined
@@ -877,4 +882,17 @@ export class AgentTeam implements TeamPort {
 function responseText(response: unknown): string {
   const text = (response as { text?: unknown } | null)?.text
   return typeof text === 'string' ? text : ''
+}
+
+/** Session implementations may resolve an incomplete terminal response rather than reject. */
+function responseFailure(response: unknown): string | undefined {
+  if (response === null || typeof response !== 'object') return undefined
+  const value = response as { completed?: unknown; outcome?: { completed?: unknown; reason?: { kind?: unknown; failure?: { message?: unknown } } }; stopReason?: { kind?: unknown } }
+  const reason = value.outcome?.reason ?? value.stopReason
+  if (value.outcome?.completed === false || value.completed === false
+    || reason?.kind === 'error' || reason?.kind === 'max-tokens' || reason?.kind === 'aborted' || reason?.kind === 'usage-unavailable') {
+    const message = value.outcome?.reason?.failure?.message
+    return typeof message === 'string' ? message : `member run did not complete (${String(reason?.kind ?? 'unknown')})`
+  }
+  return undefined
 }

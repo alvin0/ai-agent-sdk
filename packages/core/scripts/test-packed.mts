@@ -2,7 +2,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { createServer } from 'node:http'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { extname, join, relative, resolve, sep } from 'node:path'
+import { delimiter, dirname, extname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
@@ -49,7 +49,20 @@ function required(values: ReadonlyMap<string, string>, key: string): string {
 }
 
 function run(command: string, args: readonly string[], cwd: string): string {
-  const result = spawnSync(command, args, { cwd, encoding: 'utf8', env: process.env })
+  // Invoke npm's JS entry directly on Windows: npm.cmd is a shell shim, and
+  // passing consumer paths through cmd would require a second quoting layer.
+  let executable = command
+  let parameters = args
+  if (command === 'npm' && process.platform === 'win32') {
+    const cli = [dirname(process.execPath), ...(process.env.PATH?.split(delimiter) ?? [])]
+      .map(directory => join(directory, 'node_modules', 'npm', 'bin', 'npm-cli.js'))
+      .find(candidate => existsSync(candidate))
+    if (cli === undefined) throw new Error('Cannot locate npm-cli.js beside Node or in PATH')
+    executable = process.execPath
+    parameters = [cli, ...args]
+  }
+  const result = spawnSync(executable, parameters, { cwd, encoding: 'utf8', env: process.env, windowsHide: true })
+  if (result.error !== undefined) throw new Error(`${command} could not start: ${result.error.message}`, { cause: result.error })
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(' ')} failed\n${result.stdout}\n${result.stderr}`)
   }
@@ -75,26 +88,29 @@ async function testBrowser(consumer: string): Promise<void> {
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('browser fixture server has no TCP address')
   const chrome = existsSync('/usr/bin/google-chrome') ? realpathSync('/usr/bin/google-chrome') : undefined
-  const browser = await chromium.launch({ headless: true, ...(chrome ? { executablePath: chrome } : {}) })
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
   try {
+    browser = await chromium.launch({ headless: true, ...(chrome ? { executablePath: chrome } : {}) })
     const page = await browser.newPage()
     await page.goto(`http://127.0.0.1:${address.port}/`)
     await page.waitForFunction(() => '__coreFixture' in globalThis)
     const result = await page.evaluate(() => (globalThis as typeof globalThis & { __coreFixture: unknown }).__coreFixture)
     assertFixture(result, 5, 'browser')
   } finally {
-    await browser.close()
-    await new Promise<void>(resolvePromise => server.close(() => resolvePromise()))
+    try { await browser?.close() } finally {
+      await new Promise<void>(resolvePromise => server.close(() => resolvePromise()))
+    }
   }
 }
 
 async function testWorker(consumer: string): Promise<void> {
   const port = await availablePort()
-  const wrangler = join(workspaceRoot, 'node_modules', '.bin', 'wrangler')
-  const child = spawn(wrangler, ['dev', '--config', 'wrangler.jsonc', '--ip', '127.0.0.1', '--port', String(port)], {
+  const wrangler = join(workspaceRoot, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
+  const child = spawn(process.execPath, [wrangler, 'dev', '--config', 'wrangler.jsonc', '--ip', '127.0.0.1', '--port', String(port)], {
     cwd: consumer,
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
   })
   let output = ''
   child.stdout?.on('data', chunk => { output = `${output}${String(chunk)}`.slice(-16_384) })
@@ -113,7 +129,8 @@ function assertFixture(value: unknown, totalTokens: number, runtime: string): vo
   const result = value as { traceId?: unknown; status?: unknown; totalTokens?: unknown; buffer?: unknown; process?: unknown;
     overflow?: { settled?: unknown; authoritative?: unknown; errorCode?: unknown; attempts?: unknown };
     topology?: { providers?: unknown; catalogs?: unknown };
-    logic?: { admission?: unknown; completion?: unknown; cancellation?: unknown; compaction?: unknown } }
+    logic?: { admission?: unknown; completion?: unknown; cancellation?: unknown; compaction?: unknown };
+    optimization?: { fused?: unknown; packed?: unknown; verified?: unknown } }
   const expectedProviders = [
     { route: 'route-a', pluginId: 'account-a', family: 'openai' },
     { route: 'route-b', pluginId: 'account-b', family: 'openai' },
@@ -129,6 +146,7 @@ function assertFixture(value: unknown, totalTokens: number, runtime: string): vo
     || result.overflow.errorCode !== 'USAGE_COUNTER_OVERFLOW' || result.overflow.attempts !== 1
     || result.logic?.admission !== true || result.logic.completion !== true || result.logic.cancellation !== true
     || result.logic.compaction !== true
+    || result.optimization?.fused !== true || result.optimization.packed !== true || result.optimization.verified !== true
     || JSON.stringify(result.topology?.providers) !== JSON.stringify(expectedProviders)
     || JSON.stringify(result.topology?.catalogs) !== JSON.stringify(expectedCatalogs)) {
     throw new Error(`${runtime} fixture returned invalid evidence: ${JSON.stringify(result)}`)

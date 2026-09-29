@@ -181,7 +181,7 @@ export class AgentMemory {
     if (ordered.length === 0) return ''
     const preamble = [
       '<task-memory>',
-      'Durable task facts follow. Preserve the original objective and obey active constraints even when older conversation turns were compacted.',
+      'Retained context is background from earlier work. Newer user messages supersede conflicting objectives or constraints below. Follow the latest request and its output format.',
     ]
     const closing = '</task-memory>'
     let remaining = maxChars - preamble.join('\n').length - closing.length - 2

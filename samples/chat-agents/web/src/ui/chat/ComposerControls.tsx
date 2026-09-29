@@ -91,10 +91,7 @@ export function ComposerControls({ settings }: { settings: SettingsController })
   // Effort levels belong to the exact model route, not to the provider: a
   // Codex route can offer xhigh/max/ultra while another stops at high.
   const efforts = settings.effortsFor(settings.choice?.provider ?? '', settings.choice?.model)
-  const selectedModel = settings.choice === undefined
-    ? undefined
-    : settings.modelsFor(settings.choice.provider).find(entry => entry.id === settings.choice?.model)
-  const effort = settings.effort ?? selectedModel?.defaultEffort ?? 'medium'
+  const effort = settings.effort
 
   /**
    * Whether the static-team row is worth offering.
@@ -126,7 +123,7 @@ export function ComposerControls({ settings }: { settings: SettingsController })
             label: (
               <span className={css.menuRow}>
                 Effort
-                <span className={css.menuValue}>{effort}</span>
+                <span className={css.menuValue}>{effort ?? 'provider default'}</span>
               </span>
             ),
             submenu: efforts.map(level => ({
@@ -135,9 +132,6 @@ export function ComposerControls({ settings }: { settings: SettingsController })
                 <span className={css.menuRow}>
                   {level}
                   <span className={css.menuTail}>
-                    {level === selectedModel?.defaultEffort && (
-                      <span className={css.menuValue}>default</span>
-                    )}
                     {/* The submenu draws no selection marker of its own. */}
                     {level === effort && <IconCheckOutline16 />}
                   </span>
@@ -159,7 +153,7 @@ export function ComposerControls({ settings }: { settings: SettingsController })
         anchor={(
           <Chip
             label={modelLabel}
-            hint={effort}
+            hint={effort ?? 'provider default'}
             open={openMenu === 'model'}
             onClick={() => {
               setOpenMenu(current => (current === 'model' ? null : 'model'))

@@ -47,86 +47,22 @@ export const DEFAULT_WORKER_CLOSE_TIMEOUT_MS = 30_000
  */
 export const DEFAULT_HOLD_WAIT_MS = 15_000
 
-/**
- * What the lead is told about delegating.
- *
- * This used to say little more than "delegate when it helps", and the result
- * was a lead that divided AGENTS without dividing WORK. A trace from this
- * project: asked for a todo app built by three agents, it spawned a UI worker,
- * a logic worker and an audit worker in one step, into an empty directory. The
- * audit worker had nothing to review and spent its run inventing a checklist;
- * the other two each discovered the empty directory separately and each decided
- * to scaffold it, one of them announcing it would put the logic in the page
- * component the other had been given. Nothing in the mechanism was broken. The
- * lead had simply never been told what a good division looks like, or that some
- * work has to happen before any division is possible.
- *
- * Both reference implementations answer this in prose rather than with a task
- * graph. Codex's `spawn_agent` description carries sections on when to delegate
- * versus work locally, how to design a subtask, and what to do afterwards; the
- * DeepSeek harness adds a task board where dependencies gate claiming and file
- * hints warn on overlap. Neither offers the model a `depends_on` field. The
- * rules below are that guidance, reduced to the four the trace shows matter:
- *
- * 1. Plan first and name the critical path — delegating before there is
- *    anything to delegate is the expensive mistake.
- * 2. Keep the blocking next step local; delegate what runs alongside it.
- * 3. Give each worker a disjoint set of files to write.
- * 4. Do not delegate verification until there is something to verify.
- */
+/** Protocol facts only; task strategy and output contracts belong to the host. */
 const LEAD_INSTRUCTIONS = [
-  'You lead a managed dynamic team. Delegation buys parallelism; it is not a way to distribute a task you have not yet understood.',
-  'PLAN BEFORE YOU DELEGATE. State briefly what the objective needs, which steps block the others, and which can run alongside them, and decide what you will do yourself right now. Only then spawn.',
-  'Do the blocking step yourself. If your very next action depends on a result, producing it locally is faster than delegating it and waiting for it.',
-  'Delegate work that runs alongside your own: concrete, bounded, self-contained, and worth a whole worker.',
-  'GIVE EACH WORKER A DISJOINT SET OF FILES TO WRITE. Declare them in `writes`, and say which in its task. Two workers building different features of one file will each write that file, and the later write erases the earlier one; a spawn that would do this is refused.',
-  'A WORKER THAT ONLY READS DECLARES NOTHING: leave `writes` out. Do not invent a placeholder such as "none" or "/tmp/no-write" — that claims a real scope, and several readers sharing one stand-in are refused for colliding over a file none of them writes.',
-  'EXPRESS ORDER WITH `dependsOn`, NOT BY SPAWNING LATE. A worker that reviews, integrates, or builds on another names it there: it is created now, held until that work settles, and then given what it produced. Spawn the whole plan in one step and let the order be enforced rather than remembered.',
-  'Do not delegate review, audit or verification against nothing. Either the thing to be reviewed already exists, or the reviewer `dependsOn` whoever is producing it. A reviewer started over an empty workspace produces a checklist, not a review.',
-  'When the work does not exist yet, the first step is yours: establish its shape — scaffold, layout, shared types — and then delegate the independent pieces of it.',
-  'Choose each worker context deliberately: fork when it needs what you have already found out, fresh when its task genuinely stands alone. Given neither, every worker rediscovers the workspace for itself.',
-  'Call spawn_agent several times in one step for work that is genuinely independent, and once for work that is not.',
-  'spawn_agent does not return a result: workers run while you keep working, and each one reports back to you when it finishes.',
-  'After delegating, do useful non-overlapping work. Do not wait by reflex, and do not redo what you delegated.',
-  'Use wait_agents only when you need a result to continue. It returns within its timeout whether or not anyone finished, so read the reported status and decide again.',
-  'Read a finished worker result from list_agents, then call close_agent to release its slot.',
-  'A send_message update or accepted self-check is not the worker final report. Wait for its completed/failed status before normal closure. Use cancelRunning only when deliberately abandoning its unfinished work.',
-  'Never answer as if a worker had reported when it has not; say what is still outstanding instead.',
-  'Synthesize worker results yourself and remain responsible for the final answer.',
+  'You have access to a managed team. Your task and coordination strategy are defined by the host instructions.',
+  'Return only the caller-requested result in the caller’s format; include explanation only when requested.',
+  'spawn_agent returns a worker lifecycle view, not its final result. list_agents exposes status and retained results; wait_agents waits within its timeout.',
+  'dependsOn references already registered producer instances. Pending dependents start after those producers settle and receive their results or failure status, even if a producer address is later closed or reused.',
+  'fresh starts from the assigned task; fork also copies the completed lead conversation.',
+  'writes declares relative scheduling scopes under the host conflict policy; it does not grant filesystem permissions. Omit it when no write scope is needed.',
+  'send_message is an update, not terminal completion. completed and failed are terminal worker states; pending and running are not.',
+  'Finished workers occupy slots until close_agent. Closing unfinished work requires cancelRunning: true and host authorization.',
 ].join(' ')
 
-/**
- * How much of the lead's conversation a new worker starts from.
- *
- * `fresh` is one task and nothing else. `fork` copies the lead's completed
- * conversation so far, so the worker begins already knowing what the lead
- * learned — the state of the workspace, the decisions taken, what the other
- * workers were given.
- *
- * The distinction exists because its absence is expensive in a specific way.
- * With only a task string, every worker re-derives the same context from
- * scratch: three workers spawned into an empty repository each listed the
- * directory, each concluded independently that nothing was there, and each
- * decided on its own to scaffold it. Both reference implementations offer the
- * same choice — Codex as `fork_context`/`fork_turns`, the DeepSeek harness as
- * `context: 'fresh' | 'fork'`, whose naming this follows.
- */
+/** `fresh` starts from the task; `fork` copies the lead's completed conversation. */
 export type ManagedAgentSpawnContext = 'fresh' | 'fork'
 
-/**
- * A worker kind the host declares up front.
- *
- * Without a declared set, `specialty` is free text the model invents at the
- * moment it spawns: the harness is handed `"Code review, accessibility,
- * security và quality audit"` and can make nothing of it — not that the role
- * reads rather than writes, not that it needs code to exist first. So it
- * cannot help order the work, and the lead is left inventing both the role and
- * its place in the plan in the same breath.
- *
- * Declaring roles turns that into a choice from a list the host wrote, with
- * `whenToUse` stating the precondition in the spawn schema where the lead
- * reads it. Codex does the same thing with `agent_type` and its role registry.
- */
+/** Optional host-defined worker roles; the SDK supplies no domain-specific roles. */
 export interface ManagedAgentRole {
   /** Referred to by `spawn_agent`; the enum the lead chooses from. */
   readonly name: string
@@ -154,30 +90,9 @@ export interface ManagedAgentSpawnRequest {
   readonly context?: ManagedAgentSpawnContext
   /** One of {@link ManagedAgentTeamOptions.roles}, when the host declared any. */
   readonly role?: string
-  /**
-   * Workers that must finish before this one starts.
-   *
-   * The harness holds it back until every one of them has settled, and then
-   * gives it what they produced. This is the difference between dividing
-   * agents and dividing work: a lead can spawn the whole plan in one step —
-   * which is what it wants to do — and the ORDER is still respected, because
-   * ordering is no longer something the model has to remember to enforce by
-   * spawning late.
-   *
-   * A dependency that fails still releases its dependents, and they are told
-   * it failed. Waiting only for success turns one broken worker into a
-   * permanently stalled plan.
-   */
+  /** Registered producers that must settle before dispatch; failures also release dependents. */
   readonly dependsOn?: readonly string[]
-  /**
-   * Files and directories this worker may write, workspace-relative.
-   *
-   * Declared so the harness can refuse a division that cannot work. Two
-   * workers given overlapping scopes with no ordering between them will both
-   * write those files, and the later write erases the earlier one — observed
-   * as a UI worker announcing it would put its logic in the very page
-   * component the logic worker had been assigned.
-   */
+  /** Workspace-relative scheduling declarations, not filesystem authorization. */
   readonly writes?: readonly string[]
 }
 
@@ -234,6 +149,16 @@ export interface ManagedAgentTeamOptions {
   readonly leadDescription?: string
   readonly team?: AgentTeam | AgentTeamOptions
   readonly maxWorkers?: number
+  /**
+   * Automatically hold/continue the lead for pending work and wake it for reports.
+   * Defaults to true for this convenience helper. Set false for host-driven turns;
+   * reports remain delivered quietly and all lifecycle APIs stay available.
+   */
+  readonly autoLeadCoordination?: boolean
+  /** Team tools exposed to workers; defaults to reporting. Full also enables peer coordination. */
+  readonly workerTeamTools?: false | 'reporting' | 'full'
+  /** Treat a clean completion with empty text as failure. Defaults to false (tool-only work is valid). */
+  readonly requireWorkerText?: boolean
   /** Maximum UTF-8 worker task bytes. Defaults to 64 KiB. */
   readonly maxTaskBytes?: number
   /** Maximum UTF-8 specialty bytes. Defaults to 8 KiB. */
@@ -272,10 +197,10 @@ export interface ManagedAgentTeamOptions {
   readonly writeScopePolicy?: WriteScopeConflictPolicy
   /**
    * Cap on how much of a dependency's result is handed to its dependents.
-   * Defaults to 8 KiB per dependency.
+   * Defaults to 8 KiB per dependency; at least 4 bytes. Full results remain readable by scoped tool.
    */
   readonly maxDependencyReportBytes?: number
-  /** End-to-end deadline for one generated worker. Defaults to 10 minutes. */
+  /** Active run deadline, excluding queued dependencies and setup. Defaults to 10 minutes. */
   readonly workerTimeoutMs?: number
   /** Maximum wait per worker event observer callback. Defaults to 1 second. */
   readonly observerTimeoutMs?: number
@@ -331,6 +256,11 @@ export interface ManagedAgentTeamOptions {
 interface WorkerRuntime {
   readonly request: ResolvedManagedAgentSpawnRequest
   readonly session: AgentSession
+  /** Exact commissioned workers, independent of address reuse or roster removal. */
+  dependencies: readonly WorkerRuntime[]
+  starting: boolean
+  settledComplete: boolean
+  closeTask: Promise<ManagedAgentWorkerStatus> | undefined
   status: ManagedAgentWorkerStatus
   /**
    * Whether the lead's own turn created this worker.
@@ -382,18 +312,14 @@ interface WorkerRuntime {
   warnings: readonly string[]
   result: ManagedAgentWorkerResult | undefined
   error: string | undefined
+  readonly evidence: { status: ManagedAgentWorkerStatus; result: ManagedAgentWorkerResult | undefined; error: string | undefined }
 }
 
 /**
  * A dynamic harness whose lead can create specialized workers with spawn_agent.
  *
- * `spawn_agent` blocks the lead for as long as its worker runs, so it declares
- * that blocking to the team as a wait edge. Cycle detection is only as good as
- * the graph it can see: an unrecorded edge does not merely go unchecked, it
- * lets the cycle it completes through, and a worker waiting for the lead that
- * is waiting for it deadlocks both until a timeout.
- *
- * Each worker is a real connected AgentSession and remains addressable afterward.
+ * Spawning starts independent work without blocking the lead. Dependencies refer
+ * to the commissioned producer instance; closing its address cannot rebind them.
  */
 export class ManagedAgentTeam {
   readonly team: AgentTeam
@@ -409,7 +335,15 @@ export class ManagedAgentTeam {
   private readonly holdWaitMs: number
   private readonly spawnTimeoutMs: number
   private readonly workerRuntimes = new Map<string, WorkerRuntime>()
-  private readonly reservedNames = new Set<string>()
+  /** Closed roster entries may still own an in-flight follow-up after a bounded close. */
+  private readonly drainingWrites = new Set<WorkerRuntime>()
+  private readonly preparing = new Map<string, {
+    readonly request: ResolvedManagedAgentSpawnRequest
+    readonly dependencies: readonly WorkerRuntime[]
+    readonly settled: Promise<void>
+  }>()
+  private readonly lifecycle = new AbortController()
+  private disposeTask: Promise<void> | undefined
   private workerSequence = 0
   private readonly maxDependencyReportBytes: number
   private readonly roles: Map<string, ManagedAgentRole>
@@ -428,6 +362,7 @@ export class ManagedAgentTeam {
       options.maxDependencyReportBytes ?? 8 * 1024,
       'maxDependencyReportBytes',
     )
+    if (this.maxDependencyReportBytes < 4) throw new TypeError('maxDependencyReportBytes must be at least 4')
     this.roles = new Map((options.roles ?? []).map(role => [role.name, role]))
     if (this.roles.size !== (options.roles ?? []).length) {
       throw new Error('managed agent roles contain a duplicate name')
@@ -478,10 +413,13 @@ export class ManagedAgentTeam {
         // The request for this round is rebuilt from history, so anything
         // delivered quietly before now is about to be read.
         this.unreadReports = false
+        this.leadSteer = new AbortController()
+        this.leadSignal = context.signal
         return await host?.beforeStep?.(context) ?? { kind: 'proceed' as const }
       },
       onTurnEnd: async (context) => {
         await host?.onTurnEnd?.(context)
+        if (this.options.autoLeadCoordination === false) return
         if (!context.canContinue) {
           // The turn is over and cannot be extended — a spent step budget, an
           // error, a stop. A report that arrived during it has no round left to
@@ -516,16 +454,13 @@ export class ManagedAgentTeam {
           .map(runtime => runtime.request.name)
         if (busy.length === 0) {
           this.lead.inject(
-            'Every worker has reported. Read their results and write the answer you owe the'
-            + ' user; do not delegate again unless something is genuinely missing.',
+            'All outstanding managed workers have settled. Their statuses and retained results are available through list_agents.',
           )
           return
         }
         this.lead.inject(
-          `Not finished: ${busy.join(', ')} ${busy.length === 1 ? 'is' : 'are'} still running. `
-          + 'Use wait_agents to wait for them and read their results, or close_agent with cancelRunning: true to '
-          + 'give up on one. Do not present a conclusion that depends on work they have '
-          + 'not reported yet.',
+          `Outstanding managed workers: ${busy.join(', ')}. `
+          + 'Their current lifecycle status is available through list_agents; wait_agents is bounded by its timeout.',
         )
       },
     }
@@ -533,6 +468,7 @@ export class ManagedAgentTeam {
 
   /** Run the lead. It decides whether and how many workers to create. */
   run(input: AgentInput, invocation: AgentInvocationOptions = {}): Promise<AgentResponse> {
+    this.lifecycle.signal.throwIfAborted()
     return this.lead.run(input, invocation)
   }
 
@@ -549,7 +485,9 @@ export class ManagedAgentTeam {
    * @returns True; the message is always accepted.
    */
   steer(text: string): boolean {
+    this.lifecycle.signal.throwIfAborted()
     this.lead.inject(text)
+    this.leadSteer.abort()
     // Ends a wait the lead is parked in, so the correction is read now rather
     // than after its wait budget expires.
     try { this.team.notifySteer(this.leadName) } catch { /* team disposed */ }
@@ -574,6 +512,7 @@ export class ManagedAgentTeam {
     request: ManagedAgentSpawnRequest,
     signal?: AbortSignal,
   ): Promise<ManagedAgentWorker> {
+    this.lifecycle.signal.throwIfAborted()
     signal?.throwIfAborted()
     const resolved: ResolvedManagedAgentSpawnRequest = {
       name: memberName(request.name ?? this.nextWorkerName()),
@@ -581,53 +520,53 @@ export class ManagedAgentTeam {
       ...(request.specialty === undefined
         ? {}
         : { specialty: boundedString(request.specialty, 'worker specialty', this.maxSpecialtyBytes) }),
-      context: request.context ?? this.options.defaultSpawnContext ?? 'fresh',
+      context: spawnContext(request.context ?? this.options.defaultSpawnContext ?? 'fresh'),
       ...(request.role === undefined ? {} : { role: this.requireRole(request.role) }),
       dependsOn: this.resolveDependencies(request.dependsOn ?? []),
       writes: [...new Set((request.writes ?? []).map(normalizeWriteScope))],
     }
-    if (this.workerRuntimes.size + this.reservedNames.size >= this.maxWorkers) {
+    Object.freeze(resolved.dependsOn)
+    Object.freeze(resolved.writes)
+    Object.freeze(resolved)
+    const dependencies = resolved.dependsOn.map(name => this.workerRuntimes.get(name)!)
+    if (this.workerRuntimes.size + this.preparing.size >= this.maxWorkers) {
       throw new Error(`managed agent team reached its ${this.maxWorkers}-worker limit`)
     }
-    if (this.reservedNames.has(resolved.name) || this.workerRuntimes.has(resolved.name)
+    if (this.preparing.has(resolved.name) || this.workerRuntimes.has(resolved.name)
       || this.team.members().some(member => member.name === resolved.name)) {
       throw new Error(`managed worker '${resolved.name}' already exists`)
     }
 
-    this.reservedNames.add(resolved.name)
+    let markPrepared!: () => void
+    const prepared = new Promise<void>(resolve => { markPrepared = resolve })
+    this.preparing.set(resolved.name, { request: resolved, dependencies, settled: prepared })
     let runtime: WorkerRuntime | undefined
     try {
-      const warnings = this.checkWriteScopes(resolved)
-      const operationSignal = combineSignals(signal, AbortSignal.timeout(this.workerTimeoutMs))
+      const warnings = this.checkWriteScopes(resolved, dependencies)
+      const operationSignal = combineSignals(signal, this.lifecycle.signal, AbortSignal.timeout(this.spawnTimeoutMs))
       const definition = await abortable(this.workerDefinition(resolved), operationSignal)
       operationSignal.throwIfAborted()
       const scopedSessionOptions = this.options.workerSessionOptionsFactory === undefined
         ? undefined
         : await abortable(Promise.resolve(this.options.workerSessionOptionsFactory(resolved)), operationSignal)
       operationSignal.throwIfAborted()
+      const sessionOptions = { ...this.options.workerSessionOptions, ...scopedSessionOptions }
+      const workerTeamTools = this.options.workerTeamTools ?? 'reporting'
       const session = definition.createSession({
-        ...this.options.workerSessionOptions,
-        ...scopedSessionOptions,
-        ...(resolved.context === 'fork' ? { history: this.forkLeadHistory() } : {}),
+        ...sessionOptions,
+        ...(dependencies.length === 0 ? {} : { tools: mergeTools(sessionOptions.tools, [this.dependencyReadTool(dependencies)]) }),
+        ...(resolved.context === 'fork' ? { history: this.forkLeadHistory(sessionOptions.historyLimits) } : {}),
         registry: this.options.registry,
         team: {
           team: this.team,
           name: resolved.name,
           role: 'peer',
-          // A worker exists to finish one task and hand back a result, so it
-          // gets no verb that can block it or push work elsewhere. With them
-          // it has no stopping point: a worker wanting guidance messages a
-          // peer and then waits, and only a cancellation ends its run.
-          tools: 'reporting',
+          tools: workerTeamTools,
           instructions: [
-            `You are a dynamically created worker reporting to '${this.leadName}'.`,
-            'Complete the delegated task independently and return a concise evidence-backed result.',
-            'Do not broaden the task or attempt to become team lead.',
-            // Observed in a real run: a worker called send_message on its own
-            // name, which is refused, because it read the tool as the way to
-            // report. Reporting is what finishing already does.
-            `Your result is delivered to '${this.leadName}' when you finish, so do not use send_message to report it; that tool is only for passing context to a DIFFERENT worker, never to yourself.`,
-            'If you lack information, state what is missing in your result rather than waiting for an answer.',
+            `You are managed worker '${resolved.name}'; lead: '${this.leadName}'.`,
+            'Return only the caller-requested result in the caller’s format; include explanation only when requested.',
+            'Your terminal result is delivered automatically.',
+            ...(workerTeamTools === false ? [] : ['send_message is context, not a substitute result; it cannot target yourself.']),
           ].join(' '),
           ...(resolved.specialty === undefined ? {} : { description: resolved.specialty }),
         },
@@ -637,53 +576,73 @@ export class ManagedAgentTeam {
       runtime = {
         request: resolved,
         session,
+        dependencies,
+        starting: false,
+        settledComplete: false,
+        closeTask: undefined,
         status: 'pending',
         leadDriven: this.lead.isRunning,
         closing: false,
         deadline: undefined,
         controller,
         settled: new Promise<void>((resolve) => { markSettled = resolve }),
-        markSettled,
+        markSettled: () => { recordEvidence(runtime!); runtime!.settledComplete = true; markSettled() },
         start: undefined,
         warnings,
         result: undefined,
         error: undefined,
+        evidence: { status: 'pending', result: undefined, error: undefined },
       }
       this.workerRuntimes.set(resolved.name, runtime)
-      this.reservedNames.delete(resolved.name)
+      this.preparing.delete(resolved.name)
 
-      await this.team.sendMessage({
+      const deliverySignal = combineSignals(operationSignal, controller.signal)
+      await abortable(this.team.sendMessage({
         from: this.leadName,
         target: resolved.name,
         message: resolved.task,
         delivery: 'quiet',
-        signal: operationSignal,
-      })
+        signal: deliverySignal,
+      }), deliverySignal)
+      deliverySignal.throwIfAborted()
       if (definition.memory.autoCaptureObjective) {
         session.memory.captureOriginalObjective(createTextMessage(resolved.task))
       }
 
-      if (resolved.dependsOn.length > 0 && !this.dependenciesSettled(resolved.dependsOn)) {
+      if (dependencies.length > 0 && !this.dependenciesSettled(dependencies, resolved.writes)) {
         // Held, not started. The promise handed to the team is what makes the
         // wait honest: without it `wait_agents` asks an idle session whether it
         // is finished, is told yes, and the lead reads a worker that never ran
         // as one that had nothing to report.
         const held = new Promise<void>((resolve) => { runtime!.start = resolve })
         this.team.markPending(resolved.name, held)
+        for (const dependency of dependencies) {
+          if (SETTLED_WORKER_STATUS.has(dependency.status) && this.workerHasWork(dependency)) {
+            // A completed worker may be running a team-scheduled follow-up.
+            // Its original managed watcher has already finished.
+            void this.team.whenIdle(dependency.request.name).then(() => this.releaseDependents(dependency)).catch(() => {})
+          }
+        }
         return this.workerView(runtime)
       }
-      this.beginWorker(runtime)
+      await this.startWorker(runtime, deliverySignal)
       return this.workerView(runtime)
     } catch (error: unknown) {
-      if (runtime !== undefined) {
+      if (runtime !== undefined && this.workerRuntimes.get(resolved.name) === runtime && !runtime.closing) {
         runtime.status = 'failed'
         runtime.error = errorMessage(error)
         runtime.start = undefined
+        runtime.dependencies = []
+        try { this.team.markPending(resolved.name, undefined) } catch { /* team already disposed */ }
         runtime.markSettled()
+        this.workerRuntimes.delete(resolved.name)
+        try { this.team.detach(resolved.name) } catch { /* registration already removed */ }
+        await this.releaseDependents(runtime)
       }
       throw error
     } finally {
-      this.reservedNames.delete(resolved.name)
+      this.preparing.delete(resolved.name)
+      markPrepared()
     }
   }
 
@@ -695,12 +654,13 @@ export class ManagedAgentTeam {
    */
   private beginWorker(runtime: WorkerRuntime): void {
     const name = runtime.request.name
+    if (runtime.status !== 'pending' || runtime.closing || this.lifecycle.signal.aborted
+      || this.workerRuntimes.get(name) !== runtime) return
     runtime.start?.()
     runtime.start = undefined
     this.team.markPending(name, undefined)
     // Closed while it was held: there is nothing left to start, and starting it
     // anyway would resurrect a worker the lead had already let go.
-    if (runtime.status !== 'pending') return
     runtime.status = 'running'
 
     // Started, NOT awaited. `runPending` begins the run eagerly and
@@ -725,6 +685,44 @@ export class ManagedAgentTeam {
         : { onEvent: (event: AgentRunEvent) => this.observeWorkerEvent(name, event) }),
     })
     void this.followWorker(runtime, running)
+  }
+
+  /** One handoff path for both already-settled and asynchronously released dependencies. */
+  private async startWorker(runtime: WorkerRuntime, setupSignal?: AbortSignal): Promise<void> {
+    if (runtime.starting || runtime.status !== 'pending' || runtime.closing || this.lifecycle.signal.aborted) return
+    runtime.starting = true
+    try {
+      const report = this.dependencyReport(runtime.dependencies)
+      if (report !== undefined) {
+        const signal = combineSignals(setupSignal, runtime.controller.signal, this.lifecycle.signal,
+          AbortSignal.timeout(this.spawnTimeoutMs))
+        await abortable(this.team.sendMessage({ from: this.leadName, target: runtime.request.name,
+          message: report, delivery: 'quiet', signal }), signal)
+        signal.throwIfAborted()
+      }
+      this.beginWorker(runtime)
+    } catch (error: unknown) {
+      // Missing required context is a visible failure, never a successful task
+      // dispatched with the dependencies silently omitted.
+      if (!runtime.closing && !this.lifecycle.signal.aborted) {
+        runtime.status = 'failed'
+        runtime.error = `dependency handoff failed: ${errorMessage(error)}`
+        recordEvidence(runtime)
+        runtime.start?.()
+        runtime.start = undefined
+        try {
+          this.team.markPending(runtime.request.name, undefined)
+          this.team.recordOutcome(runtime.request.name, { kind: 'failed', message: runtime.error })
+        } catch { /* shared team already disposed */ }
+        await this.notifyLead(runtime, `failed: ${runtime.error}`)
+        runtime.markSettled()
+        await this.releaseDependents(runtime)
+      }
+    } finally {
+      // Retain producer facts only while queued/preparing. Completed ancestors
+      // must not keep entire sessions alive through an arbitrarily long chain.
+      runtime.dependencies = []
+    }
   }
 
   /**
@@ -794,14 +792,19 @@ export class ManagedAgentTeam {
    * @param request - The resolved spawn request.
    * @returns Warnings to record; throws instead under the `reject` policy.
    */
-  private checkWriteScopes(request: ResolvedManagedAgentSpawnRequest): readonly string[] {
+  private checkWriteScopes(request: ResolvedManagedAgentSpawnRequest, dependencies: readonly WorkerRuntime[]): readonly string[] {
     const policy = this.options.writeScopePolicy ?? 'reject'
     if (policy === 'off' || request.writes.length === 0) return []
-    const ancestors = this.ancestorsOf(request.dependsOn)
+    const ancestors = this.ancestorsOf(dependencies)
     const found: string[] = []
-    for (const other of this.workerRuntimes.values()) {
-      if (other.status !== 'pending' && other.status !== 'running') continue
-      if (ancestors.has(other.request.name)) continue
+    const runningRoster = new Set(this.team.members().filter(member => member.status === 'running').map(member => member.conversationId))
+    const others = [
+      ...[...this.workerRuntimes.values()].filter(other => other.status === 'pending' || other.status === 'running' || this.workerHasWork(other, runningRoster))
+        .filter(other => !ancestors.has(other)),
+      ...this.drainingWrites,
+      ...[...this.preparing.values()].filter(other => other.request.name !== request.name),
+    ]
+    for (const other of others) {
       const clash = request.writes.filter(mine =>
         other.request.writes.some(theirs => scopesOverlap(mine, theirs)))
       if (clash.length === 0) continue
@@ -859,6 +862,7 @@ export class ManagedAgentTeam {
    * @param outstanding - Workers that have not settled.
    */
   private async awaitWorkerNews(outstanding: readonly WorkerRuntime[]): Promise<void> {
+    let removeSteer: (() => void) | undefined
     let timer: ReturnType<typeof setTimeout> | undefined
     const deadline = new Promise<void>((resolve) => {
       timer = setTimeout(resolve, this.holdWaitMs)
@@ -867,30 +871,46 @@ export class ManagedAgentTeam {
       ;(timer as unknown as { unref?: () => void }).unref?.()
     })
     try {
-      await Promise.race([...outstanding.map(runtime => runtime.settled), deadline])
+      const steered = this.leadSteer.signal
+      const correction = new Promise<void>(resolve => {
+        if (steered.aborted) resolve()
+        else steered.addEventListener('abort', resolveSteer, { once: true })
+        function resolveSteer() { resolve() }
+        removeSteer = () => steered.removeEventListener('abort', resolveSteer)
+      })
+      await abortable(Promise.race([...outstanding.map(runtime => runtime.settled), deadline, correction]),
+        combineSignals(this.lifecycle.signal, this.leadSignal))
     } finally {
       if (timer !== undefined) clearTimeout(timer)
+      removeSteer?.()
     }
   }
 
   /** Every worker reachable through `dependsOn`, transitively. */
-  private ancestorsOf(names: readonly string[], seen = new Set<string>()): Set<string> {
-    for (const name of names) {
-      if (seen.has(name)) continue
-      seen.add(name)
-      const runtime = this.workerRuntimes.get(name)
-      if (runtime !== undefined) this.ancestorsOf(runtime.request.dependsOn, seen)
+  private ancestorsOf(workers: readonly WorkerRuntime[], seen = new Set<WorkerRuntime>()): Set<WorkerRuntime> {
+    for (const runtime of workers) {
+      if (seen.has(runtime)) continue
+      seen.add(runtime)
+      this.ancestorsOf(runtime.dependencies, seen)
     }
     return seen
   }
 
-  /** Whether every named worker has reached a final state. */
-  private dependenciesSettled(names: readonly string[]): boolean {
-    return names.every((name) => {
-      const runtime = this.workerRuntimes.get(name)
-      // Gone means closed and detached: settled, and no longer able to report.
-      return runtime === undefined || SETTLED_WORKER_STATUS.has(runtime.status)
-    })
+  /** Includes team-owned follow-ups queued between session runs. */
+  private workerHasWork(runtime: WorkerRuntime, runningRoster?: ReadonlySet<string | undefined>): boolean {
+    return runtime.session.isRunning || this.drainingWrites.has(runtime)
+      || (runningRoster === undefined
+        ? this.team.members().some(member => member.name === runtime.request.name
+          && member.conversationId === runtime.session.conversationId && member.status === 'running')
+        : runningRoster.has(runtime.session.conversationId))
+  }
+
+  /** Whether every named worker has reached a final state without conflicting active writes. */
+  private dependenciesSettled(workers: readonly WorkerRuntime[], writes: readonly string[] = []): boolean {
+    return workers.every(runtime => SETTLED_WORKER_STATUS.has(runtime.status)
+      && !((this.options.writeScopePolicy ?? 'reject') === 'reject'
+        && writes.some(mine => runtime.request.writes.some(theirs => scopesOverlap(mine, theirs)))
+        && this.workerHasWork(runtime)))
   }
 
   /**
@@ -902,48 +922,72 @@ export class ManagedAgentTeam {
    * later stages are told the earlier ones broke — which is exactly what they
    * are told: each dependent starts with what its dependencies produced.
    */
-  private async releaseDependents(finished: string): Promise<void> {
+  private async releaseDependents(finished: WorkerRuntime): Promise<void> {
+    if (this.lifecycle.signal.aborted) return
     const ready = [...this.workerRuntimes.values()].filter(runtime =>
       runtime.status === 'pending'
-      && runtime.request.dependsOn.includes(finished)
-      && this.dependenciesSettled(runtime.request.dependsOn))
+      && !runtime.closing
+      && runtime.dependencies.includes(finished)
+      && this.dependenciesSettled(runtime.dependencies, runtime.request.writes))
     for (const runtime of ready) {
-      const report = this.dependencyReport(runtime.request.dependsOn)
-      if (report !== undefined) {
-        try {
-          await this.team.sendMessage({
-            from: this.leadName,
-            target: runtime.request.name,
-            message: report,
-            delivery: 'quiet',
-          })
-        } catch {
-          // A worker that cannot be told what came before it is still better
-          // started than stranded; its own task stands on its own.
-        }
-      }
-      this.beginWorker(runtime)
+      await this.startWorker(runtime)
     }
   }
 
   /** What the dependencies produced, as context for a dependent about to start. */
-  private dependencyReport(names: readonly string[]): string | undefined {
-    const lines = names.map((name) => {
-      const runtime = this.workerRuntimes.get(name)
-      if (runtime === undefined) return `- ${name}: closed before reporting.`
+  private dependencyReport(workers: readonly WorkerRuntime[]): string | undefined {
+    let hasTruncatedResult = false
+    const lines = workers.map((runtime) => {
+      const name = runtime.request.name
       if (runtime.error !== undefined) {
         const partial = runtime.result?.text
-        return `- ${name} FAILED: ${runtime.error}`
-          + (partial ? `\nPartial findings (not a completed task): ${truncate(partial, this.maxDependencyReportBytes)}` : '')
+        const payload = partial ? truncate(partial, this.maxDependencyReportBytes) : undefined
+        hasTruncatedResult ||= payload !== undefined && payload !== partial
+        return `- worker address '${name}' FAILED: ${runtime.error}`
+          + (partial ? '' : '\nResult payload: absent. No result data was returned.')
+          + (payload === undefined ? '' : `\nPartial findings (not a completed task): ${payload}`)
       }
+      if (runtime.result === undefined && runtime.status === 'closed') return `- worker address '${name}': closed before reporting. Result payload: absent. No result data was returned.`
       const text = runtime.result?.text ?? ''
-      return `- ${name} finished: ${truncate(text, this.maxDependencyReportBytes)}`
+      const payload = truncate(text, this.maxDependencyReportBytes)
+      hasTruncatedResult ||= payload !== text
+      return `- worker address '${name}' finished. ${payload === text ? 'Full' : 'Truncated'} result payload:\n${payload}`
     })
     if (lines.length === 0) return undefined
     return [
-      'Work you depend on has finished. Its results follow; build on them rather than redoing them.',
+      'Dependency result data: worker addresses are routing metadata. Preserve source identifiers supplied in payloads; an absent payload supplies no evidence identifiers.',
       ...lines,
+      ...(hasTruncatedResult ? ['Read truncated results with read_dependency_result, the original worker address and nextOffset.'] : []),
     ].join('\n')
+  }
+
+  /** Only this worker's commissioned producer instances are readable, including after closure. */
+  private dependencyReadTool(dependencies: readonly WorkerRuntime[]): ToolDefinition {
+    const scope = new Map(dependencies.map(runtime => [runtime.request.name, runtime.evidence]))
+    return defineTool({
+      name: 'read_dependency_result',
+      description: 'Read a bounded page from an original dependency result, including after closure. Full handoffs already contain the same result. Use nextOffset until null; partial/failed results are not completed work.',
+      parameters: { type: 'object', properties: { name: { type: 'string' }, offset: { type: 'integer', minimum: 0 } }, required: ['name'], additionalProperties: false },
+      parse(raw: unknown) {
+        if (typeof raw !== 'object' || raw === null) throw new TypeError('dependency name and offset required')
+        const name = Reflect.get(raw, 'name'), offset = Reflect.get(raw, 'offset') ?? 0
+        if (typeof name !== 'string' || !Number.isSafeInteger(offset) || offset < 0) throw new TypeError('invalid dependency name or offset')
+        return { name, offset: offset as number }
+      },
+      execute: ({ name, offset }) => {
+        const producer = scope.get(name)
+        if (producer === undefined) throw new Error('this worker was not commissioned against that dependency')
+        const text = producer.result?.text ?? ''
+        if (offset > text.length || (offset > 0 && /[\uDC00-\uDFFF]/.test(text[offset]!))) throw new RangeError('offset must be a valid character boundary')
+        // Offsets count UTF-16 code units, returned pages stay within the byte cap.
+        const page = prefixWithinBytes(text.slice(offset), this.maxDependencyReportBytes)
+        const next = offset + page.length
+        return { name, status: producer.status, succeeded: producer.result?.succeeded ?? false,
+          ...(producer.error === undefined ? {} : { error: producer.error }), text: page,
+          nextOffset: next < text.length ? next : null }
+      },
+      isConcurrencySafe: () => true,
+    })
   }
 
   /**
@@ -969,7 +1013,7 @@ export class ManagedAgentTeam {
         // an answer out of the model, which is worse than being told nothing.
         const failure = runtime.deadline?.aborted === true
           ? this.deadlineFailure()
-          : failureOf(response)
+          : failureOf(response, this.options.requireWorkerText === true)
         if (failure !== undefined) {
           runtime.status = 'failed'
           runtime.error = failure
@@ -984,8 +1028,9 @@ export class ManagedAgentTeam {
               succeeded: false,
             })
           }
+          recordEvidence(runtime)
           this.team.recordOutcome(name, { kind: 'failed', message: failure })
-          await this.notifyLead(name, `failed: ${failure}`
+          await this.notifyLead(runtime, `failed: ${failure}`
             + (runtime.result === undefined ? '' : `\nPartial findings (not a completed task): ${runtime.result.text}`))
         } else {
           runtime.status = 'completed'
@@ -996,8 +1041,9 @@ export class ManagedAgentTeam {
             text: response.text,
             succeeded: response.outcome.completed,
           })
+          recordEvidence(runtime)
           this.team.recordOutcome(name, { kind: 'completed', text: response.text })
-          await this.notifyLead(name, `finished: ${response.text}`)
+          await this.notifyLead(runtime, `finished: ${response.text}`)
         }
       }
     } catch (error: unknown) {
@@ -1007,14 +1053,15 @@ export class ManagedAgentTeam {
       if (runtime.status !== 'closed' && !runtime.closing) {
         runtime.status = 'failed'
         runtime.error = this.describeWorkerFailure(error, runtime)
-        this.team.recordOutcome(name, { kind: 'failed', message: runtime.error })
-        await this.notifyLead(name, `failed: ${runtime.error}`)
+        recordEvidence(runtime)
+        try { this.team.recordOutcome(name, { kind: 'failed', message: runtime.error }) } catch { /* shared team disposed */ }
+        await this.notifyLead(runtime, `failed: ${runtime.error}`)
       }
     } finally {
       runtime.markSettled()
       // Whatever ended this worker — success, failure, or a close — the work
       // planned after it is no longer waiting on anything.
-      await this.releaseDependents(name)
+      await this.releaseDependents(runtime)
     }
   }
 
@@ -1034,19 +1081,24 @@ export class ManagedAgentTeam {
    * output, and the synthesis the lead was there to write never happens. One
    * more turn is the point, not a duplicate answer.
    */
-  private async notifyLead(worker: string, summary: string): Promise<void> {
+  private async notifyLead(runtime: WorkerRuntime, summary: string): Promise<void> {
+    const worker = runtime.request.name
+    if (runtime.closing || this.lifecycle.signal.aborted || this.workerRuntimes.get(worker) !== runtime) return
     const delivery = this.deliveryFor(worker)
     // A quiet report is a bet that the lead's next model round will read it.
     // Cleared by `beforeStep`, which is that round; still set at the end of a
     // turn that cannot continue, it means the bet lost and nobody ever will.
     if (delivery === 'quiet') this.unreadReports = true
     try {
-      await this.team.sendMessage({
+      const signal = combineSignals(runtime.controller.signal, this.lifecycle.signal,
+        AbortSignal.timeout(this.spawnTimeoutMs))
+      await abortable(this.team.sendMessage({
         from: worker,
         target: this.leadName,
-        message: `Worker '${worker}' ${summary}`,
+        message: `Worker '${worker}' ${truncate(summary, Math.min(this.maxDependencyReportBytes, Math.max(64, Math.floor(this.team.messageByteLimit / 4))))}`,
         delivery,
-      })
+        signal,
+      }), signal)
     } catch {
       // The lead may already be gone, or the team disposed. A worker's report
       // is not worth failing anything else over; `workers()` still has it.
@@ -1061,7 +1113,7 @@ export class ManagedAgentTeam {
   private deliveryFor(worker: string): 'quiet' | 'wakeup' {
     // Mid-turn: the next model round rebuilds its request from history, so the
     // report is read without scheduling anything.
-    if (this.lead.isRunning) return 'quiet'
+    if (this.options.autoLeadCoordination === false || this.lead.isRunning) return 'quiet'
     // Idle, and the host is driving: waking would start a turn it did not ask
     // for, and it can read the result from `workers()` whenever it likes.
     if (this.workerRuntimes.get(worker)?.leadDriven !== true) return 'quiet'
@@ -1070,6 +1122,8 @@ export class ManagedAgentTeam {
 
   /** Set when a worker report was delivered quietly and no round has read it. */
   private unreadReports = false
+  private leadSteer = new AbortController()
+  private leadSignal: AbortSignal | undefined
 
   /**
    * Wait until no worker is outstanding and the lead has nothing left to do.
@@ -1087,11 +1141,14 @@ export class ManagedAgentTeam {
     for (;;) {
       signal?.throwIfAborted()
       const outstanding = [...this.workerRuntimes.values()]
-        .filter(runtime => runtime.status === 'pending' || runtime.status === 'running')
-      if (outstanding.length > 0) await Promise.all(outstanding.map(runtime => runtime.settled))
+        .filter(runtime => !runtime.settledComplete)
+      const preparing = [...this.preparing.values()].map(prepared => prepared.settled)
+      if (outstanding.length + preparing.length > 0) {
+        await abortable(Promise.all([...outstanding.map(runtime => runtime.settled), ...preparing]), signal)
+      }
       await this.team.whenIdle(this.leadName, signal)
-      const busy = [...this.workerRuntimes.values()]
-        .some(runtime => runtime.status === 'pending' || runtime.status === 'running')
+      const busy = this.preparing.size > 0 || [...this.workerRuntimes.values()]
+        .some(runtime => !runtime.settledComplete)
       if (!busy) return
     }
   }
@@ -1142,7 +1199,7 @@ export class ManagedAgentTeam {
     let timer: ReturnType<typeof setTimeout> | undefined
     const deadline = new Promise<void>((resolve) => { timer = setTimeout(resolve, budget) })
     try {
-      await Promise.race([runtime.settled, deadline])
+      await abortable(Promise.race([runtime.settled, deadline]), options.signal)
     } finally {
       clearTimeout(timer)
     }
@@ -1167,9 +1224,17 @@ export class ManagedAgentTeam {
     const address = memberName(name)
     const runtime = this.workerRuntimes.get(address)
     if (runtime === undefined) throw new Error(`unknown managed worker '${address}'`)
+    runtime.closing = true
+    runtime.closeTask ??= Promise.resolve().then(() => this.closeRuntime(runtime, reason))
+    return runtime.closeTask
+  }
+
+  private async closeRuntime(runtime: WorkerRuntime, reason: unknown): Promise<ManagedAgentWorkerStatus> {
+    const address = runtime.request.name
     const previous = runtime.status
     runtime.closing = true
     runtime.controller.abort(reason)
+    const closeDeadline = AbortSignal.timeout(this.closeTimeoutMs)
     // The controller only governs the run THIS harness started. A worker the
     // lead reached with followup_task, or any wake-up delivery, is running
     // under the team's own scheduler, and aborting the harness controller does
@@ -1178,7 +1243,7 @@ export class ManagedAgentTeam {
     // lead had already answered, so the conversation ended on the worker's
     // output instead of the lead's synthesis.
     try {
-      await this.team.cancel(address, reason)
+      await abortable(this.team.cancel(address, reason), closeDeadline)
     } catch {
       // A cancellation that times out must not wedge the close: the slot is
       // freed either way, exactly as it is for a run that ignores its signal.
@@ -1195,14 +1260,33 @@ export class ManagedAgentTeam {
       // does not get to wedge the harness: the slot is freed either way. The
       // wait is what usually lets `detach` succeed, since it refuses a member
       // whose session is still running.
-      await waitForSettlement(runtime.settled, this.closeTimeoutMs)
+      try { await abortable(runtime.settled, closeDeadline) } catch { /* non-cooperative run remains bounded */ }
       runtime.status = 'closed'
+      runtime.markSettled()
     }
-    this.workerRuntimes.delete(address)
-    try { this.team.detach(address) } catch { /* already gone, or the team is disposed */ }
+    recordEvidence(runtime)
+    if (this.workerHasWork(runtime)) {
+      if (runtime.request.writes.length > 0) this.drainingWrites.add(runtime)
+      // Closing frees the managed slot, but cannot establish that an active
+      // session stopped writing. Release only its write claim at actual idle.
+      void this.team.whenIdle(address).then(async () => {
+        this.drainingWrites.delete(runtime)
+        try {
+          if (this.team.members().some(member => member.name === address && member.conversationId === runtime.session.conversationId)) {
+            this.team.detach(address)
+          }
+        } catch { /* roster already removed or disposed */ }
+        await this.releaseDependents(runtime)
+      }).catch(() => { /* team lifecycle may already be disposed */ })
+    }
+    if (this.workerRuntimes.get(address) === runtime) {
+      this.workerRuntimes.delete(address)
+      try { this.team.detach(address) } catch { /* already gone, or the team is disposed */ }
+    }
     // Closing is a settlement too: work planned after this worker must not be
     // left waiting on one the lead has abandoned.
-    await this.releaseDependents(address)
+    runtime.dependencies = []
+    await this.releaseDependents(runtime)
     return previous
   }
 
@@ -1214,9 +1298,15 @@ export class ManagedAgentTeam {
    * moved on. Disposing the underlying `AgentTeam` is left to whoever owns it.
    * @param reason - Cancellation reason handed to each worker.
    */
-  async dispose(reason: unknown = new Error('managed agent team disposed')): Promise<void> {
+  dispose(reason: unknown = new Error('managed agent team disposed')): Promise<void> {
+    if (this.disposeTask !== undefined) return this.disposeTask
+    this.lifecycle.abort(reason)
     const names = [...this.workerRuntimes.keys()]
-    await Promise.allSettled(names.map(name => this.closeWorker(name, reason)))
+    this.disposeTask = Promise.allSettled([
+      ...[...this.preparing.values()].map(prepared => prepared.settled),
+      ...names.map(name => this.closeWorker(name, reason)),
+    ]).then(() => undefined)
+    return this.disposeTask
   }
 
   /** Remove one idle generated worker from the harness and shared roster. */
@@ -1224,7 +1314,7 @@ export class ManagedAgentTeam {
     const address = memberName(name)
     const runtime = this.workerRuntimes.get(address)
     if (runtime === undefined) throw new Error(`unknown managed worker '${address}'`)
-    if (runtime.status === 'running' || runtime.session.isRunning) {
+    if (runtime.status === 'pending' || runtime.status === 'running' || !runtime.settledComplete || runtime.session.isRunning) {
       throw new Error(`cannot remove running managed worker '${address}'`)
     }
     this.team.detach(address)
@@ -1236,14 +1326,10 @@ export class ManagedAgentTeam {
       defineTool({
         name: 'spawn_agent',
         description: [
-          'Create a connected specialist worker and start one task on it.',
-          'Returns as soon as the worker is running, WITHOUT its result: keep working,',
-          'and you will be told when it finishes. Use wait_agents to pause for it,',
-          'list_agents to read its status and result, and close_agent when done with it.',
-          'Before the first call, plan: name the step that blocks the others and do that',
-          'one yourself. Then spawn the rest of the plan in one step: declare each',
-          'worker\'s `writes` so two never write the same file, and use `dependsOn` for',
-          'anything that must follow another worker rather than waiting to spawn it.',
+          'Create a managed worker for the supplied task.',
+          'Returns a lifecycle view after setup; a dependent may still be pending.',
+          'Use list_agents for retained status/results and wait_agents for bounded waits.',
+          'dependsOn binds already registered producer instances; writes declares relative scheduling scopes under host policy.',
         ].join(' '),
         parameters: {
           type: 'object',
@@ -1254,8 +1340,7 @@ export class ManagedAgentTeam {
             },
             task: {
               type: 'string',
-              description: 'Concrete bounded task assigned to the worker.'
-                + ' State which files it owns and may write, so two workers never write the same one.',
+              description: 'Task and any output contract assigned to the worker.',
             },
             specialty: {
               type: 'string',
@@ -1264,31 +1349,22 @@ export class ManagedAgentTeam {
             context: {
               type: 'string',
               enum: ['fresh', 'fork'],
-              description: 'fresh starts the worker from its task alone;'
-                + ' fork also gives it your conversation so far, so it does not have to'
-                + ' rediscover what you already established. Prefer fork when the task'
-                + ' depends on findings of yours.',
+              description: 'fresh starts from the task; fork also copies the completed lead conversation.',
             },
             dependsOn: {
               type: 'array',
               items: { type: 'string' },
               description: 'Names of workers that must finish before this one starts.'
                 + ' The worker is created now and held until they do, then given what they'
-                + ' produced — so spawn the whole plan at once and express the ORDER here'
-                + ' rather than by spawning later. Use it for anything that reviews,'
-                + ' integrates or builds on another worker.',
+                + ' produced. Register the producers first; a dependency cannot name a'
+                + ' future or still-preparing worker. Failed producers also release dependents with failure status.',
             },
             writes: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Files and directories this worker may write, workspace-relative.'
-                + ' A spawn that would write what another worker running at the same time'
-                + ' writes is refused, because both would write it and the later write wins.'
-                + ' Declare them and the conflict is caught before any work is lost.'
-                + ' OMIT this entirely for a worker that only reads — a stand-in path such'
-                + ' as "none" or "/tmp/no-write" claims a real scope, and several readers'
-                + ' sharing that stand-in collide with each other over a file none of them'
-                + ' will ever write.',
+              description: 'Workspace-relative scheduling scopes. Overlaps are rejected, warned or allowed'
+                + ' according to host writeScopePolicy. This is not filesystem authorization.'
+                + ' Omit when no writes are declared; placeholder paths claim real scopes.',
             },
             ...this.roleSchema(),
           },
@@ -1352,11 +1428,11 @@ export class ManagedAgentTeam {
    * ceiling that has to hold it.
    * @returns The lead's completed conversation as a fresh history.
    */
-  private forkLeadHistory(): History {
+  private forkLeadHistory(limits: AgentSessionOptions['historyLimits']): History {
     const entries = completedHistoryPrefix(this.lead.snapshot().history)
     return History.fromSnapshot(
       { version: 1, entries },
-      this.options.workerSessionOptions?.historyLimits ?? {},
+      limits ?? {},
     )
   }
 
@@ -1382,7 +1458,7 @@ export class ManagedAgentTeam {
   private nextWorkerName(): string {
     while (true) {
       const candidate = `worker_${++this.workerSequence}`
-      if (!this.reservedNames.has(candidate) && !this.workerRuntimes.has(candidate)
+      if (!this.preparing.has(candidate) && !this.workerRuntimes.has(candidate)
         && !this.team.members().some(member => member.name === candidate)) return candidate
     }
   }
@@ -1548,8 +1624,14 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-async function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) throw signal.reason ?? new Error('managed worker aborted')
+async function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (signal === undefined) return promise
+  if (signal.aborted) {
+    // Calling a host callback can synchronously abort and return a rejected
+    // promise; retain its rejection observer even though cancellation won.
+    void promise.catch(() => undefined)
+    throw signal.reason ?? new Error('managed worker aborted')
+  }
   return await new Promise<T>((resolve, reject) => {
     const abort = () => {
       signal.removeEventListener('abort', abort)
@@ -1590,7 +1672,7 @@ const SETTLED_WORKER_STATUS: ReadonlySet<ManagedAgentWorkerStatus> =
  * @param response - What the worker's run returned.
  * @returns The failure to report, or undefined when the worker actually answered.
  */
-function failureOf(response: AgentResponse): string | undefined {
+function failureOf(response: AgentResponse, requireText: boolean): string | undefined {
   const reason = response.outcome.reason
   if (reason.kind === 'error') return reason.failure.message
   if (reason.kind === 'max-tokens') return 'the model stopped at its output limit'
@@ -1599,18 +1681,28 @@ function failureOf(response: AgentResponse): string | undefined {
   if (reason.kind === 'budget-exhausted' && !response.outcome.completed) {
     return `the run stopped at its ${reason.budget} limit before completing the task`
   }
-  // An empty answer from an otherwise clean run is still nothing to synthesize.
-  if (response.text.trim() === '') return 'it produced no answer'
+  // Tool-only agents may intentionally complete without a textual answer.
+  if (requireText && response.text.trim() === '') return 'it produced no answer'
   return undefined
 }
 
 function normalizeWriteScope(value: unknown): string {
   const text = nonEmpty(value, 'worker write scope').trim().split('\\').join('/')
-  const trimmed = text.replace(/^\.?\/+/, '').replace(/\/+$/, '')
-  if (trimmed.length === 0 || trimmed === '.') {
+  if (text.startsWith('/') || /^[a-zA-Z]:/.test(text)) {
+    throw new TypeError('a worker write scope must be workspace-relative')
+  }
+  const parts: string[] = []
+  for (const part of text.split('/')) {
+    if (part === '' || part === '.') continue
+    if (part === '..') {
+      if (parts.length === 0) throw new TypeError('a worker write scope must not escape the workspace')
+      parts.pop()
+    } else parts.push(part)
+  }
+  if (parts.length === 0) {
     throw new TypeError('a worker write scope must name a file or directory, not the whole workspace')
   }
-  return trimmed
+  return parts.join('/')
 }
 
 /** Whether two normalized scopes cover any of the same files. */
@@ -1619,11 +1711,28 @@ function scopesOverlap(left: string, right: string): boolean {
 }
 
 /** Cut text to a byte budget without splitting a UTF-16 surrogate pair. */
+function prefixWithinBytes(text: string, maxBytes: number): string {
+  return new TextDecoder('utf-8', { fatal: false }).decode(new TextEncoder().encode(text).subarray(0, maxBytes), { stream: true })
+}
+
+/** Keep both the initial findings and final verdict; the marker is inside the byte cap. */
 function truncate(text: string, maxBytes: number): string {
   const encoded = new TextEncoder().encode(text)
   if (encoded.byteLength <= maxBytes) return text
-  const kept = new TextDecoder('utf-8', { fatal: false })
-    .decode(encoded.subarray(0, maxBytes))
-    .replace(/�$/, '')
-  return `${kept}… (truncated)`
+  const marker = '\n… (truncated; read full result) …\n'
+  const markerBytes = new TextEncoder().encode(marker).byteLength
+  if (maxBytes <= markerBytes) return prefixWithinBytes('(truncated)', maxBytes)
+  const remaining = maxBytes - markerBytes
+  const head = prefixWithinBytes(text, Math.ceil(remaining / 2))
+  let tailStart = encoded.length - Math.floor(remaining / 2)
+  while (tailStart < encoded.length && (encoded[tailStart]! & 0xc0) === 0x80) tailStart++
+  const tail = new TextDecoder().decode(encoded.subarray(tailStart))
+  return head + marker + tail
+}
+
+/** Detached evidence keeps full reports available without retaining producer sessions or ancestor chains. */
+function recordEvidence(runtime: WorkerRuntime): void {
+  runtime.evidence.status = runtime.status
+  runtime.evidence.result = runtime.result
+  runtime.evidence.error = runtime.error
 }

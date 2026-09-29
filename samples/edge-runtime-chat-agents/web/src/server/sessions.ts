@@ -67,6 +67,8 @@ export interface WarmSession {
   readonly traceStore: TraceStore
   /** Cancellation for the Team Auto turn currently attached to an SSE body. */
   activeAbort: AbortController | undefined
+  /** The response owns admission through worker reports and stream teardown. */
+  activeResponse: boolean
   touchedAt: number
   /** Release provider registrations, workers and runtime-owned resources. */
   close(): Promise<void>
@@ -104,7 +106,28 @@ export class SessionCapacityError extends Error {
   }
 }
 
+export class SessionBusyError extends Error {
+  constructor() { super('conversation busy'); this.name = 'SessionBusyError' }
+}
+
 const warm = new Map<string, WarmSession>()
+const creating = new Set<string>()
+const admission = new Map<string, Promise<void>>()
+
+/** Serialize construction, replacement and close for one credential-scoped slot. */
+async function inSlot<T>(slot: string, operation: () => Promise<T>): Promise<T> {
+  const previous = admission.get(slot) ?? Promise.resolve()
+  let release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  const queued = previous.then(() => gate)
+  admission.set(slot, queued)
+  await previous
+  try { return await operation() }
+  finally {
+    release()
+    if (admission.get(slot) === queued) admission.delete(slot)
+  }
+}
 
 /** How many conversations the isolate currently holds. */
 export function activeSessions(): number {
@@ -120,36 +143,45 @@ export function activeSessions(): number {
 export async function acquireSession(
   conversationId: string,
   config: EdgeChatConfig,
+  reserveResponse = false,
 ): Promise<WarmSession> {
   prune(config)
   const slot = await slotKey(conversationId, config.apiKey)
-  const existing = warm.get(slot)
-  const rosterKey = rosterSignature(config)
-  // A mode or roster the visitor just changed must not keep answering from a
-  // session built around the previous one, so that session is discarded and its
-  // history goes with it: the history belongs to the agents that produced it.
-  //
-  // A MODEL change no longer costs the conversation in the single-agent modes:
-  // `stream()` takes a `model` override for that turn alone, so the session,
-  // its history and its compactor stay, and the next turn simply goes
-  // elsewhere. EFFORT has no such per-call override — it is a property of the
-  // agent a session is bound to — so an effort change always rebuilds the
-  // session, in every mode, and takes the history with it.
-  const teamShaped = config.mode === 'team' || config.mode === 'team-auto'
-  const reusable = existing !== undefined && existing.rosterKey === rosterKey
-    && existing.effort === config.effort
-    && (!teamShaped || existing.model === config.model)
-  if (reusable) {
-    existing.model = config.model
-    existing.effort = config.effort
-    existing.touchedAt = Date.now()
-    return existing
-  }
-  if (existing !== undefined) await drop(slot)
-  if (warm.size >= config.maxSessions) throw new SessionCapacityError()
-  const created = await createSession(conversationId, config, new TraceStore())
-  warm.set(slot, created)
-  return created
+  return inSlot(slot, async () => {
+    const existing = warm.get(slot)
+    if (existing !== undefined && (existing.activeResponse || existing.session.isRunning)) throw new SessionBusyError()
+    const rosterKey = rosterSignature(config)
+    // A mode or roster the visitor just changed must not keep answering from a
+    // session built around the previous one, so that session is discarded and its
+    // history goes with it: the history belongs to the agents that produced it.
+    //
+    // A MODEL change no longer costs the conversation in the single-agent modes:
+    // `stream()` takes a `model` override for that turn alone, so the session,
+    // its history and its compactor stay, and the next turn simply goes
+    // elsewhere. EFFORT has no such per-call override — it is a property of the
+    // agent a session is bound to — so an effort change always rebuilds the
+    // session, in every mode, and takes the history with it.
+    const teamShaped = config.mode === 'team' || config.mode === 'team-auto'
+    const reusable = existing !== undefined && existing.rosterKey === rosterKey
+      && existing.effort === config.effort
+      && (!teamShaped || existing.model === config.model)
+    if (reusable) {
+      existing.model = config.model
+      existing.effort = config.effort
+      existing.touchedAt = Date.now()
+      if (reserveResponse) existing.activeResponse = true
+      return existing
+    }
+    if (existing !== undefined) await drop(slot)
+    if (warm.size + creating.size >= config.maxSessions) throw new SessionCapacityError()
+    creating.add(slot)
+    try {
+      const created = await createSession(conversationId, config, new TraceStore())
+      created.activeResponse = reserveResponse
+      warm.set(slot, created)
+      return created
+    } finally { creating.delete(slot) }
+  })
 }
 
 /**
@@ -162,7 +194,8 @@ export async function dropSession(
   conversationId: string,
   apiKey: string | undefined,
 ): Promise<boolean> {
-  return await drop(await slotKey(conversationId, apiKey))
+  const slot = await slotKey(conversationId, apiKey)
+  return await inSlot(slot, () => drop(slot))
 }
 
 async function drop(slot: string): Promise<boolean> {
@@ -253,6 +286,7 @@ async function createSession(
     autoEvents: [],
     teamRawEvents: [],
     activeAbort: undefined,
+    activeResponse: false,
     model: config.model,
     effort: config.effort,
     rosterKey: rosterSignature(config),
@@ -342,7 +376,9 @@ const AUTO_TEAM_ROLES = Object.freeze([
 const AUTO_LEAD_INSTRUCTIONS = `You are the lead of a small dynamic team running on an Edge runtime.
 Answer simple questions yourself. For questions with genuinely independent research, analysis, or review work,
 create only the specialists that help using spawn_agent. Keep working while they run, wait for required results,
-then synthesize one final answer. You and every worker have no filesystem or shell.`
+then synthesize one final answer. Preserve the exact output format requested by the user,
+including during worker-report follow-ups: if they asked for only JSON, a number or an exact phrase,
+return only that output rather than a process report. You and every worker have no filesystem or shell.`
 
 /** Build the low-level managed harness used by Team Auto. All dependencies are web-standard. */
 function createAutoTeamSession(
@@ -395,7 +431,10 @@ function createAutoTeamSession(
       spawnTimeoutMs: Math.min(20_000, config.autoWorkerTimeoutMs),
       holdWaitMs: 5_000,
       allowModelWorkerCancellation: false,
-      defaultSpawnContext: 'fork',
+      // A worker's assigned task is its objective; copy history only when the
+      // caller explicitly needs shared facts. This also avoids paying for the
+      // complete chat history on every independent delegation.
+      defaultSpawnContext: 'fresh',
       writeScopePolicy: 'off',
       roles: AUTO_TEAM_ROLES,
       onWorkerEvent: report,
@@ -424,6 +463,7 @@ function createAutoTeamSession(
     providerError,
     traceStore,
     activeAbort: undefined,
+    activeResponse: false,
     touchedAt: Date.now(),
     close() {
       closing ??= (async () => {
@@ -497,15 +537,19 @@ function rosterSignature(config: EdgeChatConfig): string {
       entry.efforts ?? [],
     ])
   if (config.mode === 'team-auto') {
-    return JSON.stringify([
+    return JSON.stringify([bindings(config),
       'team-auto', config.maxAutoWorkers, config.autoWorkerTimeoutMs, catalog,
     ])
   }
-  if (config.mode !== 'team') return JSON.stringify(['single', catalog])
-  return JSON.stringify([config.team.map(member => [
+  if (config.mode !== 'team') return JSON.stringify([bindings(config), 'single', catalog])
+  return JSON.stringify([bindings(config), config.team.map(member => [
     member.name, member.role ?? 'peer', member.model ?? '', member.effort ?? '',
     member.instructions ?? '',
   ]), catalog])
+}
+
+function bindings(config: EdgeChatConfig) {
+  return [config.baseUrl ?? '', config.instructions, config.maxTurns, config.maxToolCalls, config.maxTotalTokens]
 }
 
 /** Longest provider error text kept, in characters. */
@@ -611,7 +655,7 @@ function providerCatalog(config: EdgeChatConfig) {
 function prune(config: EdgeChatConfig): void {
   const cutoff = Date.now() - config.sessionTtlMs
   for (const [id, entry] of warm) {
-    if (entry.session.isRunning || entry.touchedAt >= cutoff) continue
+    if (entry.activeResponse || entry.session.isRunning || entry.touchedAt >= cutoff) continue
     warm.delete(id)
     void entry.close().catch(() => undefined)
   }

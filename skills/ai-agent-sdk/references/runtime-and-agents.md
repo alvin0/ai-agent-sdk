@@ -108,6 +108,10 @@ removing resource limits. Brokers do **not** belong here: `approvals`,
 `runtime.agent()` performs no I/O and holds no resource. It is a frozen binding
 with nothing to close and no `ready()` step.
 
+`commentary` defaults to `auto`: caller instructions and the model choose the
+narration style. The examples above opt into `concise`; set it explicitly to
+retain the published 0.1.4 default. `off` suppresses progress commentary.
+
 ## Route resolution
 
 ```text
@@ -194,6 +198,12 @@ activation, and restores definition-level memory seeds.
 A session has no `close()`. Persist it with `snapshot()`; discard it by dropping
 the reference.
 
+`inject()` does not start a turn. During a fixed model request, input waits until
+that round's output is recorded, then appends in arrival order. Its returned
+count is provisional during that window, not a durable history sequence.
+`snapshot()` includes queued input; the low-level live `.history` need not yet
+contain it. Checkpoint failure drains queued input before recovery/retry hooks.
+
 ### Per-call model and output ceiling
 
 `run()`, `stream()`, and `compact()` accept `model` and `maxTokens` for that call
@@ -231,6 +241,7 @@ interface RuntimeAgentSessionOptions {
   readonly approvals?: ApprovalBroker
   readonly spillStore?: SpillStore        // mount one and oversized tool output spills
                                           // instead of truncating; the model gets read_tool_output
+  readonly experimentalPrograms?: readonly ExperimentalProgramGrant[] // opt-in; see tools.md
   readonly interceptors?: readonly ToolInterceptor[]
   readonly contextSections?: readonly ContextSection[]
   readonly hooks?: TurnHooks
@@ -260,6 +271,11 @@ const session = agent.createSession({
 
 `beforeStep` returns a `StepDecision` — the branch/gate primitive. See
 references/orchestration.md.
+
+The proceed decision may also supply `messages` to project this request without
+rewriting history/checkpoint snapshots. Forward callback `ctx.signal` to hook
+work: timeout cancellation is composed into that signal. Do not use signal
+object identity to infer run identity.
 
 ## Two session layers — do not mix them up
 

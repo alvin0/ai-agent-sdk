@@ -48,5 +48,17 @@ const report = await call.report
 The package includes message and stream contracts, model registry and retry primitives, normalized errors, usage accounting, explicit observation/correlation ports, and transactional provider-plugin registration. Provider HTTP/SSE transport, concrete exporters, filesystem skills, environment credentials, and protocol implementations belong to separate capability packages.
 
 The documented root plus `/agent`, `/memory`, `/observability`, `/provider`,
-`/skills`, `/tools`, and `./package.json` are public. Internal source paths are
+`/skills`, `/tools`, `/embedding`, and `./package.json` are public. Internal source paths are
 not compatibility contracts.
+
+Opt-in optimization helpers added in 0.1.5 (currently unreleased) include `defineActionFusion` and
+`createModelEvidenceReducer` from `/tools`, and `createContextOptimizer` from
+`/memory`. Applications select pipeline steps, milestone summaries, log storage,
+and reducer models. See the [application guide](https://github.com/alvin0/ai-agent-sdk/blob/main/docs/context-optimization.md)
+for configuration, exact-evidence fallback, and runnable validation.
+
+Existing agent, tool, and session imports remain available. Review the
+[upgrade guide](https://github.com/alvin0/ai-agent-sdk/blob/main/docs/upgrading-from-0.1.4.md)
+for narration defaults, queued steering receipts, and managed-team validation
+changes after the published 0.1.4 release. Program tools additionally require
+session-level `experimentalPrograms` grants; ordinary tools do not.

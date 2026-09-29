@@ -20,7 +20,7 @@ export type AgentMessageDelivery = 'quiet' | 'wakeup'
  */
 export type AgentMemberOutcome =
   | { readonly kind: 'completed'; readonly text: string }
-  | { readonly kind: 'failed'; readonly message: string }
+  | { readonly kind: 'failed'; readonly message: string; readonly text?: string }
 
 /** Detached runtime view of one addressable member. */
 export interface AgentTeamMember {

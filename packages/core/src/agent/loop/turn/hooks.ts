@@ -12,14 +12,19 @@ export async function runOptionalHook<TArgs extends readonly unknown[], TResult>
   name: string,
 ): Promise<Awaited<TResult> | undefined> {
   if (hook === undefined) return undefined
-  const pending = Promise.resolve().then(() => hook(...args))
-  return await runHook(pending, options, signal, name)
+  const owned = new AbortController()
+  const hookSignal = AbortSignal.any([signal, owned.signal])
+  const scoped = args.map(arg => typeof arg === 'object' && arg !== null && 'signal' in arg
+    ? { ...arg, signal: hookSignal } : arg) as unknown as TArgs
+  const pending = Promise.resolve().then(() => hook(...scoped))
+  return await runHook(pending, options, signal, name, reason => owned.abort(reason))
 }
 export async function runHook<T>(
   pending: Promise<T>,
   options: RunTurnOptions,
   signal: AbortSignal,
   name: string,
+  onCancellation?: (reason: unknown) => void,
 ): Promise<T> {
   const operation = options.accounting?.startOperation('hook', { data: { name } })
   const timeoutMs = positiveSafeInteger(options.hookTimeoutMs ?? 10 * 60_000, 'hookTimeoutMs')
@@ -38,6 +43,7 @@ export async function runHook<T>(
       if (operation !== undefined) options.accounting?.endOperation(operation, 'error', { error })
       throw error
     }
+    onCancellation?.(combined.reason)
     const settled = await waitForSettlement(pending, teardownTimeoutMs)
     if (!settled) {
       const runtimeError = codedRuntimeError(

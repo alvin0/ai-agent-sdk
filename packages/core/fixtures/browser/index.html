@@ -1,10 +1,18 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>core browser tarball fixture</title>
+<script type="importmap">
+  { "imports": {
+    "@alvin0/ai-agent-sdk-core": "/node_modules/@alvin0/ai-agent-sdk-core/dist/index.js",
+    "@alvin0/ai-agent-sdk-core/tools": "/node_modules/@alvin0/ai-agent-sdk-core/dist/tools.js",
+    "@alvin0/ai-agent-sdk-core/memory": "/node_modules/@alvin0/ai-agent-sdk-core/dist/memory.js"
+  } }
+</script>
 <script type="module">
   import { overflowEvidence } from '/shared/overflow.js'
   import { logicReviewEvidence } from '/shared/logic-review.js'
   import { providerTopologyEvidence } from '/shared/provider-topology.js'
+  import { contextOptimizationEvidence } from '/shared/context-optimization.js'
   import { ModelAdapter, ModelRegistry, createAgentRuntime, createTraceId } from '/node_modules/@alvin0/ai-agent-sdk-core/dist/index.js'
 
   class FixtureAdapter extends ModelAdapter {
@@ -30,5 +38,6 @@
     overflow: await overflowEvidence({ ModelAdapter, ModelRegistry }),
     logic: await logicReviewEvidence({ ModelAdapter, createAgentRuntime }),
     topology: await providerTopologyEvidence({ ModelAdapter, createAgentRuntime }),
+    optimization: await contextOptimizationEvidence({ ModelAdapter, createAgentRuntime }),
   }
 </script>

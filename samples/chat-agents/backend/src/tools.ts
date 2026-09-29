@@ -204,6 +204,7 @@ async function runShell(
   return await new Promise<CommandOutcome>((settle, fail) => {
     const child = spawn(command, { cwd, shell: true, windowsHide: true })
     let output = ''
+    let outputCut = false
     let timedOut = false
     // Coalesced on a short timer: a build prints in bursts of many tiny writes,
     // and one wire event each would spend more on framing than on output.
@@ -217,13 +218,20 @@ async function runShell(
       report?.(chunk)
     }
     const collect = (chunk: Buffer | string): void => {
-      if (output.length >= MAX_COMMAND_OUTPUT) return
+      if (output.length >= MAX_COMMAND_OUTPUT) { outputCut = true; return }
       const text = String(chunk)
-      output = (output + text).slice(0, MAX_COMMAND_OUTPUT)
+      if (output.length + text.length > MAX_COMMAND_OUTPUT) outputCut = true
+      let kept = text.slice(0, MAX_COMMAND_OUTPUT - output.length)
+      if (outputCut && /[\uD800-\uDBFF]/.test(kept.at(-1) ?? '')) kept = kept.slice(0, -1)
+      output += kept
       if (report === undefined) return
-      unsent += text
+      unsent += kept
       flushTimer ??= setTimeout(flush, 200)
     }
+    // Decode each pipe separately so a UTF-8 character split across chunks
+    // survives, including when stdout and stderr chunks interleave.
+    child.stdout?.setEncoding('utf8')
+    child.stderr?.setEncoding('utf8')
     child.stdout?.on('data', collect)
     child.stderr?.on('data', collect)
     const timer = setTimeout(() => {
@@ -241,10 +249,13 @@ async function runShell(
       // that would have sent it is now moot.
       if (flushTimer !== undefined) clearTimeout(flushTimer)
       flush()
+      // Say so when the capture was cut: a model counting lines in a cut
+      // output otherwise reports the partial count as the answer.
+      const cut = outputCut ? `\n[output truncated at ${String(MAX_COMMAND_OUTPUT)} characters; narrow the command (grep, head, wc) to see the rest]` : ''
       settle({
         command,
         cwd,
-        output: timedOut ? `${output}\n[timed out after ${String(timeoutMs)}ms]` : output,
+        output: timedOut ? `${output}${cut}\n[timed out after ${String(timeoutMs)}ms]` : `${output}${cut}`,
         // A killed process reports a null code; surface it as a failure.
         exitCode: code ?? 1,
         timedOut,
@@ -293,10 +304,17 @@ export function createSampleTools(root: string): ToolRegistry {
       }
     },
     render: value => {
-      const record = value as { firstLine: number; lines: string[] } | undefined
+      const record = value as { firstLine: number; lines: string[]; truncated?: boolean; totalLines?: number } | undefined
       if (record === undefined) return [{ type: 'text', text: '(no output)' }]
       const body = record.lines.map((line, index) => `${record.firstLine + index}\t${line}`).join('\n')
-      return [{ type: 'text', text: body }]
+      // The model reads only this text. Without the footer a 3,000-line log
+      // read as "a 400-line file", and a worker reported counts from the first
+      // page as the whole answer (observed live).
+      if (record.truncated !== true) return [{ type: 'text', text: body }]
+      const last = record.firstLine + record.lines.length - 1
+      const footer = `[Showing lines ${String(record.firstLine)}-${String(last)} of ${String(record.totalLines ?? '?')}. `
+        + `The file continues: read again with offset ${String(last + 1)}, or use search_files or run_command to scan it all.]`
+      return [{ type: 'text', text: `${body}\n\n${footer}` }]
     },
     meta: value => {
       const record = value as { path: string; firstLine: number; lines: string[]; truncated: boolean } | undefined
@@ -372,8 +390,9 @@ export function createSampleTools(root: string): ToolRegistry {
       const absolute = inRoot(root, path)
       const needle = query.toLowerCase()
       const matches: SearchMatch[] = []
+      let limited = false
       for await (const file of walk(absolute, 4)) {
-        if (matches.length >= MAX_MATCHES) break
+        if (matches.length >= MAX_MATCHES) { limited = true; break }
         let text: string
         try {
           text = await readFile(file, 'utf8')
@@ -383,11 +402,16 @@ export function createSampleTools(root: string): ToolRegistry {
         const lines = text.split('\n')
         for (const [index, line] of lines.entries()) {
           if (!line.toLowerCase().includes(needle)) continue
+          if (matches.length >= MAX_MATCHES) { limited = true; break }
           matches.push({ path: relative(root, file), line: index + 1, text: line.slice(0, 240) })
-          if (matches.length >= MAX_MATCHES) break
         }
       }
-      return json({ query, matches })
+      // A capped list reads as "all the matches" unless it says otherwise, and a
+      // model counting occurrences would report the cap as the count.
+      return json({ query, matches, ...limited ? {
+        limited: true,
+        note: `Stopped at ${String(MAX_MATCHES)} matches; additional matches may exist. Narrow the query or path, or count with run_command.`,
+      } : {} })
     },
     meta: value => {
       const record = value as { query: string; matches: SearchMatch[] } | undefined

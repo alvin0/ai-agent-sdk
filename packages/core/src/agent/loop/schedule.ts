@@ -20,6 +20,13 @@ import { createSpanId, type TraceRef } from '../trace/trace.ts'
 import type { AgentEvent, ToolDeclineReason, TurnHooks } from './events.ts'
 import type { RunAccountingPort } from '../accounting/contracts.ts'
 import type { SdkLogger } from '../../logging/types.ts'
+import { createToolAdmission, type AdmissionTicket } from './admission.ts'
+import { ProgramRun, validPrograms, type StepRuntime } from './program.ts'
+import {
+  emitEvent, errorCode, immutableResult, messageOf, now, raceWithSignal, teardownFailure, withApprovalEvents,
+} from './tool-call-support.ts'
+import { attachNestedToolPort, NESTED_TOOL_ERROR_CODES, type ProgramGrant } from '../tool/nested.ts'
+import type { ProgramResultStore } from '../tool/program-results.ts'
 
 export interface RunToolCallsOptions {
   readonly calls: readonly ToolCallRequest[]
@@ -74,8 +81,8 @@ interface Slot {
   readonly authorized?: AuthorizedToolCall
   readonly pending: Promise<ToolExecutionResult>
   readonly dispatched: boolean
-  /** Whether this dispatch spent turn budget; exempt tools never do. */
-  readonly budgeted?: boolean
+  /** The program this call hosts, when the host granted it one. */
+  readonly program?: ProgramRun
   /** Set when the loop refused to run the call. */
   readonly declined?: boolean
   readonly signal: AbortSignal
@@ -83,17 +90,42 @@ interface Slot {
   readonly teardownTimeoutMs: number
 }
 
+/** Scheduler options the loop owns and does not publish. */
+export interface InternalScheduleOptions {
+  /** Overrides `dispatchLimit`; `unbounded` when the budget is a notice rather than a wall. */
+  readonly admissionLimit?: number | 'unbounded'
+  /**
+   * Program tools and what each may call. Research seam for SP-01; the public
+   * way to enable programs is not decided.
+   */
+  readonly programs?: ReadonlyMap<string, ProgramGrant>
+  /** Where programs retain values; owned and closed by the caller. */
+  readonly programResults?: ProgramResultStore
+}
+
 /** Execute safe siblings concurrently while committing every result in model order. */
 export async function runToolCalls(options: RunToolCallsOptions): Promise<ToolCallsOutcome> {
+  return await scheduleToolCalls(options)
+}
+
+/** {@link runToolCalls} with the loop's internal options. */
+export async function scheduleToolCalls(
+  options: RunToolCallsOptions,
+  internal: InternalScheduleOptions = {},
+): Promise<ToolCallsOutcome> {
   const maxParallel = positiveInteger(options.maxParallel ?? 8, 'maxParallel')
   const maxResultBytes = positiveInteger(options.maxResultBytes ?? 4 * 1024 * 1024, 'maxResultBytes')
   const maxDurationMs = positiveInteger(options.maxDurationMs ?? 10 * 60_000, 'maxDurationMs')
   const teardownTimeoutMs = positiveInteger(options.teardownTimeoutMs ?? 30_000, 'teardownTimeoutMs')
   const calls = Object.freeze(options.calls.map(immutableCall))
-  const dispatchLimit = Math.max(0, options.dispatchLimit ?? calls.length)
+  const admission = createToolAdmission(internal.admissionLimit ?? Math.max(0, options.dispatchLimit ?? calls.length))
+  const step: StepRuntime = {
+    admission, maxDurationMs, teardownTimeoutMs, maxResultBytes,
+    programs: validPrograms(internal.programs),
+    programResults: internal.programResults,
+  }
   const results: ToolExecutionResult[] = []
   let dispatched = 0
-  let budgeted = 0
   let declined = 0
   let concludedBy: string | undefined
   let index = 0
@@ -105,9 +137,8 @@ export async function runToolCalls(options: RunToolCallsOptions): Promise<ToolCa
     const prepared = carried ?? prepare(options, first)
     carried = undefined
     if (prepared.mode === 'exclusive') {
-      const slot = await start(options, prepared, budgeted < dispatchLimit, maxDurationMs, teardownTimeoutMs)
+      const slot = await start(options, prepared, step)
       dispatched += slot.dispatched ? 1 : 0
-      budgeted += slot.budgeted === true ? 1 : 0
       declined += slot.declined === true ? 1 : 0
       const result = await commit(options, slot, maxResultBytes)
       results.push(result)
@@ -131,9 +162,8 @@ export async function runToolCalls(options: RunToolCallsOptions): Promise<ToolCa
         if (call === undefined) break
         const candidate = nextPrepared
         if (candidate.mode !== 'parallel') break
-        const slot = await start(segmentOptions, candidate, budgeted < dispatchLimit, maxDurationMs, teardownTimeoutMs)
+        const slot = await start(segmentOptions, candidate, step)
         dispatched += slot.dispatched ? 1 : 0
-        budgeted += slot.budgeted === true ? 1 : 0
         declined += slot.declined === true ? 1 : 0
         segment.push(slot)
         index++
@@ -174,7 +204,7 @@ export async function runToolCalls(options: RunToolCallsOptions): Promise<ToolCa
     concluded: concludedBy !== undefined,
     ...concludedBy === undefined ? {} : { concludedBy },
     dispatched,
-    budgeted,
+    budgeted: admission.budgeted,
     declined,
   }
 }
@@ -191,10 +221,9 @@ function prepare(options: RunToolCallsOptions, call: ToolCallRequest) {
 async function start(
   options: RunToolCallsOptions,
   prepared: ReturnType<typeof prepareToolCall>,
-  hasBudget: boolean,
-  maxDurationMs: number,
-  teardownTimeoutMs: number,
+  step: StepRuntime,
 ): Promise<Slot> {
+  const { maxDurationMs, teardownTimeoutMs } = step
   const deadline = AbortSignal.timeout(maxDurationMs)
   const signal = AbortSignal.any([options.signal, deadline])
   const boundedPrepared = {
@@ -216,37 +245,46 @@ async function start(
   // A tool the model may always reach: submitting, asking, delegating. Letting
   // a budget block these is what turns a spent budget into a dead run.
   const exempt = options.catalog.get(call.toolName)?.budgetExempt === true
-  if (!hasBudget && !exempt) return {
+  const grant = step.programs.get(call.toolName)
+  // A program spends the budget it is charged for; it can never be the free
+  // call, and a parallel program would race its own children for siblings.
+  if (grant !== undefined && (exempt || prepared.mode !== 'exclusive')) return {
+    call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
+    pending: Promise.resolve(toolFailure(
+      'this program tool must be exclusive and must not be budget-exempt',
+      NESTED_TOOL_ERROR_CODES.CONFIGURATION,
+    )),
+  }
+  const ticket = step.admission.reserve(exempt)
+  if (ticket === undefined) return {
     call, trace, signal, deadline, teardownTimeoutMs, dispatched: false, declined: true,
     pending: Promise.resolve(declinedResult(options.declineReason ?? 'tool-calls')),
   }
+  // Every path below that does not start the body returns the reservation.
+  try {
+    return await authorizeAndDispatch(options, boundedPrepared, call, trace, signal, deadline, ticket, step, grant)
+  } finally {
+    ticket.release()
+  }
+}
+
+async function authorizeAndDispatch(
+  options: RunToolCallsOptions,
+  boundedPrepared: ReturnType<typeof prepareToolCall>,
+  call: ToolCallRequest,
+  trace: TraceRef,
+  signal: AbortSignal,
+  deadline: AbortSignal,
+  ticket: AdmissionTicket,
+  step: StepRuntime,
+  grant: ProgramGrant | undefined,
+): Promise<Slot> {
+  const { maxDurationMs, teardownTimeoutMs } = step
   if (options.signal.aborted) return {
     call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
     pending: Promise.resolve(toolFailure('the call was cancelled before it started', TOOL_ERROR_CODES.ABORTED_BEFORE_DISPATCH)),
   }
-  let approvalOperation: string | undefined
-  const withApprovalEvent = {
-    ...boundedPrepared,
-    options: {
-      ...boundedPrepared.options,
-      onApprovalRequest: async (request: Parameters<NonNullable<typeof prepared.options.onApprovalRequest>>[0]) => {
-        approvalOperation = options.accounting?.startOperation('user-input', {
-          toolCallId: request.callId,
-          data: { action: 'approval', toolName: request.toolName },
-        })
-        await emitEvent(options, { type: 'approval-request', request, trace })
-      },
-      ...options.accounting === undefined ? {} : {
-        onApprovalSettled: (status: 'success' | 'error' | 'aborted', error?: unknown) => {
-          if (approvalOperation !== undefined) {
-            options.accounting?.endOperation(approvalOperation, status, error === undefined ? {} : { error })
-            approvalOperation = undefined
-          }
-        },
-      },
-    },
-  }
-  const authorizationPending = authorizeToolCall(withApprovalEvent)
+  const authorizationPending = authorizeToolCall(withApprovalEvents(options, boundedPrepared, trace))
   let authorization: Awaited<ReturnType<typeof authorizeToolCall>>
   try {
     authorization = await raceWithSignal(authorizationPending, signal)
@@ -264,23 +302,41 @@ async function start(
     dispatched: false, pending: Promise.resolve(authorization.result),
   }
   try {
-    await options.checkpoint?.({
+    const checkpointing = Promise.resolve(options.checkpoint?.({
       kind: 'before-tool-dispatch', call, snapshot: options.history.snapshot(), signal,
       ...(options.logger === undefined ? {} : { logger: options.logger }),
-    })
+    }))
+    try { await raceWithSignal(checkpointing, signal) }
+    catch (error: unknown) {
+      if (!signal.aborted) throw error
+      if (!await waitForSettlement(checkpointing, teardownTimeoutMs)) {
+        throw teardownFailure(call.toolName, 'checkpoint', teardownTimeoutMs, error)
+      }
+    }
   } catch (error: unknown) {
+    if (error instanceof ToolError && error.code === TOOL_ERROR_CODES.TEARDOWN_TIMEOUT) throw error
     return {
       call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
       pending: Promise.resolve(toolFailure(`history checkpoint failed: ${messageOf(error)}`, TOOL_ERROR_CODES.CHECKPOINT_FAILED)),
     }
   }
+  if (signal.aborted) return {
+    call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
+    pending: Promise.resolve(cancelledResult(deadline, maxDurationMs)),
+  }
+  const program = grant === undefined
+    ? undefined
+    : new ProgramRun(options, step, grant, { call, trace, signal })
+  if (program !== undefined) attachNestedToolPort(authorization.call, program.port, signal => program.bindExecutionSignal(signal))
+  ticket.confirm()
   const pending = dispatchAuthorizedToolCall(authorization.call)
   // Observe rejection in the same turn in which dispatch creates the promise.
   // commit() still receives and propagates the original rejection in order.
   void pending.catch(() => undefined)
   return {
     call, trace, signal, deadline, teardownTimeoutMs,
-    authorized: authorization.call, dispatched: true, budgeted: !exempt,
+    authorized: authorization.call, dispatched: true,
+    ...program === undefined ? {} : { program },
     pending,
   }
 }
@@ -373,6 +429,17 @@ async function commit(
       if (!settled) throw teardownFailure(slot.call.toolName, 'execution', slot.teardownTimeoutMs, error)
       pending = cancelledResult(slot.deadline)
     }
+    if (slot.program !== undefined) {
+      // The body has returned; no child may start or publish after this point.
+      const closed = await slot.program.close(slot.teardownTimeoutMs)
+      if (!closed) throw teardownFailure(slot.call.toolName, 'nested call', slot.teardownTimeoutMs, undefined)
+      const latched: unknown = slot.program.fatal
+      if (latched !== undefined) {
+        throw toolErrorDisposition(latched) === 'fatal'
+          ? latched
+          : ToolError.fatal(messageOf(latched), errorCode(latched), { cause: latched })
+      }
+    }
     let finalized = pending
     if (slot.authorized !== undefined) {
       const finalizing = finalizeToolCall(slot.authorized, pending)
@@ -387,6 +454,7 @@ async function commit(
     }
     result = immutableResult(await boundOutput(options, slot, finalized), maxResultBytes)
   } catch (error: unknown) {
+    slot.program?.abort(error)
     hasFatal = toolErrorDisposition(error) === 'fatal'
     fatal = error
     result = immutableResult(toolFailure(messageOf(error), errorCode(error)), maxResultBytes)
@@ -470,7 +538,8 @@ async function boundOutput(
   const truncated = truncateMiddleToTokens(full, budget)
   return replaceText(result, truncated.text
     + `\n\n[Output was ${String(truncated.originalTokens)} estimated tokens, over this call's `
-    + `budget of ${String(budget)}. Re-run more narrowly if you need the omitted part.]`, {
+    + `budget of ${String(budget)}. Omitted output does not mean the operation failed. `
+    + 'Check an existing receipt or current state; repeat the operation only when the host confirms it is safe.]', {
     outputTruncated: { estimatedTokens: truncated.originalTokens, budget },
   })
 }
@@ -512,38 +581,6 @@ function immutableCall(call: ToolCallRequest): ToolCallRequest {
   return detachedFrozen(call)
 }
 
-function immutableResult(result: ToolExecutionResult, maxResultBytes: number): ToolExecutionResult {
-  try {
-    if (serializedBytes(result) > maxResultBytes) {
-      return detachedFrozen(toolFailure(
-        `tool result exceeds the ${maxResultBytes}-byte retention limit`,
-        TOOL_ERROR_CODES.INVALID_RESULT,
-      ))
-    }
-    const detached = detachedFrozen(result)
-    const bytes = serializedBytes(detached)
-    if (bytes > maxResultBytes) {
-      return detachedFrozen(toolFailure(
-        `tool result exceeds the ${maxResultBytes}-byte retention limit`,
-        TOOL_ERROR_CODES.INVALID_RESULT,
-      ))
-    }
-    return detached
-  } catch (error: unknown) {
-    throw ToolError.fatal(
-      'tool result could not be detached as lossless structured data',
-      TOOL_ERROR_CODES.INVALID_RESULT,
-      { cause: error },
-    )
-  }
-}
-
-function serializedBytes(value: unknown): number {
-  const serialized = JSON.stringify(value)
-  if (serialized === undefined) throw new TypeError('tool result is not lossless JSON')
-  return new TextEncoder().encode(serialized).byteLength
-}
-
 function cancelledResult(deadline: AbortSignal, maxDurationMs?: number): ToolExecutionResult {
   const limit = maxDurationMs === undefined ? 'configured time limit' : `${maxDurationMs}ms time limit`
   return deadline.aborted
@@ -554,45 +591,7 @@ function cancelledResult(deadline: AbortSignal, maxDurationMs?: number): ToolExe
     : toolFailure('the call was cancelled', TOOL_ERROR_CODES.ABORTED)
 }
 
-function teardownFailure(
-  toolName: string,
-  stage: string,
-  timeoutMs: number,
-  cause: unknown,
-): ToolError {
-  return ToolError.fatal(
-    `tool "${toolName}" ${stage} ignored cancellation for more than ${timeoutMs}ms; the in-process operation may still be running`,
-    TOOL_ERROR_CODES.TEARDOWN_TIMEOUT,
-    { cause },
-  )
-}
-
-async function raceWithSignal<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) throw signal.reason ?? new Error('tool call aborted')
-  return await new Promise<T>((resolve, reject) => {
-    const abort = () => {
-      signal.removeEventListener('abort', abort)
-      reject(signal.reason ?? new Error('tool call aborted'))
-    }
-    signal.addEventListener('abort', abort, { once: true })
-    void pending.then(
-      value => { signal.removeEventListener('abort', abort); resolve(value) },
-      error => { signal.removeEventListener('abort', abort); reject(error) },
-    )
-  })
-}
-
-async function emitEvent(options: RunToolCallsOptions, event: AgentEvent): Promise<void> {
-  await options.emit?.(detachedFrozen(event))
-}
-
 function positiveInteger(value: number, name: string): number {
   if (!Number.isInteger(value) || value < 1) throw new RangeError(`${name} must be a positive integer`)
   return value
 }
-function errorCode(error: unknown): string {
-  return typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
-    ? error.code : TOOL_ERROR_CODES.FAILED
-}
-function messageOf(error: unknown): string { return error instanceof Error ? error.message : String(error) }
-function now(): string { return new Date().toISOString() }

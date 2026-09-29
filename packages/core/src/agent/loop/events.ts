@@ -139,7 +139,9 @@ export interface BeforeStepContext {
   emit(event: AgentMaintenanceEvent): Promise<void>
 }
 export type StepDecision =
-  | { readonly kind: 'proceed'; readonly prepend?: readonly Message[] }
+  | { readonly kind: 'proceed'; readonly prepend?: readonly Message[];
+      /** Model-only projection. Raw history and checkpoint snapshots remain unchanged. */
+      readonly messages?: readonly Message[] }
   | { readonly kind: 'reject'; readonly reason: string }
 export interface RequestErrorContext {
   readonly turn: number
@@ -154,6 +156,8 @@ export type CheckpointContext =
   | { readonly kind: 'before-model-request'; readonly request: GenerateOptions; readonly snapshot: HistorySnapshot;
       readonly signal?: AbortSignal; readonly logger?: SdkLogger }
   | { readonly kind: 'before-tool-dispatch'; readonly call: ToolCallRequest; readonly snapshot: HistorySnapshot;
+      /** Set when a program tool made this call; the id of that outer call. */
+      readonly parentCallId?: ToolCallRequest['callId']
       readonly signal?: AbortSignal; readonly logger?: SdkLogger }
 export interface TurnEndContext {
   readonly outcome: TurnOutcome

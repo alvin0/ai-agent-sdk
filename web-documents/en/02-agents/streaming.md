@@ -104,6 +104,15 @@ ids it refers to, so a narration line links to the exact calls it describes.
 **Reasoning is separate from both.** Reasoning summary or content the provider
 actually emitted arrives as reasoning events, never mixed into public text.
 
+## Reconcile final text in deep modes
+
+After an accepted self-check, deep modes can retain the earlier draft without
+streaming a second copy. The SDK suppresses `UNCHANGED_ANSWER_MARKER` and restores
+the text in the response and low-level assistant/terminal events and hooks.
+After `handle.result` settles, reconcile your answer UI with `response.text`;
+accumulated deltas alone are not the final-result contract. See
+[upgrading from 0.1.4](/en/01-introduction/upgrading-from-0-1-4).
+
 ## One-shot
 
 ```ts

@@ -1,6 +1,6 @@
 /** High-level agent modes built on the provider-neutral bounded tool loop. */
 
-import { createUserMessage } from '../../message/index.ts'
+import { createMessage, createUserMessage } from '../../message/index.ts'
 import type { CallConfig } from '../../contract/index.ts'
 import type { JsonObject } from '../../primitives/index.ts'
 import { detachedFrozen } from '../../primitives/index.ts'
@@ -20,6 +20,21 @@ export const AGENT_CONTROL_TOOLS = Object.freeze({
   complete: 'submit_result',
   requestUserInput: 'request_user_input',
 } as const)
+
+/**
+ * What the model replies with, after an accepted self-check, when the answer
+ * it already gave the user earlier in the run still stands.
+ *
+ * Deep modes gate on an accepted `submit_result`, so a model that answered
+ * before checking is asked to check, then told to "deliver the answer"
+ * again — even when the check found nothing to add. Without this marker that
+ * second pass either pads an already-adequate answer or, worse, quietly
+ * changes it while claiming to only be confirming it. `driveAgent` treats a
+ * reply that is exactly this marker as "no change": the run's `text` (and,
+ * where the earlier answer is still the history's current surface, the
+ * transcript) keep the answer already given instead of this marker.
+ */
+export const UNCHANGED_ANSWER_MARKER = '<<deep-mode:answer-unchanged>>'
 
 /** Default high-level runtime requested by this SDK; `runTurn` remains provider-neutral. */
 export type AgentMode = 'basic' | 'deep' | 'deep-human-in-loop'
@@ -98,6 +113,14 @@ interface DeepState {
   /** Answers without intervening substantive tool work or an accepted check. */
   unverifiedAnswers: number
   completionInvalidated: boolean
+  /**
+   * The text of the last answer the self-check gate held back, so an accept
+   * that finds nothing to change can point back to it instead of asking the
+   * model to retype it. Tool work between that answer and the accept does not
+   * clear it: nothing has been shown to the user since, so it is still the
+   * right thing to compare against.
+   */
+  draftAnswer: string | undefined
 }
 
 const DEFAULT_MAX_TURNS = 16
@@ -175,6 +198,7 @@ async function driveAgent(
 
   const state: DeepState = {
     completion: undefined, userAborted: false, unverifiedAnswers: 0, completionInvalidated: false,
+    draftAnswer: undefined,
   }
   const deep = mode !== 'basic'
   const broker = options.mode === 'deep' || options.mode === 'deep-human-in-loop'
@@ -186,7 +210,7 @@ async function driveAgent(
   if (options.spillStore !== undefined) {
     internalTools.push(readSpillTool(options.spillStore) as ToolDefinition)
   }
-  if (deep) internalTools.push(completionTool())
+  if (deep) internalTools.push(completionTool(state))
   if (broker !== undefined && mode !== 'basic') {
     internalTools.push(userInputTool(mode, broker, state, emit, options.accounting))
   }
@@ -210,7 +234,7 @@ async function driveAgent(
     ...hooks === undefined ? {} : { hooks },
     signal,
     ...options.logger === undefined ? {} : { logger: options.logger },
-    commentary: options.commentary ?? 'concise',
+    commentary: options.commentary ?? 'auto',
     teardownTimeoutMs: options.teardownTimeoutMs ?? 30_000,
     ...options.modelTimeoutMs === undefined ? {} : { modelTimeoutMs: options.modelTimeoutMs },
     ...options.maxModelRequestBytes === undefined ? {} : { maxModelRequestBytes: options.maxModelRequestBytes },
@@ -221,12 +245,71 @@ async function driveAgent(
     ...options.trace === undefined ? {} : { trace: options.trace },
     ...options.accounting === undefined ? {} : { accounting: options.accounting },
     ...options.spillStore === undefined ? {} : { spillStore: options.spillStore },
+    ...options.experimentalPrograms === undefined ? {} : { experimentalPrograms: options.experimentalPrograms },
     ...options.contextSections === undefined ? {} : { contextSections: options.contextSections },
   }
 
   let terminal: TurnOutcome | undefined
   let stepCalls: string[] = []
   let completionCandidate: CompletionSubmission | undefined
+  let markerCandidate = false
+  let candidateText = ''
+  let heldEvents: AgentRunEvent[] = []
+  const flushHeld = async (): Promise<void> => {
+    const pending = heldEvents
+    heldEvents = []
+    for (const event of pending) await emit(event)
+  }
+  const emitAnswerEvent = async (event: AgentRunEvent): Promise<void> => {
+    if (event.type === 'step-start') {
+      await flushHeld()
+      markerCandidate = state.completion !== undefined && state.draftAnswer !== undefined
+      candidateText = ''
+    }
+    if (markerCandidate && (event.type === 'text-delta' || event.type === 'text-end')) {
+      candidateText = event.type === 'text-end' ? event.text : candidateText + event.text
+      heldEvents.push(event)
+      // Ordinary answers resume streaming as soon as their prefix differs.
+      // Hold the control reply until its complete assistant message confirms
+      // it contains no additional text or tool calls.
+      if ((!UNCHANGED_ANSWER_MARKER.startsWith(candidateText.trimStart())
+        && candidateText.trim() !== UNCHANGED_ANSWER_MARKER)
+        || (event.type === 'text-end' && event.incomplete)) {
+        markerCandidate = false
+        await flushHeld()
+      }
+      return
+    }
+    if (markerCandidate && event.type === 'assistant-message') {
+      const content = event.message.content
+      const draft = state.draftAnswer
+      const keep = draft !== undefined && content.length === 1 && content[0]?.type === 'text'
+        && content[0].text.trim() === UNCHANGED_ANSWER_MARKER
+      markerCandidate = false
+      if (keep) {
+        const pending = heldEvents
+        heldEvents = []
+        for (const held of pending) {
+          if (held.type !== 'text-delta' && held.type !== 'text-end') await emit(held)
+        }
+        await emit({ ...event, message: createMessage({ role: 'assistant',
+          content: [{ type: 'text', text: draft, phase: 'final-answer' }],
+          source: { kind: 'app', producer: 'deep-mode-kept-answer' },
+        }) })
+        return
+      }
+      await flushHeld()
+    } else if (heldEvents.length > 0) {
+      if (event.type === 'turn-end' || event.type === 'tool-call') {
+        markerCandidate = false
+        await flushHeld()
+      } else {
+        heldEvents.push(event)
+        return
+      }
+    }
+    await emit(event)
+  }
   for await (const event of runTurn(turnOptions)) {
     if (event.type === 'step-start') {
       stepCalls = []
@@ -254,8 +337,15 @@ async function driveAgent(
       state.completion = completionCandidate
       state.completionInvalidated = false
     }
-    if (event.type === 'turn-end') terminal = event.outcome
-    await emit(event)
+    if (event.type === 'turn-end') {
+      terminal = keptAnswerOutcome(event.outcome, state)
+      // Resolve the control reply before exposing the terminal turn outcome,
+      // so consumers of turn-end and agent-end receive the same answer.
+      if (terminal !== event.outcome) restoreKeptAnswer(options.history, terminal.text)
+      await emitAnswerEvent({ ...event, outcome: terminal })
+      continue
+    }
+    await emitAnswerEvent(event)
   }
   if (terminal === undefined) throw new Error('runTurn ended without a turn-end event')
   const completed = mode === 'basic'
@@ -274,7 +364,59 @@ async function driveAgent(
   await emit({ type: 'agent-end', outcome })
 }
 
-function completionTool(): ToolDefinition<CompletionSubmission> {
+function keptAnswerOutcome(outcome: TurnOutcome, state: DeepState): TurnOutcome {
+  return state.completion !== undefined && state.draftAnswer !== undefined
+    && outcome.text.trim() === UNCHANGED_ANSWER_MARKER
+    ? { ...outcome, text: state.draftAnswer }
+    : outcome
+}
+
+/**
+ * Clears the marker from the model-facing surface and any snapshot taken
+ * after this call, so reopening a stored run shows the kept answer rather
+ * than a reply that only pointed back at it.
+ *
+ * The log entry itself is untouched — history is append-only — this adds a
+ * replacement entry that supersedes it on the surface, the same mechanism
+ * compaction uses to shadow entries it has summarized. Only a message whose
+ * entire content is the marker, alone, is replaced: real content alongside
+ * it (a citation-style marker a model actually meant to say, a tool call)
+ * takes the normal, unreplaced path.
+ */
+function restoreKeptAnswer(history: RunAgentOptions['history'], draftAnswer: string): void {
+  const entries = history.entries()
+  let target: (typeof entries)[number] | undefined
+  for (let index = entries.length - 1; index >= 0; index--) {
+    const entry = entries[index]
+    if (entry?.event.kind !== 'assistant') continue
+    target = entry
+    break
+  }
+  const content = target?.event.kind === 'assistant' ? target.event.message.content : undefined
+  if (target === undefined || content === undefined || content.length !== 1) return
+  const [block] = content
+  if (block?.type !== 'text' || block.text.trim() !== UNCHANGED_ANSWER_MARKER) return
+  try {
+    history.append(
+      {
+        kind: 'assistant',
+        message: createMessage({
+          role: 'assistant',
+          content: [{ type: 'text', text: draftAnswer, phase: 'final-answer' }],
+          source: { kind: 'app', producer: 'deep-mode-kept-answer' },
+        }),
+      },
+      { op: 'replace', from: target.seq, to: target.seq },
+    )
+  } catch {
+    // The surface changed under us (compaction shadowed this entry first, or
+    // it stopped being the current head). `terminal.text` is already the
+    // recovered answer regardless; a replay reading raw history sees the
+    // marker in this one unlikely case rather than the run failing over it.
+  }
+}
+
+function completionTool(state: DeepState): ToolDefinition<CompletionSubmission> {
   return defineTool({
     name: AGENT_CONTROL_TOOLS.complete,
     description: 'Submit the self-check only when the user objective and constraints are fully satisfied. After acceptance, give the user the final answer.',
@@ -298,7 +440,12 @@ function completionTool(): ToolDefinition<CompletionSubmission> {
       accepted: true,
       summary: submission.summary,
       evidence: [...submission.evidence],
-      instruction: 'This self-check is accepted for the current run. Now provide the substantive final report itself: findings or changes, evidence or sources, checks performed, and remaining limitations. Do not merely say the self-check passed or refer to an earlier message. Do not call submit_result again in this run unless you perform new substantive tool work that invalidates this submission. A later user request or worker follow-up starts a new run and needs its own self-check.',
+      // A draft recorded means the model already gave the user a complete
+      // answer before this check, so confirming it is a legitimate outcome,
+      // not just a shorter way to restate it.
+      instruction: state.draftAnswer === undefined
+        ? 'This self-check is accepted for the current run. Now deliver the answer or artifact requested by the current user or assigned task, preserving its requested content and format. For exact text, only JSON, only a number, or another constrained format, return only the requested output. The summary and evidence in this tool result are verification metadata; keep them out of the final answer unless the task requests them. If the task requests a report, provide the substantive findings or changes, supporting evidence or sources, and relevant limitations. Do not merely say the self-check passed or refer to an earlier message. Do not call submit_result again in this run unless you perform new substantive tool work that invalidates this submission. A later user request or worker follow-up starts a new run and needs its own self-check.'
+        : `This self-check is accepted for the current run. You already gave the user a complete answer earlier in this run, before this check. If that answer is still correct and complete, reply with exactly ${UNCHANGED_ANSWER_MARKER} and nothing else — no summary, no reference to it, no repeating it; the earlier answer is kept as the final answer. Only if this check found something to correct or add, give the complete corrected answer in full, as if the earlier one did not exist: never summarize it, point back to it, or say the self-check passed. Do not call submit_result again in this run unless you perform new substantive tool work that invalidates this submission. A later user request or worker follow-up starts a new run and needs its own self-check.`,
     }),
   })
 }
@@ -365,7 +512,8 @@ function deepHooks(
   return {
     ...userHooks,
     onTurnEnd: async context => {
-      await userHooks?.onTurnEnd?.(context)
+      const outcome = keptAnswerOutcome(context.outcome, state)
+      await userHooks?.onTurnEnd?.(outcome === context.outcome ? context : { ...context, outcome })
       if (context.outcome.reason.kind !== 'completed'
         || (maxTurns !== 'auto' && context.outcome.steps >= maxTurns)
         || state.completion !== undefined
@@ -374,6 +522,12 @@ function deepHooks(
       // Substantive tool work resets this allowance; progress-only updates do not.
       state.unverifiedAnswers++
       if (state.unverifiedAnswers >= UNVERIFIED_ANSWER_LIMIT) return
+      // What the gate is about to ask the model to justify or repeat. Kept
+      // even though tool work may follow: nothing new has been shown to the
+      // user since, so this is still what an eventual accept is confirming.
+      if (context.outcome.text.trim() !== '' && context.outcome.text.trim() !== UNCHANGED_ANSWER_MARKER) {
+        state.draftAnswer = context.outcome.text
+      }
       history.append({ kind: 'user', message: createUserMessage({
         source: { kind: 'app', producer: 'deep-mode-self-check' },
         content: [{
@@ -381,7 +535,7 @@ function deepHooks(
           text: (state.completionInvalidated
             ? `Your previously accepted submission is no longer current because you called another substantive tool afterwards. Review the later tool results and call ${AGENT_CONTROL_TOOLS.complete} again when complete; the old instruction not to resubmit no longer applies. `
             : '')
-            + `Self-check required: this run has no accepted current self-check. Acceptance recorded in an earlier run does not complete this request or follow-up; an earlier instruction not to resubmit applied only to that earlier run. Compare the current result against the user's objective and every constraint. If anything is missing, continue with tools. If blocked and request_user_input is available, ask the user. Only when the work is actually complete, call ${AGENT_CONTROL_TOOLS.complete}. Rephrasing a completion claim without submitting does not satisfy this gate.`,
+            + `Self-check required: this run has no accepted current self-check. Acceptance recorded in an earlier run does not complete this request or follow-up; an earlier instruction not to resubmit applied only to that earlier run. Compare the current result against the user's objective and every constraint. If anything is missing, continue with tools. If blocked and request_user_input is available, ask the user. Only when the work is actually complete, call ${AGENT_CONTROL_TOOLS.complete}. Keep verification in that tool call and then deliver the current user or assigned task's requested output in its original format. This reminder does not change the task or request a process report. Rephrasing a completion claim without submitting does not satisfy this gate.`,
         }],
       }) })
     },
@@ -553,6 +707,7 @@ function modeSystem(mode: AgentMode, canAskUser: boolean): string {
   return [
     'Work autonomously in deep mode. After every tool result, compare the evidence against the user objective and all constraints; continue until gaps are closed.',
     `Do not treat a plausible draft as completion. When the work is actually complete, call ${AGENT_CONTROL_TOOLS.complete} with a summary and concrete evidence, then provide the final answer.`,
+    'Put verification summaries and evidence in the self-check tool call. Deliver the current user or assigned task\'s requested answer or artifact in its requested format, including exact text or JSON. Add verification commentary only when that format permits it.',
     ask, hil,
     'Never reveal private chain-of-thought. Use concise user-visible commentary for intent, progress, observations, and decisions.',
   ].filter(Boolean).join(' ')

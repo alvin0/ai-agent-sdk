@@ -11,6 +11,7 @@ import {
 } from './definition.ts'
 import { TOOL_ERROR_CODES, ToolError, toolErrorDisposition } from './errors.ts'
 import type { ToolCatalog } from './registry.ts'
+import { bindNestedToolPort } from './nested.ts'
 import type { SdkLogger } from '../../logging/types.ts'
 
 export interface ToolCallRequest {
@@ -20,6 +21,11 @@ export interface ToolCallRequest {
 }
 export interface ToolCallContext extends ToolCallPosition {
   readonly callId: ToolCallId
+  /**
+   * Set only when a program tool made this call: the outer call's ID. Lets a
+   * policy or durable journal scope decisions and operation IDs to programs.
+   */
+  readonly parentCallId?: ToolCallId
   readonly toolName: string
   readonly tool: ToolDefinition | undefined
   readonly rawArguments: string
@@ -61,6 +67,8 @@ export interface DispatchToolCallOptions {
   readonly onApprovalRequest?: (request: ApprovalRequest) => Promise<void> | void
   /** Called exactly once after an approval wait settles or fails. */
   readonly onApprovalSettled?: (status: 'success' | 'error' | 'aborted', error?: unknown) => void
+  /** The outer program call, when this call is a program's child. */
+  readonly parentCallId?: ToolCallId
 }
 export interface PreparedToolCall {
   readonly options: DispatchToolCallOptions
@@ -109,6 +117,7 @@ export function prepareToolCall(options: DispatchToolCallOptions): PreparedToolC
   const context: ToolCallContext = {
     ...position, callId: call.callId, toolName: call.toolName, tool,
     rawArguments: call.rawArguments, args, signal,
+    ...(options.parentCallId === undefined ? {} : { parentCallId: options.parentCallId }),
     ...(options.logger === undefined ? {} : { logger: options.logger }),
   }
   return {
@@ -200,6 +209,7 @@ export async function dispatchAuthorizedToolCall(call: AuthorizedToolCall): Prom
         else extraContext.push(...content)
       },
     }
+    bindNestedToolPort(call, runContext)
     let value: JsonValue | undefined
     try {
       const returned = await tool.execute(context.args as never, runContext)

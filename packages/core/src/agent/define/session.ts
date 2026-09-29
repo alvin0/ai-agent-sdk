@@ -2,6 +2,8 @@ import { contentHasDocument, contentHasImage } from '../../message/projection.ts
 import { ModelError } from '../../errors/model-error.ts'
 import { type ToolCatalog } from '../tool/registry.ts'
 import { History } from '../history/history.ts'
+import { bindModelRequestBoundary } from '../loop/turn/model-request-boundary.ts'
+import { bindStepProjectionSources } from '../loop/turn/step-projection.ts'
 import { normalizeToolPairing } from '../history/normalize.ts'
 import type { TurnHooks } from '../loop/types.ts'
 import { ContextCompactor, type CompactionResult } from '../memory/compaction.ts'
@@ -67,6 +69,19 @@ export class AgentSession {
   /** The overlay of the run that owns the session, so maintenance follows the same model. */
   private activeInvocation: AgentInvocationOptions | undefined
   private readonly idleWaiters = new Set<() => void>()
+  /**
+   * Messages injected while a run is in flight, waiting for the next model
+   * request. Appending them at once put them AHEAD of the assistant output of
+   * the round already streaming, a round that never saw them; the next round
+   * then read "steer, then the work that ignored it" as work that answered it.
+   */
+  private pendingInjections: History | undefined
+  /**
+   * A model request has been built and its output is not yet fully recorded.
+   * Only then is an injection held: hooks and team notices that inject between
+   * rounds still append at once, as they always have.
+   */
+  private roundInFlight = false
 
   constructor(definition: AgentDefinition, options: AgentSessionOptions) {
     if (definition.mode === 'deep-human-in-loop' && options.userInput === undefined) {
@@ -192,11 +207,22 @@ export class AgentSession {
   /** Capture one JSON-safe envelope that can be passed to `agent.resumeSession()`. */
   snapshot(): AgentSessionSnapshot {
     const activated = this.activationSnapshot()
+    const history = this.currentHistory.snapshot()
+    const pending = this.pendingInjections?.entries() ?? []
+    // An accepted input must survive a snapshot taken before its model round
+    // finishes. Project pending inputs at the known tail without delivering
+    // them early to the live model or changing the persisted v1 schema.
+    const persistedHistory = pending.length === 0 ? history : Object.freeze({
+      version: 1 as const,
+      entries: Object.freeze([...history.entries, ...pending.map((entry, index) => Object.freeze({
+        ...entry, seq: history.entries.length + index + 1,
+      }))]),
+    })
     return Object.freeze({
       version: 1 as const,
       conversationId: this.currentConversationId,
       agentId: this.definition.id,
-      history: this.currentHistory.snapshot(),
+      history: persistedHistory,
       memory: this.currentMemory.snapshot(),
       ...runtimeSessionConfiguration(this)?.memory === undefined ? {} : {
         memoryBindingId: runtimeSessionConfiguration(this)!.memory!.bindingId,
@@ -213,6 +239,7 @@ export class AgentSession {
     this.currentConversationId = newConversationId()
     this.currentHistory = new History(this.options.historyLimits)
     this.currentMemory = new AgentMemory(this.definition.memory.seed, this.definition.memory)
+    this.pendingInjections = undefined
     this.pendingSkillActivations = Object.freeze([])
     this.skillCatalog?.clearActivations()
     this.compactor = this.createCompactor()
@@ -253,13 +280,55 @@ export class AgentSession {
   /**
    * Append attributed context without starting a turn.
    *
-   * A2A quiet delivery uses this primitive. The returned history sequence is a
-   * delivery receipt and lets wake-up schedulers coalesce messages safely.
+   * A2A quiet delivery uses this primitive. The returned count includes queued
+   * inputs and lets wake-up schedulers coalesce messages safely; a mid-round
+   * receipt is provisional rather than the eventual persisted entry sequence.
    */
   inject(input: AgentInput): number {
     const message = userMessage(input)
+    // Mid-run, hold the message until the next model request is built, so it
+    // lands after every entry the model has actually answered. Bound pending
+    // inputs with the same guards as history instead of an unbounded array.
+    if (this.active && this.roundInFlight) {
+      const pending = this.pendingInjections ??= new History(this.options.historyLimits)
+      pending.append({ kind: 'user', message })
+      return this.currentHistory.entries().length + pending.entries().length
+    }
+    this.drainInjections()
     this.currentHistory.append({ kind: 'user', message })
     return this.currentHistory.entries().length
+  }
+
+  /**
+   * Close the in-flight window once a round's output is fully recorded: after
+   * its tool results (`step-end`), after a final answer with no tool calls, or
+   * when the turn ends. The loop waits on this consumer, so held messages land
+   * exactly there, never between a tool call and its result.
+   */
+  private observeRoundBoundary(event: { readonly type: string; readonly kind?: string; readonly message?: { readonly content: readonly { readonly type: string }[] } }): void {
+    // The chat request is now fixed. beforeStep hooks still run outside this
+    // window, so their injections can be included in that request's refresh.
+    if (event.type === 'span-start' && event.kind === 'chat') {
+      this.roundInFlight = true
+      return
+    }
+    if (!this.roundInFlight) return
+    const finalAnswer = event.type === 'assistant-message'
+      && event.message?.content.every(block => block.type !== 'tool-call') === true
+    if (event.type === 'step-end' || event.type === 'turn-end' || event.type === 'agent-end' || finalAnswer) {
+      this.roundInFlight = false
+      this.drainInjections()
+    }
+  }
+
+  /** Deliver held injections, in arrival order, at the chronological tail. */
+  private drainInjections(): void {
+    if (this.pendingInjections === undefined) return
+    const pending = this.pendingInjections
+    // Atomic: a full history must not consume only the first queued input and
+    // silently lose the rest. Keep the buffer available to snapshot/recovery.
+    this.currentHistory.appendBatch(pending.entries().map(entry => ({ event: entry.event })))
+    this.pendingInjections = undefined
   }
 
   /** Resolve after the current run releases the session. */
@@ -317,6 +386,7 @@ export class AgentSession {
     additionalInstructions?: string,
   ): AgentRunHandle {
     if (this.active) throw new Error(`agent session '${this.definition.id}' is already running`)
+    this.drainInjections()
     const firstTurnSeq = this.currentHistory.entries().length + 1
     const owned = new AbortController()
     let terminal = false
@@ -337,6 +407,10 @@ export class AgentSession {
       bindSkillProviderLogger(this.skillCatalog, ledger.modelInvocation.logger)
     }
     this.active = true
+    bindModelRequestBoundary(this.currentHistory, inFlight => {
+      this.roundInFlight = inFlight
+      if (!inFlight) this.drainInjections()
+    })
     this.activeAdditionalInstructions = additionalInstructions
     this.activeInvocation = invocation
     const spanOperations = new Map<string, string>()
@@ -393,6 +467,7 @@ export class AgentSession {
           }
         }
         for await (const event of this.runDefinition({ ...invocation, signal }, ledger)) {
+          this.observeRoundBoundary(event)
           accountTraceEvent(ledger, spanOperations, event)
           if (event.type === 'agent-end') outcome = event.outcome
           buffer.push(event)
@@ -416,6 +491,8 @@ export class AgentSession {
         failure = error
         toolSourcesDeferred.resolve(toolSourceReferences)
       }
+
+      try { this.drainInjections() } catch (error) { failure ??= error }
 
       let report: RunReport
       try {
@@ -518,15 +595,21 @@ export class AgentSession {
   }
 
   private releaseRun(): void {
-    this.active = false
-    this.activeAdditionalInstructions = undefined
-    this.activeInvocation = undefined
-    this.activeRuntimeCatalog = undefined
-    if (this.skillCatalog !== undefined) bindSkillProviderLogger(this.skillCatalog, undefined)
-    if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, undefined)
-    const waiters = [...this.idleWaiters]
-    this.idleWaiters.clear()
-    for (const resolve of waiters) resolve()
+    // A message that arrived during the final model round is still delivered,
+    // so the next run (or a waiting scheduler) reads it.
+    try { this.drainInjections() } finally {
+      bindModelRequestBoundary(this.currentHistory)
+      this.roundInFlight = false
+      this.active = false
+      this.activeAdditionalInstructions = undefined
+      this.activeInvocation = undefined
+      this.activeRuntimeCatalog = undefined
+      if (this.skillCatalog !== undefined) bindSkillProviderLogger(this.skillCatalog, undefined)
+      if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, undefined)
+      const waiters = [...this.idleWaiters]
+      this.idleWaiters.clear()
+      for (const resolve of waiters) resolve()
+    }
   }
 
   private createLedger() {
@@ -619,6 +702,7 @@ export class AgentSession {
       ...this.runtimeLimits.hookTeardownTimeoutMs === undefined ? {} : { hookTeardownTimeoutMs: this.runtimeLimits.hookTeardownTimeoutMs },
       ...this.options.approvals === undefined ? {} : { approvals: this.options.approvals },
       ...this.options.spillStore === undefined ? {} : { spillStore: this.options.spillStore },
+      ...this.options.experimentalPrograms === undefined ? {} : { experimentalPrograms: this.options.experimentalPrograms },
       ...this.options.interceptors === undefined ? {} : { interceptors: this.options.interceptors },
       ...this.contextSections === undefined ? {} : { contextSections: this.contextSections },
       ...hooks === undefined ? {} : { hooks },
@@ -675,17 +759,21 @@ export class AgentSession {
 
   private combinedHooks(accounting?: RunAccountingPort): TurnHooks | undefined {
     const user = this.options.hooks
-    if (this.compactor === undefined
-      && user === undefined
-      && this.currentMemory.items().length === 0) return undefined
     return {
       ...user,
       beforeStep: async context => {
+        // Before anything reads history for this request: model-round refreshes
+        // its messages when entries changed, so delivered input is included.
         const generation = this.currentHistory.generation()
+        const entries = this.currentHistory.entries().length
+        this.drainInjections()
+        const prepared = this.currentHistory.entries().length === entries
+          ? context
+          : { ...context, messages: normalizeToolPairing(this.currentHistory.messages()), snapshot: this.currentHistory.snapshot() }
         if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, accounting)
-        await this.compactor?.beforeStep(context)
+        await this.compactor?.beforeStep(prepared)
         if (accounting?.usageStop !== undefined) return { kind: 'proceed' as const }
-        const refreshed = this.currentHistory.generation() === generation
+        const refreshed = this.currentHistory.generation() === generation && this.currentHistory.entries().length === entries
           ? context
           : {
             ...context,
@@ -700,8 +788,9 @@ export class AgentSession {
           : { ...refreshed, messages: Object.freeze([...memory, ...refreshed.messages]) }
         const decision = await user?.beforeStep?.(current) ?? { kind: 'proceed' as const }
         if (decision.kind === 'reject') return decision
-        const prepend = [...memory, ...decision.prepend ?? []]
-        return prepend.length === 0 ? decision : { kind: 'proceed' as const, prepend }
+        // A projection sees injected memory already; do not inject it twice.
+        const prepend = [...decision.messages === undefined ? memory : [], ...decision.prepend ?? []]
+        return bindStepProjectionSources(prepend.length === 0 ? decision : { ...decision, prepend }, refreshed.messages)
       },
       onRequestError: async context => {
         if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, accounting)

@@ -125,16 +125,20 @@ async function sleep(ms: number, signal: AbortSignal): Promise<void> {
  * @returns Hooks to hand to `runAgent` or an agent session.
  */
 export function retryHooks(onRetry: (notice: RetryNotice) => void): TurnHooks {
-  // `runTurn` counts a retry as another step, so the loop's own step budget
-  // bounds this in addition to MAX_MODEL_ATTEMPTS; attempts are tracked per
-  // turn+step because a later failure is a fresh problem, not a continuation.
-  const attempts = new Map<string, number>()
+  // `runTurn` counts a retry as another step, so a retried request fails again
+  // on the NEXT step. Keying attempts by turn+step therefore restarted the
+  // count on every retry and never reached MAX_MODEL_ATTEMPTS (a live gateway
+  // produced 30 "retrying (2/3)" notices in one turn). Count consecutive
+  // failures instead: a failure on the step right after the previous failure
+  // continues the streak; any success in between starts a fresh one.
+  let streak: { turn: number; step: number; attempt: number } | undefined
   return {
     onRequestError: async (context) => {
-      const key = `${String(context.turn)}.${String(context.step)}`
-      const attempt = (attempts.get(key) ?? 1) + 1
+      const continues = streak !== undefined && streak.turn === context.turn
+        && (context.step === streak.step + 1 || context.step === streak.step)
+      const attempt = continues ? streak!.attempt + 1 : 2
+      streak = { turn: context.turn, step: context.step, attempt }
       if (!isTransient(context.failure) || attempt > MAX_MODEL_ATTEMPTS) return 'fail'
-      attempts.set(key, attempt)
       const delayMs = backoffMs(attempt, context.failure)
       onRetry({ attempt, maxAttempts: MAX_MODEL_ATTEMPTS, delayMs, failure: context.failure })
       await sleep(delayMs, context.signal)

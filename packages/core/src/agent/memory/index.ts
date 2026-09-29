@@ -26,3 +26,5 @@ export {
 export {
   selectCompactablePrefix,
 } from './surface-compaction.ts'
+export { createContextOptimizer, type ContextOptimizerOptions, type ContextMilestone,
+  type ContextOptimizationMetrics } from './context-optimizer.ts'

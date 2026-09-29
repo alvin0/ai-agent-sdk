@@ -94,6 +94,7 @@ Everything else in this documentation is a variation on those four steps.
 
 ## Read next
 
+- [Upgrading from 0.1.4](/en/01-introduction/upgrading-from-0-1-4) — optional additions and changed defaults in the next release.
 - [Getting Started](/en/01-introduction/getting-started) — how the SDK is
   layered, and which layer you should use.
 - [Installation](/en/01-introduction/installation) — pick the smallest runtime

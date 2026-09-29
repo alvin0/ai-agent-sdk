@@ -71,8 +71,12 @@ jobs:
 
       - name: Build runtime artifacts
         run: pnpm workspace:build && pnpm build:cli
+      - name: Require Python analyzer prerequisite
+        run: python3 --version
       - name: Baseline contract and unit tests
         run: pnpm exec vitest run
+        env:
+          PYTHON: python3
       - name: Package-owned unit and contract suites
         run: pnpm test:packages
       - name: Packed package and runtime matrix

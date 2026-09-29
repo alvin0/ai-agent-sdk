@@ -187,6 +187,15 @@ export interface ToolDefinition<Args = unknown> extends ToolSchema {
    * Never sent to the model.
    */
   readonly maxOutputTokens?: number
+
+  /**
+   * Experimental: JSON Schema of the structured value this tool returns.
+   *
+   * Read only by programs that call tools (see `experimentalPrograms`), which
+   * validate a child's value against it before using it. Never sent to the
+   * provider. Without it, a program receives the value marked as unchecked.
+   */
+  readonly experimentalOutputSchema?: JsonObject
 }
 
 /** A tool call that succeeded. */

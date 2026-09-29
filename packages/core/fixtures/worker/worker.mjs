@@ -1,6 +1,7 @@
 import { overflowEvidence } from './shared/overflow.js'
 import { logicReviewEvidence } from './shared/logic-review.js'
 import { providerTopologyEvidence } from './shared/provider-topology.js'
+import { contextOptimizationEvidence } from './shared/context-optimization.js'
 
 export default {
   async fetch() {
@@ -29,6 +30,7 @@ export default {
       overflow: await overflowEvidence({ ModelAdapter, ModelRegistry }),
       logic: await logicReviewEvidence({ ModelAdapter, createAgentRuntime }),
       topology: await providerTopologyEvidence({ ModelAdapter, createAgentRuntime }),
+      optimization: await contextOptimizationEvidence({ ModelAdapter, createAgentRuntime }),
     })
   },
 }

@@ -71,13 +71,24 @@ describe('retryHooks', () => {
     expect(seen.length).toBe(MAX_MODEL_ATTEMPTS - 1)
   })
 
-  it('counts attempts per step, so a later failure starts fresh', async () => {
+  it('bounds consecutive failures even though each retry arrives on the next step', async () => {
+    // runTurn spends a step per retry: a request failing three times in a row is
+    // seen at steps 1, 2, 3. Keying by step used to restart the count every time.
     const hooks = retryHooks(() => undefined)
     expect(await hooks.onRequestError!(context({ step: 1 }) as never)).toBe('retry')
-    expect(await hooks.onRequestError!(context({ step: 1 }) as never)).toBe('retry')
-    expect(await hooks.onRequestError!(context({ step: 1 }) as never)).toBe('fail')
     expect(await hooks.onRequestError!(context({ step: 2 }) as never)).toBe('retry')
+    expect(await hooks.onRequestError!(context({ step: 3 }) as never)).toBe('fail')
   })
+
+  it('starts a fresh streak after a successful step in between', async () => {
+    const hooks = retryHooks(() => undefined)
+    expect(await hooks.onRequestError!(context({ step: 1 }) as never)).toBe('retry')
+    // step 2 succeeded (no hook call); a failure at step 3 is a new problem.
+    expect(await hooks.onRequestError!(context({ step: 3 }) as never)).toBe('retry')
+    expect(await hooks.onRequestError!(context({ step: 4 }) as never)).toBe('retry')
+    expect(await hooks.onRequestError!(context({ step: 5 }) as never)).toBe('fail')
+    expect(await hooks.onRequestError!(context({ turn: 2, step: 1 }) as never)).toBe('retry')
+  }, 30_000)
 
   it('does not retry a permanent failure at all', async () => {
     const seen: number[] = []
@@ -149,4 +160,32 @@ describe('idle watch', () => {
     expect(idle.check(8_500, false)).toEqual({ kind: 'quiet' })
     expect(idle.check(9_100, false)).toEqual({ kind: 'report', silentMs: 1_100 })
   })
+})
+
+describe('retryHooks through the real turn loop', () => {
+  it('stops after MAX_MODEL_ATTEMPTS model calls when every call fails', async () => {
+    const { runTurn, History, ToolRegistry, defineTool } = await import('@alvin0/ai-agent-sdk-core/agent')
+    const { ModelAdapter, ModelRegistry, ModelError } = await import('@alvin0/ai-agent-sdk-core')
+    let calls = 0
+    class AlwaysFails extends ModelAdapter {
+      override async resolveModel(provider: string, model: string) { return { provider, id: model, name: model } }
+      // eslint-disable-next-line require-yield
+      override async *stream(): AsyncIterable<never> {
+        calls++
+        throw new ModelError('403 status code (no body)', 'SERVER')
+      }
+    }
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['flaky'], new AlwaysFails())
+    const tools = new ToolRegistry()
+    tools.register(defineTool({ name: 'noop', description: 'x', parameters: { type: 'object' }, execute: () => 'ok' }))
+    const hooks = retryHooks(() => undefined)
+    const retrying = { onRequestError: async (ctx: Parameters<NonNullable<typeof hooks.onRequestError>>[0]) => (await hooks.onRequestError!({ ...ctx, signal: new AbortController().signal })) }
+    for await (const _event of runTurn({
+      registry, config: { provider: 'flaky', model: 'm' }, history: new History(), tools,
+      system: 'x', signal: new AbortController().signal, hooks: retrying,
+      bounds: { maxSteps: 32 } as never, commentary: 'off', teardownTimeoutMs: 1000,
+    } as never)) { /* drain */ }
+    expect(calls).toBe(MAX_MODEL_ATTEMPTS)
+  }, 30_000)
 })

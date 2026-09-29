@@ -242,7 +242,12 @@ describe('runTurn', () => {
       history: state.history, tools: state.tools,
     })) events.push(event)
 
-    expect(state.history.entries().map(entry => entry.event.kind)).toEqual(['user'])
+    // The original prompt, then the interruption marker for the next turn.
+    expect(state.history.entries().map(entry => entry.event.kind)).toEqual(['user', 'user'])
+    expect(state.history.messages().at(-1)).toMatchObject({
+      role: 'user', source: { kind: 'app', producer: 'turn-interrupted' },
+      content: [{ type: 'text', text: 'The previous request was interrupted before it finished. Use the next message to determine what to do next.' }],
+    })
     expect(state.history.messages().flatMap(message => message.content)).not.toContainEqual(
       expect.objectContaining({ type: 'tool-call', id: 'interrupted-call' }),
     )

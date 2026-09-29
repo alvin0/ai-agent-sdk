@@ -99,6 +99,7 @@ export interface ChatSession {
 
 interface SessionStore {
   readonly sessions: Map<string, ChatSession>
+  pending?: Map<string, Promise<ChatSession>>
 }
 
 /**
@@ -384,32 +385,43 @@ function toolsFor(root: string): ToolRegistry {
  * @returns The live session.
  */
 export async function session(id: string, groupId?: string): Promise<ChatSession> {
-  const { sessions } = store()
-  const group = await getGroup(groupId)
-  await ensureConversation(id, {
-    mode: 'basic',
-    workspaceRoot: group.workspaceRoot,
-    groupId: group.id,
-  })
+  const state = store()
+  const { sessions } = state
   const existing = sessions.get(id)
   if (existing !== undefined) return existing
-  const created: ChatSession = {
-    id,
-    history: await loadHistory(id),
-    broker: createUserInputBroker(),
-    sessionGrants: new Set<string>(),
-    outbox: [],
-    approvals: undefined,
-    managed: undefined,
-    workerSink: undefined,
-    steerRun: undefined,
-    steerUnread: false,
-    notify: undefined,
-    abort: undefined,
-    seq: await nextSeq(id),
-  }
-  sessions.set(id, created)
-  return created
+  const pending = state.pending ??= new Map()
+  const opening = pending.get(id)
+  if (opening !== undefined) return opening
+  const hydration: Promise<ChatSession> = Promise.resolve().then(async () => {
+    if (pending.get(id) !== hydration) throw new Error('conversation closed during hydration')
+    const group = await getGroup(groupId)
+    await ensureConversation(id, {
+      mode: 'basic',
+      workspaceRoot: group.workspaceRoot,
+      groupId: group.id,
+    })
+    const created: ChatSession = {
+      id,
+      history: await loadHistory(id),
+      broker: createUserInputBroker(),
+      sessionGrants: new Set<string>(),
+      outbox: [],
+      approvals: undefined,
+      managed: undefined,
+      workerSink: undefined,
+      steerRun: undefined,
+      steerUnread: false,
+      notify: undefined,
+      abort: undefined,
+      seq: await nextSeq(id),
+    }
+    if (pending.get(id) !== hydration) throw new Error('conversation closed during hydration')
+    sessions.set(id, created)
+    return created
+  })
+  pending.set(id, hydration)
+  try { return await hydration }
+  finally { if (pending.get(id) === hydration) pending.delete(id) }
 }
 
 /**
@@ -417,7 +429,9 @@ export async function session(id: string, groupId?: string): Promise<ChatSession
  * @param id - Conversation id.
  */
 export function forgetSession(id: string): void {
-  const { sessions } = store()
+  const state = store()
+  const { sessions } = state
+  state.pending?.delete(id)
   const live = sessions.get(id)
   live?.abort?.abort(new Error('conversation closed'))
   live?.approvals?.broker.abortAll()
@@ -1011,6 +1025,7 @@ export async function* runPrompt(
       // One stable indirection for the harness to capture, so a worker
       // reporting during a LATER prompt is not delivered to this run.
       onWorkerEvent: (member, event) => { live.workerSink?.(member, event) },
+      onLeadModelRequest: () => { live.steerUnread = false },
       interceptors: [policy.interceptor],
       agent,
       history: live.history,
@@ -1115,9 +1130,6 @@ export async function* runPrompt(
       }
       yield* drainOutbox()
       if ('lead' in step) {
-        // The round about to run rebuilds its request from history, so whatever
-        // was steered before now is about to be read.
-        if (step.lead.type === 'step-start') live.steerUnread = false
         // Per model call while the provider streams counters, and whatever the
         // turn's own report says is still unaccounted for when it ends. A route
         // that reports only on completion emits no per-call event at all, and

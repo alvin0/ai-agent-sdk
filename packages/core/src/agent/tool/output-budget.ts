@@ -120,7 +120,7 @@ export function createMemorySpillStore(limits: MemorySpillStoreLimits = {}): Spi
   const maxEntries = positive(limits.maxEntries ?? 64, 'maxEntries')
   const maxChars = positive(limits.maxChars ?? 32_000_000, 'maxChars')
   // Insertion-ordered, which makes the oldest entry the first key.
-  const entries = new Map<string, string>()
+  const entries = new Map<string, { readonly text: string; readonly chars: number }>()
   let held = 0
   let counter = 0
 
@@ -132,18 +132,19 @@ export function createMemorySpillStore(limits: MemorySpillStoreLimits = {}): Spi
     while ((entries.size >= maxEntries || held + room > maxChars) && entries.size > 0) {
       const oldest = entries.keys().next().value
       if (oldest === undefined) break
-      held -= [...entries.get(oldest) ?? ''].length
+      held -= entries.get(oldest)?.chars ?? 0
       entries.delete(oldest)
     }
   }
 
   return {
     save(text, context) {
-      const chars = [...text].length
+      let chars = 0
+      for (const _point of text) chars++
       evictUntil(chars)
       counter += 1
       const locator = `spill:${context.toolName}:${String(counter)}`
-      entries.set(locator, text)
+      entries.set(locator, { text, chars })
       held += chars
       return {
         locator,
@@ -153,24 +154,29 @@ export function createMemorySpillStore(limits: MemorySpillStoreLimits = {}): Spi
       }
     },
     read(locator, range) {
-      const text = entries.get(locator)
-      if (text === undefined) return undefined
-      const points = [...text]
-      const offset = Math.min(Math.max(0, range.offset), points.length)
+      const entry = entries.get(locator)
+      if (entry === undefined) return undefined
+      const offset = Math.min(Math.max(0, range.offset), entry.chars)
+      // Match Array.slice's coercion, including fractional and NaN ranges,
+      // without allocating every code point of a large observation.
+      const startPoints = Number.isNaN(offset) ? 0 : Math.trunc(offset)
+      const endPoints = Math.trunc(offset + Math.max(1, range.limit))
+      const start = codeUnitOffset(entry.text, startPoints)
+      const end = codeUnitOffset(entry.text, Number.isNaN(endPoints) ? 0 : Math.max(0, endPoints - startPoints), start)
       return {
-        text: points.slice(offset, offset + Math.max(1, range.limit)).join(''),
-        totalChars: points.length,
+        text: entry.text.slice(start, end),
+        totalChars: entry.chars,
         offset,
       }
     },
     search(locator, pattern, limit) {
-      const text = entries.get(locator)
-      if (text === undefined) return undefined
+      const entry = entries.get(locator)
+      if (entry === undefined) return undefined
       // An invalid pattern is the model's mistake to correct, so it surfaces as
       // a thrown tool error rather than as silently zero matches.
       const expression = new RegExp(pattern)
       const found: string[] = []
-      const lines = text.split('\n')
+      const lines = entry.text.split('\n')
       for (let index = 0; index < lines.length && found.length < limit; index++) {
         const line = lines[index] ?? ''
         if (expression.test(line)) found.push(`${String(index + 1)}: ${line}`)
@@ -178,6 +184,19 @@ export function createMemorySpillStore(limits: MemorySpillStoreLimits = {}): Spi
       return Object.freeze(found)
     },
   }
+}
+
+/** Locate a code-point boundary without allocating a copy of the whole saved log. */
+function codeUnitOffset(text: string, points: number, start = 0): number {
+  let index = start
+  for (let count = 0; count < points && index < text.length; count++) {
+    const high = text.charCodeAt(index++)
+    if (high >= 0xD800 && high <= 0xDBFF && index < text.length) {
+      const low = text.charCodeAt(index)
+      if (low >= 0xDC00 && low <= 0xDFFF) index++
+    }
+  }
+  return index
 }
 
 function positive(value: number, name: string): number {
@@ -333,11 +352,12 @@ export function readSpillTool(store: SpillStore, defaultLimit = 8_000): ToolDefi
 
 function unknownLocator(locator: string): JsonObject {
   // A store that has evicted or lost the entry is a normal outcome, not a
-  // crash: the model needs to know to re-run the original call instead.
+  // crash. Losing output does not establish that the original operation failed.
   return {
     locator,
-    error: 'no saved output for this locator; it may have expired. Re-run the original call'
-      + ' more narrowly if you still need it.',
+    error: 'Saved output is unavailable; the locator may have expired. This does not mean'
+      + ' the original operation failed. Check an existing receipt or current state.'
+      + ' Repeat the operation only when the host confirms it is safe.',
   }
 }
 

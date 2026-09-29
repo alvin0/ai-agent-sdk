@@ -2,6 +2,41 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## 0.1.5 (unreleased)
+
+### Added
+
+- Added opt-in context optimization through `createContextOptimizer`: repeated tool observations can be packed behind a retrieval locator, and host-verified completed milestones can be projected after archival and a positive savings check. Raw history remains intact.
+- Added `createModelEvidenceReducer`, `reduceEvidence`, and `diagnosticLineNumbers` for exact-line log reduction with host-supplied status/evidence validation and full-output fallback.
+- Added experimental program tools through session-level `experimentalPrograms`, `experimentalNestedToolPort`, and tool-level `experimentalOutputSchema`. Child calls use the existing policy, approval, checkpoint, cancellation, and shared tool-budget boundaries; `parentCallId` identifies them to interceptors and checkpoints.
+- Added `defineActionFusion` for an exclusive sequence of host-selected tools without an intermediate model round. Applications supply argument mappings and success predicates; completed mutations are not rolled back when later validation fails.
+- Added managed-team options `autoLeadCoordination`, `workerTeamTools`, and `requireWorkerText`, plus `beforeStep` request-only projection through `StepDecision.messages`.
+
+### Changed
+
+- Agent `commentary` now defaults to `auto`, leaving narration style to caller instructions and the model. Set `commentary: 'concise'` to retain the previous default.
+- Managed-team prompts describe lifecycle and delivery semantics; application instructions now own planning, delegation, and synthesis strategy. Automatic lead coordination remains enabled by default.
+- Clean worker completion with empty text is now accepted by default; set `requireWorkerText: true` to preserve the previous validation rule. `workerTimeoutMs` measures active execution rather than time queued for dependencies or setup.
+- Managed-worker `writes` must be workspace-relative and cannot escape the workspace. `maxDependencyReportBytes` must be at least 4; its default remains 8 KiB.
+- Mid-round `session.inject()` input is queued until the round boundary. Its immediate receipt is provisional rather than an eventual persisted history sequence; snapshots preserve queued input without changing the v1 schema.
+- See the [upgrade guide](docs/upgrading-from-0.1.4.md) for compatibility notes. Existing import routes and ordinary agent/tool/session calls remain available; the new optimization and program APIs require explicit application configuration.
+
+### Fixed
+
+- Fixed deep/deep-human-in-loop modes rewriting an already-complete answer after an accepted `submit_result` self-check finds nothing to add. The accept instruction now tells the model it may reply with the new `UNCHANGED_ANSWER_MARKER` (exported from `@alvin0/ai-agent-sdk-core/agent`) when its earlier answer still stands; `runAgent` recovers that earlier text for the run's outcome and, via a history `replace` entry, for anyone re-reading the stored history afterward. A model that does have something to add or correct still writes the answer in full, exactly as before.
+- Kept-answer control replies no longer leak into assistant text streams; terminal events and `onTurnEnd` hooks receive the restored answer. Premature control replies cannot overwrite the retained draft.
+- Steering queued during a failed model checkpoint is delivered before recovery hooks and the retry request, including steering injected by the retry's `beforeStep` hook.
+- Task memory now explicitly treats retained objectives as background when newer user instructions conflict, preventing the original objective from overriding steering or later requests.
+- Credential writers briefly retry Windows delete-pending lock errors so concurrent commits retain revision-conflict semantics; persistent permission errors still surface promptly.
+- Managed dependencies retain producer identity across closure/address reuse, write claims survive running follow-ups and bounded close, and incomplete A2A responses are recorded as failed. Full dependency evidence remains retrievable after preview truncation.
+- Hook timeout cancellation is forwarded to callback signals. Interrupted turns record context for the next request; expired tool-output locators direct callers to existing receipts/current state before repeating an operation.
+- Made regression tests and the core packed runtime matrix portable across Windows and current Node versions; Python analyzer parity remains mandatory in CI.
+
+### Release scope
+
+- All 26 workspace package manifests, root metadata, and `SDK_VERSION` move from `0.1.4` to `0.1.5`; 25 packages are publishable and the private testkit remains unpublished.
+- Publication follows the guarded Release workflow after merge to `main`; a prepared version is not proof of npm availability.
+
 ## 0.1.4 - 2026-09-19
 
 ### Added

@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -11,10 +11,10 @@ const tools = createSampleTools(root)
 const run = tools.get('run_command')!
 
 /** Run a command, recording output as it arrives and when it arrived. */
-async function watched(command: string, callId: string) {
+async function watched(command: string, callId: string, onChunk?: (text: string) => void) {
   const chunks: { at: number; text: string }[] = []
   const stop = onCommandOutput((id, text) => {
-    if (id === callId) chunks.push({ at: Date.now(), text })
+    if (id === callId) { chunks.push({ at: Date.now(), text }); onChunk?.(text) }
   })
   try {
     const started = Date.now()
@@ -27,19 +27,35 @@ async function watched(command: string, callId: string) {
 }
 
 describe('live command output', () => {
+  it('preserves UTF-8 characters split across pipe chunks', async () => {
+    const script = "process.stdout.write(Buffer.from([0xe2]));setTimeout(()=>process.stdout.write(Buffer.from([0x82,0xac])),40)"
+    const { chunks, result } = await watched(`node -e "${script}"`, 'call_unicode')
+    expect(result.output).toBe('€')
+    expect(chunks.map(chunk => chunk.text).join('')).toBe('€')
+  })
+
+  it('caps live output as well as the settled capture', async () => {
+    const { chunks, result } = await watched('node -e "process.stdout.write(\'x\'.repeat(1000000))"', 'call_cap')
+    const streamed = chunks.map(chunk => chunk.text).join('')
+    expect(streamed.length).toBe(20_000)
+    expect(result.output).toBe(streamed + '\n[output truncated at 20000 characters; narrow the command (grep, head, wc) to see the rest]')
+  })
+
   it('arrives before the command exits', async () => {
-    // Prints, waits, prints again: a chunk timestamped well before the exit is
-    // the only proof that the UI does not have to wait for the process.
+    // The child cannot finish until the observer acknowledges its first chunk.
+    // This proves streaming without a wall-clock margin sensitive to CPU load.
     // Double quotes outside, single inside: cmd.exe does not treat a single
     // quote as a quote at all, so the other way round is not a command.
-    const script = "console.log('first'); setTimeout(() => console.log('second'), 700)"
-    const { chunks, result, finished } = await watched(`node -e "${script}"`, 'call_stream')
+    const script = "const fs=require('fs'); console.log('first'); let waits=0; const timer=setInterval(()=>{if(fs.existsSync('stream-ack')){clearInterval(timer);console.log('second')}else if(++waits>500){process.exit(9)}},10)"
+    const { chunks, result } = await watched(`node -e "${script}"`, 'call_stream', text => {
+      if (text.includes('first')) writeFileSync(join(root, 'stream-ack'), 'ready')
+    })
 
     expect(result.exitCode).toBe(0)
     expect(chunks.length).toBeGreaterThan(0)
     const first = chunks[0]
     expect(first?.text).toContain('first')
-    expect(finished - (first?.at ?? 0)).toBeGreaterThan(400)
+    expect(first?.text).not.toContain('second')
     // And nothing is lost: the streamed pieces reconstruct the settled output.
     expect(chunks.map(chunk => chunk.text).join('')).toBe(result.output)
   })

@@ -557,6 +557,15 @@ export class McpClientConnection implements ToolSource {
       name: publicName,
       description: remote.description?.trim() || `Tool '${remote.name}' from MCP server '${this.serverName}'.`,
       parameters: inputSchema,
+      // The bridge returns `{ content, structuredContent }`; a declared output
+      // schema describes the structured half. Programs validate against it.
+      ...isJsonObject(remote.outputSchema) ? {
+        experimentalOutputSchema: {
+          type: 'object',
+          properties: { structuredContent: structuredClone(remote.outputSchema) },
+          required: ['structuredContent'],
+        },
+      } : {},
       timeoutMs: this.toolCallTimeoutMs,
       parse: raw => {
         if (!isJsonObject(raw)) throw new TypeError('MCP tool arguments must be a JSON object')

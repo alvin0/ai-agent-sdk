@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import {
   ancestorChain, byDepthThenPath, createProjectInstructionsSection, defaultFilePathFromTouch,
   descendantDirsBetween,
@@ -55,8 +55,8 @@ describe('project instructions section', () => {
     const state = await resolveOnce(section)
 
     expect(state?.text).toContain('Instructions from: AGENTS.md\n\nRoot rule.')
-    expect(state?.text).toContain('Instructions from: packages/AGENTS.md\n\nPackages rule.')
-    expect(state?.text).toContain('Instructions from: packages/api/AGENTS.md\n\nAPI rule.')
+    expect(state?.text).toContain(`Instructions from: ${join('packages', 'AGENTS.md')}\n\nPackages rule.`)
+    expect(state?.text).toContain(`Instructions from: ${join('packages', 'api', 'AGENTS.md')}\n\nAPI rule.`)
     // Broad first, specific last.
     const order = ['Root rule.', 'Packages rule.', 'API rule.'].map(rule => state!.text.indexOf(rule))
     expect(order).toEqual([...order].sort((left, right) => left - right))
@@ -186,7 +186,7 @@ describe('project instructions section', () => {
       createProjectInstructionsSection({ cwd: nested, maxBytes: 700, intro: 'Intro.' }),
     )
 
-    expect(state?.text).toContain('Omitted for the 700-byte instruction budget: pkg/AGENTS.md.')
+    expect(state?.text).toContain(`Omitted for the 700-byte instruction budget: ${join('pkg', 'AGENTS.md')}.`)
     expect(state?.text).not.toContain('y'.repeat(400))
   })
 
@@ -349,16 +349,16 @@ describe('bounds and cancellation', () => {
 
 describe('path helpers', () => {
   it('orders directories by depth, not by path length', () => {
-    expect(['/a/bbbb', '/a/b/c', '/a/z'].sort(byDepthThenPath))
-      .toEqual(['/a/bbbb', '/a/z', '/a/b/c'])
+    expect(['/a/bbbb', '/a/b/c', '/a/z'].map(path => resolve(path)).sort(byDepthThenPath))
+      .toEqual(['/a/bbbb', '/a/z', '/a/b/c'].map(path => resolve(path)))
   })
 
   it('chains directories root-first', () => {
-    expect(ancestorChain('/a', '/a/b/c')).toEqual(['/a', '/a/b', '/a/b/c'])
+    expect(ancestorChain('/a', '/a/b/c')).toEqual(['/a', '/a/b', '/a/b/c'].map(path => resolve(path)))
   })
 
   it('returns descendants only for a path inside the base', () => {
-    expect(descendantDirsBetween('/a', '/a/b/c/file.ts')).toEqual(['/a/b', '/a/b/c'])
+    expect(descendantDirsBetween('/a', '/a/b/c/file.ts')).toEqual(['/a/b', '/a/b/c'].map(path => resolve(path)))
     expect(descendantDirsBetween('/a', '/a/file.ts')).toEqual([])
     expect(descendantDirsBetween('/a', '/other/file.ts')).toEqual([])
   })

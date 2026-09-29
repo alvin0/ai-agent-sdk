@@ -1,3 +1,4 @@
+import type { ExperimentalProgramGrant } from '../../tool/nested.ts'
 import type { CallConfig } from '../../../contract/index.ts'
 import type { ModelOutputFormat, NativeToolSchema, ToolChoice } from '../../../contract/index.ts'
 import { type Message } from '../../../message/index.ts'
@@ -73,6 +74,11 @@ export interface RunTurnOptions {
    * retrieves the rest.
    */
   readonly spillStore?: SpillStore
+  /**
+   * Experimental: program tools and the tools each may call. Off by default.
+   * Child calls spend this turn's tool budget and never enter model history.
+   */
+  readonly experimentalPrograms?: readonly ExperimentalProgramGrant[]
   /**
    * Model-visible context recomputed before every model round.
    *

@@ -47,6 +47,13 @@ web_modules/
 # TypeScript cache
 *.tsbuildinfo
 
+# Python analyzer bytecode
+__pycache__/
+*.py[cod]
+
+# Isolated Next.js live-check output
+.next-live/
+
 # Optional npm cache directory
 .npm
 
@@ -170,3 +177,7 @@ vite.config.ts.timestamp-*
 # Isolated chat sample live-check output
 .playwright-cli/
 .next-feedback/
+
+# Isolated sample harness audit/build output
+.next-harness-audit/
+.next-harness-build/

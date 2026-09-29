@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createManagedAgentTeam, defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
+import { AgentTeam, createManagedAgentTeam, defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
 import type { ManagedAgentTeam } from '@alvin0/ai-agent-sdk-core/agent'
 import { ModelAdapter, ModelRegistry, ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
 import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '@alvin0/ai-agent-sdk-core'
@@ -68,6 +68,7 @@ class Workers extends StubAdapter {
     this.waiters.get(name)?.()
     await new Promise<void>((resolve) => {
       this.gates.set(name, resolve)
+      if (options.signal?.aborted) { resolve(); return }
       options.signal?.addEventListener('abort', () => resolve(), { once: true })
     })
     options.signal?.throwIfAborted()
@@ -104,6 +105,68 @@ function teamOf(
 
 const statusOf = (team: ManagedAgentTeam, name: string): string | undefined =>
   team.workers().find(worker => worker.name === name)?.status
+
+describe('write claims during follow-up and bounded close', () => {
+  it('starts an overlapping dependent only after an original producer follow-up is idle', async () => {
+    const adapter = new Workers()
+    const team = teamOf(adapter)
+    try {
+      await team.spawn({ name: 'writer', task: 'Write.', writes: ['src'] })
+      await adapter.runningOf('writer')
+      adapter.finish('writer'); await team.awaitWorker('writer')
+      await team.team.followup('lead', 'writer', 'Write again.')
+      for (let tries = 0; tries < 200 && adapter.started.filter(name => name === 'writer').length < 2; tries++) await new Promise(resolve => setTimeout(resolve, 1))
+      expect(adapter.started.filter(name => name === 'writer')).toHaveLength(2)
+      const dependent = await team.spawn({ name: 'dependent', task: 'Write after.', writes: ['src/file.ts'], dependsOn: ['writer'] })
+      expect(dependent.status).toBe('pending')
+      expect(adapter.started).not.toContain('dependent')
+      adapter.finish('writer')
+      await adapter.runningOf('dependent')
+      adapter.finish('dependent')
+      await team.awaitWorker('dependent')
+    } finally { await team.dispose(); await team.team.dispose() }
+  }, 10_000)
+
+  it.each([false, true])('retains the claim of a running follow-up (bounded close: %s)', async close => {
+    let releaseCancel!: () => void
+    const cancellation = new Promise<void>(resolve => { releaseCancel = resolve })
+    class HeldCancel extends AgentTeam {
+      override async cancel(name: string, reason?: unknown) {
+        if (name === 'writer' && close) await cancellation
+        return super.cancel(name, reason)
+      }
+    }
+    const adapter = new Workers()
+    const team = teamOf(adapter, { team: new HeldCancel(), closeTimeoutMs: 10 })
+    try {
+      await team.spawn({ name: 'writer', task: 'Write.', writes: ['src'] })
+      await adapter.runningOf('writer')
+      adapter.finish('writer'); await team.awaitWorker('writer')
+      await team.team.followup('lead', 'writer', 'Write again.')
+      for (let tries = 0; tries < 200 && adapter.started.filter(name => name === 'writer').length < 2; tries++) {
+        await new Promise(resolve => setTimeout(resolve, 1))
+      }
+      expect(adapter.started.filter(name => name === 'writer')).toHaveLength(2)
+      if (close) {
+        await team.team.followup('lead', 'writer', 'One more queued write.')
+        await team.closeWorker('writer')
+      }
+      await expect(team.spawn({ name: 'conflict', task: 'Write.', writes: ['src/file.ts'] })).rejects.toThrow(/also writes/)
+      // A bounded close must still allow unrelated work to proceed.
+      await team.spawn({ name: 'reader', task: 'Read.' })
+      if (close) {
+        adapter.finish('writer')
+        for (let tries = 0; tries < 200 && adapter.started.filter(name => name === 'writer').length < 3; tries++) await new Promise(resolve => setTimeout(resolve, 1))
+        expect(adapter.started.filter(name => name === 'writer')).toHaveLength(3)
+        await expect(team.spawn({ name: 'second-conflict', task: 'Write.', writes: ['src/file.ts'] })).rejects.toThrow(/also writes/)
+      }
+      releaseCancel(); adapter.finish('writer'); adapter.finish('reader')
+      await team.team.whenIdle('writer')
+      await team.spawn({ name: 'replacement', task: 'Write.', writes: ['src/file.ts'] })
+      adapter.finish('replacement')
+    } finally { releaseCancel(); await team.dispose(); await team.team.dispose() }
+  }, 10_000)
+})
 
 describe('holding a worker until its dependencies settle', () => {
   it('does not start a dependent while its dependency is still running', async () => {
@@ -298,12 +361,12 @@ describe('who is allowed to write what', () => {
   it('points a colliding reader at dropping the scope, not at a better fake path', async () => {
     const adapter = new Workers()
     const team = teamOf(adapter)
-    await team.spawn({ name: 'first', task: 'research banks', writes: ['/tmp/no-write'] })
+    await team.spawn({ name: 'first', task: 'research banks', writes: ['no-write'] })
     await adapter.runningOf('first')
 
     // Offering only dependsOn and narrowing sent a worker that writes nothing
     // looking for a different placeholder, which collides just the same.
-    await expect(team.spawn({ name: 'second', task: 'research property', writes: ['/tmp/no-write'] }))
+    await expect(team.spawn({ name: 'second', task: 'research property', writes: ['no-write'] }))
       .rejects.toThrow(/omit writes entirely if this worker only reads/)
     await team.dispose()
   }, 20_000)

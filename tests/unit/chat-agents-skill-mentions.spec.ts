@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readFileSync } from 'node:fs'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-process.env.CHAT_AGENTS_DB ??= join(await mkdtemp(join(tmpdir(), 'mentions-db-')), 'test.db')
+process.env.CHAT_AGENTS_DB = join(await mkdtemp(join(tmpdir(), 'mentions-db-')), 'test.db')
 process.env.CHAT_AGENTS_MIGRATIONS ??= join(process.cwd(), 'samples/chat-agents/backend/drizzle')
 
 const { listAvailableSkills, resolveSkillMentions } =
@@ -20,6 +20,7 @@ async function workspaceWithSkills(
   skills: Record<string, { description: string; body?: string }>,
 ): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'mentions-'))
+  await mkdir(join(root, '.git'))
   for (const [id, skill] of Object.entries(skills)) {
     const directory = join(root, '.agents', 'skills', id)
     await mkdir(directory, { recursive: true })
@@ -107,6 +108,9 @@ describe('reading the skills a prompt names', () => {
 })
 
 describe('the catalogue the menu offers', () => {
+  beforeEach(() => { vi.stubEnv('CHAT_AGENTS_USER_SKILLS', '0') })
+  afterEach(() => { vi.unstubAllEnvs() })
+
   it('finds a project’s own skills', async () => {
     const root = await workspaceWithSkills({
       'code-review': { description: 'Review a diff for defects.' },
@@ -119,6 +123,7 @@ describe('the catalogue the menu offers', () => {
 
   it('is empty, not broken, for a project with no skills', async () => {
     const root = await mkdtemp(join(tmpdir(), 'mentions-'))
+    await mkdir(join(root, '.git'))
     expect(await listAvailableSkills({ groupId: 'default', workspaceRoot: root })).toEqual([])
   })
 

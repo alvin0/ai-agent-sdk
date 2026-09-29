@@ -13,6 +13,8 @@ import { serializedBytes, modelFailureFinish, modelAbortedFinish, messageOf, now
 import { validateStreamChunk } from './validation.ts'
 import { StreamAbortError, nextWithAbort, closeIterator } from './cancellation.ts'
 import { runOptionalHook } from './hooks.ts'
+import { stepProjectionSources } from './step-projection.ts'
+import { observeModelRequestBoundary } from './model-request-boundary.ts'
 import { accountingUsageStop } from './usage-stop.ts'
 import {
   classifyTextPhases, dropDuplicateToolCalls, invalidHostToolCall, contentTiming,
@@ -94,6 +96,7 @@ export async function modelRound(
   const finalOutput = phase === 'final' || forcedFinal
   const trace: TraceRef = { traceId: root.traceId, spanId: createSpanId(), parentSpanId: root.spanId }
   let messages = normalizeToolPairing(options.history.messages())
+  const initialMessages = messages
   const afterToolCallIds = recentToolResultIds(options.history)
   const generation = options.history.generation()
   const entries = options.history.entries().length
@@ -132,6 +135,23 @@ export async function modelRound(
     || options.history.entries().length !== entries) {
     messages = normalizeToolPairing(options.history.messages())
   }
+  if (decision?.messages !== undefined) {
+    const originalIds = stepProjectionSources(decision) ?? new Set(initialMessages.map(message => message.id))
+    const projectedIds = new Set(decision.messages.map(message => message.id))
+    const introduced = messages.filter(message => !originalIds.has(message.id) && !projectedIds.has(message.id))
+    const currentIds = new Set(messages.map(message => message.id))
+    const replaced = [...originalIds].some(id => !currentIds.has(id))
+    // A hook can await external I/O while live steering or replacement arrives.
+    // Replacements invalidate a stale projection; append-only steering stays at the tail.
+    const projectedById = new Map(decision.messages.map(message => [message.id, message]))
+    messages = normalizeToolPairing(replaced
+      ? [...decision.messages.filter(message => !originalIds.has(message.id) && !currentIds.has(message.id) && message.source.kind === 'app'),
+        ...messages.flatMap(message => {
+          const projected = projectedById.get(message.id)
+          return projected === undefined ? originalIds.has(message.id) ? [] : [message] : [projected]
+        })]
+      : [...decision.messages, ...introduced])
+  }
   if (decision?.prepend !== undefined) messages = Object.freeze([...decision.prepend, ...messages])
   const system = systemText(options, forcedFinal)
   const availableTools = [
@@ -155,6 +175,7 @@ export async function modelRound(
     ...outputFormat === undefined ? {} : { outputFormat },
   }
   const checkpointRequest: GenerateOptions = { ...requestBase, signal }
+  observeModelRequestBoundary(options.history, true)
   try {
     await runOptionalHook(options.hooks?.checkpoint, [{
       kind: 'before-model-request', request: checkpointRequest,
@@ -162,6 +183,9 @@ export async function modelRound(
       ...(options.logger === undefined ? {} : { logger: options.logger }),
     }], options, signal, 'checkpoint')
   } catch (error: unknown) {
+    // No output will be recorded for this request. Release queued input before
+    // recovery hooks or the retry's beforeStep can read or inject into history.
+    observeModelRequestBoundary(options.history, false)
     const failure: ModelFailure = { message: `history checkpoint failed: ${messageOf(error)}`, code: 'CHECKPOINT_FAILED' }
     return {
       trace, finish: { kind: 'error', failure }, calls: [], afterToolCallIds,
@@ -169,7 +193,10 @@ export async function modelRound(
     }
   }
   const beforeDispatch = stopped()
-  if (beforeDispatch !== undefined) return beforeDispatch
+  if (beforeDispatch !== undefined) {
+    observeModelRequestBoundary(options.history, false)
+    return beforeDispatch
+  }
   await emit({ type: 'span-start', trace, at: now(), name: `chat ${options.config.model}`, kind: 'chat', attributes: {
     'gen_ai.operation.name': 'chat', 'gen_ai.request.model': options.config.model,
     // The effort is part of WHICH call this was: the same model at minimal and
