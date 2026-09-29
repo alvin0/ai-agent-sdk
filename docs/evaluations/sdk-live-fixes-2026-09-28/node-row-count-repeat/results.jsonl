@@ -1,3 +1,0 @@
-{"id":"S12","repeat":0,"title":"two conversations at once stay isolated","passed":true,"detail":{"a":"alpha","b":"50","tools":["list_directory","run_command"]},"ms":8584,"tokens":3992,"notices":[],"errors":[],"reasons":["completed","completed"]}
-{"id":"S12","repeat":1,"title":"two conversations at once stay isolated","passed":true,"detail":{"a":"alpha","b":"50","tools":["list_directory","run_command"]},"ms":6953,"tokens":3961,"notices":[],"errors":[],"reasons":["completed","completed"]}
-{"id":"S12","repeat":2,"title":"two conversations at once stay isolated","passed":true,"detail":{"a":"alpha","b":"50","tools":["run_command","run_command"]},"ms":9735,"tokens":4143,"notices":[],"errors":[],"reasons":["completed","completed"]}

@@ -1,4 +1,0 @@
-{
-  "reason": "Post-cohort strict-grade recomputation and frozen-protocol-fixture verification; all 216 saved primary grades match raw outputs. No provider calls or primary regrades.",
-  "sourceSHA256": "e348f0ad8e99047f37e49991801e3820aa1ceb62734482084f5d5cc534533ac0"
-}

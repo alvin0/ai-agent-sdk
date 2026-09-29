@@ -1,7 +1,0 @@
-$ node scripts/check-package-graph.mts && node scripts/check-dependency-cruiser.mts && node scripts/check-agent-boundaries.mts && node scripts/check-runtime-boundaries.mts
-Package graph check passed: 26 package(s), 41 workspace edge(s), zero findings.
-
-✔ no dependency violations found (281 modules, 880 dependencies cruised)
-
-Agent team boundary passed: define/session has no concrete team edge and no define↔team ownership cycle (13 groups, 39 edges).
-Runtime-boundary check passed: 18 Universal/Browser package(s), 871 source/emitted file(s), zero findings.

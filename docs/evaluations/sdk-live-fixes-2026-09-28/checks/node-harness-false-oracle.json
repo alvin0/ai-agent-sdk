@@ -1,7 +1,0 @@
-{
-  "kind": "controlled HTTP failure oracle; no model request",
-  "exitCode": 1,
-  "stdout": "{\"id\":\"S1\",\"repeat\":0,\"passed\":false,\"ms\":25,\"tokens\":0,\"reasons\":[\"completed\"],\"errors\":[]}\nRetained: /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/artifacts/chat-agents-live/codex-gpt-6-luna-2026-09-27T17-18-18-064Z\n",
-  "stderr": "",
-  "passed": true
-}

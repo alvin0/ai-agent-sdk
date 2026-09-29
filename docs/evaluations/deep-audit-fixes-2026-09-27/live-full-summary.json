@@ -1,8 +1,0 @@
-{
-  "base": "http://localhost:3372",
-  "provider": "codex",
-  "model": "gpt-6-luna",
-  "repeat": 1,
-  "passed": 16,
-  "total": 16
-}

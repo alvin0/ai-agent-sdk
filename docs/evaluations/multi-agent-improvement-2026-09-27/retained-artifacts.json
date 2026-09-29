@@ -1,9 +1,0 @@
-{
-  "ownedScratch": "/Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/artifacts/multi-agent-audit-n62xvl_w",
-  "BASE": "/Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/artifacts/plan-completion-hHIqY2/candidate-sdk",
-  "CANDIDATE": "/Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/artifacts/multi-agent-audit-n62xvl_w/final-sdk-v10",
-  "sourceArchive": "artifacts/neutral-evaluation/codex-luna-baseline-20260926-v1/sdk-source.tar",
-  "archiveSHA256": "9e722716fa839f5d62eb3877abe44a32e4d5defaef7aad9f9b5d76e5330bf0a8",
-  "baselinePatch": "/Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/docs/evaluations/plan-completion-2026-09-27/final-candidate-sdk.patch",
-  "note": "Bundles and historical exploratory/regression/native artifacts remain in owned scratch. Public evidence copies only fixture data, canonical sanitized observations, source and selected named local gates; credentials and HTTP bodies are excluded."
-}

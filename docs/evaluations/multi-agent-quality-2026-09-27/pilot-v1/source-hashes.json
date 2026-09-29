@@ -1,9 +1,0 @@
-{
-  "fixtures-v1.json": "7d51e180fc40ab36a71f16c467fcf9cfd9f661b52e340152b7b2ebf94414c68e",
-  "live-protocol-quality-v2.json": "f6c00cb35e1e4aabf6c9a9fa5cd4747e9931a405c79300b9891060e555568a55",
-  "live-worker.ts": "677a58d16057494fe857fe648b96ab7c40866e9e195bce6857aa59784c8c10e1",
-  "quality-runner.ts": "f04b7cb7b4876f2599d8bfea8c415ad9948079207ec99187583d5aa9995dcbe9",
-  "quality-analyze.py": "dac6b67e113329b018c301dbe890086be021d46d198110b024c1c9aa8764b6f3",
-  "analyze.py": "3221b9e48b2b9a7e217fbb5c06ea6c716555604fc7f6c3de2fb50edd8536545d",
-  "review-results.py": "63400723a825f3b79cefb2373ee1c78412029823c9d2ad526c63b178065e5dd8"
-}

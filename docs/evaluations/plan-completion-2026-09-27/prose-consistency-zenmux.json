@@ -1,7 +1,0 @@
-{
-  "sourceSha256": "5ad5f9cf0ed39543f44d7ef8b6ca44e5949fbd276a19c885f56d8c30f204da49",
-  "reviewSha256": "f616b32396b1bdd582b7252c7b611ee500b0babb7d3003e1f04a950de716d968",
-  "method": "NFC, case folding and whitespace normalization after JSON parsing; diagnostic flags for manual inspection, not automatic semantic equivalence or regrading",
-  "inconsistentGroups": [],
-  "primaryScoresChanged": false
-}

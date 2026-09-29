@@ -1,8 +1,0 @@
-{
-  "finalSourceMatchesFrozen": true,
-  "finalProductionPatchSHA256": "40bd9830b1011e0be18299039e15feb83b2648964b09a93dd2ff589ffc004294",
-  "cachedSnapshotSHA256": "bf68b0d8b8c547d51ece2aa4e2391f00b0e1a9a25bf0ca02aaf11311b4fef0c9",
-  "cachedProductionPatchSHA256": "474dc8c9c36b582990a803d7f0bee17da75047fa9301f6d712399f7e3f25be49",
-  "indexOwnership": "Index was changed externally during audit. Agent did not stage, reset, stash, commit or restore it. Cached production remains intermediate v4; final worktree fixes are unstaged.",
-  "checkedAt": "2026-09-27T07:25:37.952083+00:00"
-}

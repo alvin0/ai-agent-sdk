@@ -1,9 +1,0 @@
-{
-  "complete": false,
-  "reason": "SDK-neutrality review found additional strategy-prescriptive AgentTeam guidance; source changes require a new full matched cohort. No score-based retry or oracle change.",
-  "stoppedAt": "2026-09-27T07:04:35.171466+00:00",
-  "startedAttempts": 28,
-  "recordedRuns": 26,
-  "interruptedAttemptsUsage": "unknown; started records remain in attempts.jsonl",
-  "killedOwnedProcesses": 5
-}

@@ -1,3 +1,0 @@
-{"decision":"allow","model":"gpt-6-luna","passed":true}
-{"decision":"deny","model":"gpt-6-luna","passed":true}
-{"decision":"abort","model":"gpt-6-luna","passed":true}

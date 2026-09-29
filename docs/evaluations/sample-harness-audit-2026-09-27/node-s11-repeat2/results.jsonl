@@ -1,1 +1,0 @@
-{"id":"S11","repeat":0,"title":"team-dynamic: delegate two analyses and combine","passed":true,"detail":{"expected":{"total":2715,"errors":31},"answered":{"total":2715,"errors":31},"members":["sales_helper","log_helper"],"reason":"completed"},"ms":59800,"tokens":36100,"notices":[],"errors":[],"reasons":["completed"]}
