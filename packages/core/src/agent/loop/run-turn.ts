@@ -12,6 +12,7 @@ import { ProgramResultStore } from '../tool/program-results.ts'
 import { type RunTurnOptions } from './turn/types.ts'
 import { resolveBounds, positiveFinite, snapshotRunTurnOptions } from './turn/config.ts'
 import { codedRuntimeError, messageOf, errorCodeOf, now } from './turn/common.ts'
+import { deliverQueuedInput } from './turn/model-request-boundary.ts'
 import { runOptionalHook, runHook } from './turn/hooks.ts'
 import { maintenanceEmitter, emitAssistantContent, textOf } from './turn/content.ts'
 import { repeatKey, toolActionPattern, repeatedSuffixCycle } from './turn/repetition.ts'
@@ -568,9 +569,11 @@ async function driveTurn(
   }], options, signal, 'onTurnEnd')
   // Hooks object by appending context rather than by returning a veto. Re-run only
   // a normally completed turn; abort/error/budget outcomes remain terminal.
+  // Input the person sent while the final answer was being written is owed an
+  // answer too: when nothing else continues the turn, take it and continue.
   if (canContinue
-    && options.history.entries().length > entriesBeforeHook
-    && !signal.aborted) {
+    && !signal.aborted
+    && (options.history.entries().length > entriesBeforeHook || deliverQueuedInput(options.history))) {
     reason = undefined
     continue turnLifecycle
   }

@@ -2,7 +2,7 @@ import { contentHasDocument, contentHasImage } from '../../message/projection.ts
 import { ModelError } from '../../errors/model-error.ts'
 import { type ToolCatalog } from '../tool/registry.ts'
 import { History } from '../history/history.ts'
-import { bindModelRequestBoundary } from '../loop/turn/model-request-boundary.ts'
+import { bindModelRequestBoundary, bindQueuedInput } from '../loop/turn/model-request-boundary.ts'
 import { bindStepProjectionSources } from '../loop/turn/step-projection.ts'
 import { normalizeToolPairing } from '../history/normalize.ts'
 import type { TurnHooks } from '../loop/types.ts'
@@ -82,6 +82,8 @@ export class AgentSession {
    * rounds still append at once, as they always have.
    */
   private roundInFlight = false
+  /** The round in flight called a tool, so its output ends at step-end. */
+  private roundCalledTools = false
 
   constructor(definition: AgentDefinition, options: AgentSessionOptions) {
     if (definition.mode === 'deep-human-in-loop' && options.userInput === undefined) {
@@ -301,21 +303,32 @@ export class AgentSession {
 
   /**
    * Close the in-flight window once a round's output is fully recorded: after
-   * its tool results (`step-end`), after a final answer with no tool calls, or
-   * when the turn ends. The loop waits on this consumer, so held messages land
-   * exactly there, never between a tool call and its result.
+   * its tool results (`step-end`), or when the turn ends. The loop waits on
+   * this consumer, so held messages land exactly there, never between a tool
+   * call and its result.
+   *
+   * A round that answers without calling a tool ends the turn, and input the
+   * person sent while it was being written is still owed an answer. It stays
+   * held until the loop is about to end the turn; the loop then takes it (see
+   * `bindQueuedInput`) and answers it in another round of the same run instead
+   * of leaving it for a later `runPending()`.
    */
   private observeRoundBoundary(event: { readonly type: string; readonly kind?: string; readonly message?: { readonly content: readonly { readonly type: string }[] } }): void {
     // The chat request is now fixed. beforeStep hooks still run outside this
     // window, so their injections can be included in that request's refresh.
     if (event.type === 'span-start' && event.kind === 'chat') {
       this.roundInFlight = true
+      this.roundCalledTools = false
       return
     }
     if (!this.roundInFlight) return
-    const finalAnswer = event.type === 'assistant-message'
-      && event.message?.content.every(block => block.type !== 'tool-call') === true
-    if (event.type === 'step-end' || event.type === 'turn-end' || event.type === 'agent-end' || finalAnswer) {
+    if (event.type === 'tool-call' || (event.type === 'assistant-message'
+      && event.message?.content.some(block => block.type === 'tool-call') === true)) {
+      this.roundCalledTools = true
+    }
+    // A tool round's output is complete at step-end; a final answer's input
+    // waits for the loop to take it at turn end, unless the turn is already over.
+    if ((event.type === 'step-end' && this.roundCalledTools) || event.type === 'turn-end' || event.type === 'agent-end') {
       this.roundInFlight = false
       this.drainInjections()
     }
@@ -329,6 +342,16 @@ export class AgentSession {
     // silently lose the rest. Keep the buffer available to snapshot/recovery.
     this.currentHistory.appendBatch(pending.entries().map(entry => ({ event: entry.event })))
     this.pendingInjections = undefined
+  }
+
+  /**
+   * Whether the latest visible message still awaits the model: new input, a
+   * tool result, or a notice. False once the model has answered everything,
+   * which lets a scheduler skip a run that would only repeat that answer.
+   */
+  hasUnansweredInput(): boolean {
+    if ((this.pendingInjections?.entries().length ?? 0) > 0) return true
+    return this.currentHistory.messages().at(-1)?.role === 'user'
   }
 
   /** Resolve after the current run releases the session. */
@@ -410,6 +433,20 @@ export class AgentSession {
     bindModelRequestBoundary(this.currentHistory, inFlight => {
       this.roundInFlight = inFlight
       if (!inFlight) this.drainInjections()
+    })
+    bindQueuedInput(this.currentHistory, () => {
+      // By entries, not by the buffer: an input refused at admission leaves an
+      // empty buffer behind, and that must not buy the run another round.
+      const held = this.pendingInjections?.entries() ?? []
+      if (held.length === 0) return false
+      // Only the person's own messages extend the run. Team deliveries keep
+      // their contract: queued behind the answer, then processed exactly once
+      // by the team's wake-up through runPending().
+      const fromPerson = held.some(entry => entry.event.kind === 'user' && entry.event.message.source.kind === 'user')
+      if (!fromPerson) return false
+      this.roundInFlight = false
+      this.drainInjections()
+      return true
     })
     this.activeAdditionalInstructions = additionalInstructions
     this.activeInvocation = invocation
@@ -599,6 +636,7 @@ export class AgentSession {
     // so the next run (or a waiting scheduler) reads it.
     try { this.drainInjections() } finally {
       bindModelRequestBoundary(this.currentHistory)
+      bindQueuedInput(this.currentHistory)
       this.roundInFlight = false
       this.active = false
       this.activeAdditionalInstructions = undefined
@@ -759,7 +797,7 @@ export class AgentSession {
 
   private combinedHooks(accounting?: RunAccountingPort): TurnHooks | undefined {
     const user = this.options.hooks
-    return {
+    const hooks: TurnHooks = {
       ...user,
       beforeStep: async context => {
         // Before anything reads history for this request: model-round refreshes
@@ -800,6 +838,7 @@ export class AgentSession {
         return await user?.onRequestError?.(context) ?? 'fail'
       },
     }
+    return hooks
   }
 
   private callConfig(invocation?: AgentInvocationOptions) {

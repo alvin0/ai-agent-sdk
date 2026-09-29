@@ -1,6 +1,6 @@
 /** High-level agent modes built on the provider-neutral bounded tool loop. */
 
-import { createMessage, createUserMessage } from '../../message/index.ts'
+import { createMessage, createUserMessage, type Message } from '../../message/index.ts'
 import type { CallConfig } from '../../contract/index.ts'
 import type { JsonObject } from '../../primitives/index.ts'
 import { detachedFrozen } from '../../primitives/index.ts'
@@ -121,6 +121,20 @@ interface DeepState {
    * right thing to compare against.
    */
   draftAnswer: string | undefined
+  /**
+   * A bare marker with no draft to keep has been answered with a request for
+   * the answer itself. Once is enough: a model that repeats it gets an empty,
+   * incomplete result rather than another paid round.
+   */
+  orphanMarkerNudged: boolean
+  /**
+   * The confirming round was cut off (aborted, errored, out of tokens) while
+   * its text was still only the start of the marker. That text can only be
+   * the marker arriving; it is dropped rather than shown in place of the draft.
+   */
+  markerCut: boolean
+  /** The current reply was confirmed to contain only the control marker. */
+  markerReply: boolean
 }
 
 const DEFAULT_MAX_TURNS = 16
@@ -198,7 +212,7 @@ async function driveAgent(
 
   const state: DeepState = {
     completion: undefined, userAborted: false, unverifiedAnswers: 0, completionInvalidated: false,
-    draftAnswer: undefined,
+    draftAnswer: undefined, orphanMarkerNudged: false, markerCut: false, markerReply: false,
   }
   const deep = mode !== 'basic'
   const broker = options.mode === 'deep' || options.mode === 'deep-human-in-loop'
@@ -255,15 +269,47 @@ async function driveAgent(
   let markerCandidate = false
   let candidateText = ''
   let heldEvents: AgentRunEvent[] = []
+  // The one message that stands in for a kept marker reply: live events, the
+  // terminal outcome and the history surface all carry this same identity.
+  let kept: { readonly from: Message['id']; readonly message: Message } | undefined
+  // A bare marker with nothing to keep: its text is not shown at all.
+  let orphan: Message['id'] | undefined
+  // The history surface already carries the stand-in for this round.
+  let keptRestored = false
   const flushHeld = async (): Promise<void> => {
     const pending = heldEvents
     heldEvents = []
     for (const event of pending) await emit(event)
   }
+  /** Release everything held except the text itself. */
+  const dropHeldText = async (): Promise<void> => {
+    const pending = heldEvents
+    heldEvents = []
+    for (const held of pending) if (held.type !== 'text-delta' && held.type !== 'text-end') await emit(held)
+  }
   const emitAnswerEvent = async (event: AgentRunEvent): Promise<void> => {
+    // The loop describes each block of the message it just built. For a kept
+    // reply that message is the marker: describe the stand-in instead.
+    if (orphan !== undefined && event.type === 'assistant-text' && event.messageId === orphan) return
+    if (kept !== undefined && event.type === 'assistant-reasoning' && event.messageId === kept.from) {
+      await emit({ ...event, messageId: kept.message.id })
+      return
+    }
+    if (kept !== undefined && event.type === 'assistant-text' && event.messageId === kept.from) {
+      const block = kept.message.content.find(block => block.type === 'text')
+      await emit({ ...event, messageId: kept.message.id, text: block?.type === 'text' ? block.text : event.text })
+      return
+    }
     if (event.type === 'step-start') {
+      kept = undefined
+      orphan = undefined
+      keptRestored = false
+      state.markerCut = false
+      state.markerReply = false
       await flushHeld()
-      markerCandidate = state.completion !== undefined && state.draftAnswer !== undefined
+      // Held after any accepted check, with or without a draft: a later run can
+      // imitate an earlier accept, and the marker must not stream either way.
+      markerCandidate = state.completion !== undefined
       candidateText = ''
     }
     if (markerCandidate && (event.type === 'text-delta' || event.type === 'text-end')) {
@@ -272,35 +318,45 @@ async function driveAgent(
       // Ordinary answers resume streaming as soon as their prefix differs.
       // Hold the control reply until its complete assistant message confirms
       // it contains no additional text or tool calls.
-      if ((!UNCHANGED_ANSWER_MARKER.startsWith(candidateText.trimStart())
-        && candidateText.trim() !== UNCHANGED_ANSWER_MARKER)
-        || (event.type === 'text-end' && event.incomplete)) {
+      if (!isMarkerPrefix(candidateText)) {
         markerCandidate = false
         await flushHeld()
+      } else if (event.type === 'text-end' && event.incomplete) {
+        // Cut off mid-marker: stay a candidate so the message that follows is
+        // resolved as the marker it was becoming, not shown as an answer.
+        state.markerCut = true
       }
       return
     }
     if (markerCandidate && event.type === 'assistant-message') {
       const content = event.message.content
       const draft = state.draftAnswer
-      const keep = draft !== undefined && content.length === 1 && content[0]?.type === 'text'
-        && content[0].text.trim() === UNCHANGED_ANSWER_MARKER
+      const only = soleText(content)
+      const bare = only !== undefined
+        && (only.trim() === UNCHANGED_ANSWER_MARKER || (state.markerCut && isMarkerPrefix(only)))
       markerCandidate = false
-      if (keep) {
-        const pending = heldEvents
-        heldEvents = []
-        for (const held of pending) {
-          if (held.type !== 'text-delta' && held.type !== 'text-end') await emit(held)
-        }
-        await emit({ ...event, message: createMessage({ role: 'assistant',
-          content: [{ type: 'text', text: draft, phase: 'final-answer' }],
-          source: { kind: 'app', producer: 'deep-mode-kept-answer' },
-        }) })
+      if (bare) {
+        state.markerReply = true
+        kept = { from: event.message.id, message: keptAnswerMessage(draft ?? '', content) }
+        // Correct the persisted surface before exposing the replacement, even
+        // when there is no draft: a reload must not present the control marker.
+        restoreKeptAnswer(options.history, kept.message, state.markerCut)
+        keptRestored = true
+        if (draft === undefined) orphan = event.message.id
+        await dropHeldText()
+        await emit({ ...event, message: kept.message })
         return
       }
+      // Text alone cannot identify a control reply if other content accompanies it.
+      state.markerCut = false
       await flushHeld()
     } else if (heldEvents.length > 0) {
-      if (event.type === 'turn-end' || event.type === 'tool-call') {
+      if (event.type === 'turn-end' && markerCandidate && isMarkerPrefix(candidateText)) {
+        // The round ended (abort, error) before a message could confirm it.
+        markerCandidate = false
+        state.markerCut = true
+        await dropHeldText()
+      } else if (event.type === 'turn-end' || event.type === 'tool-call') {
         markerCandidate = false
         await flushHeld()
       } else {
@@ -338,10 +394,15 @@ async function driveAgent(
       state.completionInvalidated = false
     }
     if (event.type === 'turn-end') {
+      // A round that ends while its held text is only the start of the marker was
+      // cut off mid-marker; resolve that before the outcome is decided.
+      if (markerCandidate && heldEvents.length > 0 && isMarkerPrefix(candidateText)) state.markerCut = true
       terminal = keptAnswerOutcome(event.outcome, state)
       // Resolve the control reply before exposing the terminal turn outcome,
       // so consumers of turn-end and agent-end receive the same answer.
-      if (terminal !== event.outcome) restoreKeptAnswer(options.history, terminal.text)
+      if (terminal !== event.outcome && state.draftAnswer !== undefined && !keptRestored) {
+        restoreKeptAnswer(options.history, kept?.message ?? keptAnswerMessage(terminal.text), state.markerCut)
+      }
       await emitAnswerEvent({ ...event, outcome: terminal })
       continue
     }
@@ -364,26 +425,45 @@ async function driveAgent(
   await emit({ type: 'agent-end', outcome })
 }
 
-function keptAnswerOutcome(outcome: TurnOutcome, state: DeepState): TurnOutcome {
-  return state.completion !== undefined && state.draftAnswer !== undefined
-    && outcome.text.trim() === UNCHANGED_ANSWER_MARKER
-    ? { ...outcome, text: state.draftAnswer }
-    : outcome
+/**
+ * The message's one text block, when text is all it says. Reasoning is not
+ * something it says to the user: reasoning models attach it to a reply that is
+ * otherwise only the marker, and that reply must still count as the marker.
+ */
+function soleText(content: readonly Message['content'][number][]): string | undefined {
+  const said = content.filter(block => block.type !== 'reasoning')
+  return said.length === 1 && said[0]?.type === 'text' ? said[0].text : undefined
 }
 
-/**
- * Clears the marker from the model-facing surface and any snapshot taken
- * after this call, so reopening a stored run shows the kept answer rather
- * than a reply that only pointed back at it.
- *
- * The log entry itself is untouched — history is append-only — this adds a
- * replacement entry that supersedes it on the surface, the same mechanism
- * compaction uses to shadow entries it has summarized. Only a message whose
- * entire content is the marker, alone, is replaced: real content alongside
- * it (a citation-style marker a model actually meant to say, a tool call)
- * takes the normal, unreplaced path.
- */
-function restoreKeptAnswer(history: RunAgentOptions['history'], draftAnswer: string): void {
+/** Text that is, so far, only the beginning (or the whole) of the marker. */
+function isMarkerPrefix(text: string): boolean {
+  const trimmed = text.trim()
+  return trimmed.length === 0 ? true : UNCHANGED_ANSWER_MARKER.startsWith(trimmed)
+}
+
+function keptAnswerOutcome(outcome: TurnOutcome, state: DeepState): TurnOutcome {
+  if (state.completion === undefined || (!state.markerReply && !state.markerCut)) return outcome
+  const cut = state.markerCut && outcome.text.trim() !== '' && isMarkerPrefix(outcome.text)
+  if (!cut && outcome.text.trim() !== UNCHANGED_ANSWER_MARKER) return outcome
+  // With no draft there is nothing the marker could mean: an empty answer, so
+  // the run reports incomplete instead of presenting the marker as its answer.
+  return { ...outcome, text: state.draftAnswer ?? '' }
+}
+
+/** Replace the control text while preserving the confirming round's reasoning. */
+function keptAnswerMessage(draftAnswer: string, content?: Message['content']): Message {
+  return createMessage({
+    role: 'assistant',
+    content: content === undefined
+      ? [{ type: 'text', text: draftAnswer, phase: 'final-answer' }]
+      : content.flatMap<Message['content'][number]>(block => block.type === 'reasoning' ? [block]
+        : draftAnswer === '' ? [] : [{ type: 'text' as const, text: draftAnswer, phase: 'final-answer' as const }]),
+    source: { kind: 'app', producer: 'deep-mode-kept-answer' },
+  })
+}
+
+/** Supersede a bare marker on the history surface without changing the raw log. */
+function restoreKeptAnswer(history: RunAgentOptions['history'], replacement: Message, cut = false): void {
   const entries = history.entries()
   let target: (typeof entries)[number] | undefined
   for (let index = entries.length - 1; index >= 0; index--) {
@@ -392,28 +472,16 @@ function restoreKeptAnswer(history: RunAgentOptions['history'], draftAnswer: str
     target = entry
     break
   }
-  const content = target?.event.kind === 'assistant' ? target.event.message.content : undefined
-  if (target === undefined || content === undefined || content.length !== 1) return
-  const [block] = content
-  if (block?.type !== 'text' || block.text.trim() !== UNCHANGED_ANSWER_MARKER) return
-  try {
-    history.append(
-      {
-        kind: 'assistant',
-        message: createMessage({
-          role: 'assistant',
-          content: [{ type: 'text', text: draftAnswer, phase: 'final-answer' }],
-          source: { kind: 'app', producer: 'deep-mode-kept-answer' },
-        }),
-      },
-      { op: 'replace', from: target.seq, to: target.seq },
-    )
-  } catch {
-    // The surface changed under us (compaction shadowed this entry first, or
-    // it stopped being the current head). `terminal.text` is already the
-    // recovered answer regardless; a replay reading raw history sees the
-    // marker in this one unlikely case rather than the run failing over it.
-  }
+  const only = target?.event.kind === 'assistant' ? soleText(target.event.message.content) : undefined
+  if (target === undefined || only === undefined) return
+  if (only.trim() !== UNCHANGED_ANSWER_MARKER && !(cut && only.trim() !== '' && isMarkerPrefix(only))) return
+  // Persist before emitting the replacement. Capacity and validation failures
+  // must fail the run; claiming success would leave its result and replay in
+  // disagreement and expose the raw marker through the session response.
+  history.append(
+    { kind: 'assistant', message: replacement },
+    { op: 'replace', from: target.seq, to: target.seq },
+  )
 }
 
 function completionTool(state: DeepState): ToolDefinition<CompletionSubmission> {
@@ -514,6 +582,17 @@ function deepHooks(
     onTurnEnd: async context => {
       const outcome = keptAnswerOutcome(context.outcome, state)
       await userHooks?.onTurnEnd?.(outcome === context.outcome ? context : { ...context, outcome })
+      if (context.outcome.reason.kind === 'completed' && context.canContinue
+        && state.completion !== undefined && state.draftAnswer === undefined && !state.orphanMarkerNudged
+        && state.markerReply
+        && context.outcome.text.trim() === UNCHANGED_ANSWER_MARKER) {
+        state.orphanMarkerNudged = true
+        history.append({ kind: 'user', message: createUserMessage({
+          source: { kind: 'app', producer: 'deep-mode-self-check' },
+          content: [{ type: 'text', text: `There is no earlier answer in this run for ${UNCHANGED_ANSWER_MARKER} to keep: that reply applies only after an answer was given before the check in the same run. Reply with the answer itself now, in the requested format.` }],
+        }) })
+        return
+      }
       if (context.outcome.reason.kind !== 'completed'
         || (maxTurns !== 'auto' && context.outcome.steps >= maxTurns)
         || state.completion !== undefined

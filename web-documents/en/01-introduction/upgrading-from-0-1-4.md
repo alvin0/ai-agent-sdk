@@ -14,7 +14,7 @@ are optional; an existing application does not need to adopt them.
 | Area | New behavior | What to check |
 | --- | --- | --- |
 | `commentary` | Defaults to `auto`, previously `concise` | Set `concise` explicitly for short progress updates. |
-| `session.inject()` | Mid-round input queues behind in-flight output | Receipt is provisional, not a durable history sequence. Snapshot retains queued input. |
+| `session.inject()` | Mid-round input queues behind in-flight output | Receipt is provisional, not a durable history sequence. Snapshot retains queued input. From 0.1.6, a person's input queued during a final answer is answered in the same run. |
 | Managed strategy | Prompts explain lifecycle instead of prescribe a plan | Put required planning, delegation, and synthesis in host instructions. |
 | Worker text | A clean empty completion is valid | Set `requireWorkerText: true` when a text report is required. |
 | `writes` | Only workspace-relative, non-escaping scopes are accepted | Use `src/file.ts`; omit for readers. Scopes are scheduling declarations, not permissions. |

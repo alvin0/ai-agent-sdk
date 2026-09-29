@@ -40,6 +40,11 @@ export interface TeamSessionPort {
   readonly isRunning: boolean
   inject(input: UserMessage): number
   whenIdle(signal?: AbortSignal): Promise<void>
+  /**
+   * Optional: whether anything still awaits an answer. A session that answers
+   * input queued during its own run reports false, and the wake-up skips it.
+   */
+  hasUnansweredInput?(): boolean
   runPending(invocation?: {
     readonly signal?: AbortSignal
     readonly onEvent?: (event: AgentRunEvent) => void | Promise<void>

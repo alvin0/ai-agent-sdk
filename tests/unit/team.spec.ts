@@ -505,3 +505,67 @@ describe('local agent teams', () => {
     expect(Date.now() - disposing).toBeLessThan(250)
   })
 })
+
+describe('team deliveries that arrive during a member\'s final answer', () => {
+  /** Holds the first request open until released, then answers in order. */
+  class HeldFirstRound extends ModelAdapter {
+    readonly requests: GenerateOptions[] = []
+    private release!: () => void
+    private entered!: () => void
+    readonly firstEntered = new Promise<void>(resolve => { this.entered = resolve })
+    private readonly gate = new Promise<void>(resolve => { this.release = resolve })
+    async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+      this.requests.push(options)
+      if (this.requests.length === 1) { this.entered(); await this.gate }
+      yield * textRound(`answer ${this.requests.length}`)
+    }
+    open(): void { this.release() }
+    override resolveModel(provider: string, model: string): Promise<ResolvedModelInfo> {
+      return Promise.resolve({ provider, id: model, name: model })
+    }
+  }
+
+  function heldSetup() {
+    const adapter = new HeldFirstRound()
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['test'], adapter)
+    return { adapter, registry }
+  }
+
+  it('keeps the team contract: a follow-up is answered once, by the wake-up, after the answer', async () => {
+    const state = heldSetup()
+    const team = new AgentTeam({ id: 'final-round-team' })
+    agent('lead').createSession({ registry: state.registry, team: { team } })
+    const worker = agent('worker').createSession({ registry: state.registry, team: { team } })
+    const running = worker.run('start')
+    await state.adapter.firstEntered
+    await team.followup('lead', 'worker', 'One more thing.')
+    state.adapter.open()
+    await running
+    await team.whenIdle('worker')
+    expect(state.adapter.requests).toHaveLength(2)
+    const second = JSON.stringify(state.adapter.requests[1]?.messages)
+    expect(second.indexOf('answer 1')).toBeLessThan(second.indexOf('One more thing.'))
+    expect(worker.history.messages().at(-1)?.role).toBe('assistant')
+  })
+
+  it('answers a person\'s steer and a team message together, without an extra wake-up run', async () => {
+    const state = heldSetup()
+    const team = new AgentTeam({ id: 'mixed-team' })
+    agent('lead').createSession({ registry: state.registry, team: { team } })
+    const worker = agent('worker').createSession({ registry: state.registry, team: { team } })
+    const running = worker.run('start')
+    await state.adapter.firstEntered
+    worker.inject('A person steers too.')
+    await team.followup('lead', 'worker', 'And the lead follows up.')
+    state.adapter.open()
+    await running
+    await team.whenIdle('worker')
+    // The run answers both in one more round; the wake-up finds nothing left.
+    expect(state.adapter.requests).toHaveLength(2)
+    const second = JSON.stringify(state.adapter.requests[1]?.messages)
+    expect(second).toContain('A person steers too.')
+    expect(second).toContain('And the lead follows up.')
+    expect(worker.hasUnansweredInput()).toBe(false)
+  })
+})

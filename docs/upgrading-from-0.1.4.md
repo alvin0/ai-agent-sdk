@@ -12,7 +12,7 @@ listed under 0.1.4 in CHANGELOG is already part of that baseline.
 | Area | Change | Application action |
 | --- | --- | --- |
 | Narration | `commentary` defaults to `auto`, previously `concise` | Set `commentary: 'concise'` when short progress updates are part of your contract. |
-| Mid-round input | `session.inject()` queues input after the output of the in-flight request | Do not use its provisional receipt as a durable history ID or assume live history has changed immediately. `snapshot()` retains queued input. |
+| Mid-round input | `session.inject()` queues input after the output of the in-flight request | Do not use its provisional receipt as a durable history ID or assume live history has changed immediately. `snapshot()` retains queued input. From 0.1.6, a person's input queued during a final answer is answered by one more round in the same run; team deliveries still wait for the wake-up. |
 | Team strategy | SDK prompts explain lifecycle rather than prescribe a delegation plan | Put required planning, delegation, and synthesis rules in lead/worker instructions. Automatic lead coordination remains on by default. |
 | Worker text | Clean completion with empty text is valid | Set `requireWorkerText: true` when your workflow requires a textual report. |
 | Write scopes | Absolute/escaping `writes` paths are rejected | Use paths such as `src/file.ts`; omit `writes` for read-only work. Scheduling scopes do not grant filesystem permissions. |

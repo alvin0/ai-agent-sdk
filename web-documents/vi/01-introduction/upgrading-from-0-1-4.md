@@ -14,7 +14,7 @@ tùy chọn; ứng dụng cũ không bắt buộc dùng chúng.
 | Phần | Hành vi mới | Cần kiểm tra |
 | --- | --- | --- |
 | `commentary` | Mặc định `auto`, trước đây là `concise` | Đặt `concise` rõ ràng nếu cần progress update ngắn. |
-| `session.inject()` | Input giữa model round đợi sau output đang chạy | Receipt là tạm thời, không phải sequence bền vững. Snapshot giữ input đang đợi. |
+| `session.inject()` | Input giữa model round đợi sau output đang chạy | Receipt là tạm thời, không phải sequence bền vững. Snapshot giữ input đang đợi. Từ 0.1.6, input của người dùng gửi trong lúc model viết câu trả lời cuối được trả lời ngay trong cùng run. |
 | Chiến lược managed team | Prompt giải thích lifecycle thay vì áp một kế hoạch | Đưa yêu cầu lập kế hoạch, phân công và tổng hợp vào instructions của host. |
 | Text của worker | Hoàn tất sạch với text rỗng được chấp nhận | Đặt `requireWorkerText: true` nếu bắt buộc có báo cáo text. |
 | `writes` | Chỉ nhận scope tương đối trong workspace, không thoát ra ngoài | Dùng `src/file.ts`; bỏ scope khi chỉ đọc. Scope phục vụ scheduling, không cấp quyền file. |
