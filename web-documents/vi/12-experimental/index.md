@@ -50,7 +50,7 @@ HTTP**, và phương án dự phòng cố ý quan sát được để một tri�
 | Thuộc tính | Trạng thái |
 | --- | --- |
 | Phiên bản | `0.1.7` |
-| Publish npm | Release candidate 0.1.7; dùng tarball cục bộ đến khi phiên bản có trên npm |
+| Publish npm | Merge vào `main` kích hoạt publish sau các kiểm tra |
 | Quy trình release | Merge vào `main` kích hoạt publish npm có gate và provenance |
 
 ```bash

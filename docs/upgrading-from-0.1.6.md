@@ -1,7 +1,7 @@
 # Upgrading from 0.1.6 to 0.1.7
 
-The workspace targets **0.1.7**, currently unreleased. Use a local packed build
-until the Release workflow publishes it. Package versions remain in lockstep;
+This guide covers **0.1.7**. Merging into `main` triggers the guarded Release
+workflow to publish npm packages. Package versions remain in lockstep;
 the private testkit is not published. Existing import routes and v1 session
 snapshots remain supported.
 

@@ -7,7 +7,7 @@
 | Phiên bản | `0.1.7` |
 | Giấy phép | MIT |
 | Yêu cầu Node | 22.18+ cho công cụ workspace; 22.12+ cho package năng lực Node đã cài |
-| Publish lên registry | Release candidate `0.1.7` — 25 package dưới scope `@alvin0` |
+| Publish lên registry | Merge vào `main` kích hoạt publish — 25 package dưới scope `@alvin0` |
 
 ## Publish lên registry
 

@@ -150,5 +150,5 @@ option type and protocol dialect before copying a gateway configuration.
 
 The context optimizer, evidence reducer, action fusion, and experimental program
 APIs described here were introduced in 0.1.5 and are absent from npm 0.1.4.
-The workspace now targets 0.1.7, currently unreleased. Check installed package
-typings and validate 0.1.7 changes with packed workspace artifacts until publication.
+The workspace targets 0.1.7. Merging into `main` triggers guarded npm publication.
+Check installed package typings when applying these APIs.

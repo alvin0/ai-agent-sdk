@@ -1,7 +1,7 @@
 # Upgrading from 0.1.6 to 0.1.7
 
-The workspace targets 0.1.7, currently unreleased. Check installed typings or a
-packed workspace build; do not assume npm already serves this version.
+These notes cover 0.1.7. Merging into `main` triggers guarded npm publication.
+Check the installed package typings or a matching packed workspace build.
 
 - Judge objective completion with `response.completed`, independently of execution
   status. Empty basic replies cannot complete a request using an older answer.

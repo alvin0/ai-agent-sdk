@@ -1,7 +1,7 @@
 # Nâng cấp từ 0.1.6 lên 0.1.7
 
-Workspace đang chuẩn bị **0.1.7**, chưa phát hành. Dùng package đóng gói cục bộ
-đến khi workflow Release publish. Các package giữ cùng phiên bản; testkit vẫn
+Hướng dẫn này mô tả **0.1.7**. Merge vào `main` kích hoạt workflow Release
+để publish npm sau khi các kiểm tra pass. Các package giữ cùng phiên bản; testkit vẫn
 private. Đường import và snapshot session v1 vẫn được hỗ trợ.
 
 ## Completion và steering

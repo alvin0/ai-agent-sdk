@@ -10,7 +10,7 @@ message.
 
 ## Setup
 
-For the prepared 0.1.7 release, read [upgrading from 0.1.6](docs/upgrading-from-0.1.6.md).
+For the 0.1.7 release, read [upgrading from 0.1.6](docs/upgrading-from-0.1.6.md).
 For changes introduced after 0.1.4, read the
 [upgrade guide](docs/upgrading-from-0.1.4.md) and
 [context optimization guide](docs/context-optimization.md). Existing agent/tool
@@ -28,8 +28,8 @@ pnpm build:cli
 Workspace tooling and Node capability packages require Node 22.12 or newer.
 
 The workspace has 25 publishable packages under the `@alvin0` scope, built and signed
-from CI with SLSA provenance, plus a private testkit. Version 0.1.7 is prepared
-locally; npm availability depends on the Release workflow.
+from CI with SLSA provenance, plus a private testkit. Merging into `main` triggers
+the guarded Release workflow to publish npm packages after its checks pass.
 
 Choose the smallest runtime closure you need:
 

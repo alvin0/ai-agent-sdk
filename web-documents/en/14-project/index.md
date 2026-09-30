@@ -7,7 +7,7 @@
 | Version | `0.1.7` |
 | License | MIT |
 | Node requirement | 22.18+ for workspace tooling; 22.12+ for installed Node capability packages |
-| Registry publication | `0.1.7` release candidate — 25 packages under `@alvin0` |
+| Registry publication | Merge to `main` triggers publication — 25 packages under `@alvin0` |
 
 ## Registry publication
 

@@ -48,7 +48,7 @@ not hide in a health UI.
 | Property | Status |
 | --- | --- |
 | Version | `0.1.7` |
-| npm publication | 0.1.7 release candidate; validate with local tarballs until npm publication |
+| npm publication | Merge to `main` triggers guarded publication |
 | Release path | A `main` merge triggers guarded npm publication with provenance |
 
 ```bash

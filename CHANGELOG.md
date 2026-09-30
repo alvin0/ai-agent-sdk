@@ -2,7 +2,7 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
-## 0.1.7 (unreleased)
+## 0.1.7 - 2026-09-30
 
 ### Fixed
 
@@ -27,7 +27,7 @@ All notable changes to the AI Agent SDK are documented in this file.
 ### Release scope
 
 - All 26 workspace package manifests, root metadata, and `SDK_VERSION` move from `0.1.6` to `0.1.7`; 25 packages are publishable and the private testkit remains unpublished.
-- Publication follows the guarded Release workflow; this unreleased entry records the prepared version, not npm availability.
+- Merging into `main` triggers the guarded Release workflow, which publishes npm packages after its checks pass.
 
 ## 0.1.6 - 2026-09-29
 
