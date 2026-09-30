@@ -8,7 +8,7 @@ Framework-independent, dev-only conformance suites for capability authors.
 > workspace or tarball installs; publishing is intentionally not configured.
 >
 > ```bash
-> pnpm add -D ./artifacts/alvin0-ai-agent-sdk-testkit-0.1.5.tgz
+> pnpm add -D ./artifacts/alvin0-ai-agent-sdk-testkit-0.1.7.tgz
 > ```
 
 ## Exports

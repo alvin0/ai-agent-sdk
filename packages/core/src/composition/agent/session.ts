@@ -138,6 +138,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
       inject(input: Parameters<TeamSessionPort['inject']>[0]) { return owner.injectForTeam(input) },
       whenIdle(signal?: AbortSignal) { return owner.whenIdle(signal) },
       hasUnansweredInput() { return owner.session.hasUnansweredInput() },
+      lastOutcome() { return owner.session.lastOutcome() },
       runPending(invocation = {}) { return owner.runPendingForTeam(invocation) },
     })
   }
@@ -234,6 +235,24 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
     this.host.operations.assertActive()
     this.assertOwnerActive()
     return this.session.inject(input)
+  }
+
+  hasUnansweredInput(): boolean { return this.session.hasUnansweredInput() }
+
+  async runPending(rawOptions?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse> {
+    const options = captureInvocationOptions(rawOptions, this.host.selection)
+    const started = this.start(undefined, options)
+    const handle = runtimeHandle(started.legacy, started.report, started.result, this.nativeProvider, options.includeTraceEvents === true)
+    try {
+      for await (const event of handle) {
+        if (options.onEvent !== undefined) await this.observe(options.onEvent, event, handle)
+      }
+    } catch (error) {
+      handle.abort()
+      await handle.result.catch(() => undefined)
+      throw error
+    }
+    return await handle.result
   }
 
   snapshot(): RuntimeAgentSessionSnapshot { return this.session.snapshot() }
@@ -534,6 +553,7 @@ function projectEvent(event: AgentRunEvent, nativeProvider: string, includeTrace
     text: event.text, index: event.index, phase: event.phase, blockId: `${event.trace.spanId}:${event.index}`,
   }
   if (event.type === 'assistant-message') return { type: 'assistant-message', message: publicMessage(event.message) }
+  if (event.type === 'assistant-replacement') return { ...event, message: publicMessage(event.message) }
   if (event.type === 'text-end' || event.type === 'reasoning-delta') {
     const { trace, ...content } = event
     return { ...content, blockId: `${trace.spanId}:${event.index}` }

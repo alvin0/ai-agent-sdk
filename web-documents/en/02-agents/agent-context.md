@@ -60,8 +60,8 @@ compacting aggressively.
 const seq = session.inject('The candidate commit is abc123.')
 ```
 
-`inject()` appends an attributed user-role message and returns its sequence
-number. No model request happens. Use it when your application learns something
+`inject()` appends an attributed user-role message when idle. During a fixed
+model round it queues the message, so the returned receipt is provisional. No model request happens. Use it when your application learns something
 the model will need on its next turn.
 
 In a team, `team.sendMessage({ delivery: 'quiet' })` does the same thing across

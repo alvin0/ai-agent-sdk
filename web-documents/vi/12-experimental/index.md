@@ -1,7 +1,7 @@
 # Experimental
 
 Program tool experimental là phần bổ sung rõ ràng, tùy chọn trong các thay đổi
-0.1.5, hiện chưa phát hành. Grant `experimentalPrograms` ở session bật child call;
+0.1.5. Grant `experimentalPrograms` ở session bật child call;
 tool có thể khai báo `experimentalOutputSchema` để kiểm tra child result.
 Tool thông thường không cần hai option này. Những phần tạm thời khác và giới
 hạn runtime của chúng được liệt kê dưới đây.
@@ -49,12 +49,12 @@ HTTP**, và phương án dự phòng cố ý quan sát được để một tri�
 
 | Thuộc tính | Trạng thái |
 | --- | --- |
-| Phiên bản | `0.1.5` |
-| Publish npm | Release candidate 0.1.5; dùng tarball cục bộ đến khi phiên bản có trên npm |
+| Phiên bản | `0.1.7` |
+| Publish npm | Release candidate 0.1.7; dùng tarball cục bộ đến khi phiên bản có trên npm |
 | Quy trình release | Merge vào `main` kích hoạt publish npm có gate và provenance |
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.5.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.7.tgz
 ```
 
 Mọi lệnh `pnpm add @alvin0/ai-agent-sdk-...` trong tài liệu này dùng đúng tên

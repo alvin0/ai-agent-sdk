@@ -155,7 +155,7 @@ export async function runCase(sdk: SDK, id: CaseId): Promise<CaseResult> {
       const worker = f.managed.workers().find(w => w.name === 'silent')!
       const expected = id === 'silent-worker-completion' ? 'completed' : 'failed'
       passed = receipts === 1 && worker.status === expected && (expected === 'completed'
-        ? worker.result?.text === '' && worker.result.succeeded
+        ? worker.result?.text === '' && worker.result.succeeded === false
         : worker.result === undefined && worker.error === 'it produced no answer')
       observed = { receipts, status: worker.status, text: worker.result?.text, succeeded: worker.result?.succeeded, error: worker.error, expected }
     } finally { await f.cleanup() }

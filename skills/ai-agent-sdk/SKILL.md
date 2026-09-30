@@ -77,6 +77,7 @@ Load only the file the task needs. Each is self-contained.
 | Pick packages, install profile, runtime tier, credentials | [references/packages.md](references/packages.md) |
 | `createAgentRuntime`, `runtime.agent`, `defineAgent`, sessions, hooks, close | [references/runtime-and-agents.md](references/runtime-and-agents.md) |
 | Upgrade an application from published 0.1.4 | [references/upgrading-from-0.1.4.md](references/upgrading-from-0.1.4.md) |
+| Upgrade from 0.1.6; pending steering, draft replacement, Stop | [references/upgrading-from-0.1.6.md](references/upgrading-from-0.1.6.md) |
 | Stream events, render a live UI, cancellation, `stopReason` | [references/streaming.md](references/streaming.md) |
 | `defineTool`, approvals, program grants, action fusion | [references/tools.md](references/tools.md) |
 | Force JSON output with a schema | [references/structured-output.md](references/structured-output.md) |
@@ -148,6 +149,6 @@ between releases. For provider work in particular, check the exact adapter
 option type and protocol dialect before copying a gateway configuration.
 
 The context optimizer, evidence reducer, action fusion, and experimental program
-APIs described here are additions in 0.1.5, currently unreleased. Check the
-installed package typings before using them and validate with packed workspace
-artifacts until 0.1.5 is published. These APIs are absent from npm 0.1.4.
+APIs described here were introduced in 0.1.5 and are absent from npm 0.1.4.
+The workspace now targets 0.1.7, currently unreleased. Check installed package
+typings and validate 0.1.7 changes with packed workspace artifacts until publication.

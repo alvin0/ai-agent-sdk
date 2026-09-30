@@ -175,3 +175,13 @@ than this chapter — see [`Types` API reference](/en/13-api-reference/types) fo
 - [Lifecycle](/en/02-agents/lifecycle) — hooks, cancellation, close evidence
 - [Tool Execution](/en/03-tools/tool-execution) — how tool events are scheduled
 - [`Types` API reference](/en/13-api-reference/types) — the raw chunk protocol
+
+## Replacement and Stop in 0.1.7
+
+Handle `assistant-replacement` using `fromMessageId` and the replacement `message`.
+It covers kept/corrected drafts after accepted checks, not every transcript change.
+Use `text-end.phase` to reclassify text emitted before tools. Reconcile successful
+runs from `response.text` even if no delta arrived. If `handle.result` rejects,
+including Stop, reconcile from the persisted transcript after cleanup. The marker
+is reserved in every mode; old stored assistant text needs application-side
+sanitization. See [upgrading from 0.1.6](/en/01-introduction/upgrading-from-0-1-6).

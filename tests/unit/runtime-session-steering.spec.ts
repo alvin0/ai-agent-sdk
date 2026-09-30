@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createAgentRuntime, ModelAdapter, ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { createAgentRuntime, createUserMessage, ModelAdapter, ToolCallId } from '@alvin0/ai-agent-sdk-core'
 import type { GenerateOptions, RuntimeAgentSession, StreamChunk } from '@alvin0/ai-agent-sdk-core'
-import { defineTool, projectMessages, UNCHANGED_ANSWER_MARKER } from '@alvin0/ai-agent-sdk-core/agent'
+import { defineTool, History, projectMessages, UNCHANGED_ANSWER_MARKER } from '@alvin0/ai-agent-sdk-core/agent'
 import { defineModelProviderPlugin } from '@alvin0/ai-agent-sdk-core/provider'
 
 /**
@@ -56,7 +56,7 @@ function gate() {
 async function withSession<T>(
   round: Round,
   body: (context: { model: ScriptedModel; session: RuntimeAgentSession; runtime: Awaited<ReturnType<typeof createAgentRuntime>> }) => Promise<T>,
-  agent: { tools?: ReturnType<typeof defineTool>[]; mode?: 'basic' | 'deep' } = {},
+  agent: { tools?: ReturnType<typeof defineTool>[]; mode?: 'basic' | 'deep'; maxTurns?: number } = {},
 ): Promise<T> {
   const model = new ScriptedModel(round)
   const runtime = await createAgentRuntime({ providers: [defineModelProviderPlugin({
@@ -67,6 +67,7 @@ async function withSession<T>(
     const session = runtime.agent({
       id: 'steered', model: { provider: 'fixture', id: 'test' }, instructions: 'Answer the user.',
       mode: agent.mode ?? 'basic', ...agent.tools === undefined ? {} : { tools: agent.tools },
+      ...agent.maxTurns === undefined ? {} : { maxTurns: agent.maxTurns },
     }).createSession()
     return await body({ model, session, runtime })
   } finally {
@@ -281,6 +282,25 @@ describe('RuntimeAgentSession.inject while a run is in flight', () => {
 })
 
 describe('RuntimeAgentSession: deep-mode kept answer, end to end', () => {
+  it('exposes late steering as pending and answers it through runPending', async () => {
+    const started = gate(), release = gate()
+    await withSession(async function* (_options, index) {
+      if (index === 1) { started.open(); await release.opened }
+      yield* text(index === 1 ? 'Original answer.' : 'Late input answered.')
+    }, async ({ session }) => {
+      const handle = session.stream('question')
+      const done = drain(handle)
+      await started.opened
+      session.inject('late input')
+      release.open()
+      await done
+      expect(await handle.result).toMatchObject({ completed: false })
+      expect(session.hasUnansweredInput()).toBe(true)
+      expect(await session.runPending()).toMatchObject({ text: 'Late input answered.' })
+      expect(session.hasUnansweredInput()).toBe(false)
+    }, { maxTurns: 1 })
+  })
+
   const submitCall = (id: string): StreamChunk[] => [
     { type: 'block-start', index: 0, blockType: 'tool-call' },
     { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId(id), name: 'submit_result',
@@ -327,6 +347,7 @@ describe('RuntimeAgentSession: deep-mode kept answer, end to end', () => {
       if (index === 1) { yield* text(DRAFT); return }
       if (index === 2) { yield* submitCall('s1'); return }
       if (index === 3) { started.open(); await release.opened; yield* text(MARKER); return }
+      if (index === 4) { yield* submitCall('s2'); return }
       yield* text('Costs: about 20% more.')
     }, async ({ session }) => {
       const handle = session.stream('question')
@@ -400,5 +421,137 @@ describe('RuntimeAgentSession: deep-mode kept answer, end to end', () => {
       expect(sent).toContain(DRAFT)
       expect(sent.lastIndexOf(DRAFT)).toBeGreaterThan(sent.lastIndexOf(MARKER))
     })
+  })
+})
+
+describe('RuntimeAgentSession: steering that changes the request after a draft', () => {
+  const submitCall = (id: string): StreamChunk[] => [
+    { type: 'block-start', index: 0, blockType: 'tool-call' },
+    { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId(id), name: 'submit_result',
+      arguments: JSON.stringify({ summary: 'Checked.', evidence: ['reviewed'] }) } },
+    { type: 'finish', reason: { kind: 'tool-calls' } },
+  ]
+  const DRAFT = 'A long draft answer covering every detail.'
+  const STEER = 'Answer in two sentences only.'
+  const offersMarker = (options: GenerateOptions) => JSON.stringify(options.messages).includes('reply with exactly')
+
+  it('does not offer to keep a draft the person has since asked to change', async () => {
+    const started = gate(), release = gate()
+    await withSession(async function* (options, index) {
+      if (index === 1) { started.open(); await release.opened; yield* text(DRAFT); return }
+      if (index === 2) { yield* submitCall('s1'); return }
+      // A compliant model: it only keeps the draft when invited to.
+      yield* text(offersMarker(options) ? UNCHANGED_ANSWER_MARKER : 'Two sentences. As asked.')
+    }, async ({ session, model }) => {
+      const handle = session.stream('question')
+      const done = drain(handle)
+      await started.opened
+      session.inject(STEER)
+      release.open()
+      await done
+      const result = await handle.result
+      expect(offersMarker(model.requests[2]!)).toBe(false)
+      expect(result).toMatchObject({ completed: true, text: 'Two sentences. As asked.' })
+    }, { mode: 'deep' })
+  })
+
+  it('a model that sends the marker anyway is asked for the answer, not given the stale draft', async () => {
+    const started = gate(), release = gate()
+    await withSession(async function* (_options, index) {
+      if (index === 1) { started.open(); await release.opened; yield* text(DRAFT); return }
+      if (index === 2) { yield* submitCall('s1'); return }
+      if (index === 3) { yield* text(UNCHANGED_ANSWER_MARKER); return }
+      yield* text('Two sentences. As asked.')
+    }, async ({ session, model }) => {
+      const handle = session.stream('question')
+      const done = drain(handle)
+      await started.opened
+      session.inject(STEER)
+      release.open()
+      await done
+      const result = await handle.result
+      expect(result.text).not.toBe(DRAFT)
+      expect(result).toMatchObject({ completed: true, text: 'Two sentences. As asked.' })
+      expect(JSON.stringify(model.requests[3]?.messages)).toContain('There is no earlier answer in this run')
+      expect(session.snapshot().history.entries.some(entry => entry.event.kind === 'assistant'
+        && entry.event.message.source.kind === 'app'
+        && entry.event.message.source.producer === 'deep-mode-kept-answer')).toBe(false)
+      const reloaded = History.fromSnapshot(JSON.parse(JSON.stringify(session.snapshot().history)))
+      const last = reloaded.messages().filter(message => message.role === 'assistant').at(-1)
+      expect(last?.content.find(block => block.type === 'text')).toMatchObject({ text: 'Two sentences. As asked.' })
+    }, { mode: 'deep' })
+  })
+
+  it('rejects a stale marker when steering was queued during the submit_result round', async () => {
+    const started = gate(), release = gate()
+    await withSession(async function* (_options, index) {
+      if (index === 1) { yield* text(DRAFT); return }
+      if (index === 2) { started.open(); await release.opened; yield* submitCall('s1'); return }
+      if (index === 3) { yield* text(UNCHANGED_ANSWER_MARKER); return }
+      yield* text('Two sentences. As asked.')
+    }, async ({ session, model }) => {
+      const handle = session.stream('question')
+      const done = drain(handle)
+      await started.opened
+      session.inject(STEER)
+      release.open()
+      await done
+      const result = await handle.result
+      expect(JSON.stringify(model.requests[2]?.messages)).toContain(STEER)
+      expect(result).toMatchObject({ completed: true, text: 'Two sentences. As asked.' })
+      const messages = projectMessages(session.snapshot().history.entries)
+      const assistantTexts = messages.flatMap(message => message.role === 'assistant'
+        ? message.content.flatMap(block => block.type === 'text' ? [block.text] : []) : [])
+      expect(assistantTexts.at(-1)).toBe('Two sentences. As asked.')
+      expect(assistantTexts).not.toContain(UNCHANGED_ANSWER_MARKER)
+      expect(session.snapshot().history.entries.some(entry => entry.event.kind === 'assistant'
+        && entry.event.message.source.kind === 'app'
+        && entry.event.message.source.producer === 'deep-mode-kept-answer')).toBe(false)
+      expect(JSON.stringify(model.requests[3]?.messages)).toContain('There is no earlier answer in this run')
+    }, { mode: 'deep' })
+  })
+
+  it.each([
+    { kind: 'agent-message', teamId: 'team', messageId: 'm1', sender: 'lead', senderAgentId: 'lead' },
+    { kind: 'a2a-message', contextId: 'context', messageId: 'm1' },
+  ] as const)('does not keep a draft after a new $kind task', async source => {
+    const started = gate(), release = gate()
+    await withSession(async function* (_options, index) {
+      if (index === 1) { started.open(); await release.opened; yield* text(DRAFT); return }
+      if (index === 2) { yield* submitCall('s1'); return }
+      if (index === 3) { yield* text(UNCHANGED_ANSWER_MARKER); return }
+      yield* text('New assignment answered.')
+    }, async ({ session, model }) => {
+      const handle = session.stream('question')
+      const done = drain(handle)
+      await started.opened
+      session.inject(createUserMessage({ source, content: [{ type: 'text', text: 'New assignment.' }] }))
+      release.open()
+      await done
+      expect(JSON.stringify(model.requests[2]?.messages)).not.toContain('reply with exactly')
+      expect(await handle.result).toMatchObject({ completed: true, text: 'New assignment answered.' })
+    }, { mode: 'deep' })
+  })
+
+  it('still offers to keep the draft when the steering came before it, since the draft already answered it', async () => {
+    const started = gate(), release = gate()
+    await withSession(async function* (options, index) {
+      if (index === 1) { started.open(); await release.opened; yield* toolCall('look-1', 'look'); return }
+      if (index === 2) { yield* text(DRAFT); return }
+      if (index === 3) { yield* submitCall('s1'); return }
+      yield* text(offersMarker(options) ? UNCHANGED_ANSWER_MARKER : 'rewritten')
+    }, async ({ session, model }) => {
+      const handle = session.stream('question')
+      const done = drain(handle)
+      await started.opened
+      session.inject(STEER)
+      release.open()
+      await done
+      const result = await handle.result
+      // The draft was written after the steering and answers it: keeping it is right.
+      expect(JSON.stringify(model.requests[1]?.messages)).toContain(STEER)
+      expect(offersMarker(model.requests[3]!)).toBe(true)
+      expect(result).toMatchObject({ completed: true, text: DRAFT })
+    }, { mode: 'deep', tools: [noopTool('look')] })
   })
 })

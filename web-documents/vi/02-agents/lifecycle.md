@@ -216,3 +216,13 @@ không thể lọt qua.
 - [Production Deployment](/vi/10-advanced/production-deployment) — shutdown trên Edge, trình duyệt, và Node
 - [Conditional Execution](/vi/06-workflows/conditional-execution) — `beforeStep` trong thực tế
 - [Observability](/vi/10-advanced/observability) — mỗi pha phát ra sự kiện gì
+
+## Steering còn chờ trong 0.1.7
+
+Nếu round cuối để lại input chưa trả lời, chờ `whenIdle()` rồi dùng
+`hasUnansweredInput()` / `runPending(options?)` từ một bộ lập lịch có giới hạn.
+Không tự động chạy lại sau khi người dùng bấm Stop. Input mới của người dùng
+hoặc agent được giao việc làm mất hiệu lực self-check deep đã chấp nhận.
+App notice không phải công việc chờ; điều phối nội bộ managed-team có thể
+đánh thức lead mà không làm mất self-check. `inject()` từ chối vượt dung lượng
+history trước khi nhận input.

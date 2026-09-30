@@ -2,6 +2,7 @@ import type { AgentRunEvent } from '../mode/run-agent.ts'
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
 import type { ContentBlock } from '../../message/index.ts'
 import { createUserMessage } from '../../message/index.ts'
+import { isManagedTeamNoticeRequest } from '../history/input-work.ts'
 import { waitForSettlement } from '../../async/index.ts'
 import { AgentSdkError } from '../../errors/index.ts'
 import { timeoutValue } from '../../platform/config.ts'
@@ -239,7 +240,7 @@ export class AgentTeam implements TeamPort {
     try {
       if (target.kind === 'local') {
         const message = createUserMessage({
-          source: {
+          source: isManagedTeamNoticeRequest(request) ? { kind: 'app' as const, producer: 'managed-team' } : {
             kind: 'agent-message' as const,
             teamId: this.id, messageId: id, sender: sender.name,
             senderAgentId: sender.session.definition.id,
@@ -653,6 +654,14 @@ export class AgentTeam implements TeamPort {
         // (it answers a person's queued input before it ends, and delivers
         // anything queued with it). Running again would only repeat itself.
         if (member.session.hasUnansweredInput?.() === false) {
+          const outcome = member.session.lastOutcome?.()
+          if (outcome !== undefined) {
+            const failure = responseFailure(outcome)
+            member.error = failure
+            member.outcome = failure === undefined
+              ? { kind: 'completed', text: outcome.text }
+              : { kind: 'failed', message: failure, ...(outcome.text === '' ? {} : { text: outcome.text }) }
+          }
           member.wakeConsumedSeq = through
           continue
         }
@@ -871,6 +880,16 @@ export class AgentTeam implements TeamPort {
   }
 
   private async observeAgentEvent(member: string, event: AgentRunEvent): Promise<void> {
+    if (event.type === 'agent-end') {
+      const runtime = this.roster.get(member)
+      if (runtime !== undefined) {
+        const failure = responseFailure(event.outcome)
+        runtime.error = failure
+        runtime.outcome = failure === undefined
+          ? { kind: 'completed', text: event.outcome.text }
+          : { kind: 'failed', message: failure, ...(event.outcome.text === '' ? {} : { text: event.outcome.text }) }
+      }
+    }
     if (this.onAgentEvent === undefined) return
     const observer = Promise.resolve().then(() => this.onAgentEvent?.(member, event))
     await waitForSettlement(observer, this.observerTimeoutMs)

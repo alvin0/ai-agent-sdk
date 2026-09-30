@@ -214,3 +214,12 @@ seals late generations so a run started during shutdown cannot slip through.
 - [Production Deployment](/en/10-advanced/production-deployment) — shutdown in Edge, browser, and Node
 - [Conditional Execution](/en/06-workflows/conditional-execution) — `beforeStep` in practice
 - [Observability](/en/10-advanced/observability) — the events every phase emits
+
+## Pending steering in 0.1.7
+
+If a terminal round leaves new input unanswered, wait for `whenIdle()` and use
+`hasUnansweredInput()` / `runPending(options?)` from one bounded host scheduler.
+Do not automatically restart work after the person presses Stop. New user or
+delegated input invalidates an accepted deep self-check. App notices are not
+pending work; internal managed-team coordination can wake the lead without
+invalidating its check. `inject()` rejects history-capacity overflow before admission.

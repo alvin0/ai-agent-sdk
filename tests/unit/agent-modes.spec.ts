@@ -7,7 +7,7 @@ import { ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
 import { ModelAdapter } from '@alvin0/ai-agent-sdk-core'
 import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
 import type { ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core'
-import { createTextMessage } from '@alvin0/ai-agent-sdk-core'
+import { createTextMessage, createUserMessage } from '@alvin0/ai-agent-sdk-core'
 import { ReasoningEffortId, ToolCallId } from '@alvin0/ai-agent-sdk-core'
 import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
 import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
@@ -80,6 +80,166 @@ async function collect(options: Parameters<typeof runAgent>[0]): Promise<AgentRu
 }
 
 describe('agent modes', () => {
+  it.each(['basic', 'deep'] as const)('reserves a split control marker in %s mode before any self-check', async mode => {
+    const half = 14
+    const marker = UNCHANGED_ANSWER_MARKER
+    const state = setup([[
+      { type: 'text-delta', index: 0, text: marker.slice(0, half) },
+      { type: 'block-end', index: 0, block: { type: 'text', text: marker.slice(0, half) } },
+      { type: 'text-delta', index: 1, text: marker.slice(half) },
+      { type: 'block-end', index: 1, block: { type: 'text', text: marker.slice(half) } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ]])
+    const events = await collect({ mode, registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history, maxTurns: 1 })
+    expect(events.filter(event => event.type === 'text-delta').map(event => event.text).join('')).toBe('')
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { completed: false, text: '' } })
+    expect(JSON.stringify(state.history.messages())).not.toContain(marker)
+  })
+
+  it('keeps a draft when the accepted marker is split across text blocks', async () => {
+    const marker = UNCHANGED_ANSWER_MARKER
+    const state = setup([textRound('Draft.'), toolRound('s', 'submit_result', { summary: 'Checked', evidence: [] }), [
+      { type: 'text-delta', index: 0, text: marker.slice(0, 14) },
+      { type: 'block-end', index: 0, block: { type: 'text', text: marker.slice(0, 14) } },
+      { type: 'text-delta', index: 1, text: marker.slice(14) },
+      { type: 'block-end', index: 1, block: { type: 'text', text: marker.slice(14) } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ]])
+    const events = await collect({ mode: 'deep', registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { completed: true, text: 'Draft.' } })
+    expect(events.filter(event => event.type === 'text-delta').map(event => event.text).join('')).toBe('Draft.')
+    expect(events.some(event => event.type === 'assistant-replacement')).toBe(true)
+  })
+
+  it.each(([[], textRound('   '), [{ type: 'block-end', index: 0, block: { type: 'reasoning', text: 'thinking' } }, { type: 'finish', reason: { kind: 'stop' } }]] as StreamChunk[][]).map(round => ({ round })))
+    ('does not complete basic mode with no usable answer (%#)', async ({ round }) => {
+      const state = setup([round])
+      const events = await collect({ registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history })
+      expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { completed: false } })
+      expect(state.history.messages().every(message => message.content.length > 0)).toBe(true)
+    })
+
+  it.each([false, true])('rejects a submit_result batch consistently (duplicate=%s)', async duplicate => {
+    const submission = { summary: 'Checked', evidence: [] }
+    const state = setup([toolBatch([
+      { id: 's1', name: 'submit_result', args: submission },
+      duplicate ? { id: 's2', name: 'submit_result', args: submission } : { id: 'work', name: 'echo', args: {} },
+    ]), textRound(UNCHANGED_ANSWER_MARKER)])
+    const events = await collect({ mode: 'deep', registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history, tools: state.tools, maxTurns: 2 })
+    const results = events.filter(event => event.type === 'tool-result' && event.call.toolName === 'submit_result')
+    expect(results).toHaveLength(duplicate ? 2 : 1)
+    for (const result of results) expect(result).toMatchObject({ result: { value: { accepted: false } } })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { completed: false, text: '' } })
+  })
+
+  it('records interruption even when deep mode has a turn-end hook', async () => {
+    const state = setup([textRound('draft')])
+    const controller = new AbortController()
+    controller.abort()
+    const events = await collect({ mode: 'deep', registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history, signal: controller.signal })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { completed: false, reason: { kind: 'aborted' } } })
+    expect(JSON.stringify(state.history.messages())).toContain('turn-interrupted')
+  })
+
+  it('requires another self-check after steering invalidates an accepted submission', async () => {
+    const state = setup([toolRound('s', 'submit_result', { summary: 'Checked', evidence: [] }), textRound('Old answer.'), textRound('New answer.')])
+    let changed = false
+    const events = await collect({ mode: 'deep', registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history, maxTurns: 3,
+      hooks: { onTurnEnd: () => {
+        if (!changed) { changed = true; state.history.append({ kind: 'user', message: createTextMessage('New request') }) }
+      } },
+    })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { completed: false, text: 'New answer.' } })
+    expect(events.at(-1)).not.toHaveProperty('outcome.completion')
+  })
+
+  it('explains input invalidation without claiming substantive tool work', async () => {
+    const state = setup([toolRound('s1', 'submit_result', { summary: 'Checked', evidence: [] }), textRound('Old answer.'), textRound('New answer.'),
+      toolRound('s2', 'submit_result', { summary: 'Checked new request', evidence: [] }), textRound('New answer.')])
+    let changed = false
+    await collect({ mode: 'deep', registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history, maxTurns: 5,
+      hooks: { onTurnEnd: () => {
+        if (!changed) { changed = true; state.history.append({ kind: 'user', message: createTextMessage('New request') }) }
+      } },
+    })
+    const notice = state.history.messages().flatMap(message => message.source.kind === 'app' && message.source.producer === 'deep-mode-self-check'
+      ? message.content.flatMap(block => block.type === 'text' ? [block.text] : []) : []).join('\n')
+    expect(notice).toContain('a new user request or delegated task arrived')
+    expect(notice).not.toContain('you called another substantive tool')
+  })
+
+  it('reads managed-team coordination without invalidating an accepted self-check', async () => {
+    const state = setup([toolRound('s', 'submit_result', { summary: 'Checked', evidence: [] }), textRound('SYNTHESIS'), textRound('SYNTHESIS')])
+    let notified = false
+    const events = await collect({ mode: 'deep', registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      hooks: { onTurnEnd: () => {
+        if (!notified) {
+          notified = true
+          state.history.append({ kind: 'user', message: createUserMessage({ source: { kind: 'app', producer: 'managed-team' }, content: [{ type: 'text', text: 'All outstanding managed workers have settled.' }] }) })
+        }
+      } },
+    })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { completed: true, text: 'SYNTHESIS' } })
+    expect(state.adapter.requests).toHaveLength(3)
+    expect(state.history.messages().some(message => message.source.kind === 'app' && message.source.producer === 'deep-mode-self-check')).toBe(false)
+  })
+
+  it('resolves the HIL question and records interruption on Stop', async () => {
+    const state = setup([toolRound('ask', 'request_user_input', { questions: [{
+      id: 'choice', header: 'Choice', question: 'Which one?',
+      options: [{ label: 'A', description: 'Use A.' }, { label: 'B', description: 'Use B.' }],
+    }] })])
+    const controller = new AbortController()
+    const events: AgentRunEvent[] = []
+    for await (const event of runAgent({ mode: 'deep-human-in-loop', userInput: createUserInputBroker(),
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history, signal: controller.signal })) {
+      events.push(event)
+      if (event.type === 'user-input-request') controller.abort()
+    }
+    expect(events.filter(event => event.type === 'user-input-response')).toMatchObject([{ response: 'abort' }])
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { completed: false, reason: { kind: 'aborted' } } })
+    expect(JSON.stringify(state.history.messages())).toContain('turn-interrupted')
+  })
+
+  it('does not return a previous raw marker when the next model round errors without a message', async () => {
+    const state = setup([textRound('Draft.'), toolRound('s', 'submit_result', { summary: 'Checked', evidence: [] }), textRound(UNCHANGED_ANSWER_MARKER),
+      [{ type: 'finish', reason: { kind: 'error', failure: { code: 'UNAVAILABLE', message: 'down' } } }]])
+    let repeat = true
+    const events = await collect({ mode: 'deep', registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      hooks: { onTurnEnd: context => {
+        if (context.outcome.text === 'Draft.' && context.snapshot.entries.some(entry => entry.event.kind === 'tool-result') && repeat) {
+          repeat = false
+          state.history.append({ kind: 'user', message: createUserMessage({ source: { kind: 'app', producer: 'notice' }, content: [{ type: 'text', text: 'Continue' }] }) })
+        }
+      } },
+    })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { completed: false, text: 'Draft.', reason: { kind: 'error' } } })
+    expect(JSON.stringify(events.filter(event => event.type === 'turn-end' || event.type === 'agent-end'))).not.toContain(UNCHANGED_ANSWER_MARKER)
+  })
+
+  it('does not keep a draft when an async turn-end hook appends a newer user request', async () => {
+    const state = setup([
+      textRound('Long original answer.'),
+      toolRound('submit', 'submit_result', { summary: 'Checked.', evidence: ['reviewed'] }),
+      textRound(UNCHANGED_ANSWER_MARKER),
+      textRound('Two sentences. As requested.'),
+    ])
+    let appended = false
+    const events = await collect({ mode: 'deep', registry: state.registry, history: state.history, tools: state.tools,
+      config: { provider: 'test', model: 'm' }, maxTurns: 8,
+      hooks: { onTurnEnd: async () => {
+        if (appended) return
+        appended = true
+        await Promise.resolve()
+        state.history.append({ kind: 'user', message: createTextMessage('Answer in two sentences.') })
+      } },
+    })
+    expect(JSON.stringify(state.adapter.requests[2]?.messages)).not.toContain('reply with exactly')
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: {
+      completed: true, text: 'Two sentences. As requested.',
+    } })
+  })
+
   it('bounds differently worded self-check claims after a submission was invalidated', async () => {
     const state = setup([
       toolRound('submit', 'submit_result', { summary: 'Done.', evidence: ['sources inspected'] }),
@@ -461,7 +621,7 @@ describe('agent modes', () => {
       .toBe(true)
   })
 
-  it('does not treat a real answer that merely starts like the marker as unchanged', async () => {
+  it('removes the reserved marker while retaining additional answer text', async () => {
     const state = setup([
       textRound('Draft.'),
       toolRound('submit', 'submit_result', { summary: 'Checked.', evidence: ['reviewed'] }),
@@ -475,7 +635,7 @@ describe('agent modes', () => {
     })
     const end = events.at(-1)
     expect(end?.type === 'agent-end' ? end.outcome.text : undefined)
-      .toBe(`${UNCHANGED_ANSWER_MARKER} — and one more finding.`)
+      .toBe('— and one more finding.')
   })
 
   it('deep human-in-loop parks by call id, supports suggestions and free-form, then resumes', async () => {

@@ -10,7 +10,8 @@ message.
 
 ## Setup
 
-For the upcoming 0.1.5 release and changes from npm 0.1.4, read the
+For the prepared 0.1.7 release, read [upgrading from 0.1.6](docs/upgrading-from-0.1.6.md).
+For changes introduced after 0.1.4, read the
 [upgrade guide](docs/upgrading-from-0.1.4.md) and
 [context optimization guide](docs/context-optimization.md). Existing agent/tool
 APIs remain available; narration defaults and managed-team validation have
@@ -26,8 +27,9 @@ pnpm build:cli
 
 Workspace tooling and Node capability packages require Node 22.12 or newer.
 
-All 23 packages are published on npm under the `@alvin0` scope, built and signed
-from CI with SLSA provenance.
+The workspace has 25 publishable packages under the `@alvin0` scope, built and signed
+from CI with SLSA provenance, plus a private testkit. Version 0.1.7 is prepared
+locally; npm availability depends on the Release workflow.
 
 Choose the smallest runtime closure you need:
 

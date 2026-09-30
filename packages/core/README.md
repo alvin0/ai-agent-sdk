@@ -51,7 +51,7 @@ The documented root plus `/agent`, `/memory`, `/observability`, `/provider`,
 `/skills`, `/tools`, `/embedding`, and `./package.json` are public. Internal source paths are
 not compatibility contracts.
 
-Opt-in optimization helpers added in 0.1.5 (currently unreleased) include `defineActionFusion` and
+Opt-in optimization helpers added in 0.1.5 include `defineActionFusion` and
 `createModelEvidenceReducer` from `/tools`, and `createContextOptimizer` from
 `/memory`. Applications select pipeline steps, milestone summaries, log storage,
 and reducer models. See the [application guide](https://github.com/alvin0/ai-agent-sdk/blob/main/docs/context-optimization.md)
@@ -62,3 +62,8 @@ Existing agent, tool, and session imports remain available. Review the
 for narration defaults, queued steering receipts, and managed-team validation
 changes after the published 0.1.4 release. Program tools additionally require
 session-level `experimentalPrograms` grants; ordinary tools do not.
+
+For 0.1.7 completion, pending input, stream replacement and Stop behavior, see
+the [upgrade guide](https://github.com/alvin0/ai-agent-sdk/blob/main/docs/upgrading-from-0.1.6.md).
+`RuntimeAgentSession.hasUnansweredInput()` and `runPending()` expose work left
+after a terminal round. Use `response.completed` for objective completion.

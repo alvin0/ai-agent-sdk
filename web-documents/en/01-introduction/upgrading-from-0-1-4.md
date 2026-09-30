@@ -1,8 +1,8 @@
 # Upgrading from 0.1.4 to 0.1.5
 
-This page describes **0.1.5**, currently unreleased. Workspace manifests carry
-0.1.5; validate new APIs with the workspace or packed artifacts until the
-Release workflow publishes that version to npm.
+This page describes changes introduced in **0.1.5**. The workspace now targets
+0.1.7; see [upgrading from 0.1.6](/en/01-introduction/upgrading-from-0-1-6)
+for the latest completion, steering and streaming changes.
 
 Existing import routes, provider/model/effort configuration, ordinary tools,
 `run`/`stream`, and snapshot/resume remain available. The effort redesign in the

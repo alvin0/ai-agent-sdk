@@ -1,7 +1,7 @@
 # Context optimization
 
-These are opt-in additions in **0.1.5**, currently unreleased. Use current
-workspace typings or packed artifacts until that version is published to npm.
+These are opt-in additions in **0.1.5**. Use current
+installed typings or matching packed workspace artifacts.
 Automatic pressure compaction and immediate tool-output budgets remain separate.
 
 ## Pack repeated observations

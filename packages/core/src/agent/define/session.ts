@@ -2,6 +2,7 @@ import { contentHasDocument, contentHasImage } from '../../message/projection.ts
 import { ModelError } from '../../errors/model-error.ts'
 import { type ToolCatalog } from '../tool/registry.ts'
 import { History } from '../history/history.ts'
+import { isManagedTeamNotice } from '../history/input-work.ts'
 import { bindModelRequestBoundary, bindQueuedInput } from '../loop/turn/model-request-boundary.ts'
 import { bindStepProjectionSources } from '../loop/turn/step-projection.ts'
 import { normalizeToolPairing } from '../history/normalize.ts'
@@ -76,6 +77,7 @@ export class AgentSession {
    * then read "steer, then the work that ignored it" as work that answered it.
    */
   private pendingInjections: History | undefined
+  private lastRunOutcome: AgentRunOutcome | undefined
   /**
    * A model request has been built and its output is not yet fully recorded.
    * Only then is an injection held: hooks and team notices that inject between
@@ -243,6 +245,7 @@ export class AgentSession {
     this.currentMemory = new AgentMemory(this.definition.memory.seed, this.definition.memory)
     this.pendingInjections = undefined
     this.pendingSkillActivations = Object.freeze([])
+    this.lastRunOutcome = undefined
     this.skillCatalog?.clearActivations()
     this.compactor = this.createCompactor()
   }
@@ -292,6 +295,13 @@ export class AgentSession {
     // lands after every entry the model has actually answered. Bound pending
     // inputs with the same guards as history instead of an unbounded array.
     if (this.active && this.roundInFlight) {
+      // Reject over-capacity input at admission, before it can poison the
+      // queued buffer used by every later run and snapshot.
+      const candidate = History.fromSnapshot(this.currentHistory.snapshot(), this.options.historyLimits)
+      candidate.appendBatch([
+        ...(this.pendingInjections?.entries() ?? []).map(entry => ({ event: entry.event })),
+        { event: { kind: 'user' as const, message } },
+      ])
       const pending = this.pendingInjections ??= new History(this.options.historyLimits)
       pending.append({ kind: 'user', message })
       return this.currentHistory.entries().length + pending.entries().length
@@ -313,7 +323,8 @@ export class AgentSession {
    * `bindQueuedInput`) and answers it in another round of the same run instead
    * of leaving it for a later `runPending()`.
    */
-  private observeRoundBoundary(event: { readonly type: string; readonly kind?: string; readonly message?: { readonly content: readonly { readonly type: string }[] } }): void {
+  private observeRoundBoundary(event: AgentRunEvent): void {
+    if (event.type === 'agent-end') this.lastRunOutcome = event.outcome
     // The chat request is now fixed. beforeStep hooks still run outside this
     // window, so their injections can be included in that request's refresh.
     if (event.type === 'span-start' && event.kind === 'chat') {
@@ -345,14 +356,23 @@ export class AgentSession {
   }
 
   /**
-   * Whether the latest visible message still awaits the model: new input, a
-   * tool result, or a notice. False once the model has answered everything,
+   * Whether attributed input or a tool result still awaits the model. App
+   * notices do not create work, except managed-team coordination. False once the model has answered everything,
    * which lets a scheduler skip a run that would only repeat that answer.
    */
   hasUnansweredInput(): boolean {
     if ((this.pendingInjections?.entries().length ?? 0) > 0) return true
-    return this.currentHistory.messages().at(-1)?.role === 'user'
+    for (const message of [...this.currentHistory.messages()].reverse()) {
+      if (message.source.kind === 'app') {
+        if (message.source.producer === 'turn-interrupted') return false
+        if (message.role === 'user' && !isManagedTeamNotice(message)) continue
+      }
+      return message.role === 'user'
+    }
+    return false
   }
+
+  lastOutcome(): AgentRunOutcome | undefined { return this.lastRunOutcome }
 
   /** Resolve after the current run releases the session. */
   whenIdle(signal?: AbortSignal): Promise<void> {
@@ -439,11 +459,12 @@ export class AgentSession {
       // empty buffer behind, and that must not buy the run another round.
       const held = this.pendingInjections?.entries() ?? []
       if (held.length === 0) return false
-      // Only the person's own messages extend the run. Team deliveries keep
+      // Person input and managed-team coordination extend the run. Team deliveries keep
       // their contract: queued behind the answer, then processed exactly once
       // by the team's wake-up through runPending().
-      const fromPerson = held.some(entry => entry.event.kind === 'user' && entry.event.message.source.kind === 'user')
-      if (!fromPerson) return false
+      const extendsRun = held.some(entry => entry.event.kind === 'user'
+        && (entry.event.message.source.kind === 'user' || isManagedTeamNotice(entry.event.message)))
+      if (!extendsRun) return false
       this.roundInFlight = false
       this.drainInjections()
       return true

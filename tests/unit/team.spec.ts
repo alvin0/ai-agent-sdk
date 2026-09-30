@@ -554,6 +554,7 @@ describe('team deliveries that arrive during a member\'s final answer', () => {
     const team = new AgentTeam({ id: 'mixed-team' })
     agent('lead').createSession({ registry: state.registry, team: { team } })
     const worker = agent('worker').createSession({ registry: state.registry, team: { team } })
+    team.recordOutcome('worker', { kind: 'failed', message: 'stale failure' })
     const running = worker.run('start')
     await state.adapter.firstEntered
     worker.inject('A person steers too.')
@@ -567,5 +568,8 @@ describe('team deliveries that arrive during a member\'s final answer', () => {
     expect(second).toContain('A person steers too.')
     expect(second).toContain('And the lead follows up.')
     expect(worker.hasUnansweredInput()).toBe(false)
+    expect(team.members().find(member => member.name === 'worker')).toMatchObject({
+      status: 'idle', outcome: { kind: 'completed', text: 'answer 2' },
+    })
   })
 })

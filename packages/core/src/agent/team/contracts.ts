@@ -45,6 +45,8 @@ export interface TeamSessionPort {
    * input queued during its own run reports false, and the wake-up skips it.
    */
   hasUnansweredInput?(): boolean
+  /** Terminal result of a host-owned run that may already have answered a wake. */
+  lastOutcome?(): import('../mode/run-agent.ts').AgentRunOutcome | undefined
   runPending(invocation?: {
     readonly signal?: AbortSignal
     readonly onEvent?: (event: AgentRunEvent) => void | Promise<void>

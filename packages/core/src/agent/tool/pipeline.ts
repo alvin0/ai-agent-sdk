@@ -218,7 +218,7 @@ export async function dispatchAuthorizedToolCall(call: AuthorizedToolCall): Prom
       if (toolErrorDisposition(error) === 'fatal') throw error
       if (signal.aborted && !(error instanceof ToolError)) return toolFailure('the call was cancelled', TOOL_ERROR_CODES.ABORTED)
       return toolFailure(messageOf(error), error instanceof ToolError ? error.code : TOOL_ERROR_CODES.FAILED, {
-        additionalContext: extraContext,
+        ...extraContext.length === 0 ? {} : { additionalContext: extraContext },
       })
     }
     if (value !== undefined && !isJsonValue(value)) return toolFailure(

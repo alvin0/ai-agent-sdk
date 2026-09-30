@@ -4,10 +4,10 @@
 
 | Item | Value |
 | --- | --- |
-| Version | `0.1.5` |
+| Version | `0.1.7` |
 | License | MIT |
 | Node requirement | 22.18+ for workspace tooling; 22.12+ for installed Node capability packages |
-| Registry publication | `0.1.5` release candidate — 25 packages under `@alvin0` |
+| Registry publication | `0.1.7` release candidate — 25 packages under `@alvin0` |
 
 ## Registry publication
 
@@ -30,7 +30,7 @@ of the provider packages.
 To install from a local tarball instead:
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.5.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.7.tgz
 ```
 
 ## Versioning

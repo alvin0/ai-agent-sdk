@@ -126,6 +126,8 @@ interface RuntimeAgentSession {
   run(input: string, options?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse>
   stream(input: string, options?: RuntimeAgentInvocationOptions): RuntimeAgentRunHandle
   inject(input: string): number
+  hasUnansweredInput(): boolean
+  runPending(options?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse>
   snapshot(): RuntimeAgentSessionSnapshot
   compact(options?: RuntimeAgentInvocationOptions): Promise<CompactionResult | null>
   reset(): void

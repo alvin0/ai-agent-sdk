@@ -1,7 +1,7 @@
 # Tối ưu context
 
-Các API tùy chọn này thuộc **0.1.5**, hiện chưa phát hành. Dùng typings
-workspace hoặc package đóng gói cục bộ cho đến khi 0.1.5 có trên npm.
+Các API tùy chọn này thuộc **0.1.5**. Dùng typings
+của package đã cài hoặc package đóng gói tương ứng.
 Compaction theo áp lực context và giới hạn output tool tức thời vẫn là hai cơ chế riêng.
 
 ## Đóng gói observation lặp lại

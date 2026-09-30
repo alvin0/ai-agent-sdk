@@ -181,6 +181,8 @@ interface RuntimeAgentSession {
   run(input: string, options?): Promise<RuntimeAgentResponse>
   stream(input: string, options?): RuntimeAgentRunHandle
   inject(input: string): number
+  hasUnansweredInput(): boolean
+  runPending(options?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse>
   snapshot(): RuntimeAgentSessionSnapshot
   compact(options?): Promise<CompactionResult | null>
   reset(): void
@@ -329,3 +331,13 @@ capped at 262,144 bytes, invalid shape raises `CONTEXT_SECTION_INVALID`.
 ```ts
 import { createProjectInstructionsSection } from '@alvin0/ai-agent-sdk-instructions-node'
 ```
+
+## Pending work in 0.1.7
+
+After a terminal round, wait for `whenIdle()` and check `hasUnansweredInput()`
+before scheduling `runPending(options?)`. It processes pending history without
+adding another user message. Use one host scheduler, bounded cancellation and
+budgets; do not automatically resume Stop. Generic app notices are not pending
+work, while SDK-managed coordination notices can wake the lead without
+invalidating an accepted self-check. Handle history-capacity errors from
+`inject()` before acknowledging input.

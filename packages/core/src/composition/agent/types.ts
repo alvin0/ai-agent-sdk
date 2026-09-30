@@ -160,7 +160,7 @@ export interface RuntimeAgentRunEventContext {
 }
 
 type PublicContentEvent = AgentRunEvent extends infer E
-  ? E extends { type: 'text-end' | 'image-delta' | 'assistant-message' | 'compaction-start' | 'compaction-end' | 'turn-start' | 'step-start' | 'step-end' | 'assistant-text' | 'assistant-reasoning' | 'reasoning-delta' }
+  ? E extends { type: 'text-end' | 'image-delta' | 'assistant-message' | 'assistant-replacement' | 'compaction-start' | 'compaction-end' | 'turn-start' | 'step-start' | 'step-end' | 'assistant-text' | 'assistant-reasoning' | 'reasoning-delta' }
     ? Omit<E, 'trace'> & { readonly blockId?: string } : never
   : never
 
@@ -218,6 +218,8 @@ export interface RuntimeAgentSession {
   run(input: AgentInput, options?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse>
   stream(input: AgentInput, options?: RuntimeAgentInvocationOptions): RuntimeAgentRunHandle
   inject(input: AgentInput): number
+  hasUnansweredInput(): boolean
+  runPending(options?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse>
   snapshot(): RuntimeAgentSessionSnapshot
   compact(options?: RuntimeAgentInvocationOptions): Promise<CompactionResult | null>
   reset(): void

@@ -178,7 +178,13 @@ describe.skipIf(!signedIn).each(EFFORTS)(`session boundaries on real ${MODEL} / 
     await audit(effort, 'deep-kept-answer', async context => {
       context.draftFirst = true
       const session = context.session('deep')
-      const response = await context.run(session, `Reply with exactly ${TOKEN}`)
+      // Scope the exact-answer instruction to the draft. An unconditional
+      // "reply with TOKEN" competes with the later control reply and lets a
+      // real model legitimately repeat TOKEN instead of exercising retention.
+      const response = await context.run(session,
+        `For your initial answer, reply with exactly ${TOKEN}. Then perform the requested self-check with submit_result. `
+        + `If it is accepted and no new task has arrived, keep that answer by replying with exactly ${UNCHANGED_ANSWER_MARKER} and nothing else. `
+        + `That final marker is the host's control reply; the user-facing answer remains ${TOKEN}. Do not repeat the answer after acceptance.`)
       expect(response.completed).toBe(true)
       expect(response.text).toBe(TOKEN)
       assertKept(session, context.events)

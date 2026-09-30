@@ -1,8 +1,8 @@
 # Nâng cấp từ 0.1.4 lên 0.1.5
 
-Trang này mô tả **0.1.5**, hiện chưa phát hành. Manifest workspace đã ghi
-0.1.5; kiểm tra API mới bằng workspace hoặc package đóng gói cục bộ cho đến
-khi workflow Release phát hành phiên bản này lên npm.
+Trang này mô tả thay đổi được bổ sung trong **0.1.5**. Workspace hiện chuẩn bị
+0.1.7; xem [nâng cấp từ 0.1.6](/vi/01-introduction/upgrading-from-0-1-6)
+cho các thay đổi mới về completion, steering và streaming.
 
 Các đường import, cấu hình provider/model/effort, tool thông thường,
 `run`/`stream` và snapshot/resume vẫn giữ. Thiết kế effort được ghi trong
