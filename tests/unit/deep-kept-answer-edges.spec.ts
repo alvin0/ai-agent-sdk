@@ -100,6 +100,38 @@ const contentLeaks = (events: readonly AgentRunEvent[], needle = UNCHANGED_ANSWE
   .map(event => event.type)
 
 describe('deep kept answer: boundary cases', () => {
+  it.each(['basic', 'deep'] as const)('streams marker-prefixed prose in %s mode with one canonical identity', async mode => {
+    const state = setup([textRound(UNCHANGED_ANSWER_MARKER.slice(0, 8), UNCHANGED_ANSWER_MARKER.slice(8), ' Answer.')])
+    const events = await collect({ mode, registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history, maxTurns: 1 })
+    expect(streamedIn(events, 1)).toBe('Answer.')
+    const message = events.find(event => event.type === 'assistant-message')
+    const text = events.find(event => event.type === 'assistant-text')
+    expect(message?.type).toBe('assistant-message')
+    expect(text?.type).toBe('assistant-text')
+    if (message?.type !== 'assistant-message' || text?.type !== 'assistant-text') throw new Error('missing answer events')
+    expect(text.messageId).toBe(message.message.id)
+    expect(text.text).toBe('Answer.')
+    expect(state.history.messages().at(-1)?.id).toBe(message.message.id)
+    expect(lastAssistantText(state.history)).toBe('Answer.')
+    expect(contentLeaks(events)).toEqual([])
+  })
+
+  it('keeps suffix-stripped message, text and reasoning events on the persisted identity', async () => {
+    const state = setup([[
+      { type: 'block-end', index: 0, block: { type: 'reasoning', text: 'Checked.' } },
+      ...textRound('Answer.\n', UNCHANGED_ANSWER_MARKER).map(chunk => 'index' in chunk ? { ...chunk, index: 1 } : chunk),
+    ]])
+    const events = await collect({ mode: 'basic', registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history })
+    const message = events.find(event => event.type === 'assistant-message')
+    if (message?.type !== 'assistant-message') throw new Error('missing answer')
+    for (const event of events) {
+      if (event.type === 'assistant-text' || event.type === 'assistant-reasoning') expect(event.messageId).toBe(message.message.id)
+    }
+    expect(state.history.messages().at(-1)?.id).toBe(message.message.id)
+    expect(streamedIn(events, 1)).toBe('Answer.\n')
+    expect(contentLeaks(events)).toEqual([])
+  })
+
   it('a confirming reply cut off mid-marker keeps the draft instead of showing the fragment', async () => {
     const partial = UNCHANGED_ANSWER_MARKER.slice(0, 10)
     const run = await runDeep([
@@ -135,7 +167,7 @@ describe('deep kept answer: boundary cases', () => {
     ])
     expect(run.outcome).toMatchObject({ completed: true, text: 'Final answer after the extra lookup.' })
     // Real content beside it, so the hold let go: nothing was dropped.
-    expect(streamedIn(run.events, 3)).toBe(UNCHANGED_ANSWER_MARKER)
+    expect(streamedIn(run.events, 3)).toBe('')
   })
 
   it('keeps the latest draft when the gate fired more than once', async () => {
@@ -160,11 +192,11 @@ describe('deep kept answer: boundary cases', () => {
     expect(lastAssistantText(run.history)).toBe(DRAFT)
   })
 
-  it('leaves basic mode alone: there is no self-check, so the marker is ordinary text', async () => {
+  it('reserves the marker in basic mode too', async () => {
     const state = setup([textRound(UNCHANGED_ANSWER_MARKER)])
     const events = await collect({ mode: 'basic', registry: state.registry, config: { provider: 'test', model: 'm' },
       history: state.history, tools: state.tools, maxTurns: 2 })
-    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { text: UNCHANGED_ANSWER_MARKER } })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { completed: false, text: '' } })
     expect(state.adapter.requests[0]?.tools?.map(tool => tool.name)).not.toContain('submit_result')
   })
 
@@ -210,7 +242,7 @@ describe('deep kept answer: boundary cases', () => {
     expect(answers.some(text => text.includes(UNCHANGED_ANSWER_MARKER))).toBe(false)
   })
 
-  it('an aborted confirming round rejects like any aborted run and never shows the marker fragment', async () => {
+  it('an aborted confirming round records interruption and never shows the marker fragment', async () => {
     const controller = new AbortController()
     const state = setup([
       textRound(DRAFT),
@@ -223,10 +255,12 @@ describe('deep kept answer: boundary cases', () => {
       },
     ])
     const events: AgentRunEvent[] = []
-    await expect((async () => {
+    await (async () => {
       for await (const event of runAgent({ mode: 'deep', registry: state.registry, config: { provider: 'test', model: 'm' },
         history: state.history, tools: state.tools, maxTurns: 8, signal: controller.signal })) events.push(event)
-    })()).rejects.toThrow(/abort/i)
+    })()
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { completed: false, reason: { kind: 'aborted' } } })
+    expect(JSON.stringify(state.history.messages())).toContain('turn-interrupted')
     expect(streamedIn(events, 3)).toBe('')
     expect(contentLeaks(events, UNCHANGED_ANSWER_MARKER.slice(0, 8))).toEqual([])
     // Stop must not cost the answer: the interrupted fragment is superseded on
@@ -285,7 +319,7 @@ describe('deep kept answer: boundary cases', () => {
     ], { maxTurns: 2 })
     expect(run.outcome).toMatchObject({ completed: false, text: '' })
     const last = run.history.messages().filter(message => message.role === 'assistant').at(-1)
-    expect(last?.content).toEqual([{ type: 'reasoning', text: 'Checked the result.' }])
+    expect(last?.content).toEqual([{ type: 'reasoning', text: 'Checked the result.' }, { type: 'text', text: '', phase: 'final-answer' }])
     const emitted = run.events.findLast(event => event.type === 'assistant-message')
     expect(emitted).toMatchObject({ message: last })
     expect(run.events.findLast(event => event.type === 'assistant-reasoning'))
@@ -314,7 +348,7 @@ describe('deep kept answer: boundary cases', () => {
   it.each([
     { draft: true, finish: 'stop' as const }, { draft: false, finish: 'stop' as const },
     { draft: true, finish: 'max-tokens' as const }, { draft: false, finish: 'max-tokens' as const },
-  ])('preserves marker text accompanied by an image (draft=$draft, finish=$finish)', async ({ draft, finish }) => {
+  ])('removes marker text while preserving its accompanying image (draft=$draft, finish=$finish)', async ({ draft, finish }) => {
     const image = { type: 'image' as const, source: { kind: 'url' as const, url: 'https://example.com/result.png' } }
     const run = await runDeep([
       ...draft ? [textRound(DRAFT)] : [], submit('s1'),
@@ -326,9 +360,9 @@ describe('deep kept answer: boundary cases', () => {
       ],
     ])
     expect(run.adapter.requests).toHaveLength(draft ? 3 : 2)
-    expect(streamedIn(run.events, draft ? 3 : 2)).toBe(UNCHANGED_ANSWER_MARKER)
-    expect(run.outcome.text).toBe(UNCHANGED_ANSWER_MARKER)
-    expect(lastAssistantText(run.history)).toBe(UNCHANGED_ANSWER_MARKER)
+    expect(streamedIn(run.events, draft ? 3 : 2)).toBe('')
+    expect(run.outcome.text).toBe('')
+    expect(lastAssistantText(run.history)).toBe('')
     expect(run.history.messages().at(-1)?.content).toContainEqual(image)
   })
 })

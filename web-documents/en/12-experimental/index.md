@@ -1,7 +1,6 @@
 # Experimental
 
-Experimental program tools are explicit, opt-in additions in 0.1.5, currently
-unreleased. Session `experimentalPrograms` grants enable child
+Experimental program tools are explicit, opt-in additions in 0.1.5. Session `experimentalPrograms` grants enable child
 calls; tools may declare `experimentalOutputSchema` for child-result validation.
 Ordinary tools do not require either option. Other provisional areas and their
 runtime boundaries are listed below.
@@ -48,12 +47,12 @@ not hide in a health UI.
 
 | Property | Status |
 | --- | --- |
-| Version | `0.1.5` |
-| npm publication | 0.1.5 release candidate; validate with local tarballs until npm publication |
+| Version | `0.1.7` |
+| npm publication | Merge to `main` triggers guarded publication |
 | Release path | A `main` merge triggers guarded npm publication with provenance |
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.5.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.7.tgz
 ```
 
 Every `pnpm add @alvin0/ai-agent-sdk-...` command in this documentation uses the

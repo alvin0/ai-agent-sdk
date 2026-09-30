@@ -23,6 +23,10 @@
         {
           "text": "Upgrading from 0.1.4",
           "link": "/en/01-introduction/upgrading-from-0-1-4"
+        },
+        {
+          "text": "Upgrading from 0.1.6",
+          "link": "/en/01-introduction/upgrading-from-0-1-6"
         }
       ]
     },
@@ -455,6 +459,10 @@
         {
           "text": "Nâng cấp từ 0.1.4",
           "link": "/vi/01-introduction/upgrading-from-0-1-4"
+        },
+        {
+          "text": "Nâng cấp từ 0.1.6",
+          "link": "/vi/01-introduction/upgrading-from-0-1-6"
         }
       ]
     },

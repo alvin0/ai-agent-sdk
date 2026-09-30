@@ -1,8 +1,8 @@
 # Upgrading from 0.1.4 to 0.1.5
 
-This guide covers the changes planned for **0.1.5**, currently unreleased.
-Workspace manifests carry 0.1.5. Validate with the workspace or packed artifacts
-until the Release workflow publishes that version to npm.
+This guide covers changes introduced in **0.1.5**. The current workspace targets
+0.1.7; see [upgrading from 0.1.6](upgrading-from-0.1.6.md) for the latest
+completion, steering and streaming changes.
 
 Existing package import routes, provider/model/effort configuration, ordinary
 tools, `run`/`stream`, and snapshot/resume remain available. Context optimization

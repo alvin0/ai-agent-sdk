@@ -1,6 +1,6 @@
 # Context optimization and exact evidence
 
-Opt-in additions in 0.1.5, currently unreleased. Use current typings or packed workspace
+Opt-in additions introduced in 0.1.5. Use current typings or packed workspace
 artifacts. These helpers are optional and remain portable across Node, browsers,
 and Workers; the host supplies persistence, log interpretation, and models.
 

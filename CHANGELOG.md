@@ -2,6 +2,33 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## 0.1.7 - 2026-09-30
+
+### Fixed
+
+- Managed-team coordination notices and automatic worker reports wake the lead without invalidating an accepted self-check. Explicit agent messages and delegated tasks still invalidate it. Invalidation notices distinguish new input from substantive tool work.
+- A successful empty model round clears earlier answer text, so an empty response to steering cannot complete a basic-mode run using the previous answer.
+- Live Codex kept-answer tests distinguish the initial answer from the final control reply, avoiding conflicting exact-output instructions while still requiring a real marker response.
+- `submit_result` rejects duplicate submissions and batches containing substantive sibling tools. Steering after an accepted submission requires a new self-check.
+- The unchanged-answer marker is reserved across all modes, recognized across text blocks, and removed from answers with additional text. Stripped answers stream their remaining text and their message events share the persisted replacement's identity. Terminal errors cannot return a previous raw marker. `assistant-replacement` identifies a kept or corrected draft for live consumers.
+- Stop in deep/HIL mode records interruption and closes pending question events. Self-check reminders are not appended when the turn cannot continue.
+- Empty model replies and failing tools no longer append empty messages. Basic-mode empty, whitespace-only and reasoning-only replies are incomplete; tools that explicitly conclude a turn retain their completion semantics.
+- Queued input is checked against aggregate history capacity before admission. App notices do not create unanswered input, HIL answers invalidate old drafts, and skipped team wakes refresh the member's last outcome.
+- Deep mode and delegated agent runs no longer keep a draft after a newer user or agent request. The self-check and following model turn recheck for steering, including input queued during `submit_result`. If a model still sends the unchanged-answer marker, the SDK asks for a full answer and does not record it as a kept answer. Steering received before the draft still allows keeping that draft.
+
+### Added
+
+- `RuntimeAgentSession.hasUnansweredInput()` and `runPending()` expose late input left after a terminal round so applications can schedule recovery.
+
+### Changed
+
+- User or team input left unanswered after the last model round makes the run incomplete, including an `agent-message` delivered at that boundary.
+
+### Release scope
+
+- All 26 workspace package manifests, root metadata, and `SDK_VERSION` move from `0.1.6` to `0.1.7`; 25 packages are publishable and the private testkit remains unpublished.
+- Merging into `main` triggers the guarded Release workflow, which publishes npm packages after its checks pass.
+
 ## 0.1.6 - 2026-09-29
 
 ### Changed

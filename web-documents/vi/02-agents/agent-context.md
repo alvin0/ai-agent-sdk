@@ -61,7 +61,8 @@ nén ngữ cảnh mạnh tay.
 const seq = session.inject('The candidate commit is abc123.')
 ```
 
-`inject()` ghi thêm một message vai user có quy kết và trả về số thứ tự của nó.
+Khi idle, `inject()` ghi thêm message vai user có quy kết. Trong model round
+đã cố định, input được xếp hàng nên receipt trả về là tạm thời.
 Không có yêu cầu model nào xảy ra. Dùng khi ứng dụng của bạn biết được điều gì mà
 model sẽ cần ở lượt sau.
 

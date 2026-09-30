@@ -1,6 +1,6 @@
 # Program tool experimental
 
-Các API này thuộc **0.1.5**, hiện chưa phát hành. Tool thông thường vẫn hoạt động mà
+Các API này thuộc **0.1.5**. Tool thông thường vẫn hoạt động mà
 không cần chúng. Program là tool exclusive do host định nghĩa, gọi child tool
 được cấp grant qua scheduler hiện có, không cần model round trung gian.
 

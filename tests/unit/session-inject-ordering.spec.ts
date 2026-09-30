@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ModelAdapter, ModelRegistry, ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { ModelAdapter, ModelRegistry, ToolCallId, createUserMessage } from '@alvin0/ai-agent-sdk-core'
 import type { GenerateOptions, StreamChunk } from '@alvin0/ai-agent-sdk-core'
 import { defineAgent, defineTool, type AgentSessionSnapshot } from '@alvin0/ai-agent-sdk-core/agent'
 
@@ -9,6 +9,66 @@ import { defineAgent, defineTool, type AgentSessionSnapshot } from '@alvin0/ai-a
  * "steer, then the work that ignored it" and treated the steer as handled.
  */
 describe('AgentSession.inject during a run', () => {
+  it('schedules idle and queued managed-team notices as work', async () => {
+    let session: ReturnType<ReturnType<typeof defineAgent>['createSession']>
+    const requests: GenerateOptions[] = []
+    const notice = () => createUserMessage({ source: { kind: 'app', producer: 'managed-team' }, content: [{ type: 'text', text: 'Workers settled.' }] })
+    class Model extends ModelAdapter {
+      override async resolveModel(provider: string, model: string) { return { provider, id: model, name: model } }
+      override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+        requests.push(options)
+        if (requests.length === 1) session.inject(notice())
+        yield { type: 'block-end', index: 0, block: { type: 'text', text: `Answer ${requests.length}` } }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+      }
+    }
+    const registry = new ModelRegistry(); registry.registerAdapter(['fixture'], new Model())
+    session = defineAgent({ id: 'managed-notice', provider: 'fixture', model: 'm', instructions: 'x', maxTurns: 4, compaction: false }).createSession({ registry })
+    session.inject(notice())
+    expect(session.hasUnansweredInput()).toBe(true)
+    const result = await session.runPending()
+    expect(result.text).toBe('Answer 2')
+    expect(requests).toHaveLength(2)
+    expect(requests[1]?.messages.at(-1)?.source).toEqual({ kind: 'app', producer: 'managed-team' })
+    expect(session.hasUnansweredInput()).toBe(false)
+  })
+
+  it.each(['empty', 'whitespace', 'reasoning'] as const)('does not complete a steer with a previous answer after a %s reply', async reply => {
+    let session: ReturnType<ReturnType<typeof defineAgent>['createSession']>
+    let calls = 0
+    class Model extends ModelAdapter {
+      override async resolveModel(provider: string, model: string) { return { provider, id: model, name: model } }
+      override async *stream(): AsyncIterable<StreamChunk> {
+        if (++calls === 1) {
+          session.inject('Answer the new request')
+          yield { type: 'block-end', index: 0, block: { type: 'text', text: 'Previous answer' } }
+        } else if (reply === 'whitespace') {
+          yield { type: 'block-end', index: 0, block: { type: 'text', text: '   ' } }
+        } else if (reply === 'reasoning') {
+          yield { type: 'block-end', index: 0, block: { type: 'reasoning', text: 'Thinking only' } }
+        }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+      }
+    }
+    const registry = new ModelRegistry(); registry.registerAdapter(['fixture'], new Model())
+    session = defineAgent({ id: 'empty-steer', provider: 'fixture', model: 'm', instructions: 'x', maxTurns: 4, compaction: false }).createSession({ registry })
+    const result = await session.run('Start')
+    expect(calls).toBe(2)
+    expect(result.text.trim()).toBe('')
+    expect(result.outcome.completed).toBe(false)
+    if (reply === 'empty') expect(session.hasUnansweredInput()).toBe(true)
+  })
+
+  it('ignores app notices without hiding genuine unanswered input', () => {
+    const registry = new ModelRegistry()
+    const session = defineAgent({ id: 'pending', provider: 'fixture', model: 'm', instructions: 'x', compaction: false }).createSession({ registry })
+    const notice = () => createUserMessage({ source: { kind: 'app', producer: 'notice' }, content: [{ type: 'text', text: 'FYI' }] })
+    session.history.append({ kind: 'user', message: notice() })
+    expect(session.hasUnansweredInput()).toBe(false)
+    session.inject('New task')
+    session.history.append({ kind: 'user', message: notice() })
+    expect(session.hasUnansweredInput()).toBe(true)
+  })
   it('delivers steering before recovery and retry after a failed checkpoint', async () => {
     const requests: string[][] = []
     let preparations = 0

@@ -2,7 +2,7 @@
 
 import type { JsonValue } from '../../primitives/index.ts'
 import { timeoutValue } from '../../platform/config.ts'
-import { createTextMessage } from '../../message/index.ts'
+import { createTextMessage, createUserMessage } from '../../message/index.ts'
 import type { ModelRegistry } from '../../runtime/index.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
 import { cloneAgent, type DefinedAgent } from '../define/definition.ts'
@@ -14,6 +14,7 @@ import {
   type AgentSessionOptions,
 } from '../define/session.ts'
 import { History, type HistoryEntry, type HistorySnapshot } from '../history/index.ts'
+import { managedTeamNoticeRequest } from '../history/input-work.ts'
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
 import { ToolRegistry, type ToolCatalog } from '../tool/registry.ts'
 import { AgentTeam } from './team.ts'
@@ -453,15 +454,17 @@ export class ManagedAgentTeam {
           .filter(runtime => runtime.status === 'running' || runtime.status === 'pending')
           .map(runtime => runtime.request.name)
         if (busy.length === 0) {
-          this.lead.inject(
-            'All outstanding managed workers have settled. Their statuses and retained results are available through list_agents.',
-          )
+          this.lead.inject(createUserMessage({
+            source: { kind: 'app', producer: 'managed-team' },
+            content: [{ type: 'text', text: 'All outstanding managed workers have settled. Their statuses and retained results are available through list_agents.' }],
+          }))
           return
         }
-        this.lead.inject(
-          `Outstanding managed workers: ${busy.join(', ')}. `
-          + 'Their current lifecycle status is available through list_agents; wait_agents is bounded by its timeout.',
-        )
+        this.lead.inject(createUserMessage({
+          source: { kind: 'app', producer: 'managed-team' },
+          content: [{ type: 'text', text: `Outstanding managed workers: ${busy.join(', ')}. `
+            + 'Their current lifecycle status is available through list_agents; wait_agents is bounded by its timeout.' }],
+        }))
       },
     }
   }
@@ -1092,13 +1095,13 @@ export class ManagedAgentTeam {
     try {
       const signal = combineSignals(runtime.controller.signal, this.lifecycle.signal,
         AbortSignal.timeout(this.spawnTimeoutMs))
-      await abortable(this.team.sendMessage({
+      await abortable(this.team.sendMessage(managedTeamNoticeRequest({
         from: worker,
         target: this.leadName,
         message: `Worker '${worker}' ${truncate(summary, Math.min(this.maxDependencyReportBytes, Math.max(64, Math.floor(this.team.messageByteLimit / 4))))}`,
         delivery,
         signal,
-      }), signal)
+      })), signal)
     } catch {
       // The lead may already be gone, or the team disposed. A worker's report
       // is not worth failing anything else over; `workers()` still has it.

@@ -1,4 +1,5 @@
 import type { GenerateOptions } from '../../../contract/index.ts'
+import { UNCHANGED_ANSWER_MARKER } from '../control-text.ts'
 import { MODEL_ERROR_CODES, type ModelFailure } from '../../../errors/index.ts'
 import type { ContentBlock, Message, ToolCallBlock } from '../../../message/index.ts'
 import { BlockAssembler } from '../../../stream/index.ts'
@@ -394,13 +395,19 @@ export async function modelRound(
   const invalidCall = disabledCall
     ?? structuredOutputFailure
     ?? invalidHostToolCall(classified, options.history)
-  const blocks = invalidCall === undefined
+  const rawContent = invalidCall === undefined
     ? classified
     : classified.filter(block => block.type !== 'tool-call')
+  // A control reply cannot confirm an answer while dispatching more work.
+  // Strip it before persistence so tool-call identities are recorded only once.
+  const blocks = rawContent.some(block => block.type === 'tool-call')
+    ? rawContent.map(block => block.type === 'text'
+      ? { ...block, text: block.text.replaceAll(UNCHANGED_ANSWER_MARKER, '') } : block)
+    : rawContent
   const finish: FinishReason = invalidCall === undefined
     ? providerFinish
     : { kind: 'error', failure: invalidCall }
-  const message = blocks.length === 0 && (finish.kind === 'error' || finish.kind === 'aborted')
+  const message = blocks.length === 0
     ? undefined
     : createAssistant(options, blocks, retainedPrefix ? undefined : assembler.replayState)
   const calls = message?.content

@@ -40,7 +40,7 @@ interface ToolDefinition<Args = unknown> extends ToolSchema {
 
 ## Experimental programs and action fusion
 
-These are additions in 0.1.5, currently unreleased. Register the program tool and
+These are additions introduced in 0.1.5. Register the program tool and
 its child tools, then mount `experimentalPrograms: [{ tool, allow, maxCalls }]`
 on the session. A program obtains `experimentalNestedToolPort(ctx)` inside
 `execute`; the model cannot supply that port. The port is undefined without a

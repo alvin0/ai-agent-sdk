@@ -672,7 +672,7 @@
           "validateSkillSource",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "65efd6a7188985fcac5353196467db849e523274ab3aedf702c4fd561702b788"
+        "declarationSha256": "b3571348f9c3bdf66c511d735a6c497baabecd4727698307f4f1a47d45313ff6"
       },
       "./memory": {
         "exports": [

@@ -238,6 +238,10 @@ async function driveTurn(
       await emit({ type: 'assistant-message', message: round.message, trace: round.trace })
       await emitAssistantContent(round, emit)
       text = textOf(round.message.content)
+    } else if (round.finish.kind === 'stop') {
+      // A successful empty round cannot answer new input with earlier text.
+      // Keep earlier text only when a later request fails or is interrupted.
+      text = ''
     }
     usageStop = accountingUsageStop(options.accounting) ?? (round.usageRequired
       ? { kind: 'error', failure: { message: 'provider usage is required by the configured run policy', code: 'USAGE_REQUIRED' } }
@@ -566,7 +570,7 @@ async function driveTurn(
     outcome: candidate,
     snapshot: options.history.snapshot(),
     canContinue,
-  }], options, signal, 'onTurnEnd')
+  }], options, signal.aborted ? new AbortController().signal : signal, 'onTurnEnd')
   // Hooks object by appending context rather than by returning a veto. Re-run only
   // a normally completed turn; abort/error/budget outcomes remain terminal.
   // Input the person sent while the final answer was being written is owed an

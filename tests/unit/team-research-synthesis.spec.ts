@@ -178,6 +178,10 @@ describe('a delegated research run ends on the lead', () => {
     // Every sector's answer is in front of the lead when it writes that.
     const finalRequest = JSON.stringify(adapter.leadRequests.at(-1))
     for (const sector of SECTORS) expect(finalRequest).toContain(`${sector} says`)
+    const reports = managed.lead.history.messages().filter(message => message.role === 'user'
+      && message.content.some(block => block.type === 'text' && block.text.includes("Worker '")))
+    expect(reports).toHaveLength(SECTORS.length)
+    for (const report of reports) expect(report.source).toEqual({ kind: 'app', producer: 'managed-team' })
 
     await managed.dispose()
   }, 30_000)

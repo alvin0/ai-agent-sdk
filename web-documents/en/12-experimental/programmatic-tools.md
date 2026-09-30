@@ -1,6 +1,6 @@
 # Experimental program tools
 
-These are additions in **0.1.5**, currently unreleased. Ordinary tools work without
+These are additions in **0.1.5**. Ordinary tools work without
 them. A program is a host-defined exclusive tool that calls granted child tools
 through the existing scheduler, without an intermediate model round.
 

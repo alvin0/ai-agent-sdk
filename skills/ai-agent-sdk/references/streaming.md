@@ -26,6 +26,7 @@ All events carry `runId`, `traceId`, and a monotonic `sequence`.
 | --- | --- | --- |
 | `commentary-delta` | `text` | Progress narration around tool use |
 | `assistant-delta` | `text` | The answer, token by token |
+| `assistant-replacement` | `fromMessageId`, `message` | Replace a kept or corrected draft after an accepted check |
 | `tool-call` | `callId`, `name`, `input` | Render a tool node |
 | `tool-result` | `callId`, `name`, `status`, `output` | Complete that node |
 | `assistant-native-tool` | `callId`, `provider`, `name`, `status`, `input?`, `output?` | Provider-executed tool progress |
@@ -64,6 +65,13 @@ accepted self-check can keep a prior draft without streaming a second copy;
 the internal unchanged-answer marker is suppressed. On the low-level agent
 stream, `assistant-message`, terminal outcomes, and `onTurnEnd` carry the restored
 text. Mid-round steering follows the boundary rules in runtime-and-agents.md.
+
+Reconcile even when no answer delta arrived. If `handle.result` rejects, including
+Stop, reconcile from the persisted transcript after cleanup. Use `text-end.phase`
+to reclassify text preceding tools; replacement events do not cover every
+canonical transcript change. The marker is reserved in every mode, but old
+stored assistant text needs application-side sanitization. See
+[upgrading-from-0.1.6.md](upgrading-from-0.1.6.md).
 
 ## One-shot
 

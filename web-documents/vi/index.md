@@ -67,6 +67,6 @@ Xem [Getting Started](/vi/01-introduction/getting-started) để biết cách ch
 
 ## Trạng thái
 
-Phiên bản `0.1.5`, giấy phép MIT. Các package công khai được phát hành dưới
+Phiên bản `0.1.7`, giấy phép MIT. Các package công khai dùng
 scope `@alvin0` — xem [Thông tin dự án](/vi/14-project/) và changelog của
 repository để biết chi tiết từng bản phát hành.

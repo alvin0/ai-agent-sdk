@@ -176,3 +176,13 @@ chương này — xem [Tham chiếu API `Types`](/vi/13-api-reference/types) cho
 - [Lifecycle](/vi/02-agents/lifecycle) — hook, huỷ, bằng chứng đóng
 - [Tool Execution](/vi/03-tools/tool-execution) — sự kiện tool được lập lịch thế nào
 - [Tham chiếu API `Types`](/vi/13-api-reference/types) — giao thức chunk thô
+
+## Thay draft và Stop trong 0.1.7
+
+Xử lý `assistant-replacement` bằng `fromMessageId` và `message` thay thế.
+Event này áp dụng cho draft được giữ/sửa sau self-check đã chấp nhận, không bao
+phủ mọi thay đổi transcript. Dùng `text-end.phase` để phân loại lại text trước
+tool. Đồng bộ run thành công theo `response.text` ngay cả khi không có delta.
+Nếu `handle.result` reject, gồm Stop, đồng bộ theo transcript đã lưu sau cleanup.
+Marker được dành riêng trong mọi mode; text assistant đã lưu từ bản cũ cần
+được làm sạch ở ứng dụng. Xem [nâng cấp từ 0.1.6](/vi/01-introduction/upgrading-from-0-1-6).
