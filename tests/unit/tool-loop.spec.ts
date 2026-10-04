@@ -200,6 +200,43 @@ describe('runToolCalls ownership', () => {
     await expect(pending).rejects.toThrow('LATER_ADMISSION_FAILED')
     expect(finished).toBe(true)
   })
+
+  it('does not recover an aborted repeated call', async () => {
+    const tools = new ToolRegistry()
+    let executions = 0
+    let recoveryAttempts = 0
+    tools.register(defineTool({
+      name: 'counted', description: 'Records an execution.', parameters: { type: 'object' },
+      execute: () => ({ execution: ++executions }),
+    }))
+    const controller = new AbortController()
+    controller.abort()
+    const history = new History()
+    const parentTrace = {
+      traceId: createTraceId(), spanId: createSpanId(), parentSpanId: null,
+    } as unknown as Parameters<typeof runToolCalls>[0]['parentTrace']
+    const events: AgentEvent[] = []
+
+    const outcome = await runToolCalls({
+      calls: [{ callId: ToolCallId('repeat-after-abort'), toolName: 'counted', rawArguments: '{"value":1}' }],
+      catalog: tools, history, position: { turn: 1, step: 2 }, signal: controller.signal, parentTrace,
+      recover: () => {
+        recoveryAttempts++
+        return { isError: false, value: { execution: 1 }, content: [{ type: 'text', text: 'retained result' }] }
+      },
+      emit: async event => { events.push(event) },
+    })
+
+    expect(recoveryAttempts).toBe(0)
+    expect(executions).toBe(0)
+    expect(outcome.results[0]).toMatchObject({
+      isError: true, error: { code: 'TOOL_ABORTED' },
+    })
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'span-start', attributes: expect.not.objectContaining({ 'sdk.tool.recovered': true }),
+    }))
+    expect(history.entries().map(entry => entry.event.kind)).toEqual(['tool-call', 'tool-result'])
+  })
 })
 
 describe('runTurn', () => {
@@ -916,7 +953,7 @@ describe('runTurn', () => {
   it('does not recover a repeat whose raw arguments differ', async () => {
     const state = await setup([
       toolRound([{ id: 'format-1', name: 'echo', arguments: '{"value":1}' }]),
-      toolRound([{ id: 'format-2', name: 'echo', arguments: '{ "value": 1 }' }]),
+      toolRound([{ id: 'format-2', name: 'echo', arguments: ' {"value":1} ' }]),
       textRound('Arguments were not the exact prior call.'),
     ])
 
@@ -931,6 +968,39 @@ describe('runTurn', () => {
       .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
     expect(results.some(result => result?.isError === false && result.meta?.['recovered'] === true)).toBe(false)
     expect(results.at(-1)).toMatchObject({ isError: false, meta: { declined: true, reason: 'repeated-tool-call' } })
+  })
+
+  it('does not recover a successful result that carried additional context', async () => {
+    const state = await setup([
+      toolRound([{ id: 'context-1', name: 'contextual', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'context-2', name: 'contextual', arguments: '{"value":1}' }]),
+      textRound('The context-bearing call was not reused.'),
+    ])
+    let executions = 0
+    state.tools.register(defineTool({
+      name: 'contextual', description: 'Adds context.', parameters: { type: 'object' },
+      execute: (_args, ctx) => {
+        executions++
+        ctx.addContext('The retained result supplied this context once.')
+        return { value: 1 }
+      },
+    }))
+
+    for await (const _event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools,
+      bounds: { repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9 },
+    })) { /* drain */ }
+
+    const results = state.history.entries()
+      .filter(entry => entry.event.kind === 'tool-result')
+      .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
+    expect(executions).toBe(1)
+    expect(results.some(result => result?.isError === false && result.meta?.['recovered'] === true)).toBe(false)
+    expect(results.at(-1)).toMatchObject({ isError: false, meta: { declined: true, reason: 'repeated-tool-call' } })
+    expect(state.history.messages()).toContainEqual(expect.objectContaining({
+      source: { kind: 'app', producer: 'tool:contextual' },
+    }))
   })
 
   it('runs a budget-exempt tool after the budget is spent', async () => {

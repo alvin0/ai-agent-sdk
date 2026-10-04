@@ -386,8 +386,10 @@ async function driveTurn(
       ? (call: typeof round.calls[number]): ToolExecutionResult | undefined => {
           const prior = successfulCalls.get(repeatKey(call))
           if (prior === undefined
-            || prior.rawArguments !== call.rawArguments.trim()
+            || prior.rawArguments !== call.rawArguments
             || prior.definition !== options.tools?.get(call.toolName)
+            || prior.result.additionalContext !== undefined
+            || prior.result.concludesTurn === true
             || options.tools?.get(call.toolName)?.budgetExempt === true) return undefined
           return duplicateOfResult(prior)
         }
@@ -498,7 +500,7 @@ async function driveTurn(
       if (count >= bounds.repeatToolLimit) repeatedLimit = true
       if (!result.isError && options.tools?.get(call.toolName)?.budgetExempt !== true) {
         successfulCalls.set(key, {
-          callId: String(call.callId), rawArguments: call.rawArguments.trim(),
+          callId: String(call.callId), rawArguments: call.rawArguments,
           definition: options.tools.get(call.toolName), result,
         })
       }

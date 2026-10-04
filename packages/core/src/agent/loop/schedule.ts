@@ -242,13 +242,28 @@ async function start(
     spanId: createSpanId(),
     parentSpanId: options.parentTrace.spanId,
   }
-  const recovered = options.recover?.(call)
+  const recovered = !options.signal.aborted && !signal.aborted
+    ? options.recover?.(call)
+    : undefined
   options.history.append({ kind: 'tool-call', callId: call.callId, name: call.toolName, rawArguments: call.rawArguments })
   await emitEvent(options, { type: 'span-start', trace, at: now(), name: `execute_tool ${call.toolName}`, kind: 'execute_tool', attributes: {
     'gen_ai.operation.name': 'execute_tool', 'gen_ai.tool.name': call.toolName, 'gen_ai.tool.call.id': call.callId,
     ...recovered === undefined ? {} : { 'sdk.tool.recovered': true },
   }, input: call.rawArguments })
   await emitEvent(options, { type: 'tool-call', call, trace })
+  // Recovery is not a completion signal. Preserve the existing cancellation
+  // outcomes before consulting retained same-turn state.
+  if (options.signal.aborted) return {
+    call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
+    pending: Promise.resolve(toolFailure(
+      'the call was cancelled before it started',
+      TOOL_ERROR_CODES.ABORTED_BEFORE_DISPATCH,
+    )),
+  }
+  if (signal.aborted) return {
+    call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
+    pending: Promise.resolve(cancelledResult(deadline, maxDurationMs)),
+  }
   if (recovered !== undefined) return {
     call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
     pending: Promise.resolve(recovered),
