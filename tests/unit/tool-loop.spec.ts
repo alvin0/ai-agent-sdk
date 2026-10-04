@@ -977,6 +977,93 @@ describe('runTurn', () => {
     } })
   })
 
+  it('does not replan a mixed repeat and fresh-tool round', async () => {
+    const state = await setup([
+      toolRound([{ id: 'mixed-1', name: 'counted-mixed', arguments: '{"value":1}' }]),
+      toolRound([
+        { id: 'mixed-2', name: 'counted-mixed', arguments: '{"value":1}' },
+        { id: 'mixed-3', name: 'counted-mixed', arguments: '{"value":2}' },
+      ]),
+      textRound('The new call was not allowed through.'),
+    ])
+    let executions = 0
+    state.tools.register(defineTool({
+      name: 'counted-mixed', description: 'Counts dispatch.', parameters: { type: 'object' },
+      execute: () => ({ execution: ++executions }),
+    }))
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools,
+      bounds: { repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9 },
+    })) events.push(event)
+
+    expect(executions).toBe(1)
+    expect(state.adapter.requests).toHaveLength(3)
+    expect(state.adapter.requests[2]?.toolChoice).toBe('none')
+    expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
+      reason: { kind: 'budget-exhausted', budget: 'repeated-tool-call', forcedFinalAnswer: true },
+    } })
+  })
+
+  it('does not grant the replan when exhaustion is explicitly stopped', async () => {
+    const state = await setup([
+      toolRound([{ id: 'stop-1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'stop-2', name: 'echo', arguments: '{"value":1}' }]),
+    ])
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools, bounds: { onExhausted: 'stop', repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9 },
+    })) events.push(event)
+
+    expect(state.adapter.requests).toHaveLength(2)
+    expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
+      reason: { kind: 'budget-exhausted', budget: 'repeated-tool-call', forcedFinalAnswer: false },
+    } })
+  })
+
+  it('does not grant the replan when the current step reaches its limit', async () => {
+    const state = await setup([
+      toolRound([{ id: 'steps-1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'steps-2', name: 'echo', arguments: '{"value":1}' }]),
+      textRound('Step limit forced this final response.'),
+    ])
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools,
+      bounds: { maxSteps: 2, repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9 },
+    })) events.push(event)
+
+    expect(state.adapter.requests).toHaveLength(3)
+    expect(state.adapter.requests[2]?.toolChoice).toBe('none')
+    expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
+      reason: { kind: 'budget-exhausted', budget: 'repeated-tool-call', forcedFinalAnswer: true },
+    } })
+  })
+
+  it('does not grant the replan after the token guard has already tripped', async () => {
+    const state = await setup([
+      toolRound([{ id: 'token-1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'token-2', name: 'echo', arguments: '{"value":1}' }]),
+    ])
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools,
+      bounds: { maxTotalTokens: 23, repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9 },
+    })) events.push(event)
+
+    expect(state.adapter.requests).toHaveLength(2)
+    const results = state.history.entries().filter(entry => entry.event.kind === 'tool-result')
+      .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
+    expect(results.some(result => result?.meta?.['recovered'] === true)).toBe(false)
+    expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
+      reason: { kind: 'budget-exhausted', budget: 'tokens', forcedFinalAnswer: false },
+    } })
+  })
+
   it('does not recover a repeat whose raw arguments differ', async () => {
     const state = await setup([
       toolRound([{ id: 'format-1', name: 'echo', arguments: '{"value":1}' }]),
