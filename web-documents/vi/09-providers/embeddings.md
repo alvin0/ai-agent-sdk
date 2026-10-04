@@ -262,6 +262,12 @@ transport vẫn dùng taxonomy của model, nên "đang bị rate limit" vẫn p
 `provider`, `model` và `space` — không bao giờ mang text input thô hay giá trị
 vector.
 
+Từ 0.1.8, `EmbeddingError.failure` là `ModelFailure` đã validate và freeze.
+Lỗi provider cuối cùng giữ các trường có sẵn `status`, `providerRetryAfterMs`
+và `requestId` qua retry wrapper và `normalizeModelFailure(error)`. Trường thiếu
+thông tin vẫn vắng mặt. Retry policy, backoff và vector không đổi; envelope không
+thêm input text thô hay body thô của provider.
+
 ```ts
 import { EMBEDDING_ERROR_CODES, EmbeddingError } from '@alvin0/ai-agent-sdk-core/embedding'
 

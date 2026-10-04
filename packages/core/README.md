@@ -67,3 +67,9 @@ For 0.1.7 completion, pending input, stream replacement and Stop behavior, see
 the [upgrade guide](https://github.com/alvin0/ai-agent-sdk/blob/main/docs/upgrading-from-0.1.6.md).
 `RuntimeAgentSession.hasUnansweredInput()` and `runPending()` expose work left
 after a terminal round. Use `response.completed` for objective completion.
+
+In 0.1.8, the exact-repeat guard can reuse the immediately preceding successful
+tool result and allow one bounded model replan. `EmbeddingError.failure` preserves
+available provider HTTP status, retry delay and request id through normalization.
+See [upgrading from 0.1.7](https://github.com/alvin0/ai-agent-sdk/blob/main/docs/upgrading-from-0.1.7.md)
+for exclusions, cancellation and budget behavior.

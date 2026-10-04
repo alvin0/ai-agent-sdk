@@ -1,8 +1,8 @@
 # Upgrading from 0.1.4 to 0.1.5
 
 This guide covers changes introduced in **0.1.5**. The current workspace targets
-0.1.7; see [upgrading from 0.1.6](upgrading-from-0.1.6.md) for the latest
-completion, steering and streaming changes.
+0.1.8; see [upgrading from 0.1.7](upgrading-from-0.1.7.md) for the latest
+exact-repeat recovery and embedding diagnostic changes.
 
 Existing package import routes, provider/model/effort configuration, ordinary
 tools, `run`/`stream`, and snapshot/resume remain available. Context optimization

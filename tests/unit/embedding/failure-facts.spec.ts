@@ -15,7 +15,7 @@ describe('embedding terminal provider facts', () => {
     let calls = 0
     const original = new ModelError('provider refused', code, {
       status, providerRetryAfterMs: 1250, requestId: ProviderRequestId('request-17'),
-      cause: new Error('private upstream body'),
+      cause: new Error('embedding/private-provider-body%2026-10-03'),
     })
     const ledger = createEmbeddingRetryLedger({ embedBatch: async () => {
       calls += 1
@@ -23,7 +23,7 @@ describe('embedding terminal provider facts', () => {
     } }, { policy: resolveRetryPolicy({ mode: 'normal', maxRetries: 2 }, 'test.retryPolicy'), sleep: async () => true })
     const result = await ledger.dispatch(0, {
       provider: 'arbitrary-route', model: 'arbitrary-model', purpose: 'retrieval-query',
-      truncation: 'reject', items: [{ index: 7, contentParts: [{ type: 'text', text: 'private input' }] }],
+      truncation: 'reject', items: [{ index: 7, contentParts: [{ type: 'text', text: 'embedding/private-input%2026-10-03' }] }],
     })
     expect(calls).toBe(retries + 1)
     expect(result.attempts).toBe(retries + 1)
@@ -36,7 +36,8 @@ describe('embedding terminal provider facts', () => {
     const facts = normalizeModelFailure(result.state.error)
     expect(facts).toEqual(normalizeModelFailure(original))
     expect(facts.status).toBe(status)
-    expect(JSON.stringify(facts)).not.toContain('private')
+    expect(JSON.stringify(facts)).not.toContain('embedding/private-provider-body%2026-10-03')
+    expect(JSON.stringify(facts)).not.toContain('embedding/private-input%2026-10-03')
     expect(Object.isFrozen(result.state.error.failure)).toBe(true)
     expect(normalizeModelFailure({ code, failure: structuredClone(facts) })).toEqual(facts)
   })

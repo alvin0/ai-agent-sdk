@@ -2,6 +2,21 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## 0.1.8 - 2026-10-05
+
+### Fixed
+
+- At the exact-repeat tool limit, the loop can reuse the immediately preceding successful result in the same turn without dispatching the tool again. Each recovered call keeps a distinct history/event pair, a model-visible `duplicate_of` notice, `recovered`/`duplicateOfCallId` result metadata and `sdk.tool.recovered` span attribution.
+- Repeat admission applies per call in mixed batches: eligible repeats recover, ineligible repeats decline, and fresh siblings retain normal quota, authorization, concurrency and cancellation checks. Recovered calls spend no dispatch quota. A recovered repeat alongside fresh dispatches no longer forces a premature final answer.
+- A round containing only recovered calls can take one ordinary model replan per exact key within existing step, token and tool bounds. A further exact repeat still exhausts the guard. Recovery stays cancellation-safe and cannot cross an intervening call or failure, reuse declined or budget-exempt calls, or reuse results with additional context or turn-completion semantics. Mixed declined rounds and other exhaustion guards retain their stop behavior.
+- Terminal embedding provider failures preserve available HTTP status, retry delay and request id through the retry wrapper and `normalizeModelFailure()`. `EmbeddingError.failure` exposes a validated, frozen `ModelFailure` envelope and accepts its optional provider facts through `EmbeddingErrorOptions`; existing embedding errors keep their identity. Retry policy, backoff, inputs and vectors are unchanged.
+- The two private Next.js web samples move the catalog pin from `16.3.4` to `16.3.6` to address [GHSA-vcvr-r3jv-pc5j](https://github.com/advisories/GHSA-vcvr-r3jv-pc5j), the `next/og` ImageResponse remote-code-execution advisory. Next.js is a sample dependency and is outside the published SDK runtime dependency graph.
+
+### Release scope
+
+- All 26 workspace package manifests, root metadata and `SDK_VERSION` move from `0.1.7` to `0.1.8`; 25 packages are publishable and the private testkit remains unpublished.
+- See [upgrading from 0.1.7](docs/upgrading-from-0.1.7.md) for recovery limits and embedding diagnostics. Merging into `main` triggers the guarded Release workflow.
+
 ## 0.1.7 - 2026-09-30
 
 ### Fixed

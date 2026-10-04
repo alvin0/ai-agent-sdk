@@ -99,6 +99,8 @@ interface Slot {
 export interface InternalScheduleOptions {
   /** Overrides `dispatchLimit`; `unbounded` when the budget is a notice rather than a wall. */
   readonly admissionLimit?: number | 'unbounded'
+  /** A call-specific guard; refusing one sibling does not reserve another's quota. */
+  readonly decline?: (call: ToolCallRequest) => ToolDeclineReason | undefined
   /**
    * Program tools and what each may call. Research seam for SP-01; the public
    * way to enable programs is not decided.
@@ -142,7 +144,7 @@ export async function scheduleToolCalls(
     const prepared = carried ?? prepare(options, first)
     carried = undefined
     if (prepared.mode === 'exclusive') {
-      const slot = await start(options, prepared, step)
+      const slot = await start(options, prepared, step, internal)
       dispatched += slot.dispatched ? 1 : 0
       declined += slot.declined === true ? 1 : 0
       const result = await commit(options, slot, maxResultBytes)
@@ -167,7 +169,7 @@ export async function scheduleToolCalls(
         if (call === undefined) break
         const candidate = nextPrepared
         if (candidate.mode !== 'parallel') break
-        const slot = await start(segmentOptions, candidate, step)
+        const slot = await start(segmentOptions, candidate, step, internal)
         dispatched += slot.dispatched ? 1 : 0
         declined += slot.declined === true ? 1 : 0
         segment.push(slot)
@@ -227,6 +229,7 @@ async function start(
   options: RunToolCallsOptions,
   prepared: ReturnType<typeof prepareToolCall>,
   step: StepRuntime,
+  internal: InternalScheduleOptions,
 ): Promise<Slot> {
   const { maxDurationMs, teardownTimeoutMs } = step
   const deadline = AbortSignal.timeout(maxDurationMs)
@@ -271,6 +274,11 @@ async function start(
   // A tool the model may always reach: submitting, asking, delegating. Letting
   // a budget block these is what turns a spent budget into a dead run.
   const exempt = options.catalog.get(call.toolName)?.budgetExempt === true
+  const decline = exempt ? undefined : internal.decline?.(call)
+  if (decline !== undefined) return {
+    call, trace, signal, deadline, teardownTimeoutMs, dispatched: false, declined: true,
+    pending: Promise.resolve(declinedResult(decline)),
+  }
   const grant = step.programs.get(call.toolName)
   // A program spends the budget it is charged for; it can never be the free
   // call, and a parallel program would race its own children for siblings.

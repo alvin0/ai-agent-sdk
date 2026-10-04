@@ -342,8 +342,6 @@ async function driveTurn(
     // Calls the budget does not govern: submitting, asking, delegating. They
     // are dispatched even when the budget is spent, so the model always has a
     // legal way to finish. See `ToolDefinition.budgetExempt`.
-    const budgetedCalls = round.calls
-      .filter(call => options.tools?.get(call.toolName)?.budgetExempt !== true).length
     const remaining = Math.max(0, bounds.maxToolCalls - toolCalls)
     let repeatProjection: { key: string; count: number } | undefined = lastRepeat
     const projectedRepeats = round.calls.map(call => {
@@ -367,7 +365,7 @@ async function driveTurn(
     const budgetTokens = budgetTokenTotal(currentUsage)
     const tokenLimitBeforeDispatch = budgetTokens !== undefined
       && budgetTokens >= maxTotalTokens
-    const guardDeclined = repeatedLimitBeforeDispatch || cycleLimitBeforeDispatch || tokenLimitBeforeDispatch || round.usageRequired
+    const guardDeclined = cycleLimitBeforeDispatch || tokenLimitBeforeDispatch || round.usageRequired
     // Name the limit that actually declined the call. Reporting a repeat guard
     // as an empty budget teaches the model the wrong lesson, and it repeats the
     // call on the next turn with the budget it was told it lacked.
@@ -375,11 +373,9 @@ async function driveTurn(
       ? 'tokens'
       : cycleLimitBeforeDispatch
         ? 'tool-call-cycle'
-        : repeatedLimitBeforeDispatch
-          ? 'repeated-tool-call'
-          : round.usageRequired
-            ? 'usage-required'
-            : 'tool-calls'
+        : round.usageRequired
+          ? 'usage-required'
+          : 'tool-calls'
     // `continue` takes the wall down: the budget becomes a notice and the turn
     // is bounded by steps, tokens, and the run-level ledger instead. Guards
     // that mean "this is not working" still decline, whatever the setting.
@@ -391,6 +387,11 @@ async function driveTurn(
     const individuallyRepeatedCallIds = new Set(round.calls
       .filter((_call, index) => (projectedRepeats[index] ?? 0) >= bounds.repeatToolLimit)
       .map(call => String(call.callId)))
+    // Only ordinary dispatches request quota: repeated calls are either recovered
+    // for free or individually declined. Fresh siblings keep normal admission.
+    const budgetedCalls = round.calls.filter(call =>
+      !individuallyRepeatedCallIds.has(String(call.callId))
+      && options.tools?.get(call.toolName)?.budgetExempt !== true).length
     const recover = repeatedLimitBeforeDispatch && !cycleLimitBeforeDispatch && !tokenLimitBeforeDispatch
       && !round.usageRequired
       ? (call: typeof round.calls[number]): ToolExecutionResult | undefined => {
@@ -437,6 +438,10 @@ async function driveTurn(
       },
     }, {
       admissionLimit: guardDeclined ? 0 : budgetIsAWall ? remaining : 'unbounded',
+      ...guardDeclined || !repeatedLimitBeforeDispatch ? {} : {
+        decline: (call: typeof round.calls[number]): ToolDeclineReason | undefined =>
+          individuallyRepeatedCallIds.has(String(call.callId)) ? 'repeated-tool-call' : undefined,
+      },
       ...programs === undefined ? {} : { programs },
       ...programResults === undefined ? {} : { programResults },
     })
@@ -557,6 +562,13 @@ async function driveTurn(
       && !(budgetIsAWall && budgetedCalls > remaining)
       && consecutiveErrors === 0 && steps < maxSteps
       && bounds.onExhausted !== 'stop' && admissionStop() === undefined
+    // A repeated call cannot poison new work in the same model batch. Successful
+    // recovery alongside a real dispatch is ordinary progress, not an extra pure
+    // duplicate replan. The other exhaustion checks below still apply.
+    const recoveredWithFreshDispatch = repeatedLimitBeforeDispatch
+      && [...individuallyRepeatedCallIds].every(id => recoveredCallIds.has(id))
+      && scheduled.results.length === round.calls.length
+      && scheduled.dispatched > 0 && scheduled.declined === 0
     if (recoveredOnlyReplan) {
       for (const call of round.calls) recoveredReplanKeys.add(repeatKey(call))
     } else if (tokenLimitBeforeDispatch) exhausted = 'tokens'
@@ -564,8 +576,13 @@ async function driveTurn(
     else if (cycleLimitBeforeDispatch) exhausted = 'tool-call-cycle'
     else if (budgetIsAWall && budgetedCalls > remaining) exhausted = 'tool-calls'
     else if (consecutiveErrors >= bounds.maxConsecutiveToolErrors) exhausted = 'consecutive-tool-errors'
-    else if (repeatedLimit) exhausted = 'repeated-tool-call'
+    else if (repeatedLimit && !recoveredWithFreshDispatch) exhausted = 'repeated-tool-call'
     else if (steps >= maxSteps) exhausted = 'steps'
+    if (exhausted === undefined && recoveredWithFreshDispatch) {
+      for (const call of round.calls) {
+        if (recoveredCallIds.has(String(call.callId))) recoveredReplanKeys.add(repeatKey(call))
+      }
+    }
     if (exhausted !== undefined) {
       const forced = (exhausted !== 'tokens' || (reportReserveReached && !tokenLimitBeforeDispatch))
         && bounds.onExhausted !== 'stop'

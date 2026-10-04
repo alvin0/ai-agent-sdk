@@ -292,16 +292,29 @@ describe('agent modes', () => {
 
   it('auto retains loop detection instead of repeating tools forever', async () => {
     const state = setup([
-      ...Array.from({ length: 3 }, (_, i) => toolRound(`repeat-${i}`, 'echo', { page: 1 })),
+      ...Array.from({ length: 4 }, (_, i) => toolRound(`repeat-${i}`, 'count-repeat', { page: 1 })),
       textRound('Blocked: repeated source returns no new evidence.'),
     ])
+    let executions = 0
+    state.tools.register(defineTool({
+      name: 'count-repeat', description: 'Count actual dispatches.', parameters: { type: 'object' },
+      execute: () => ({ execution: ++executions }),
+    }))
     const events = await collect({ mode: 'deep', registry: state.registry, history: state.history, tools: state.tools,
       config: { provider: 'test', model: 'm' }, maxTurns: 'auto',
       bounds: { onExhausted: 'continue', repeatToolWarningAt: 2, repeatToolLimit: 3, toolCycleLimit: 10 } })
     expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: {
       completed: false, reason: { kind: 'budget-exhausted', budget: 'repeated-tool-call', forcedFinalAnswer: true },
     } })
-    expect(state.adapter.requests).toHaveLength(4)
+    expect(state.adapter.requests).toHaveLength(5)
+    expect(state.adapter.requests[3]?.toolChoice).not.toBe('none') // One ordinary replan.
+    expect(state.adapter.requests[4]?.toolChoice).toBe('none') // The next repeat still stops.
+    const results = state.history.entries()
+      .filter(entry => entry.event.kind === 'tool-result')
+      .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
+    expect(results).toHaveLength(4)
+    expect(results.filter(result => result?.meta?.['recovered'] === true)).toHaveLength(2)
+    expect(executions).toBe(2)
   })
 
   it('auto still honors an explicit tool-call wall and returns a bounded report', async () => {

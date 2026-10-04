@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { History } from '@alvin0/ai-agent-sdk-core/agent'
 import { AwaitedEventQueue } from '../../packages/core/src/agent/loop/queue.ts'
+import { RunLedger } from '../../packages/core/src/agent/accounting/ledger.ts'
 import { resolveBounds } from '../../packages/core/src/agent/loop/turn/config.ts'
 import { resolveRuntimeLimits } from '../../packages/core/src/agent/define/session/config.ts'
 import { runTurn } from '@alvin0/ai-agent-sdk-core/agent'
@@ -977,36 +978,194 @@ describe('runTurn', () => {
     } })
   })
 
-  it('does not replan a mixed repeat and fresh-tool round', async () => {
+  it.each([false, true])('admits fresh siblings after exact recovery (parallel=%s)', async parallel => {
     const state = await setup([
       toolRound([{ id: 'mixed-1', name: 'counted-mixed', arguments: '{"value":1}' }]),
       toolRound([
         { id: 'mixed-2', name: 'counted-mixed', arguments: '{"value":1}' },
         { id: 'mixed-3', name: 'counted-mixed', arguments: '{"value":2}' },
       ]),
-      textRound('The new call was not allowed through.'),
+      textRound('The recovered result and fresh result complete the work.'),
     ])
     let executions = 0
     state.tools.register(defineTool({
       name: 'counted-mixed', description: 'Counts dispatch.', parameters: { type: 'object' },
+      isConcurrencySafe: () => parallel,
       execute: () => ({ execution: ++executions }),
     }))
     const events: AgentEvent[] = []
     for await (const event of runTurn({
       registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
       tools: state.tools,
-      bounds: { repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9 },
+      bounds: { maxToolCalls: 2, repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9 },
     })) events.push(event)
 
-    expect(executions).toBe(1)
+    const results = state.history.entries()
+      .filter(entry => entry.event.kind === 'tool-result')
+      .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
+    expect(results).toHaveLength(3)
+    expect(results[1]).toMatchObject({ isError: false, value: { execution: 1 }, meta: { recovered: true, duplicateOfCallId: 'mixed-1' } })
+    expect(results[2]).toMatchObject({ isError: false, value: { execution: 2 } })
+    expect(results[2]?.meta?.['declined']).not.toBe(true)
+    expect(executions).toBe(2)
     expect(state.adapter.requests).toHaveLength(3)
-    expect(state.adapter.requests[2]?.toolChoice).toBe('none')
+    expect(state.adapter.requests[2]?.toolChoice).not.toBe('none')
     expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
-      reason: { kind: 'budget-exhausted', budget: 'repeated-tool-call', forcedFinalAnswer: true },
+      reason: { kind: 'completed' }, toolCalls: 2,
+      text: 'The recovered result and fresh result complete the work.',
     } })
   })
 
-  it('does not recover a stale sibling result when another call reaches the repeat guard', async () => {
+  it.each([false, true])('dispatches a former repeat after fresh preceding work (parallel=%s)', async parallel => {
+    const state = await setup([
+      toolRound([{ id: 'before-1', name: 'ordered', arguments: '{"value":1}' }]),
+      toolRound([
+        { id: 'fresh-first', name: 'ordered', arguments: '{"value":2}' },
+        { id: 'former-repeat', name: 'ordered', arguments: '{"value":1}' },
+      ]),
+      textRound('Read again after fresh work.'),
+    ])
+    let executions = 0
+    state.tools.register(defineTool({
+      name: 'ordered', description: 'Tracks actual dispatch.', parameters: { type: 'object' },
+      isConcurrencySafe: () => parallel, execute: () => ({ execution: ++executions }),
+    }))
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history, tools: state.tools,
+      bounds: { maxToolCalls: 3, repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9 },
+    })) events.push(event)
+    expect(executions).toBe(3)
+    const results = state.history.entries().filter(entry => entry.event.kind === 'tool-result')
+      .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
+    expect(results).toHaveLength(3)
+    expect(results.some(result => result?.meta?.['recovered'] === true || result?.meta?.['declined'] === true)).toBe(false)
+    expect(state.adapter.requests[2]?.toolChoice).not.toBe('none')
+    expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: { reason: { kind: 'completed' }, toolCalls: 3 } })
+  })
+
+  it.each(['quota', 'tokens', 'abort', 'failed-prior', 'usage'] as const)('preserves %s for mixed repeated and fresh calls', async guard => {
+    const state = await setup([
+      toolRound([{ id: 'guard-1', name: 'mixed-guard', arguments: '{"value":1}' }]),
+      toolRound([
+        { id: 'guard-repeat', name: 'mixed-guard', arguments: '{"value":1}' },
+        { id: 'guard-fresh', name: 'mixed-guard', arguments: '{"value":2}' },
+      ]).filter(chunk => guard !== 'usage' || chunk.type !== 'usage'),
+      textRound('Bounded final report.'),
+    ])
+    const controller = new AbortController()
+    let executions = 0
+    state.tools.register(defineTool({
+      name: 'mixed-guard', description: 'Tracks dispatch.', parameters: { type: 'object' },
+      isConcurrencySafe: () => true,
+      execute: () => {
+        executions++
+        if (guard === 'failed-prior' && executions === 1) throw new Error('prior failure cannot be recovered')
+        return { execution: executions }
+      },
+    }))
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history, tools: state.tools,
+      signal: controller.signal,
+      ...guard === 'usage' ? { accounting: new RunLedger({
+        agentId: 'mixed-usage', mode: 'basic', maxTurns: 4, defectMode: 'test', usagePolicy: { onMissing: 'fail' },
+        // The internal fixture and packed runner brand observation IDs in separate copies.
+      }) as unknown as NonNullable<Parameters<typeof runTurn>[0]['accounting']> } : {},
+      bounds: {
+        repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9,
+        ...(guard === 'quota' ? { maxToolCalls: 1 } : {}),
+        ...(guard === 'tokens' ? { maxTotalTokens: 23 } : {}),
+      },
+    })) {
+      events.push(event)
+      if (guard === 'abort' && event.type === 'tool-call' && String(event.call.callId) === 'guard-repeat') controller.abort()
+    }
+    const results = state.history.entries().filter(entry => entry.event.kind === 'tool-result')
+      .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
+    expect(results).toHaveLength(3)
+    expect(executions).toBe(guard === 'failed-prior' ? 2 : 1)
+    if (guard === 'quota') {
+      expect(results[1]?.meta?.['recovered']).toBe(true)
+      expect(results[2]).toMatchObject({ isError: false, meta: { declined: true, reason: 'tool-calls' } })
+      expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
+        reason: { kind: 'budget-exhausted', budget: 'tool-calls', forcedFinalAnswer: true }, toolCalls: 1,
+      } })
+    } else if (guard === 'tokens') {
+      expect(results.slice(1).every(result => result?.meta?.['reason'] === 'tokens' && result.meta?.['declined'] === true)).toBe(true)
+      expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: { reason: { kind: 'budget-exhausted', budget: 'tokens', forcedFinalAnswer: false } } })
+    } else if (guard === 'abort') {
+      expect(results.slice(1).every(result => result?.isError === true && result.error.code === 'TOOL_ABORTED')).toBe(true)
+      expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: { reason: { kind: 'aborted' } } })
+    } else if (guard === 'usage') {
+      expect(results.slice(1).every(result => result?.meta?.['reason'] === 'usage-required' && result.meta?.['declined'] === true)).toBe(true)
+      expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: { reason: { kind: 'error', failure: { code: 'USAGE_REQUIRED' } } } })
+    } else {
+      expect(results[1]).toMatchObject({ isError: false, meta: { declined: true, reason: 'repeated-tool-call' } })
+      expect(results[2]).toMatchObject({ isError: false, value: { execution: 2 } })
+      expect(results[2]?.meta?.['declined']).not.toBe(true)
+      expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
+        reason: { kind: 'budget-exhausted', budget: 'repeated-tool-call', forcedFinalAnswer: true }, toolCalls: 2,
+      } })
+    }
+    if (guard !== 'quota') expect(results.slice(1).some(result => result?.meta?.['recovered'] === true)).toBe(false)
+  })
+
+  it('retains fresh-sibling authorization after recovering a repeat', async () => {
+    const state = await setup([
+      toolRound([{ id: 'approved-1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([
+        { id: 'approved-repeat', name: 'echo', arguments: '{"value":1}' },
+        { id: 'approved-fresh', name: 'echo', arguments: '{"value":2}' },
+      ]),
+      textRound('Fresh work was authorized.'),
+    ])
+    const approvals = createApprovalBroker()
+    let requests = 0
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history, tools: state.tools,
+      approvals, interceptors: [{ name: 'require-approval', before: async () => ({ kind: 'ask' }) }],
+      bounds: { maxToolCalls: 2, repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9 },
+    })) {
+      if (event.type === 'approval-request') {
+        requests++
+        expect(approvals.resolve(event.request.approvalRequestId, 'allow')).toBe(true)
+      }
+    }
+    expect(requests).toBe(2) // Only actual dispatches ask; the retained result spends no quota.
+    expect(state.adapter.requests).toHaveLength(3)
+    expect(state.adapter.requests[2]?.toolChoice).not.toBe('none')
+  })
+
+  it('keeps cycle refusal round-wide for a mixed repeat and fresh batch', async () => {
+    const calls = (prefix: string) => [
+      { id: `${prefix}-a1`, name: 'cycle-mixed', arguments: '{"value":1}' },
+      { id: `${prefix}-b`, name: 'cycle-mixed', arguments: '{"value":2}' },
+      { id: `${prefix}-a2`, name: 'cycle-mixed', arguments: '{"value":1}' },
+    ]
+    const state = await setup([toolRound(calls('first')), toolRound(calls('second')), textRound('Cycle stopped.')])
+    let executions = 0
+    state.tools.register(defineTool({
+      name: 'cycle-mixed', description: 'Tracks dispatch.', parameters: { type: 'object' },
+      execute: () => ({ execution: ++executions }),
+    }))
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history, tools: state.tools,
+      bounds: { repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 1, toolCycleLimit: 2 },
+    })) events.push(event)
+    const results = state.history.entries().filter(entry => entry.event.kind === 'tool-result')
+      .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
+    expect(results).toHaveLength(6)
+    expect(executions).toBe(3)
+    expect(results.slice(3).every(result => result?.meta?.['reason'] === 'tool-call-cycle' && result.meta?.['declined'] === true)).toBe(true)
+    expect(results.some(result => result?.meta?.['recovered'] === true)).toBe(false)
+    expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
+      reason: { kind: 'budget-exhausted', budget: 'tool-call-cycle', forcedFinalAnswer: true }, toolCalls: 3,
+    } })
+  })
+
+  it('dispatches a stale sibling again when another call reaches the repeat guard', async () => {
     const state = await setup([
       toolRound([{ id: 'read-b-1', name: 'read-state', arguments: '{"id":"B"}' }]),
       toolRound([{ id: 'mutate-b', name: 'mutate-state', arguments: '{"id":"B","value":"v2"}' }]),
@@ -1015,14 +1174,19 @@ describe('runTurn', () => {
         { id: 'read-a-2', name: 'read-state', arguments: '{"id":"A"}' },
         { id: 'read-b-2', name: 'read-state', arguments: '{"id":"B"}' },
       ]),
-      textRound('The stale sibling was declined rather than reused.'),
+      textRound('The changed state was read again rather than reused.'),
     ])
     const values: Record<string, string> = { A: 'a1', B: 'b1' }
     let reads = 0
     state.tools.register(defineTool({
       name: 'read-state', description: 'Reads mutable state.', parameters: { type: 'object' },
       parse: value => value as { id: string },
-      execute: ({ id }) => { reads++; return { id, value: values[id] } },
+      execute: ({ id }) => {
+        const value = values[id]
+        if (value === undefined) throw new Error('unknown state key')
+        reads++
+        return { id, value }
+      },
     }))
     state.tools.register(defineTool({
       name: 'mutate-state', description: 'Changes mutable state.', parameters: { type: 'object' },
@@ -1040,14 +1204,14 @@ describe('runTurn', () => {
     const results = state.history.entries()
       .filter(entry => entry.event.kind === 'tool-result')
       .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
-    expect(reads).toBe(2) // B was read only before its mutation; the stale repeat never dispatched.
+    expect(reads).toBe(3) // B is read again after its mutation; recovery cannot return the old value.
     expect(results[3]).toMatchObject({ isError: false, meta: { recovered: true, duplicateOfCallId: 'read-a-1' } })
-    expect(results[4]).toMatchObject({ isError: false, meta: { declined: true, reason: 'repeated-tool-call' } })
+    expect(results[4]).toMatchObject({ isError: false, value: { id: 'B', value: 'v2' } })
     expect(results[4]?.meta?.['recovered']).not.toBe(true)
     expect(state.adapter.requests).toHaveLength(5)
-    expect(state.adapter.requests[4]?.toolChoice).toBe('none')
+    expect(state.adapter.requests[4]?.toolChoice).not.toBe('none')
     expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
-      reason: { kind: 'budget-exhausted', budget: 'repeated-tool-call', forcedFinalAnswer: true },
+      reason: { kind: 'completed' }, toolCalls: 4,
     } })
   })
 

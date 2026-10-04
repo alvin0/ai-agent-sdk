@@ -10,7 +10,8 @@ message.
 
 ## Setup
 
-For the 0.1.7 release, read [upgrading from 0.1.6](docs/upgrading-from-0.1.6.md).
+For the 0.1.8 release, read [upgrading from 0.1.7](docs/upgrading-from-0.1.7.md).
+For 0.1.7 completion and steering changes, see [upgrading from 0.1.6](docs/upgrading-from-0.1.6.md).
 For changes introduced after 0.1.4, read the
 [upgrade guide](docs/upgrading-from-0.1.4.md) and
 [context optimization guide](docs/context-optimization.md). Existing agent/tool
