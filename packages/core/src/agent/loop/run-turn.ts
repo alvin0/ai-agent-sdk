@@ -507,7 +507,8 @@ async function driveTurn(
       const count = lastRepeat?.key === key ? lastRepeat.count + 1 : 1
       lastRepeat = {
         key, count, callId: String(call.callId),
-        succeeded: !result.isError && options.tools?.get(call.toolName)?.budgetExempt !== true,
+        succeeded: !result.isError && result.meta?.declined !== true
+          && options.tools?.get(call.toolName)?.budgetExempt !== true,
       }
       if (count === bounds.repeatToolWarningAt) {
         options.history.append({ kind: 'user', message: createUserMessage({
@@ -516,7 +517,8 @@ async function driveTurn(
         }) })
       }
       if (count >= bounds.repeatToolLimit) repeatedLimit = true
-      if (!result.isError && options.tools?.get(call.toolName)?.budgetExempt !== true) {
+      if (!result.isError && result.meta?.declined !== true
+        && options.tools?.get(call.toolName)?.budgetExempt !== true) {
         successfulCalls.set(key, {
           callId: String(call.callId), rawArguments: call.rawArguments,
           definition: options.tools.get(call.toolName), result,
