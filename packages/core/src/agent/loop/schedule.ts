@@ -63,6 +63,11 @@ export interface RunToolCallsOptions {
   readonly emit?: (event: AgentEvent) => Promise<void>
   readonly checkpoint?: TurnHooks['checkpoint']
   readonly accounting?: RunAccountingPort
+  /**
+   * A same-turn result the loop may expose instead of dispatching this exact
+   * call again. The scheduler still records a distinct call/result pair.
+   */
+  readonly recover?: (call: ToolCallRequest) => ToolExecutionResult | undefined
 }
 export interface ToolCallsOutcome {
   readonly results: readonly ToolExecutionResult[]
@@ -237,11 +242,17 @@ async function start(
     spanId: createSpanId(),
     parentSpanId: options.parentTrace.spanId,
   }
+  const recovered = options.recover?.(call)
   options.history.append({ kind: 'tool-call', callId: call.callId, name: call.toolName, rawArguments: call.rawArguments })
   await emitEvent(options, { type: 'span-start', trace, at: now(), name: `execute_tool ${call.toolName}`, kind: 'execute_tool', attributes: {
     'gen_ai.operation.name': 'execute_tool', 'gen_ai.tool.name': call.toolName, 'gen_ai.tool.call.id': call.callId,
+    ...recovered === undefined ? {} : { 'sdk.tool.recovered': true },
   }, input: call.rawArguments })
   await emitEvent(options, { type: 'tool-call', call, trace })
+  if (recovered !== undefined) return {
+    call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
+    pending: Promise.resolve(recovered),
+  }
   // A tool the model may always reach: submitting, asking, delegating. Letting
   // a budget block these is what turns a spent budget into a dead run.
   const exempt = options.catalog.get(call.toolName)?.budgetExempt === true

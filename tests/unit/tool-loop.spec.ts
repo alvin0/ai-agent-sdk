@@ -839,34 +839,98 @@ describe('runTurn', () => {
     expect(state.adapter.requests.at(-1)?.toolChoice).not.toBe('none')
   })
 
-  it('names the guard that declined the call rather than blaming the budget', async () => {
-    // A model told "no remaining tool-call budget" when it actually tripped the
-    // repeat guard learns to ask for fewer calls, and repeats the same call in
-    // the next turn with a budget it was told it lacked.
+  it('recovers an exact successful repeat and keeps the force-final boundary', async () => {
+    // The second model request is not a fresh execution: it gets the first
+    // result back with an explicit duplicate marker, then the guard immediately
+    // gives the model one tools-disabled final response.
     const state = await setup([
-      toolRound([{ id: 'rep-1', name: 'echo', arguments: '{"value":1}' }]),
-      toolRound([{ id: 'rep-2', name: 'echo', arguments: '{"value":1}' }]),
-      toolRound([{ id: 'rep-3', name: 'echo', arguments: '{"value":1}' }]),
-      textRound('Changed approach.'),
+      toolRound([{ id: 'rep-1', name: 'counted', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'rep-2', name: 'counted', arguments: '{"value":1}' }]),
+      textRound('Recovered result used for the final answer.'),
     ])
+    let executions = 0
+    state.tools.register(defineTool({
+      name: 'counted', description: 'Records an execution.', parameters: { type: 'object' },
+      parse: value => value as { value: number },
+      execute: ({ value }) => ({ value, execution: ++executions }),
+    }))
 
-    for await (const _event of runTurn({
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
       registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
       tools: state.tools,
       // The cycle guard would otherwise trip first on a single repeated call,
       // and this test is about the repeat guard naming itself.
       bounds: {
-        repeatToolWarningAt: 2, repeatToolLimit: 3,
+        repeatToolWarningAt: 2, repeatToolLimit: 2,
         toolCycleWarningAt: 8, toolCycleLimit: 9,
       },
-    })) { /* drain */ }
+    })) events.push(event)
 
-    const declined = state.history.entries()
+    const results = state.history.entries()
       .filter(entry => entry.event.kind === 'tool-result')
       .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
-      .find(result => result?.isError === false && result.meta?.['declined'] === true)
-    expect(declined).toMatchObject({ meta: { reason: 'repeated-tool-call' } })
-    expect(JSON.stringify(declined)).toContain('repeats a call already made')
+    expect(results).toHaveLength(2)
+    expect(results[1]).toMatchObject({
+      isError: false,
+      value: { value: 1, execution: 1 },
+      meta: { recovered: true, duplicateOfCallId: 'rep-1' },
+    })
+    expect(executions).toBe(1)
+    expect(JSON.stringify(results[1])).toContain('duplicate_of')
+    expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
+      reason: { kind: 'budget-exhausted', budget: 'repeated-tool-call', forcedFinalAnswer: true },
+      toolCalls: 1,
+      text: 'Recovered result used for the final answer.',
+    } })
+    expect(state.adapter.requests).toHaveLength(3)
+    expect(state.adapter.requests[2]?.toolChoice).toBe('none')
+  })
+
+  it('does not recover a failed repeated call', async () => {
+    const state = await setup([
+      toolRound([{ id: 'failed-1', name: 'reject', arguments: '{}' }]),
+      toolRound([{ id: 'failed-2', name: 'reject', arguments: '{}' }]),
+      textRound('The failed call cannot be reused.'),
+    ])
+    let executions = 0
+    state.tools.register(defineTool({
+      name: 'reject', description: 'Always fail.', parameters: { type: 'object' },
+      execute: () => { executions++; throw new Error('not reusable') },
+    }))
+
+    for await (const _event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools,
+      bounds: { repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9 },
+    })) { /* drain */ }
+
+    const results = state.history.entries()
+      .filter(entry => entry.event.kind === 'tool-result')
+      .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
+    expect(executions).toBe(1)
+    expect(results.some(result => result?.isError === false && result.meta?.['recovered'] === true)).toBe(false)
+    expect(results.at(-1)).toMatchObject({ isError: false, meta: { declined: true, reason: 'repeated-tool-call' } })
+  })
+
+  it('does not recover a repeat whose raw arguments differ', async () => {
+    const state = await setup([
+      toolRound([{ id: 'format-1', name: 'echo', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'format-2', name: 'echo', arguments: '{ "value": 1 }' }]),
+      textRound('Arguments were not the exact prior call.'),
+    ])
+
+    for await (const _event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools,
+      bounds: { repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9 },
+    })) { /* drain */ }
+
+    const results = state.history.entries()
+      .filter(entry => entry.event.kind === 'tool-result')
+      .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
+    expect(results.some(result => result?.isError === false && result.meta?.['recovered'] === true)).toBe(false)
+    expect(results.at(-1)).toMatchObject({ isError: false, meta: { declined: true, reason: 'repeated-tool-call' } })
   })
 
   it('runs a budget-exempt tool after the budget is spent', async () => {

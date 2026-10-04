@@ -4,6 +4,7 @@ import type { ModelCallReport } from '../../observation/index.ts'
 import { waitForSettlement } from '../../async/index.ts'
 import { authoritativeTokenUsage, budgetTokenTotal, summarizeModelCallUsage } from '../accounting/ledger.ts'
 import { createSpanId, createTraceId, type TraceRef } from '../trace/trace.ts'
+import type { ToolDefinition, ToolExecutionResult } from '../tool/definition.ts'
 import type { AgentEvent, ExhaustedBudget, ToolDeclineReason, TurnHooks, TurnOutcome } from './types.ts'
 import { AwaitedEventQueue } from './queue.ts'
 import { scheduleToolCalls } from './schedule.ts'
@@ -95,6 +96,13 @@ async function driveTurn(
   let reason: TurnOutcome['reason'] | undefined
   let outcome: TurnOutcome
   let lastRepeat: { key: string; count: number } | undefined
+  /** Successful finalized results, retained only for this turn's exact repeat guard. */
+  const successfulCalls = new Map<string, {
+    readonly callId: string
+    readonly rawArguments: string
+    readonly definition: ToolDefinition | undefined
+    readonly result: Extract<ToolExecutionResult, { readonly isError: false }>
+  }>()
   const actionSteps: string[] = []
   const emitMaintenance = maintenanceEmitter(emit, root)
   /**
@@ -373,6 +381,17 @@ async function driveTurn(
     // is bounded by steps, tokens, and the run-level ledger instead. Guards
     // that mean "this is not working" still decline, whatever the setting.
     const budgetIsAWall = bounds.onExhausted !== 'continue'
+    const recover = repeatedLimitBeforeDispatch && !cycleLimitBeforeDispatch && !tokenLimitBeforeDispatch
+      && !round.usageRequired
+      ? (call: typeof round.calls[number]): ToolExecutionResult | undefined => {
+          const prior = successfulCalls.get(repeatKey(call))
+          if (prior === undefined
+            || prior.rawArguments !== call.rawArguments.trim()
+            || prior.definition !== options.tools?.get(call.toolName)
+            || options.tools?.get(call.toolName)?.budgetExempt === true) return undefined
+          return duplicateOfResult(prior)
+        }
+      : undefined
     const scheduled = await scheduleToolCalls({
       calls: round.calls, catalog: options.tools, history: options.history,
       position: { turn, step,
@@ -393,6 +412,7 @@ async function driveTurn(
       ...options.approvals === undefined ? {} : { approvals: options.approvals },
       ...options.accounting === undefined ? {} : { accounting: options.accounting },
       emit,
+      ...recover === undefined ? {} : { recover },
       ...options.hooks?.checkpoint === undefined ? {} : {
         checkpoint: (context: Parameters<NonNullable<TurnHooks['checkpoint']>>[0]) => runHook(
           Promise.resolve(options.hooks?.checkpoint?.(context)), options, signal, 'checkpoint',
@@ -476,6 +496,12 @@ async function driveTurn(
         }) })
       }
       if (count >= bounds.repeatToolLimit) repeatedLimit = true
+      if (!result.isError && options.tools?.get(call.toolName)?.budgetExempt !== true) {
+        successfulCalls.set(key, {
+          callId: String(call.callId), rawArguments: call.rawArguments.trim(),
+          definition: options.tools.get(call.toolName), result,
+        })
+      }
     }
     if (projectedCycle?.repetitions === bounds.toolCycleWarningAt) {
       options.history.append({ kind: 'user', message: createUserMessage({
@@ -637,5 +663,28 @@ async function driveTurn(
   }
 }
 
+function duplicateOfResult(prior: {
+  readonly callId: string
+  readonly result: Extract<ToolExecutionResult, { readonly isError: false }>
+}): ToolExecutionResult {
+  return detachedFrozen({
+    isError: false,
+    // The prior structured value remains the host's canonical result. The
+    // header is model-visible so it knows this call was intentionally reused.
+    value: prior.result.value,
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          status: 'duplicate_of',
+          callId: prior.callId,
+          instruction: 'This exact call already succeeded in this run. Use the retained result below; do not call it again.',
+        }),
+      },
+      ...prior.result.content,
+    ],
+    meta: { ...prior.result.meta, recovered: true, duplicateOfCallId: prior.callId },
+  })
+}
 
 export type { RunTurnOptions } from './turn/types.ts'
