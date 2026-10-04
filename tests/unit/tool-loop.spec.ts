@@ -1006,6 +1006,86 @@ describe('runTurn', () => {
     } })
   })
 
+  it('does not recover a stale sibling result when another call reaches the repeat guard', async () => {
+    const state = await setup([
+      toolRound([{ id: 'read-b-1', name: 'read-state', arguments: '{"id":"B"}' }]),
+      toolRound([{ id: 'mutate-b', name: 'mutate-state', arguments: '{"id":"B","value":"v2"}' }]),
+      toolRound([{ id: 'read-a-1', name: 'read-state', arguments: '{"id":"A"}' }]),
+      toolRound([
+        { id: 'read-a-2', name: 'read-state', arguments: '{"id":"A"}' },
+        { id: 'read-b-2', name: 'read-state', arguments: '{"id":"B"}' },
+      ]),
+      textRound('The stale sibling was declined rather than reused.'),
+    ])
+    const values: Record<string, string> = { A: 'a1', B: 'b1' }
+    let reads = 0
+    state.tools.register(defineTool({
+      name: 'read-state', description: 'Reads mutable state.', parameters: { type: 'object' },
+      parse: value => value as { id: string },
+      execute: ({ id }) => { reads++; return { id, value: values[id] } },
+    }))
+    state.tools.register(defineTool({
+      name: 'mutate-state', description: 'Changes mutable state.', parameters: { type: 'object' },
+      parse: value => value as { id: string; value: string },
+      execute: ({ id, value }) => { values[id] = value; return { id, value } },
+    }))
+
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools,
+      bounds: { repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9 },
+    })) events.push(event)
+
+    const results = state.history.entries()
+      .filter(entry => entry.event.kind === 'tool-result')
+      .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
+    expect(reads).toBe(2) // B was read only before its mutation; the stale repeat never dispatched.
+    expect(results[3]).toMatchObject({ isError: false, meta: { recovered: true, duplicateOfCallId: 'read-a-1' } })
+    expect(results[4]).toMatchObject({ isError: false, meta: { declined: true, reason: 'repeated-tool-call' } })
+    expect(results[4]?.meta?.['recovered']).not.toBe(true)
+    expect(state.adapter.requests).toHaveLength(5)
+    expect(state.adapter.requests[4]?.toolChoice).toBe('none')
+    expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
+      reason: { kind: 'budget-exhausted', budget: 'repeated-tool-call', forcedFinalAnswer: true },
+    } })
+  })
+
+  it('does not recover an older success after the latest exact call failed', async () => {
+    const state = await setup([
+      toolRound([{ id: 'flaky-1', name: 'flaky-streak', arguments: '{"id":"A"}' }]),
+      toolRound([{ id: 'flaky-2', name: 'flaky-streak', arguments: '{"id":"A"}' }]),
+      toolRound([{ id: 'flaky-3', name: 'flaky-streak', arguments: '{"id":"A"}' }]),
+      textRound('An older success cannot conceal the latest failure.'),
+    ])
+    let executions = 0
+    state.tools.register(defineTool({
+      name: 'flaky-streak', description: 'Fails after one success.', parameters: { type: 'object' },
+      parse: value => value as { id: string },
+      execute: ({ id }) => {
+        executions++
+        if (executions === 2) throw new Error('latest state read failed')
+        return { id, execution: executions }
+      },
+    }))
+
+    for await (const _event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools,
+      bounds: { repeatToolWarningAt: 2, repeatToolLimit: 3, toolCycleWarningAt: 8, toolCycleLimit: 9 },
+    })) { /* drain */ }
+
+    const results = state.history.entries()
+      .filter(entry => entry.event.kind === 'tool-result')
+      .map(entry => entry.event.kind === 'tool-result' ? entry.event.result : undefined)
+    expect(executions).toBe(2)
+    expect(results[1]?.isError).toBe(true)
+    expect(results[2]).toMatchObject({ isError: false, meta: { declined: true, reason: 'repeated-tool-call' } })
+    expect(results[2]?.meta?.['recovered']).not.toBe(true)
+    expect(state.adapter.requests).toHaveLength(4)
+    expect(state.adapter.requests[3]?.toolChoice).toBe('none')
+  })
+
   it('does not grant the replan when exhaustion is explicitly stopped', async () => {
     const state = await setup([
       toolRound([{ id: 'stop-1', name: 'echo', arguments: '{"value":1}' }]),

@@ -95,7 +95,8 @@ async function driveTurn(
   const modelCallReports: ModelCallReport[] = []
   let reason: TurnOutcome['reason'] | undefined
   let outcome: TurnOutcome
-  let lastRepeat: { key: string; count: number } | undefined
+  /** The immediately preceding call/result, so recovery cannot cross a state-changing call or failure. */
+  let lastRepeat: { key: string; count: number; callId: string; succeeded: boolean } | undefined
   /** Successful finalized results, retained only for this turn's exact repeat guard. */
   const successfulCalls = new Map<string, {
     readonly callId: string
@@ -344,7 +345,7 @@ async function driveTurn(
     const budgetedCalls = round.calls
       .filter(call => options.tools?.get(call.toolName)?.budgetExempt !== true).length
     const remaining = Math.max(0, bounds.maxToolCalls - toolCalls)
-    let repeatProjection = lastRepeat
+    let repeatProjection: { key: string; count: number } | undefined = lastRepeat
     const projectedRepeats = round.calls.map(call => {
       const key = repeatKey(call)
       // Count consecutive calls, not lifetime visits to a source or test command.
@@ -384,11 +385,21 @@ async function driveTurn(
     // that mean "this is not working" still decline, whatever the setting.
     const budgetIsAWall = bounds.onExhausted !== 'continue'
     const recoveredCallIds = new Set<string>()
+    // A round-wide guard must not make an unrelated old success reusable.
+    // Recovery is only legal for a call that individually reached the limit and
+    // whose successful result is the immediately preceding call in this streak.
+    const individuallyRepeatedCallIds = new Set(round.calls
+      .filter((_call, index) => (projectedRepeats[index] ?? 0) >= bounds.repeatToolLimit)
+      .map(call => String(call.callId)))
     const recover = repeatedLimitBeforeDispatch && !cycleLimitBeforeDispatch && !tokenLimitBeforeDispatch
       && !round.usageRequired
       ? (call: typeof round.calls[number]): ToolExecutionResult | undefined => {
           const prior = successfulCalls.get(repeatKey(call))
-          if (prior === undefined
+          if (!individuallyRepeatedCallIds.has(String(call.callId))
+            || lastRepeat?.key !== repeatKey(call)
+            || lastRepeat.succeeded !== true
+            || prior === undefined
+            || prior.callId !== lastRepeat.callId
             || prior.rawArguments !== call.rawArguments
             || prior.definition !== options.tools?.get(call.toolName)
             || prior.result.additionalContext !== undefined
@@ -494,7 +505,10 @@ async function driveTurn(
       consecutiveErrors = result.isError ? consecutiveErrors + 1 : 0
       const key = repeatKey(call)
       const count = lastRepeat?.key === key ? lastRepeat.count + 1 : 1
-      lastRepeat = { key, count }
+      lastRepeat = {
+        key, count, callId: String(call.callId),
+        succeeded: !result.isError && options.tools?.get(call.toolName)?.budgetExempt !== true,
+      }
       if (count === bounds.repeatToolWarningAt) {
         options.history.append({ kind: 'user', message: createUserMessage({
           source: { kind: 'app', producer: 'tool-loop-repeat-guard' },
