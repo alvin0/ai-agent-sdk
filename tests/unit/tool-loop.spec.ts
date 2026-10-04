@@ -876,10 +876,9 @@ describe('runTurn', () => {
     expect(state.adapter.requests.at(-1)?.toolChoice).not.toBe('none')
   })
 
-  it('recovers an exact successful repeat and keeps the force-final boundary', async () => {
+  it('recovers an exact successful repeat and gives the model one natural replan', async () => {
     // The second model request is not a fresh execution: it gets the first
-    // result back with an explicit duplicate marker, then the guard immediately
-    // gives the model one tools-disabled final response.
+    // result back with an explicit duplicate marker, then can answer normally.
     const state = await setup([
       toolRound([{ id: 'rep-1', name: 'counted', arguments: '{"value":1}' }]),
       toolRound([{ id: 'rep-2', name: 'counted', arguments: '{"value":1}' }]),
@@ -916,12 +915,12 @@ describe('runTurn', () => {
     expect(executions).toBe(1)
     expect(JSON.stringify(results[1])).toContain('duplicate_of')
     expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
-      reason: { kind: 'budget-exhausted', budget: 'repeated-tool-call', forcedFinalAnswer: true },
+      reason: { kind: 'completed' },
       toolCalls: 1,
       text: 'Recovered result used for the final answer.',
     } })
     expect(state.adapter.requests).toHaveLength(3)
-    expect(state.adapter.requests[2]?.toolChoice).toBe('none')
+    expect(state.adapter.requests[2]?.toolChoice).not.toBe('none')
   })
 
   it('does not recover a failed repeated call', async () => {
@@ -948,6 +947,34 @@ describe('runTurn', () => {
     expect(executions).toBe(1)
     expect(results.some(result => result?.isError === false && result.meta?.['recovered'] === true)).toBe(false)
     expect(results.at(-1)).toMatchObject({ isError: false, meta: { declined: true, reason: 'repeated-tool-call' } })
+  })
+
+  it('bounds a third exact repeat with the original force-final path', async () => {
+    const state = await setup([
+      toolRound([{ id: 'third-1', name: 'counted-third', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'third-2', name: 'counted-third', arguments: '{"value":1}' }]),
+      toolRound([{ id: 'third-3', name: 'counted-third', arguments: '{"value":1}' }]),
+      textRound('The replan allowance is spent.'),
+    ])
+    let executions = 0
+    state.tools.register(defineTool({
+      name: 'counted-third', description: 'Counts dispatch.', parameters: { type: 'object' },
+      execute: () => ({ execution: ++executions }),
+    }))
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      tools: state.tools,
+      bounds: { repeatToolWarningAt: 2, repeatToolLimit: 2, toolCycleWarningAt: 8, toolCycleLimit: 9 },
+    })) events.push(event)
+
+    expect(executions).toBe(1)
+    expect(state.adapter.requests).toHaveLength(4)
+    expect(state.adapter.requests[3]?.toolChoice).toBe('none')
+    expect(events.at(-1)).toMatchObject({ type: 'turn-end', outcome: {
+      reason: { kind: 'budget-exhausted', budget: 'repeated-tool-call', forcedFinalAnswer: true },
+      toolCalls: 1, text: 'The replan allowance is spent.',
+    } })
   })
 
   it('does not recover a repeat whose raw arguments differ', async () => {

@@ -103,6 +103,8 @@ async function driveTurn(
     readonly definition: ToolDefinition | undefined
     readonly result: Extract<ToolExecutionResult, { readonly isError: false }>
   }>()
+  /** Each exact recovered key gets one ordinary model replan, never a retry loop. */
+  const recoveredReplanKeys = new Set<string>()
   const actionSteps: string[] = []
   const emitMaintenance = maintenanceEmitter(emit, root)
   /**
@@ -381,6 +383,7 @@ async function driveTurn(
     // is bounded by steps, tokens, and the run-level ledger instead. Guards
     // that mean "this is not working" still decline, whatever the setting.
     const budgetIsAWall = bounds.onExhausted !== 'continue'
+    const recoveredCallIds = new Set<string>()
     const recover = repeatedLimitBeforeDispatch && !cycleLimitBeforeDispatch && !tokenLimitBeforeDispatch
       && !round.usageRequired
       ? (call: typeof round.calls[number]): ToolExecutionResult | undefined => {
@@ -391,6 +394,7 @@ async function driveTurn(
             || prior.result.additionalContext !== undefined
             || prior.result.concludesTurn === true
             || options.tools?.get(call.toolName)?.budgetExempt === true) return undefined
+          recoveredCallIds.add(String(call.callId))
           return duplicateOfResult(prior)
         }
       : undefined
@@ -525,7 +529,21 @@ async function driveTurn(
     const reportReserveReached = bounds.maxTotalTokens !== 'auto'
       && bounds.finalReportReserveTokens > 0 && budgetTokens !== undefined
       && budgetTokens >= maxTotalTokens - bounds.finalReportReserveTokens
-    if (tokenLimitBeforeDispatch) exhausted = 'tokens'
+    const recoveredOnlyReplan = repeatedLimitBeforeDispatch
+      && recoveredCallIds.size === round.calls.length
+      && round.calls.every(call => recoveredCallIds.has(String(call.callId))
+        && !recoveredReplanKeys.has(repeatKey(call)))
+      && scheduled.results.length === round.calls.length
+      && scheduled.results.every(result => !result.isError)
+      && scheduled.dispatched === 0 && scheduled.declined === 0
+      && !cycleLimitBeforeDispatch && !tokenLimitBeforeDispatch && !reportReserveReached
+      && !round.usageRequired && !round.usageUnavailable && !signal.aborted
+      && !(budgetIsAWall && budgetedCalls > remaining)
+      && consecutiveErrors === 0 && steps < maxSteps
+      && bounds.onExhausted !== 'stop' && admissionStop() === undefined
+    if (recoveredOnlyReplan) {
+      for (const call of round.calls) recoveredReplanKeys.add(repeatKey(call))
+    } else if (tokenLimitBeforeDispatch) exhausted = 'tokens'
     else if (reportReserveReached) exhausted = 'tokens'
     else if (cycleLimitBeforeDispatch) exhausted = 'tool-call-cycle'
     else if (budgetIsAWall && budgetedCalls > remaining) exhausted = 'tool-calls'
