@@ -14,6 +14,8 @@ const scoped = (name: string): string => `@alvin0/ai-agent-sdk-${name}`
 /** Normative package graph from docs/monorepo-implementation-design.md. */
 export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {
   [scoped('core')]: { runtime: 'universal', workspaceDependencies: [], externalRuntimeDependencies: [] },
+  [scoped('decision-adapter')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: [] },
+  [scoped('provider-typesafe')]: { runtime: 'universal', workspaceDependencies: [scoped('core'), scoped('decision-adapter')], externalRuntimeDependencies: [] },
   [scoped('testkit')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: [] },
   [scoped('provider-http')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: ['eventsource-parser'] },
   [scoped('protocol-anthropic-messages')]: { runtime: 'universal', workspaceDependencies: [scoped('core')], externalRuntimeDependencies: [] },

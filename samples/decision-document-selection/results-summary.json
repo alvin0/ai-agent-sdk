@@ -1,0 +1,734 @@
+{
+  "runId": "2026-10-04T06-25-11.605Z",
+  "openaiModel": "gpt-6-luna",
+  "typesafeModel": "jev-latest",
+  "concurrency": 2,
+  "minRelevance": 2,
+  "retryPolicy": {
+    "mode": "normal",
+    "maxRetries": 0
+  },
+  "summary": [
+    {
+      "provider": "typesafe",
+      "passed": 1,
+      "attempted": 5
+    },
+    {
+      "provider": "openai",
+      "passed": 5,
+      "attempted": 5
+    }
+  ],
+  "rows": [
+    {
+      "case": "current-policy",
+      "provider": "typesafe",
+      "pass": false,
+      "durationMs": 1748,
+      "status": "review",
+      "reason": "candidate-failure",
+      "selectedIds": [],
+      "missingFacets": [
+        "entitlement",
+        "procedure"
+      ],
+      "rejected": [
+        {
+          "id": "eu-sla-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "eu-claims-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "us-sla",
+          "reason": "region"
+        },
+        {
+          "id": "starter-sla",
+          "reason": "tier"
+        },
+        {
+          "id": "future-draft",
+          "reason": "unapproved"
+        },
+        {
+          "id": "beta-private",
+          "reason": "tenant"
+        }
+      ],
+      "checks": {
+        "rankingComplete": false,
+        "correctStatus": false,
+        "justifiedReview": true,
+        "correctDocuments": false,
+        "correctFacts": false,
+        "groundedCitations": false
+      },
+      "candidateCount": 5,
+      "candidateModels": [],
+      "candidateErrors": [
+        {
+          "id": "eu-sla-current",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        },
+        {
+          "id": "eu-claims-current",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        },
+        {
+          "id": "eu-maintenance",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        },
+        {
+          "id": "invoice-help",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        },
+        {
+          "id": "editorial-injection",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        }
+      ]
+    },
+    {
+      "case": "current-policy",
+      "provider": "openai",
+      "pass": true,
+      "durationMs": 10604,
+      "status": "answer",
+      "reason": "complete-evidence",
+      "selectedIds": [
+        "eu-sla-current",
+        "eu-claims-current"
+      ],
+      "missingFacets": [],
+      "rejected": [
+        {
+          "id": "eu-sla-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "eu-claims-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "us-sla",
+          "reason": "region"
+        },
+        {
+          "id": "starter-sla",
+          "reason": "tier"
+        },
+        {
+          "id": "future-draft",
+          "reason": "unapproved"
+        },
+        {
+          "id": "beta-private",
+          "reason": "tenant"
+        }
+      ],
+      "checks": {
+        "rankingComplete": true,
+        "correctStatus": true,
+        "justifiedReview": true,
+        "correctDocuments": true,
+        "correctFacts": true,
+        "groundedCitations": true
+      },
+      "answer": {
+        "text": "At 99.8% monthly availability, the applicable service credit is 10% of the monthly subscription fee: 99.8% is below 99.9% and at least 99.0%. This is a service credit, not a cash refund. Submit the claim within 30 days after the end of the affected month. Attach the invoice ID, incident ID, and uptime report. Claims require review and are not issued automatically. The SLA refers to a separate maintenance policy for excluded downtime; that policy is not included here, so whether any outage time is excluded cannot be determined from these documents.",
+        "creditPercent": 10,
+        "claimDays": 30,
+        "requiredFields": [
+          "invoice ID",
+          "incident ID",
+          "uptime report"
+        ],
+        "citations": [
+          {
+            "documentId": "eu-sla-current",
+            "quote": "measured monthly availability below 99.9% and at least 99.0% earns a service credit of 10% of the monthly subscription fee."
+          },
+          {
+            "documentId": "eu-claims-current",
+            "quote": "submit within 30 days after the end of the affected month. Attach invoice ID, incident ID and uptime report."
+          }
+        ]
+      },
+      "candidateCount": 5,
+      "candidateModels": [
+        "gpt-6-luna"
+      ],
+      "candidateErrors": []
+    },
+    {
+      "case": "historical-policy",
+      "provider": "openai",
+      "pass": true,
+      "durationMs": 6855,
+      "status": "answer",
+      "reason": "complete-evidence",
+      "selectedIds": [
+        "eu-sla-old",
+        "eu-claims-old"
+      ],
+      "missingFacets": [],
+      "rejected": [
+        {
+          "id": "eu-sla-current",
+          "reason": "effective-date"
+        },
+        {
+          "id": "eu-claims-current",
+          "reason": "effective-date"
+        },
+        {
+          "id": "eu-maintenance",
+          "reason": "effective-date"
+        },
+        {
+          "id": "invoice-help",
+          "reason": "effective-date"
+        },
+        {
+          "id": "us-sla",
+          "reason": "region"
+        },
+        {
+          "id": "starter-sla",
+          "reason": "tier"
+        },
+        {
+          "id": "future-draft",
+          "reason": "unapproved"
+        },
+        {
+          "id": "beta-private",
+          "reason": "tenant"
+        },
+        {
+          "id": "editorial-injection",
+          "reason": "effective-date"
+        }
+      ],
+      "checks": {
+        "rankingComplete": true,
+        "correctStatus": true,
+        "justifiedReview": true,
+        "correctDocuments": true,
+        "correctFacts": true,
+        "groundedCitations": true
+      },
+      "answer": {
+        "text": "For the EU Enterprise policy applicable on 2025-02-01, monthly availability of 99.8% falls below 99.9% but is at least 99.0%, so the applicable service credit was 5% of the monthly subscription fee. To claim it, submit the claim within 90 days after the end of the affected month and attach the invoice ID and incident ID. The provided documents do not specify a separate claim procedure for unscheduled outages.",
+        "creditPercent": 5,
+        "claimDays": 90,
+        "requiredFields": [
+          "invoice ID",
+          "incident ID"
+        ],
+        "citations": [
+          {
+            "documentId": "eu-sla-old",
+            "quote": "monthly availability below 99.9% and at least 99.0% earns a 5% service credit of the monthly subscription fee."
+          },
+          {
+            "documentId": "eu-claims-old",
+            "quote": "submit within 90 days after the end of the affected month. Attach invoice ID and incident ID."
+          }
+        ]
+      },
+      "candidateCount": 2,
+      "candidateModels": [
+        "gpt-6-luna"
+      ],
+      "candidateErrors": []
+    },
+    {
+      "case": "historical-policy",
+      "provider": "typesafe",
+      "pass": true,
+      "durationMs": 2971,
+      "status": "answer",
+      "reason": "complete-evidence",
+      "selectedIds": [
+        "eu-sla-old",
+        "eu-claims-old"
+      ],
+      "missingFacets": [],
+      "rejected": [
+        {
+          "id": "eu-sla-current",
+          "reason": "effective-date"
+        },
+        {
+          "id": "eu-claims-current",
+          "reason": "effective-date"
+        },
+        {
+          "id": "eu-maintenance",
+          "reason": "effective-date"
+        },
+        {
+          "id": "invoice-help",
+          "reason": "effective-date"
+        },
+        {
+          "id": "us-sla",
+          "reason": "region"
+        },
+        {
+          "id": "starter-sla",
+          "reason": "tier"
+        },
+        {
+          "id": "future-draft",
+          "reason": "unapproved"
+        },
+        {
+          "id": "beta-private",
+          "reason": "tenant"
+        },
+        {
+          "id": "editorial-injection",
+          "reason": "effective-date"
+        }
+      ],
+      "checks": {
+        "rankingComplete": true,
+        "correctStatus": true,
+        "justifiedReview": true,
+        "correctDocuments": true,
+        "correctFacts": true,
+        "groundedCitations": true
+      },
+      "answer": {
+        "text": "Under the EU Enterprise policy applicable on 2025-02-01, monthly availability of 99.8% falls below 99.9% and is at least 99.0%, so the service credit is 5% of the monthly subscription fee. The claim must be submitted within 90 days after the end of the affected month and include the invoice ID and incident ID. The supplied documents do not state a separate rule for unscheduled outages.",
+        "creditPercent": 5,
+        "claimDays": 90,
+        "requiredFields": [
+          "invoice ID",
+          "incident ID"
+        ],
+        "citations": [
+          {
+            "documentId": "eu-sla-old",
+            "quote": "monthly availability below 99.9% and at least 99.0% earns a 5% service credit"
+          },
+          {
+            "documentId": "eu-claims-old",
+            "quote": "submit within 90 days after the end of the affected month. Attach invoice ID and incident ID."
+          }
+        ]
+      },
+      "candidateCount": 2,
+      "candidateModels": [
+        "jev-1.13.0"
+      ],
+      "candidateErrors": []
+    },
+    {
+      "case": "missing-procedure",
+      "provider": "typesafe",
+      "pass": false,
+      "durationMs": 1796,
+      "status": "review",
+      "reason": "candidate-failure",
+      "selectedIds": [],
+      "missingFacets": [
+        "entitlement",
+        "procedure"
+      ],
+      "rejected": [
+        {
+          "id": "eu-claims-current",
+          "reason": "not-retrieved"
+        },
+        {
+          "id": "eu-sla-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "eu-claims-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "us-sla",
+          "reason": "region"
+        },
+        {
+          "id": "starter-sla",
+          "reason": "tier"
+        },
+        {
+          "id": "future-draft",
+          "reason": "unapproved"
+        },
+        {
+          "id": "beta-private",
+          "reason": "tenant"
+        }
+      ],
+      "checks": {
+        "rankingComplete": false,
+        "correctStatus": true,
+        "justifiedReview": false,
+        "correctDocuments": true,
+        "correctFacts": true,
+        "groundedCitations": true
+      },
+      "candidateCount": 4,
+      "candidateModels": [],
+      "candidateErrors": [
+        {
+          "id": "eu-sla-current",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        },
+        {
+          "id": "eu-maintenance",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        },
+        {
+          "id": "invoice-help",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        },
+        {
+          "id": "editorial-injection",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        }
+      ]
+    },
+    {
+      "case": "missing-procedure",
+      "provider": "openai",
+      "pass": true,
+      "durationMs": 9077,
+      "status": "review",
+      "reason": "missing-evidence",
+      "selectedIds": [],
+      "missingFacets": [
+        "procedure"
+      ],
+      "rejected": [
+        {
+          "id": "eu-claims-current",
+          "reason": "not-retrieved"
+        },
+        {
+          "id": "eu-sla-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "eu-claims-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "us-sla",
+          "reason": "region"
+        },
+        {
+          "id": "starter-sla",
+          "reason": "tier"
+        },
+        {
+          "id": "future-draft",
+          "reason": "unapproved"
+        },
+        {
+          "id": "beta-private",
+          "reason": "tenant"
+        }
+      ],
+      "checks": {
+        "rankingComplete": true,
+        "correctStatus": true,
+        "justifiedReview": true,
+        "correctDocuments": true,
+        "correctFacts": true,
+        "groundedCitations": true
+      },
+      "candidateCount": 4,
+      "candidateModels": [
+        "gpt-6-luna"
+      ],
+      "candidateErrors": []
+    },
+    {
+      "case": "maintenance-exclusion",
+      "provider": "openai",
+      "pass": true,
+      "durationMs": 17864,
+      "status": "answer",
+      "reason": "complete-evidence",
+      "selectedIds": [
+        "eu-maintenance"
+      ],
+      "missingFacets": [],
+      "rejected": [
+        {
+          "id": "eu-sla-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "eu-claims-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "us-sla",
+          "reason": "region"
+        },
+        {
+          "id": "starter-sla",
+          "reason": "tier"
+        },
+        {
+          "id": "future-draft",
+          "reason": "unapproved"
+        },
+        {
+          "id": "beta-private",
+          "reason": "tenant"
+        }
+      ],
+      "checks": {
+        "rankingComplete": true,
+        "correctStatus": true,
+        "justifiedReview": true,
+        "correctDocuments": true,
+        "correctFacts": true,
+        "groundedCitations": true
+      },
+      "answer": {
+        "text": "No. The policy excludes scheduled maintenance announced in advance from SLA downtime and says there is no service-credit entitlement when the incident consists only of that maintenance, even if unadjusted monthly availability was 99.8%. The service credit is therefore 0%. Since no credit claim applies, there is no claim deadline or required claim fields.",
+        "creditPercent": 0,
+        "claimDays": null,
+        "requiredFields": [],
+        "citations": [
+          {
+            "documentId": "eu-maintenance",
+            "quote": "If an incident consists only of this scheduled maintenance, there is no entitlement to a service credit, even if unadjusted monthly availability is 99.8%."
+          }
+        ]
+      },
+      "candidateCount": 5,
+      "candidateModels": [
+        "gpt-6-luna"
+      ],
+      "candidateErrors": []
+    },
+    {
+      "case": "maintenance-exclusion",
+      "provider": "typesafe",
+      "pass": false,
+      "durationMs": 1343,
+      "status": "review",
+      "reason": "candidate-failure",
+      "selectedIds": [],
+      "missingFacets": [],
+      "rejected": [
+        {
+          "id": "eu-sla-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "eu-claims-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "us-sla",
+          "reason": "region"
+        },
+        {
+          "id": "starter-sla",
+          "reason": "tier"
+        },
+        {
+          "id": "future-draft",
+          "reason": "unapproved"
+        },
+        {
+          "id": "beta-private",
+          "reason": "tenant"
+        }
+      ],
+      "checks": {
+        "rankingComplete": false,
+        "correctStatus": false,
+        "justifiedReview": true,
+        "correctDocuments": false,
+        "correctFacts": false,
+        "groundedCitations": false
+      },
+      "candidateCount": 5,
+      "candidateModels": [
+        "jev-1.13.0"
+      ],
+      "candidateErrors": [
+        {
+          "id": "eu-sla-current",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        },
+        {
+          "id": "invoice-help",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        },
+        {
+          "id": "editorial-injection",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        }
+      ]
+    },
+    {
+      "case": "tenant-boundary-vi",
+      "provider": "typesafe",
+      "pass": false,
+      "durationMs": 1273,
+      "status": "review",
+      "reason": "candidate-failure",
+      "selectedIds": [],
+      "missingFacets": [],
+      "rejected": [
+        {
+          "id": "eu-sla-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "eu-claims-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "us-sla",
+          "reason": "region"
+        },
+        {
+          "id": "starter-sla",
+          "reason": "tier"
+        },
+        {
+          "id": "future-draft",
+          "reason": "unapproved"
+        },
+        {
+          "id": "beta-private",
+          "reason": "tenant"
+        }
+      ],
+      "checks": {
+        "rankingComplete": false,
+        "correctStatus": false,
+        "justifiedReview": true,
+        "correctDocuments": false,
+        "correctFacts": false,
+        "groundedCitations": false
+      },
+      "candidateCount": 5,
+      "candidateModels": [
+        "jev-1.13.0"
+      ],
+      "candidateErrors": [
+        {
+          "id": "eu-maintenance",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        },
+        {
+          "id": "invoice-help",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        },
+        {
+          "id": "editorial-injection",
+          "errorCode": "MALFORMED_RESPONSE",
+          "validationIssue": "Score does not match its probability distribution"
+        }
+      ]
+    },
+    {
+      "case": "tenant-boundary-vi",
+      "provider": "openai",
+      "pass": true,
+      "durationMs": 16473,
+      "status": "answer",
+      "reason": "complete-evidence",
+      "selectedIds": [
+        "eu-sla-current",
+        "eu-claims-current"
+      ],
+      "missingFacets": [],
+      "rejected": [
+        {
+          "id": "eu-sla-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "eu-claims-old",
+          "reason": "effective-date"
+        },
+        {
+          "id": "us-sla",
+          "reason": "region"
+        },
+        {
+          "id": "starter-sla",
+          "reason": "tier"
+        },
+        {
+          "id": "future-draft",
+          "reason": "unapproved"
+        },
+        {
+          "id": "beta-private",
+          "reason": "tenant"
+        }
+      ],
+      "checks": {
+        "rankingComplete": true,
+        "correctStatus": true,
+        "justifiedReview": true,
+        "correctDocuments": true,
+        "correctFacts": true,
+        "groundedCitations": true
+      },
+      "answer": {
+        "text": "Với uptime tháng là 99,8%, Acme nằm trong mức dưới 99,9% nhưng ít nhất 99,0%, nên mức service credit là **10% phí thuê bao tháng**. Đây là khoản credit, không phải hoàn tiền mặt. Theo quy trình được cung cấp, hãy gửi claim trong vòng **30 ngày sau khi kết thúc tháng bị ảnh hưởng**, kèm **invoice ID**, **incident ID** và **uptime report**. Claim cần được xem xét và credit không được cấp tự động. Câu trả lời này dựa trên các tài liệu EU Enterprise được cung cấp; không sử dụng điều khoản riêng của khách hàng khác.",
+        "creditPercent": 10,
+        "claimDays": 30,
+        "requiredFields": [
+          "invoice ID",
+          "incident ID",
+          "uptime report"
+        ],
+        "citations": [
+          {
+            "documentId": "eu-sla-current",
+            "quote": "measured monthly availability below 99.9% and at least 99.0% earns a service credit of 10% of the monthly subscription fee."
+          },
+          {
+            "documentId": "eu-claims-current",
+            "quote": "submit within 30 days after the end of the affected month. Attach invoice ID, incident ID and uptime report. Claims require review; no credit is issued automatically."
+          }
+        ]
+      },
+      "candidateCount": 5,
+      "candidateModels": [
+        "gpt-6-luna"
+      ],
+      "candidateErrors": []
+    }
+  ]
+}

@@ -25,7 +25,7 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "build": "pnpm --filter @alvin0/ai-agent-sdk-core build && pnpm --filter @alvin0/ai-agent-sdk-sandbox build && pnpm --filter @alvin0/ai-agent-sdk-sandbox-node build && pnpm --filter @alvin0/ai-agent-sdk-testkit build && pnpm --filter @alvin0/ai-agent-sdk-a2a build && pnpm --filter @alvin0/ai-agent-sdk-mcp-server build && pnpm --filter @alvin0/ai-agent-sdk-mcp build && pnpm --filter @alvin0/ai-agent-sdk-mcp-node build && pnpm --filter @alvin0/ai-agent-sdk-mcp-node-server build && pnpm --filter @alvin0/ai-agent-sdk-skill-filesystem build && pnpm --filter @alvin0/ai-agent-sdk-instructions-node build && pnpm --filter @alvin0/ai-agent-sdk-provider-http build && pnpm --filter @alvin0/ai-agent-sdk-protocol-anthropic-messages build && pnpm --filter @alvin0/ai-agent-sdk-protocol-responses build && pnpm --filter @alvin0/ai-agent-sdk-protocol-gemini-interactions build && pnpm --filter @alvin0/ai-agent-sdk-protocol-openai-chat-completions build && pnpm --filter @alvin0/ai-agent-sdk-provider-anthropic build && pnpm --filter @alvin0/ai-agent-sdk-provider-openai build && pnpm --filter @alvin0/ai-agent-sdk-provider-codex build && pnpm --filter @alvin0/ai-agent-sdk-provider-copilot build && pnpm --filter @alvin0/ai-agent-sdk-provider-gemini build && pnpm --filter @alvin0/ai-agent-sdk-auth-node build && pnpm --filter @alvin0/ai-agent-sdk-observability-fetch build && pnpm --filter @alvin0/ai-agent-sdk-observability-browser build && pnpm --filter @alvin0/ai-agent-sdk-observability-node build && pnpm --filter @alvin0/ai-agent-sdk-observability-otel build",
+    "build": "pnpm --filter @alvin0/ai-agent-sdk-core build && pnpm --filter @alvin0/ai-agent-sdk-decision-adapter build && pnpm --filter @alvin0/ai-agent-sdk-provider-typesafe build && pnpm --filter @alvin0/ai-agent-sdk-sandbox build && pnpm --filter @alvin0/ai-agent-sdk-sandbox-node build && pnpm --filter @alvin0/ai-agent-sdk-testkit build && pnpm --filter @alvin0/ai-agent-sdk-a2a build && pnpm --filter @alvin0/ai-agent-sdk-mcp-server build && pnpm --filter @alvin0/ai-agent-sdk-mcp build && pnpm --filter @alvin0/ai-agent-sdk-mcp-node build && pnpm --filter @alvin0/ai-agent-sdk-mcp-node-server build && pnpm --filter @alvin0/ai-agent-sdk-skill-filesystem build && pnpm --filter @alvin0/ai-agent-sdk-instructions-node build && pnpm --filter @alvin0/ai-agent-sdk-provider-http build && pnpm --filter @alvin0/ai-agent-sdk-protocol-anthropic-messages build && pnpm --filter @alvin0/ai-agent-sdk-protocol-responses build && pnpm --filter @alvin0/ai-agent-sdk-protocol-gemini-interactions build && pnpm --filter @alvin0/ai-agent-sdk-protocol-openai-chat-completions build && pnpm --filter @alvin0/ai-agent-sdk-provider-anthropic build && pnpm --filter @alvin0/ai-agent-sdk-provider-openai build && pnpm --filter @alvin0/ai-agent-sdk-provider-codex build && pnpm --filter @alvin0/ai-agent-sdk-provider-copilot build && pnpm --filter @alvin0/ai-agent-sdk-provider-gemini build && pnpm --filter @alvin0/ai-agent-sdk-auth-node build && pnpm --filter @alvin0/ai-agent-sdk-observability-fetch build && pnpm --filter @alvin0/ai-agent-sdk-observability-browser build && pnpm --filter @alvin0/ai-agent-sdk-observability-node build && pnpm --filter @alvin0/ai-agent-sdk-observability-otel build",
     "build:cli": "tsdown --config tsdown.cli.config.ts",
     "clean": "node -e \"require('node:fs').rmSync('dist-cli',{recursive:true,force:true})\"",
     "typecheck": "pnpm build && tsc --noEmit",
@@ -88,7 +88,11 @@
     "human:structured-output": "node --experimental-strip-types test-human/structured-output/launcher.ts",
     "human:node-codex": "pnpm build:cli --silent && node dist-cli/node-codex.mjs",
     "human:mcp": "pnpm build:cli --silent && node dist-cli/mcp.mjs",
-    "human:mcp:github": "pnpm build:cli --silent && node dist-cli/mcp-github.mjs"
+    "human:mcp:github": "pnpm build:cli --silent && node dist-cli/mcp-github.mjs",
+    "human:decision": "node --env-file=.env scripts/typesafe-decision-smoke.mts",
+    "human:decision:all": "node --env-file=.env scripts/decision-live-smoke.mts",
+    "sample:decision-tools": "node --env-file-if-exists=.env samples/decision-tool-routing/benchmark.mts",
+    "sample:decision-documents": "node --env-file-if-exists=.env samples/decision-document-selection/run.mts"
   },
   "devDependencies": {
     "@a2a-js/sdk": "catalog:",
@@ -132,6 +136,8 @@
     "turbo": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "catalog:"
+    "wrangler": "catalog:",
+    "@alvin0/ai-agent-sdk-decision-adapter": "workspace:^",
+    "@alvin0/ai-agent-sdk-provider-typesafe": "workspace:^"
   }
 }

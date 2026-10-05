@@ -10,6 +10,10 @@ message.
 
 ## Setup
 
+Project examples and real OpenAI generation/decision calls use `gpt-6-luna` as
+the minimum and default model. Select it or a newer model explicitly; do not
+fall back to older OpenAI models. See [project instructions](AGENTS.md).
+
 For the 0.1.7 release, read [upgrading from 0.1.6](docs/upgrading-from-0.1.6.md).
 For changes introduced after 0.1.4, read the
 [upgrade guide](docs/upgrading-from-0.1.4.md) and
@@ -89,7 +93,7 @@ registry.registerAdapter(['openai'], openAiAdapter({
 const assembler = new BlockAssembler()
 for await (const chunk of registry.stream({
   provider: 'openai',
-  model: 'gpt-5.4',
+  model: 'gpt-6-luna',
   system: 'Be concise.',
   messages: [createTextMessage('Explain a Merkle tree in one sentence.')],
 })) {
@@ -97,7 +101,7 @@ for await (const chunk of registry.stream({
   assembler.push(chunk)
 }
 
-const reply = assembler.message({ kind: 'model', provider: 'openai', model: 'gpt-5.4' })
+const reply = assembler.message({ kind: 'model', provider: 'openai', model: 'gpt-6-luna' })
 console.log(assembler.usage, assembler.finish)
 ```
 
@@ -321,7 +325,7 @@ export const calculator = defineAgent({
   name: 'Calculator',
   instructions: 'Use the available tools and explain the result briefly.',
   provider: 'openai',
-  model: 'gpt-5.4',
+  model: 'gpt-6-luna',
   tools: [multiply],
 })
 
@@ -400,7 +404,7 @@ tools.register(defineTool({
 
 for await (const event of runTurn({
   registry,
-  config: { provider: 'openai', model: 'gpt-5.4' },
+  config: { provider: 'openai', model: 'gpt-6-luna' },
   history,
   tools,
   commentary: 'concise',
@@ -483,7 +487,7 @@ for await (const event of runAgent({
   registry,
   history,
   // Omit config for Codex gpt-5.6-luna with medium effort, or override it:
-  config: { provider: 'openai', model: 'gpt-5.6', reasoningEffort: ReasoningEffortId('medium') },
+  config: { provider: 'openai', model: 'gpt-6-luna', reasoningEffort: ReasoningEffortId('medium') },
   nativeTools: [
     { type: 'native', name: 'web-search', allowedDomains: ['openai.com'] },
     { type: 'native', name: 'image-generation', format: 'webp', partialImages: 2 },
@@ -517,6 +521,61 @@ For manual acceptance against a real provider, use the interactive commands in
 [`test-human/README.md`](test-human/README.md). They cover basic/deep/HIL modes,
 host tools, native web search, image input/output, request logs, and terminal-based
 human decisions.
+
+### Typed decision models
+
+Use the optional [`decision-adapter`](packages/decision-adapter/README.md) companion
+runtime for choosing among options, ordinal scoring and boolean decisions.
+[`provider-typesafe`](packages/provider-typesafe/README.md) connects TypeSafe Jev
+without treating it as a chat model. Native probabilities and their provenance
+remain visible to host routing code; thresholds and actions stay with the host.
+
+Bind reusable rubrics with `createDecisionTask`, evaluate independent records with
+bounded `evaluateBatch`, and use `gateChoice`/`gateBoolean` for explicit abstention.
+See [use cases and setup](packages/decision-adapter/USE_CASES.md) for routing,
+guardrails, RAG reranking, extraction, multi-account setup and staged workflows.
+`llmDecisionPlugin` wraps existing OpenAI, Anthropic and Gemini adapters for the
+same tasks using JSON Schema or function calling; see [LLM setup](packages/decision-adapter/README.md#openai-anthropic-and-gemini-decisions).
+
+The [decision tool-routing sample](samples/decision-tool-routing/README.md) uses
+decision models to select tools and supply-recovery plans, then OpenAI
+`gpt-6-luna` to generate an evidence-based memo. Run `pnpm sample:decision-tools`
+for a paired TypeSafe/OpenAI selector benchmark with deterministic constraint
+grading, per-call traces, latency, token usage and generated reports.
+
+The [document-selection sample](samples/decision-document-selection/README.md)
+filters access and effective dates, selects evidence for each part of a question,
+then uses OpenAI `gpt-6-luna` to answer with exact source quotes. Run
+`pnpm sample:decision-documents --providers openai`; it includes historical
+policies, missing evidence, maintenance exclusions and a Vietnamese query.
+
+```ts
+import { createDecisionRuntime, choiceQuestion } from '@alvin0/ai-agent-sdk-decision-adapter'
+import { typesafePlugin } from '@alvin0/ai-agent-sdk-provider-typesafe'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node/env'
+
+const decisions = createDecisionRuntime({
+  providers: [typesafePlugin({ apiKey: envCredential('TYPESAFE_API_KEY') })],
+})
+try {
+  const result = await decisions.decisionModel({
+    provider: 'typesafe', model: 'jev-latest',
+  }).evaluate({
+    state: 'Please refund my duplicate invoice',
+    questions: {
+      department: choiceQuestion('Which department should handle this?', {
+        billing: 'Invoices and refunds', support: 'Technical issues',
+      }),
+    },
+  })
+  console.log(result.answers.department.choice)
+} finally {
+  await decisions.close()
+}
+```
+
+`pnpm human:decision` runs English/Vietnamese live acceptance using
+`TYPESAFE_API_KEY` from `.env` after building the packages.
 
 ### Adding a provider
 

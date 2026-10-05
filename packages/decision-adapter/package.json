@@ -1,0 +1,75 @@
+{
+  "name": "@alvin0/ai-agent-sdk-decision-adapter",
+  "author": {
+    "name": "alvin0 - chaulamdinhai",
+    "email": "chaulamdinhai@gmail.com"
+  },
+  "version": "0.1.7",
+  "description": "Provider-neutral typed decision contracts and companion runtime for ai-agent-sdk",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alvin0/ai-agent-sdk.git",
+    "directory": "packages/decision-adapter"
+  },
+  "homepage": "https://github.com/alvin0/ai-agent-sdk/tree/main/packages/decision-adapter#readme",
+  "bugs": {
+    "url": "https://github.com/alvin0/ai-agent-sdk/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "USE_CASES.md",
+    "LICENSE"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./transport": {
+      "types": "./dist/transport.d.ts",
+      "import": "./dist/transport.js",
+      "default": "./dist/transport.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('artifacts',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "pack": "pnpm pack --pack-destination artifacts",
+    "test:pack": "node ../../scripts/test-packed-decision.mts decision-adapter",
+    "check:publint": "publint",
+    "check:types": "attw --profile esm-only --pack ."
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "@alvin0/ai-agent-sdk-core": "workspace:^"
+  },
+  "devDependencies": {
+    "@alvin0/ai-agent-sdk-core": "workspace:^",
+    "@arethetypeswrong/cli": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "aiAgentSdk": {
+    "runtime": "universal",
+    "coreApi": 1,
+    "roles": [
+      "decision-runtime"
+    ]
+  }
+}

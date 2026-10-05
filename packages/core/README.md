@@ -22,7 +22,7 @@ import {
 const runtime = await createAgentRuntime({ providers: [provider] })
 const definition = defineAgent({ id: 'assistant', instructions: 'Be concise.' })
 const logger: SdkLogger = runtime.logger({ fields: { component: 'assistant' } })
-const agent = runtime.agent({ ...definition, model: { provider: 'openai', id: 'gpt-5.4' } })
+const agent = runtime.agent({ ...definition, model: { provider: 'openai', id: 'gpt-6-luna' } })
 logger.info('agent ready')
 ```
 
