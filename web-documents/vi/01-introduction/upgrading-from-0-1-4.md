@@ -1,8 +1,8 @@
 # Nâng cấp từ 0.1.4 lên 0.1.5
 
 Trang này mô tả thay đổi được bổ sung trong **0.1.5**. Workspace hiện chuẩn bị
-0.1.7; xem [nâng cấp từ 0.1.6](/vi/01-introduction/upgrading-from-0-1-6)
-cho các thay đổi mới về completion, steering và streaming.
+0.1.8; xem [nâng cấp từ 0.1.7](/vi/01-introduction/upgrading-from-0-1-7)
+cho thay đổi mới về recovery khi tool lặp và chẩn đoán embedding.
 
 Các đường import, cấu hình provider/model/effort, tool thông thường,
 `run`/`stream` và snapshot/resume vẫn giữ. Thiết kế effort được ghi trong

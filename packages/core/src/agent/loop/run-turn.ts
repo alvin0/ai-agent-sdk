@@ -4,6 +4,7 @@ import type { ModelCallReport } from '../../observation/index.ts'
 import { waitForSettlement } from '../../async/index.ts'
 import { authoritativeTokenUsage, budgetTokenTotal, summarizeModelCallUsage } from '../accounting/ledger.ts'
 import { createSpanId, createTraceId, type TraceRef } from '../trace/trace.ts'
+import type { ToolDefinition, ToolExecutionResult } from '../tool/definition.ts'
 import type { AgentEvent, ExhaustedBudget, ToolDeclineReason, TurnHooks, TurnOutcome } from './types.ts'
 import { AwaitedEventQueue } from './queue.ts'
 import { scheduleToolCalls } from './schedule.ts'
@@ -94,7 +95,17 @@ async function driveTurn(
   const modelCallReports: ModelCallReport[] = []
   let reason: TurnOutcome['reason'] | undefined
   let outcome: TurnOutcome
-  let lastRepeat: { key: string; count: number } | undefined
+  /** The immediately preceding call/result, so recovery cannot cross a state-changing call or failure. */
+  let lastRepeat: { key: string; count: number; callId: string; succeeded: boolean } | undefined
+  /** Successful finalized results, retained only for this turn's exact repeat guard. */
+  const successfulCalls = new Map<string, {
+    readonly callId: string
+    readonly rawArguments: string
+    readonly definition: ToolDefinition | undefined
+    readonly result: Extract<ToolExecutionResult, { readonly isError: false }>
+  }>()
+  /** Each exact recovered key gets one ordinary model replan, never a retry loop. */
+  const recoveredReplanKeys = new Set<string>()
   const actionSteps: string[] = []
   const emitMaintenance = maintenanceEmitter(emit, root)
   /**
@@ -331,10 +342,8 @@ async function driveTurn(
     // Calls the budget does not govern: submitting, asking, delegating. They
     // are dispatched even when the budget is spent, so the model always has a
     // legal way to finish. See `ToolDefinition.budgetExempt`.
-    const budgetedCalls = round.calls
-      .filter(call => options.tools?.get(call.toolName)?.budgetExempt !== true).length
     const remaining = Math.max(0, bounds.maxToolCalls - toolCalls)
-    let repeatProjection = lastRepeat
+    let repeatProjection: { key: string; count: number } | undefined = lastRepeat
     const projectedRepeats = round.calls.map(call => {
       const key = repeatKey(call)
       // Count consecutive calls, not lifetime visits to a source or test command.
@@ -356,7 +365,7 @@ async function driveTurn(
     const budgetTokens = budgetTokenTotal(currentUsage)
     const tokenLimitBeforeDispatch = budgetTokens !== undefined
       && budgetTokens >= maxTotalTokens
-    const guardDeclined = repeatedLimitBeforeDispatch || cycleLimitBeforeDispatch || tokenLimitBeforeDispatch || round.usageRequired
+    const guardDeclined = cycleLimitBeforeDispatch || tokenLimitBeforeDispatch || round.usageRequired
     // Name the limit that actually declined the call. Reporting a repeat guard
     // as an empty budget teaches the model the wrong lesson, and it repeats the
     // call on the next turn with the budget it was told it lacked.
@@ -364,15 +373,43 @@ async function driveTurn(
       ? 'tokens'
       : cycleLimitBeforeDispatch
         ? 'tool-call-cycle'
-        : repeatedLimitBeforeDispatch
-          ? 'repeated-tool-call'
-          : round.usageRequired
-            ? 'usage-required'
-            : 'tool-calls'
+        : round.usageRequired
+          ? 'usage-required'
+          : 'tool-calls'
     // `continue` takes the wall down: the budget becomes a notice and the turn
     // is bounded by steps, tokens, and the run-level ledger instead. Guards
     // that mean "this is not working" still decline, whatever the setting.
     const budgetIsAWall = bounds.onExhausted !== 'continue'
+    const recoveredCallIds = new Set<string>()
+    // A round-wide guard must not make an unrelated old success reusable.
+    // Recovery is only legal for a call that individually reached the limit and
+    // whose successful result is the immediately preceding call in this streak.
+    const individuallyRepeatedCallIds = new Set(round.calls
+      .filter((_call, index) => (projectedRepeats[index] ?? 0) >= bounds.repeatToolLimit)
+      .map(call => String(call.callId)))
+    // Only ordinary dispatches request quota: repeated calls are either recovered
+    // for free or individually declined. Fresh siblings keep normal admission.
+    const budgetedCalls = round.calls.filter(call =>
+      !individuallyRepeatedCallIds.has(String(call.callId))
+      && options.tools?.get(call.toolName)?.budgetExempt !== true).length
+    const recover = repeatedLimitBeforeDispatch && !cycleLimitBeforeDispatch && !tokenLimitBeforeDispatch
+      && !round.usageRequired
+      ? (call: typeof round.calls[number]): ToolExecutionResult | undefined => {
+          const prior = successfulCalls.get(repeatKey(call))
+          if (!individuallyRepeatedCallIds.has(String(call.callId))
+            || lastRepeat?.key !== repeatKey(call)
+            || lastRepeat.succeeded !== true
+            || prior === undefined
+            || prior.callId !== lastRepeat.callId
+            || prior.rawArguments !== call.rawArguments
+            || prior.definition !== options.tools?.get(call.toolName)
+            || prior.result.additionalContext !== undefined
+            || prior.result.concludesTurn === true
+            || options.tools?.get(call.toolName)?.budgetExempt === true) return undefined
+          recoveredCallIds.add(String(call.callId))
+          return duplicateOfResult(prior)
+        }
+      : undefined
     const scheduled = await scheduleToolCalls({
       calls: round.calls, catalog: options.tools, history: options.history,
       position: { turn, step,
@@ -393,6 +430,7 @@ async function driveTurn(
       ...options.approvals === undefined ? {} : { approvals: options.approvals },
       ...options.accounting === undefined ? {} : { accounting: options.accounting },
       emit,
+      ...recover === undefined ? {} : { recover },
       ...options.hooks?.checkpoint === undefined ? {} : {
         checkpoint: (context: Parameters<NonNullable<TurnHooks['checkpoint']>>[0]) => runHook(
           Promise.resolve(options.hooks?.checkpoint?.(context)), options, signal, 'checkpoint',
@@ -400,6 +438,10 @@ async function driveTurn(
       },
     }, {
       admissionLimit: guardDeclined ? 0 : budgetIsAWall ? remaining : 'unbounded',
+      ...guardDeclined || !repeatedLimitBeforeDispatch ? {} : {
+        decline: (call: typeof round.calls[number]): ToolDeclineReason | undefined =>
+          individuallyRepeatedCallIds.has(String(call.callId)) ? 'repeated-tool-call' : undefined,
+      },
       ...programs === undefined ? {} : { programs },
       ...programResults === undefined ? {} : { programResults },
     })
@@ -468,7 +510,11 @@ async function driveTurn(
       consecutiveErrors = result.isError ? consecutiveErrors + 1 : 0
       const key = repeatKey(call)
       const count = lastRepeat?.key === key ? lastRepeat.count + 1 : 1
-      lastRepeat = { key, count }
+      lastRepeat = {
+        key, count, callId: String(call.callId),
+        succeeded: !result.isError && result.meta?.declined !== true
+          && options.tools?.get(call.toolName)?.budgetExempt !== true,
+      }
       if (count === bounds.repeatToolWarningAt) {
         options.history.append({ kind: 'user', message: createUserMessage({
           source: { kind: 'app', producer: 'tool-loop-repeat-guard' },
@@ -476,6 +522,13 @@ async function driveTurn(
         }) })
       }
       if (count >= bounds.repeatToolLimit) repeatedLimit = true
+      if (!result.isError && result.meta?.declined !== true
+        && options.tools?.get(call.toolName)?.budgetExempt !== true) {
+        successfulCalls.set(key, {
+          callId: String(call.callId), rawArguments: call.rawArguments,
+          definition: options.tools.get(call.toolName), result,
+        })
+      }
     }
     if (projectedCycle?.repetitions === bounds.toolCycleWarningAt) {
       options.history.append({ kind: 'user', message: createUserMessage({
@@ -497,13 +550,39 @@ async function driveTurn(
     const reportReserveReached = bounds.maxTotalTokens !== 'auto'
       && bounds.finalReportReserveTokens > 0 && budgetTokens !== undefined
       && budgetTokens >= maxTotalTokens - bounds.finalReportReserveTokens
-    if (tokenLimitBeforeDispatch) exhausted = 'tokens'
+    const recoveredOnlyReplan = repeatedLimitBeforeDispatch
+      && recoveredCallIds.size === round.calls.length
+      && round.calls.every(call => recoveredCallIds.has(String(call.callId))
+        && !recoveredReplanKeys.has(repeatKey(call)))
+      && scheduled.results.length === round.calls.length
+      && scheduled.results.every(result => !result.isError)
+      && scheduled.dispatched === 0 && scheduled.declined === 0
+      && !cycleLimitBeforeDispatch && !tokenLimitBeforeDispatch && !reportReserveReached
+      && !round.usageRequired && !round.usageUnavailable && !signal.aborted
+      && !(budgetIsAWall && budgetedCalls > remaining)
+      && consecutiveErrors === 0 && steps < maxSteps
+      && bounds.onExhausted !== 'stop' && admissionStop() === undefined
+    // A repeated call cannot poison new work in the same model batch. Successful
+    // recovery alongside a real dispatch is ordinary progress, not an extra pure
+    // duplicate replan. The other exhaustion checks below still apply.
+    const recoveredWithFreshDispatch = repeatedLimitBeforeDispatch
+      && [...individuallyRepeatedCallIds].every(id => recoveredCallIds.has(id))
+      && scheduled.results.length === round.calls.length
+      && scheduled.dispatched > 0 && scheduled.declined === 0
+    if (recoveredOnlyReplan) {
+      for (const call of round.calls) recoveredReplanKeys.add(repeatKey(call))
+    } else if (tokenLimitBeforeDispatch) exhausted = 'tokens'
     else if (reportReserveReached) exhausted = 'tokens'
     else if (cycleLimitBeforeDispatch) exhausted = 'tool-call-cycle'
     else if (budgetIsAWall && budgetedCalls > remaining) exhausted = 'tool-calls'
     else if (consecutiveErrors >= bounds.maxConsecutiveToolErrors) exhausted = 'consecutive-tool-errors'
-    else if (repeatedLimit) exhausted = 'repeated-tool-call'
+    else if (repeatedLimit && !recoveredWithFreshDispatch) exhausted = 'repeated-tool-call'
     else if (steps >= maxSteps) exhausted = 'steps'
+    if (exhausted === undefined && recoveredWithFreshDispatch) {
+      for (const call of round.calls) {
+        if (recoveredCallIds.has(String(call.callId))) recoveredReplanKeys.add(repeatKey(call))
+      }
+    }
     if (exhausted !== undefined) {
       const forced = (exhausted !== 'tokens' || (reportReserveReached && !tokenLimitBeforeDispatch))
         && bounds.onExhausted !== 'stop'
@@ -637,5 +716,28 @@ async function driveTurn(
   }
 }
 
+function duplicateOfResult(prior: {
+  readonly callId: string
+  readonly result: Extract<ToolExecutionResult, { readonly isError: false }>
+}): ToolExecutionResult {
+  return detachedFrozen({
+    isError: false,
+    // The prior structured value remains the host's canonical result. The
+    // header is model-visible so it knows this call was intentionally reused.
+    value: prior.result.value,
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          status: 'duplicate_of',
+          callId: prior.callId,
+          instruction: 'This exact call already succeeded in this run. Use the retained result below; do not call it again.',
+        }),
+      },
+      ...prior.result.content,
+    ],
+    meta: { ...prior.result.meta, recovered: true, duplicateOfCallId: prior.callId },
+  })
+}
 
 export type { RunTurnOptions } from './turn/types.ts'

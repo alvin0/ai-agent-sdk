@@ -1,7 +1,7 @@
 # Upgrading from 0.1.4 to 0.1.5
 
 These notes cover changes introduced in 0.1.5. For the current release, read
-[upgrading-from-0.1.6.md](upgrading-from-0.1.6.md). Check installed typings. Imports,
+[upgrading-from-0.1.7.md](upgrading-from-0.1.7.md). Check installed typings. Imports,
 provider/model/effort configuration, ordinary tools, session `run`/`stream`, and
 snapshot/resume remain available. The effort redesign already shipped in 0.1.4.
 

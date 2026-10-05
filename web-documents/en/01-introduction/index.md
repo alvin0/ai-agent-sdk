@@ -101,4 +101,4 @@ Everything else in this documentation is a variation on those four steps.
   closure your deployment needs.
 - [Quick Start](/en/01-introduction/quick-start) — a working agent with one tool.
 
-For 0.1.7, see [upgrading from 0.1.6](/en/01-introduction/upgrading-from-0-1-6).
+For 0.1.8, see [upgrading from 0.1.7](/en/01-introduction/upgrading-from-0-1-7).

@@ -200,6 +200,9 @@ function asEmbeddingError(
   if (value instanceof EmbeddingError) return value
   return new EmbeddingError(failure.message, failure.code, {
     cause: value,
+    ...failure.status === undefined ? {} : { status: failure.status },
+    ...failure.providerRetryAfterMs === undefined ? {} : { providerRetryAfterMs: failure.providerRetryAfterMs },
+    ...failure.requestId === undefined ? {} : { requestId: failure.requestId },
     provider: request.provider,
     model: request.model,
     itemIndexes: request.items.map(item => item.index),

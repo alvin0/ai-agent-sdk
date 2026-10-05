@@ -15,6 +15,8 @@
  */
 
 import { AgentSdkError } from '../errors/agent-sdk-error.ts'
+import { ModelError, type ModelErrorOptions } from '../errors/model-error.ts'
+import type { ModelFailure } from '../errors/failure.ts'
 import type { EmbeddingSpaceId } from './profile.ts'
 
 /**
@@ -62,7 +64,7 @@ export const EMBEDDING_ERROR_CODES = Object.freeze({
 export type EmbeddingErrorCode = typeof EMBEDDING_ERROR_CODES[keyof typeof EMBEDDING_ERROR_CODES]
 
 /** Structured embedding facts and cause accepted by {@link EmbeddingError}. */
-export interface EmbeddingErrorOptions extends ErrorOptions {
+export interface EmbeddingErrorOptions extends ModelErrorOptions {
   /**
    * Zero-based indexes of the request items this failure belongs to.
    *
@@ -95,6 +97,8 @@ export interface EmbeddingErrorOptions extends ErrorOptions {
  * out of errors and traces alike.
  */
 export class EmbeddingError extends AgentSdkError {
+  /** Validated provider facts survive the embedding wrapper and normalization. */
+  readonly failure: ModelFailure
   /** Request item indexes this failure belongs to, when input-specific. */
   readonly itemIndexes?: readonly number[]
   /** The applied limit, when the failure is a limit violation. */
@@ -139,8 +143,10 @@ export class EmbeddingError extends AgentSdkError {
       && (typeof options.space !== 'string' || options.space.length === 0)) {
       throw new Error('EmbeddingError space must be a non-empty string')
     }
+    const failure = new ModelError(message, code, options).failure
     super(message, code, options)
     this.name = 'EmbeddingError'
+    this.failure = failure
     if (options?.itemIndexes !== undefined) {
       this.itemIndexes = Object.freeze([...options.itemIndexes])
     }

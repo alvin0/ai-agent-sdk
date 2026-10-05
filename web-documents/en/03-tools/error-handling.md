@@ -120,13 +120,19 @@ unreachable dependency — and return values for **domain outcomes**.
 | Bound | Behaviour |
 | --- | --- |
 | `maxConsecutiveToolErrors` | Cuts off after N consecutive failures |
-| `repeatToolWarningAt` / `repeatToolLimit` | Warns, then stops exact repeats |
+| `repeatToolWarningAt` / `repeatToolLimit` | Warns, then recovers an eligible exact repeat or stops |
 | `toolCycleWarningAt` / `toolCycleLimit` / `maxToolCycleLength` | Detects short multi-step cycles |
 | `maxToolCalls` | 64 dispatched tools per run |
 
 So a model that cannot satisfy your tool fails loudly rather than looping until
 the token ceiling. When you hit these, the schema or the description is usually
 the real defect.
+
+At the exact-repeat limit, the loop may reuse the immediately preceding successful
+result from the same turn without re-executing the tool. A recovered-only round
+gets at most one bounded model replan per exact key. Further repeats still stop.
+See [0.1.8 recovery limits](/en/01-introduction/upgrading-from-0-1-7#exact-repeated-tool-calls)
+for exclusions and cancellation/budget behavior.
 
 ## Timeout and teardown
 

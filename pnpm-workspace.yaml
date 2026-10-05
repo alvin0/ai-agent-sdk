@@ -36,7 +36,7 @@ catalog:
   micromark-util-sanitize-uri: 2.0.1
   micromark-util-symbol: 2.0.1
   micromark-util-types: 2.0.2
-  next: 16.3.4
+  next: 16.3.6
   playwright: 1.62.1
   publint: 0.3.24
   react: 19.2.8

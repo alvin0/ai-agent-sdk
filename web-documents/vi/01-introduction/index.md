@@ -101,4 +101,4 @@ Mọi thứ còn lại trong tài liệu này là biến thể của bốn bư�
   trường triển khai của bạn cần.
 - [Quick Start](/vi/01-introduction/quick-start) — một agent chạy được với một tool.
 
-Đối với 0.1.7, xem [nâng cấp từ 0.1.6](/vi/01-introduction/upgrading-from-0-1-6).
+Đối với 0.1.8, xem [nâng cấp từ 0.1.7](/vi/01-introduction/upgrading-from-0-1-7).

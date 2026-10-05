@@ -261,6 +261,12 @@ transport faults keep the model taxonomy, so rate limiting stays distinguishable
 from a wrong-width vector. `EmbeddingError` carries `itemIndexes`, `limit`,
 `provider`, `model`, and `space` — never raw input text or vector values.
 
+Since 0.1.8, `EmbeddingError.failure` is a validated, frozen `ModelFailure`.
+Terminal provider failures retain available `status`, `providerRetryAfterMs`
+and `requestId` through the retry wrapper and `normalizeModelFailure(error)`.
+Unavailable facts remain absent. Retry decisions, backoff and vectors are unchanged;
+no raw input text or raw provider body is added to this envelope.
+
 ```ts
 import { EMBEDDING_ERROR_CODES, EmbeddingError } from '@alvin0/ai-agent-sdk-core/embedding'
 

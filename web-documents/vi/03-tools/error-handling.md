@@ -121,13 +121,19 @@ nghiệp vụ**.
 | Chặn trên | Hành vi |
 | --- | --- |
 | `maxConsecutiveToolErrors` | Cắt sau N lỗi liên tiếp |
-| `repeatToolWarningAt` / `repeatToolLimit` | Cảnh báo, rồi dừng khi lặp y hệt |
+| `repeatToolWarningAt` / `repeatToolLimit` | Cảnh báo, rồi recover call lặp đủ điều kiện hoặc dừng |
 | `toolCycleWarningAt` / `toolCycleLimit` / `maxToolCycleLength` | Phát hiện chu trình đa bước ngắn |
 | `maxToolCalls` | 64 tool được điều phối mỗi lượt chạy |
 
 Nên một model không thoả mãn được tool của bạn sẽ thất bại ồn ào, thay vì lặp cho
 tới khi cạn trần token. Khi bạn chạm các mức này, thường schema hoặc description
 mới là khiếm khuyết thật.
+
+Ở exact-repeat limit, loop có thể dùng lại kết quả thành công ngay trước đó trong
+cùng turn mà không thực thi tool lần nữa. Round chỉ gồm call recover được thêm
+tối đa một round model có giới hạn cho mỗi exact key; lặp tiếp vẫn dừng. Xem
+[giới hạn recovery 0.1.8](/vi/01-introduction/upgrading-from-0-1-7#tool-call-lap-y-het)
+để biết các trường hợp loại trừ và hành vi cancellation/budget.
 
 ## Timeout và tháo dỡ
 

@@ -49,12 +49,12 @@ HTTP**, và phương án dự phòng cố ý quan sát được để một tri�
 
 | Thuộc tính | Trạng thái |
 | --- | --- |
-| Phiên bản | `0.1.7` |
+| Phiên bản | `0.1.8` |
 | Publish npm | Merge vào `main` kích hoạt publish sau các kiểm tra |
 | Quy trình release | Merge vào `main` kích hoạt publish npm có gate và provenance |
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.7.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.8.tgz
 ```
 
 Mọi lệnh `pnpm add @alvin0/ai-agent-sdk-...` trong tài liệu này dùng đúng tên
