@@ -157,6 +157,8 @@ class LlmDecisionAdapter extends DecisionAdapter {
     const forward = () => controller.abort(signal?.reason)
     signal?.addEventListener('abort', forward, { once: true })
     if (signal?.aborted) forward()
+    // Prepared calls are public: bound their attempts even without a runtime wrapper.
+    const timer = setTimeout(() => controller.abort(new ModelError('LLM decision deadline exceeded', 'TIMEOUT')), input.timeoutMs ?? 30_000)
     let iterator: AsyncIterator<StreamChunk> | undefined
     let finished = false
     let closed = false
@@ -237,6 +239,7 @@ class LlmDecisionAdapter extends DecisionAdapter {
       }))
       return validateDecisionResult({ model: captured.generation.model, answers, ...(usage === undefined ? {} : { usage }) }, input.questions)
     } finally {
+      clearTimeout(timer)
       signal?.removeEventListener('abort', forward)
       if (!closed) {
         controller.abort()

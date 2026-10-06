@@ -17,6 +17,9 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Fixed
 
+- LLM prepared calls enforce a per-attempt deadline even when invoked directly without the companion runtime, and observe late iterator failures without blocking teardown.
+- TypeSafe closes each physical attempt once even if a terminal accounting callback throws. Late credentials, admission handles and fetch responses cannot cause dispatch or a second closure after cancellation.
+- Decision JSON arrays reject accessors, custom iterators, symbol keys and auxiliary properties before executing caller hooks or silently dropping data.
 - Prepared decision calls reject mismatched provider/model targets before dispatch.
 - TypeSafe captures per-invocation headers before asynchronous preparation and credentials, preserves them across retries, and rejects reserved headers or unsupported body overrides before network IO.
 - Synchronous injected fetch failures become safe, retryable `TRANSPORT` errors instead of leaking raw errors.

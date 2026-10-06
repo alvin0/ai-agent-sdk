@@ -113,7 +113,10 @@ Prepared calls reuse the captured JSON body across retries; tasks share compiled
 rubrics without caching decisions, credentials or connections across calls.
 Valid usage is retained in provider-attempt reports even if answer validation
 fails. Invalid or overflowing usage counters fail validation and are not reported
-as trustworthy billing evidence.
+as trustworthy billing evidence. Each physical attempt is closed at most once,
+including when its accounting callback throws. Late credentials/admission do not
+dispatch after cancellation; late fetch responses are cancelled without reporting
+invented usage or closing the attempt again.
 
 Choice accepts 2–255 options; Score accepts 2–10 ordered levels. Invalid requests
 fail before network IO. Responses are byte-bounded and validated; score legends
@@ -135,7 +138,9 @@ Run `pnpm test:decision-live` from the workspace root for paid TypeSafe accounti
 checks. They inject an invalid choice after a real response and an overload before
 a real retry, verifying billed usage and reuse of the captured request. A structured
 score case sends invocation headers to the real API, then rejects a reversed
-legend injected into that response while retaining usage evidence.
+legend injected into that response while retaining usage evidence. A terminal audit
+rejection after a real billed response verifies one request and one attempt closure,
+even when provider retries are enabled.
 
 API references: [Evaluation](https://docs.typesafe.ai/api),
 [Models](https://docs.typesafe.ai/models), [Confidence](https://docs.typesafe.ai/confidence).

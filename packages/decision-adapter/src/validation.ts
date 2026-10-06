@@ -44,7 +44,18 @@ export function snapshotJson<T>(value: T, maxBytes = 2_097_152): T {
     if (typeof item !== 'object' || item === null || seen.has(item)) decisionError('Decision input must be finite, acyclic JSON')
     seen.add(item)
     let copied: unknown
-    if (Array.isArray(item)) copied = Object.freeze(Array.from(item, entry => visit(entry, depth + 1)))
+    if (Array.isArray(item)) {
+      if (item.length > 100_000 - nodes) decisionError('Decision JSON exceeds structural limits')
+      const descriptors = Object.getOwnPropertyDescriptors(item)
+      if (Object.getOwnPropertySymbols(item).length || Object.keys(descriptors).length !== item.length + 1) decisionError('Decision arrays must contain only indexed data properties')
+      const entries: unknown[] = []
+      for (let index = 0; index < item.length; index++) {
+        const descriptor = descriptors[String(index)]
+        if (descriptor === undefined || !('value' in descriptor) || !descriptor.enumerable) decisionError('Decision arrays must contain enumerable indexed data properties')
+        entries.push(visit(descriptor.value, depth + 1))
+      }
+      copied = Object.freeze(entries)
+    }
     else {
       const source = record(item, 'Decision JSON')
       const entries = Object.entries(Object.getOwnPropertyDescriptors(source)).map(([key, descriptor]) => {

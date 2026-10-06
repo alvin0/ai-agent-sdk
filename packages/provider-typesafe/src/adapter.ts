@@ -1,5 +1,5 @@
 import { assertUsableApiKey, attributionHeaders, ModelError, MODEL_ERROR_CODES, normalizeModelFailure, ProviderRequestId, resolveRetryPolicy, validateUsageCounters, type UsageCounters } from '@alvin0/ai-agent-sdk-core'
-import { CREDENTIAL_CAPABILITY_API_VERSION, type CredentialInput, type ModelInvocationContext, type ProviderAttemptHandle, type RetryPolicyConfig, type SdkLogger } from '@alvin0/ai-agent-sdk-core/provider'
+import { CREDENTIAL_CAPABILITY_API_VERSION, type CredentialInput, type EndProviderAttemptInput, type ModelInvocationContext, type ProviderAttemptHandle, type RetryPolicyConfig, type SdkLogger } from '@alvin0/ai-agent-sdk-core/provider'
 import { DecisionAdapter, defineDecisionProviderPlugin, snapshotDecisionInput, validateDecisionResult, type DecisionAnswer, type DecisionInput, type DecisionModelInfo, type DecisionProviderPlugin, type DecisionRequest, type DecisionResult, type PreparedDecisionCall } from '@alvin0/ai-agent-sdk-decision-adapter'
 import { abortable, throwIfAborted } from '@alvin0/ai-agent-sdk-decision-adapter/transport'
 
@@ -235,6 +235,12 @@ class TypesafeDecisionAdapter extends DecisionAdapter {
     let sent = false
     let requestId: string | undefined
     let reportedUsage: UsageCounters | undefined
+    const endAttempt = (input: EndProviderAttemptInput) => {
+      // Consume ownership before extension code: a throwing sink must not be called again.
+      const handle = attempt
+      attempt = undefined
+      handle?.end(input)
+    }
     try {
       throwIfAborted(signal)
       const credential = this.#credential
@@ -274,13 +280,13 @@ class TypesafeDecisionAdapter extends DecisionAdapter {
       const value = decode ? decode(json) : json
       throwIfAborted(signal)
       const usage = reportedUsage
-      attempt?.end({ status: 'success', dispatchState: 'sent', httpStatus: response.status, ...(requestId === undefined ? {} : { providerRequestId: requestId }), ...(usage === undefined ? {} : { reported: usage, usageFinal: true }) })
+      endAttempt({ status: 'success', dispatchState: 'sent', httpStatus: response.status, ...(requestId === undefined ? {} : { providerRequestId: requestId }), ...(usage === undefined ? {} : { reported: usage, usageFinal: true }) })
       return { value, ...(requestId === undefined ? {} : { requestId }) }
     } catch (error) {
       let failure: unknown = error
       if (signal.aborted) { try { throwIfAborted(signal) } catch (aborted) { failure = aborted } }
       const normalized = normalizeModelFailure(failure)
-      attempt?.end({ status: normalized.code === MODEL_ERROR_CODES.ABORTED ? 'aborted' : 'error', dispatchState: sent ? 'sent' : 'not-sent', ...(response === undefined ? {} : { httpStatus: response.status }), ...(requestId === undefined ? {} : { providerRequestId: requestId }), ...(reportedUsage === undefined ? {} : { reported: reportedUsage, usageFinal: true }), error: { type: 'ModelError', message: 'TypeSafe request failed', code: normalized.code } })
+      endAttempt({ status: normalized.code === MODEL_ERROR_CODES.ABORTED ? 'aborted' : 'error', dispatchState: sent ? 'sent' : 'not-sent', ...(response === undefined ? {} : { httpStatus: response.status }), ...(requestId === undefined ? {} : { providerRequestId: requestId }), ...(reportedUsage === undefined ? {} : { reported: reportedUsage, usageFinal: true }), error: { type: 'ModelError', message: 'TypeSafe request failed', code: normalized.code } })
       throw failure
     } finally {
       clearTimeout(timer)

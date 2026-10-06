@@ -2,6 +2,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
+import { ModelError } from '@alvin0/ai-agent-sdk-core'
 import { createDecisionRuntime, choiceQuestion, scoreQuestion } from '@alvin0/ai-agent-sdk-decision-adapter'
 import { typesafeAdapter, typesafePlugin } from '@alvin0/ai-agent-sdk-provider-typesafe'
 import type { EndProviderAttemptInput, ModelInvocationContext } from '@alvin0/ai-agent-sdk-core/provider'
@@ -26,6 +27,28 @@ afterAll(() => {
 })
 
 describe.skipIf(!apiKey)('decision accounting through real TypeSafe HTTP', () => {
+  it('does not repeat a billed request when the terminal audit sink rejects it', async () => {
+    const ended: EndProviderAttemptInput[] = []
+    const failure = new ModelError('Synthetic terminal audit rejection', 'OBSERVABILITY_AUDIT_UNAVAILABLE')
+    let calls = 0, actualModel = ''
+    const runtime = createDecisionRuntime({ timeoutMs: 60_000, retryPolicy: { mode: 'normal', maxRetries: 2, backoff: { initialDelayMs: 1, maxDelayMs: 1, jitterRatio: 0 } }, providers: [typesafePlugin({ apiKey: apiKey!, requestTimeoutMs: 60_000, fetch: async (url, init) => {
+      calls++
+      const response = await globalThis.fetch(url, init)
+      expect(response.ok).toBe(true)
+      const raw = await response.clone().json() as { model: string }
+      actualModel = raw.model
+      return response
+    } })] })
+    const context = { startProviderAttempt: async () => ({ traceparent: '00-0123456789abcdef0123456789abcdef-0123456789abcdef-01', end(value: EndProviderAttemptInput) { ended.push(value); throw failure } }) } as unknown as ModelInvocationContext
+    try {
+      await expect(runtime.decisionModel({ provider: 'typesafe', model }).evaluate(input, context)).rejects.toBe(failure)
+      expect(calls).toBe(1)
+      expect(ended).toHaveLength(1)
+      expect(ended[0]).toMatchObject({ status: 'success', dispatchState: 'sent', usageFinal: true })
+      expect(ended[0]!.reported?.inputTokens).toBeGreaterThan(0)
+      evidence.push({ name: 'terminal-audit-rejection-after-real-billing', model: actualModel, usage: ended[0]!.reported, fault: 'injected audit sink rejection after real reply; one attempt and one closure' })
+    } finally { await runtime.close() }
+  })
   it('accepts real structured score legends and rejects an injected reversal with billed usage', async () => {
     const levels = [{ description: 'Routine; no deadline', priority: 0 }, { description: 'Urgent; help required today', priority: 1 }]
     const request = { state: 'Please urgently refund my duplicate invoice charge today.', provider: 'typesafe', model, questions: { urgency: scoreQuestion('How urgent?', levels) } }
