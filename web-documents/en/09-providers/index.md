@@ -34,6 +34,15 @@ with its own plugin kind: `openAiEmbeddingPlugin()` and
 `geminiEmbeddingPlugin()` install beside a generation plugin on the same runtime.
 See [Embeddings](/en/09-providers/embeddings).
 
+Typed decisions use the optional `@alvin0/ai-agent-sdk-decision-adapter` companion
+runtime. Its LLM bridge reuses generation adapters for JSON Schema or tool output;
+`@alvin0/ai-agent-sdk-provider-typesafe` supplies native Jev choice, score and
+boolean decisions. Install decision plugins with `createDecisionRuntime()` and
+call their tasks from host workflows or agent tools. Forward the tool's signal
+and close both runtimes. Nested decision usage is separate from the agent's token
+budget unless the host supplies its own provider-attempt accounting context.
+See [decision setup and integration](https://github.com/alvin0/ai-agent-sdk/blob/main/packages/decision-adapter/README.md).
+
 ## Two registration styles
 
 New in 0.1.2: [Compatible gateways and database credentials](/en/09-providers/gateways-and-credentials).

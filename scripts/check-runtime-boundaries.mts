@@ -12,7 +12,7 @@ const forbiddenGlobals = new Set(['Buffer', 'process', '__dirname', '__filename'
 const errors: string[] = []
 
 function checkFile(path: string): void {
-  const display = relative(workspaceRoot, path)
+  const display = relative(workspaceRoot, path).replaceAll('\\', '/')
   for (const imported of importsInFile(path)) {
     if (builtins.has(imported.specifier) || imported.specifier.startsWith('node:')) {
       errors.push(`${display}:${imported.line}: Node builtin import ${imported.specifier}`)

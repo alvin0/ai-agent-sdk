@@ -51,12 +51,17 @@ if (called.result?.structuredContent?.sum !== 42) {
   throw new Error(`MCP tools/call failed: ${JSON.stringify(called)}`)
 }
 
-child.kill('SIGTERM')
-child.stdin.end()
-const exitCode = await Promise.race([
-  new Promise(resolve => child.once('exit', resolve)),
-  new Promise((_, reject) => setTimeout(() => reject(new Error(`server close timed out: ${stderr}`)), 5_000)),
-])
+const exitCode = await new Promise((resolve, reject) => {
+  const timer = setTimeout(() => {
+    child.kill('SIGKILL')
+    reject(new Error(`server close timed out: ${stderr}`))
+  }, 5_000)
+  // `close` also waits for stderr to drain. Register before requesting shutdown.
+  child.once('close', code => { clearTimeout(timer); resolve(code) })
+  // Windows SIGTERM terminates immediately; EOF exercises the server's close hook.
+  if (process.platform !== 'win32') child.kill('SIGTERM')
+  child.stdin.end()
+})
 if (exitCode !== 0 || !stderr.includes('MCP_CLOSE_REPORT')) {
   throw new Error(`MCP server close evidence missing: exit=${exitCode}; stderr=${stderr}`)
 }

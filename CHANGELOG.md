@@ -2,6 +2,28 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## 0.1.10 - 2026-10-06
+
+### Added
+
+- `@alvin0/ai-agent-sdk-decision-adapter`: typed choice, score and boolean decisions, a companion runtime with bounded retry/cancellation, reusable tasks, batching and evidence gates. LLM decisions reuse SDK generation adapters through JSON schema or tool output.
+- `@alvin0/ai-agent-sdk-provider-typesafe`: native TypeSafe Jev decisions with SDK credentials, provider-attempt accounting and validated probability evidence.
+- Agent-tool integration tests, live acceptance runners and document-selection/tool-routing samples for the decision packages.
+
+### Changed
+
+- All 28 workspace package manifests, root metadata and `SDK_VERSION` move to `0.1.10`; 27 packages are publishable and the private testkit remains unpublished.
+- CI and Release validate release documentation and human coverage declarations before publication.
+
+### Fixed
+
+- Decision results reject inconsistent token totals, reasoning counters and overflowing usage using the core SDK's accounting validator.
+- TypeSafe attempt reports retain valid billed usage when decision-answer validation fails.
+- Packed decision checks use the shared Windows-safe command runner, exercise paths containing spaces, and verify installed packages on Node, browser and Worker runtimes.
+- Decision sample privacy canaries comply with the existing privacy test policy. Runtime-boundary diagnostics use portable paths, and the negative fixture matrix includes both decision packages.
+- Both decision live commands declare their coverage and artifacts in the human acceptance ledger.
+- Packed MCP server checks use stdin EOF for graceful shutdown on Windows and wait for stderr to drain before inspecting the close report.
+
 ## 0.1.9 - 2026-10-06
 
 ### Changed

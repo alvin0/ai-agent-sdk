@@ -5,6 +5,10 @@ Runtime: **Universal** (Edge/Worker, browser, Deno, Bun, and Node).
 Compatible gateways can configure `baseUrl`, `models`, `fetch`, and `headers`
 (a string record or synchronous function returning one per operation).
 Generation uses Responses; embedding uses the OpenAI embeddings protocol.
+
+Project examples and live generation/decision tests use `gpt-6-luna` as the
+minimum OpenAI model. Select it or a newer model explicitly; do not fall back to
+older models when a request fails. Embedding model selection is separate.
 The embedding adapter/plugin also supports custom headers.
 Header names are case-insensitive. A `headers` entry overrides what the SDK
 would otherwise send for that name (`accept`, `content-type`, `user-agent`,
@@ -94,7 +98,7 @@ add `query` (never for secrets — those belong in `auth`/`apiKey`):
 ```ts
 openAiPlugin({
   id: 'azure-gpt',
-  baseUrl: 'https://my-res.openai.azure.com/openai/deployments/gpt-5-6',
+  baseUrl: 'https://my-res.openai.azure.com/openai/deployments/gpt-6-luna',
   path: '/chat/completions',
   api: 'chat-completions',
   query: { 'api-version': '2026-06-01' },

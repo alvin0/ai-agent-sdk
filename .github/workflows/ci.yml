@@ -42,6 +42,8 @@ jobs:
         run: pnpm workspace:build && pnpm workspace:typecheck && pnpm build:cli && pnpm lint && pnpm exec tsc --noEmit
       - name: Prove invalid boundaries are rejected
         run: pnpm check:boundary-fixtures
+      - name: Release documentation and human coverage declarations
+        run: pnpm check:docs && pnpm check:human
 
   functional:
     runs-on: ubuntu-latest

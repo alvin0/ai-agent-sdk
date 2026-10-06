@@ -23,6 +23,8 @@
     { "script": "human:structured-output", "journey": "short and long Codex or Gemini tool processes with a separate JSON Schema final round", "runtime": "node", "network": "live-provider", "artifact": "support-safe-summary-and-jsonl", "readme": "test-human/structured-output/README.md" },
     { "script": "human:node-codex", "journey": "Codex-like full Node SDK coding harness", "runtime": "node", "network": "offline-local-mcp", "artifact": "support-safe-jsonl-workspace-and-durable-journal", "readme": "test-human/node-codex/README.md" },
     { "script": "human:mcp", "journey": "MCP bridge round trips", "runtime": "node", "network": "offline", "artifact": "support-safe-jsonl", "readme": "test-human/mcp/README.md" },
-    { "script": "human:mcp:github", "journey": "remote authenticated GitHub MCP", "runtime": "node", "network": "remote-service", "artifact": "support-safe-jsonl", "readme": "test-human/github-mcp/README.md" }
+    { "script": "human:mcp:github", "journey": "remote authenticated GitHub MCP", "runtime": "node", "network": "remote-service", "artifact": "support-safe-jsonl", "readme": "test-human/github-mcp/README.md" },
+    { "script": "human:decision", "journey": "English and Vietnamese TypeSafe decisions with evidence gates", "runtime": "node", "network": "live-provider", "artifact": "support-safe-json-stdout", "readme": "packages/provider-typesafe/README.md" },
+    { "script": "human:decision:all", "journey": "TypeSafe and OpenAI decisions, batches, evidence provenance and core agent tool integration", "runtime": "node", "network": "live-provider", "artifact": "support-safe-jsonl-stdout", "readme": "packages/decision-adapter/README.md" }
   ]
 }

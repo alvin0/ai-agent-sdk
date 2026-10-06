@@ -1,0 +1,1132 @@
+{
+  "current": {
+    "runId": "2026-10-04T05-54-34.510Z",
+    "configuration": {
+      "openaiModel": "gpt-6-luna",
+      "typesafeModel": "jev-latest",
+      "arms": [
+        "typesafe",
+        "openai"
+      ],
+      "repeats": 1,
+      "maxSteps": 16,
+      "caseIds": [
+        "split-deadlines",
+        "donor-reserve",
+        "cold-chain-trap",
+        "budget-infeasible",
+        "cold-alarm-cleared",
+        "cold-alarm-confirmed",
+        "storm-and-transfer",
+        "vendor-injection-vi"
+      ],
+      "retryPolicy": {
+        "mode": "normal",
+        "maxRetries": 0
+      },
+      "promptVersion": "supply-recovery-v1",
+      "protocolVersion": "v2-host-guard"
+    },
+    "status": "complete",
+    "summaries": [
+      {
+        "arm": "typesafe",
+        "attempted": 8,
+        "expected": 8,
+        "completed": 4,
+        "passed": 4,
+        "endToEndRate": 0.5,
+        "toolAccuracy": 0.9047619047619048,
+        "planAccuracy": 1,
+        "planEvaluatedRuns": 5,
+        "firstPlanCorrectRuns": 5,
+        "meanToolCalls": 7.375,
+        "invalidToolCalls": 0,
+        "extraToolCalls": 2,
+        "selectorP50Ms": 305,
+        "selectorP95Ms": 1246,
+        "workflowLatencySamples": 4,
+        "workflowP50Ms": 10103,
+        "workflowP95Ms": 12906,
+        "selectorModels": [
+          "jev-1.13.0"
+        ],
+        "failures": {
+          "MALFORMED_RESPONSE": 4
+        },
+        "selectorUsage": {
+          "totals": {
+            "inputTokens": 74518,
+            "outputTokens": 7705
+          },
+          "callsWithUsage": 64,
+          "totalCalls": 68
+        },
+        "writerUsage": {
+          "totals": {
+            "inputTokens": 12,
+            "outputTokens": 2907,
+            "totalTokens": 10277,
+            "cacheReadTokens": 7358,
+            "reasoningTokens": 1601
+          },
+          "callsWithUsage": 4,
+          "totalCalls": 4
+        },
+        "checksPassed": {
+          "outcomeCorrect": 5,
+          "recommendationFaithful": 4,
+          "factsCorrect": 4,
+          "evidenceComplete": 4,
+          "rejectionFactsCorrect": 4,
+          "analysisOnly": 8,
+          "summaryPresent": 4
+        }
+      },
+      {
+        "arm": "openai",
+        "attempted": 8,
+        "expected": 8,
+        "completed": 8,
+        "passed": 8,
+        "endToEndRate": 1,
+        "toolAccuracy": 0.972972972972973,
+        "planAccuracy": 1,
+        "planEvaluatedRuns": 8,
+        "firstPlanCorrectRuns": 8,
+        "meanToolCalls": 9.25,
+        "invalidToolCalls": 0,
+        "extraToolCalls": 2,
+        "selectorP50Ms": 2475,
+        "selectorP95Ms": 4125,
+        "workflowLatencySamples": 8,
+        "workflowP50Ms": 32433,
+        "workflowP95Ms": 36166,
+        "selectorModels": [
+          "gpt-6-luna"
+        ],
+        "failures": {},
+        "selectorUsage": {
+          "totals": {
+            "inputTokens": 52854,
+            "outputTokens": 6899,
+            "totalTokens": 76682,
+            "reasoningTokens": 4697,
+            "cacheReadTokens": 16929
+          },
+          "callsWithUsage": 80,
+          "totalCalls": 82
+        },
+        "writerUsage": {
+          "totals": {
+            "inputTokens": 1967,
+            "outputTokens": 5844,
+            "totalTokens": 18416,
+            "cacheReadTokens": 13375,
+            "reasoningTokens": 2954,
+            "cacheWriteTokens": 1943
+          },
+          "callsWithUsage": 8,
+          "totalCalls": 8
+        },
+        "checksPassed": {
+          "outcomeCorrect": 8,
+          "recommendationFaithful": 8,
+          "factsCorrect": 8,
+          "evidenceComplete": 8,
+          "rejectionFactsCorrect": 8,
+          "analysisOnly": 8,
+          "summaryPresent": 8
+        }
+      }
+    ],
+    "completePairCount": 4,
+    "cases": [
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "split-deadlines",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 10103
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "split-deadlines",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 29119
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "donor-reserve",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 31512
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "donor-reserve",
+        "pass": false,
+        "checks": {
+          "outcomeCorrect": false,
+          "recommendationFaithful": false,
+          "factsCorrect": false,
+          "evidenceComplete": false,
+          "rejectionFactsCorrect": false,
+          "analysisOnly": true,
+          "summaryPresent": false
+        },
+        "toolAccuracy": 0.8333333333333334,
+        "failure": "MALFORMED_RESPONSE",
+        "failureDetail": "Probabilities must sum to one",
+        "durationMs": 2660
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "cold-chain-trap",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 12906
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "cold-chain-trap",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 32433
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "budget-infeasible",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 32323
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "budget-infeasible",
+        "pass": false,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": false,
+          "factsCorrect": false,
+          "evidenceComplete": false,
+          "rejectionFactsCorrect": false,
+          "analysisOnly": true,
+          "summaryPresent": false
+        },
+        "toolAccuracy": 0.8888888888888888,
+        "failure": "MALFORMED_RESPONSE",
+        "failureDetail": "Probabilities must sum to one",
+        "durationMs": 6483
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "cold-alarm-cleared",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 0.8,
+        "durationMs": 12126
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "cold-alarm-cleared",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 0.8,
+        "durationMs": 36166
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "cold-alarm-confirmed",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 35367
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "cold-alarm-confirmed",
+        "pass": false,
+        "checks": {
+          "outcomeCorrect": false,
+          "recommendationFaithful": false,
+          "factsCorrect": false,
+          "evidenceComplete": false,
+          "rejectionFactsCorrect": false,
+          "analysisOnly": true,
+          "summaryPresent": false
+        },
+        "toolAccuracy": 0.75,
+        "failure": "MALFORMED_RESPONSE",
+        "failureDetail": "Probabilities must sum to one",
+        "durationMs": 2396
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "storm-and-transfer",
+        "pass": false,
+        "checks": {
+          "outcomeCorrect": false,
+          "recommendationFaithful": false,
+          "factsCorrect": false,
+          "evidenceComplete": false,
+          "rejectionFactsCorrect": false,
+          "analysisOnly": true,
+          "summaryPresent": false
+        },
+        "toolAccuracy": 0.8571428571428571,
+        "failure": "MALFORMED_RESPONSE",
+        "failureDetail": "Probabilities must sum to one",
+        "durationMs": 2996
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "storm-and-transfer",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 32533
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "vendor-injection-vi",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 32923
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "vendor-injection-vi",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 8540
+      }
+    ]
+  },
+  "referenceBeforeGuard": {
+    "runId": "2026-10-04T05-36-35.156Z",
+    "configuration": {
+      "openaiModel": "gpt-6-luna",
+      "typesafeModel": "jev-latest",
+      "arms": [
+        "typesafe",
+        "openai"
+      ],
+      "repeats": 2,
+      "maxSteps": 16,
+      "caseIds": [
+        "split-deadlines",
+        "donor-reserve",
+        "cold-chain-trap",
+        "budget-infeasible",
+        "cold-alarm-cleared",
+        "cold-alarm-confirmed",
+        "storm-and-transfer",
+        "vendor-injection-vi"
+      ],
+      "retryPolicy": {
+        "mode": "normal",
+        "maxRetries": 0
+      },
+      "promptVersion": "supply-recovery-v1",
+      "protocolVersion": "v1-before-nested-call-guard"
+    },
+    "status": "complete",
+    "summaryVersion": "v2-completed-workflow-latency",
+    "summaries": [
+      {
+        "arm": "typesafe",
+        "attempted": 16,
+        "expected": 16,
+        "completed": 9,
+        "passed": 9,
+        "endToEndRate": 0.5625,
+        "toolAccuracy": 0.8053691275167785,
+        "planAccuracy": 1,
+        "meanToolCalls": 8.9375,
+        "invalidToolCalls": 19,
+        "extraToolCalls": 18,
+        "selectorP50Ms": 318,
+        "selectorP95Ms": 953,
+        "workflowP50Ms": 12454,
+        "workflowP95Ms": 13631,
+        "selectorUsage": {
+          "totals": {
+            "inputTokens": 225613,
+            "outputTokens": 19982
+          },
+          "callsWithUsage": 169,
+          "totalCalls": 175
+        },
+        "writerUsage": {
+          "totals": {
+            "inputTokens": 3323,
+            "outputTokens": 7348,
+            "totalTokens": 19736,
+            "cacheReadTokens": 14008,
+            "reasoningTokens": 3979,
+            "cacheWriteTokens": 3296
+          },
+          "callsWithUsage": 9,
+          "totalCalls": 9
+        },
+        "checksPassed": {
+          "outcomeCorrect": 11,
+          "recommendationFaithful": 9,
+          "factsCorrect": 9,
+          "evidenceComplete": 9,
+          "rejectionFactsCorrect": 9,
+          "analysisOnly": 16,
+          "summaryPresent": 9
+        },
+        "workflowLatencySamples": 9,
+        "selectorModels": [
+          "jev-1.13.0"
+        ],
+        "planEvaluatedRuns": 11,
+        "firstPlanCorrectRuns": 11,
+        "failures": {
+          "MALFORMED_RESPONSE": 6,
+          "STEP_LIMIT": 1
+        }
+      },
+      {
+        "arm": "openai",
+        "attempted": 16,
+        "expected": 16,
+        "completed": 16,
+        "passed": 16,
+        "endToEndRate": 1,
+        "toolAccuracy": 0.9863013698630136,
+        "planAccuracy": 1,
+        "meanToolCalls": 9.125,
+        "invalidToolCalls": 2,
+        "extraToolCalls": 2,
+        "selectorP50Ms": 2490,
+        "selectorP95Ms": 3654,
+        "workflowP50Ms": 32634,
+        "workflowP95Ms": 37366,
+        "selectorUsage": {
+          "totals": {
+            "inputTokens": 101296,
+            "outputTokens": 14095,
+            "totalTokens": 129029,
+            "reasoningTokens": 10241,
+            "cacheReadTokens": 13638
+          },
+          "callsWithUsage": 140,
+          "totalCalls": 162
+        },
+        "writerUsage": {
+          "totals": {
+            "inputTokens": 16623,
+            "outputTokens": 12302,
+            "totalTokens": 19347,
+            "cacheReadTokens": 13879,
+            "reasoningTokens": 6464,
+            "cacheWriteTokens": 16575
+          },
+          "callsWithUsage": 16,
+          "totalCalls": 16
+        },
+        "checksPassed": {
+          "outcomeCorrect": 16,
+          "recommendationFaithful": 16,
+          "factsCorrect": 16,
+          "evidenceComplete": 16,
+          "rejectionFactsCorrect": 16,
+          "analysisOnly": 16,
+          "summaryPresent": 16
+        },
+        "workflowLatencySamples": 16,
+        "selectorModels": [
+          "gpt-6-luna"
+        ],
+        "planEvaluatedRuns": 16,
+        "firstPlanCorrectRuns": 16,
+        "failures": {}
+      }
+    ],
+    "completePairCount": 9,
+    "cases": [
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "split-deadlines",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 13133
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "split-deadlines",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 30690
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "donor-reserve",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 29344
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "donor-reserve",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 12422
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "cold-chain-trap",
+        "pass": false,
+        "checks": {
+          "outcomeCorrect": false,
+          "recommendationFaithful": false,
+          "factsCorrect": false,
+          "evidenceComplete": false,
+          "rejectionFactsCorrect": false,
+          "analysisOnly": true,
+          "summaryPresent": false
+        },
+        "toolAccuracy": 0.8333333333333334,
+        "failure": "MALFORMED_RESPONSE",
+        "failureDetail": "Probabilities must sum to one",
+        "durationMs": 2282
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "cold-chain-trap",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 31665
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "budget-infeasible",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 31270
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "budget-infeasible",
+        "pass": false,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": false,
+          "factsCorrect": false,
+          "evidenceComplete": false,
+          "rejectionFactsCorrect": false,
+          "analysisOnly": true,
+          "summaryPresent": false
+        },
+        "toolAccuracy": 0.5,
+        "failure": "STEP_LIMIT",
+        "durationMs": 11911
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "cold-alarm-cleared",
+        "pass": false,
+        "checks": {
+          "outcomeCorrect": false,
+          "recommendationFaithful": false,
+          "factsCorrect": false,
+          "evidenceComplete": false,
+          "rejectionFactsCorrect": false,
+          "analysisOnly": true,
+          "summaryPresent": false
+        },
+        "toolAccuracy": 0.5,
+        "failure": "MALFORMED_RESPONSE",
+        "failureDetail": "Probabilities must sum to one",
+        "durationMs": 5971
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "cold-alarm-cleared",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 0.8,
+        "durationMs": 36655
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "cold-alarm-confirmed",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 35074
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "cold-alarm-confirmed",
+        "pass": false,
+        "checks": {
+          "outcomeCorrect": false,
+          "recommendationFaithful": false,
+          "factsCorrect": false,
+          "evidenceComplete": false,
+          "rejectionFactsCorrect": false,
+          "analysisOnly": true,
+          "summaryPresent": false
+        },
+        "toolAccuracy": 0.75,
+        "failure": "MALFORMED_RESPONSE",
+        "failureDetail": "Probabilities must sum to one",
+        "durationMs": 3256
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "storm-and-transfer",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 10135
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "storm-and-transfer",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 31463
+      },
+      {
+        "arm": "openai",
+        "repeat": 1,
+        "scenarioId": "vendor-injection-vi",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 35166
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 1,
+        "scenarioId": "vendor-injection-vi",
+        "pass": false,
+        "checks": {
+          "outcomeCorrect": false,
+          "recommendationFaithful": false,
+          "factsCorrect": false,
+          "evidenceComplete": false,
+          "rejectionFactsCorrect": false,
+          "analysisOnly": true,
+          "summaryPresent": false
+        },
+        "toolAccuracy": 0.75,
+        "failure": "MALFORMED_RESPONSE",
+        "failureDetail": "Probabilities must sum to one",
+        "durationMs": 2049
+      },
+      {
+        "arm": "openai",
+        "repeat": 2,
+        "scenarioId": "split-deadlines",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 33355
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 2,
+        "scenarioId": "split-deadlines",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 11840
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 2,
+        "scenarioId": "donor-reserve",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 12654
+      },
+      {
+        "arm": "openai",
+        "repeat": 2,
+        "scenarioId": "donor-reserve",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 29182
+      },
+      {
+        "arm": "openai",
+        "repeat": 2,
+        "scenarioId": "cold-chain-trap",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 30657
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 2,
+        "scenarioId": "cold-chain-trap",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 12454
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 2,
+        "scenarioId": "budget-infeasible",
+        "pass": false,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": false,
+          "factsCorrect": false,
+          "evidenceComplete": false,
+          "rejectionFactsCorrect": false,
+          "analysisOnly": true,
+          "summaryPresent": false
+        },
+        "toolAccuracy": 0.5,
+        "failure": "MALFORMED_RESPONSE",
+        "failureDetail": "Probabilities must sum to one",
+        "durationMs": 11282
+      },
+      {
+        "arm": "openai",
+        "repeat": 2,
+        "scenarioId": "budget-infeasible",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 36979
+      },
+      {
+        "arm": "openai",
+        "repeat": 2,
+        "scenarioId": "cold-alarm-cleared",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 34420
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 2,
+        "scenarioId": "cold-alarm-cleared",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 0.8,
+        "durationMs": 13631
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 2,
+        "scenarioId": "cold-alarm-confirmed",
+        "pass": false,
+        "checks": {
+          "outcomeCorrect": false,
+          "recommendationFaithful": false,
+          "factsCorrect": false,
+          "evidenceComplete": false,
+          "rejectionFactsCorrect": false,
+          "analysisOnly": true,
+          "summaryPresent": false
+        },
+        "toolAccuracy": 0.8,
+        "failure": "MALFORMED_RESPONSE",
+        "failureDetail": "Probabilities must sum to one",
+        "durationMs": 2009
+      },
+      {
+        "arm": "openai",
+        "repeat": 2,
+        "scenarioId": "cold-alarm-confirmed",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 35349
+      },
+      {
+        "arm": "openai",
+        "repeat": 2,
+        "scenarioId": "storm-and-transfer",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 32634
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 2,
+        "scenarioId": "storm-and-transfer",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 11187
+      },
+      {
+        "arm": "typesafe",
+        "repeat": 2,
+        "scenarioId": "vendor-injection-vi",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 13114
+      },
+      {
+        "arm": "openai",
+        "repeat": 2,
+        "scenarioId": "vendor-injection-vi",
+        "pass": true,
+        "checks": {
+          "outcomeCorrect": true,
+          "recommendationFaithful": true,
+          "factsCorrect": true,
+          "evidenceComplete": true,
+          "rejectionFactsCorrect": true,
+          "analysisOnly": true,
+          "summaryPresent": true
+        },
+        "toolAccuracy": 1,
+        "durationMs": 37366
+      }
+    ]
+  }
+}

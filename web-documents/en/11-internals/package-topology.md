@@ -32,11 +32,13 @@ ledger to keep in sync.
 Schema v5 freezes these baselines explicitly, **so a runtime label cannot pass
 merely because the imports look clean**.
 
-## The 25 target packages
+## The 27 target packages
 
 | Package | Tier | Roles |
 | --- | --- | --- |
 | `core` | universal | core-runtime |
+| `decision-adapter` | universal | decision-runtime |
+| `provider-typesafe` | universal | decision-provider |
 | `provider-http` | universal | provider-extension-kit |
 | `protocol-responses` | universal | wire-protocol |
 | `protocol-anthropic-messages` | universal | wire-protocol |
@@ -66,11 +68,12 @@ merely because the imports look clean**.
 
 ## Multi-entry packages
 
-Five packages have more than one public entrypoint:
+Six packages have more than one public entrypoint:
 
 | Package | Entrypoints |
 | --- | --- |
 | `core` | `.` `./agent` `./memory` `./provider` `./skills` `./tools` `./embedding` `./observability` |
+| `decision-adapter` | `.` `./transport` |
 | `auth-node` | `.` `./env` `./codex` `./copilot` |
 | `a2a` | `.` `./client` `./server` |
 | `mcp` | `.` `./client` `./server` |
@@ -79,11 +82,11 @@ Five packages have more than one public entrypoint:
 MCP `/server`, auth `/codex` and auth `/copilot` are **optional-peer views**;
 identity routes are recorded separately.
 
-Across the 25 packages that is 41 public specifiers.
+Across the 27 packages that is 44 public specifiers, excluding package metadata exports.
 
 ## Manifest rules
 
-All 25 packages:
+All 27 packages:
 
 - **forbid wildcard and `require` routes**;
 - include an explicit `"./package.json"` export;

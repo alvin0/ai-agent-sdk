@@ -11,7 +11,7 @@
 
 ## Install
 
-All 25 publishable packages are published on npm under the `@alvin0` scope, built and
+The workspace has 27 publishable packages under the `@alvin0` scope, built and
 signed from CI with SLSA provenance.
 
 ```text
@@ -58,6 +58,16 @@ pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-auth-node @alvin0/ai-age
 ```
 
 All three profiles share the same Universal core and agent loop.
+
+For typed decisions, add the Universal companion and native TypeSafe provider:
+
+```bash
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-decision-adapter \
+  @alvin0/ai-agent-sdk-provider-typesafe
+```
+
+The decision companion can also reuse an installed generation adapter through
+`llmDecisionPlugin()`; concrete providers remain optional dependencies.
 
 ## Credentials
 

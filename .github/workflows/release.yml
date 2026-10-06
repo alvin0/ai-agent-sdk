@@ -63,6 +63,9 @@ jobs:
       - name: Functional and supply-chain gates
         run: pnpm exec vitest run && pnpm test:packages && pnpm test:pack && pnpm check:supply-chain
 
+      - name: Release documentation and human coverage declarations
+        run: pnpm check:docs && pnpm check:human
+
       - name: Assert lockstep package versions
         run: |
           version="$(node -p "require('./packages/core/package.json').version")"
