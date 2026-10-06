@@ -1,4 +1,5 @@
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
+import { runPackedCommand as run } from '../../../scripts/packed-command.mts'
 import { createServer } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -44,15 +45,10 @@ function pack(root: string, destination: string): string {
   return resolve(root, tarball)
 }
 
-function run(command: string, args: readonly string[], cwd: string): string {
-  const result = spawnSync(command, args, { cwd, encoding: 'utf8', env: process.env })
-  if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed\n${result.stdout}\n${result.stderr}`)
-  return result.stdout
-}
 
 async function testNegativeWorker(consumer: string): Promise<void> {
   const port = await availablePort()
-  const child = spawn(join(workspaceRoot, 'node_modules', '.bin', 'wrangler'), [
+  const child = spawn(process.execPath, [join(workspaceRoot, 'node_modules', 'wrangler', 'bin', 'wrangler.js'),
     'dev', '--config', 'wrangler.jsonc', '--ip', '127.0.0.1', '--port', String(port),
   ], { cwd: consumer, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
   let output = ''

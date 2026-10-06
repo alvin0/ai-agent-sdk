@@ -38,6 +38,7 @@
  *   the shared exchange belongs to no caller.
  */
 
+import { setImmediate as nextTick } from 'node:timers/promises'
 import {
   AgentSdkError,
   createCoreSpan,
@@ -139,7 +140,7 @@ const caller = (signal: AbortSignal): CredentialOperationOptions =>
 const openCaller = (): CredentialOperationOptions => caller(new AbortController().signal)
 
 /** Yield a macrotask, so an in-flight exchange actually reaches the `fetch` double. */
-const tick = (): Promise<void> => new Promise<void>(resolve => { setTimeout(resolve, 0) })
+const tick = (): Promise<void> => nextTick()
 
 const jsonResponse = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })

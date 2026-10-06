@@ -17,6 +17,13 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Fixed
 
+- Responses streams preserve usage attached to `response.failed`, so a billed failed finalizer cannot bypass the token budget by retrying.
+- Finalizer retries and the retry for an empty forced answer count the latest call's usage before starting another request, so they cannot bypass the hard token budget.
+- Cancellation during a forced-answer or structured-output retry hook ends the turn as aborted and records the interruption marker.
+- A forced answer that remains empty after its retry reports `forcedFinalAnswer: false`.
+- Reasoning-prefix buffering preserves repeated chunk object references and validates its cap before opening a provider stream.
+- Workspace build, typecheck and package-test scripts use portable quoting so their package filters also run on Windows instead of silently selecting zero packages.
+- Tarball checks invoke npm and Wrangler through their JavaScript entries on Windows, preserving argument boundaries and avoiding executable shim failures.
 - Restoring an answer after an unconfirmed finalize window preserves its original app or model provenance, so sanitized answers remain valid in persisted history.
 - A user-input broker's promise is observed before publishing the question event, preventing late rejections from becoming unhandled when timeout wins during event backpressure. Abort listeners are removed when the wait ends.
 - The turn's time budget excludes only intervals spent solely waiting for a person. Sibling tool work still counts, including work that overlaps a parallel question wait.

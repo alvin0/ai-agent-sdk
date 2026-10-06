@@ -588,7 +588,7 @@ describe('Feature: github-copilot-provider, Property 51: Số bản ghi attempt 
       // One credential, one exchange, however many attempts it served.
       expect(spy.exchanges(), `${trace}: exchanges`).toBe(1)
     }
-  })
+  }, 30_000) // Generated retries use real timers, including Windows timer granularity.
 
   it('records no attempt at all when the failure happens before dispatch', async () => {
     // An empty credential store fails in `auth.resolve`, which runs before the

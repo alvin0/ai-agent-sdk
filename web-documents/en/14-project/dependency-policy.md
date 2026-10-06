@@ -38,6 +38,15 @@ are expressed as **exact-version optional dependencies**.
 An upgrade must re-audit the package, version, lifecycle script, source,
 integrity, and platform dependency set **before** changing the allowlist.
 
+## Windows Sharp license review
+
+The Next.js samples install `@img/sharp-win32-x64@0.35.4` on Windows.
+Its `Apache-2.0 AND LGPL-3.0-or-later` expression covers Sharp and the bundled
+libvips binary, matching the libvips licensing already reviewed for Linux.
+The checker accepts only this exact package/version and license expression;
+registry integrity and advisory checks still apply. Owner: SDK maintainers.
+Review expiry: 2026-12-06.
+
 ## SSE parser retention
 
 The workspace retains exact `eventsource-parser@4.1.0` in

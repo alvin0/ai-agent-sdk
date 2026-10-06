@@ -1,10 +1,11 @@
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { createServer } from 'node:http'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { extname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
+import { runPackedCommand as run } from './packed-command.mts'
 
 const packageName = process.argv[2]
 const PROTOCOL_IDS = new Map<string, string>([
@@ -64,14 +65,6 @@ function required(values: ReadonlyMap<string, string>, key: string): string {
   return value
 }
 
-function run(command: string, args: readonly string[], cwd: string): string {
-  const result = spawnSync(command, args, { cwd, encoding: 'utf8', env: process.env })
-  if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(' ')} failed\n${result.stdout}\n${result.stderr}`)
-  }
-  return result.stdout
-}
-
 async function testBrowser(consumer: string): Promise<void> {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1')
@@ -108,10 +101,10 @@ async function testBrowser(consumer: string): Promise<void> {
 }
 
 async function testWorker(consumer: string): Promise<void> {
-  const wrangler = join(workspaceRoot, 'node_modules', '.bin', 'wrangler')
-  const child = spawn(wrangler, [
+  const wrangler = join(workspaceRoot, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
+  const child = spawn(process.execPath, [wrangler,
     'dev', '--local', '--config', 'wrangler.jsonc', '--ip', '127.0.0.1', '--port', '0', '--inspector-port', '0',
-  ], { cwd: consumer, env: process.env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
+  ], { cwd: consumer, env: process.env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
   let output = ''
   child.stdout?.on('data', chunk => { output = `${output}${String(chunk)}`.slice(-16_384) })
   child.stderr?.on('data', chunk => { output = `${output}${String(chunk)}`.slice(-16_384) })

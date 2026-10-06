@@ -7,6 +7,7 @@ export default defineConfig({
       '../../tests/unit/composition/**/*.spec.ts',
       '../../tests/unit/agent-definition.spec.ts',
       '../../tests/unit/agent-modes.spec.ts',
+      '../../tests/unit/budget-edge-recovery.spec.ts',
       '../../tests/unit/deep-kept-answer-edges.spec.ts',
       '../../tests/unit/runtime-session-steering.spec.ts',
       '../../tests/unit/session-inject-ordering.spec.ts',

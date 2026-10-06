@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import { History, ToolRegistry, defineTool, runAgent, UNCHANGED_ANSWER_MARKER, type AgentRunEvent } from '@alvin0/ai-agent-sdk-core/agent'
 import {
@@ -69,6 +70,20 @@ describe('withRetry reasoning prefix', () => {
     expect(inner.requests).toHaveLength(1)
     expect(chunks.filter(chunk => chunk.type === 'reasoning-delta').map(chunk => chunk.type === 'reasoning-delta' && chunk.text))
       .toEqual(['thinking', 'more'])
+  })
+
+  it('preserves repeated chunk references when the reasoning cap is reached', async () => {
+    const delta: StreamChunk = { type: 'reasoning-delta', index: 0, text: 'again' }
+    const rounds: StreamChunk[] = [reasoning[0]!, delta, delta, failed]
+    const inner = new Scripted([rounds])
+    expect(await drain(withRetry(inner, { ...noWait, bufferReasoningPrefix: { maxChunks: 2 } }))).toEqual(rounds)
+  })
+
+  it('rejects an invalid reasoning cap before opening a provider stream', async () => {
+    const inner = new Scripted([answer])
+    await expect(drain(withRetry(inner, { ...noWait, bufferReasoningPrefix: { maxChunks: 0 } })))
+      .rejects.toThrow('maxChunks must be a positive safe integer')
+    expect(inner.requests).toHaveLength(0)
   })
 })
 
@@ -160,6 +175,48 @@ describe('budget edges across modes', () => {
       { mode: 'basic', maxTurns: 2, hooks: { onRequestError: () => 'retry' } })
     expect(end).toMatchObject({ outcome: { completed: true, text: 'The fine is 5 million, from 2024.' } })
     expect(JSON.stringify(adapter.requests[1]?.messages)).not.toContain('The fine is 5 and')
+  })
+
+  it.each(['forced', 'structured'] as const)('does not retry a %s finalizer after its failed call spends the token budget', async kind => {
+    const usage: StreamChunk = { type: 'usage', usage: { inputTokens: 8, outputTokens: 2, totalTokens: 10 } }
+    const hook = vi.fn(() => 'retry' as const)
+    const { adapter, end } = await run([
+      kind === 'forced' ? call('e1', 'echo') : text('Evidence gathered.'),
+      [usage, failed], text('Should never be requested.'),
+    ], { mode: 'basic', maxTurns: kind === 'forced' ? 1 : 4,
+      bounds: { maxTotalTokens: 10 }, hooks: { onRequestError: hook },
+      ...kind === 'structured' ? { outputFormat: { type: 'json_schema', name: 'result', schema: { type: 'object' } } } : {},
+    })
+    expect(adapter.requests).toHaveLength(2)
+    expect(hook).not.toHaveBeenCalled()
+    expect(end).toMatchObject({ outcome: { usageReport: { budgetTokens: 10 } } })
+  })
+
+  it.each(['forced', 'structured'] as const)('keeps cancellation during a %s finalizer retry hook as an aborted turn', async kind => {
+    const controller = new AbortController()
+    const { adapter, history, end } = await run([
+      kind === 'forced' ? call('e1', 'echo') : text('Evidence gathered.'), [failed], text('Should never be requested.'),
+    ], { mode: 'basic', maxTurns: kind === 'forced' ? 1 : 4, signal: controller.signal,
+      hooks: { onRequestError: () => { controller.abort(new Error('cancelled during backoff')); throw controller.signal.reason } },
+      ...kind === 'structured' ? { outputFormat: { type: 'json_schema', name: 'result', schema: { type: 'object' } } } : {},
+    })
+    expect(adapter.requests).toHaveLength(2)
+    expect(end).toMatchObject({ outcome: { reason: { kind: 'aborted' } } })
+    expect(history.messages().at(-1)?.source).toEqual({ kind: 'app', producer: 'turn-interrupted' })
+  })
+
+  it('does not request another empty finalizer after its usage spends the token budget', async () => {
+    const usage: StreamChunk = { type: 'usage', usage: { inputTokens: 8, outputTokens: 2, totalTokens: 10 } }
+    const { adapter, end } = await run([call('e1', 'echo'), [...text('').slice(0, -1), usage, { type: 'finish', reason: { kind: 'stop' } }],
+      text('Should never be requested.')], { mode: 'basic', maxTurns: 1, bounds: { maxTotalTokens: 10 } })
+    expect(adapter.requests).toHaveLength(2)
+    expect(end).toMatchObject({ outcome: { text: '', reason: { kind: 'budget-exhausted', forcedFinalAnswer: false } } })
+  })
+
+  it('reports no forced answer when both tools-off replies are empty', async () => {
+    const { adapter, end } = await run([call('e1', 'echo'), text(''), text('')], { mode: 'basic', maxTurns: 1 })
+    expect(adapter.requests).toHaveLength(3)
+    expect(end).toMatchObject({ outcome: { text: '', reason: { kind: 'budget-exhausted', forcedFinalAnswer: false } } })
   })
 
   it('a question that is not answered in time is not the person dismissing it', async () => {
@@ -293,7 +350,7 @@ describe('review findings on the budget-edge changes', () => {
 
   it('observes late broker rejection when timeout wins during event backpressure', async () => {
     await expect(promisify(execFile)(process.execPath, [
-      '--unhandled-rejections=strict', 'tests/fixtures/user-input-backpressure.mjs',
+      '--unhandled-rejections=strict', fileURLToPath(new URL('../fixtures/user-input-backpressure.mjs', import.meta.url)),
     ], { timeout: 10_000 })).resolves.toMatchObject({ stdout: 'broker backpressure regression passed\n' })
   })
 

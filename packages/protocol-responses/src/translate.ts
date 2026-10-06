@@ -444,8 +444,14 @@ export async function* translateResponsesStream(
         )
       }
 
-      case 'response.failed':
+      case 'response.failed': {
+        // A failed generation can still be billed. Preserve the provider's
+        // counters before the transport records the failure and retry admission.
+        const usage = event.response?.usage ?? undefined
+        const mapped = usage === undefined ? undefined : mapUsage(usage)
+        if (mapped !== undefined) yield { type: 'usage', usage: mapped }
         throw failedError(event.response, displayName)
+      }
 
       case 'error': {
         // A top-level error event carries its fields inline rather than under a

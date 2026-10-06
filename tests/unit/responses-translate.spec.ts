@@ -169,6 +169,16 @@ describe('Responses usage normalization', () => {
 })
 
 describe('Responses failed response', () => {
+  it('reports usage on a failed response before propagating the error', async () => {
+    const stream = translateResponsesStream(events([{ type: 'response.failed', response: {
+      status: 'failed', error: { code: 'server_error', message: 'Transient failure' },
+      usage: { input_tokens: 8, output_tokens: 2, total_tokens: 10 },
+    } }]), 'test')[Symbol.asyncIterator]()
+    expect(await stream.next()).toMatchObject({ done: false, value: {
+      type: 'usage', usage: { inputTokens: 8, outputTokens: 2, totalTokens: 10 },
+    } })
+    await expect(stream.next()).rejects.toMatchObject({ code: 'SERVER', message: 'Transient failure' })
+  })
   async function failure(response: object) {
     try {
       for await (const _chunk of translateResponsesStream(events([

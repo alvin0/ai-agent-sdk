@@ -272,6 +272,7 @@ class RetryingAdapter extends ModelAdapter {
     | { kind: 'forward'; chunks: AsyncIterable<StreamChunk> }
     | { kind: 'retryable'; failure: ModelFailure }
   > {
+    const cap = reasoningBufferCap(this.options.bufferReasoningPrefix)
     let iterator: AsyncIterator<StreamChunk>
     try {
       iterator = dispatch(options)[Symbol.asyncIterator]()
@@ -321,9 +322,9 @@ class RetryingAdapter extends ModelAdapter {
     }
 
     const held: StreamChunk[] = []
-    const cap = reasoningBufferCap(this.options.bufferReasoningPrefix)
     if (cap > 0) {
       const reasoningBlocks = new Set<number>()
+      let ended = false
       try {
         while (isReasoningChunk(chunk, reasoningBlocks) && held.length < cap) {
           held.push(chunk)
@@ -338,7 +339,7 @@ class RetryingAdapter extends ModelAdapter {
             }
             next = await iterator.next()
           }
-          if (next.done === true) break
+          if (next.done === true) { ended = true; break }
           chunk = next.value
           // Still only thinking when it failed: nothing was shown, so retry.
           if (chunk.type === 'finish' && chunk.reason.kind === 'error') {
@@ -351,7 +352,7 @@ class RetryingAdapter extends ModelAdapter {
         return { kind: 'retryable', failure: normalizeModelFailure(error) }
       }
       // A stream that only reasoned and then ended releases what it held.
-      if (held.length > 0 && held.at(-1) === chunk) {
+      if (ended) {
         return { kind: 'forward', chunks: resume(held, undefined, iterator, this.options.teardownTimeoutMs ?? 30_000) }
       }
     }

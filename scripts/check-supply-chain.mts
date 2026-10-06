@@ -15,7 +15,7 @@ const exoticSpecifier = /^(?:git(?:\+[^:]+)?:|github:|https?:|file:|link:|portal
 
 function yamlMap(section: string): ReadonlyMap<string, string> {
   const output = new Map<string, string>()
-  const lines = workspaceConfig.split('\n')
+  const lines = workspaceConfig.split(/\r?\n/)
   const start = lines.findIndex((line) => line === `${section}:`)
   if (start === -1) return output
   for (const line of lines.slice(start + 1)) {
@@ -64,7 +64,7 @@ interface LockPackage {
 const lockPackages: LockPackage[] = []
 let inPackages = false
 let current: LockPackage | undefined
-for (const line of lockfile.split('\n')) {
+for (const line of lockfile.split(/\r?\n/)) {
   if (line === 'packages:') {
     inPackages = true
     continue
@@ -165,6 +165,8 @@ const reviewedLicense = (expression: string, value: unknown): boolean => {
     if (expression === 'CC-BY-4.0') return entry.name === 'caniuse-lite' && entry.versions.every(version => version === '1.0.30001810')
     if (expression === 'LGPL-3.0-or-later') return /^@img\/sharp-libvips-(?:darwin-arm64|darwin-x64|linux-arm|linux-arm64|linux-ppc64|linux-riscv64|linux-s390x|linux-x64|linuxmusl-arm64|linuxmusl-x64)$/.test(entry.name ?? '')
       && entry.versions.every(version => version === '1.3.3')
+    if (expression === 'Apache-2.0 AND LGPL-3.0-or-later') return entry.name === '@img/sharp-win32-x64'
+      && entry.versions.every(version => version === '0.35.4')
     return false
   })
 }

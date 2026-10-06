@@ -128,7 +128,7 @@ async function driveTurn(
       && ((round.finish.kind === 'stop' && textOf(round.message?.content ?? []).trim() === '')
         || (round.finish.kind === 'error' && round.finish.failure.code === 'INVALID_TOOL_CALL'))
     if (unanswered(final) && !signal.aborted && retriedRounds < MAX_FREE_REQUEST_RETRIES
-      && admissionStop() === undefined) {
+      && admissionStop(final.report) === undefined) {
       if (final.report !== undefined) modelCallReports.push(final.report)
       if (final.message !== undefined) {
         options.history.append({ kind: 'assistant', message: final.message, ...final.usage === undefined ? {} : { usage: final.usage } })
@@ -152,7 +152,7 @@ async function driveTurn(
       // The forced answer said nothing; an earlier round's narration is not it.
       text = ''
     }
-    if (final.finish.kind === 'aborted') return { kind: 'aborted' }
+    if (signal.aborted || final.finish.kind === 'aborted') return { kind: 'aborted' }
     // A model that still only reaches for tools has given no answer; that is
     // the budget's stop without one, not a failure of the run.
     if (final.finish.kind === 'error' && final.finish.failure.code === 'INVALID_TOOL_CALL') {
@@ -168,7 +168,7 @@ async function driveTurn(
     if (final.usageUnavailable) {
       return accountingUsageStop(options.accounting) ?? { kind: 'usage-unavailable', modelCallId: final.report?.modelCallId ?? 'unknown' }
     }
-    return { kind: 'budget-exhausted', budget: exhausted, forcedFinalAnswer: true,
+    return { kind: 'budget-exhausted', budget: exhausted, forcedFinalAnswer: text.trim() !== '',
       ...(reserveTrigger ? { trigger: 'report-reserve' as const } : {}) }
   }
   /**
@@ -183,7 +183,8 @@ async function driveTurn(
   ): Promise<Awaited<ReturnType<typeof modelRound>>> => {
     let final = first
     while (final.finish.kind === 'error' && !final.usageRequired && !signal.aborted
-      && retriedRounds < MAX_FREE_REQUEST_RETRIES && admissionStop() === undefined) {
+      && !final.usageUnavailable && retriedRounds < MAX_FREE_REQUEST_RETRIES
+      && admissionStop(final.report) === undefined) {
       const decision = await runOptionalHook(options.hooks?.onRequestError, [{
         turn, step: steps + 1, failure: final.finish.failure, snapshot: options.history.snapshot(), signal,
         ...(options.logger === undefined ? {} : { logger: options.logger }),
@@ -192,7 +193,7 @@ async function driveTurn(
         // A hook waiting out a backoff when the person aborts throws the abort;
         // that is a cancelled turn, not a crashed one.
         .catch((error: unknown) => { if (signal.aborted) return 'fail' as const; throw error })
-      if (decision !== 'retry' || signal.aborted || accountingUsageStop(options.accounting) !== undefined) break
+      if (decision !== 'retry' || admissionStop(final.report) !== undefined) break
       if (final.report !== undefined) modelCallReports.push(final.report)
       // The failed attempt keeps its step number; the caller counts the last one.
       steps++
@@ -299,12 +300,15 @@ async function driveTurn(
   let usageStop: TurnOutcome['reason'] | undefined
   // Shared by retries, hook continuations, and both finalizer paths. Finalizers
   // may have a separate step allowance, never a separate token allowance.
-  const admissionStop = (): TurnOutcome['reason'] | undefined => {
+  const admissionStop = (pendingReport?: ModelCallReport): TurnOutcome['reason'] | undefined => {
     if (signal.aborted) return { kind: 'aborted' }
     const mandatoryStop = accountingUsageStop(options.accounting)
     if (mandatoryStop !== undefined) return mandatoryStop
     if (usageStop !== undefined) return usageStop
-    const tokens = budgetTokenTotal(summarizeModelCallUsage(modelCallReports))
+    // Finalizer attempts are committed by their caller. Their usage already
+    // counts when deciding whether another request may start.
+    const tokens = budgetTokenTotal(summarizeModelCallUsage(pendingReport === undefined
+      ? modelCallReports : [...modelCallReports, pendingReport]))
     return tokens !== undefined && tokens >= maxTotalTokens
       ? { kind: 'budget-exhausted', budget: 'tokens', forcedFinalAnswer: false }
       : undefined
@@ -471,7 +475,7 @@ async function driveTurn(
         await emitAssistantContent(final, emit)
         text = textOf(final.message.content)
       }
-      if (final.finish.kind === 'aborted') reason = { kind: 'aborted' }
+      if (signal.aborted || final.finish.kind === 'aborted') reason = { kind: 'aborted' }
       else if (final.finish.kind === 'error') reason = { kind: 'error', failure: final.finish.failure }
       else if (final.finish.kind === 'max-tokens') reason = { kind: 'max-tokens' }
       else if (final.usageRequired) reason = { kind: 'error', failure: {

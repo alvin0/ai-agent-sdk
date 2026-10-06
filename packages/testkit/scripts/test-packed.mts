@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { runPackedCommand as run } from '../../../scripts/packed-command.mts'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -57,12 +57,4 @@ function pack(root: string): string {
   const tarball = output.split(/\r?\n/u).map(line => line.trim()).findLast(line => line.endsWith('.tgz'))
   if (tarball === undefined) throw new Error(`pnpm pack produced no tarball for ${root}`)
   return resolve(root, tarball)
-}
-
-function run(command: string, args: readonly string[], cwd: string): string {
-  const result = spawnSync(command, args, { cwd, env: process.env, encoding: 'utf8' })
-  if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(' ')} failed\n${result.stdout}\n${result.stderr}`)
-  }
-  return result.stdout
 }

@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { runPackedCommand as run } from '../../../scripts/packed-command.mts'
 import { createServer } from 'node:http'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -43,11 +43,6 @@ function pack(root: string, destination: string): string {
   return resolve(root, tarball)
 }
 
-function run(command: string, args: readonly string[], cwd: string): string {
-  const result = spawnSync(command, args, { cwd, encoding: 'utf8', env: process.env })
-  if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed\n${result.stdout}\n${result.stderr}`)
-  return result.stdout
-}
 
 async function testBrowser(consumer: string): Promise<void> {
   const server = createServer((request, response) => {

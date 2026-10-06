@@ -64,6 +64,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { setImmediate as nextTick } from 'node:timers/promises'
 import {
   createEmbeddingRetryLedger,
   type EmbeddingBatchDispatcher,
@@ -396,7 +397,7 @@ function generateCall(rng: Rng): GeneratedCall {
 function sleepInto(delays: number[]): (delayMs: number) => Promise<boolean> {
   return async (delayMs: number) => {
     delays.push(delayMs)
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await nextTick()
     return true
   }
 }
@@ -411,7 +412,7 @@ async function runGeneratedCall(
 }> {
   const harness = harnessOf(generated.scripts, generated.batchIndexes, {
     onBeforeReturn: async () => {
-      await new Promise(resolve => setTimeout(resolve, 0))
+      await nextTick()
     },
   })
   const ledger = createEmbeddingRetryLedger(harness.dispatcher, {

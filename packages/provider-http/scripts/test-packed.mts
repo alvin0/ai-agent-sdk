@@ -1,4 +1,5 @@
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
+import { runPackedCommand as run } from '../../../scripts/packed-command.mts'
 import { createServer } from 'node:http'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -55,13 +56,6 @@ function required(values: ReadonlyMap<string, string>, key: string): string {
   return value
 }
 
-function run(command: string, args: readonly string[], cwd: string): string {
-  const result = spawnSync(command, args, { cwd, encoding: 'utf8', env: process.env })
-  if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(' ')} failed\n${result.stdout}\n${result.stderr}`)
-  }
-  return result.stdout
-}
 
 async function testBrowser(consumer: string): Promise<void> {
   const server = createServer((request, response) => {
@@ -108,8 +102,8 @@ async function testBrowser(consumer: string): Promise<void> {
 
 async function testWorker(consumer: string): Promise<void> {
   const port = await availablePort()
-  const wrangler = join(workspaceRoot, 'node_modules', '.bin', 'wrangler')
-  const child = spawn(wrangler, [
+  const wrangler = join(workspaceRoot, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
+  const child = spawn(process.execPath, [wrangler,
     'dev', '--config', 'wrangler.jsonc', '--ip', '127.0.0.1', '--port', String(port),
   ], { cwd: consumer, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
   let output = ''
