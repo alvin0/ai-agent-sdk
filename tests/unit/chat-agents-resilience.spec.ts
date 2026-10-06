@@ -169,7 +169,6 @@ describe('retryHooks through the real turn loop', () => {
     let calls = 0
     class AlwaysFails extends ModelAdapter {
       override async resolveModel(provider: string, model: string) { return { provider, id: model, name: model } }
-      // eslint-disable-next-line require-yield
       override async *stream(): AsyncIterable<never> {
         calls++
         throw new ModelError('403 status code (no body)', 'SERVER')

@@ -144,7 +144,6 @@ export function ProjectDialog({
     const open_at = projects.find(project => project.id === currentId)?.workspaceRoot
     void load(open_at)
     // The picker re-opens where the current project lives.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   // The breadcrumb scrolls horizontally and the interesting end is the right
@@ -341,7 +340,6 @@ export function ProjectDialog({
                 : (
                   <input
                     className={css.pathInput}
-                    // eslint-disable-next-line jsx-a11y/no-autofocus
                     autoFocus
                     spellCheck={false}
                     aria-label="Folder path"

@@ -1,0 +1,10 @@
+{
+  "name": "ai-agent-sdk-eslint-tooling",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@typescript-eslint/parser": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:eslint"
+  }
+}

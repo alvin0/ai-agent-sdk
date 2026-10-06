@@ -319,7 +319,6 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
           <input
             className={css.searchInput}
             // The list is opened to pick something; typing is the next act.
-            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             type="text"
             spellCheck={false}

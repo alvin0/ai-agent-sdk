@@ -30,7 +30,11 @@ that mixing them in would discourage running the fast suite.
 
 | Command | Checks |
 | --- | --- |
-| `pnpm lint` | Package graph, dependency-cruiser, agent boundaries, runtime boundaries |
+| `pnpm lint` | ESLint maintainability limits, package graph, dependency-cruiser, agent and runtime boundaries |
+| `pnpm lint:code` | ESLint only, with zero warnings allowed |
+| `pnpm lint:source` | SDK source under `packages/*/src`, with the same ESLint limits |
+| `pnpm lint:boundaries` | Package graph, dependency-cruiser, agent and runtime boundaries only |
+| `pnpm test:lint` | Positive and negative checks of the ESLint configuration |
 | `pnpm check:boundary-fixtures` | Proves invalid boundaries are actually **rejected** |
 | `pnpm check:supply-chain` | Lockfile integrity, exact pins, lifecycle scripts, licences, `pnpm audit --prod` |
 | `pnpm check:docs` | Documentation migration ledger |
@@ -44,6 +48,7 @@ rejected.
 ## What CI runs
 
 ```text
+pnpm test:lint
 pnpm workspace:build && pnpm workspace:typecheck && pnpm build:cli
   && pnpm lint && pnpm exec tsc --noEmit
 pnpm check:boundary-fixtures

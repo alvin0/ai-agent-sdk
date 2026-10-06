@@ -609,6 +609,10 @@ walkthrough in [`@alvin0/ai-agent-sdk-provider-http`](packages/provider-http/REA
 
 | Script | Purpose |
 | --- | --- |
+| `pnpm lint` | ESLint maintainability limits, package graph, and runtime boundaries |
+| `pnpm lint:code` | ESLint only; see [code quality limits](web-documents/en/14-project/contributing.md#code-quality-limits) |
+| `pnpm lint:source` | Focus on SDK source in `packages/*/src`, with the same strict limits |
+| `pnpm test:lint` | Verify lint rules reject oversized and complex code |
 | `pnpm test:unit` | root unit suite (fast, no network) |
 | `pnpm test:contract` | frozen compatibility and runtime-identity contracts |
 | `pnpm test:packages` | every package-owned suite |

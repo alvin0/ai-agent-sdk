@@ -60,7 +60,6 @@ function scaffold(managed: unknown, abortOwner: AbortController) {
       queued as never,
       new EventProjector(),
       async (node: unknown) => { persisted.push(node) },
-      // eslint-disable-next-line require-yield
       async function* () {} as never,
     ] as const,
   }

@@ -2,6 +2,7 @@ packages:
   - packages/*
   - samples/*/*
   - tests/fixtures/*
+  - scripts/eslint-tooling
 
 catalog:
   '@a2a-js/sdk': 1.1.0
@@ -12,16 +13,20 @@ catalog:
   '@opentelemetry/api': 1.9.1
   '@opentelemetry/api-logs': 0.221.0
   '@shikijs/langs': 4.4.3
+  '@stylistic/eslint-plugin': 5.10.0
   '@types/mdast': 4.0.4
   '@types/node': 26.4.0
   '@types/react': 19.2.18
   '@types/react-dom': 19.2.7
+  '@typescript-eslint/parser': 8.70.0
   '@vitest/browser-playwright': 4.1.11
   anser: 2.3.5
   clsx: 2.1.1
   dependency-cruiser: 18.2.0
   drizzle-kit: 0.31.10
   drizzle-orm: 0.45.2
+  eslint: 10.12.0
+  eslint-plugin-sonarjs: 4.2.2
   hono: 4.13.7
   katex: 0.18.5
   mdast-util-from-markdown: 2.0.3
@@ -49,6 +54,11 @@ catalog:
   vitest: 4.1.11
   wrangler: 4.127.1
   yaml: 2.9.0
+
+catalogs:
+  eslint:
+    # Only ESLint tooling uses the JS compiler API; project builds stay on TS 7.
+    typescript: 6.0.3
 
 catalogMode: strict
 catalogPrune: true
