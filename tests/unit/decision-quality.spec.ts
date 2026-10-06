@@ -18,6 +18,22 @@ class Llm extends ModelAdapter {
 }
 afterEach(() => vi.useRealTimers())
 describe('decision deadlines and preparation context', () => {
+  it.each(['base', 'llm', 'typesafe'] as const)('binds the first prepared %s request to its provider/model', async kind => {
+    const { DecisionAdapter } = await import('@alvin0/ai-agent-sdk-decision-adapter')
+    class Base extends DecisionAdapter {
+      override evaluate = vi.fn(async () => result)
+    }
+    const base = new Base(), llm = new Llm()
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => wire())
+    const adapter = kind === 'base' ? base : kind === 'llm' ? llmDecisionAdapter({ adapter: llm }) : typesafeAdapter({ apiKey: 'fake', fetch })
+    for (const changed of [{ provider: 'different', model: 'm' }, { provider: 'p', model: 'different' }]) {
+      const prepared = await adapter.prepareDecisionCall('p', 'm')
+      await expect(Promise.resolve().then(() => prepared.evaluate({ ...input, ...changed }))).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+    expect(base.evaluate).not.toHaveBeenCalled()
+    expect(llm.calls).toHaveLength(0)
+    expect(fetch).not.toHaveBeenCalled()
+  })
   it('forwards context into preparation and honors its default on a prepared call', async () => {
     const adapter = new Llm()
     const prepare = vi.spyOn(adapter, 'prepareCall')
@@ -163,6 +179,38 @@ describe('retry precedence and immutable request reuse', () => {
   })
 })
 describe('batch snapshot sharing and custom handle deadlines', () => {
+  it('preserves a caller timeout reason through batch cancellation', async () => {
+    const controller = new AbortController()
+    controller.abort(new ModelError('caller deadline', 'TIMEOUT'))
+    const model = { evaluate: vi.fn() } as unknown as DecisionModelHandle
+    await expect(evaluateDecisionBatch(model, [input], { signal: controller.signal })).rejects.toMatchObject({ code: 'TIMEOUT' })
+    expect(model.evaluate).not.toHaveBeenCalled()
+  })
+  it.each([false, true])('handles 32 concurrent calls without shared signal warnings (cancel=%s)', async cancel => {
+    const emit = vi.spyOn(process, 'emitWarning').mockImplementation(() => {})
+    const adapter = new Llm()
+    if (cancel) vi.spyOn(adapter, 'stream').mockImplementation(async function* () { await new Promise(() => {}); yield { type: 'finish', reason: { kind: 'stop' } } })
+    const runtime = createDecisionRuntime({ providers: [llmDecisionPlugin({ id: 'p', routes: ['p'], adapter })] })
+    const model = runtime.decisionModel({ provider: 'p', model: 'm' })
+    const original = model.evaluate
+    let entered = 0
+    let started!: () => void
+    const ready = new Promise<void>(resolve => { started = resolve })
+    const calls: DecisionModelHandle = { evaluate(request, context) {
+      if (++entered === 32) started()
+      return original(request, context)
+    } }
+    try {
+      const pending = evaluateDecisionBatch(calls, Array.from({ length: 32 }, () => input), { concurrency: 32 })
+      await ready
+      if (cancel) await runtime.close()
+      const results = await pending
+      expect(results).toHaveLength(32)
+      expect(results.every(item => cancel ? item.status === 'rejected' && (item.reason as ModelError).code === 'ABORTED' : item.status === 'fulfilled')).toBe(true)
+      await new Promise<void>(resolve => setImmediate(resolve))
+      expect(emit).not.toHaveBeenCalled()
+    } finally { emit.mockRestore(); await runtime.close() }
+  })
   it('shares the detached task rubric while capturing each queued state', async () => {
     const captured: Parameters<typeof snapshotDecisionInput>[0][] = []
     const model = { async evaluate(request: DecisionInput) { captured.push(request); return result } } as DecisionModelHandle

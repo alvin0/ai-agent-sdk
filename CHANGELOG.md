@@ -17,6 +17,11 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Fixed
 
+- Prepared decision calls reject mismatched provider/model targets before dispatch.
+- TypeSafe captures per-invocation headers before asynchronous preparation and credentials, preserves them across retries, and rejects reserved headers or unsupported body overrides before network IO.
+- Synchronous injected fetch failures become safe, retryable `TRANSPORT` errors instead of leaking raw errors.
+- Decision batches preserve caller timeout reasons and compose cancellation signals without shared-listener warnings at high concurrency.
+- TypeSafe score legends must match rubric descriptions and level order, including structured descriptions; failed validation still retains valid billed usage.
 - Decision results reject inconsistent token totals, reasoning counters and overflowing usage using the core SDK's accounting validator.
 - TypeSafe attempt reports retain valid billed usage when decision-answer validation fails.
 - Packed decision checks use the shared Windows-safe command runner, exercise paths containing spaces, and verify installed packages on Node, browser and Worker runtimes.

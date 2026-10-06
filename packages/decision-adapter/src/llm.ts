@@ -100,6 +100,7 @@ class LlmDecisionAdapter extends DecisionAdapter {
     const metadata = Object.freeze({ provider: info.provider, id: info.id, name: info.name })
     let captured: { readonly request: DecisionRequest; readonly value: CapturedLlmRequest } | undefined
     return Object.freeze({ model: metadata, evaluate: (request: DecisionRequest, invocation = context) => {
+      if (request.provider !== provider || request.model !== model) decisionError('Prepared LLM decision target does not match request')
       // One prepared generation belongs to one logical call. Transport body caches have the same scope.
       if (captured && captured.request !== request) decisionError('Prepared LLM decision call cannot dispatch a different request')
       captured ??= { request, value: this.#capture(request) }

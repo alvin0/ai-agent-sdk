@@ -54,36 +54,33 @@ export function createDecisionRuntime(options: DecisionRuntimeOptions = {}): Dec
           const timeout = input.timeoutMs ?? defaultTimeout
           if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 2_147_483_647) throw new Error('Invalid decision timeout')
           const controller = new AbortController()
-          const signals = [root.signal, ...(input.signal === undefined ? [] : [input.signal])]
-          const forward = () => controller.abort(signals.find(signal => signal.aborted)?.reason)
-          signals.forEach(signal => { signal.addEventListener('abort', forward, { once: true }); if (signal.aborted) forward() })
+          const signal = AbortSignal.any([root.signal, controller.signal, ...(input.signal === undefined ? [] : [input.signal])])
           const timer = setTimeout(() => controller.abort(new ModelError('Decision deadline exceeded', MODEL_ERROR_CODES.TIMEOUT)), timeout)
           try {
-            throwIfAborted(controller.signal)
+            throwIfAborted(signal)
             // Capture the caller's JSON before the first await, including preparation.
-            const initial = bindDecisionInput(input, { signal: controller.signal, timeoutMs: timeout })
-            const prepared = await abortable(adapter.prepareDecisionCall(provider, model, controller.signal, context), controller.signal)
+            const initial = bindDecisionInput(input, { signal, timeoutMs: timeout })
+            const prepared = await abortable(adapter.prepareDecisionCall(provider, model, signal, context), signal)
             const info = snapshotDecisionModelInfo(prepared.model)
             if (info.provider !== provider || info.id !== model) throw new ModelError('Prepared decision model identity mismatch', MODEL_ERROR_CODES.MALFORMED_RESPONSE)
             const request = bindDecisionInput(snapshotDecisionInput(initial, info.capabilities), { provider, model })
             for (let retries = 0; ; retries++) {
-              throwIfAborted(controller.signal)
+              throwIfAborted(signal)
               try {
-                const result = await abortable(prepared.evaluate(request, context), controller.signal)
-                throwIfAborted(controller.signal)
+                const result = await abortable(prepared.evaluate(request, context), signal)
+                throwIfAborted(signal)
                 return validateDecisionResult(result, request.questions)
               } catch (error) {
-                throwIfAborted(controller.signal)
+                throwIfAborted(signal)
                 const failure = normalizeModelFailure(error)
                 if (!isRetryable(policy, failure.code, retries) || failure.code === MODEL_ERROR_CODES.ABORTED) throw error
                 const delay = Math.min(policy.maxDelayMs, failure.providerRetryAfterMs ?? backoffDelayMs(policy, retries + 1))
                 context?.recordProviderRetry?.({ nextAttemptNumber: retries + 2, delayMs: delay, failureCode: failure.code })
-                await waitDecisionDelay(delay, controller.signal)
+                await waitDecisionDelay(delay, signal)
               }
             }
           } finally {
             clearTimeout(timer)
-            signals.forEach(signal => signal.removeEventListener('abort', forward))
           }
         },
       })

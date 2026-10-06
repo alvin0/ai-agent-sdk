@@ -241,7 +241,8 @@ SDK-created immutable snapshots are reused; arbitrary frozen caller inputs still
 undergo validation. Task batches share the captured rubric across queued states.
 The LLM bridge and TypeSafe compile each rubric once per adapter/rubric identity,
 and reuse the captured request through retries. No result cache or cross-call
-credential/connection cache is introduced. LLM prompts put the fixed questions
+credential/connection cache is introduced. Prepared calls reject requests targeting
+a different provider/model before dispatch. LLM prompts put the fixed questions
 before changing state; evidence instructions appear only in evidence mode.
 Use a separate task per model/rubric combination; changing providers requires no
 change to the task's question contract.
@@ -259,7 +260,9 @@ The batch deadline defaults to 30 seconds and includes queue time. Batch `timeou
 sets that overall deadline; task `timeoutMs` or input `timeoutMs` still governs each
 dispatched call, including custom handles that ignore deadlines. Item deadlines
 start on dispatch, independently of the overall deadline that includes queue time.
-Batch cancellation/deadline rejects the operation and stops queued
+Batch cancellation preserves caller `ModelError` reasons (including `TIMEOUT`)
+and signal composition supports high concurrency without accumulating listeners
+on the shared runtime/batch signal. Batch cancellation/deadline rejects the operation and stops queued
 dispatches; individual item failures/cancellation remain partial results. Invalid
 input/configuration rejects the batch before dispatch. Empty batches return `[]`.
 For large datasets, submit application-managed chunks with explicit deadlines.

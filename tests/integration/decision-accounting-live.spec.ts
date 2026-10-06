@@ -2,7 +2,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { createDecisionRuntime, choiceQuestion } from '@alvin0/ai-agent-sdk-decision-adapter'
+import { createDecisionRuntime, choiceQuestion, scoreQuestion } from '@alvin0/ai-agent-sdk-decision-adapter'
 import { typesafeAdapter, typesafePlugin } from '@alvin0/ai-agent-sdk-provider-typesafe'
 import type { EndProviderAttemptInput, ModelInvocationContext } from '@alvin0/ai-agent-sdk-core/provider'
 
@@ -26,6 +26,28 @@ afterAll(() => {
 })
 
 describe.skipIf(!apiKey)('decision accounting through real TypeSafe HTTP', () => {
+  it('accepts real structured score legends and rejects an injected reversal with billed usage', async () => {
+    const levels = [{ description: 'Routine; no deadline', priority: 0 }, { description: 'Urgent; help required today', priority: 1 }]
+    const request = { state: 'Please urgently refund my duplicate invoice charge today.', provider: 'typesafe', model, questions: { urgency: scoreQuestion('How urgent?', levels) } }
+    let captured!: { model: string; answers: { urgency: { legend: Record<string, unknown> } }; usage: { input_tokens: number; output_tokens: number } }
+    const live = typesafeAdapter({ apiKey: apiKey!, requestTimeoutMs: 60_000, fetch: async (url, init) => {
+      expect(new Headers(init?.headers).get('x-sdk-decision-audit')).toBe('structured-score')
+      const response = await globalThis.fetch(url, init)
+      expect(response.ok).toBe(true)
+      captured = await response.json() as typeof captured
+      return Response.json(captured, { headers: response.headers })
+    } })
+    const result = await live.evaluate(request, { providerOptions: { headers: { 'x-sdk-decision-audit': 'structured-score' } } })
+    expect(result.answers.urgency!.type).toBe('score')
+    expect(captured.answers.urgency.legend).toEqual({ '0': levels[0], '1': levels[1] })
+    expect(result.usage?.inputTokens).toBeGreaterThan(0)
+    captured.answers.urgency.legend = { '0': levels[1], '1': levels[0] }
+    const ended: EndProviderAttemptInput[] = []
+    const altered = typesafeAdapter({ apiKey: apiKey!, fetch: async () => Response.json(captured) })
+    await expect(altered.evaluate(request, accounting(ended))).rejects.toMatchObject({ code: 'MALFORMED_RESPONSE' })
+    expect(ended[0]).toMatchObject({ status: 'error', reported: result.usage, usageFinal: true })
+    evidence.push({ name: 'structured-score-legend-and-invocation-header', model: result.model, usage: result.usage, fault: 'reused real reply with reversed legend; no second upstream charge' })
+  })
   it('retains actual billed usage after an injected invalid choice', async () => {
     const ended: EndProviderAttemptInput[] = []
     const adapter = typesafeAdapter({ apiKey: apiKey!, requestTimeoutMs: 60_000,

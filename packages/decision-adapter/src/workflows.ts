@@ -23,18 +23,16 @@ export async function evaluateDecisionBatch<Q extends DecisionQuestions>(
 ): Promise<readonly DecisionBatchItem<Q>[]> {
   const concurrency = options.concurrency ?? 4
   const timeout = options.timeoutMs ?? 30_000
-  const signal = options.signal
+  const callerSignal = options.signal
   const context = options.context
   if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 256) decisionError('Invalid decision batch concurrency')
   if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 2_147_483_647) decisionError('Invalid decision batch timeout')
   if (!Array.isArray(inputs) || inputs.length > 1_024) decisionError('Decision batch accepts at most 1024 inputs')
   const controller = new AbortController()
-  const forward = () => controller.abort(new ModelError('Decision batch aborted', MODEL_ERROR_CODES.ABORTED))
-  signal?.addEventListener('abort', forward, { once: true })
-  if (signal?.aborted) forward()
+  const signal = AbortSignal.any([controller.signal, ...(callerSignal === undefined ? [] : [callerSignal])])
   const timer = setTimeout(() => controller.abort(new ModelError('Decision batch deadline exceeded', MODEL_ERROR_CODES.TIMEOUT)), timeout)
   try {
-    throwIfAborted(controller.signal)
+    throwIfAborted(signal)
     // Include queued inputs in the snapshot: caller edits cannot change later dispatches.
     const captured = Array.from(inputs, input => {
       if (input === null || typeof input !== 'object' || Array.isArray(input)) decisionError('Invalid decision batch input')
@@ -45,36 +43,32 @@ export async function evaluateDecisionBatch<Q extends DecisionQuestions>(
     let next = 0
     const worker = async () => {
       while (next < captured.length) {
-        throwIfAborted(controller.signal)
+        throwIfAborted(signal)
         const index = next++
         const input = captured[index]!
         const item = new AbortController()
-        const signals = [controller.signal, ...(input.signal === undefined ? [] : [input.signal])]
-        const abortItem = () => item.abort(signals.find(signal => signal.aborted)?.reason)
-        signals.forEach(signal => { signal.addEventListener('abort', abortItem, { once: true }); if (signal.aborted) abortItem() })
+        const itemSignal = AbortSignal.any([signal, item.signal, ...(input.signal === undefined ? [] : [input.signal])])
         const itemTimer = input.timeoutMs === undefined ? undefined : setTimeout(() => item.abort(new ModelError('Decision item deadline exceeded', MODEL_ERROR_CODES.TIMEOUT)), input.timeoutMs)
         try {
-          throwIfAborted(item.signal)
+          throwIfAborted(itemSignal)
           const value = await abortable(Promise.resolve().then(() => {
-            throwIfAborted(item.signal)
-            return model.evaluate<Q>(bindDecisionInput(input, { signal: item.signal }), context)
-          }), item.signal)
+            throwIfAborted(itemSignal)
+            return model.evaluate<Q>(bindDecisionInput(input, { signal: itemSignal }), context)
+          }), itemSignal)
           results[index] = Object.freeze({ status: 'fulfilled', value })
         } catch (reason) {
-          throwIfAborted(controller.signal)
+          throwIfAborted(signal)
           results[index] = Object.freeze({ status: 'rejected', reason })
         } finally {
           clearTimeout(itemTimer)
-          signals.forEach(signal => signal.removeEventListener('abort', abortItem))
         }
       }
     }
     await Promise.all(Array.from({ length: Math.min(concurrency, captured.length) }, worker))
-    throwIfAborted(controller.signal)
+    throwIfAborted(signal)
     return Object.freeze(results)
   } finally {
     clearTimeout(timer)
-    signal?.removeEventListener('abort', forward)
   }
 }
 

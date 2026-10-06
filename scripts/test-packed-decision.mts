@@ -13,7 +13,7 @@ if (selected !== 'decision-adapter' && selected !== 'provider-typesafe') throw n
 const temporary = mkdtempSync(join(tmpdir(), 'ai-agent-sdk decision pack-'))
 const fixture = `
 import { ModelAdapter } from '@alvin0/ai-agent-sdk-core';
-import { createDecisionRuntime, createDecisionTask, choiceQuestion, booleanQuestion, gateChoice, gateBoolean, llmDecisionPlugin } from '@alvin0/ai-agent-sdk-decision-adapter';
+import { createDecisionRuntime, createDecisionTask, choiceQuestion, scoreQuestion, booleanQuestion, gateChoice, gateBoolean, llmDecisionPlugin } from '@alvin0/ai-agent-sdk-decision-adapter';
 import { typesafePlugin } from '@alvin0/ai-agent-sdk-provider-typesafe';
 export async function verify() {
   class FixtureLlm extends ModelAdapter {
@@ -34,22 +34,25 @@ export async function verify() {
     if (url !== 'https://api.typesafe.ai/v1/systemone') throw Error('wrong endpoint');
     const headers = new Headers(init.headers);
     if (headers.get('authorization') !== 'Bearer fixture-key') throw Error('missing auth');
+    if (headers.get('x-fixture-tenant') !== 'tenant-a') throw Error('missing invocation header');
     const request = JSON.parse(init.body);
     if (request.questions.refund.type !== 'noul') throw Error('wrong mapping');
     return Response.json({ model: 'jev-fixture-v1', answers: {
       route: { type: 'choice', choice: 'billing', probabilities: { billing: 0.9, support: 0.1 }, confidence: 0.8 },
+      urgency: { type: 'score', score: 0.9, probabilities: { '0': 0.1, '1': 0.9 }, confidence: 0.8, legend: { '0': { priority: 0, description: 'low' }, '1': { description: 'high', priority: 1 } } },
       refund: { type: 'noul', noul: 0.9 }
     }, usage: { input_tokens: 12, output_tokens: 4 } });
   } })] });
   try {
     const task = createDecisionTask(runtime.decisionModel({ provider: 'typesafe', model: 'jev-latest' }), {
-      questions: { route: choiceQuestion('Choose', { billing: null, support: null }), refund: booleanQuestion('Refund requested?') }
+      questions: { route: choiceQuestion('Choose', { billing: null, support: null }), refund: booleanQuestion('Refund requested?'), urgency: scoreQuestion('Urgency?', [{ description: 'low', priority: 0 }, { description: 'high', priority: 1 }]) },
+      context: { providerOptions: { headers: { 'x-fixture-tenant': 'tenant-a' } } }
     });
     const result = await task.evaluate('Refund please');
-    if (calls !== 1 || result.answers.route.choice !== 'billing' || result.answers.refund.probabilityTrue !== 0.9 || result.usage.inputTokens !== 12) throw Error('wrong decision');
+    if (calls !== 1 || result.answers.route.choice !== 'billing' || result.answers.refund.probabilityTrue !== 0.9 || result.answers.urgency.score !== 0.9 || result.usage.inputTokens !== 12) throw Error('wrong decision');
     if (gateChoice(result.answers.route, { minProbability: 0.8 }).status !== 'accepted' || gateBoolean(result.answers.refund, { falseMax: 0.2, trueMin: 0.8 }).status !== 'accepted') throw Error('wrong evidence gate');
-    const rows = await task.evaluateBatch(['one', 'two'], { concurrency: 1 });
-    if (calls !== 3 || rows.some(row => row.status !== 'fulfilled')) throw Error('wrong batch');
+    const rows = await task.evaluateBatch(Array.from({ length: 32 }, (_, index) => 'state ' + index), { concurrency: 32 });
+    if (calls !== 33 || rows.some(row => row.status !== 'fulfilled')) throw Error('wrong batch');
     return { ok: true, model: result.model };
   } finally { await runtime.close(); }
 }

@@ -100,7 +100,11 @@ headers, `requestTimeoutMs` (30 seconds), `maxRequestBytes` (2 MiB),
 (default `['typesafe']`). Local HTTP requires explicit `allowInsecureHttp: true`.
 Connection options are captured at construction. Redirects are rejected, custom
 headers cannot override authentication/transport headers, and errors omit raw
-response bodies and credentials.
+response bodies and credentials. Per-call `ModelInvocationContext.providerOptions.headers`
+override custom route headers and are captured before preparation/credentials,
+then reused through retries. Authentication and transport headers remain reserved.
+Nonempty `providerOptions.body` overrides are rejected with `INVALID_REQUEST`;
+configure native questions/state/model through the typed decision request.
 
 When `retryPolicy` is omitted, the runtime policy applies; an explicit provider
 policy overrides it. Direct calls perform one attempt and honor per-call
@@ -112,7 +116,8 @@ fails. Invalid or overflowing usage counters fail validation and are not reporte
 as trustworthy billing evidence.
 
 Choice accepts 2–255 options; Score accepts 2–10 ordered levels. Invalid requests
-fail before network IO. Responses are byte-bounded and validated. The adapter
+fail before network IO. Responses are byte-bounded and validated; score legends
+must match the ordered rubric, including object/array descriptions. The adapter
 performs one attempt; the runtime applies retries for transient rate limiting,
 overload, timeout and transport errors. HTTP 401/403 map to `AUTH`, 422 to
 `INVALID_REQUEST`, 429 to `RATE_LIMIT`, and 529 to `SERVER`; `Retry-After` is honored
@@ -128,7 +133,9 @@ decision results, usage, model IDs and latency; it never prints the API key.
 Optionally set `TYPESAFE_MODEL` to pin a model ID.
 Run `pnpm test:decision-live` from the workspace root for paid TypeSafe accounting
 checks. They inject an invalid choice after a real response and an overload before
-a real retry, verifying billed usage and reuse of the captured request.
+a real retry, verifying billed usage and reuse of the captured request. A structured
+score case sends invocation headers to the real API, then rejects a reversed
+legend injected into that response while retaining usage evidence.
 
 API references: [Evaluation](https://docs.typesafe.ai/api),
 [Models](https://docs.typesafe.ai/models), [Confidence](https://docs.typesafe.ai/confidence).

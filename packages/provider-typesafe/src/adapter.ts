@@ -5,7 +5,7 @@ import { abortable, throwIfAborted } from '@alvin0/ai-agent-sdk-decision-adapter
 
 const CAPABILITIES = Object.freeze({ questionTypes: Object.freeze(['choice', 'score', 'boolean'] as const), maxChoiceOptions: 255, maxScoreLevels: 10 })
 const NULL_LOGGER: SdkLogger = Object.freeze({ child: () => NULL_LOGGER, trace() {}, debug() {}, info() {}, warn() {}, error() {}, fatal() {} })
-interface CapturedTypesafeRequest { readonly input: DecisionInput; readonly wire: string; readonly timeout: number; readonly provider: string; readonly model: string }
+interface CapturedTypesafeRequest { readonly input: DecisionInput; readonly wire: string; readonly timeout: number; readonly provider: string; readonly model: string; readonly headers: Readonly<Record<string, string>> }
 export interface TypesafeAdapterOptions {
   readonly apiKey: CredentialInput
   /** API root including /v1. Default: https://api.typesafe.ai/v1 */
@@ -26,6 +26,28 @@ export interface TypesafePluginOptions extends TypesafeAdapterOptions {
 function object(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new ModelError('TypeSafe returned an invalid response object', MODEL_ERROR_CODES.MALFORMED_RESPONSE)
   return value as Record<string, unknown>
+}
+/** Compare JSON rubric values without depending on object property order. */
+function sameDescription(expected: unknown, actual: unknown): boolean {
+  if (expected === actual) return true
+  if (expected === null || actual === null || typeof expected !== 'object' || typeof actual !== 'object') return false
+  if (Array.isArray(expected)) return Array.isArray(actual) && expected.length === actual.length && expected.every((value, index) => sameDescription(value, actual[index]))
+  if (Array.isArray(actual)) return false
+  const keys = Object.keys(expected)
+  return keys.length === Object.keys(actual).length && keys.every(key => Object.hasOwn(actual, key) && sameDescription((expected as Record<string, unknown>)[key], (actual as Record<string, unknown>)[key]))
+}
+function capturePublicHeaders(source: Readonly<Record<string, string>> | undefined): Readonly<Record<string, string>> {
+  let headers: Readonly<Record<string, string>>
+  try { headers = Object.freeze(Object.fromEntries(new Headers(source).entries())) }
+  catch { throw new ModelError('Invalid TypeSafe custom headers', MODEL_ERROR_CODES.INVALID_REQUEST) }
+  for (const key of Object.keys(headers)) {
+    if (['authorization', 'content-type', 'accept', 'host', 'content-length', 'traceparent'].includes(key)) throw new ModelError('TypeSafe custom headers cannot override transport headers', MODEL_ERROR_CODES.INVALID_REQUEST)
+  }
+  return headers
+}
+function captureInvocationHeaders(context?: ModelInvocationContext): Readonly<Record<string, string>> {
+  if (context?.providerOptions?.body !== undefined && Object.keys(context.providerOptions.body).length) throw new ModelError('TypeSafe does not support providerOptions.body overrides', MODEL_ERROR_CODES.INVALID_REQUEST)
+  return capturePublicHeaders(context?.providerOptions?.headers)
 }
 function bound(value: number | undefined, fallback: number, name: string): number {
   const result = value ?? fallback
@@ -103,10 +125,7 @@ class TypesafeDecisionAdapter extends DecisionAdapter {
     if (url.username || url.password || url.search || url.hash || (url.protocol !== 'https:' && !(url.protocol === 'http:' && options.allowInsecureHttp === true))) throw new Error('TypeSafe requires an HTTPS API root without credentials, query or fragment')
     this.#baseUrl = url.href.replace(/\/$/, '')
     this.#fetch = options.fetch ?? globalThis.fetch
-    this.#headers = Object.freeze(Object.fromEntries(new Headers(options.headers).entries()))
-    for (const key of Object.keys(this.#headers)) {
-      if (['authorization', 'content-type', 'accept', 'host', 'content-length', 'traceparent'].includes(key)) throw new Error('TypeSafe custom headers cannot override transport headers')
-    }
+    this.#headers = capturePublicHeaders(options.headers)
     this.#timeout = bound(options.requestTimeoutMs, 30_000, 'requestTimeoutMs')
     this.#maxRequest = bound(options.maxRequestBytes, 2_097_152, 'maxRequestBytes')
     this.#maxResponse = bound(options.maxResponseBytes, 4_194_304, 'maxResponseBytes')
@@ -124,10 +143,12 @@ class TypesafeDecisionAdapter extends DecisionAdapter {
     return Object.freeze({ provider, id: model, name: model, capabilities: CAPABILITIES })
   }
   override async prepareDecisionCall(provider: string, model: string, _signal?: AbortSignal, context?: ModelInvocationContext): Promise<PreparedDecisionCall> {
+    const headers = captureInvocationHeaders(context)
     let captured: { readonly request: DecisionRequest; readonly value: CapturedTypesafeRequest } | undefined
     return Object.freeze({ model: await this.resolveModel(provider, model), evaluate: (request: DecisionRequest, invocation = context) => {
+      if (request.provider !== provider || request.model !== model) throw new ModelError('Prepared TypeSafe decision target does not match request', MODEL_ERROR_CODES.INVALID_REQUEST)
       if (captured && captured.request !== request) throw new ModelError('Prepared TypeSafe decision call cannot dispatch a different request', MODEL_ERROR_CODES.INVALID_REQUEST)
-      captured ??= { request, value: this.#capture(request) }
+      captured ??= { request, value: this.#capture(request, invocation === context ? headers : captureInvocationHeaders(invocation)) }
       return this.#evaluate(captured.value, invocation)
     } })
   }
@@ -142,9 +163,9 @@ class TypesafeDecisionAdapter extends DecisionAdapter {
     }))
   }
   override async evaluate(request: DecisionRequest, context?: ModelInvocationContext): Promise<DecisionResult> {
-    return this.#evaluate(this.#capture(request), context)
+    return this.#evaluate(this.#capture(request, captureInvocationHeaders(context)), context)
   }
-  #capture(request: DecisionRequest): CapturedTypesafeRequest {
+  #capture(request: DecisionRequest, headers: Readonly<Record<string, string>>): CapturedTypesafeRequest {
     if (typeof request.provider !== 'string' || !request.provider.trim() || typeof request.model !== 'string' || !request.model.trim()) throw new ModelError('TypeSafe requires provider and model identifiers', MODEL_ERROR_CODES.INVALID_REQUEST)
     const input = snapshotDecisionInput(request, CAPABILITIES)
     const timeout = Math.min(this.#timeout, input.timeoutMs ?? this.#timeout)
@@ -161,7 +182,7 @@ class TypesafeDecisionAdapter extends DecisionAdapter {
     }
     const wire = `{"questions":${questions},"model":${JSON.stringify(request.model)},"state":${JSON.stringify(input.state)}}`
     if (new TextEncoder().encode(wire).byteLength > this.#maxRequest) throw new ModelError('TypeSafe request exceeds byte limit', MODEL_ERROR_CODES.INVALID_REQUEST)
-    return { input, wire, timeout, provider: request.provider, model: request.model }
+    return { input, wire, timeout, provider: request.provider, model: request.model, headers }
   }
   async #evaluate(captured: CapturedTypesafeRequest, context?: ModelInvocationContext): Promise<DecisionResult> {
     const { input, wire, timeout, provider, model } = captured
@@ -183,7 +204,7 @@ class TypesafeDecisionAdapter extends DecisionAdapter {
           case 'score': {
             if (answer.type !== 'score' || answer.probabilities === undefined || answer.confidence === undefined) throw new ModelError('Invalid TypeSafe score answer', MODEL_ERROR_CODES.MALFORMED_RESPONSE)
             const legend = object(answer.legend)
-            if (Object.keys(legend).length !== question.levels.length || question.levels.some((_, i) => !Object.hasOwn(legend, String(i)))) throw new ModelError('Invalid TypeSafe score legend', MODEL_ERROR_CODES.MALFORMED_RESPONSE)
+            if (Object.keys(legend).length !== question.levels.length || question.levels.some((level, i) => !Object.hasOwn(legend, String(i)) || !sameDescription(level, legend[String(i)]))) throw new ModelError('Invalid TypeSafe score legend', MODEL_ERROR_CODES.MALFORMED_RESPONSE)
             answers[id] = { type: 'score', score: answer.score as number, probabilities: answer.probabilities as Record<string, number>, ...evidence }
             break
           }
@@ -198,11 +219,11 @@ class TypesafeDecisionAdapter extends DecisionAdapter {
         model: raw.model, answers,
         ...(usage === undefined ? {} : { usage }),
       }, input.questions)
-    }, timeout)
+    }, timeout, captured.headers)
     const result = response.value as DecisionResult
     return response.requestId === undefined ? result : validateDecisionResult({ ...result, providerRequestId: response.requestId }, input.questions)
   }
-  async #dispatch(provider: string, model: string, path: string, body: string | undefined, callerSignal?: AbortSignal, context?: ModelInvocationContext, decode?: (value: unknown) => DecisionResult, timeout = this.#timeout): Promise<{ value: unknown; requestId?: string }> {
+  async #dispatch(provider: string, model: string, path: string, body: string | undefined, callerSignal?: AbortSignal, context?: ModelInvocationContext, decode?: (value: unknown) => DecisionResult, timeout = this.#timeout, publicHeaders: Readonly<Record<string, string>> = {}): Promise<{ value: unknown; requestId?: string }> {
     const controller = new AbortController()
     const forward = () => controller.abort(callerSignal?.reason ?? new ModelError('TypeSafe call aborted', MODEL_ERROR_CODES.ABORTED))
     callerSignal?.addEventListener('abort', forward, { once: true })
@@ -226,10 +247,13 @@ class TypesafeDecisionAdapter extends DecisionAdapter {
         return handle
       }), signal)
       throwIfAborted(signal)
-      const headers = new Headers({ ...this.#headers, ...attributionHeaders(), authorization: `Bearer ${key}`, accept: 'application/json', 'content-type': 'application/json' })
+      const headers = new Headers({ ...this.#headers, ...publicHeaders, ...attributionHeaders(), authorization: `Bearer ${key}`, accept: 'application/json', 'content-type': 'application/json' })
       if (attempt) headers.set('traceparent', attempt.traceparent)
-      sent = true
-      const received = await abortable<Response>(this.#fetch(url, { method: body === undefined ? 'GET' : 'POST', headers, ...(body === undefined ? {} : { body }), signal, redirect: 'error' }).then(result => {
+      const received = await abortable<Response>(Promise.resolve().then(() => {
+        throwIfAborted(signal)
+        sent = true
+        return this.#fetch(url, { method: body === undefined ? 'GET' : 'POST', headers, ...(body === undefined ? {} : { body }), signal, redirect: 'error' })
+      }).then(result => {
         if (signal.aborted) void result.body?.cancel().catch(() => {})
         return result
       }).catch(() => {
