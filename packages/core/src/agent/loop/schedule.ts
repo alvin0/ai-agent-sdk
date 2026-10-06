@@ -90,6 +90,8 @@ interface Slot {
   readonly program?: ProgramRun
   /** Set when the loop refused to run the call. */
   readonly declined?: boolean
+  /** Set when the call was answered from this turn's earlier identical result. */
+  readonly recovered?: boolean
   readonly signal: AbortSignal
   readonly deadline: AbortSignal
   readonly teardownTimeoutMs: number
@@ -97,10 +99,18 @@ interface Slot {
 
 /** Scheduler options the loop owns and does not publish. */
 export interface InternalScheduleOptions {
+  /** Track actual dispatched bodies, excluding policy, declined calls and result publication. */
+  readonly onToolActivity?: (awaitsPerson: boolean, active: boolean) => void
   /** Overrides `dispatchLimit`; `unbounded` when the budget is a notice rather than a wall. */
   readonly admissionLimit?: number | 'unbounded'
   /** A call-specific guard; refusing one sibling does not reserve another's quota. */
   readonly decline?: (call: ToolCallRequest) => ToolDeclineReason | undefined
+  /**
+   * Refuses a call even when it is budget-exempt. The finalize window uses it
+   * so that only the tools a mode names (its submission) can run once the
+   * budget is spent, not every tool that is normally always reachable.
+   */
+  readonly restrict?: (call: ToolCallRequest) => ToolDeclineReason | undefined
   /**
    * Program tools and what each may call. Research seam for SP-01; the public
    * way to enable programs is not decided.
@@ -231,8 +241,12 @@ async function start(
   step: StepRuntime,
   internal: InternalScheduleOptions,
 ): Promise<Slot> {
-  const { maxDurationMs, teardownTimeoutMs } = step
-  const deadline = AbortSignal.timeout(maxDurationMs)
+  const { teardownTimeoutMs } = step
+  const definition = options.catalog.get(prepared.options.call.toolName)
+  // A call that waits for a person is bounded by its own limit, not the turn's
+  // tool limit; without one it ends only with the run.
+  const maxDurationMs = definition?.awaitsPerson === true ? definition.timeoutMs : step.maxDurationMs
+  const deadline = maxDurationMs === undefined ? new AbortController().signal : AbortSignal.timeout(maxDurationMs)
   const signal = AbortSignal.any([options.signal, deadline])
   const boundedPrepared = {
     ...prepared,
@@ -267,8 +281,13 @@ async function start(
     call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
     pending: Promise.resolve(cancelledResult(deadline, maxDurationMs)),
   }
+  const restricted = internal.restrict?.(call)
+  if (restricted !== undefined) return {
+    call, trace, signal, deadline, teardownTimeoutMs, dispatched: false, declined: true,
+    pending: Promise.resolve(declinedResult(restricted)),
+  }
   if (recovered !== undefined) return {
-    call, trace, signal, deadline, teardownTimeoutMs, dispatched: false,
+    call, trace, signal, deadline, teardownTimeoutMs, dispatched: false, recovered: true,
     pending: Promise.resolve(recovered),
   }
   // A tool the model may always reach: submitting, asking, delegating. Letting
@@ -296,7 +315,7 @@ async function start(
   }
   // Every path below that does not start the body returns the reservation.
   try {
-    return await authorizeAndDispatch(options, boundedPrepared, call, trace, signal, deadline, ticket, step, grant)
+    return await authorizeAndDispatch(options, boundedPrepared, call, trace, signal, deadline, ticket, step, grant, internal)
   } finally {
     ticket.release()
   }
@@ -312,6 +331,7 @@ async function authorizeAndDispatch(
   ticket: AdmissionTicket,
   step: StepRuntime,
   grant: ProgramGrant | undefined,
+  internal: InternalScheduleOptions,
 ): Promise<Slot> {
   const { maxDurationMs, teardownTimeoutMs } = step
   if (options.signal.aborted) return {
@@ -363,10 +383,13 @@ async function authorizeAndDispatch(
     : new ProgramRun(options, step, grant, { call, trace, signal })
   if (program !== undefined) attachNestedToolPort(authorization.call, program.port, signal => program.bindExecutionSignal(signal))
   ticket.confirm()
+  const awaitsPerson = authorization.call.tool.awaitsPerson === true
+  internal.onToolActivity?.(awaitsPerson, true)
   const pending = dispatchAuthorizedToolCall(authorization.call)
   // Observe rejection in the same turn in which dispatch creates the promise.
   // commit() still receives and propagates the original rejection in order.
-  void pending.catch(() => undefined)
+  const settled = (): void => { internal.onToolActivity?.(awaitsPerson, false) }
+  void pending.then(settled, settled)
   return {
     call, trace, signal, deadline, teardownTimeoutMs,
     authorized: authorization.call, dispatched: true,
@@ -423,6 +446,8 @@ function declineText(reason: ToolDeclineReason): string {
         + ' re-entering it.' + finish
     case 'tokens':
       return 'This call was not run: the turn has spent its token budget.' + finish
+    case 'time':
+      return 'This call was not run: the turn has spent its time budget.' + finish
     case 'consecutive-tool-errors':
       return 'This call was not run: too many calls in a row have failed.'
         + ' Something in the approach is wrong, not the individual call.' + finish
@@ -495,7 +520,10 @@ async function commit(
   }
   const message = createToolResultMessage({ callId: slot.call.callId, content: [...result.content], isError: result.isError })
   options.history.append({ kind: 'tool-result', callId: slot.call.callId, message, result })
-  await emitEvent(options, { type: 'tool-result', call: slot.call, result, trace: slot.trace })
+  await emitEvent(options, { type: 'tool-result', call: slot.call, result, trace: slot.trace,
+    ...slot.declined === true ? { declined: true as const } : {},
+    ...slot.recovered === true ? { recovered: true as const } : {},
+    ...slot.dispatched ? {} : { dispatched: false as const } })
   await emitEvent(options, {
     type: 'span-end', trace: slot.trace, at: now(), status: result.isError ? 'error' : 'success',
     output: result.isError ? { error: result.error } : result.value,

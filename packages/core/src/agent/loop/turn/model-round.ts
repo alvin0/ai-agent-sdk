@@ -92,6 +92,7 @@ export async function modelRound(
   turn: number,
   step: number,
   phase: ModelRoundPhase,
+  position: { readonly workStep: number; readonly finalizing: boolean } = { workStep: step, finalizing: false },
 ): Promise<RoundResult> {
   const forcedFinal = phase === 'forced-final'
   const finalOutput = phase === 'final' || forcedFinal
@@ -116,7 +117,8 @@ export async function modelRound(
   const beforeMaintenance = stopped()
   if (beforeMaintenance !== undefined) return beforeMaintenance
   const decision = await runOptionalHook(options.hooks?.beforeStep, [{
-    turn, step, messages, snapshot: options.history.snapshot(), signal,
+    turn, step, workStep: position.workStep, phase, ...position.finalizing ? { finalizing: true as const } : {},
+    messages, snapshot: options.history.snapshot(), signal,
     ...(options.logger === undefined ? {} : { logger: options.logger }),
     emit: emitMaintenance,
   }], options, signal, 'beforeStep')
@@ -369,20 +371,41 @@ export async function modelRound(
   const canonicalTexts = assembler.textBlocks()
     .filter(({ block }) => !retainedPrefix || block.text.trim() !== '')
   let textPosition = 0
-  const classifiedRaw = classifyTextPhases(rawBlocks.map(block => {
+  const phaseHinted = rawBlocks.map(block => {
     if (block.type !== 'text') return block
     const canonical = canonicalTexts[textPosition++]
     // Safe-prefix recovery removes native calls too. Retain their position so
     // search narration cannot become an answer merely because a call was removed.
     return block.phase === undefined && canonical?.beforeNativeCall
       ? { ...block, phase: 'commentary' as const } : block
-  }), phase === 'process', assembler.hasToolCalls)
+  })
+  // A forced answer that also reaches for a tool it cannot use still answered,
+  // when the stream itself ended normally: drop the call and keep the answer
+  // rather than failing the run. Only text the provider labelled as the answer,
+  // or unlabelled text written after the last call, counts: unlabelled text
+  // before a call is its preamble ("let me search…"), and provider-labelled
+  // commentary stays commentary. A round with no answer text keeps the call and
+  // is reported as invalid below.
+  const lastCall = phaseHinted.findLastIndex(block => block.type === 'tool-call')
+  const strippedCandidate = forcedFinal
+    && (providerFinish.kind === 'tool-calls' || providerFinish.kind === 'stop')
+    && lastCall >= 0
+    ? phaseHinted.flatMap((block, index): ContentBlock[] => block.type === 'tool-call' ? []
+      : block.type === 'text' && block.phase === undefined
+        ? [{ ...block, phase: index > lastCall ? 'final-answer' as const : 'commentary' as const }]
+        : [block])
+    : undefined
+  const strippedForcedCalls = strippedCandidate !== undefined
+    && strippedCandidate.some(block => block.type === 'text' && block.phase !== 'commentary' && block.text.trim() !== '')
+  const classifiedRaw = strippedForcedCalls
+    ? strippedCandidate!
+    : classifyTextPhases(phaseHinted, phase === 'process', assembler.hasToolCalls)
   // A repeated id costs the model that one call, not its whole turn.
   const deduped = dropDuplicateToolCalls(classifiedRaw, options.history)
   const classified = deduped.blocks
   const structuredOutputFailure = finalOutput
     && options.outputFormat?.type === 'json_schema'
-    && providerFinish.kind === 'stop'
+    && (providerFinish.kind === 'stop' || strippedForcedCalls)
     && !isJsonText(textOf(classified), options.validateOutput)
     ? {
       message: 'model returned invalid JSON or failed the structured output validator',
@@ -404,9 +427,13 @@ export async function modelRound(
     ? rawContent.map(block => block.type === 'text'
       ? { ...block, text: block.text.replaceAll(UNCHANGED_ANSWER_MARKER, '') } : block)
     : rawContent
-  const finish: FinishReason = invalidCall === undefined
+  // A broken stream is the real failure, and a retryable one; a malformed
+  // call in what it left behind must not hide it.
+  const finish: FinishReason = providerFinish.kind === 'error' || providerFinish.kind === 'aborted'
     ? providerFinish
-    : { kind: 'error', failure: invalidCall }
+    : invalidCall === undefined
+      ? strippedForcedCalls ? { kind: 'stop' } : providerFinish
+      : { kind: 'error', failure: invalidCall }
   const message = blocks.length === 0
     ? undefined
     : createAssistant(options, blocks, retainedPrefix ? undefined : assembler.replayState)

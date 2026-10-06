@@ -58,6 +58,19 @@ export interface WithRetryOptions {
   onRetry?: (attempt: RetryAttempt) => void
   /** Maximum wait while closing an unsuccessful attempt. Defaults to 30s. */
   teardownTimeoutMs?: number
+  /**
+   * Keep an attempt retryable while it has only streamed reasoning.
+   *
+   * Reasoning models open a reasoning block before any answer, so by default
+   * the retry window closes there and a provider failure while the model is
+   * still thinking cannot be retried. With this on, reasoning chunks are held
+   * back until the first answer or tool chunk (or the end), then released in
+   * order; a failure before that discards them and retries cleanly, so the
+   * consumer never sees a failed attempt's reasoning twice. The cost is that
+   * reasoning is not shown live. `true` holds up to 4096 chunks; past the cap
+   * the attempt is forwarded as usual and retry stops applying.
+   */
+  bufferReasoningPrefix?: boolean | { readonly maxChunks: number }
 }
 
 /** Resolve a delay that honours a provider-requested `retry-after` when sane. */
@@ -301,15 +314,51 @@ class RetryingAdapter extends ModelAdapter {
     // An adapter behind the registry's funnel reports failure as a terminal
     // error finish rather than a throw. As the FIRST chunk, that is still a
     // clean nothing-emitted failure and remains retryable.
-    const chunk = first.value
+    let chunk = first.value
     if (chunk.type === 'finish' && chunk.reason.kind === 'error') {
       await closeIterator(iterator, this.options.teardownTimeoutMs ?? 30_000)
       return { kind: 'retryable', failure: chunk.reason.failure }
     }
 
+    const held: StreamChunk[] = []
+    const cap = reasoningBufferCap(this.options.bufferReasoningPrefix)
+    if (cap > 0) {
+      const reasoningBlocks = new Set<number>()
+      try {
+        while (isReasoningChunk(chunk, reasoningBlocks) && held.length < cap) {
+          held.push(chunk)
+          let next = await iterator.next()
+          while (!next.done && next.value.type === 'usage-progress') {
+            let resumed = false
+            try {
+              yield next.value
+              resumed = true
+            } finally {
+              if (!resumed) await closeIterator(iterator, this.options.teardownTimeoutMs ?? 30_000)
+            }
+            next = await iterator.next()
+          }
+          if (next.done === true) break
+          chunk = next.value
+          // Still only thinking when it failed: nothing was shown, so retry.
+          if (chunk.type === 'finish' && chunk.reason.kind === 'error') {
+            await closeIterator(iterator, this.options.teardownTimeoutMs ?? 30_000)
+            return { kind: 'retryable', failure: chunk.reason.failure }
+          }
+        }
+      } catch (error: unknown) {
+        await closeIterator(iterator, this.options.teardownTimeoutMs ?? 30_000)
+        return { kind: 'retryable', failure: normalizeModelFailure(error) }
+      }
+      // A stream that only reasoned and then ended releases what it held.
+      if (held.length > 0 && held.at(-1) === chunk) {
+        return { kind: 'forward', chunks: resume(held, undefined, iterator, this.options.teardownTimeoutMs ?? 30_000) }
+      }
+    }
+
     return {
       kind: 'forward',
-      chunks: resume(chunk, iterator, this.options.teardownTimeoutMs ?? 30_000),
+      chunks: resume(held, chunk, iterator, this.options.teardownTimeoutMs ?? 30_000),
     }
   }
 }
@@ -319,15 +368,36 @@ function positiveFinite(value: number, name: string): number {
   return value
 }
 
-/** Re-attach an already-read first chunk to the front of its iterator. */
+function reasoningBufferCap(option: WithRetryOptions['bufferReasoningPrefix']): number {
+  if (option === undefined || option === false) return 0
+  if (option === true) return 4096
+  if (!Number.isSafeInteger(option.maxChunks) || option.maxChunks < 1) {
+    throw new RangeError('bufferReasoningPrefix.maxChunks must be a positive safe integer')
+  }
+  return option.maxChunks
+}
+
+/** Whether a chunk only carries reasoning, tracking which block indexes are reasoning. */
+function isReasoningChunk(chunk: StreamChunk, reasoningBlocks: Set<number>): boolean {
+  if (chunk.type === 'reasoning-delta') return true
+  if (chunk.type === 'block-start' && chunk.blockType === 'reasoning') {
+    reasoningBlocks.add(chunk.index)
+    return true
+  }
+  return chunk.type === 'block-end' && (chunk.block.type === 'reasoning' || reasoningBlocks.has(chunk.index))
+}
+
+/** Re-attach already-read chunks to the front of their iterator. */
 async function* resume(
-  first: StreamChunk,
+  held: readonly StreamChunk[],
+  first: StreamChunk | undefined,
   iterator: AsyncIterator<StreamChunk>,
   teardownTimeoutMs: number,
 ): AsyncGenerator<StreamChunk> {
   let exhausted = false
   try {
-    yield first
+    for (const chunk of held) yield chunk
+    if (first !== undefined) yield first
     while (true) {
       const next = await iterator.next()
       if (next.done === true) {

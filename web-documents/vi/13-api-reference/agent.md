@@ -149,6 +149,9 @@ interface RuntimeAgentSession {
   maxConsecutiveToolErrors?: number
   maxTotalTokens?: number | 'auto'
   finalReportReserveTokens?: number
+  finalizeSteps?: number
+  userInputTimeoutMs?: number
+  maxTurnDurationMs?: number | 'auto'
   observerTimeoutMs?: number
 }
 ```
@@ -171,6 +174,30 @@ kiểm tra hoàn thành đều vẫn còn hiệu lực. Session được tuần 
 cáo cuối không dùng tool. Nó phải là số nguyên an toàn không âm và **nhỏ hơn**
 `maxTotalTokens`, và bị bỏ qua khi `maxTotalTokens` là `'auto'` (không có trần
 nào để dự trữ).
+
+`finalizeSteps` (0–8) là số bước thêm mà một turn **deep mode** được chạy sau
+khi budget buộc nó trả lời trước khi `submit_result` được chấp nhận. Trong các
+bước đó chỉ `submit_result` được chạy — mọi tool khác, kể cả tool miễn budget
+như `request_user_input` hay nhắn tin trong team, đều bị từ chối — để model xác
+nhận câu trả lời đã viết. Deep mode mặc định `2`; basic mode bỏ qua. Turn vẫn
+kết thúc với lý do `budget-exhausted` đã buộc câu trả lời, và giữ câu trả lời đó
+nếu bước xác nhận lỗi. Đặt `0` để deep mode kết thúc ở câu trả lời chưa xác
+nhận như trước.
+
+`maxTurnDurationMs` là ngân sách thời gian thực cho công việc của một turn,
+không tính thời gian chờ người dùng. Khi hết, turn không bắt đầu thêm tool nào
+và trả lời từ những gì đã có, như mọi budget khác, thay vì bị huỷ mà không có
+câu trả lời. Mặc định `'auto'` (không giới hạn thời gian).
+
+`userInputTimeoutMs` giới hạn thời gian `request_user_input` chờ một người trả
+lời. Mặc định bằng `maxToolDurationMs`, vốn không còn giới hạn chính việc chờ,
+nên có thể cho người dùng nhiều thời gian hơn tool. Khi hết hạn, model được báo
+là người dùng chưa trả lời và tiếp tục với giả định đã nêu rõ; việc này không bị
+ghi nhận là người dùng bỏ qua câu hỏi.
+
+Các lần retry do hook `onRequestError` yêu cầu không tính vào `maxSteps` (tối
+đa 8 lần mỗi turn; quá mức đó retry vẫn tốn bước như cũ), nên một lỗi provider
+tạm thời không còn làm run mất một bước làm việc.
 
 ## Lời gọi và kết quả
 

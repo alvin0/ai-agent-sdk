@@ -21,6 +21,8 @@ export type ExhaustedBudget =
   | 'repeated-tool-call'
   | 'tool-call-cycle'
   | 'tokens'
+  /** `TurnBounds.maxTurnDurationMs` passed; the answer was forced from the evidence so far. */
+  | 'time'
 /**
  * Why a call the model asked for was not run.
  *
@@ -122,7 +124,18 @@ export type AgentEvent = TraceEvent
     readonly afterToolCallIds: readonly ToolCallId[]
   } & Traced)
   | ({ readonly type: 'tool-call'; readonly call: ToolCallRequest } & Traced)
-  | ({ readonly type: 'tool-result'; readonly call: ToolCallRequest; readonly result: ToolExecutionResult } & Traced)
+  | ({
+    readonly type: 'tool-result'; readonly call: ToolCallRequest; readonly result: ToolExecutionResult
+    /** The loop refused the call; no tool body ran. Set by the scheduler, never by a tool. */
+    readonly declined?: true
+    /** Answered from this turn's earlier identical result; no tool body ran. */
+    readonly recovered?: true
+    /**
+     * False when the tool body never ran: declined, recovered, denied by an
+     * interceptor or approval, or cancelled before it started.
+     */
+    readonly dispatched?: false
+  } & Traced)
   | ({ readonly type: 'approval-request'; readonly request: ApprovalRequest } & Traced)
   | ({ readonly type: 'usage'; readonly usage: TokenUsage } & Traced)
   | ({ readonly type: 'usage-progress'; readonly usage: import('../../observation/usage.ts').UsageCounters; readonly attemptId?: string } & Traced)
@@ -131,7 +144,19 @@ export type AgentEvent = TraceEvent
 
 export interface BeforeStepContext {
   readonly turn: number
+  /** Request number in the turn; retried requests take numbers too. */
   readonly step: number
+  /**
+   * The work step this request is for, which is what `maxSteps` limits:
+   * retried requests do not advance it. Past `maxSteps` the request is the
+   * forced answer or the finalize window, where tools are not available for
+   * work, so cues tied to a step budget should not be sent there.
+   */
+  readonly workStep?: number
+  /** `forced-final`: the tools-off answer a budget forced; `final`: a structured-output finalizer. */
+  readonly phase?: 'standard' | 'process' | 'final' | 'forced-final'
+  /** Set in the finalize window, where only the mode's confirmation tool runs. */
+  readonly finalizing?: true
   readonly messages: readonly Message[]
   readonly snapshot: HistorySnapshot
   readonly signal: AbortSignal

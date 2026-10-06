@@ -306,7 +306,9 @@ describe('agent modes', () => {
     expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: {
       completed: false, reason: { kind: 'budget-exhausted', budget: 'repeated-tool-call', forcedFinalAnswer: true },
     } })
-    expect(state.adapter.requests).toHaveLength(5)
+    // One finalize request follows the forced answer: deep mode may still
+    // confirm it, and the turn ends as the repeat guard stopped it.
+    expect(state.adapter.requests).toHaveLength(6)
     expect(state.adapter.requests[3]?.toolChoice).not.toBe('none') // One ordinary replan.
     expect(state.adapter.requests[4]?.toolChoice).toBe('none') // The next repeat still stops.
     const results = state.history.entries()
@@ -706,7 +708,9 @@ describe('agent modes', () => {
     })
     const end = events.at(-1)
     expect(end?.type === 'agent-end' ? end.outcome.completed : undefined).toBe(false)
-    expect(state.adapter.requests).toHaveLength(2)
+    // The answer on the last step opens the finalize window once; nothing is submitted.
+    expect(state.adapter.requests).toHaveLength(3)
+    expect(end).toMatchObject({ outcome: { text: 'draft two' } })
   })
 
   it('does not accept submit_result batched with work whose result was not reviewed', async () => {
@@ -728,5 +732,143 @@ describe('agent modes', () => {
       completed: true, text: 'Reviewed final.', completion: { summary: 'Reviewed' },
     })
     expect(state.adapter.requests).toHaveLength(4)
+  })
+})
+
+describe('deep mode at its budget edge', () => {
+  const config = { provider: 'test', model: 'm' }
+
+  it('confirms an answer the step budget forced, in the finalize window', async () => {
+    const state = setup([
+      toolRound('e1', 'echo', { n: 1 }),
+      textRound('Answer from evidence.'),
+      toolRound('s', 'submit_result', { summary: 'Checked against the echo result.', evidence: ['echo n=1'] }),
+      textRound(UNCHANGED_ANSWER_MARKER),
+    ])
+    const events = await collect({ mode: 'deep', registry: state.registry, history: state.history, tools: state.tools, config, maxTurns: 1 })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: {
+      completed: true, text: 'Answer from evidence.',
+      reason: { kind: 'budget-exhausted', budget: 'steps', forcedFinalAnswer: true },
+    } })
+    // The finalize request still offers tools; only exempt ones may run.
+    expect(state.adapter.requests[2]?.toolChoice).not.toBe('none')
+  })
+
+  it('declines work in the finalize window and still ends as the budget stopped it', async () => {
+    let executions = 0
+    const state = setup([
+      toolRound('e1', 'count', {}),
+      textRound('Partial answer.'),
+      toolRound('e2', 'count', {}),
+      textRound('Partial answer.'),
+    ])
+    state.tools.register(defineTool({ name: 'count', description: 'Count.', parameters: { type: 'object' }, execute: () => ({ n: ++executions }) }))
+    const events = await collect({ mode: 'deep', registry: state.registry, history: state.history, tools: state.tools, config, maxTurns: 1 })
+    expect(executions).toBe(1)
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: {
+      completed: false, reason: { kind: 'budget-exhausted', budget: 'steps', forcedFinalAnswer: true },
+    } })
+  })
+
+  it('declines even budget-exempt tools in the finalize window', async () => {
+    let asked = 0
+    const state = setup([
+      toolRound('e1', 'echo', { n: 1 }),
+      textRound('Forced answer.'),
+      toolRound('a', 'always', {}),
+      textRound('Forced answer.'),
+    ])
+    state.tools.register(defineTool({ name: 'always', description: 'Exempt.', parameters: { type: 'object' }, budgetExempt: true,
+      execute: () => ({ n: ++asked }) }))
+    await collect({ mode: 'deep', registry: state.registry, history: state.history, tools: state.tools, config, maxTurns: 1 })
+    expect(asked).toBe(0)
+  })
+
+  it('keeps the forced answer and budget reason when the confirmation request fails', async () => {
+    const state = setup([
+      toolRound('e1', 'echo', { n: 1 }),
+      textRound('Forced answer.'),
+      [{ type: 'finish', reason: { kind: 'error', failure: { code: 'SERVER', message: 'down' } } }],
+    ])
+    const events = await collect({ mode: 'deep', registry: state.registry, history: state.history, tools: state.tools, config, maxTurns: 1 })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: {
+      completed: false, text: 'Forced answer.', reason: { kind: 'budget-exhausted', budget: 'steps', forcedFinalAnswer: true },
+    } })
+  })
+
+  it('does not tell turn-end hooks a budget-stopped turn can continue', async () => {
+    const seen: boolean[] = []
+    const state = setup([toolRound('e1', 'echo', { n: 1 }), textRound('Forced answer.'),
+      toolRound('s', 'submit_result', { summary: 'Checked.', evidence: ['echo'] }), textRound(UNCHANGED_ANSWER_MARKER)])
+    await collect({ mode: 'deep', registry: state.registry, history: state.history, tools: state.tools, config, maxTurns: 1,
+      hooks: { onTurnEnd: context => { seen.push(context.canContinue) } } })
+    expect(seen).toEqual([false])
+  })
+
+  it('opens no finalize window in basic mode', async () => {
+    const state = setup([toolRound('e1', 'echo', { n: 1 }), textRound('Forced answer.'), textRound('unused')])
+    await collect({ mode: 'basic', registry: state.registry, history: state.history, tools: state.tools, config, maxTurns: 1 })
+    expect(state.adapter.requests).toHaveLength(2)
+  })
+
+  it('keeps an accepted submission when a later call is only declined by the budget', async () => {
+    const state = setup([
+      toolRound('e1', 'echo', { n: 1 }),
+      toolRound('s', 'submit_result', { summary: 'Checked.', evidence: ['echo n=1'] }),
+      toolRound('e2', 'echo', { n: 2 }),
+      textRound('Final answer.'),
+    ])
+    const events = await collect({ mode: 'deep', registry: state.registry, history: state.history, tools: state.tools, config,
+      maxTurns: 6, bounds: { maxToolCalls: 1 } })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: {
+      completed: true, text: 'Final answer.', reason: { kind: 'budget-exhausted', budget: 'tool-calls', forcedFinalAnswer: true },
+    } })
+  })
+
+  it('does not hide a stream failure behind a stripped forced call', async () => {
+    const state = setup([
+      toolRound('e1', 'echo', { n: 1 }),
+      [
+        { type: 'text-delta', index: 0, text: 'Report so far.' },
+        { type: 'block-end', index: 0, block: { type: 'text', text: 'Report so far.' } },
+        { type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId('late'), name: 'echo', arguments: '{}' } },
+        { type: 'finish', reason: { kind: 'error', failure: { code: 'STREAM_CLOSED', message: 'broken' } } },
+      ],
+    ])
+    const events = await collect({ mode: 'basic', registry: state.registry, history: state.history, tools: state.tools, config, maxTurns: 1 })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { reason: { kind: 'error' } } })
+  })
+
+  it('treats unlabelled text before a forced call as its preamble, not the answer', async () => {
+    const state = setup([
+      toolRound('e1', 'echo', { n: 1 }),
+      [
+        { type: 'text-delta', index: 0, text: 'Let me search the policy next.' },
+        { type: 'block-end', index: 0, block: { type: 'text', text: 'Let me search the policy next.' } },
+        { type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId('late'), name: 'echo', arguments: '{}' } },
+        { type: 'finish', reason: { kind: 'tool-calls' } },
+      ],
+    ])
+    const events = await collect({ mode: 'basic', registry: state.registry, history: state.history, tools: state.tools, config, maxTurns: 1 })
+    // Asked once more with tools off; still no answer is the budget's stop, not a run error.
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: { text: '', completed: false,
+      reason: { kind: 'budget-exhausted', budget: 'steps' } } })
+    expect(state.adapter.requests).toHaveLength(3)
+  })
+
+  it('keeps the text of a forced answer that also reached for a tool', async () => {
+    const state = setup([
+      toolRound('e1', 'echo', { n: 1 }),
+      [
+        { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('late'), name: 'echo', arguments: '{}' } },
+        { type: 'text-delta', index: 1, text: 'Report so far.' },
+        { type: 'block-end', index: 1, block: { type: 'text', text: 'Report so far.' } },
+        { type: 'finish', reason: { kind: 'tool-calls' } },
+      ],
+    ])
+    const events = await collect({ mode: 'basic', registry: state.registry, history: state.history, tools: state.tools, config, maxTurns: 1 })
+    expect(events.at(-1)).toMatchObject({ type: 'agent-end', outcome: {
+      text: 'Report so far.', reason: { kind: 'budget-exhausted', budget: 'steps', forcedFinalAnswer: true },
+    } })
   })
 })

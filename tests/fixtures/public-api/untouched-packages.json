@@ -181,6 +181,7 @@
           "ProviderInfo",
           "ProviderRequestId",
           "ProviderRetryScheduledInput",
+          "PublicRuntimeAgentRunEvent",
           "QUOTA_EXCEEDED_CODE",
           "REGISTRY_ERROR_CODES",
           "ReasoningBlock",
@@ -374,9 +375,10 @@
           "waitForSettlement",
           "withApprovalPersistence",
           "withIdleTimeout",
-          "withRetry"
+          "withRetry",
+          "withoutRunReport"
         ],
-        "declarationSha256": "5bee1bd098869bb2a38576be4ef05176411f2b1486f4632474338353c515ac76"
+        "declarationSha256": "8ddbe1bc8ea5000cf9d467e2f18c2d5d8954ace0842859b8b2acf9818a809c08"
       },
       "./agent": {
         "exports": [

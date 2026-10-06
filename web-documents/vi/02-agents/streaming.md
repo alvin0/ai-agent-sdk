@@ -5,7 +5,10 @@ do dừng (`completed`, `concluded-by-tool`, `budget-exhausted`, `max-tokens` ho
 `usage-unavailable` khi execution thành công). Không đánh dấu job nghiệp vụ done
 chỉ vì Promise resolve hoặc `report.status === 'success'`. Deep mode còn cần
 completion submission được chấp nhận nên riêng `stopReason === 'completed'`
-chưa đủ. Khi cancel hoặc execution lỗi, composition result reject; đọc terminal
+chưa đủ. Ngược lại, một run deep có thể `completed: true` với `stopReason:
+'budget-exhausted'` khi nó đã xác nhận một câu trả lời bị buộc; `completed` mới
+là tín hiệu thành công. `response.endReason` chứa đầy đủ lý do phía sau
+`stopReason`, ví dụ budget nào đã hết và câu trả lời có bị buộc hay không. Khi cancel hoặc execution lỗi, composition result reject; đọc terminal
 report từ error hoặc `handle.report`, không chờ một response thành công.
 
 Streaming là con đường duy nhất đi qua SDK. `generate()` rút cạn đúng luồng mà

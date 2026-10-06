@@ -2,6 +2,49 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## 0.1.9 - 2026-10-06
+
+### Changed
+
+- Deep mode now confirms an answer written with no step left to confirm it. When a step, tool-call, loop-guard or report-reserve budget forces the final answer, or the model answers on its last work step, before `submit_result` was accepted, the turn gets a finalize window of `finalizeSteps` more steps (`TurnBounds.finalizeSteps`, session `runtimeLimits.finalizeSteps`, 0–8; deep mode defaults to `2`, basic mode never opens it, a managed-team lead defaults to `0`). Only `submit_result` runs in the window; every other tool, including budget-exempt ones such as `request_user_input`, team messaging and spill reads, is declined. The window does not open while a person's input is queued. The turn still ends with the reason that opened it; unless the window confirms an answer, the original answer is kept (a note about what is missing never replaces it). This can add up to two model calls to such a deep run, which can now end `completed: true` with `stopReason: 'budget-exhausted'`; `completed` remains the success signal. Set `finalizeSteps: 0` for the previous behavior. `TurnEndContext.canContinue` is unchanged. Low-level `runTurn` callers opt in with `RunTurnOptions.finalize`.
+- A request that an `onRequestError` hook retries no longer spends a work step (up to 8 free retries per turn), is no longer kept in history (its half-written text and cut-off call arguments were being continued from or rejected by the provider), and can be retried on the last step. The forced final answer and the structured-output finalizer now go through the same hook. Step numbers in events still increase with every request, and `outcome.steps` counts every request.
+- `request_user_input` waits up to `userInputTimeoutMs` (session `runtimeLimits.userInputTimeoutMs`, default `maxToolDurationMs`) instead of being cut off by the turn's tool limit, and a wait that runs out is no longer recorded as the person dismissing the question: the model is told there was no answer and continues on stated assumptions, and the run can still complete. Tools that wait for a person can declare `awaitsPerson: true` to be bounded only by their own `timeoutMs`.
+- A spent budget now ends with an answer wherever one can be written. New `TurnBounds.maxTurnDurationMs` (session `runtimeLimits.maxTurnDurationMs`, default `'auto'`) is a wall-clock budget for the turn's work, excluding waits for a person: when it passes, no new tool work starts and the turn answers from the evidence it has (`budget-exhausted` / `time`) instead of a host having to cancel it with nothing. A model round already in flight is not interrupted. `ExhaustedBudget` gains `'time'`; exhaustive switches over it need a case.
+- A forced answer that comes back empty, or only as a call to a tool it cannot use, is asked for once more with tools off; if it still has no answer the turn ends as the budget's stop (`budget-exhausted`, empty text) rather than as a run error. A broken provider stream is reported as that stream error, never masked by an invalid call in what it left behind.
+- When the finalize window keeps the original answer, that answer is also re-appended as the last assistant message, so the session's `message`, the stream and a reload agree with `text`.
+- The `request_user_input` wait limit holds even for a broker that ignores its abort signal; an answer arriving after the limit is ignored.
+- `InteractiveUserInputBroker.resolve()` returns `false` and keeps the question open when the response does not answer exactly the questions asked, instead of using the question up on an answer the run then rejects.
+
+### Fixed
+
+- Restoring an answer after an unconfirmed finalize window preserves its original app or model provenance, so sanitized answers remain valid in persisted history.
+- A user-input broker's promise is observed before publishing the question event, preventing late rejections from becoming unhandled when timeout wins during event backpressure. Abort listeners are removed when the wait ends.
+- The turn's time budget excludes only intervals spent solely waiting for a person. Sibling tool work still counts, including work that overlaps a parallel question wait.
+- A tool call whose body never ran (declined by a budget, denied by an interceptor or approval, answered from this turn's earlier identical result) no longer voids an accepted `submit_result`. `tool-result` events carry scheduler-owned `declined`, `recovered` and `dispatched: false` flags, which tools cannot set. A submission must still be the only performed call in its own step.
+- A forced final answer that also emits a tool call keeps its answer instead of failing the run with `INVALID_TOOL_CALL`, when the stream ended normally and there is answer text: provider-labelled answer text, or unlabelled text written after the call. Unlabelled text before the call is its preamble and stays commentary, so "let me search…" never becomes the answer; such rounds, and rounds whose stream failed, still fail as before.
+- The deep self-check gate no longer stops prompting early after retried requests.
+- A hook that is waiting out a retry backoff when the run is aborted ends the turn as aborted, with the interruption marker, instead of throwing.
+- A failed or interrupted round that produced no text no longer erases an earlier round's text; a forced round with no message no longer reuses earlier narration.
+- The Responses serializer drops reasoning items with neither an id nor encrypted content (left by a stream that failed mid-thought), which made every later request in the conversation fail.
+- A Responses `response.failed` with no error body (common from Codex under load) names the response id and status in its message.
+- The step reminder is no longer sent inside the finalize window.
+
+### Added
+
+- `RuntimeAgentResponse.endReason`: the full terminal `TurnEndReason` behind `stopReason`.
+- `withRetry(adapter, { bufferReasoningPrefix })`: keeps an attempt retryable while it has only streamed reasoning, by holding reasoning chunks until the first answer or tool chunk. Off by default.
+- `withoutRunReport(event)`: strips the run report from terminal `usage`/`error` runtime events before a host forwards them to a browser or another tenant.
+- `BeforeStepContext.workStep`, `phase` and `finalizing`, so host cues tied to the step budget can follow work steps and skip the forced answer and finalize window.
+
+### Documentation
+
+- Provider `retryPolicy` options state that they only classify failures; retries run when the adapter is wrapped with `withRetry`. The model round timeout and provider request/idle timeouts are not effort-aware; hosts running high reasoning effort should raise them together.
+
+### Release scope
+
+- All 26 workspace package manifests, root metadata and `SDK_VERSION` move from `0.1.8` to `0.1.9`; 25 packages are publishable and the private testkit remains unpublished.
+- Merging into `main` triggers the guarded Release workflow to publish npm packages after its checks pass.
+
 ## 0.1.8 - 2026-10-05
 
 ### Fixed

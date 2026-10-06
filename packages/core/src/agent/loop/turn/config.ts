@@ -17,6 +17,8 @@ export const DEFAULT_BOUNDS: TurnBounds = Object.freeze({
   maxToolCycleLength: 4,
   maxTotalTokens: 'auto',
   finalReportReserveTokens: 0,
+  finalizeSteps: 0,
+  maxTurnDurationMs: 'auto',
   maxParallel: 8,
   maxToolResultBytes: 4 * 1024 * 1024,
   // Codex's own default for a shell call. Large enough for a real build log,
@@ -34,6 +36,12 @@ export function resolveBounds(input: Partial<TurnBounds> | undefined): TurnBound
   if (!Number.isSafeInteger(bounds.finalReportReserveTokens) || bounds.finalReportReserveTokens < 0
     || (bounds.maxTotalTokens !== 'auto' && bounds.finalReportReserveTokens >= bounds.maxTotalTokens)) {
     throw new RangeError('finalReportReserveTokens must be a non-negative safe integer below maxTotalTokens')
+  }
+  if (bounds.maxTurnDurationMs !== 'auto' && (!Number.isSafeInteger(bounds.maxTurnDurationMs) || bounds.maxTurnDurationMs < 1)) {
+    throw new RangeError("maxTurnDurationMs must be a positive safe integer or 'auto'")
+  }
+  if (!Number.isSafeInteger(bounds.finalizeSteps) || bounds.finalizeSteps < 0 || bounds.finalizeSteps > 8) {
+    throw new RangeError('finalizeSteps must be a safe integer from 0 to 8')
   }
   if (bounds.maxSteps !== 'auto' && (!Number.isSafeInteger(bounds.maxSteps) || bounds.maxSteps < 1)) {
     throw new RangeError("maxSteps must be a positive safe integer or 'auto'")

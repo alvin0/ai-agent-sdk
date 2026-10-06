@@ -254,7 +254,10 @@ export interface CopilotProviderOptions {
   readonly maxErrorBodyBytes?: number
   /** Deadline granted to {@link requestLogger} before the request proceeds anyway. */
   readonly requestLoggerTimeoutMs?: number
-  /** Retry policy this route owns (Requirement 7.7). */
+  /**
+   * How this route's failures are classified as retryable. Classification
+   * only: nothing retries until the adapter is wrapped with `withRetry`.
+   */
   readonly retryPolicy?: RetryPolicyConfig
   /**
    * Exact wire-request observer.

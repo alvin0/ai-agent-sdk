@@ -139,6 +139,19 @@ describe('serializeResponsesRequest', () => {
     })
   })
 
+  it('drops a reasoning item the provider never finished, which Responses cannot accept back', () => {
+    const body = serializeResponsesRequest(providerRequest({
+      messages: [createAssistantMessage({
+        content: [
+          { type: 'reasoning', text: 'half a thought' },
+          { type: 'text', text: 'partial' },
+        ],
+        source: { provider: 'p', model: 'm' },
+      })],
+    }), dialect)
+    expect(body.input.map(item => item.type)).toEqual(['message'])
+  })
+
   it('encodes a base64 image as a data URL', () => {
     const body = serializeResponsesRequest(providerRequest({
       messages: [createTextMessage('look')],

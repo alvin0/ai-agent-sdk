@@ -169,7 +169,10 @@ export interface CodexAdapterOptions {
   maxSseEventChars?: number
   maxErrorBodyBytes?: number
   requestLoggerTimeoutMs?: number
-  /** Retry policy this route owns. */
+  /**
+   * How this route's failures are classified as retryable. Classification
+   * only: nothing retries until the adapter is wrapped with `withRetry`.
+   */
   retryPolicy?: RetryPolicyConfig
   /** Optional exact wire-request logger; credentials/account ids are redacted. */
   requestLogger?: ProviderRequestLogger

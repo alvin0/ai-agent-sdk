@@ -468,7 +468,8 @@ export class AgentSession {
       this.roundInFlight = false
       this.drainInjections()
       return true
-    })
+    }, () => (this.pendingInjections?.entries() ?? []).some(entry => entry.event.kind === 'user'
+      && (entry.event.message.source.kind === 'user' || isManagedTeamNotice(entry.event.message))))
     this.activeAdditionalInstructions = additionalInstructions
     this.activeInvocation = invocation
     const spanOperations = new Map<string, string>()
@@ -738,6 +739,8 @@ export class AgentSession {
         ...this.runtimeLimits.finalReportReserveTokens === undefined ? {} : {
           finalReportReserveTokens: this.runtimeLimits.finalReportReserveTokens,
         },
+        ...this.runtimeLimits.finalizeSteps === undefined ? {} : { finalizeSteps: this.runtimeLimits.finalizeSteps },
+        ...this.runtimeLimits.maxTurnDurationMs === undefined ? {} : { maxTurnDurationMs: this.runtimeLimits.maxTurnDurationMs },
         ...this.runtimeLimits.maxTotalTokens === undefined
           ? {}
           : { maxTotalTokens: this.runtimeLimits.maxTotalTokens },
@@ -778,12 +781,14 @@ export class AgentSession {
     if (definition.mode === 'deep-human-in-loop') {
       return runAgent({
         ...common, mode: definition.mode, userInput: this.options.userInput as UserInputBroker,
+        ...this.runtimeLimits.userInputTimeoutMs === undefined ? {} : { userInputTimeoutMs: this.runtimeLimits.userInputTimeoutMs },
       })
     }
     if (definition.mode === 'deep') {
       return runAgent({
         ...common, mode: definition.mode,
         ...this.options.userInput === undefined ? {} : { userInput: this.options.userInput },
+        ...this.runtimeLimits.userInputTimeoutMs === undefined ? {} : { userInputTimeoutMs: this.runtimeLimits.userInputTimeoutMs },
       })
     }
     return runAgent({ ...common, mode: 'basic' })

@@ -367,6 +367,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
       const parsedOutput = output()
       return Object.freeze({ runId: final.runId, traceId: final.traceId,
         completed: response.outcome.completed, stopReason: response.outcome.reason.kind,
+        endReason: response.outcome.reason,
         text: response.text, ...(parsedOutput === undefined ? {} : { output: parsedOutput }),
         ...(response.message === undefined ? {} : { message: publicMessage(response.message) }),
         usage: final.usage, report: final })

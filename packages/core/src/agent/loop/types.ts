@@ -55,6 +55,22 @@ export interface TurnBounds {
   /** Stop tool work this many tokens before the hard total to reserve a report.
    * Ignored with maxTotalTokens: 'auto'. Zero disables the reserve. */
   readonly finalReportReserveTokens: number
+  /**
+   * Extra steps a turn may take after its budget forced a final answer, used
+   * only when the caller supplies `RunTurnOptions.finalize` (deep mode does,
+   * defaulting this to 2). In them only the tools it names run, so a run that
+   * answered on its last step can still confirm that answer instead of ending
+   * unconfirmed. Zero (the default) ends the turn at the forced answer.
+   */
+  readonly finalizeSteps: number
+  /**
+   * Wall-clock budget for the turn's work, excluding time spent waiting for a
+   * person. When it passes, the turn stops working and answers from what it
+   * has, like any other spent budget, rather than being cancelled with
+   * nothing. A model round already in flight is not interrupted. Default
+   * 'auto' imposes no time budget.
+   */
+  readonly maxTurnDurationMs: number | 'auto'
   readonly maxParallel: number
   /** Maximum serialized bytes retained for one finalized tool result. */
   readonly maxToolResultBytes: number

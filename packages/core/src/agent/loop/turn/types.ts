@@ -14,10 +14,36 @@ import type { ToolCatalog } from '../../tool/registry.ts'
 import type { SpillStore } from '../../tool/output-budget.ts'
 import type { ContextSection } from '../../context/types.ts'
 import { type SpanId, type TraceId, type TraceRef } from '../../trace/trace.ts'
-import type { AssistantContentTiming, TurnBounds, TurnHooks } from '../types.ts'
+import type { AssistantContentTiming, TurnBounds, TurnEndReason, TurnHooks } from '../types.ts'
 import type { SdkLogger } from '../../../logging/types.ts'
 
+/** How a mode confirms an answer its budget forced; see `RunTurnOptions.finalize`. */
+export interface TurnFinalize {
+  /** The only tools that may run in the window, budget-exempt or not. */
+  readonly tools: readonly string[]
+  /**
+   * The instruction that opens the window, given the forced answer; undefined
+   * ends the turn on that answer as before.
+   */
+  prompt(forced: { readonly text: string; readonly reason: Extract<TurnEndReason, { kind: 'budget-exhausted' } | { kind: 'completed' }> }): Message | undefined
+  /**
+   * Whether the window confirmed an answer. Only then may text written in the
+   * window replace the forced answer; a model that declines to confirm often
+   * writes a short note about what is missing, which must not erase the
+   * evidence-bearing answer it qualifies.
+   */
+  confirmed(): boolean
+}
+
 export interface RunTurnOptions {
+  /**
+   * Lets a mode confirm an answer the budget forced, for up to
+   * `bounds.finalizeSteps` more steps in which only `tools` run. The turn still
+   * ends with the budget reason that forced the answer, and keeps that answer
+   * unless the window produced a new one. Without it the turn ends on the
+   * forced answer.
+   */
+  readonly finalize?: TurnFinalize
   readonly validateOutput?: (value: unknown) => void
   /** strict rejects known text-only models when request history contains images; project permits lossy conversion. */
   readonly imagePolicy?: 'strict' | 'project'

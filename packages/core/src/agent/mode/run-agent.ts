@@ -14,8 +14,9 @@ import type { ToolInterceptor } from '../tool/pipeline.ts'
 import type { ToolCatalog } from '../tool/registry.ts'
 import { waitForSettlement } from '../../async/index.ts'
 import type {
-  UserInputBroker, UserInputQuestion, UserInputRequest, UserInputResponse,
+  UserInputBroker, UserInputDecision, UserInputQuestion, UserInputRequest, UserInputResponse,
 } from './user-input.ts'
+import { userInputResponseProblem } from './user-input.ts'
 
 export const AGENT_CONTROL_TOOLS = Object.freeze({
   complete: 'submit_result',
@@ -61,12 +62,21 @@ export interface DeepAgentOptions extends AgentRunCommon {
   readonly mode: 'deep'
   /** Optional in deep mode: expose a blocking clarification tool when configured. */
   readonly userInput?: UserInputBroker
+  /** How long a question waits for its answer; see {@link HumanInLoopAgentOptions.userInputTimeoutMs}. */
+  readonly userInputTimeoutMs?: number
 }
 
 export interface HumanInLoopAgentOptions extends AgentRunCommon {
   readonly mode: 'deep-human-in-loop'
   /** Required in HIL mode: the tool call remains parked until this broker answers. */
   readonly userInput: UserInputBroker
+  /**
+   * How long a question waits for its answer, independent of
+   * `bounds.maxToolDurationMs` (which defaults it). When it passes, the model
+   * is told the person did not answer and continues without the answer; it is
+   * not treated as the person dismissing the question.
+   */
+  readonly userInputTimeoutMs?: number
 }
 
 export type RunAgentOptions = BasicAgentOptions | DeepAgentOptions | HumanInLoopAgentOptions
@@ -263,10 +273,16 @@ async function driveAgent(
   }
   if (deep) internalTools.push(completionTool(state, options.history, options.tools))
   if (broker !== undefined && mode !== 'basic') {
-    internalTools.push(userInputTool(mode, broker, state, emit, options.accounting))
+    // A question used to share the tool time limit; that stays the default.
+    const waitMs = positiveFinite(
+      ('userInputTimeoutMs' in options ? options.userInputTimeoutMs : undefined)
+        ?? options.bounds?.maxToolDurationMs ?? 10 * 60_000,
+      'userInputTimeoutMs',
+    )
+    internalTools.push(userInputTool(mode, broker, state, emit, waitMs, options.accounting))
   }
   const tools = internalTools.length === 0 ? options.tools : combineTools(options.tools, internalTools)
-  const hooks = deep ? deepHooks(options.hooks, options.history, state, maxTurns) : options.hooks
+  const hooks = deep ? deepHooks(options.hooks, options.history, state) : options.hooks
   const turnOptions: RunTurnOptions = {
     registry: options.registry,
     config: options.config,
@@ -281,7 +297,28 @@ async function driveAgent(
     system: joinSystem(options.system, modeSystem(mode, broker !== undefined)),
     ...options.interceptors === undefined ? {} : { interceptors: shieldControlTools(options.interceptors) },
     ...options.approvals === undefined ? {} : { approvals: options.approvals },
-    bounds: { ...options.bounds, maxSteps: maxTurns },
+    // Deep mode must confirm its answer; a budget that forces the answer on the
+    // last step leaves two exempt-only steps to submit it rather than failing.
+    bounds: { ...options.bounds, maxSteps: maxTurns,
+      finalizeSteps: options.bounds?.finalizeSteps ?? (deep ? 2 : 0) },
+    // A deep run must confirm its answer. When the budget forced that answer
+    // before a submission, a short window lets the model submit it; only the
+    // submission can run there, never more work or a question to a person.
+    ...deep ? { finalize: {
+      tools: [AGENT_CONTROL_TOOLS.complete],
+      prompt: (forced: { readonly text: string }) => {
+        if (state.completion !== undefined || state.userAborted) return undefined
+        if (forced.text.trim() !== UNCHANGED_ANSWER_MARKER) {
+          state.draftAnswer = forced.text
+          state.draftSeq = options.history.entries().length
+        }
+        return createUserMessage({
+          source: { kind: 'app', producer: 'deep-mode-self-check' },
+          content: [{ type: 'text', text: `The work budget for this run is spent, and your answer above has no accepted self-check. No research or work tool will run now; only ${AGENT_CONTROL_TOOLS.complete} can. If the answer is supported by the evidence already gathered, call ${AGENT_CONTROL_TOOLS.complete} alone with that self-check, stating any gaps honestly, then deliver the answer in its requested format. If it is not supported, do not submit; your answer above stands as an unconfirmed result.` }],
+        })
+      },
+      confirmed: () => state.completion !== undefined,
+    } } : {},
     ...hooks === undefined ? {} : { hooks },
     signal,
     ...options.logger === undefined ? {} : { logger: options.logger },
@@ -467,20 +504,25 @@ async function driveAgent(
     if (event.type === 'step-start') {
       stepCalls = []
       completionCandidate = undefined
-    } else if (event.type === 'tool-call') {
-      stepCalls.push(event.call.toolName)
+    } else if (event.type === 'tool-result') {
+      // Judged on the result, not the request: a call whose body never ran
+      // (declined by a budget, denied by policy, answered from an earlier
+      // identical result) did no new work, so it must not void an accepted
+      // submission. The flag comes from the scheduler; tool metadata cannot set it.
+      const performed = event.dispatched !== false
+      if (performed) stepCalls.push(event.call.toolName)
       // Work performed after an accepted submission invalidates that submission;
       // the new result has not yet passed the completion gate.
-      if (event.call.toolName !== AGENT_CONTROL_TOOLS.complete
+      if (performed && event.call.toolName !== AGENT_CONTROL_TOOLS.complete
         && tools?.get(event.call.toolName)?.completionExempt !== true) {
         if (state.completion !== undefined) state.completionInvalidated = 'tool'
         state.completion = undefined
         state.unverifiedAnswers = 0
       }
-    } else if (event.type === 'tool-result'
-      && event.call.toolName === AGENT_CONTROL_TOOLS.complete
-      && !event.result.isError) {
-      if ((event.result.value as JsonObject | undefined)?.accepted === true) completionCandidate = completionFromResult(event.result.value)
+      if (event.call.toolName === AGENT_CONTROL_TOOLS.complete && !event.result.isError
+        && (event.result.value as JsonObject | undefined)?.accepted === true) {
+        completionCandidate = completionFromResult(event.result.value)
+      }
     } else if (event.type === 'step-end'
       && completionCandidate !== undefined
       && stepCalls.filter(name => name === AGENT_CONTROL_TOOLS.complete).length === 1
@@ -660,6 +702,7 @@ function userInputTool(
   broker: UserInputBroker,
   state: DeepState,
   emit: (event: AgentRunEvent) => Promise<void>,
+  waitMs: number,
   accounting?: RunTurnOptions['accounting'],
 ): ToolDefinition<{ readonly questions: readonly UserInputQuestion[] }> {
   return defineTool({
@@ -667,6 +710,8 @@ function userInputTool(
     // Asking the user is how a blocked run gets unblocked; a spent budget must
     // not be the reason the question is never asked.
     budgetExempt: true,
+    // The wait is bounded below by `waitMs`, not by the turn's tool limit.
+    awaitsPerson: true,
     description: mode === 'deep-human-in-loop'
       ? 'Ask the user one to three short questions when a material choice or missing fact requires human input, then wait for the response. Provide 2-3 mutually exclusive suggestions; free-form input is added by the client.'
       : 'Ask the user one to three short clarification questions only when blocked, then wait for the response. Provide suggested choices; free-form input is added by the client.',
@@ -683,11 +728,37 @@ function userInputTool(
       }
       // Start the broker first: an event consumer may resolve synchronously, and
       // the waiter must already exist when the request event becomes visible.
+      const unanswered = AbortSignal.timeout(waitMs)
       try {
-        const pending = broker.request(request, ctx.signal)
+        const pending = broker.request(request, AbortSignal.any([ctx.signal, unanswered]))
+        // Observe the broker immediately, including rejection while publication
+        // is backpressured or after the question's timeout has already won.
+        void pending.catch(() => undefined)
         await emit({ type: 'user-input-request', request })
-        const response = await pending
+        // The wait limit holds even for a broker that ignores the signal: an
+        // answer arriving after it, or never, cannot keep the run waiting,
+        // since `awaitsPerson` leaves no scheduler deadline above it.
+        const response = await new Promise<UserInputDecision>((resolve, reject) => {
+          const cleanup = (): void => {
+            unanswered.removeEventListener('abort', onEnd)
+            ctx.signal.removeEventListener('abort', onEnd)
+          }
+          const onEnd = (): void => { cleanup(); resolve('abort') }
+          if (unanswered.aborted || ctx.signal.aborted) { onEnd(); return }
+          unanswered.addEventListener('abort', onEnd, { once: true })
+          ctx.signal.addEventListener('abort', onEnd, { once: true })
+          void pending.then(
+            response => { cleanup(); resolve(response) },
+            error => { cleanup(); reject(error) },
+          )
+        })
         await emit({ type: 'user-input-response', request, response })
+        // The wait ran out, the person did not dismiss anything: the run goes
+        // on without the answer instead of being recorded as user-aborted.
+        if (response === 'abort' && unanswered.aborted && !ctx.signal.aborted) {
+          if (operation !== undefined) accounting?.endOperation(operation, 'aborted')
+          return { answered: false, reason: `The user did not answer within ${Math.round(waitMs / 1000)} seconds. Continue without their answer: state the assumption you make for each open question, and do not ask the same questions again in this run.` }
+        }
         if (response === 'abort') {
           state.userAborted = true
           ctx.concludeTurn()
@@ -716,7 +787,6 @@ function deepHooks(
   userHooks: TurnHooks | undefined,
   history: RunAgentOptions['history'],
   state: DeepState,
-  maxTurns: number | 'auto',
 ): TurnHooks {
   return {
     ...userHooks,
@@ -737,9 +807,10 @@ function deepHooks(
         }) })
         return
       }
+      // `canContinue` already counts work steps; `outcome.steps` also counts
+      // retried requests, which must not shorten the gate's reach.
       if (context.outcome.reason.kind !== 'completed'
         || !context.canContinue
-        || (maxTurns !== 'auto' && context.outcome.steps >= maxTurns)
         || state.completion !== undefined
         || state.userAborted) return
       // Auto must not pay indefinitely for paraphrases of "already checked".
@@ -831,17 +902,8 @@ function validateUserResponse(
   response: UserInputResponse,
   questions: readonly UserInputQuestion[],
 ): UserInputResponse {
-  const expected = new Set(questions.map(question => question.id))
-  for (const id of expected) {
-    const answer = response.answers[id]
-    if (answer === undefined || !Array.isArray(answer.answers) || answer.answers.length === 0
-      || answer.answers.some(value => typeof value !== 'string' || value.trim().length === 0)) {
-      throw new Error(`the user-input broker returned no valid answer for "${id}"`)
-    }
-  }
-  for (const id of Object.keys(response.answers)) {
-    if (!expected.has(id)) throw new Error(`the user-input broker returned an answer for unknown question "${id}"`)
-  }
+  const problem = userInputResponseProblem(questions, response)
+  if (problem !== undefined) throw new Error(`the user-input broker returned ${problem}`)
   return response
 }
 

@@ -11,6 +11,10 @@ exposes the terminal reason (`completed`, `concluded-by-tool`,
 Do not mark a business job done merely because the promise resolved or
 `report.status === 'success'`. Deep mode additionally requires an accepted
 completion submission, so `stopReason === 'completed'` alone is insufficient.
+Conversely, a deep run can be `completed: true` with `stopReason:
+'budget-exhausted'` when it confirmed a forced answer; `completed` is the
+success signal. `response.endReason` carries the full reason behind
+`stopReason`, such as which budget ran out and whether the answer was forced.
 Cancellation and execution errors reject the composition result; inspect the
 terminal report on the error or `handle.report` instead of expecting a response.
 

@@ -170,6 +170,11 @@ function appendMessage(message: Message, items: WireInputItem[], dialectMessageP
       case 'reasoning': {
         flush()
         const state = reasoningStateOf(block.providerState)
+        // A reasoning item the provider never finished (a stream that failed
+        // mid-thought) has neither an id nor encrypted content. Responses
+        // cannot accept it as input, and replaying it would fail every later
+        // request in the conversation; the model loses nothing it could reuse.
+        if (state.id === undefined && state.encryptedContent === undefined) break
         // Prefer the recorded summary paragraphs; fall back to the block's text so
         // a hand-built or replayed message still carries something.
         const summary = state.summary !== undefined && state.summary.length > 0

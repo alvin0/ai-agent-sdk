@@ -10,6 +10,7 @@ message.
 
 ## Setup
 
+For the 0.1.9 release, read the [release notes](CHANGELOG.md).
 For the 0.1.8 release, read [upgrading from 0.1.7](docs/upgrading-from-0.1.7.md).
 For 0.1.7 completion and steering changes, see [upgrading from 0.1.6](docs/upgrading-from-0.1.6.md).
 For changes introduced after 0.1.4, read the

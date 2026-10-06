@@ -1,4 +1,4 @@
-import { createUserMessage } from '../../message/index.ts'
+import { createMessage, createUserMessage, type Message } from '../../message/index.ts'
 import { detachedFrozen } from '../../primitives/index.ts'
 import type { ModelCallReport } from '../../observation/index.ts'
 import { waitForSettlement } from '../../async/index.ts'
@@ -13,7 +13,7 @@ import { ProgramResultStore } from '../tool/program-results.ts'
 import { type RunTurnOptions } from './turn/types.ts'
 import { resolveBounds, positiveFinite, snapshotRunTurnOptions } from './turn/config.ts'
 import { codedRuntimeError, messageOf, errorCodeOf, now } from './turn/common.ts'
-import { deliverQueuedInput } from './turn/model-request-boundary.ts'
+import { deliverQueuedInput, hasQueuedInput } from './turn/model-request-boundary.ts'
 import { runOptionalHook, runHook } from './turn/hooks.ts'
 import { maintenanceEmitter, emitAssistantContent, textOf } from './turn/content.ts'
 import { repeatKey, toolActionPattern, repeatedSuffixCycle } from './turn/repetition.ts'
@@ -62,6 +62,9 @@ export function runTurn(options: RunTurnOptions): AsyncIterable<AgentEvent> {
   }
 }
 
+/** Request retries per turn that do not count against `maxSteps`. */
+const MAX_FREE_REQUEST_RETRIES = 8
+
 async function driveTurn(
   options: RunTurnOptions,
   signal: AbortSignal,
@@ -78,6 +81,126 @@ async function driveTurn(
     entry.event.kind === 'user' && entry.event.message.source.kind === 'user').length)
   const startedAt = now()
   let steps = 0
+  /**
+   * Rounds the request-error hook asked to retry. Each still gets its own step
+   * number, but a provider blip must not spend the work the budget is for:
+   * limits compare `workSteps`. Bounded, so a hook that always retries cannot
+   * loop forever; past the bound a retry costs a step as it used to.
+   */
+  let retriedRounds = 0
+  const workSteps = (): number => steps - retriedRounds
+  const position = () => ({ workStep: workSteps() + 1, finalizing: finalizeUntil !== undefined })
+  // Wall-clock budget for the turn's own work. Time spent waiting for a person
+  // is not work, so it is not charged.
+  const maxTurnDurationMs = bounds.maxTurnDurationMs === 'auto' ? Infinity : bounds.maxTurnDurationMs
+  const turnStartedMs = Date.now()
+  let personWaitMs = 0
+  let waitingSince: number | undefined
+  let personCalls = 0
+  let workCalls = 0
+  const toolActivity = (awaitsPerson: boolean, active: boolean): void => {
+    const at = Date.now()
+    if (waitingSince !== undefined) personWaitMs += at - waitingSince
+    if (awaitsPerson) personCalls += active ? 1 : -1
+    else workCalls += active ? 1 : -1
+    // Only time spent solely waiting is free; parallel tool work still counts.
+    waitingSince = personCalls > 0 && workCalls === 0 ? at : undefined
+  }
+  const timeSpent = (): number => {
+    const at = Date.now()
+    return at - turnStartedMs - personWaitMs - (waitingSince === undefined ? 0 : at - waitingSince)
+  }
+  /**
+   * A spent budget ends the turn with an answer, not without one: one
+   * tools-off round writes it from the evidence already gathered. That round
+   * gets the request-error retry, and one more try if it came back empty,
+   * because it is the only thing the person will receive.
+   */
+  const forceAnswer = async (
+    exhausted: ExhaustedBudget,
+    reserveTrigger: boolean,
+  ): Promise<TurnOutcome['reason']> => {
+    let final = await retryFinalRound(await modelRound(
+      options, signal, emit, emitMaintenance, root, turn, steps + 1, 'forced-final', position(),
+    ), 'forced-final')
+    // No answer came back: empty text, or only a call to a tool it cannot use.
+    const unanswered = (round: typeof final) => !round.usageRequired && !round.usageUnavailable
+      && ((round.finish.kind === 'stop' && textOf(round.message?.content ?? []).trim() === '')
+        || (round.finish.kind === 'error' && round.finish.failure.code === 'INVALID_TOOL_CALL'))
+    if (unanswered(final) && !signal.aborted && retriedRounds < MAX_FREE_REQUEST_RETRIES
+      && admissionStop() === undefined) {
+      if (final.report !== undefined) modelCallReports.push(final.report)
+      if (final.message !== undefined) {
+        options.history.append({ kind: 'assistant', message: final.message, ...final.usage === undefined ? {} : { usage: final.usage } })
+      }
+      options.history.append({ kind: 'user', message: createUserMessage({
+        source: { kind: 'app', producer: 'forced-answer-empty' },
+        content: [{ type: 'text', text: 'Your last reply contained no answer. Tools are disabled now. Write the answer for the user now, in text, from the evidence already gathered, and state what could not be checked.' }],
+      }) })
+      steps++
+      retriedRounds++
+      final = await modelRound(options, signal, emit, emitMaintenance, root, turn, steps + 1, 'forced-final', position())
+    }
+    steps++
+    if (final.report !== undefined) modelCallReports.push(final.report)
+    if (final.message !== undefined) {
+      options.history.append({ kind: 'assistant', message: final.message, ...final.usage === undefined ? {} : { usage: final.usage } })
+      await emit({ type: 'assistant-message', message: final.message, trace: final.trace })
+      await emitAssistantContent(final, emit)
+      text = textOf(final.message.content)
+    } else {
+      // The forced answer said nothing; an earlier round's narration is not it.
+      text = ''
+    }
+    if (final.finish.kind === 'aborted') return { kind: 'aborted' }
+    // A model that still only reaches for tools has given no answer; that is
+    // the budget's stop without one, not a failure of the run.
+    if (final.finish.kind === 'error' && final.finish.failure.code === 'INVALID_TOOL_CALL') {
+      text = ''
+      return { kind: 'budget-exhausted', budget: exhausted, forcedFinalAnswer: false,
+        ...(reserveTrigger ? { trigger: 'report-reserve' as const } : {}) }
+    }
+    if (final.finish.kind === 'error') return { kind: 'error', failure: final.finish.failure }
+    if (final.finish.kind === 'max-tokens') return { kind: 'max-tokens' }
+    if (final.usageRequired) {
+      return { kind: 'error', failure: { message: 'provider usage is required by the configured run policy', code: 'USAGE_REQUIRED' } }
+    }
+    if (final.usageUnavailable) {
+      return accountingUsageStop(options.accounting) ?? { kind: 'usage-unavailable', modelCallId: final.report?.modelCallId ?? 'unknown' }
+    }
+    return { kind: 'budget-exhausted', budget: exhausted, forcedFinalAnswer: true,
+      ...(reserveTrigger ? { trigger: 'report-reserve' as const } : {}) }
+  }
+  /**
+   * The tools-off rounds that close a turn (the forced answer, the structured
+   * output finalizer) are the single call the whole run's evidence depends on.
+   * A transient failure there gets the same retry hook as any other request,
+   * from the same free-retry allowance; the failed attempt is not kept.
+   */
+  const retryFinalRound = async (
+    first: Awaited<ReturnType<typeof modelRound>>,
+    phase: 'final' | 'forced-final',
+  ): Promise<Awaited<ReturnType<typeof modelRound>>> => {
+    let final = first
+    while (final.finish.kind === 'error' && !final.usageRequired && !signal.aborted
+      && retriedRounds < MAX_FREE_REQUEST_RETRIES && admissionStop() === undefined) {
+      const decision = await runOptionalHook(options.hooks?.onRequestError, [{
+        turn, step: steps + 1, failure: final.finish.failure, snapshot: options.history.snapshot(), signal,
+        ...(options.logger === undefined ? {} : { logger: options.logger }),
+        emit: emitMaintenance,
+      }], options, signal, 'onRequestError')
+        // A hook waiting out a backoff when the person aborts throws the abort;
+        // that is a cancelled turn, not a crashed one.
+        .catch((error: unknown) => { if (signal.aborted) return 'fail' as const; throw error })
+      if (decision !== 'retry' || signal.aborted || accountingUsageStop(options.accounting) !== undefined) break
+      if (final.report !== undefined) modelCallReports.push(final.report)
+      // The failed attempt keeps its step number; the caller counts the last one.
+      steps++
+      retriedRounds++
+      final = await modelRound(options, signal, emit, emitMaintenance, root, turn, steps + 1, phase, position())
+    }
+    return final
+  }
   let toolCalls = 0
   // Descending, so "how many are below the remainder" counts the crossings.
   const budgetReminders = [...bounds.toolBudgetRemindAt]
@@ -89,6 +212,17 @@ async function driveTurn(
   /** Sequence of the budget notice currently on the surface, if any. */
   let budgetNoticeSeq: number | undefined
   let stepReminderSent = false
+  /**
+   * After a budget forced the answer, at most one short window in which only
+   * budget-exempt tools run; see `TurnBounds.finalizeSteps`.
+   */
+  let finalizeUntil: number | undefined
+  let finalizeReason: ExhaustedBudget | undefined
+  /** The forced-answer outcome that opened the window; the turn still ends as it. */
+  let finalizeOrigin: Extract<TurnOutcome['reason'], { kind: 'budget-exhausted' } | { kind: 'completed' }> | undefined
+  let forcedText = ''
+  let forcedMessage: Message | undefined
+  const finalizeTools = new Set(options.finalize?.tools ?? [])
   let tokenRemindersSent = 0
   let consecutiveErrors = 0
   let text = ''
@@ -194,9 +328,16 @@ async function driveTurn(
   await emit({ type: 'turn-start', turn, trace: root })
 
   turnLifecycle: while (true) {
-  while (reason === undefined && steps < maxSteps && !signal.aborted) {
+  while (reason === undefined && workSteps() < (finalizeUntil ?? maxSteps) && !signal.aborted) {
     reason = admissionStop()
     if (reason !== undefined) break
+    // Out of time before another work round: answer now, from what is known.
+    if (steps > 0 && finalizeUntil === undefined && timeSpent() >= maxTurnDurationMs) {
+      reason = bounds.onExhausted === 'stop'
+        ? { kind: 'budget-exhausted', budget: 'time', forcedFinalAnswer: false }
+        : await forceAnswer('time', false)
+      break
+    }
     // Auto has no step countdown. Warn from the same usage total as admission,
     // before a hard token stop can leave the agent without a reporting call.
     const usedTokens = budgetTokenTotal(summarizeModelCallUsage(modelCallReports))
@@ -216,12 +357,12 @@ async function driveTurn(
     }
     // Leave time to reconcile a plan and submit a result before the final
     // tools-disabled summary. Tool-call reminders do not cover step limits.
-    if (!stepReminderSent && steps > 0 && maxSteps - steps <= 2) {
+    if (!stepReminderSent && finalizeUntil === undefined && workSteps() > 0 && maxSteps - workSteps() <= 2) {
       stepReminderSent = true
       options.history.append({ kind: 'user', message: createUserMessage({
         source: { kind: 'app', producer: 'tool-loop-step-guard' },
         content: [{ type: 'text', text:
-          `${maxSteps - steps} work steps remain. Finish essential verification, update any task list honestly, and submit the result if required. Summarize findings, evidence, and unfinished work; do not start new exploration.`,
+          `${maxSteps - workSteps()} work steps remain. Finish essential verification, update any task list honestly, and submit the result if required. Summarize findings, evidence, and unfinished work; do not start new exploration.`,
         }],
       }) })
     }
@@ -237,28 +378,41 @@ async function driveTurn(
       dedicatedFinalOutput
         ? 'process'
         : options.outputFormat?.type === 'json_schema' ? 'final' : 'standard',
+      position(),
     )
     steps++
     if (round.report !== undefined) modelCallReports.push(round.report)
-    if (round.message !== undefined) {
-      options.history.append({
-        kind: 'assistant', message: round.message,
-        ...round.finish.kind === 'aborted' ? { interrupted: true as const } : {},
-        ...round.usage === undefined ? {} : { usage: round.usage },
-      })
-      await emit({ type: 'assistant-message', message: round.message, trace: round.trace })
-      await emitAssistantContent(round, emit)
-      text = textOf(round.message.content)
-    } else if (round.finish.kind === 'stop') {
-      // A successful empty round cannot answer new input with earlier text.
-      // Keep earlier text only when a later request fails or is interrupted.
-      text = ''
-    }
     usageStop = accountingUsageStop(options.accounting) ?? (round.usageRequired
       ? { kind: 'error', failure: { message: 'provider usage is required by the configured run policy', code: 'USAGE_REQUIRED' } }
       : round.usageUnavailable
         ? { kind: 'usage-unavailable', modelCallId: round.report?.modelCallId ?? 'unknown' }
         : undefined)
+    const commitRound = async (): Promise<void> => {
+      if (round.message !== undefined) {
+        options.history.append({
+          kind: 'assistant', message: round.message,
+          ...round.finish.kind === 'aborted' ? { interrupted: true as const } : {},
+          ...round.usage === undefined ? {} : { usage: round.usage },
+        })
+        await emit({ type: 'assistant-message', message: round.message, trace: round.trace })
+        await emitAssistantContent(round, emit)
+        // A failed or interrupted round that only began thinking has said
+        // nothing new; it must not erase the text an earlier round produced.
+        const roundText = textOf(round.message.content)
+        if (roundText.trim() !== '' || (round.finish.kind !== 'error' && round.finish.kind !== 'aborted')) text = roundText
+      } else if (round.finish.kind === 'stop') {
+        // A successful empty round cannot answer new input with earlier text.
+        // Keep earlier text only when a later request fails or is interrupted.
+        text = ''
+      }
+    }
+    // A failed request the retry hook may repeat is held back: kept in history,
+    // its half-written text and cut-off call arguments would be continued from
+    // (an answer missing its beginning) or rejected by the provider. It is
+    // committed only if the turn ends on it.
+    const retryCandidate = round.finish.kind === 'error' && !round.usageRequired
+      && usageStop === undefined && !signal.aborted
+    if (!retryCandidate) await commitRound()
     if (signal.aborted || round.finish.kind === 'aborted') { reason = { kind: 'aborted' }; break }
     // Pair emitted tool calls with declined results even when policy stops the
     // run; never execute those calls or allow a retry hook to override policy.
@@ -269,16 +423,23 @@ async function driveTurn(
     if (round.usageRequired && (round.calls.length === 0 || options.tools === undefined)) { reason = usageStop; break }
     if (round.finish.kind === 'error' && !round.usageRequired) {
       reason = admissionStop()
-      if (reason !== undefined) break
+      if (reason !== undefined) { await commitRound(); break }
       const decision = await runOptionalHook(options.hooks?.onRequestError, [{
         turn, step, failure: round.finish.failure, snapshot: options.history.snapshot(), signal,
         ...(options.logger === undefined ? {} : { logger: options.logger }),
         emit: emitMaintenance,
       }], options, signal, 'onRequestError')
+        // A hook waiting out a backoff when the person aborts throws the abort;
+        // that is a cancelled turn, not a crashed one.
+        .catch((error: unknown) => { if (signal.aborted) return 'fail' as const; throw error })
       const maintenanceStop = accountingUsageStop(options.accounting)
-      if (maintenanceStop !== undefined) { reason = signal.aborted ? { kind: 'aborted' } : maintenanceStop; break }
-      if (decision === 'retry' && steps < maxSteps) continue
-      reason = { kind: 'error', failure: round.finish.failure }
+      if (maintenanceStop !== undefined) { await commitRound(); reason = signal.aborted ? { kind: 'aborted' } : maintenanceStop; break }
+      if (decision === 'retry' && !signal.aborted) {
+        if (retriedRounds < MAX_FREE_REQUEST_RETRIES) retriedRounds++
+        if (workSteps() < (finalizeUntil ?? maxSteps)) continue
+      }
+      await commitRound()
+      reason = signal.aborted ? { kind: 'aborted' } : { kind: 'error', failure: round.finish.failure }
       break
     }
     if (round.finish.kind === 'max-tokens' && !round.usageRequired) { reason = { kind: 'max-tokens' }; break }
@@ -296,9 +457,9 @@ async function driveTurn(
           text: 'The process phase is complete. Return the final answer now in the requested output format. Do not call tools.',
         }],
       }) })
-      const final = await modelRound(
-        options, signal, emit, emitMaintenance, root, turn, steps + 1, 'final',
-      )
+      const final = await retryFinalRound(await modelRound(
+        options, signal, emit, emitMaintenance, root, turn, steps + 1, 'final', position(),
+      ), 'final')
       steps++
       if (final.report !== undefined) modelCallReports.push(final.report)
       if (final.message !== undefined) {
@@ -365,12 +526,19 @@ async function driveTurn(
     const budgetTokens = budgetTokenTotal(currentUsage)
     const tokenLimitBeforeDispatch = budgetTokens !== undefined
       && budgetTokens >= maxTotalTokens
+    // A model round that ran past the time budget does not start new work.
+    const timeLimitBeforeDispatch = finalizeUntil === undefined && timeSpent() >= maxTurnDurationMs
     const guardDeclined = cycleLimitBeforeDispatch || tokenLimitBeforeDispatch || round.usageRequired
+      || finalizeUntil !== undefined || timeLimitBeforeDispatch
     // Name the limit that actually declined the call. Reporting a repeat guard
     // as an empty budget teaches the model the wrong lesson, and it repeats the
     // call on the next turn with the budget it was told it lacked.
-    const declineReason: ToolDeclineReason = tokenLimitBeforeDispatch
+    const declineReason: ToolDeclineReason = finalizeReason !== undefined && !tokenLimitBeforeDispatch
+      ? finalizeReason
+      : tokenLimitBeforeDispatch
       ? 'tokens'
+      : timeLimitBeforeDispatch
+      ? 'time'
       : cycleLimitBeforeDispatch
         ? 'tool-call-cycle'
         : round.usageRequired
@@ -437,7 +605,14 @@ async function driveTurn(
         ),
       },
     }, {
+      onToolActivity: toolActivity,
       admissionLimit: guardDeclined ? 0 : budgetIsAWall ? remaining : 'unbounded',
+      // In the finalize window even an always-reachable tool (asking a person,
+      // messaging a teammate) would start work the spent budget cannot finish.
+      ...finalizeUntil === undefined ? {} : {
+        restrict: (call: typeof round.calls[number]): ToolDeclineReason | undefined =>
+          finalizeTools.has(call.toolName) ? undefined : finalizeReason ?? 'steps',
+      },
       ...guardDeclined || !repeatedLimitBeforeDispatch ? {} : {
         decline: (call: typeof round.calls[number]): ToolDeclineReason | undefined =>
           individuallyRepeatedCallIds.has(String(call.callId)) ? 'repeated-tool-call' : undefined,
@@ -560,7 +735,7 @@ async function driveTurn(
       && !cycleLimitBeforeDispatch && !tokenLimitBeforeDispatch && !reportReserveReached
       && !round.usageRequired && !round.usageUnavailable && !signal.aborted
       && !(budgetIsAWall && budgetedCalls > remaining)
-      && consecutiveErrors === 0 && steps < maxSteps
+      && consecutiveErrors === 0 && workSteps() < maxSteps
       && bounds.onExhausted !== 'stop' && admissionStop() === undefined
     // A repeated call cannot poison new work in the same model batch. Successful
     // recovery alongside a real dispatch is ordinary progress, not an extra pure
@@ -577,63 +752,73 @@ async function driveTurn(
     else if (budgetIsAWall && budgetedCalls > remaining) exhausted = 'tool-calls'
     else if (consecutiveErrors >= bounds.maxConsecutiveToolErrors) exhausted = 'consecutive-tool-errors'
     else if (repeatedLimit && !recoveredWithFreshDispatch) exhausted = 'repeated-tool-call'
-    else if (steps >= maxSteps) exhausted = 'steps'
+    else if (workSteps() >= maxSteps) exhausted = 'steps'
+    // The finalize window has its own end; only the hard token wall stops it early.
+    if (finalizeUntil !== undefined) exhausted = tokenLimitBeforeDispatch ? 'tokens' : undefined
     if (exhausted === undefined && recoveredWithFreshDispatch) {
       for (const call of round.calls) {
         if (recoveredCallIds.has(String(call.callId))) recoveredReplanKeys.add(repeatKey(call))
       }
     }
+    // Time is checked at every step boundary, not only after tool work.
+    if (exhausted === undefined && finalizeUntil === undefined && timeSpent() >= maxTurnDurationMs) exhausted = 'time'
     if (exhausted !== undefined) {
       const forced = (exhausted !== 'tokens' || (reportReserveReached && !tokenLimitBeforeDispatch))
         && bounds.onExhausted !== 'stop'
         && admissionStop() === undefined
-      if (forced) {
-        const final = await modelRound(
-          options, signal, emit, emitMaintenance, root, turn, steps + 1, 'forced-final',
-        )
-        steps++
-        if (final.report !== undefined) modelCallReports.push(final.report)
-        if (final.message !== undefined) {
-          options.history.append({ kind: 'assistant', message: final.message, ...final.usage === undefined ? {} : { usage: final.usage } })
-          await emit({ type: 'assistant-message', message: final.message, trace: final.trace })
-          await emitAssistantContent(final, emit)
-          text = textOf(final.message.content)
-        }
-        if (final.finish.kind === 'aborted') {
-          reason = { kind: 'aborted' }
-          break
-        }
-        if (final.finish.kind === 'error') {
-          reason = { kind: 'error', failure: final.finish.failure }
-          break
-        }
-        if (final.finish.kind === 'max-tokens') {
-          reason = { kind: 'max-tokens' }
-          break
-        }
-        if (final.usageRequired) {
-          reason = { kind: 'error', failure: {
-            message: 'provider usage is required by the configured run policy',
-            code: 'USAGE_REQUIRED',
-          } }
-          break
-        }
-        if (final.usageUnavailable) {
-          reason = accountingUsageStop(options.accounting) ?? { kind: 'usage-unavailable', modelCallId: final.report?.modelCallId ?? 'unknown' }
-          break
-        }
-      }
-      reason = { kind: 'budget-exhausted', budget: exhausted, forcedFinalAnswer: forced,
-        ...(exhausted === 'tokens' && reportReserveReached && !tokenLimitBeforeDispatch
-          ? { trigger: 'report-reserve' as const } : {}),
-      }
+      reason = forced
+        ? await forceAnswer(exhausted, exhausted === 'tokens' && reportReserveReached && !tokenLimitBeforeDispatch)
+        : { kind: 'budget-exhausted', budget: exhausted, forcedFinalAnswer: false,
+          ...(exhausted === 'tokens' && reportReserveReached && !tokenLimitBeforeDispatch ? { trigger: 'report-reserve' as const } : {}) }
     }
   }
 
+  // The window is for an answer written with no step left to confirm it:
+  // either forced by a budget, or written freely on the last work step. Input
+  // a person sent meanwhile is not answered in a tool-less window; the turn
+  // ends instead and that input gets a turn of its own.
+  const finalizable = reason?.kind === 'budget-exhausted'
+    ? reason.forcedFinalAnswer
+    : reason?.kind === 'completed' && workSteps() >= maxSteps
+  if (finalizeUntil === undefined && options.finalize !== undefined && bounds.finalizeSteps > 0
+    && (reason?.kind === 'budget-exhausted' || reason?.kind === 'completed') && finalizable
+    && text.trim() !== '' && !signal.aborted && admissionStop() === undefined
+    && !hasQueuedInput(options.history)) {
+    const prompt = options.finalize.prompt({ text, reason })
+    if (prompt !== undefined) {
+      options.history.append({ kind: 'user', message: prompt })
+      finalizeOrigin = reason
+      finalizeReason = reason.kind === 'budget-exhausted' ? reason.budget : 'steps'
+      forcedText = text
+      forcedMessage = options.history.messages().findLast(message => message.role === 'assistant')
+      finalizeUntil = workSteps() + bounds.finalizeSteps
+      reason = undefined
+      continue turnLifecycle
+    }
+  }
   if (reason === undefined) {
     reason = signal.aborted
       ? { kind: 'aborted' }
       : { kind: 'budget-exhausted', budget: 'steps', forcedFinalAnswer: false }
+  }
+  // Confirming a forced answer does not un-spend the budget, and a failed or
+  // cut-short confirmation does not cost the answer: the turn ends with the
+  // stop that opened the window, and with the forced answer unless the window
+  // itself ended on a new one. A person's abort stays an abort.
+  if (finalizeOrigin !== undefined) {
+    const confirmedAnswer = reason.kind === 'completed' && text.trim() !== '' && options.finalize?.confirmed() === true
+    if (!confirmedAnswer) {
+      text = forcedText
+      // The kept answer must also be the last thing said, or the session's
+      // message, the stream and a reload would show the window's note instead.
+      const last = options.history.messages().findLast(message => message.role === 'assistant')
+      if (forcedMessage !== undefined && last?.id !== forcedMessage.id) {
+        const restored = createMessage({ role: 'assistant', content: forcedMessage.content, source: forcedMessage.source })
+        options.history.append({ kind: 'assistant', message: restored })
+        await emit({ type: 'assistant-message', message: restored, trace: root })
+      }
+    }
+    if (reason.kind !== 'aborted') reason = finalizeOrigin
   }
   const usageReport = summarizeModelCallUsage(modelCallReports)
   const usage = authoritativeTokenUsage(usageReport)
@@ -643,7 +828,7 @@ async function driveTurn(
   }
   const entriesBeforeHook = options.history.entries().length
   const canContinue = reason.kind === 'completed'
-    && steps < maxSteps
+    && workSteps() < maxSteps
     && admissionStop() === undefined
   await runOptionalHook(options.hooks?.onTurnEnd, [{
     outcome: candidate,

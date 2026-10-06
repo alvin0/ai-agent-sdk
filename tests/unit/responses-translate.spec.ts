@@ -167,3 +167,33 @@ describe('Responses usage normalization', () => {
     })
   })
 })
+
+describe('Responses failed response', () => {
+  async function failure(response: object) {
+    try {
+      for await (const _chunk of translateResponsesStream(events([
+        { type: 'response.created', response: { id: 'resp_1', status: 'in_progress' } },
+        { type: 'response.failed', response },
+      ]), 'Codex')) { /* drain */ }
+    } catch (error) {
+      return error as { code: string; message: string }
+    }
+    throw new Error('expected the stream to fail')
+  }
+
+  it('names the response id and status when the provider sends no error body', async () => {
+    const error = await failure({ id: 'resp_1', status: 'failed', error: null })
+    expect(error.code).toBe('SERVER')
+    expect(error.message).toBe('Codex reported a failed response (no error detail, response resp_1, status failed)')
+  })
+
+  it('keeps the provider message when there is one and classifies its code', async () => {
+    const error = await failure({ id: 'resp_1', status: 'failed', error: { code: 'rate_limit_exceeded', message: 'Slow down' } })
+    expect(error).toMatchObject({ code: 'RATE_LIMIT', message: 'Slow down' })
+  })
+
+  it('drops an id that is not a plain identifier', async () => {
+    const error = await failure({ id: 'resp 1\nforged', status: 'failed' })
+    expect(error.message).toBe('Codex reported a failed response (no error detail, status failed)')
+  })
+})

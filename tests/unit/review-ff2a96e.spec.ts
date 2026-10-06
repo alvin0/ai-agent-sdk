@@ -158,10 +158,21 @@ describe('admission boundary and negative controls', () => {
     expect(result.outcome.reason.kind).toBe('budget-exhausted')
   })
 
-  it('an always-retry hook still terminates at the step limit', async () => {
-    const adapter = new Scripted(Array.from({ length: 3 }, () => ({ fail: true, tokens: 10 })))
+  it('an always-retry hook still terminates: 8 free retries, then retries spend steps', async () => {
+    const adapter = new Scripted(Array.from({ length: 20 }, () => ({ fail: true, tokens: 10 })))
     await definition().createSession({ registry: registry(adapter), hooks: { onRequestError: () => 'retry' } }).run('go')
-    expect(adapter.requests).toHaveLength(3)
+      .catch(() => undefined)
+    expect(adapter.requests).toHaveLength(3 + 8)
+  })
+
+  it('a retried request does not spend a work step', async () => {
+    const adapter = new Scripted([{ fail: true, tokens: 10 }, { text: 'done', tokens: 10 }])
+    let retried = 0
+    const result = await definition({ maxTurns: 1 }).createSession({ registry: registry(adapter), hooks: {
+      onRequestError: () => { retried++; return 'retry' },
+    } }).run('go')
+    expect(retried).toBe(1)
+    expect(result).toMatchObject({ text: 'done', outcome: { reason: { kind: 'completed' } } })
   })
 
   it('abort inside the retry hook cannot dispatch again', async () => {
@@ -213,7 +224,8 @@ describe('composition completion and estimator ownership', () => {
     try {
       const result = await runtime.agent({ id: 'projection', instructions: 'Go', tools: [lookup], compaction: false })
         .createSession({ runtimeLimits: { maxTotalTokens: 100 } }).run('go')
-      expect(result).toMatchObject({ completed, stopReason: reason, report: { status: 'success' } })
+      expect(result).toMatchObject({ completed, stopReason: reason, endReason: { kind: reason }, report: { status: 'success' } })
+      if (reason === 'budget-exhausted') expect(result.endReason).toMatchObject({ budget: 'tokens' })
     } finally { await runtime.close() }
   })
 

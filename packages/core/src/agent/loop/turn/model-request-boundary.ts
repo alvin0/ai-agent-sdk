@@ -14,11 +14,22 @@ export function observeModelRequestBoundary(history: History, inFlight: boolean)
 
 // Input the owning session queued while a final answer was being written.
 const queuedInput = new WeakMap<History, () => boolean>()
+const queuedInputPending = new WeakMap<History, () => boolean>()
 
-/** Let a session hand the loop input it is still holding when a turn would end. */
-export function bindQueuedInput(history: History, deliver?: () => boolean): void {
+/**
+ * Let a session hand the loop input it is still holding when a turn would end,
+ * and let the loop ask, without taking it, whether a person's input is held.
+ */
+export function bindQueuedInput(history: History, deliver?: () => boolean, pending?: () => boolean): void {
   if (deliver === undefined) queuedInput.delete(history)
   else queuedInput.set(history, deliver)
+  if (pending === undefined) queuedInputPending.delete(history)
+  else queuedInputPending.set(history, pending)
+}
+
+/** Whether the owning session holds input that would extend this run. */
+export function hasQueuedInput(history: History): boolean {
+  return queuedInputPending.get(history)?.() ?? false
 }
 
 /**

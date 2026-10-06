@@ -149,6 +149,9 @@ interface RuntimeAgentSession {
   maxConsecutiveToolErrors?: number
   maxTotalTokens?: number | 'auto'
   finalReportReserveTokens?: number
+  finalizeSteps?: number
+  userInputTimeoutMs?: number
+  maxTurnDurationMs?: number | 'auto'
   observerTimeoutMs?: number
 }
 ```
@@ -171,6 +174,30 @@ rather than resolving it to a number.
 tools-disabled final report. It must be a non-negative safe integer **below**
 `maxTotalTokens`, and it is ignored when `maxTotalTokens` is `'auto'` (there is
 no ceiling to reserve against).
+
+`finalizeSteps` (0–8) is how many extra steps a **deep-mode** turn may take
+after a budget forced its final answer before `submit_result` was accepted. In
+those steps only `submit_result` can run — every other tool, including
+budget-exempt ones such as `request_user_input` or team messaging, is declined —
+so the model can confirm the answer it already wrote. Deep mode defaults to `2`;
+basic mode ignores it. The turn still ends with the `budget-exhausted` reason
+that forced the answer, and keeps that answer if the confirmation fails. Set `0`
+to end deep turns on the unconfirmed forced answer, as before.
+
+`maxTurnDurationMs` is a wall-clock budget for a turn's work, excluding time
+spent waiting for a person. When it passes, no new tool work starts and the
+turn answers from what it has, like any other spent budget, instead of being
+cancelled with nothing. Default `'auto'` (no time budget).
+
+`userInputTimeoutMs` bounds how long `request_user_input` waits for a person.
+It defaults to `maxToolDurationMs`, which no longer bounds the wait itself, so
+people can be given longer than tools. When it passes, the model is told the
+person did not answer and continues on stated assumptions; it is not recorded as
+the person dismissing the question.
+
+Retries that an `onRequestError` hook asks for do not count against
+`maxSteps` (up to 8 per turn; further retries spend steps as before), so a
+transient provider failure no longer costs the run a work step.
 
 ## Invocation and results
 

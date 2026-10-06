@@ -278,7 +278,10 @@ export interface HttpProviderOptions<Dialect extends object> {
   maxErrorBodyBytes?: number
   /** Maximum time granted to the optional request logger. Defaults to 5 seconds. */
   requestLoggerTimeoutMs?: number
-  /** Retry policy this route owns. */
+  /**
+   * How this route's failures are classified as retryable. Classification
+   * only: nothing retries until the adapter is wrapped with `withRetry`.
+   */
   retryPolicy?: RetryPolicyConfig
   /**
    * Classify a status this endpoint reports specially.

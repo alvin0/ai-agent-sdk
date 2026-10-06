@@ -71,6 +71,20 @@ export interface AgentRuntimeLimits {
   readonly maxTotalTokens?: number | 'auto'
   /** Token headroom for one tools-disabled final report; ignored with auto total tokens. Default zero. */
   readonly finalReportReserveTokens?: number
+  /** Exempt-only steps to confirm an answer a budget forced; deep mode defaults to 2, basic to 0. */
+  readonly finalizeSteps?: number
+  /**
+   * How long `request_user_input` waits for an answer. Defaults to
+   * `maxToolDurationMs`, which no longer bounds the wait itself, so a host can
+   * give people longer than it gives tools.
+   */
+  readonly userInputTimeoutMs?: number
+  /**
+   * Wall-clock budget for one turn's work, excluding waits for a person. When
+   * it passes the turn answers from the evidence it has (reason
+   * `budget-exhausted` / `time`) instead of being cancelled. Default 'auto'.
+   */
+  readonly maxTurnDurationMs?: number | 'auto'
   readonly hookTimeoutMs?: number
   readonly hookTeardownTimeoutMs?: number
   /** Maximum settlement time for each host memory-store load or commit callback. */

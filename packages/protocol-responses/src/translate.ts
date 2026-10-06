@@ -189,7 +189,7 @@ const TERMINAL_ERROR_CODES: Readonly<Record<string, string>> = Object.freeze({
 function failedError(response: WireResponse | undefined, displayName: string): ModelError {
   const error = response?.error ?? undefined
   const code = error?.code ?? error?.type
-  const message = error?.message ?? `${displayName} reported a failed response`
+  const message = error?.message ?? `${displayName} reported a failed response${failureContext(response, code)}`
   const mapped = code === undefined ? undefined : TERMINAL_ERROR_CODES[code]
   return new ModelError(
     message,
@@ -198,6 +198,20 @@ function failedError(response: WireResponse | undefined, displayName: string): M
     mapped ?? MODEL_ERROR_CODES.SERVER,
     {},
   )
+}
+
+/**
+ * What little a bare `response.failed` does carry. Under load Codex fails a
+ * response with no error body at all; the response id and status are then the
+ * only facts that let an operator match the failure to the provider's side.
+ */
+function failureContext(response: WireResponse | undefined, code: string | undefined): string {
+  const facts = [
+    code === undefined ? 'no error detail' : `code ${code}`,
+    ...typeof response?.id === 'string' && /^[\w.:-]{1,128}$/.test(response.id) ? [`response ${response.id}`] : [],
+    ...typeof response?.status === 'string' && /^[\w-]{1,32}$/.test(response.status) ? [`status ${response.status}`] : [],
+  ]
+  return ` (${facts.join(', ')})`
 }
 
 /** Build the authoritative block for a completed item. */

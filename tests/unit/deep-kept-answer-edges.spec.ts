@@ -102,7 +102,9 @@ const contentLeaks = (events: readonly AgentRunEvent[], needle = UNCHANGED_ANSWE
 describe('deep kept answer: boundary cases', () => {
   it.each(['basic', 'deep'] as const)('streams marker-prefixed prose in %s mode with one canonical identity', async mode => {
     const state = setup([textRound(UNCHANGED_ANSWER_MARKER.slice(0, 8), UNCHANGED_ANSWER_MARKER.slice(8), ' Answer.')])
-    const events = await collect({ mode, registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history, maxTurns: 1 })
+    // One step and no finalize window: only the streamed identity is under test.
+    const events = await collect({ mode, registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history, maxTurns: 1,
+      bounds: { finalizeSteps: 0 } })
     expect(streamedIn(events, 1)).toBe('Answer.')
     const message = events.find(event => event.type === 'assistant-message')
     const text = events.find(event => event.type === 'assistant-text')

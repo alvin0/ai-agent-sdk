@@ -189,8 +189,18 @@ export type RuntimeAgentRunEvent = RuntimeAgentRunEventContext & (
 export interface RuntimeAgentResponse {
   /** Objective completion, independent of report.status (execution status). */
   readonly completed: boolean
-  /** Terminal control-flow reason; deep mode can stop without an accepted submission. */
+  /**
+   * Terminal control-flow reason; deep mode can stop without an accepted
+   * submission. Not a success signal: a deep run that confirmed a forced answer
+   * is `completed` with `budget-exhausted` here. Use `completed` for success.
+   */
   readonly stopReason: import('../../agent/loop/types.ts').TurnEndReason['kind']
+  /**
+   * The full terminal reason behind `stopReason`: which budget ran out, whether
+   * a final answer was forced, or which tool concluded the turn. Hosts need it
+   * to tell a person (or an operator) why a run stopped short.
+   */
+  readonly endReason: import('../../agent/loop/types.ts').TurnEndReason
   readonly runId: string
   readonly traceId: string
   readonly text: string

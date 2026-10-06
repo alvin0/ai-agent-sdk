@@ -141,6 +141,14 @@ export interface ToolDefinition<Args = unknown> extends ToolSchema {
   readonly timeoutMs?: number
 
   /**
+   * The call waits for a person, not for work. The turn's `maxToolDurationMs`
+   * (sized for tools) does not bound it; only its own `timeoutMs`, when set,
+   * and the run's cancellation do. A person may reasonably take longer to
+   * answer than any tool should take to run.
+   */
+  readonly awaitsPerson?: true
+
+  /**
    * Whether this call may run alongside its siblings.
    *
    * Fail-closed: only an exact `true` opts in. A throwing or absent classifier

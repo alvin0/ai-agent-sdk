@@ -13,6 +13,18 @@ export function resolveRuntimeLimits(input: AgentRuntimeLimits | undefined): Rea
       || (typeof values.maxTotalTokens === 'number' && values.finalReportReserveTokens >= values.maxTotalTokens))) {
     throw new RangeError('agent runtimeLimits.finalReportReserveTokens must be a non-negative safe integer below maxTotalTokens')
   }
+  if (values.finalizeSteps !== undefined
+    && (!Number.isSafeInteger(values.finalizeSteps) || values.finalizeSteps < 0 || values.finalizeSteps > 8)) {
+    throw new RangeError('agent runtimeLimits.finalizeSteps must be a safe integer from 0 to 8')
+  }
+  if (values.maxTurnDurationMs !== undefined && values.maxTurnDurationMs !== 'auto'
+    && (!Number.isSafeInteger(values.maxTurnDurationMs) || values.maxTurnDurationMs < 1)) {
+    throw new RangeError("agent runtimeLimits.maxTurnDurationMs must be a positive safe integer or 'auto'")
+  }
+  if (values.userInputTimeoutMs !== undefined
+    && (!Number.isSafeInteger(values.userInputTimeoutMs) || values.userInputTimeoutMs < 1)) {
+    throw new RangeError('agent runtimeLimits.userInputTimeoutMs must be a positive safe integer')
+  }
   for (const key of [
     'teardownTimeoutMs', 'modelTimeoutMs', 'maxModelRequestBytes',
     'maxModelResponseBytes', 'maxModelStreamEvents', 'maxToolResultBytes',

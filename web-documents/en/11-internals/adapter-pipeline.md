@@ -117,6 +117,20 @@ registry.registerAdapter(['openai'], withRetry(openAiAdapter({ apiKey }), {
 `mode: 'always'` is accepted only when the request carries an `AbortSignal`.
 Normal agent turns provide one through their model deadline.
 
+Reasoning models open a reasoning block before any answer, so by default the
+retry window closes as soon as the model starts thinking, and a provider
+failure mid-thought is not retried. `bufferReasoningPrefix: true` holds
+reasoning chunks back until the first answer or tool chunk and retries a
+failure that happens before it, discarding the failed attempt's reasoning. The
+cost is that reasoning is not streamed live; `{ maxChunks }` caps what is held.
+
+Failures after answer text has streamed are the agent loop's to handle: an
+`onRequestError` hook that returns `'retry'` repeats the request without
+keeping the failed attempt in history, and without spending a work step.
+
+Provider `retryPolicy` options only classify failures; nothing retries until
+the adapter is wrapped with `withRetry`.
+
 ## Physical attempts vs logical calls
 
 One **logical** model call may include several **physical** provider attempts.

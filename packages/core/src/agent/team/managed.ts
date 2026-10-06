@@ -377,6 +377,11 @@ export class ManagedAgentTeam {
     this.leadName = memberName(options.leadName ?? options.lead.id)
     this.lead = options.lead.createSession({
       ...options.leadSessionOptions,
+      // A lead's forced answer must not be confirmed in a tool-less window
+      // while its workers may still report: their results could only arrive
+      // after a synthesis already declared complete. Hosts can opt back in.
+      runtimeLimits: { ...options.leadSessionOptions?.runtimeLimits,
+        finalizeSteps: options.leadSessionOptions?.runtimeLimits?.finalizeSteps ?? 0 },
       hooks: this.leadHooks(options.leadSessionOptions?.hooks),
       registry: options.registry,
       tools: mergeTools(options.leadSessionOptions?.tools, this.controlTools()),

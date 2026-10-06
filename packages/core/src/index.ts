@@ -34,6 +34,7 @@ export * from './http/index.ts'
 export * from './memory.ts'
 export * from './skills.ts'
 export { createAgentRuntime } from './composition/runtime/public.ts'
+export { withoutRunReport, type PublicRuntimeAgentRunEvent } from './composition/agent/public-event.ts'
 export { defineAgent, cloneAgent } from './composition/agent/author.ts'
 export type {
   AgentDefinition, AgentDefinitionInput, AgentDefinitionOverrides,

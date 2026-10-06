@@ -117,6 +117,20 @@ registry.registerAdapter(['openai'], withRetry(openAiAdapter({ apiKey }), {
 `mode: 'always'` chỉ được chấp nhận khi yêu cầu có mang `AbortSignal`. Lượt agent
 thông thường cung cấp sẵn qua deadline model.
 
+Model reasoning mở một block reasoning trước mọi câu trả lời, nên mặc định cửa
+sổ thử lại đóng ngay khi model bắt đầu suy nghĩ, và lỗi provider giữa lúc suy
+nghĩ không được thử lại. `bufferReasoningPrefix: true` giữ các chunk reasoning
+lại cho tới chunk câu trả lời hoặc tool đầu tiên, và thử lại lỗi xảy ra trước
+đó, bỏ reasoning của lượt hỏng. Đổi lại reasoning không được stream trực tiếp;
+`{ maxChunks }` giới hạn lượng được giữ.
+
+Lỗi sau khi text câu trả lời đã stream thuộc về vòng lặp agent: hook
+`onRequestError` trả `'retry'` sẽ gửi lại request mà không giữ lượt hỏng trong
+history và không tốn một bước làm việc.
+
+Tuỳ chọn `retryPolicy` của provider chỉ phân loại lỗi; không có gì được thử lại
+cho tới khi adapter được bọc bằng `withRetry`.
+
 ## Lượt thử vật lý và lời gọi logic
 
 Một lời gọi model **logic** có thể gồm nhiều lượt thử **vật lý** tới nhà cung

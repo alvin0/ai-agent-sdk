@@ -45,6 +45,27 @@ export interface UserInputResponse {
 
 export type UserInputDecision = UserInputResponse | 'abort'
 
+/** Why a response does not answer exactly these questions, or undefined when it does. */
+export function userInputResponseProblem(
+  questions: readonly UserInputQuestion[],
+  response: unknown,
+): string | undefined {
+  const answers = (response as { answers?: unknown } | null | undefined)?.answers
+  if (answers === null || typeof answers !== 'object' || Array.isArray(answers)) return 'the response has no answers'
+  const expected = new Set(questions.map(question => question.id))
+  for (const id of expected) {
+    const answer = (answers as Record<string, unknown>)[id] as { answers?: unknown } | null | undefined
+    if (answer === null || typeof answer !== 'object' || !Array.isArray(answer.answers) || answer.answers.length === 0
+      || answer.answers.some(value => typeof value !== 'string' || value.trim().length === 0)) {
+      return `no valid answer for "${id}"`
+    }
+  }
+  for (const id of Object.keys(answers)) {
+    if (!expected.has(id)) return `an answer for unknown question "${id}"`
+  }
+  return undefined
+}
+
 export interface UserInputBroker {
   readonly request: (request: UserInputRequest, signal?: AbortSignal) => Promise<UserInputDecision>
 }
@@ -116,6 +137,9 @@ export function createUserInputBroker(options: InteractiveUserInputBrokerOptions
     resolve(requestId, response) {
       const waiter = waiters.get(requestId)
       if (waiter === undefined) return false
+      // An answer that does not fit the questions leaves them open, rather than
+      // using the question up on a response the run would then reject.
+      if (userInputResponseProblem(waiter.request.questions, response) !== undefined) return false
       waiter.settle(detachedFrozen(response))
       return true
     },
