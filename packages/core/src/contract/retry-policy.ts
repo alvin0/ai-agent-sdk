@@ -115,25 +115,45 @@ function validateKeys(value: object, allowed: ReadonlySet<string>, path: string)
   }
 }
 
+function validateDelay(value: number, path: string): void {
+  if (!Number.isFinite(value) || value <= 0 || value > MAX_TIMER_DELAY_MS) {
+    throw new Error(`${path} must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
+  }
+}
+
+function validateJitterRatio(jitterRatio: number, path: string): void {
+  if (!Number.isFinite(jitterRatio) || jitterRatio < 0 || jitterRatio > 1) {
+    throw new Error(`${path}.jitterRatio must be between 0 and 1`)
+  }
+}
+
 function resolveBackoff(config: BackoffConfig | undefined, path: string): ResolvedRetryBackoff {
   if (config !== undefined) validateKeys(config, BACKOFF_KEYS, path)
   const initialDelayMs = config?.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS
   const maxDelayMs = config?.maxDelayMs ?? DEFAULT_MAX_DELAY_MS
   const jitterRatio = config?.jitterRatio ?? DEFAULT_JITTER_RATIO
 
-  if (!Number.isFinite(initialDelayMs) || initialDelayMs <= 0 || initialDelayMs > MAX_TIMER_DELAY_MS) {
-    throw new Error(`${path}.initialDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
-  }
-  if (!Number.isFinite(maxDelayMs) || maxDelayMs <= 0 || maxDelayMs > MAX_TIMER_DELAY_MS) {
-    throw new Error(`${path}.maxDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
-  }
+  validateDelay(initialDelayMs, `${path}.initialDelayMs`)
+  validateDelay(maxDelayMs, `${path}.maxDelayMs`)
   if (initialDelayMs > maxDelayMs) {
     throw new Error(`${path}.initialDelayMs must be less than or equal to maxDelayMs`)
   }
-  if (!Number.isFinite(jitterRatio) || jitterRatio < 0 || jitterRatio > 1) {
-    throw new Error(`${path}.jitterRatio must be between 0 and 1`)
-  }
+  validateJitterRatio(jitterRatio, path)
   return Object.freeze({ initialDelayMs, maxDelayMs, jitterRatio })
+}
+
+function validateRetryableCodes(retryableCodes: readonly string[], path: string): void {
+  if (retryableCodes.length === 0) {
+    // An empty list is almost certainly a mistake rather than "never retry";
+    // `maxRetries: 0` says that unambiguously.
+    throw new Error(`${path}.retryableCodes must not be empty`)
+  }
+  if (retryableCodes.some(code => typeof code !== 'string' || code.length === 0)) {
+    throw new Error(`${path}.retryableCodes must contain only non-empty strings`)
+  }
+  if (new Set(retryableCodes).size !== retryableCodes.length) {
+    throw new Error(`${path}.retryableCodes must not contain duplicates`)
+  }
 }
 
 /**
@@ -167,17 +187,7 @@ export function resolveRetryPolicy(
       if (!Number.isSafeInteger(maxRetries) || maxRetries < 0) {
         throw new Error(`${path}.maxRetries must be a non-negative safe integer`)
       }
-      if (retryableCodes.length === 0) {
-        // An empty list is almost certainly a mistake rather than "never retry";
-        // `maxRetries: 0` says that unambiguously.
-        throw new Error(`${path}.retryableCodes must not be empty`)
-      }
-      if (retryableCodes.some(code => typeof code !== 'string' || code.length === 0)) {
-        throw new Error(`${path}.retryableCodes must contain only non-empty strings`)
-      }
-      if (new Set(retryableCodes).size !== retryableCodes.length) {
-        throw new Error(`${path}.retryableCodes must not contain duplicates`)
-      }
+      validateRetryableCodes(retryableCodes, path)
       return Object.freeze({
         mode: 'normal' as const,
         maxRetries,

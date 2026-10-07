@@ -126,26 +126,7 @@ export async function runVerifyPhase(databaseName) {
   const batchIds = await queue.pendingBatchIds()
   const removed = await queue.acknowledgeBatch(batchIds[0])
 
-  const capacity = new IndexedDbObservationExporter({
-    databaseName: `${databaseName}-capacity`, maxEvents: 2, maxBytes: 1024 * 1024,
-  })
-  await capacity.ready()
-  const verbose = event(1, 'verbose', 'capacity-run')
-  const normal = event(2, 'normal', 'capacity-run')
-  await capacity.stage(verbose)
-  await capacity.stage(normal)
-  const capacityBatchId = createOperationId()
-  await capacity.export({
-    schemaVersion: 1, batchId: capacityBatchId, createdAt: new Date().toISOString(),
-    events: [verbose, normal],
-  }, new AbortController().signal)
-  await capacity.stage(event(3, 'critical', 'capacity-run'))
-  await capacity.stage(event(4, 'critical', 'capacity-run'))
-  let quotaCode
-  try { await capacity.stage(event(5, 'critical', 'capacity-run')) }
-  catch (error) { quotaCode = error?.code }
-  const retainedPriorities = (await capacity.recoverEvents()).map(item => item.priority)
-  const capacityBatches = (await capacity.stats()).batchCount
+  const { capacity, quotaCode, retainedPriorities, capacityBatches } = await capacityEvidence(databaseName)
 
   const auditQueue = new IndexedDbObservationExporter({ databaseName: `${databaseName}-audit` })
   await auditQueue.ready()
@@ -155,37 +136,9 @@ export async function runVerifyPhase(databaseName) {
   })
   const auditReceipt = await audit.checkpoint(event(1, 'critical', 'audit-run'))
 
-  const blockedRequest = {}
-  const blockedFactory = {
-    open() {
-      queueMicrotask(() => blockedRequest.onblocked?.(new Event('blocked')))
-      return blockedRequest
-    },
-  }
-  const blocked = new IndexedDbObservationExporter({
-    databaseName: `${databaseName}-blocked`, indexedDB: blockedFactory, openTimeoutMs: 50,
-  })
-  let blockedRejected = false
-  try { await blocked.ready() } catch { blockedRejected = true }
+  const blockedRejected = await blockedEvidence(databaseName)
 
-  class Target extends EventTarget { visibilityState = 'visible' }
-  const documentTarget = new Target()
-  const pageTarget = new Target()
-  let flushes = 0
-  const dispose = installBrowserObservabilityLifecycle({
-    flush: async () => {
-      flushes++
-      return { complete: true, exportedEvents: 0, pendingEvents: 0, rejectedCritical: 0, timedOut: false }
-    },
-  }, { document: documentTarget, page: pageTarget })
-  documentTarget.visibilityState = 'hidden'
-  documentTarget.dispatchEvent(new Event('visibilitychange'))
-  await Promise.resolve()
-  await Promise.resolve()
-  pageTarget.dispatchEvent(new Event('pagehide'))
-  await Promise.resolve()
-  dispose()
-  pageTarget.dispatchEvent(new Event('pagehide'))
+  const flushes = await lifecycleEvidence()
 
   const stats = await queue.stats()
   const runtime = await runtimeComposition(`${databaseName}-runtime`)
@@ -211,4 +164,69 @@ export async function runVerifyPhase(databaseName) {
     buffer: typeof globalThis.Buffer,
     process: typeof globalThis.process,
   }
+}
+
+async function capacityEvidence(databaseName) {
+  const capacity = new IndexedDbObservationExporter({
+    databaseName: `${databaseName}-capacity`, maxEvents: 2, maxBytes: 1024 * 1024,
+  })
+  await capacity.ready()
+  const verbose = event(1, 'verbose', 'capacity-run')
+  const normal = event(2, 'normal', 'capacity-run')
+  await capacity.stage(verbose)
+  await capacity.stage(normal)
+  const capacityBatchId = createOperationId()
+  await capacity.export({
+    schemaVersion: 1, batchId: capacityBatchId, createdAt: new Date().toISOString(),
+    events: [verbose, normal],
+  }, new AbortController().signal)
+  await capacity.stage(event(3, 'critical', 'capacity-run'))
+  await capacity.stage(event(4, 'critical', 'capacity-run'))
+  let quotaCode
+  try { await capacity.stage(event(5, 'critical', 'capacity-run')) }
+  catch (error) { quotaCode = error?.code }
+  const retainedPriorities = (await capacity.recoverEvents()).map(item => item.priority)
+  const capacityBatches = (await capacity.stats()).batchCount
+
+  return { capacity, quotaCode, retainedPriorities, capacityBatches }
+}
+
+async function blockedEvidence(databaseName) {
+  const blockedRequest = {}
+  const blockedFactory = {
+    open() {
+      queueMicrotask(() => blockedRequest.onblocked?.(new Event('blocked')))
+      return blockedRequest
+    },
+  }
+  const blocked = new IndexedDbObservationExporter({
+    databaseName: `${databaseName}-blocked`, indexedDB: blockedFactory, openTimeoutMs: 50,
+  })
+  let blockedRejected = false
+  try { await blocked.ready() } catch { blockedRejected = true }
+
+  return blockedRejected
+}
+
+async function lifecycleEvidence() {
+  class Target extends EventTarget { visibilityState = 'visible' }
+  const documentTarget = new Target()
+  const pageTarget = new Target()
+  let flushes = 0
+  const dispose = installBrowserObservabilityLifecycle({
+    flush: async () => {
+      flushes++
+      return { complete: true, exportedEvents: 0, pendingEvents: 0, rejectedCritical: 0, timedOut: false }
+    },
+  }, { document: documentTarget, page: pageTarget })
+  documentTarget.visibilityState = 'hidden'
+  documentTarget.dispatchEvent(new Event('visibilitychange'))
+  await Promise.resolve()
+  await Promise.resolve()
+  pageTarget.dispatchEvent(new Event('pagehide'))
+  await Promise.resolve()
+  dispose()
+  pageTarget.dispatchEvent(new Event('pagehide'))
+
+  return flushes
 }

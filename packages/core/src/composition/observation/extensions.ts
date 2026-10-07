@@ -23,7 +23,9 @@ export function captureProcessors(value: unknown): readonly ObservationProcessor
   const entries = components(value, 'processor')
   try { return Object.freeze(entries.map(({ source, id }) => Object.freeze({
     id,
-    transform: capturedMethod<Parameters<ObservationProcessor['transform']>, ReturnType<ObservationProcessor['transform']>>(
+    transform: capturedMethod<
+      Parameters<ObservationProcessor['transform']>, ReturnType<ObservationProcessor['transform']>
+    >(
       source,
       'transform',
     ),

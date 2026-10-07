@@ -27,11 +27,11 @@ import { isSensitiveHeaderName } from '../common/header-layers.ts'
 /** Bound a response body by cumulative bytes and by chunk count, whichever trips first. */
 export function boundedResponseBody(
   source: ReadableStream<Uint8Array>,
-  maxBytes: number,
-  maxChunks: number,
+  limits: { maxBytes: number; maxChunks: number },
   displayName: string,
   signal?: AbortSignal,
 ): ReadableStream<Uint8Array> {
+  const { maxBytes, maxChunks } = limits
   let bytes = 0
   let chunks = 0
   return source.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
@@ -180,18 +180,7 @@ export function endpointUrl(baseUrl: string, path: string, allowInsecureHttp: bo
       { cause: error },
     )
   }
-  if (base.username.length > 0 || base.password.length > 0) {
-    throw new ModelError('provider baseUrl must not contain credentials', MODEL_ERROR_CODES.INVALID_REQUEST)
-  }
-  if (base.search.length > 0 || base.hash.length > 0) {
-    throw new ModelError('provider baseUrl must not contain a query or fragment', MODEL_ERROR_CODES.INVALID_REQUEST)
-  }
-  if (base.protocol !== 'https:' && !(allowInsecureHttp && base.protocol === 'http:')) {
-    throw new ModelError(
-      'provider baseUrl must use HTTPS unless allowInsecureHttp is explicitly enabled',
-      MODEL_ERROR_CODES.INVALID_REQUEST,
-    )
-  }
+  assertBaseEndpoint(base, allowInsecureHttp)
   const normalizedBase = base.href.replace(/\/+$/, '')
   let endpoint: URL
   try {
@@ -263,4 +252,19 @@ export function abortError(displayName: string, cause: unknown): ModelError {
     MODEL_ERROR_CODES.ABORTED,
     { cause },
   )
+}
+
+function assertBaseEndpoint(base: URL, allowInsecureHttp: boolean): void {
+  if (base.username.length > 0 || base.password.length > 0) {
+    throw new ModelError('provider baseUrl must not contain credentials', MODEL_ERROR_CODES.INVALID_REQUEST)
+  }
+  if (base.search.length > 0 || base.hash.length > 0) {
+    throw new ModelError('provider baseUrl must not contain a query or fragment', MODEL_ERROR_CODES.INVALID_REQUEST)
+  }
+  if (base.protocol !== 'https:' && !(allowInsecureHttp && base.protocol === 'http:')) {
+    throw new ModelError(
+      'provider baseUrl must use HTTPS unless allowInsecureHttp is explicitly enabled',
+      MODEL_ERROR_CODES.INVALID_REQUEST,
+    )
+  }
 }

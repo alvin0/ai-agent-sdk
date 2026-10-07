@@ -100,77 +100,92 @@ export async function runBatchesWithConcurrency<Batch>(
   const isAborted = (): boolean => signal?.aborted === true
   const iterator = openIterator(source)
 
-  let started = 0
-  let aborted = false
-  let exhausted = false
-  let failure: { readonly error: unknown } | undefined
-  /** Serialises `next()` so no two pulls overlap on an async iterator. */
-  let pull: Promise<void> = Promise.resolve()
-
-  const worker = async (): Promise<void> => {
-    for (;;) {
-      if (failure !== undefined || exhausted) return
-      if (isAborted()) {
-        aborted = true
-        return
-      }
-
-      // Claim the next batch under the pull lock: one item, one owner, and the
-      // source is advanced exactly as far as there is capacity to run it.
-      const claimed = pull.then(async (): Promise<Claim<Batch> | undefined> => {
-        if (failure !== undefined || exhausted || isAborted()) return undefined
-        const next = await iterator.next()
-        // Cancellation or another worker's failure can happen during an async pull.
-        if (isAborted()) {
-          aborted = true
-          return undefined
-        }
-        if (failure !== undefined) return undefined
-        if (next.done === true) {
-          exhausted = true
-          return undefined
-        }
-        const claim: Claim<Batch> = { batch: next.value }
-        return claim
-      })
-      pull = claimed.then(() => undefined, () => undefined)
-
-      let work: Claim<Batch> | undefined
-      try {
-        work = await claimed
-      } catch (error) {
-        failure ??= { error }
-        return
-      }
-      if (work === undefined) continue
-      if (failure !== undefined) return
-      if (isAborted()) {
-        aborted = true
-        return
-      }
-
-      try {
-        await run(work.batch, started++)
-      } catch (error) {
-        failure ??= { error }
-        return
-      }
-    }
+  const state: BatchRunnerState = {
+    started: 0, aborted: false, exhausted: false, failure: undefined, pull: Promise.resolve(),
   }
+  const worker = createBatchWorker(iterator, run, isAborted, state)
 
   const workers: Promise<void>[] = []
   for (let slot = 0; slot < limit; slot += 1) workers.push(worker())
   await Promise.all(workers)
 
-  if (failure !== undefined) {
+  if (state.failure !== undefined) {
     await closeIterator(iterator)
-    throw failure.error
+    throw state.failure.error
   }
-  if (aborted || !exhausted) {
+  if (state.aborted || !state.exhausted) {
     await closeIterator(iterator)
-    return { started, aborted: aborted || !exhausted }
+    return { started: state.started, aborted: state.aborted || !state.exhausted }
   }
-  return { started, aborted: false }
+  return { started: state.started, aborted: false }
+}
+
+interface BatchRunnerState {
+  started: number
+  aborted: boolean
+  exhausted: boolean
+  failure: { readonly error: unknown } | undefined
+  /** Serialises `next()` so no two pulls overlap on an async iterator. */
+  pull: Promise<void>
+}
+
+function stopBeforePull(state: BatchRunnerState, isAborted: () => boolean): boolean {
+  if (state.failure !== undefined || state.exhausted) return true
+  if (isAborted()) {
+    state.aborted = true
+    return true
+  }
+  return false
+}
+
+function createBatchWorker<Batch>(iterator: AsyncIterator<Batch> | Iterator<Batch>, run: BatchRunner<Batch>,
+  isAborted: () => boolean, state: BatchRunnerState): () => Promise<void> {
+  return async (): Promise<void> => {
+    for (;;) {
+      if (stopBeforePull(state, isAborted)) return
+
+      // Claim the next batch under the pull lock: one item, one owner, and the
+      // source is advanced exactly as far as there is capacity to run it.
+      const claimed = state.pull.then(async (): Promise<Claim<Batch> | undefined> => {
+        if (state.failure !== undefined || state.exhausted || isAborted()) return undefined
+        const next = await iterator.next()
+        // Cancellation or another worker's failure can happen during an async pull.
+        if (isAborted()) {
+          state.aborted = true
+          return undefined
+        }
+        if (state.failure !== undefined) return undefined
+        if (next.done === true) {
+          state.exhausted = true
+          return undefined
+        }
+        const claim: Claim<Batch> = { batch: next.value }
+        return claim
+      })
+      state.pull = claimed.then(() => undefined, () => undefined)
+
+      let work: Claim<Batch> | undefined
+      try {
+        work = await claimed
+      } catch (error) {
+        state.failure ??= { error }
+        return
+      }
+      if (work === undefined) continue
+      if (state.failure !== undefined) return
+      if (isAborted()) {
+        state.aborted = true
+        return
+      }
+
+      try {
+        await run(work.batch, state.started++)
+      } catch (error) {
+        state.failure ??= { error }
+        return
+      }
+    }
+  }
 }
 
 /** One batch a worker owns for the duration of its slot. */

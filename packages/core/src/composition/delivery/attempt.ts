@@ -33,17 +33,20 @@ export class DeliveryAttempt {
     registration: RuntimeObservationExporterRegistration,
     private readonly resources: RuntimeResources,
   ) {
-    if (!isPreparedBatch(batch) || !registration.exporter.supportedBoundaries.includes(registration.boundary)) throw new DeliveryDataError()
+    if (!isPreparedBatch(batch)
+      || !registration.exporter.supportedBoundaries.includes(registration.boundary)) throw new DeliveryDataError()
     this.boundary = registration.boundary
     this.sendBatch = capturedMethod(registration.exporter, 'export')
     this.abort = resources.platform.controller()
   }
 
-  private complete(): boolean { return this.events.size === this.batch.events.length && this.runs.size === this.batch.runRecords.length }
+  private complete(): boolean { return this.events.size === this.batch.events.length
+    && this.runs.size === this.batch.runRecords.length }
 
   send(deadlineAt: number, caller?: AbortSignal): Promise<DeliveryAttemptReport> {
     if (this.inFlight !== undefined) return this.inFlight
-    if (this.sealed || this.resources.isClosed) return Promise.resolve(this.report('closed', DELIVERY_ERROR_CODES.CLOSED))
+    if (this.sealed || this.resources.isClosed) return Promise.resolve(this.report('closed',
+      DELIVERY_ERROR_CODES.CLOSED))
     if (this.complete()) return Promise.resolve(this.report('complete'))
     this.inFlight = this.exportOnce(deadlineAt, caller).finally(() => { this.inFlight = undefined })
     return this.inFlight
@@ -60,33 +63,47 @@ export class DeliveryAttempt {
     let stage: 'export' | 'ack' = 'export'
     try {
       scope = this.resources.cancellation([this.abort.signal, ...caller === undefined ? [] : [caller]])
-      const value = await atDeadline(this.resources, deadlineAt, signal => this.sendBatch(this.batch, signal), scope.signal)
+      const value = await atDeadline(this.resources, deadlineAt, signal => this.sendBatch(this.batch, signal),
+        scope.signal)
       if (this.sealed || this.resources.isClosed) return this.report('closed', DELIVERY_ERROR_CODES.CLOSED)
       stage = 'ack'
-      const ack = validateDeliveryAck(value, this.batch)
-      if (this.resources.platform.monotonicNow() >= deadlineAt) {
-        scope.cancel()
-        return this.report('timed-out', DELIVERY_ERROR_CODES.TIMEOUT, 'ack')
-      }
-      // An accessor/Proxy may abort while it is inspected. Recheck before committing any acceptance.
-      if (this.sealed || this.resources.isClosed) return this.report('closed', DELIVERY_ERROR_CODES.CLOSED)
-      if (scope.signal.aborted) return this.report('aborted', DELIVERY_ERROR_CODES.ABORTED)
-      for (const id of ack.acceptedEventIds) this.events.add(id)
-      for (const id of ack.acceptedRunIds) this.runs.add(id)
-      return this.report(this.complete() ? 'complete' : 'partial')
+      return this.acceptAck(value, deadlineAt, scope)
     } catch (error) {
-      const reason = error instanceof BoundaryFailure ? error.reason : 'failed'
-      if (this.sealed || this.resources.isClosed) return this.report('closed', DELIVERY_ERROR_CODES.CLOSED)
-      if (reason === 'timed-out') return this.report('timed-out', DELIVERY_ERROR_CODES.TIMEOUT)
-      if (reason === 'aborted') return this.report('aborted', DELIVERY_ERROR_CODES.ABORTED)
-      return this.report('failed', stage === 'ack' ? DELIVERY_ERROR_CODES.ACK_INVALID : DELIVERY_ERROR_CODES.EXPORT_FAILED, stage)
+      return this.failedAttempt(error, stage)
     } finally { scope?.dispose() }
   }
 
-  private report(status: DeliveryAttemptReport['status'], code?: string, stage: 'export' | 'ack' = 'export'): DeliveryAttemptReport {
+  private acceptAck(value: unknown, deadlineAt: number, scope: CancellationScope): DeliveryAttemptReport {
+    const ack = validateDeliveryAck(value, this.batch)
+    if (this.resources.platform.monotonicNow() >= deadlineAt) {
+      scope.cancel()
+      return this.report('timed-out', DELIVERY_ERROR_CODES.TIMEOUT, 'ack')
+    }
+    // An accessor/Proxy may abort while it is inspected. Recheck before committing any acceptance.
+    if (this.sealed || this.resources.isClosed) return this.report('closed', DELIVERY_ERROR_CODES.CLOSED)
+    if (scope.signal.aborted) return this.report('aborted', DELIVERY_ERROR_CODES.ABORTED)
+    for (const id of ack.acceptedEventIds) this.events.add(id)
+    for (const id of ack.acceptedRunIds) this.runs.add(id)
+    return this.report(this.complete() ? 'complete' : 'partial')
+  }
+
+  private failedAttempt(error: unknown, stage: 'export' | 'ack'): DeliveryAttemptReport {
+    const reason = error instanceof BoundaryFailure ? error.reason : 'failed'
+    if (this.sealed || this.resources.isClosed) return this.report('closed', DELIVERY_ERROR_CODES.CLOSED)
+    if (reason === 'timed-out') return this.report('timed-out', DELIVERY_ERROR_CODES.TIMEOUT)
+    if (reason === 'aborted') return this.report('aborted', DELIVERY_ERROR_CODES.ABORTED)
+    return this.report('failed',
+      stage === 'ack' ? DELIVERY_ERROR_CODES.ACK_INVALID : DELIVERY_ERROR_CODES.EXPORT_FAILED, stage)
+  }
+
+  private report(status: DeliveryAttemptReport['status'], code?: string,
+    stage: 'export' | 'ack' = 'export'): DeliveryAttemptReport {
     return Object.freeze({ status, complete: this.complete(), boundary: this.complete() ? this.boundary : 'none',
-      acceptedEventIds: Object.freeze(this.batch.events.filter(event => this.events.has(event.eventId)).map(event => event.eventId)),
-      acceptedRunIds: Object.freeze(this.batch.runRecords.filter(record => this.runs.has(record.runId)).map(record => record.runId)),
-      ...(code === undefined ? {} : { error: Object.freeze({ code, stage, message: 'Observation delivery did not complete' }) }) })
+      acceptedEventIds: Object.freeze(this.batch.events.filter(event =>
+        this.events.has(event.eventId)).map(event => event.eventId)),
+      acceptedRunIds: Object.freeze(this.batch.runRecords.filter(record =>
+        this.runs.has(record.runId)).map(record => record.runId)),
+      ...(code === undefined ? {} : { error: Object.freeze({ code, stage,
+        message: 'Observation delivery did not complete' }) }) })
   }
 }

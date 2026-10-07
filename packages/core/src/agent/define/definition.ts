@@ -7,10 +7,7 @@ import type { ToolDefinition } from '../tool/definition.ts'
 import { captureContextSections } from '../context/section.ts'
 import type { ContextSection } from '../context/types.ts'
 import {
-  SKILL_TOOL_NAMES,
   resolveSkillOptions,
-  validateSkillId,
-  validateSkillSource,
   type AgentSkillOptions,
   type ResolvedAgentSkillOptions,
   type SkillSource,
@@ -30,6 +27,8 @@ import {
   type AgentResumeSessionOptions,
   type AgentSessionOptions,
 } from './session.ts'
+import { mergedInput } from './definition-merge.ts'
+import { validateDefinition } from './definition-validation.ts'
 import { captureOutputFormat } from './output-format.ts'
 
 /**
@@ -105,7 +104,8 @@ export interface AgentDefinitionInput {
   readonly memory?: AgentMemoryConfigInput
   /** Automatic context checkpointing; false disables it. Defaults to enabled. */
   readonly compaction?: AgentCompactionOptions | false
-  /** Extra headers/body fields for this agent's provider requests; this agent's value wins where it collides with the route's own. */
+  /** Extra headers/body fields for this agent's provider requests;
+   * this agent's value wins where it collides with the route's own. */
   readonly providerOptions?: AgentProviderOptions
 }
 
@@ -148,9 +148,6 @@ export interface DefinedAgent extends AgentDefinition {
 
 export type AgentDefinitionOverrides = Partial<Omit<AgentDefinitionInput, 'id'>>
 export type CloneAgentOverrides = AgentDefinitionOverrides & { readonly id: string }
-type MergeAgentOverrides = AgentDefinitionOverrides & { readonly id?: string }
-
-const ID_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]*$/
 
 class DefinedAgentValue implements DefinedAgent {
   readonly id: string
@@ -180,7 +177,7 @@ class DefinedAgentValue implements DefinedAgent {
   readonly providerOptions: AgentProviderOptions | undefined
 
   constructor(input: AgentDefinitionInput) {
-    validate(input)
+    validateDefinition(input)
     this.id = input.id
     this.name = input.name ?? input.id
     this.description = input.description
@@ -189,13 +186,13 @@ class DefinedAgentValue implements DefinedAgent {
     this.effort = input.effort === undefined ? undefined : ReasoningEffortId(input.effort)
     this.maxTokens = input.maxTokens
     this.contextWindow = input.contextWindow
-    this.inputModalities = input.inputModalities === undefined ? undefined : Object.freeze([...input.inputModalities])
+    this.inputModalities = optionalFrozenList(() => input.inputModalities)
     this.instructions = input.instructions
     this.mode = input.mode ?? 'basic'
-    this.tools = Object.freeze([...(input.tools ?? [])])
-    this.nativeTools = Object.freeze((input.nativeTools ?? []).map(tool => Object.freeze({ ...tool })))
-    this.skills = Object.freeze([...(input.skills ?? [])])
-    this.skillIds = input.skillIds === undefined ? undefined : Object.freeze([...input.skillIds])
+    this.tools = frozenList(input.tools)
+    this.nativeTools = captureNativeTools(input.nativeTools)
+    this.skills = frozenList(input.skills)
+    this.skillIds = optionalFrozenList(() => input.skillIds)
     this.skillOptions = resolveSkillOptions(input.skillOptions)
     this.contextSections = captureContextSections(input.contextSections) ?? Object.freeze([])
     this.toolChoice = input.toolChoice
@@ -204,11 +201,8 @@ class DefinedAgentValue implements DefinedAgent {
     this.maxToolCalls = input.maxToolCalls ?? 64
     this.commentary = input.commentary ?? 'auto'
     this.memory = resolveMemoryConfig(input.memory)
-    this.compaction = input.compaction === false ? false : resolveCompactionConfig(input.compaction)
-    this.providerOptions = input.providerOptions === undefined ? undefined : Object.freeze({
-      ...(input.providerOptions.headers === undefined ? {} : { headers: Object.freeze({ ...input.providerOptions.headers }) }),
-      ...(input.providerOptions.body === undefined ? {} : { body: Object.freeze({ ...input.providerOptions.body }) }),
-    })
+    this.compaction = captureCompaction(input)
+    this.providerOptions = captureProviderOptions(input)
     Object.freeze(this)
   }
 
@@ -235,158 +229,27 @@ export function cloneAgent(source: AgentDefinition, overrides: CloneAgentOverrid
   return defineAgent(mergedInput(source, overrides))
 }
 
-function mergedInput(
-  source: AgentDefinition,
-  overrides: MergeAgentOverrides,
-): AgentDefinitionInput {
-  const description = overrides.description ?? source.description
-  const toolChoice = overrides.toolChoice ?? source.toolChoice
-  const outputFormat = overrides.outputFormat ?? source.outputFormat
-  const skillIds = overrides.skillIds ?? source.skillIds
-  const maxTokens = overrides.maxTokens ?? source.maxTokens
-  const contextWindow = overrides.contextWindow ?? source.contextWindow
-  const inputModalities = overrides.inputModalities ?? source.inputModalities
-  const providerOptions = overrides.providerOptions ?? source.providerOptions
-  return {
-    id: overrides.id ?? source.id,
-    name: overrides.name ?? source.name,
-    ...(description === undefined ? {} : { description }),
-    provider: overrides.provider ?? source.provider,
-    model: overrides.model ?? source.model,
-    ...(overrides.effort ?? source.effort) === undefined
-      ? {}
-      : { effort: (overrides.effort ?? source.effort) as string },
-    ...(maxTokens === undefined ? {} : { maxTokens }),
-    ...(contextWindow === undefined ? {} : { contextWindow }),
-    ...(inputModalities === undefined ? {} : { inputModalities }),
-    instructions: overrides.instructions ?? source.instructions,
-    mode: overrides.mode ?? source.mode,
-    tools: overrides.tools ?? source.tools,
-    nativeTools: overrides.nativeTools ?? source.nativeTools,
-    skills: overrides.skills ?? source.skills,
-    ...(skillIds === undefined ? {} : { skillIds }),
-    skillOptions: overrides.skillOptions ?? source.skillOptions,
-    contextSections: overrides.contextSections ?? source.contextSections,
-    ...(toolChoice === undefined ? {} : { toolChoice }),
-    ...(outputFormat === undefined ? {} : { outputFormat }),
-    maxTurns: overrides.maxTurns ?? source.maxTurns,
-    maxToolCalls: overrides.maxToolCalls ?? source.maxToolCalls,
-    commentary: overrides.commentary ?? source.commentary,
-    memory: overrides.memory ?? source.memory,
-    compaction: overrides.compaction ?? compactionInput(source.compaction),
-    ...(providerOptions === undefined ? {} : { providerOptions }),
-  }
+function frozenList<Value>(input: readonly Value[] | undefined): readonly Value[] {
+  return Object.freeze([...(input ?? [])])
 }
 
-function compactionInput(value: AgentCompactionConfig | false): AgentCompactionOptions | false {
-  if (value === false) return false
-  return {
-    auto: value.auto,
-    ...(value.maxInputTokens === undefined ? {} : { maxInputTokens: value.maxInputTokens }),
-    thresholdRatio: value.thresholdRatio,
-    ...(value.retainRatio === undefined ? {} : { retainRatio: value.retainRatio }),
-    ...(value.retainTokens === undefined ? {} : { retainTokens: value.retainTokens }),
-    ...(value.summarizationProvider === undefined ? {} : { summarizationProvider: value.summarizationProvider }),
-    ...(value.summarizationModel === undefined ? {} : { summarizationModel: value.summarizationModel }),
-    ...(value.summarizationEffort === undefined ? {} : { summarizationEffort: value.summarizationEffort }),
-    maxSummaryTokens: value.maxSummaryTokens,
-    compactionRetries: value.compactionRetries,
-    maxOverflowRetries: value.maxOverflowRetries,
-    maxSummaryInputChars: value.maxSummaryInputChars,
-    maxSummaryRequestChars: value.maxSummaryRequestChars,
-    maxSummaryRequestBytes: value.maxSummaryRequestBytes,
-    maxSummaryResponseBytes: value.maxSummaryResponseBytes,
-    maxSummaryStreamEvents: value.maxSummaryStreamEvents,
-    summaryTimeoutMs: value.summaryTimeoutMs,
-    teardownTimeoutMs: value.teardownTimeoutMs,
-    maxToolResultChars: value.maxToolResultChars,
-  }
+function optionalFrozenList<Value>(get: () => readonly Value[] | undefined): readonly Value[] | undefined {
+  return get() === undefined ? undefined : Object.freeze([...get()!])
 }
 
-function validate(input: AgentDefinitionInput): void {
-  if (!ID_PATTERN.test(input.id)) {
-    throw new TypeError('agent id must start with a letter and contain only letters, numbers, _ or -')
-  }
-  for (const [field, value] of [
-    ['name', input.name], ['description', input.description], ['provider', input.provider],
-    ['model', input.model], ['effort', input.effort],
-  ] as const) {
-    if (value !== undefined && value.trim().length === 0) {
-      throw new TypeError(`agent ${field} must be a non-empty string`)
-    }
-  }
-  if (input.instructions.trim().length === 0) {
-    throw new TypeError('agent instructions must be a non-empty string')
-  }
-  if (input.maxTurns !== undefined && input.maxTurns !== 'auto'
-    && (!Number.isSafeInteger(input.maxTurns) || input.maxTurns < 1)) {
-    throw new RangeError("agent maxTurns must be a positive safe integer or 'auto'")
-  }
-  if (input.maxTokens !== undefined
-    && (!Number.isSafeInteger(input.maxTokens) || input.maxTokens < 1)) {
-    throw new RangeError('agent maxTokens must be a positive safe integer')
-  }
-  if (input.contextWindow !== undefined
-    && (!Number.isSafeInteger(input.contextWindow) || input.contextWindow < 1)) {
-    throw new RangeError('agent contextWindow must be a positive safe integer')
-  }
-  if (input.inputModalities !== undefined
-    && (input.inputModalities.length === 0
-      || new Set(input.inputModalities).size !== input.inputModalities.length)) {
-    throw new RangeError('agent inputModalities must be non-empty and unique')
-  }
-  if (input.maxToolCalls !== undefined
-    && (!Number.isInteger(input.maxToolCalls) || input.maxToolCalls < 1)) {
-    throw new RangeError('agent maxToolCalls must be a positive integer')
-  }
-  const names = new Set<string>()
-  for (const tool of input.tools ?? []) {
-    if (typeof tool.name !== 'string' || tool.name.trim().length === 0) {
-      throw new TypeError('agent host tools must have a non-empty name')
-    }
-    if (typeof tool.description !== 'string' || tool.description.trim().length === 0) {
-      throw new TypeError(`agent host tool '${tool.name}' must have a non-empty description`)
-    }
-    if (typeof tool.parameters !== 'object' || tool.parameters === null) {
-      throw new TypeError(`agent host tool '${tool.name}' must declare JSON Schema parameters`)
-    }
-    if (typeof tool.execute !== 'function') {
-      throw new TypeError(`agent host tool '${tool.name}' must implement execute()`)
-    }
-    if (tool.timeoutMs !== undefined && (!Number.isFinite(tool.timeoutMs) || tool.timeoutMs <= 0)) {
-      throw new RangeError(`agent host tool '${tool.name}' must have a positive timeoutMs`)
-    }
-    if (names.has(tool.name)) throw new TypeError(`agent has duplicate host tool '${tool.name}'`)
-    names.add(tool.name)
-  }
-  for (const tool of input.nativeTools ?? []) {
-    if (typeof tool.name !== 'string' || tool.name.trim().length === 0) {
-      throw new TypeError('agent native tools must have a non-empty name')
-    }
-    if (names.has(tool.name)) throw new TypeError(`agent has duplicate tool '${tool.name}'`)
-    names.add(tool.name)
-  }
-  if ((input.skills?.length ?? 0) > 0 || (input.skillIds?.length ?? 0) > 0) {
-    for (const reserved of SKILL_TOOL_NAMES) {
-      if (names.has(reserved)) throw new TypeError(`agent tool '${reserved}' collides with the skill runtime`)
-    }
-  }
-  const directSkills = new Set<string>()
-  const providers = new Set<string>()
-  const allowedSkills = new Set<string>()
-  for (const id of input.skillIds ?? []) {
-    validateSkillId(id, 'agent skill')
-    if (allowedSkills.has(id)) throw new TypeError(`agent has duplicate allowed skill '${id}'`)
-    allowedSkills.add(id)
-  }
-  for (const source of input.skills ?? []) {
-    validateSkillSource(source)
-    if (source.kind === 'skill') {
-      if (directSkills.has(source.id)) throw new TypeError(`agent has duplicate inline skill '${source.id}'`)
-      directSkills.add(source.id)
-    } else {
-      if (providers.has(source.id)) throw new TypeError(`agent has duplicate skill provider '${source.id}'`)
-      providers.add(source.id)
-    }
-  }
+function captureNativeTools(input: readonly NativeToolSchema[] | undefined): readonly NativeToolSchema[] {
+  return Object.freeze((input ?? []).map(tool => Object.freeze({ ...tool })))
+}
+
+function captureCompaction(input: AgentDefinitionInput): AgentCompactionConfig | false {
+  return input.compaction === false ? false : resolveCompactionConfig(input.compaction)
+}
+
+function captureProviderOptions(input: AgentDefinitionInput): AgentProviderOptions | undefined {
+  return input.providerOptions === undefined ? undefined : Object.freeze({
+    ...(input.providerOptions.headers === undefined ? {} : {
+      headers: Object.freeze({ ...input.providerOptions.headers }),
+    }),
+    ...(input.providerOptions.body === undefined ? {} : { body: Object.freeze({ ...input.providerOptions.body }) }),
+  })
 }

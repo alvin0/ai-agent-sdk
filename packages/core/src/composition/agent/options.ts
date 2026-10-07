@@ -17,7 +17,8 @@ import { captureRuntimeSkillSources } from '../skill-provider/definition.ts'
 const KEYS = new Set(['signal', 'additionalInstructions', 'onEvent', 'imagePolicy', 'documentPolicy',
   'structuredOutput', 'includeTraceEvents', 'model', 'maxTokens'])
 const SESSION_KEYS = new Set(['conversationId', 'tools', 'toolSources', 'skills', 'memory', 'skillCwd',
-  'userInput', 'approvals', 'spillStore', 'experimentalPrograms', 'interceptors', 'contextSections', 'hooks', 'usagePolicy', 'historyLimits',
+  'userInput', 'approvals', 'spillStore', 'experimentalPrograms', 'interceptors', 'contextSections', 'hooks',
+    'usagePolicy', 'historyLimits',
   'ledgerLimits',
   'eventBufferLimits', 'runtimeLimits', 'compaction'])
 
@@ -41,14 +42,16 @@ export function captureRuntimeSessionOptions(input: unknown): RuntimeAgentSessio
   if (Reflect.ownKeys(source).some(key => typeof key !== 'string' || !SESSION_KEYS.has(key))) {
     throw new TypeError('Runtime session options contain unsupported fields')
   }
-  const value = Object.fromEntries([...SESSION_KEYS].map(key => [key, ownData(source, key, false)])) as Record<string, unknown>
+  const value = Object.fromEntries([...SESSION_KEYS].map(key => [key, ownData(source, key,
+    false)])) as Record<string, unknown>
   const tools = value.tools === undefined ? undefined : captureToolDefinitions(value.tools)
   const toolSources = value.toolSources === undefined ? undefined : captureToolSources(value.toolSources)
   const approvals = captureApprovalBroker(value.approvals)
   const spillStore = captureSpillStore(value.spillStore)
   const experimentalPrograms = value.experimentalPrograms === undefined
     ? undefined
-    : Object.freeze([...captureProgramGrants(value.experimentalPrograms)].map(([tool, grant]) => Object.freeze({ tool, ...grant })))
+    : Object.freeze([...captureProgramGrants(value.experimentalPrograms)].map(([tool,
+      grant]) => Object.freeze({ tool, ...grant })))
   const userInput = captureUserInputBroker(value.userInput)
   const interceptors = captureInterceptors(value.interceptors)
   const contextSections = captureRuntimeContextSections(value.contextSections)
@@ -58,37 +61,16 @@ export function captureRuntimeSessionOptions(input: unknown): RuntimeAgentSessio
     ? value.memory
     : captureMemoryBinding(value.memory)
   const skills = value.skills === undefined ? undefined : captureRuntimeSkillSources(value.skills)
-  return Object.freeze({
-    ...(value.conversationId === undefined ? {} : { conversationId: value.conversationId as string }),
-    ...(tools === undefined ? {} : { tools }),
-    ...(toolSources === undefined ? {} : { toolSources }),
-    ...(skills === undefined ? {} : { skills }),
-    ...(memory === undefined ? {} : { memory }),
-    ...(value.skillCwd === undefined ? {} : { skillCwd: value.skillCwd as string }),
-    ...(userInput === undefined ? {} : { userInput }),
-    ...(approvals === undefined ? {} : { approvals }),
-    ...(spillStore === undefined ? {} : { spillStore }),
-    ...(experimentalPrograms === undefined ? {} : { experimentalPrograms }),
-    ...(interceptors === undefined ? {} : { interceptors }),
-    ...(contextSections === undefined ? {} : { contextSections }),
-    ...(hooks === undefined ? {} : { hooks }),
-    ...(usagePolicy === undefined ? {} : { usagePolicy }),
-    ...(value.historyLimits === undefined ? {} : {
-      historyLimits: value.historyLimits as NonNullable<RuntimeAgentSessionOptions['historyLimits']>,
-    }),
-    ...(value.ledgerLimits === undefined ? {} : {
-      ledgerLimits: value.ledgerLimits as NonNullable<RuntimeAgentSessionOptions['ledgerLimits']>,
-    }),
-    ...(value.eventBufferLimits === undefined ? {} : {
-      eventBufferLimits: value.eventBufferLimits as NonNullable<RuntimeAgentSessionOptions['eventBufferLimits']>,
-    }),
-    ...(value.runtimeLimits === undefined ? {} : {
-      runtimeLimits: value.runtimeLimits as NonNullable<RuntimeAgentSessionOptions['runtimeLimits']>,
-    }),
-    ...(value.compaction === undefined ? {} : {
-      compaction: value.compaction as NonNullable<RuntimeAgentSessionOptions['compaction']>,
-    }),
-  })
+  return Object.freeze(definedFields({
+    conversationId: value.conversationId as string, tools, toolSources, skills, memory,
+    skillCwd: value.skillCwd as string, userInput, approvals, spillStore, experimentalPrograms,
+    interceptors, contextSections, hooks, usagePolicy,
+    historyLimits: value.historyLimits as NonNullable<RuntimeAgentSessionOptions['historyLimits']>,
+    ledgerLimits: value.ledgerLimits as NonNullable<RuntimeAgentSessionOptions['ledgerLimits']>,
+    eventBufferLimits: value.eventBufferLimits as NonNullable<RuntimeAgentSessionOptions['eventBufferLimits']>,
+    runtimeLimits: value.runtimeLimits as NonNullable<RuntimeAgentSessionOptions['runtimeLimits']>,
+    compaction: value.compaction as NonNullable<RuntimeAgentSessionOptions['compaction']>,
+  }))
 }
 
 /**
@@ -111,6 +93,31 @@ export function captureInvocationOptions(
     throw new TypeError('Runtime invocation options contain unsupported fields')
   }
   const structured = ownData(source, 'structuredOutput', false)
+  const structuredOutput = captureStructuredOutput(structured)
+  const imagePolicy = captureInputPolicy(ownData(source, 'imagePolicy', false), 'imagePolicy')
+  const documentPolicy = captureInputPolicy(ownData(source, 'documentPolicy', false), 'documentPolicy')
+  const signal = optionalAbortSignal(ownData(source, 'signal', false))
+  const additionalInstructions = captureAdditionalInstructions(ownData(source, 'additionalInstructions', false))
+  const onEvent = ownData(source, 'onEvent', false)
+  if (onEvent !== undefined
+    && typeof onEvent !== 'function') throw new TypeError('Runtime event observer must be callable')
+  const includeTraceEvents = ownData(source, 'includeTraceEvents', false)
+  if (includeTraceEvents !== undefined
+    && typeof includeTraceEvents !== 'boolean') throw new TypeError('includeTraceEvents must be boolean')
+  const requested = ownData(source, 'model', false)
+  if (requested !== undefined && selection === undefined) {
+    throw new TypeError('Runtime invocation model override is unavailable on this session')
+  }
+  const model = requested === undefined ? undefined : resolveAgentModel(selection!, requested)
+  const maxTokens = captureMaxTokens(ownData(source, 'maxTokens', false))
+  return Object.freeze(definedFields({
+    model, maxTokens, structuredOutput, imagePolicy, documentPolicy, signal, additionalInstructions,
+    includeTraceEvents,
+    onEvent: onEvent as NonNullable<RuntimeAgentInvocationOptions['onEvent']>,
+  }))
+}
+
+function captureStructuredOutput(structured: unknown): RuntimeAgentInvocationOptions['structuredOutput'] {
   let structuredOutput: RuntimeAgentInvocationOptions['structuredOutput']
   if (structured !== undefined) {
     const output = objectValue(structured), schema = objectValue(ownData(output, 'schema'))
@@ -122,30 +129,26 @@ export function captureInvocationOptions(
     structuredOutput = Object.freeze({ name: format.name, schema: Object.freeze({ jsonSchema: format.schema,
       parse: parse.bind(schema) as (value: unknown) => import('../../primitives/index.ts').JsonValue }) })
   }
-  const imagePolicy = ownData(source, 'imagePolicy', false)
-  if (imagePolicy !== undefined && imagePolicy !== 'strict' && imagePolicy !== 'project') throw new TypeError('imagePolicy must be strict or project')
-  const documentPolicy = ownData(source, 'documentPolicy', false)
-  if (documentPolicy !== undefined && documentPolicy !== 'strict' && documentPolicy !== 'project') throw new TypeError('documentPolicy must be strict or project')
-  const signal = optionalAbortSignal(ownData(source, 'signal', false))
-  const additionalInstructions = captureAdditionalInstructions(ownData(source, 'additionalInstructions', false))
-  const onEvent = ownData(source, 'onEvent', false)
-  if (onEvent !== undefined && typeof onEvent !== 'function') throw new TypeError('Runtime event observer must be callable')
-  const includeTraceEvents = ownData(source, 'includeTraceEvents', false)
-  if (includeTraceEvents !== undefined && typeof includeTraceEvents !== 'boolean') throw new TypeError('includeTraceEvents must be boolean')
-  const requested = ownData(source, 'model', false)
-  if (requested !== undefined && selection === undefined) {
-    throw new TypeError('Runtime invocation model override is unavailable on this session')
+  return structuredOutput
+}
+
+function captureInputPolicy(value: unknown, field: string): 'strict' | 'project' | undefined {
+  if (value !== undefined && value !== 'strict' && value !== 'project') {
+    throw new TypeError(`${field} must be strict or project`)
   }
-  const model = requested === undefined ? undefined : resolveAgentModel(selection!, requested)
-  const maxTokens = ownData(source, 'maxTokens', false)
+  return value
+}
+
+function captureMaxTokens(maxTokens: unknown): number | undefined {
   if (maxTokens !== undefined && (!Number.isSafeInteger(maxTokens) || (maxTokens as number) < 1)) {
     throw new TypeError('Runtime invocation maxTokens must be a positive safe integer')
   }
-  return Object.freeze({ ...(model === undefined ? {} : { model }),
-    ...(maxTokens === undefined ? {} : { maxTokens: maxTokens as number }),
-    ...(structuredOutput === undefined ? {} : { structuredOutput }), ...(imagePolicy === undefined ? {} : { imagePolicy }),
-    ...(documentPolicy === undefined ? {} : { documentPolicy }), ...(signal === undefined ? {} : { signal }),
-    ...(additionalInstructions === undefined ? {} : { additionalInstructions }),
-    ...(includeTraceEvents === undefined ? {} : { includeTraceEvents }),
-    ...(onEvent === undefined ? {} : { onEvent: onEvent as NonNullable<RuntimeAgentInvocationOptions['onEvent']> }) })
+  return maxTokens as number | undefined
+}
+
+type DefinedFields<Value> = { [Key in keyof Value]?: Exclude<Value[Key], undefined> }
+
+/** Preserve option presence without exposing properties whose value is undefined. */
+function definedFields<const Value extends Record<string, unknown>>(value: Value): DefinedFields<Value> {
+  return Object.fromEntries(Object.entries(value).filter(([, field]) => field !== undefined)) as DefinedFields<Value>
 }

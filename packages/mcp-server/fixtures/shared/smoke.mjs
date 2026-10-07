@@ -38,6 +38,17 @@ async function invoke(server, id, method, params = {}) {
   return server.handle(request)
 }
 
+async function observesAbort(server) {
+  const controller = new AbortController()
+  controller.abort(new Error('PACKED_ABORT_SENTINEL'))
+  let aborted = false
+  try {
+    await server.handle(new Request('https://mcp.example.test/api', { signal: controller.signal }))
+  } catch (error) { aborted = String(error).includes('PACKED_ABORT_SENTINEL') }
+
+  return aborted
+}
+
 export async function runPackedMcpServerFixture() {
   const server = createMcpServer({ id: 'packed-web-server', tools: tools() })
   const discovery = await (await invoke(server, 'discover', 'server/discover')).json()
@@ -57,12 +68,7 @@ export async function runPackedMcpServerFixture() {
   try { await (await invoke(responseBounded, 'bounded', 'server/discover')).text() }
   catch (error) { responseBoundedError = String(error); responseBoundedFailure = true }
 
-  const controller = new AbortController()
-  controller.abort(new Error('PACKED_ABORT_SENTINEL'))
-  let aborted = false
-  try {
-    await server.handle(new Request('https://mcp.example.test/api', { signal: controller.signal }))
-  } catch (error) { aborted = String(error).includes('PACKED_ABORT_SENTINEL') }
+  const aborted = await observesAbort(server)
 
   return {
     inert: Object.isFrozen(server) && !('close' in server),

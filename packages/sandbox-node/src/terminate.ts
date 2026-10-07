@@ -55,17 +55,7 @@ export async function terminateConfined(
   signalGroup(pid, 'SIGKILL')
 
   const signalled = new Set<number>([pid])
-  let strays = false
-  if (sweep) {
-    // Sampled before the kill: a process that detaches is no longer reachable
-    // from the tree afterwards, so the list has to be taken while it is.
-    for (const stray of [...before, ...descendantsOf(pid, platform)]) {
-      if (signalled.has(stray)) continue
-      signalled.add(stray)
-      strays = true
-      try { process.kill(stray, 'SIGKILL') } catch { /* already gone */ }
-    }
-  }
+  const strays = sweep && killStrays([...before, ...descendantsOf(pid, platform)], signalled)
   return Object.freeze({ signalled: Object.freeze([...signalled]), strays })
 }
 
@@ -96,23 +86,10 @@ function settle(child: ChildProcess, graceMs: number): Promise<void> {
  */
 export function descendantsOf(root: number, platform: string = process.platform): readonly number[] {
   if (platform === 'win32') return Object.freeze([])
-  let table: string
-  try {
-    const listing = spawnSync('ps', ['-A', '-o', 'pid=,ppid=,pgid='], {
-      encoding: 'utf8', timeout: 5_000, windowsHide: true,
-    })
-    if (listing.status !== 0) return Object.freeze([])
-    table = listing.stdout ?? ''
-  } catch { return Object.freeze([]) }
+  const table = readProcessTable()
+  if (table === undefined) return Object.freeze([])
 
-  const children = new Map<number, number[]>()
-  const group = new Set<number>()
-  for (const line of table.split('\n')) {
-    const [pid, ppid, pgid] = line.trim().split(/\s+/).map(Number)
-    if (pid === undefined || ppid === undefined || Number.isNaN(pid)) continue
-    children.set(ppid, [...(children.get(ppid) ?? []), pid])
-    if (pgid === root) group.add(pid)
-  }
+  const { children, group } = descendantRows(table, root)
 
   const found = new Set<number>(group)
   const queue = [root]
@@ -127,4 +104,40 @@ export function descendantsOf(root: number, platform: string = process.platform)
   }
   found.delete(root)
   return Object.freeze([...found])
+}
+
+function descendantRows(table: string, root: number) {
+  const children = new Map<number, number[]>()
+  const group = new Set<number>()
+  for (const line of table.split('\n')) {
+    const [pid, ppid, pgid] = line.trim().split(/\s+/).map(Number)
+    if (pid === undefined || ppid === undefined || Number.isNaN(pid)) continue
+    children.set(ppid, [...(children.get(ppid) ?? []), pid])
+    if (pgid === root) group.add(pid)
+  }
+
+  return { children, group }
+}
+
+function killStrays(descendants: readonly number[], signalled: Set<number>): boolean {
+  let strays = false
+  // Sampled before the kill: a process that detaches is no longer reachable
+  // from the tree afterwards, so the list has to be taken while it is.
+  for (const stray of descendants) {
+    if (signalled.has(stray)) continue
+    signalled.add(stray)
+    strays = true
+    try { process.kill(stray, 'SIGKILL') } catch { /* already gone */ }
+  }
+  return strays
+}
+
+function readProcessTable(): string | undefined {
+  try {
+    const listing = spawnSync('ps', ['-A', '-o', 'pid=,ppid=,pgid='], {
+      encoding: 'utf8', timeout: 5_000, windowsHide: true,
+    })
+    if (listing.status !== 0) return undefined
+    return listing.stdout ?? ''
+  } catch { return undefined }
 }

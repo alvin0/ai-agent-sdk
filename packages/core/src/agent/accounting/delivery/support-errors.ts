@@ -19,11 +19,13 @@ function providerCandidates(
     const attempts = call.attempts
     const lastAttempt = attempts.at(-1)
     if (call.error !== undefined) {
-      candidates.push(candidate(call, call.error, 'model-call', lastAttempt, usageCoverage, possiblyBilled))
+      candidates.push(candidate(call, call.error, { stage: 'model-call', attempt: lastAttempt },
+        { usageCoverage, possiblyBilled }))
     }
     for (const attempt of attempts) {
       if (attempt.error === undefined) continue
-      candidates.push(candidate(call, attempt.error, 'provider-attempt', attempt, usageCoverage, possiblyBilled))
+      candidates.push(candidate(call, attempt.error, { stage: 'provider-attempt', attempt },
+        { usageCoverage, possiblyBilled }))
     }
   }
   return candidates
@@ -32,14 +34,13 @@ function providerCandidates(
 function candidate(
   call: ModelCallReport,
   error: SafeErrorRecord,
-  stage: 'model-call' | 'provider-attempt',
-  attempt: ModelCallReport['attempts'][number] | undefined,
-  usageCoverage: UsageCoverageSummary,
-  possiblyBilled: number,
+  failure: { stage: 'model-call' | 'provider-attempt'; attempt: ModelCallReport['attempts'][number] | undefined },
+  coverage: { usageCoverage: UsageCoverageSummary; possiblyBilled: number },
 ): ProviderFailureCandidate {
+  const { stage, attempt } = failure
+  const { usageCoverage, possiblyBilled } = coverage
   const code = safeCode(error.code)
-  const status = validHttpStatus(error.status) ? error.status
-    : validHttpStatus(attempt?.httpStatus) ? attempt.httpStatus : undefined
+  const status = validHttpStatus(error.status) ? error.status : fallbackStatus(attempt?.httpStatus)
   return {
     code,
     value: Object.freeze({
@@ -52,13 +53,23 @@ function candidate(
       ...(status === undefined ? {} : { status }),
       ...(attempt?.providerRequestId === undefined ? {} : { requestId: attempt.providerRequestId }),
       ...(error.retryable === undefined ? {} : { retryable: error.retryable }),
-      ...(attempt?.dispatchState === undefined && call.dispatchState === undefined
-        ? {}
-        : { dispatchState: attempt?.dispatchState ?? call.dispatchState }),
+      ...dispatchFields(call, attempt),
       usageCoverage,
       possiblyBilledAttemptsWithoutUsage: possiblyBilled,
     }),
   }
+}
+
+function dispatchFields(call: ModelCallReport, attempt: ModelCallReport['attempts'][number] | undefined) {
+  return {
+    ...(attempt?.dispatchState === undefined && call.dispatchState === undefined
+      ? {}
+      : { dispatchState: attempt?.dispatchState ?? call.dispatchState }),
+  }
+}
+
+function fallbackStatus(status: number | undefined): number | undefined {
+  return validHttpStatus(status) ? status : undefined
 }
 
 function genericError(
@@ -88,10 +99,9 @@ function validHttpStatus(value: unknown): value is number {
 export function supportSafeErrors(
   rawErrors: readonly unknown[],
   calls: readonly ModelCallReport[],
-  usageCoverage: UsageCoverageSummary,
-  possiblyBilled: number,
-  limit: number,
+  options: { usageCoverage: UsageCoverageSummary; possiblyBilled: number; limit: number },
 ): readonly SupportSafeError[] {
+  const { usageCoverage, possiblyBilled, limit } = options
   const candidates = providerCandidates(calls, usageCoverage, possiblyBilled)
   const used = new Set<number>()
   const projected = rawErrors.map(raw => {

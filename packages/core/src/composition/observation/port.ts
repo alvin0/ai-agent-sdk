@@ -13,7 +13,8 @@ import type { RuntimeObservationResource } from '../delivery/resource.ts'
 import { DeliveryQueueScheduler, type QueueFlushReport } from '../queue/scheduler.ts'
 import { DeliveryQueueStore, type DeliveryQueueOptions } from '../queue/store.ts'
 import type { QueueAdmission } from '../queue/types.ts'
-import { CLOSED_RUNTIME_LOGGER, createCorrelatedRuntimeLogger, createRuntimeLogger, type RuntimeLoggerContext } from '../logging/logger.ts'
+import { CLOSED_RUNTIME_LOGGER, createCorrelatedRuntimeLogger, createRuntimeLogger,
+  type RuntimeLoggerContext } from '../logging/logger.ts'
 import type { CorrelationContext } from '../../observation/context.ts'
 import { eventHasIntegrationEvidence } from '../logging/integration.ts'
 import { LOG_LEVEL_RANK } from '../logging/config.ts'
@@ -68,40 +69,44 @@ export class RuntimeObservationPort implements ObservationPort {
   private readonly shutdownTimeoutMs: number
   private processorFailures = 0
   readonly requiredBoundary: ObservationBoundary
+  private readonly platform: RuntimePlatform
   private admissionClosed = false
   private sealed = false
 
   constructor(
     readonly resource: RuntimeObservationResource,
     registrations: readonly RuntimeObservationExporterRegistration[],
-    private readonly platform: RuntimePlatform,
-    resources: RuntimeResources,
+    runtime: { readonly platform: RuntimePlatform; readonly resources: RuntimeResources },
     options: RuntimeObservationPortOptions = {},
   ) {
+    this.platform = runtime.platform
+    const resources = runtime.resources
     this.mode = options.mode ?? 'operational'
     validateMode(this.mode, registrations)
     this.requiredBoundary = this.mode === 'operational' ? 'none' : requiredBoundary(registrations)
     this.flushTimeoutMs = timeoutValue(options.flushTimeoutMs ?? RUNTIME_OBSERVATION_DEFAULTS.flushTimeoutMs)
     this.minimumLogLevel = options.minimumLogLevel ?? 'info'
     if (!(this.minimumLogLevel in LOG_LEVEL_RANK)) throw new TypeError('Invalid minimum log level')
-    this.processors = Object.freeze([...(options.processors ?? [])])
-    this.redactors = Object.freeze([...(options.redactors ?? [])])
+    this.processors = frozenCopy(options.processors)
+    this.redactors = frozenCopy(options.redactors)
     this.includeErrorStacks = options.includeErrorStacks ?? false
     this.spanBackend = options.openSpan
-    this.shutdownTimeoutMs = timeoutValue(options.shutdownTimeoutMs ?? RUNTIME_OBSERVATION_DEFAULTS.shutdownTimeoutMs)
+    this.shutdownTimeoutMs = timeoutValue(
+      options.shutdownTimeoutMs ?? RUNTIME_OBSERVATION_DEFAULTS.shutdownTimeoutMs,
+    )
     const staging = new DeliveryStaging(registrations, failure => {
       this.stagingFailureCount = saturatingCounterAdd(this.stagingFailureCount, 1)
-      if (this.stagingFailures.length === RUNTIME_OBSERVATION_DEFAULTS.stagingFailures) this.stagingFailures.splice(0, 1)
+      if (this.stagingFailures.length === RUNTIME_OBSERVATION_DEFAULTS.stagingFailures) {
+        this.stagingFailures.splice(0, 1)
+      }
       this.stagingFailures.push(failure)
     })
     this.store = new DeliveryQueueStore(resource, staging, options, entry => {
-      if (entry.kind === 'event' && eventHasIntegrationEvidence(entry.item as ObservationEvent)) this.integration('dropped')
+      if (entry.kind === 'event'
+        && eventHasIntegrationEvidence(entry.item as ObservationEvent)) this.integration('dropped')
     })
-    this.scheduler = new DeliveryQueueScheduler(this.store, resource, registrations, platform, resources)
-    this.diagnosticsRing = new DiagnosticRing({
-      ...(options.diagnosticMaxEvents === undefined ? {} : { maxEvents: options.diagnosticMaxEvents }),
-      ...(options.diagnosticMaxBytes === undefined ? {} : { maxBytes: options.diagnosticMaxBytes }),
-    })
+    this.scheduler = new DeliveryQueueScheduler(this.store, resource, registrations, resources)
+    this.diagnosticsRing = new DiagnosticRing(diagnosticOptions(options))
   }
 
   openSpan(input: OpenObservationSpanInput): ObservationSpan {
@@ -136,15 +141,15 @@ export class RuntimeObservationPort implements ObservationPort {
 
   async checkpointTerminal(record: RunTerminalRecord, signal?: AbortSignal): Promise<TerminalCheckpointResult> {
     const admission = this.admitTerminal(record)
-    if (admission.status === 'closed') return terminalResult(record.runId, 'closed', 'none', 'closed')
-    if (admission.status === 'rejected') return terminalResult(record.runId, 'rejected', 'none', 'capacity')
+    if (admission.status === 'closed') return terminalResult(record.runId, 'closed', 'none', { reason: 'closed' })
+    if (admission.status === 'rejected') return terminalResult(record.runId, 'rejected', 'none', { reason: 'capacity' })
     if (this.mode === 'operational') return terminalResult(record.runId, 'accepted', 'none')
     const delivery = await this.scheduler.checkpointRun(record.runId, undefined,
       this.deadline(), signal)
     return delivery.requiredComplete && delivery.reachedBoundary !== 'none'
-      ? terminalResult(record.runId, 'accepted', delivery.reachedBoundary, undefined, delivery)
+      ? terminalResult(record.runId, 'accepted', delivery.reachedBoundary, { delivery })
       : terminalResult(record.runId, this.sealed ? 'closed' : 'rejected', 'none',
-        this.sealed ? 'closed' : 'exporter-unavailable', delivery)
+        { reason: this.sealed ? 'closed' : 'exporter-unavailable', delivery })
   }
 
   flush(signal?: AbortSignal): Promise<QueueFlushReport> {
@@ -157,24 +162,16 @@ export class RuntimeObservationPort implements ObservationPort {
   }
 
   diagnostics(): RuntimeDiagnosticSnapshot {
-    return Object.freeze({ resource: this.resource, ...this.diagnosticsRing.snapshot(), observationHealth: this.health() })
+    return Object.freeze({ resource: this.resource, ...this.diagnosticsRing.snapshot(),
+      observationHealth: this.health() })
   }
 
   health(): RuntimeObservationHealthSnapshot {
     const queue = this.store.snapshot(), delivery = this.scheduler.health()
-    const failed = queue.criticalRejected > 0 || delivery.requiredFailure || delivery.flushTimeouts > 0
-    const degraded = queue.evictedVerbose > 0 || queue.evictedNormal > 0 || this.processorFailures > 0
-      || delivery.exporterFailures > 0 || this.stagingFailureCount > 0
-    const state: RuntimeObservationHealthSnapshot['state'] = this.sealed ? 'closed' : failed ? 'failed' : degraded ? 'degraded' : 'healthy'
-    const lastFailure = queue.criticalRejected > 0
-      ? Object.freeze({ type: 'Error', message: 'Observation queue capacity exhausted', code: 'OBSERVABILITY_CAPTURE_REJECTED' })
-      : delivery.flushTimeouts > 0
-        ? Object.freeze({ type: 'Error', message: 'Observation flush timed out', code: 'OBSERVABILITY_FLUSH_TIMEOUT' })
-        : this.processorFailures > 0
-          ? Object.freeze({ type: 'Error', message: 'Observation processor did not complete', code: 'OBSERVATION_PROCESSOR_FAILED' })
-          : delivery.exporterFailures > 0 || this.stagingFailureCount > 0
-          ? Object.freeze({ type: 'Error', message: 'Observation exporter did not complete', code: 'OBSERVABILITY_EXPORT_FAILED' })
-          : undefined
+    const state = observationHealthState({ queue, delivery, processorFailures: this.processorFailures,
+      stagingFailures: this.stagingFailureCount, sealed: this.sealed })
+    const lastFailure = observationLastFailure({ queue, delivery, processorFailures: this.processorFailures,
+      stagingFailures: this.stagingFailureCount })
     return Object.freeze({ state, queuedEvents: queue.queuedItems, queuedBytes: queue.queuedBytes,
       accepted: queue.accepted, exported: delivery.exported,
       droppedVerbose: queue.evictedVerbose, droppedNormal: queue.evictedNormal,
@@ -197,7 +194,8 @@ export class RuntimeObservationPort implements ObservationPort {
   /** Internal active-run view; callers cannot supply or replace correlation IDs. */
   correlatedLogger(correlation: CorrelationContext, context?: RuntimeLoggerContext): SdkLogger {
     if (this.admissionClosed) return CLOSED_RUNTIME_LOGGER
-    return createCorrelatedRuntimeLogger({ resource: this.resource, platform: this.platform, content: this.store.content,
+    return createCorrelatedRuntimeLogger({ resource: this.resource, platform: this.platform,
+      content: this.store.content,
       redactors: this.redactors, includeErrorStacks: this.includeErrorStacks,
       minimumLevel: this.minimumLogLevel, isClosed: () => this.admissionClosed,
       capture: event => this.capture(event), integration: outcome => this.integration(outcome) }, correlation, context)
@@ -260,11 +258,13 @@ export class RuntimeObservationPort implements ObservationPort {
 }
 
 function validateMode(mode: DeliveryMode, registrations: readonly RuntimeObservationExporterRegistration[]): void {
-  if (mode !== 'operational' && mode !== 'reliable' && mode !== 'audit') throw new TypeError('Invalid observation delivery mode')
+  if (mode !== 'operational' && mode !== 'reliable'
+    && mode !== 'audit') throw new TypeError('Invalid observation delivery mode')
   if (mode === 'operational' && registrations.some(value => value.requirement === 'required')) {
     throw new TypeError('Operational observation exporters must be best-effort')
   }
-  if (mode !== 'operational' && !registrations.some(value => value.requirement === 'required' && value.boundary !== 'none')) {
+  if (mode !== 'operational' && !registrations.some(value => value.requirement === 'required'
+    && value.boundary !== 'none')) {
     throw new TypeError(`${mode} observation requires a durable required exporter`)
   }
 }
@@ -273,11 +273,14 @@ function requiredBoundary(registrations: readonly RuntimeObservationExporterRegi
   const values = registrations.filter(value => value.requirement === 'required').map(value => value.boundary)
   return values.reduce((left, right) => boundaryRank(left) <= boundaryRank(right) ? left : right)
 }
-function boundaryRank(value: ObservationBoundary): number { return value === 'remote-acknowledged' ? 2 : value === 'local-durable' ? 1 : 0 }
+function boundaryRank(value: ObservationBoundary): number {
+  if (value === 'remote-acknowledged') return 2
+  return value === 'local-durable' ? 1 : 0
+}
 function eventReceipt(eventId: string, admission: QueueAdmission): CaptureReceipt {
   if (admission.status === 'accepted' || admission.status === 'existing') return acceptedEvent(eventId, 'none')
-  return rejectedEvent(eventId, admission.status === 'closed' ? 'closed'
-    : admission.reason === 'processor-failed' ? 'processor-failed' : 'capacity')
+  if (admission.status === 'closed') return rejectedEvent(eventId, 'closed')
+  return rejectedEvent(eventId, admission.reason === 'processor-failed' ? 'processor-failed' : 'capacity')
 }
 function acceptedEvent(eventId: string, boundary: ObservationBoundary): CaptureReceipt {
   return Object.freeze({ eventId, status: 'accepted', durable: boundary !== 'none', boundary })
@@ -299,8 +302,51 @@ function sameEnvelope(left: ObservationEvent, right: ObservationEvent): boolean 
 }
 function terminalResult(
   runId: string, status: TerminalCheckpointResult['status'], boundary: ObservationBoundary,
-  reason?: TerminalCheckpointResult['reason'], delivery?: QueueFlushReport,
+  details: Pick<TerminalCheckpointResult, 'reason' | 'delivery'> = {},
 ): TerminalCheckpointResult {
+  const { reason, delivery } = details
   return Object.freeze({ runId, status, durable: status === 'accepted' && boundary !== 'none', boundary,
     ...(reason === undefined ? {} : { reason }), ...(delivery === undefined ? {} : { delivery }) })
+}
+
+function frozenCopy<Value>(input: readonly Value[] | undefined): readonly Value[] {
+  return Object.freeze([...(input ?? [])])
+}
+
+interface HealthEvidence {
+  readonly queue: ReturnType<DeliveryQueueStore['snapshot']>
+  readonly delivery: ReturnType<DeliveryQueueScheduler['health']>
+  readonly processorFailures: number
+  readonly stagingFailures: number
+}
+
+function observationHealthState(evidence: HealthEvidence & { readonly sealed: boolean }):
+  RuntimeObservationHealthSnapshot['state'] {
+  const { queue, delivery, processorFailures, stagingFailures, sealed } = evidence
+  const failed = queue.criticalRejected > 0 || delivery.requiredFailure || delivery.flushTimeouts > 0
+  const degraded = queue.evictedVerbose > 0 || queue.evictedNormal > 0 || processorFailures > 0
+    || delivery.exporterFailures > 0 || stagingFailures > 0
+  if (sealed) return 'closed'
+  if (failed) return 'failed'
+  return degraded ? 'degraded' : 'healthy'
+}
+
+function observationLastFailure(evidence: HealthEvidence) {
+  const { queue, delivery, processorFailures, stagingFailures } = evidence
+  if (queue.criticalRejected > 0) return Object.freeze({ type: 'Error', message: 'Observation queue capacity exhausted',
+    code: 'OBSERVABILITY_CAPTURE_REJECTED' })
+  if (delivery.flushTimeouts > 0) return Object.freeze({ type: 'Error', message: 'Observation flush timed out',
+    code: 'OBSERVABILITY_FLUSH_TIMEOUT' })
+  if (processorFailures > 0) return Object.freeze({ type: 'Error', message: 'Observation processor did not complete',
+    code: 'OBSERVATION_PROCESSOR_FAILED' })
+  if (delivery.exporterFailures > 0 || stagingFailures > 0) return Object.freeze({ type: 'Error',
+    message: 'Observation exporter did not complete', code: 'OBSERVABILITY_EXPORT_FAILED' })
+  return undefined
+}
+
+function diagnosticOptions(options: RuntimeObservationPortOptions): DiagnosticRingOptions {
+  return {
+    ...(options.diagnosticMaxEvents === undefined ? {} : { maxEvents: options.diagnosticMaxEvents }),
+    ...(options.diagnosticMaxBytes === undefined ? {} : { maxBytes: options.diagnosticMaxBytes }),
+  }
 }

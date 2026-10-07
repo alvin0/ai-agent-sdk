@@ -9,7 +9,8 @@ export async function estimateUsage(
   timeoutMs: number,
 ): Promise<UsageCounters> {
   const deadline = new AbortController()
-  const signal = AbortSignal.any([closed, deadline.signal, ...input.request.signal === undefined ? [] : [input.request.signal]])
+  const requestSignals = input.request.signal === undefined ? [] : [input.request.signal]
+  const signal = AbortSignal.any([closed, deadline.signal, ...requestSignals])
   const timer = setTimeout(() => deadline.abort(new Error('usage estimation deadline exceeded')), timeoutMs)
   try {
     signal.throwIfAborted()

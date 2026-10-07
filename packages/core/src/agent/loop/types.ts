@@ -98,4 +98,8 @@ export interface TurnBounds {
   readonly toolTeardownTimeoutMs: number
 }
 
-export type { AgentEvent, AgentMaintenanceEvent, AssistantContentTiming, BeforeStepContext, CheckpointContext, CompactionBackoffReason, CompactionTrigger, ExhaustedBudget, RequestErrorContext, StepDecision, StreamedAssistantTextPhase, ToolDeclineReason, TurnEndContext, TurnEndReason, TurnHooks, TurnOutcome }
+export type {
+  AgentEvent, AgentMaintenanceEvent, AssistantContentTiming, BeforeStepContext, CheckpointContext,
+  CompactionBackoffReason, CompactionTrigger, ExhaustedBudget, RequestErrorContext, StepDecision,
+  StreamedAssistantTextPhase, ToolDeclineReason, TurnEndContext, TurnEndReason, TurnHooks, TurnOutcome,
+}

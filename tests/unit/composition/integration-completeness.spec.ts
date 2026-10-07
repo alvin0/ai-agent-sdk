@@ -14,8 +14,7 @@ const EXPECTED = Object.freeze([{
 
 function fixture(options: RuntimeObservationPortOptions = {}) {
   const platform = createRuntimePlatform(), resources = new RuntimeResources(platform)
-  const port = new RuntimeObservationPort(createRuntimeResource(undefined, platform), [], platform, resources,
-    { mode: 'operational', ...options })
+  const port = new RuntimeObservationPort(createRuntimeResource(undefined, platform), [], { platform, resources }, { mode: 'operational', ...options })
   return { resources, port }
 }
 

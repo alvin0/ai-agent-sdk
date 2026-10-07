@@ -15,6 +15,12 @@ export interface CapabilityStartupOptions {
   readonly signal?: AbortSignal
 }
 
+interface CapabilityStartupDependencies {
+  readonly registry: ModelRegistry
+  readonly logger: SdkLogger
+  readonly resources: RuntimeResources
+}
+
 export interface ActivatedRuntimeCapabilities {
   /** Generation AND embedding registrations, in installation order (Requirement 11.7). */
   readonly providers: readonly ProviderRegistration[]
@@ -25,9 +31,9 @@ export interface ActivatedRuntimeCapabilities {
 
 /** Transactional inner startup; the composition root supplies its canonical registry, logger and resources. */
 export async function activateRuntimeCapabilities(
-  plan: RuntimeCapabilityPlan, registry: ModelRegistry, logger: SdkLogger,
-  resources: RuntimeResources, options: CapabilityStartupOptions,
+  plan: RuntimeCapabilityPlan, dependencies: CapabilityStartupDependencies, options: CapabilityStartupOptions,
 ): Promise<ActivatedRuntimeCapabilities> {
+  const { registry, logger, resources } = dependencies
   const startupTimeoutMs = timeoutValue(options.startupTimeoutMs)
   const rollbackTimeoutMs = timeoutValue(options.rollbackTimeoutMs)
   const signal = options.signal

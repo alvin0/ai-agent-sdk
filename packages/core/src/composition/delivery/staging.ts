@@ -35,7 +35,8 @@ export class DeliveryStaging {
 
   stage(item: ObservationExportItem): void {
     if (this.sealed) return
-    if (!isPreparedEvent(item as ObservationEvent) && !isPreparedTerminal(item as RunTerminalRecord)) throw new DeliveryDataError()
+    if (!isPreparedEvent(item as ObservationEvent)
+      && !isPreparedTerminal(item as RunTerminalRecord)) throw new DeliveryDataError()
     for (const [index, hook] of this.hooks.entries()) {
       if (this.sealed) break
       if (hook.invoke === undefined) continue

@@ -222,10 +222,7 @@ function transportLimits(options: GeminiAdapterOptions | GeminiProviderOptions) 
   return {
     ...(options.allowInsecureHttp === undefined ? {} : { allowInsecureHttp: options.allowInsecureHttp }),
     headers: endpointHeaders(options.headers),
-    ...(options.path === undefined ? {} : { path: options.path }),
-    ...(options.query === undefined ? {} : { query: options.query }),
-    ...(options.body === undefined ? {} : { body: options.body }),
-    ...(options.transformRequest === undefined ? {} : { transformRequest: options.transformRequest }),
+    ...requestOverrides(options),
     ...(options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs }),
     ...(options.maxRequestBytes === undefined ? {} : { maxRequestBytes: options.maxRequestBytes }),
     ...(options.maxResponseBytes === undefined ? {} : { maxResponseBytes: options.maxResponseBytes }),
@@ -234,6 +231,17 @@ function transportLimits(options: GeminiAdapterOptions | GeminiProviderOptions) 
     ...(options.maxSseEventChars === undefined ? {} : { maxSseEventChars: options.maxSseEventChars }),
     ...(options.maxErrorBodyBytes === undefined ? {} : { maxErrorBodyBytes: options.maxErrorBodyBytes }),
     ...(options.requestLoggerTimeoutMs === undefined ? {} : { requestLoggerTimeoutMs: options.requestLoggerTimeoutMs }),
+
+  }
+}
+
+function requestOverrides(options: GeminiAdapterOptions | GeminiProviderOptions) {
+  return {
     ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+    ...(options.path === undefined ? {} : { path: options.path }),
+    ...(options.query === undefined ? {} : { query: options.query }),
+    ...(options.body === undefined ? {} : { body: options.body }),
+    ...(options.transformRequest === undefined ? {} : { transformRequest: options.transformRequest }),
+
   }
 }

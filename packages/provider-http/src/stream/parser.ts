@@ -52,18 +52,7 @@ export async function* parseSseBounded(
   } finally {
     if (drained) reader.releaseLock()
     else {
-      let cancellationFailure: unknown
-      const cancellation = reader.cancel()
-        .catch((error: unknown) => { cancellationFailure = error })
-      const settled = await waitForSettlement(cancellation, teardownTimeoutMs)
-      // Parser/protocol failure is the support-relevant cause. A broken body
-      // cancellation path must not overwrite it with secondary teardown noise.
-      if (primaryFailure === undefined) {
-        if (!settled) {
-          throw new Error(`SSE body ignored cancellation for more than ${teardownTimeoutMs}ms`)
-        }
-        if (cancellationFailure !== undefined) throw cancellationFailure
-      }
+      await cancelParserReader(reader, teardownTimeoutMs, primaryFailure)
     }
   }
 }
@@ -82,4 +71,21 @@ function limitError(kind: 'event-count' | 'character'): ModelError {
     `provider SSE event buffer ${kind} limit exceeded`,
     HTTP_PROVIDER_ERROR_CODES.SSE_LIMIT_EXCEEDED,
   )
+}
+
+async function cancelParserReader(
+  reader: ReadableStreamDefaultReader<Uint8Array>, teardownTimeoutMs: number, primaryFailure: unknown,
+): Promise<void> {
+  let cancellationFailure: unknown
+  const cancellation = reader.cancel()
+    .catch((error: unknown) => { cancellationFailure = error })
+  const settled = await waitForSettlement(cancellation, teardownTimeoutMs)
+  // Parser/protocol failure is the support-relevant cause. A broken body
+  // cancellation path must not overwrite it with secondary teardown noise.
+  if (primaryFailure === undefined) {
+    if (!settled) {
+      throw new Error(`SSE body ignored cancellation for more than ${teardownTimeoutMs}ms`)
+    }
+    if (cancellationFailure !== undefined) throw cancellationFailure
+  }
 }

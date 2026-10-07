@@ -65,9 +65,11 @@ function captureScope(value: unknown): MemoryBinding['scope'] {
   if (kind === 'fixed') {
     exactKeys(source, new Set(['kind', 'key', 'sharedAcrossSessions']))
     if (ownData(source, 'sharedAcrossSessions') !== true) {
-      throw new AgentSdkError('Fixed memory scope requires explicit cross-session sharing', MEMORY_ERROR_CODES.INVALID_SCOPE)
+      throw new AgentSdkError('Fixed memory scope requires explicit cross-session sharing',
+        MEMORY_ERROR_CODES.INVALID_SCOPE)
     }
-    return Object.freeze({ kind, key: boundedText(ownData(source, 'key'), MEMORY_LIMITS.scopeValueBytes), sharedAcrossSessions: true })
+    return Object.freeze({ kind, key: boundedText(ownData(source, 'key'), MEMORY_LIMITS.scopeValueBytes),
+      sharedAcrossSessions: true })
   }
   throw new AgentSdkError('Memory scope is invalid', MEMORY_ERROR_CODES.INVALID_SCOPE)
 }
@@ -79,7 +81,8 @@ function exactObject(value: unknown, keys: ReadonlySet<string>): object {
 }
 
 function exactKeys(value: object, allowed: ReadonlySet<string>): void {
-  if (Reflect.ownKeys(value).some(key => typeof key !== 'string' || !allowed.has(key))) throw new TypeError('Unsupported field')
+  if (Reflect.ownKeys(value).some(key => typeof key !== 'string'
+    || !allowed.has(key))) throw new TypeError('Unsupported field')
 }
 
 function method(value: object, key: string): Function {

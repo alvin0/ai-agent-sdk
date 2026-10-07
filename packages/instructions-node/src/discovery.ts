@@ -187,5 +187,7 @@ export async function globalInstructionFile(
  */
 export function byDepthThenPath(left: string, right: string): number {
   const depth = left.split(sep).length - right.split(sep).length
-  return depth !== 0 ? depth : (left < right ? -1 : left > right ? 1 : 0)
+  if (depth !== 0) return depth
+  if (left < right) return -1
+  return left > right ? 1 : 0
 }

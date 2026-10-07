@@ -123,12 +123,9 @@ async function readBoundedBody(
   }
 
   const reader = boundedResponseBody(
-    response.body,
-    maxResponseBytes,
-    session.limits.maxResponseChunks,
-    displayName,
-    session.signal,
-  ).getReader()
+      response.body, { maxBytes: maxResponseBytes, maxChunks: session.limits.maxResponseChunks },
+      displayName, session.signal,
+    ).getReader()
   const decoder = new TextDecoder()
   let text = ''
   try {

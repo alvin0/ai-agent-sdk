@@ -1,3 +1,5 @@
+import { EmbeddingBatchRetryDriver } from './retry-dispatch.ts'
+import { cancellableDelay } from './retry-support.ts'
 /**
  * The ONE retry layer for embedding.
  *
@@ -36,21 +38,16 @@
  */
 
 import {
-  backoffDelayMs,
   resolveRetryPolicy,
   type ResolvedRetryPolicy,
 } from '../../contract/retry-policy.ts'
 import { EMBEDDING_ERROR_CODES, EmbeddingError } from '../../embedding/errors.ts'
 import type { EmbeddingBatchRequest } from '../../embedding/request.ts'
 import type { EmbeddingBatchResult, EmbeddingVector, EmbeddingWarning } from '../../embedding/result.ts'
-import { normalizeModelFailure, type ModelFailure } from '../../errors/failure.ts'
-import { MODEL_ERROR_CODES } from '../../errors/model-error.ts'
 import type {
-  EndProviderAttemptInput,
   ModelInvocationContext,
-  ProviderAttemptHandle,
 } from '../../observation/report.ts'
-import type { AttemptUsageReport, DispatchState } from '../../observation/usage.ts'
+import type { DispatchState } from '../../observation/usage.ts'
 
 /**
  * Lifecycle of one `Physical_Batch` inside a single `Logical_Call`.
@@ -178,104 +175,6 @@ export interface EmbeddingRetryLedger {
 
 const PENDING: BatchState = Object.freeze({ phase: 'pending' as const })
 
-/** Codes that mean "the caller stopped this", never "the provider wobbled". */
-function isAbortCode(code: string): boolean {
-  return code === MODEL_ERROR_CODES.ABORTED || code === EMBEDDING_ERROR_CODES.ABORTED
-}
-
-/**
- * Turn any thrown value into an {@link EmbeddingError} without losing its code.
- *
- * An `EmbeddingError` from the adapter passes through untouched: it already
- * carries `itemIndexes` and `limit`, and re-wrapping would drop exactly the
- * facts a caller needs to re-chunk the offending inputs. Anything else keeps its
- * normalized stable code — a rate limit stays `MODEL_RATE_LIMIT` so the retry
- * allow-list still recognises it.
- */
-function asEmbeddingError(
-  value: unknown,
-  failure: ModelFailure,
-  request: EmbeddingBatchRequest,
-): EmbeddingError {
-  if (value instanceof EmbeddingError) return value
-  return new EmbeddingError(failure.message, failure.code, {
-    cause: value,
-    ...failure.status === undefined ? {} : { status: failure.status },
-    ...failure.providerRetryAfterMs === undefined ? {} : { providerRetryAfterMs: failure.providerRetryAfterMs },
-    ...failure.requestId === undefined ? {} : { requestId: failure.requestId },
-    provider: request.provider,
-    model: request.model,
-    itemIndexes: request.items.map(item => item.index),
-  })
-}
-
-/** Sleep, resolving early and reporting `false` if the signal aborts first. */
-function cancellableDelay(delayMs: number, signal?: AbortSignal): Promise<boolean> {
-  if (signal?.aborted === true) return Promise.resolve(false)
-  return new Promise((resolve) => {
-    const onAbort = (): void => {
-      clearTimeout(timer)
-      resolve(false)
-    }
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort)
-      resolve(true)
-    }, delayMs)
-    signal?.addEventListener('abort', onAbort, { once: true })
-  })
-}
-
-/** Honour a sane provider-requested `retry-after`, else local bounded backoff. */
-function delayFor(
-  policy: ResolvedRetryPolicy,
-  failure: ModelFailure,
-  attempt: number,
-  random: () => number,
-): number | 'give-up' {
-  const requested = failure.providerRetryAfterMs
-  if (requested !== undefined && Number.isFinite(requested) && requested > 0) {
-    if (requested <= policy.maxDelayMs) return requested
-    // The provider asked for longer than this policy will wait. Under a bounded
-    // policy that is a refusal: sleeping less than asked just earns another rate
-    // limit. An `always` policy has nowhere to give up to.
-    return policy.mode === 'always' ? backoffDelayMs(policy, attempt, random) : 'give-up'
-  }
-  return backoffDelayMs(policy, attempt, random)
-}
-
-/**
- * Wrap an invocation context so the dispatch state the TRANSPORT reports is
- * captured, rather than inferred from the error afterwards.
- *
- * The wrapper is transparent: it forwards `startProviderAttempt` untouched and
- * only tees the `dispatchState` passed to `attempt.end`. When a context has no
- * attempt accounting there is nothing to observe, and the record stays
- * `'unknown'` — that is the honest answer, and it is the answer Requirement 4.8
- * demands for a timeout.
- */
-function observeDispatchState(
-  context: ModelInvocationContext | undefined,
-  sink: (state: DispatchState) => void,
-): ModelInvocationContext | undefined {
-  const start = context?.startProviderAttempt
-  if (context === undefined || start === undefined) return context
-  return {
-    ...context,
-    startProviderAttempt: async (input, signal): Promise<ProviderAttemptHandle> => {
-      const handle = await start(input, signal)
-      return {
-        attemptId: handle.attemptId,
-        attemptNumber: handle.attemptNumber,
-        traceparent: handle.traceparent,
-        end: (end: EndProviderAttemptInput): AttemptUsageReport => {
-          sink(end.dispatchState)
-          return handle.end(end)
-        },
-      }
-    },
-  }
-}
-
 /**
  * Create the retry ledger for one `Logical_Call`.
  *
@@ -312,9 +211,9 @@ export function createEmbeddingRetryLedger(
     batchIndex: number,
     request: EmbeddingBatchRequest,
     records: readonly EmbeddingAttemptRecord[],
-    error: EmbeddingError,
-    dispatch: DispatchState,
+    details: { error: EmbeddingError; dispatch: DispatchState },
   ): EmbeddingBatchOutcome => {
+    const { error, dispatch } = details
     const state: BatchState = Object.freeze({
       phase: 'failed' as const,
       error,
@@ -333,6 +232,9 @@ export function createEmbeddingRetryLedger(
     })
   }
 
+  const driver = new EmbeddingBatchRetryDriver({ dispatcher, options, policy, random, sleep, states,
+    cancelled, abortedOutcome })
+
   return {
     stateOf(batchIndex: number): BatchState {
       return states.get(batchIndex) ?? PENDING
@@ -342,163 +244,6 @@ export function createEmbeddingRetryLedger(
       return new Map(states)
     },
 
-    async dispatch(
-      batchIndex: number,
-      request: EmbeddingBatchRequest,
-      batchContext?: ModelInvocationContext,
-    ): Promise<EmbeddingBatchOutcome> {
-      const invocationContext = batchContext ?? options.context
-      const existing = states.get(batchIndex)
-      if (existing !== undefined && existing.phase === 'succeeded') {
-        // Requirement 4.7 as an invariant rather than a convention: a batch whose
-        // vectors are already held is never handed to the provider again.
-        throw new EmbeddingError(
-          `embedding batch ${batchIndex} already succeeded and must not be dispatched again`,
-          EMBEDDING_ERROR_CODES.CONFIGURATION_INVALID,
-          { provider: request.provider, model: request.model },
-        )
-      }
-
-      const itemIndexes = Object.freeze(request.items.map(item => item.index))
-      const records: EmbeddingAttemptRecord[] = []
-      let retries = 0
-
-      for (;;) {
-        const attemptNumber = records.length + 1
-        // Report the abort before spending an attempt on a call already cancelled.
-        if (cancelled(request)) {
-          return abortedOutcome(
-            batchIndex,
-            request,
-            records,
-            new EmbeddingError(
-              'embedding call aborted before dispatch',
-              EMBEDDING_ERROR_CODES.ABORTED,
-              { provider: request.provider, model: request.model, itemIndexes: [...itemIndexes] },
-            ),
-            // No adapter call was ever made on this pass, which the runtime knows
-            // first-hand. Once an attempt HAS been made, the runtime stops
-            // claiming anything and leaves the state `unknown`.
-            records.length === 0 ? 'not-sent' : 'unknown',
-          )
-        }
-
-        states.set(batchIndex, Object.freeze({ phase: 'in-flight' as const, attempt: attemptNumber }))
-
-        // Reported by the transport through `attempt.end`; unreported stays unknown.
-        let reportedDispatch: DispatchState | undefined
-        const context = observeDispatchState(invocationContext, (state) => {
-          reportedDispatch = state
-        })
-
-        let result: EmbeddingBatchResult
-        try {
-          result = await dispatcher.embedBatch(request, context)
-        } catch (error: unknown) {
-          const failure = normalizeModelFailure(error)
-          const dispatch = reportedDispatch ?? 'unknown'
-          records.push(Object.freeze({
-            attempt: attemptNumber,
-            outcome: 'failure' as const,
-            dispatch,
-            failureCode: failure.code,
-          }))
-
-          const embeddingError = asEmbeddingError(error, failure, request)
-          if (cancelled(request) || isAbortCode(failure.code)) {
-            return abortedOutcome(batchIndex, request, records, embeddingError, dispatch)
-          }
-
-          const eligible = policy.mode === 'always'
-            || (policy.retryableCodes.includes(failure.code) && retries < policy.maxRetries)
-          const delayMs = eligible ? delayFor(policy, failure, retries + 1, random) : 'give-up'
-          if (!eligible || delayMs === 'give-up') {
-            const state: BatchState = Object.freeze({
-              phase: 'failed' as const,
-              error: embeddingError,
-              // `retryable` describes the failure, not the budget: a rate limit
-              // that ran out of attempts is still a retryable KIND of failure,
-              // and a caller deciding whether to re-run later needs that apart
-              // from "this call gave up".
-              retryable: policy.mode === 'always' || policy.retryableCodes.includes(failure.code),
-              dispatch,
-            })
-            states.set(batchIndex, state)
-            return Object.freeze({
-              batchIndex,
-              itemIndexes,
-              state,
-              attempts: records.length,
-              attemptRecords: Object.freeze([...records]),
-              warnings: Object.freeze([]),
-            })
-          }
-
-          retries += 1
-          invocationContext?.recordProviderRetry?.({
-            nextAttemptNumber: retries + 1,
-            delayMs,
-            failureCode: failure.code,
-          })
-          try {
-            options.onRetry?.({
-              provider: request.provider,
-              model: request.model,
-              batchIndex,
-              attempt: retries,
-              maxRetries: policy.mode === 'normal' ? policy.maxRetries : undefined,
-              failureCode: failure.code,
-              dispatch,
-              delayMs,
-            })
-          } catch {
-            // Metrics and logging observers do not own request availability.
-          }
-
-          if (!await sleep(delayMs, options.signal ?? request.signal)) {
-            return abortedOutcome(
-              batchIndex,
-              request,
-              records,
-              new EmbeddingError(
-                'embedding call aborted while waiting to retry',
-                EMBEDDING_ERROR_CODES.ABORTED,
-                { provider: request.provider, model: request.model, itemIndexes: [...itemIndexes], cause: error },
-              ),
-              dispatch,
-            )
-          }
-          continue
-        }
-
-        // A response exists, so the request reached the provider. The transport's
-        // own report still wins when it made one.
-        const dispatch = reportedDispatch ?? 'sent'
-        records.push(Object.freeze({
-          attempt: attemptNumber,
-          outcome: 'success' as const,
-          dispatch,
-        }))
-        const state: BatchState = Object.freeze({
-          phase: 'succeeded' as const,
-          vectors: result.vectors,
-        })
-        states.set(batchIndex, state)
-        return Object.freeze({
-          batchIndex,
-          itemIndexes,
-          state,
-          attempts: records.length,
-          attemptRecords: Object.freeze([...records]),
-          // Absent usage is left absent: the aggregator downgrades coverage
-          // rather than counting an unreported batch as zero tokens.
-          ...(result.usage === undefined ? {} : { usage: result.usage }),
-          ...(result.providerRequestId === undefined
-            ? {}
-            : { providerRequestId: result.providerRequestId }),
-          warnings: Object.freeze([...(result.warnings ?? [])]),
-        })
-      }
-    },
+    dispatch: (batchIndex, request, context) => driver.dispatch(batchIndex, request, context),
   }
 }

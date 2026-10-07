@@ -15,27 +15,16 @@ export interface ModelContextPolicyOptions {
 }
 
 export function applyModelContextPolicy(
-  info: Omit<ResolvedModelInfo, 'context'> & { readonly context?: Partial<ModelContext> },
+  info: ContextModelInfo,
   policy: ModelContextPolicy | undefined,
   configured?: ProviderCatalogModel,
   providerOverride?: number,
 ): ResolvedModelInfo {
-  const defaultContextWindow = configured?.defaultContextWindow ?? policy?.defaultContextWindow ?? info.context?.defaultContextWindow
-  const knownMaximum = policy?.maxContextWindow ?? info.context?.maxContextWindow
-  const maxContextWindow = knownMaximum === undefined
-    ? configured?.maxContextWindow
-    : Math.min(knownMaximum, configured?.maxContextWindow ?? knownMaximum)
-  const standardPriceInputTokens = configured?.standardPriceInputTokens ?? policy?.standardPriceInputTokens ?? info.context?.standardPriceInputTokens
-  const contextWindow = configured?.contextWindow ?? providerOverride ?? defaultContextWindow ?? info.context?.contextWindow
-  for (const [name, value] of Object.entries({ contextWindow, defaultContextWindow, maxContextWindow, standardPriceInputTokens })) {
-    if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0)) {
-      throw new TypeError(`${name} must be a positive safe integer`)
-    }
-  }
-  if (maxContextWindow !== undefined && (
-    (contextWindow !== undefined && contextWindow > maxContextWindow)
-    || (defaultContextWindow !== undefined && defaultContextWindow > maxContextWindow)
-  )) throw new RangeError('contextWindow exceeds maxContextWindow')
+  const defaultContextWindow = resolveDefaultWindow(info, policy, configured)
+  const maxContextWindow = resolveMaximumWindow(info, policy, configured)
+  const standardPriceInputTokens = resolveStandardPrice(info, policy, configured)
+  const contextWindow = resolveContextWindow(info, configured, { providerOverride, defaultContextWindow })
+  validateContextValues({ contextWindow, defaultContextWindow, maxContextWindow, standardPriceInputTokens })
   // A partial `context` with no `contextWindow` (e.g. only a route's own
   // `defaultContextWindow` hint, carried here so it can outrank correctly —
   // see `resolvedCatalogModelInfo`) is not a real `ModelContext` and must never
@@ -65,4 +54,62 @@ export function createModelContextPolicy(
   return info => applyModelContextPolicy(info,
     Object.hasOwn(captured, info.id) ? captured[info.id] : undefined,
     configured.find(model => model.id === info.id), providerOverride)
+}
+
+type ContextModelInfo = Omit<ResolvedModelInfo, 'context'> & { readonly context?: Partial<ModelContext> }
+type ContextValues = {
+  contextWindow: number | undefined; defaultContextWindow: number | undefined;
+  maxContextWindow: number | undefined; standardPriceInputTokens: number | undefined
+}
+
+function resolveDefaultWindow(
+  info: ContextModelInfo, policy: ModelContextPolicy | undefined, configured: ProviderCatalogModel | undefined,
+) {
+  return configured?.defaultContextWindow ?? policy?.defaultContextWindow
+    ?? info.context?.defaultContextWindow
+}
+
+function resolveMaximumWindow(
+  info: ContextModelInfo, policy: ModelContextPolicy | undefined, configured: ProviderCatalogModel | undefined,
+) {
+  const knownMaximum = policy?.maxContextWindow ?? info.context?.maxContextWindow
+  return knownMaximum === undefined
+    ? configured?.maxContextWindow
+    : Math.min(knownMaximum, configured?.maxContextWindow ?? knownMaximum)
+
+}
+
+function resolveStandardPrice(
+  info: ContextModelInfo, policy: ModelContextPolicy | undefined, configured: ProviderCatalogModel | undefined,
+) {
+  return configured?.standardPriceInputTokens
+    ?? policy?.standardPriceInputTokens
+    ?? info.context?.standardPriceInputTokens
+}
+
+function resolveContextWindow(
+  info: ContextModelInfo, configured: ProviderCatalogModel | undefined,
+  values: { providerOverride: number | undefined; defaultContextWindow: number | undefined },
+) {
+  const { providerOverride, defaultContextWindow } = values
+  return configured?.contextWindow ?? providerOverride ?? defaultContextWindow
+    ?? info.context?.contextWindow
+}
+
+function validateContextValues(values: ContextValues): void {
+  for (const [name, value] of Object.entries(values)) {
+    if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0)) {
+      throw new TypeError(`${name} must be a positive safe integer`)
+    }
+  }
+  validateMaximumWindow(values)
+}
+
+function validateMaximumWindow(values: ContextValues): void {
+  const { contextWindow, defaultContextWindow, maxContextWindow } = values
+  if (maxContextWindow !== undefined && (
+    (contextWindow !== undefined && contextWindow > maxContextWindow)
+    || (defaultContextWindow !== undefined && defaultContextWindow > maxContextWindow)
+  )) throw new RangeError('contextWindow exceeds maxContextWindow')
+
 }

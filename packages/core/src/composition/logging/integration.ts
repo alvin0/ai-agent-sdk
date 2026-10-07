@@ -16,28 +16,41 @@ export function validateIntegrationEvidence(fields: Readonly<JsonObject>): boole
     boundedText(ownData(source, 'integrationFamily'), 64)
     boundedText(ownData(source, 'integrationOperation'), 64)
     boundedText(ownData(source, 'operationId'), RUNTIME_LOG_LIMITS.identityBytes)
-    const kind = ownData(source, 'kind')
-    if (!KINDS.has(kind as string)) throw new TypeError('Invalid integration evidence')
-    if (kind === 'attempt-start' || kind === 'attempt-terminal') {
-      boundedText(ownData(source, 'attemptId'), RUNTIME_LOG_LIMITS.identityBytes)
-      const attempt = ownData(source, 'attemptNumber')
-      if (!Number.isSafeInteger(attempt) || Number(attempt) < 1) throw new TypeError('Invalid integration evidence')
-    }
-    if (kind === 'attempt-terminal' || kind === 'logical-terminal') {
-      if (!STATUSES.has(ownData(source, 'status') as OperationStatus)) throw new TypeError('Invalid integration evidence')
-      const duration = ownData(source, 'durationMs')
-      if (typeof duration !== 'number' || !Number.isFinite(duration) || duration < 0) throw new TypeError('Invalid integration evidence')
-      const code = ownData(source, 'errorCode', false)
-      if (code !== undefined) boundedText(code, RUNTIME_LOG_LIMITS.identityBytes)
-    }
+    validateKind(source)
     return true
   } catch { throw new TypeError('Invalid integration evidence') }
+}
+
+function validateKind(source: object): void {
+  const kind = ownData(source, 'kind') as string
+  if (!KINDS.has(kind)) throw new TypeError('Invalid integration evidence')
+  if (kind === 'attempt-start' || kind === 'attempt-terminal') validateAttempt(source)
+  if (kind === 'attempt-terminal' || kind === 'logical-terminal') validateTerminal(source)
+}
+
+function validateAttempt(source: object): void {
+  boundedText(ownData(source, 'attemptId'), RUNTIME_LOG_LIMITS.identityBytes)
+  const attempt = ownData(source, 'attemptNumber')
+  if (!Number.isSafeInteger(attempt) || Number(attempt) < 1) throw new TypeError('Invalid integration evidence')
+}
+
+function validateTerminal(source: object): void {
+  if (!STATUSES.has(ownData(source, 'status') as OperationStatus)) {
+    throw new TypeError('Invalid integration evidence')
+  }
+  const duration = ownData(source, 'durationMs')
+  if (typeof duration !== 'number' || !Number.isFinite(duration) || duration < 0) {
+    throw new TypeError('Invalid integration evidence')
+  }
+  const code = ownData(source, 'errorCode', false)
+  if (code !== undefined) boundedText(code, RUNTIME_LOG_LIMITS.identityBytes)
 }
 
 export function eventHasIntegrationEvidence(event: ObservationEvent): boolean {
   try {
     if (event.name !== 'sdk.log') return false
     const fields = Object.getOwnPropertyDescriptor(event.data, 'fields')
-    return fields !== undefined && 'value' in fields && validateIntegrationEvidence(fields.value as Readonly<JsonObject>)
+    return fields !== undefined && 'value' in fields
+      && validateIntegrationEvidence(fields.value as Readonly<JsonObject>)
   } catch { return false }
 }

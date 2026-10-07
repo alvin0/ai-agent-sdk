@@ -31,11 +31,14 @@ export class DeliveryCheckpoint {
   private inFlight: Promise<BatchCheckpointReport> | undefined
   private sealed = false
 
-  constructor(batch: ObservationDeliveryBatch, registrations: readonly RuntimeObservationExporterRegistration[], resources: RuntimeResources) {
+  constructor(batch: ObservationDeliveryBatch, registrations: readonly RuntimeObservationExporterRegistration[],
+    resources: RuntimeResources) {
     try {
       if (!isPreparedBatch(batch)) throw new DeliveryDataError()
-      this.registrations = arrayData(registrations, COMPOSITION_LIMITS.exporters).map(value => value as RuntimeObservationExporterRegistration)
-      if (new Set(this.registrations.map(value => value.exporter.id)).size !== this.registrations.length) throw new DeliveryDataError()
+      this.registrations = arrayData(registrations,
+        COMPOSITION_LIMITS.exporters).map(value => value as RuntimeObservationExporterRegistration)
+      const ids = new Set(this.registrations.map(value => value.exporter.id))
+      if (ids.size !== this.registrations.length) throw new DeliveryDataError()
       this.attempts = Object.freeze(this.registrations.map(value => new DeliveryAttempt(batch, value, resources)))
     } catch { throw new DeliveryDataError() }
   }
@@ -71,7 +74,8 @@ export class DeliveryCheckpoint {
     const reachedBoundary = requiredComplete && required.length > 0
       ? required.map(row => row.selectedBoundary).reduce(weakerBoundary)
       : 'none'
-    return Object.freeze({ status: this.sealed ? 'closed' : complete ? 'complete' : requiredComplete ? 'required-complete' : 'incomplete',
+    const status = this.sealed ? 'closed' : checkpointStatus(complete, requiredComplete)
+    return Object.freeze({ status,
       requiredComplete: !this.sealed && requiredComplete, complete: !this.sealed && complete,
       reachedBoundary: this.sealed ? 'none' : reachedBoundary, exporters: Object.freeze([...rows]) })
   }
@@ -79,10 +83,17 @@ export class DeliveryCheckpoint {
   private closedReport(): BatchCheckpointReport {
     return this.report(this.registrations.map((registration, index) => Object.freeze({ exporterIndex: index,
       requirement: registration.requirement, selectedBoundary: registration.boundary,
-      delivery: Object.freeze({ status: 'closed', complete: false, boundary: 'none', acceptedEventIds: [], acceptedRunIds: [],
-        error: Object.freeze({ code: DELIVERY_ERROR_CODES.CLOSED, stage: 'export', message: 'Observation delivery did not complete' }) }),
+      delivery: Object.freeze({ status: 'closed', complete: false, boundary: 'none', acceptedEventIds: [],
+        acceptedRunIds: [],
+        error: Object.freeze({ code: DELIVERY_ERROR_CODES.CLOSED, stage: 'export',
+          message: 'Observation delivery did not complete' }) }),
     })))
   }
+}
+
+function checkpointStatus(complete: boolean, requiredComplete: boolean): BatchCheckpointReport['status'] {
+  if (complete) return 'complete'
+  return requiredComplete ? 'required-complete' : 'incomplete'
 }
 
 function weakerBoundary(left: ObservationBoundary, right: ObservationBoundary): ObservationBoundary {
@@ -90,5 +101,6 @@ function weakerBoundary(left: ObservationBoundary, right: ObservationBoundary): 
 }
 
 function boundaryRank(value: ObservationBoundary): number {
-  return value === 'remote-acknowledged' ? 2 : value === 'local-durable' ? 1 : 0
+  if (value === 'remote-acknowledged') return 2
+  return value === 'local-durable' ? 1 : 0
 }

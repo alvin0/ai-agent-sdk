@@ -55,7 +55,7 @@ describe('runtime memory store authoring and binding', () => {
     } }
     const pending = stage === 'load'
       ? persistence.load('conversation', caller.signal, logger)
-      : persistence.commit('conversation', persistentSnapshot(), null, caller.signal, logger)
+      : persistence.commit('conversation', { snapshot: persistentSnapshot(), expectedRevision: null }, caller.signal, logger)
     await expect(pending).rejects.toMatchObject({ code: 'RUNTIME_OPERATION_ABORTED' })
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(load).not.toHaveBeenCalled()
@@ -70,7 +70,7 @@ describe('runtime memory store authoring and binding', () => {
     const logger = options().logger
     const pending = stage === 'load'
       ? persistence.load('conversation', caller.signal, logger)
-      : persistence.commit('conversation', persistentSnapshot(), null, caller.signal, logger)
+      : persistence.commit('conversation', { snapshot: persistentSnapshot(), expectedRevision: null }, caller.signal, logger)
     caller.abort()
     await expect(pending).rejects.toMatchObject({ code: 'RUNTIME_OPERATION_ABORTED' })
     expect(load).not.toHaveBeenCalled()

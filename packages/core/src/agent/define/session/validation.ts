@@ -31,35 +31,31 @@ export function validateSkillSnapshot(value: unknown, maxActivatedSkills: number
   const ids = new Set<string>()
   for (let index = 0; index < value.activated.length; index++) {
     const activation = value.activated[index]
-    if (!record(activation)) {
-      throw new TypeError(`agent session snapshot skills.activated[${index}] must be an object`)
-    }
-    if (Object.getOwnPropertyDescriptor(activation, 'catalogRevision') !== undefined) {
-      captureSkillReference(activation)
-      const id = snapshotString(activation.id, `skills.activated[${index}].id`, 256)
-      if (ids.has(id)) throw new TypeError(`duplicate activated skill '${id}' in agent session snapshot`)
-      ids.add(id)
-      continue
-    }
-    const id = snapshotString(activation.id, `skills.activated[${index}].id`, 256)
-    snapshotString(activation.provider, `skills.activated[${index}].provider`, 256)
-    snapshotString(activation.source, `skills.activated[${index}].source`, 8_192)
-    if (activation.resourceBase !== undefined) {
-      if (!record(activation.resourceBase)
-        || !['directory', 'url', 'opaque'].includes(String(activation.resourceBase.kind))) {
-        throw new TypeError(
-          `agent session snapshot skills.activated[${index}].resourceBase is invalid`,
-        )
-      }
-      snapshotString(
-        activation.resourceBase.value,
-        `skills.activated[${index}].resourceBase.value`,
-        8_192,
-      )
-    }
+    const id = validateActivation(activation, index)
     if (ids.has(id)) throw new TypeError(`duplicate activated skill '${id}' in agent session snapshot`)
     ids.add(id)
   }
+}
+
+function validateActivation(value: unknown, index: number): string {
+  if (!record(value)) throw new TypeError(`agent session snapshot skills.activated[${index}] must be an object`)
+  if (Object.getOwnPropertyDescriptor(value, 'catalogRevision') !== undefined) {
+    captureSkillReference(value)
+    return snapshotString(value.id, `skills.activated[${index}].id`, 256)
+  }
+  const id = snapshotString(value.id, `skills.activated[${index}].id`, 256)
+  snapshotString(value.provider, `skills.activated[${index}].provider`, 256)
+  snapshotString(value.source, `skills.activated[${index}].source`, 8_192)
+  validateResourceBase(value.resourceBase, index)
+  return id
+}
+
+function validateResourceBase(value: unknown, index: number): void {
+  if (value === undefined) return
+  if (!record(value) || !['directory', 'url', 'opaque'].includes(String(value.kind))) {
+    throw new TypeError(`agent session snapshot skills.activated[${index}].resourceBase is invalid`)
+  }
+  snapshotString(value.value, `skills.activated[${index}].resourceBase.value`, 8_192)
 }
 
 export function record(value: unknown): value is Record<string, unknown> {

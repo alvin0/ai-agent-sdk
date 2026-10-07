@@ -58,7 +58,10 @@ export interface RuntimeAgentDefinitionInput {
   readonly maxTurns?: number | 'auto'
   readonly maxToolCalls?: number
   readonly commentary?: 'auto' | 'concise' | 'off'
-  /** Extra headers/body fields for this agent's provider requests; this agent's value wins where it collides with the route's own. */
+  /**
+   * Extra headers/body fields for this agent's provider requests; this agent's value wins where it
+   * collides with the route's own.
+   */
   readonly providerOptions?: {
     readonly headers?: Readonly<Record<string, string>>
     readonly body?: Readonly<Record<string, unknown>>
@@ -143,7 +146,10 @@ export interface RuntimeAgentInvocationOptions {
   }
   /** strict rejects known text-only models when request history contains images; project permits lossy conversion. */
   readonly imagePolicy?: 'strict' | 'project'
-  /** strict rejects models that decline document input when history contains documents; project permits lossy conversion. */
+  /**
+   * strict rejects models that decline document input when history contains documents; project permits
+   * lossy conversion.
+   */
   readonly documentPolicy?: 'strict' | 'project'
   readonly signal?: AbortSignal
   readonly additionalInstructions?: string
@@ -160,7 +166,20 @@ export interface RuntimeAgentRunEventContext {
 }
 
 type PublicContentEvent = AgentRunEvent extends infer E
-  ? E extends { type: 'text-end' | 'image-delta' | 'assistant-message' | 'assistant-replacement' | 'compaction-start' | 'compaction-end' | 'turn-start' | 'step-start' | 'step-end' | 'assistant-text' | 'assistant-reasoning' | 'reasoning-delta' }
+  ? E extends { type:
+      'text-end'
+      | 'image-delta'
+      | 'assistant-message'
+      | 'assistant-replacement'
+      | 'compaction-start'
+      | 'compaction-end'
+      | 'turn-start'
+      | 'step-start'
+      | 'step-end'
+      | 'assistant-text'
+      | 'assistant-reasoning'
+      | 'reasoning-delta'
+    }
     ? Omit<E, 'trace'> & { readonly blockId?: string } : never
   : never
 
@@ -169,8 +188,20 @@ type PublicTraceEvent = Extract<AgentRunEvent, { type: 'span-start' | 'span-end'
 export type RuntimeAgentRunEvent = RuntimeAgentRunEventContext & (
   | PublicContentEvent
   | PublicTraceEvent
-  | { readonly type: 'commentary-delta'; readonly text: string; readonly index: number; readonly blockId: string; readonly phase: import('../../agent/loop/events.ts').StreamedAssistantTextPhase }
-  | { readonly type: 'assistant-delta'; readonly text: string; readonly index: number; readonly blockId: string; readonly phase: import('../../agent/loop/events.ts').StreamedAssistantTextPhase }
+  | {
+    readonly type: 'commentary-delta'
+    readonly text: string
+    readonly index: number
+    readonly blockId: string
+    readonly phase: import('../../agent/loop/events.ts').StreamedAssistantTextPhase
+  }
+  | {
+    readonly type: 'assistant-delta'
+    readonly text: string
+    readonly index: number
+    readonly blockId: string
+    readonly phase: import('../../agent/loop/events.ts').StreamedAssistantTextPhase
+  }
   | { readonly type: 'tool-call'; readonly callId: string; readonly name: string; readonly input: unknown }
   | { readonly type: 'tool-result'; readonly callId: string; readonly name: string;
       readonly status: 'completed' | 'failed' | 'aborted' | 'rejected' | 'declined';
@@ -182,7 +213,11 @@ export type RuntimeAgentRunEvent = RuntimeAgentRunEventContext & (
   | { readonly type: 'user-input-request'; readonly request: UserInputRequest }
   | { readonly type: 'user-input-response'; readonly requestId: string; readonly response: UserInputDecision }
   | { readonly type: 'usage'; readonly usage: RuntimeRunReport['usage']; readonly report: RuntimeRunReport }
-  | { readonly type: 'usage-progress'; readonly usage: import('../../observation/usage.ts').UsageCounters; readonly attemptId?: string }
+  | {
+    readonly type: 'usage-progress'
+    readonly usage: import('../../observation/usage.ts').UsageCounters
+    readonly attemptId?: string
+  }
   | { readonly type: 'error'; readonly error: RuntimeRunReport['errors'][number]; readonly report: RuntimeRunReport }
 )
 

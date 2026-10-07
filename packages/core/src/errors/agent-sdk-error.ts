@@ -132,26 +132,7 @@ export function errorChain(value: unknown): string {
     if (path.has(current)) return '<circular cause>'
     path.add(current)
     try {
-      if (!(current instanceof Error)) {
-        if (typeof current === 'object' && current !== null) {
-          const descriptor = Object.getOwnPropertyDescriptor(current, 'message')
-          if (descriptor !== undefined && 'value' in descriptor && typeof descriptor.value === 'string') {
-            return descriptor.value
-          }
-        }
-        return String(current)
-      }
-      const message = current.message === '' ? current.name : current.message
-      const members = current instanceof AggregateError && current.errors.length > 0
-        ? ` [${current.errors.map(render).join('; ')}]`
-        : ''
-      const causeText = current.cause === undefined || current.cause === null
-        ? ''
-        : render(current.cause)
-      // Wrappers built as `new AgentSdkError(String(value), code, { cause: value })`
-      // repeat their cause verbatim; rendering it twice would only add noise.
-      const cause = causeText === '' || causeText === message ? '' : `: ${causeText}`
-      return `${message}${members}${cause}`
+      return current instanceof Error ? renderError(current, render) : renderUnknown(current)
     } catch {
       // Only hostile coercion reaches here: a throwing toString/Symbol.toPrimitive
       // on a non-Error, or a throwing message/name/cause getter on an Error
@@ -164,6 +145,24 @@ export function errorChain(value: unknown): string {
     }
   }
   return render(value)
+}
+
+function renderUnknown(current: unknown): string {
+  if (typeof current === 'object' && current !== null) {
+    const descriptor = Object.getOwnPropertyDescriptor(current, 'message')
+    if (descriptor !== undefined && 'value' in descriptor
+      && typeof descriptor.value === 'string') return descriptor.value
+  }
+  return String(current)
+}
+
+function renderError(error: Error, render: (value: unknown) => string): string {
+  const message = error.message === '' ? error.name : error.message
+  const members = error instanceof AggregateError && error.errors.length > 0
+    ? ` [${error.errors.map(render).join('; ')}]` : ''
+  const causeText = error.cause === undefined || error.cause === null ? '' : render(error.cause)
+  const cause = causeText === '' || causeText === message ? '' : `: ${causeText}`
+  return `${message}${members}${cause}`
 }
 
 /**

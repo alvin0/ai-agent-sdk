@@ -79,10 +79,7 @@ export class AgentMemory {
     snapshot: AgentMemorySnapshot,
     limits: Partial<Pick<AgentMemoryConfig, 'maxItems' | 'maxItemChars' | 'maxStoredChars'>> = {},
   ): AgentMemory {
-    if (typeof snapshot !== 'object' || snapshot === null
-      || snapshot.version !== 1 || !Array.isArray(snapshot.items)) {
-      throw new TypeError('unsupported agent memory snapshot')
-    }
+    validateSnapshot(snapshot)
     const memory = new AgentMemory([], limits)
     if (snapshot.items.length > memory.limits.maxItems) {
       throw new RangeError(`agent memory snapshot exceeds the ${memory.limits.maxItems}-item limit`)
@@ -123,7 +120,7 @@ export class AgentMemory {
     if (previous === undefined && this.records.size >= this.limits.maxItems) {
       throw new RangeError(`agent memory reached its ${this.limits.maxItems}-item limit`)
     }
-    const nextStoredChars = this.storedChars - (previous?.content.length ?? 0) + content.length
+    const nextStoredChars = this.storedChars - storedItemLength(previous) + content.length
     if (nextStoredChars > this.limits.maxStoredChars) {
       throw new RangeError(`agent memory reached its ${this.limits.maxStoredChars}-character limit`)
     }
@@ -181,7 +178,9 @@ export class AgentMemory {
     if (ordered.length === 0) return ''
     const preamble = [
       '<task-memory>',
-      'Retained context is background from earlier work. Newer user messages supersede conflicting objectives or constraints below. Follow the latest request and its output format.',
+      'Retained context is background from earlier work. '
+        + 'Newer user messages supersede conflicting objectives or constraints below. '
+        + 'Follow the latest request and its output format.',
     ]
     const closing = '</task-memory>'
     let remaining = maxChars - preamble.join('\n').length - closing.length - 2
@@ -201,9 +200,7 @@ export class AgentMemory {
 
 export function resolveMemoryConfig(input: AgentMemoryConfigInput | undefined): AgentMemoryConfig {
   const maxInjectedChars = input?.maxInjectedChars ?? 12_000
-  if (!Number.isInteger(maxInjectedChars) || maxInjectedChars < 256) {
-    throw new RangeError('agent memory maxInjectedChars must be an integer >= 256')
-  }
+  validateInjectedLimit(maxInjectedChars)
   const limits = resolveMemoryLimits(input ?? {})
   const ids = new Set<string>()
   let nextId = 1
@@ -306,7 +303,8 @@ function collectTextPrefix(message: UserMessage, maxChars: number): string {
       continue
     }
     const available = Math.max(0, remaining - separator.length - marker.length)
-    text += separator + block.text.slice(0, available) + marker.slice(0, Math.max(0, remaining - separator.length - available))
+    text += separator + block.text.slice(0, available) + marker.slice(0, Math.max(0,
+      remaining - separator.length - available))
     truncated = true
     break
   }
@@ -320,4 +318,21 @@ function truncateMiddle(value: string, maxChars: number): string {
   const head = Math.ceil((maxChars - marker.length) / 2)
   const tail = Math.floor((maxChars - marker.length) / 2)
   return value.slice(0, head) + marker + value.slice(value.length - tail)
+}
+
+function validateSnapshot(snapshot: AgentMemorySnapshot): void {
+    if (typeof snapshot !== 'object' || snapshot === null
+      || snapshot.version !== 1 || !Array.isArray(snapshot.items)) {
+      throw new TypeError('unsupported agent memory snapshot')
+    }
+}
+
+function storedItemLength(item: AgentMemoryItem | undefined): number {
+  return item?.content.length ?? 0
+}
+
+function validateInjectedLimit(maxInjectedChars: number): void {
+  if (!Number.isInteger(maxInjectedChars) || maxInjectedChars < 256) {
+    throw new RangeError('agent memory maxInjectedChars must be an integer >= 256')
+  }
 }

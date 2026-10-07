@@ -2,6 +2,7 @@ import type { ToolFilter } from '@alvin0/ai-agent-sdk-core/tools'
 import { isJsonValue, type JsonValue } from '@alvin0/ai-agent-sdk-core'
 import type {
   McpAuthenticationKind,
+  McpClientLifecycleOptions,
   McpReconnectOptions,
   ResolvedMcpReconnectOptions,
 } from './api-types.ts'
@@ -17,14 +18,7 @@ export function resolveMcpReconnectOptions(
     maxDelayMs: input?.maxDelayMs ?? MCP_RECONNECT_DEFAULTS.maxDelayMs,
     maxAttempts: input?.maxAttempts ?? MCP_RECONNECT_DEFAULTS.maxAttempts,
   }
-  timeoutMilliseconds(resolved.initialDelayMs, 'reconnect.initialDelayMs')
-  timeoutMilliseconds(resolved.maxDelayMs, 'reconnect.maxDelayMs')
-  if (resolved.initialDelayMs > resolved.maxDelayMs) {
-    throw new TypeError('reconnect.initialDelayMs must be less than or equal to reconnect.maxDelayMs')
-  }
-  if (!Number.isInteger(resolved.maxAttempts) || resolved.maxAttempts < 1) {
-    throw new TypeError('reconnect.maxAttempts must be a positive integer')
-  }
+  validateReconnectOptions(resolved)
   return Object.freeze(resolved)
 }
 
@@ -170,4 +164,29 @@ export function raceAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<
 
 export function errorOf(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
+}
+
+function validateReconnectOptions(resolved: ResolvedMcpReconnectOptions): void {
+  timeoutMilliseconds(resolved.initialDelayMs, 'reconnect.initialDelayMs')
+  timeoutMilliseconds(resolved.maxDelayMs, 'reconnect.maxDelayMs')
+  if (resolved.initialDelayMs > resolved.maxDelayMs) {
+    throw new TypeError('reconnect.initialDelayMs must be less than or equal to reconnect.maxDelayMs')
+  }
+  if (!Number.isInteger(resolved.maxAttempts) || resolved.maxAttempts < 1) {
+    throw new TypeError('reconnect.maxAttempts must be a positive integer')
+  }
+}
+
+export function snapshotToolFilter(toolFilter: ToolFilter | undefined): ToolFilter | undefined {
+return toolFilter === undefined ? undefined : Object.freeze({
+    ...(toolFilter.allow === undefined ? {} : { allow: Object.freeze([...toolFilter.allow]) }),
+    ...(toolFilter.deny === undefined ? {} : { deny: Object.freeze([...toolFilter.deny]) }),
+  })
+
+}
+
+export function snapshotLifecycleOptions(
+  options: McpClientLifecycleOptions, toolFilter: ToolFilter | undefined,
+): McpClientLifecycleOptions {
+  return Object.freeze({ ...options, ...(toolFilter === undefined ? {} : { toolFilter }) })
 }

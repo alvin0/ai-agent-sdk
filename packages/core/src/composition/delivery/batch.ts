@@ -18,7 +18,8 @@ export interface DeliveryBatchOptions {
 }
 
 /** Exact one-item wire size without allocating an ID; generated batch IDs have this fixed width. */
-export function deliveryBatchItemBytes(resource: RuntimeObservationResource, item: ObservationEvent | RunTerminalRecord): number {
+export function deliveryBatchItemBytes(resource: RuntimeObservationResource,
+  item: ObservationEvent | RunTerminalRecord): number {
   if (!isRuntimeResource(resource)) throw new DeliveryDataError()
   const event = isPreparedTerminal(item as RunTerminalRecord) ? undefined : item as ObservationEvent
   if (event !== undefined && (!isPreparedEvent(event) || event.resource !== resource)) throw new DeliveryDataError()
@@ -34,22 +35,39 @@ export function deliveryBatchItemsBytes(
   return bytes({ id: '0'.repeat(32), resource, events, runRecords: records })
 }
 
+function batchLimits(options: DeliveryBatchOptions) {
+  const maxItems = count(options.maxItems ?? DELIVERY_LIMITS.batchItems)
+  const maxBytes = count(options.maxBytes ?? DELIVERY_LIMITS.batchBytes)
+  const content = options.content ?? 'none'
+  if (maxItems === 0 || maxItems > DELIVERY_LIMITS.maxBatchItems || maxBytes === 0
+    || maxBytes > DELIVERY_LIMITS.maxBatchBytes
+    || (content !== 'none' && content !== 'metadata')) throw new DeliveryDataError()
+  return { maxItems, maxBytes, content }
+}
+
+function assertUniqueEntries(safeEvents: readonly ObservationEvent[], runRecords: readonly RunTerminalRecord[]): void {
+  if (new Set(safeEvents.map(event => event.eventId)).size !== safeEvents.length
+    || new Set(runRecords.map(record => record.runId)).size !== runRecords.length) throw new DeliveryDataError()
+}
+
 /** Privacy and canonical resource stamping happen before the first exporter sees the batch. */
 export function createDeliveryBatch(
-  resource: RuntimeObservationResource, events: readonly ObservationEvent[], records: readonly RunTerminalRecord[],
+  resource: RuntimeObservationResource,
+  input: { events: readonly ObservationEvent[]; records: readonly RunTerminalRecord[] },
   platform: RuntimePlatform, options: DeliveryBatchOptions = {},
 ): ObservationDeliveryBatch {
   try {
     if (!isRuntimeResource(resource)) throw new DeliveryDataError()
-    const maxItems = count(options.maxItems ?? DELIVERY_LIMITS.batchItems)
-    const maxBytes = count(options.maxBytes ?? DELIVERY_LIMITS.batchBytes)
-    const content = options.content ?? 'none'
-    if (maxItems === 0 || maxItems > DELIVERY_LIMITS.maxBatchItems || maxBytes === 0 || maxBytes > DELIVERY_LIMITS.maxBatchBytes
-      || (content !== 'none' && content !== 'metadata')) throw new DeliveryDataError()
+    const { events, records } = input
+    const { maxItems, maxBytes, content } = batchLimits(options)
     const rawEvents = arrayData(events, maxItems), rawRecords = arrayData(records, maxItems)
-    if (rawEvents.length + rawRecords.length === 0 || rawEvents.length + rawRecords.length > maxItems) throw new DeliveryDataError()
+    if (rawEvents.length + rawRecords.length === 0 || rawEvents.length
+      + rawRecords.length > maxItems) throw new DeliveryDataError()
     let usedBytes = bytes(resource)
-    const consume = (value: unknown): void => { usedBytes += bytes(value); if (usedBytes > maxBytes) throw new DeliveryDataError() }
+    const consume = (value: unknown): void => {
+      usedBytes += bytes(value)
+      if (usedBytes > maxBytes) throw new DeliveryDataError()
+    }
     const safeEvents = rawEvents.map(value => {
       const event = prepareDeliveryEvent(value as ObservationEvent, resource, content)
       consume(event)
@@ -60,8 +78,7 @@ export function createDeliveryBatch(
       consume(value)
       return value as RunTerminalRecord
     })
-    if (new Set(safeEvents.map(event => event.eventId)).size !== safeEvents.length
-      || new Set(runRecords.map(record => record.runId)).size !== runRecords.length) throw new DeliveryDataError()
+    assertUniqueEntries(safeEvents, runRecords)
     const batch: ObservationDeliveryBatch = Object.freeze({ id: platform.randomHex(16), resource,
       events: Object.freeze(safeEvents), runRecords: Object.freeze(runRecords) })
     if (bytes(batch) > maxBytes) throw new DeliveryDataError()

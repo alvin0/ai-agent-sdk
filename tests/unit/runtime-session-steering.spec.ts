@@ -376,6 +376,7 @@ describe('RuntimeAgentSession: deep-mode kept answer, end to end', () => {
     await withSession(async function* (options, index) {
       if (index === 1) { yield* text(DRAFT); return }
       if (index === 2) { yield* submitCall('s1'); return }
+      if (index === 4) { yield* submitCall('s2'); return }
       // The steering changed the task, so the model rewrites rather than keeps.
       const sawSteer = JSON.stringify(options.messages).includes('answer in one line')
       yield* text(sawSteer ? 'One-line answer.' : MARKER)
@@ -488,6 +489,7 @@ describe('RuntimeAgentSession: steering that changes the request after a draft',
       if (index === 1) { yield* text(DRAFT); return }
       if (index === 2) { started.open(); await release.opened; yield* submitCall('s1'); return }
       if (index === 3) { yield* text(UNCHANGED_ANSWER_MARKER); return }
+      if (index === 4) { yield* submitCall('s2'); return }
       yield* text('Two sentences. As asked.')
     }, async ({ session, model }) => {
       const handle = session.stream('question')
@@ -507,7 +509,7 @@ describe('RuntimeAgentSession: steering that changes the request after a draft',
       expect(session.snapshot().history.entries.some(entry => entry.event.kind === 'assistant'
         && entry.event.message.source.kind === 'app'
         && entry.event.message.source.producer === 'deep-mode-kept-answer')).toBe(false)
-      expect(JSON.stringify(model.requests[3]?.messages)).toContain('There is no earlier answer in this run')
+      expect(JSON.stringify(model.requests[3]?.messages)).toContain('Your previously accepted submission is no longer current')
     }, { mode: 'deep' })
   })
 

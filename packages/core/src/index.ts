@@ -92,7 +92,11 @@ export type {
 
 export { defineToolFromSchema, type RuntimeSchema } from './agent/tool/schema.ts'
 
-export { createToolExecutionInterceptor, localToolExecutionBackend, type ToolExecutionBackend, type ToolExecutionCapabilities, type ToolExecutionRequest, type ToolExecutionStore, type ToolOperation, type ToolOperationClaim } from './agent/tool/execution.ts'
+export {
+  createToolExecutionInterceptor, localToolExecutionBackend, type ToolExecutionBackend,
+  type ToolExecutionCapabilities, type ToolExecutionRequest, type ToolExecutionStore,
+  type ToolOperation, type ToolOperationClaim,
+} from './agent/tool/execution.ts'
 
 export { withApprovalPersistence, type ApprovalStateStore } from './agent/tool/approval.ts'
 

@@ -107,12 +107,16 @@ export function memberName(value: unknown): string {
 }
 
 export function object(value: unknown, label: string): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError(`${label} must be an object`)
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new TypeError(`${label} must be an object`)
+  }
   return value as Record<string, unknown>
 }
 
 export function nonEmpty(value: unknown, label: string): string {
-  if (typeof value !== 'string' || value.trim().length === 0) throw new TypeError(`${label} must be a non-empty string`)
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new TypeError(`${label} must be a non-empty string`)
+  }
   return value
 }
 

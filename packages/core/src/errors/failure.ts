@@ -116,23 +116,33 @@ function failureSnapshot(value: unknown): ModelFailure | undefined {
   const status = ownFailureData(value, 'status')
   const providerRetryAfterMs = ownFailureData(value, 'providerRetryAfterMs')
   const requestId = ownFailureData(value, 'requestId')
-  if (message === INVALID_DATA || code === INVALID_DATA || status === INVALID_DATA
-    || providerRetryAfterMs === INVALID_DATA || requestId === INVALID_DATA
-    || !boundedString(message, FAILURE_ENVELOPE_LIMITS.messageBytes)
-    || !boundedString(code, FAILURE_ENVELOPE_LIMITS.codeBytes)
-    || (status !== undefined && (!Number.isSafeInteger(status) || (status as number) < 100 || (status as number) > 599))
-    || (providerRetryAfterMs !== undefined
-      && (!Number.isFinite(providerRetryAfterMs) || (providerRetryAfterMs as number) <= 0))
-    || (requestId !== undefined && !boundedString(requestId, FAILURE_ENVELOPE_LIMITS.requestIdBytes))) {
-    return undefined
-  }
+  const fields = { message, code, status, providerRetryAfterMs, requestId }
+  if (!validFailureFields(fields)) return undefined
   return Object.freeze({
-    message,
-    code,
+    message: fields.message,
+    code: fields.code,
     ...status === undefined ? {} : { status: status as number },
     ...providerRetryAfterMs === undefined ? {} : { providerRetryAfterMs: providerRetryAfterMs as number },
     ...requestId === undefined ? {} : { requestId: requestId as ProviderRequestId },
   })
+}
+
+function validFailureFields(fields: Record<string, unknown>): fields is {
+  message: string; code: string; status?: number; providerRetryAfterMs?: number; requestId?: ProviderRequestId
+} {
+  const { message, code, status, providerRetryAfterMs, requestId } = fields
+  if (Object.values(fields).includes(INVALID_DATA)) return false
+  if (!boundedString(message, FAILURE_ENVELOPE_LIMITS.messageBytes)
+    || !boundedString(code, FAILURE_ENVELOPE_LIMITS.codeBytes)) return false
+  if (!validStatus(status) || !validRetryAfter(providerRetryAfterMs)) return false
+  return requestId === undefined || boundedString(requestId, FAILURE_ENVELOPE_LIMITS.requestIdBytes)
+}
+
+function validStatus(value: unknown): boolean {
+  return value === undefined || (Number.isSafeInteger(value) && (value as number) >= 100 && (value as number) <= 599)
+}
+function validRetryAfter(value: unknown): boolean {
+  return value === undefined || (Number.isFinite(value) && (value as number) > 0)
 }
 
 function ownFailureData(source: object, key: PropertyKey): unknown {

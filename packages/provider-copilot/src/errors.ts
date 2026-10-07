@@ -23,11 +23,7 @@
  */
 
 import {
-  AgentSdkError,
-  MODEL_ERROR_CODES,
-  ModelError,
-  safeErrorRecord,
-  type SafeErrorRecord,
+  AgentSdkError, MODEL_ERROR_CODES, ModelError, safeErrorRecord, type SafeErrorRecord,
 } from '@alvin0/ai-agent-sdk-core'
 import { COPILOT_ERROR_CODES, type CopilotErrorCode } from './common/error-codes.ts'
 
@@ -83,12 +79,7 @@ export interface CopilotCredentialFailure {
 export function credentialFailure(message: string, cause?: unknown): CopilotCredentialFailure {
   return Object.freeze({
     message,
-    cause: cause === undefined
-      ? undefined
-      // A ModelError already carries the serializable twin, so route it through
-      // the same reduction the provider attempt ledger uses. Anything else keeps
-      // only bounded facts, and never a stack.
-      : cause instanceof ModelError ? safeModelFailure(cause.failure) : safeErrorRecord(cause),
+    cause: credentialCause(cause),
   })
 }
 
@@ -162,4 +153,9 @@ export class CopilotDeviceLoginError extends AgentSdkError {
     )
     this.reason = reason
   }
+}
+
+function credentialCause(cause: unknown): SafeErrorRecord | undefined {
+  if (cause === undefined) return undefined
+  return cause instanceof ModelError ? safeModelFailure(cause.failure) : safeErrorRecord(cause)
 }

@@ -179,7 +179,7 @@ describe('optimization edge audit regressions', () => {
     try {
       await expect(runOptionalHook(async (ctx: { signal: AbortSignal }) => {
         await new Promise<void>(resolve => ctx.signal.addEventListener('abort', () => resolve(), { once: true }))
-      }, [{ signal: parent.signal }], { registry, config: { provider: 'fixture', model: 'm' }, history: new SourceHistory(), hookTimeoutMs: 15, hookTeardownTimeoutMs: 50 } satisfies RunTurnOptions, parent.signal, 'cooperative')).rejects.toMatchObject({ code: 'HOOK_TIMEOUT' })
+      }, [{ signal: parent.signal }], { registry, config: { provider: 'fixture', model: 'm' }, history: new SourceHistory(), hookTimeoutMs: 15, hookTeardownTimeoutMs: 50 } satisfies RunTurnOptions, { signal: parent.signal, name: 'cooperative' })).rejects.toMatchObject({ code: 'HOOK_TIMEOUT' })
       expect(parent.signal.aborted).toBe(false)
     } finally { parent.abort() }
   })

@@ -73,8 +73,8 @@ function duration(startedAt: number): number {
   return Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0
 }
 function message(status: Status): string {
-  return status === 'success' ? 'SDK integration operation completed'
-    : status === 'error' ? 'SDK integration operation failed' : 'SDK integration operation aborted'
+  if (status === 'success') return 'SDK integration operation completed'
+  return status === 'error' ? 'SDK integration operation failed' : 'SDK integration operation aborted'
 }
 function safeCode(code: string): string {
   const normalized = code.replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 128)

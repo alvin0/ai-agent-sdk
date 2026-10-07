@@ -46,7 +46,8 @@ describe('canonical agent run ledger', () => {
     expect(state.usageStop).toBe(decision)
     expect((await state.finalize('success', false)).modelCalls).toHaveLength(1)
   })
-  it.each(['fail', 'warn'] as const)('retains the first %s usage stop after a later successful report', async onMissing => {
+  it.each(['fail', 'warn'] as const)(
+    'retains the first %s usage stop after a later successful report', async onMissing => {
     const state = ledger({ cumulativeTokenBudget: true, usagePolicy: { onMissing } })
     const decision = await state.recordModelCall(call({ coverage: 'missing', reported: {}, authoritative: false,
       possiblyBilledAttemptsWithoutUsage: 1 }), request)
@@ -56,6 +57,20 @@ describe('canonical agent run ledger', () => {
     expect(final.modelCalls).toHaveLength(2)
     expect(state.usageStop).toBe(decision)
   })
+  it.each(['fail', 'warn'] as const)('latches %s usage stop before immediate finalization', async onMissing => {
+    const state = ledger({ cumulativeTokenBudget: true, usagePolicy: { onMissing } })
+    const recording = state.recordModelCall(call({
+      coverage: 'missing', reported: {}, authoritative: false, possiblyBilledAttemptsWithoutUsage: 1,
+    }), request)
+    expect(state.usageStop).toMatchObject(onMissing === 'fail'
+      ? { usageRequired: true } : { usageUnavailable: true })
+    const finalizing = state.finalize('success', false)
+    expect(state.usageStop).toBe(await recording)
+    expect((await finalizing).errors).toContainEqual(expect.objectContaining({
+      code: onMissing === 'fail' ? 'USAGE_REQUIRED' : 'USAGE_MISSING',
+    }))
+  })
+
   it('charges estimation projection overhead while preserving raw evidence at the ledger limit', async () => {
     const raw = call({ coverage: 'partial', reported: { inputTokens: 7 }, authoritative: false })
     const estimated = { outputTokens: 3, totalTokens: 10 }
@@ -100,7 +115,9 @@ describe('canonical agent run ledger', () => {
     () => ({}),
   ])('retains raw usage on invalid estimation %#', async estimate => {
     const state = ledger({ usagePolicy: { onMissing: 'estimate', estimator: { id: 'bad', estimate } } })
-    const decision = await state.recordModelCall(call({ coverage: 'partial', reported: { inputTokens: 7 }, authoritative: false }), request)
+    const decision = await state.recordModelCall(call({
+      coverage: 'partial', reported: { inputTokens: 7 }, authoritative: false,
+    }), request)
     expect(decision.usageRequired).toBe(true)
     const final = await state.finalize('error', false)
     expect(final.modelCalls[0]?.reported).toEqual({ inputTokens: 7 })
@@ -215,8 +232,14 @@ describe('canonical agent run ledger', () => {
     const attemptBound = ledger({ limits: { maxAttemptsPerCall: 1 } })
     await expect(attemptBound.recordModelCall(call({
       attempts: [
-        { attemptId: 'one', spanId: createSpanId(), attemptNumber: 1, status: 'success', startedAt: '', endedAt: '', durationMs: 0, dispatchState: 'sent', coverage: 'complete', reported: {} },
-        { attemptId: 'two', spanId: createSpanId(), attemptNumber: 2, status: 'success', startedAt: '', endedAt: '', durationMs: 0, dispatchState: 'sent', coverage: 'complete', reported: {} },
+        {
+          attemptId: 'one', spanId: createSpanId(), attemptNumber: 1, status: 'success',
+          startedAt: '', endedAt: '', durationMs: 0, dispatchState: 'sent', coverage: 'complete', reported: {},
+        },
+        {
+          attemptId: 'two', spanId: createSpanId(), attemptNumber: 2, status: 'success',
+          startedAt: '', endedAt: '', durationMs: 0, dispatchState: 'sent', coverage: 'complete', reported: {},
+        },
       ],
     }), request)).rejects.toMatchObject({ code: 'LEDGER_LIMIT_EXCEEDED' })
 

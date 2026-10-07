@@ -66,25 +66,32 @@ export function createStreamIdleDeadline(
     } finally {
       dispose()
       if (!exhausted) {
-        const close = iterator.return?.bind(iterator)
-        if (close !== undefined) {
-          let closeFailure: unknown
-          const closing = Promise.resolve().then(async () => { await close() })
-            .catch((error: unknown) => { closeFailure = error })
-          const settled = await waitForSettlement(closing, teardownTimeoutMs)
-          if (primaryFailure === undefined) {
-            if (!settled) {
-              throw new ModelError(
-                `${displayName} stream teardown exceeded ${teardownTimeoutMs}ms`,
-                MODEL_ERROR_CODES.TEARDOWN_TIMEOUT,
-              )
-            }
-            if (closeFailure !== undefined) throw closeFailure
-          }
-        }
+        await closeIdleIterator(iterator, { teardownTimeoutMs, displayName, primaryFailure })
       }
     }
   }
 
   return Object.freeze({ activity, guard })
+}
+
+async function closeIdleIterator(iterator: AsyncIterator<unknown>, cleanup: {
+  teardownTimeoutMs: number; displayName: string; primaryFailure: unknown
+}): Promise<void> {
+  const { teardownTimeoutMs, displayName, primaryFailure } = cleanup
+  const close = iterator.return?.bind(iterator)
+  if (close !== undefined) {
+    let closeFailure: unknown
+    const closing = Promise.resolve().then(async () => { await close() })
+      .catch((error: unknown) => { closeFailure = error })
+    const settled = await waitForSettlement(closing, teardownTimeoutMs)
+    if (primaryFailure === undefined) {
+      if (!settled) {
+        throw new ModelError(
+          `${displayName} stream teardown exceeded ${teardownTimeoutMs}ms`,
+          MODEL_ERROR_CODES.TEARDOWN_TIMEOUT,
+        )
+      }
+      if (closeFailure !== undefined) throw closeFailure
+    }
+  }
 }

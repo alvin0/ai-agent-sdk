@@ -47,8 +47,9 @@ export function createRunTerminalRecord(
       throw new DeliveryDataError()
     }
     const errors = supportSafeErrors(
-      arrayData(ownData(input, 'errors'), DELIVERY_LIMITS.errors), calls, usage.coverage,
-      usage.coverage.possiblyBilledAttemptsWithoutUsage, DELIVERY_LIMITS.errors,
+      arrayData(ownData(input, 'errors'), DELIVERY_LIMITS.errors), calls,
+      { usageCoverage: usage.coverage, possiblyBilled: usage.coverage.possiblyBilledAttemptsWithoutUsage,
+        limit: DELIVERY_LIMITS.errors },
     )
     const record: RunTerminalRecord = Object.freeze({
       kind: 'run-terminal-record', runId, traceId,

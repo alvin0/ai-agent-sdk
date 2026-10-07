@@ -45,15 +45,10 @@
  * @module ai-agent-sdk/providers/copilot/dual-protocol
  */
 
-import type {
-  ChatCompletionsDialect,
-} from '@alvin0/ai-agent-sdk-protocol-openai-chat-completions'
+import type { ChatCompletionsDialect } from '@alvin0/ai-agent-sdk-protocol-openai-chat-completions'
 import type { ResponsesDialect } from '@alvin0/ai-agent-sdk-protocol-responses'
 import {
-  defineWireProtocol,
-  type ProtocolRequest,
-  type ProtocolSseEvent,
-  type ProtocolStreamChunk,
+  defineWireProtocol, type ProtocolRequest, type ProtocolSseEvent, type ProtocolStreamChunk,
   type RuntimeWireProtocol,
 } from '@alvin0/ai-agent-sdk-provider-http'
 import type { CopilotEndpointDecision, CopilotEndpointRouter } from './router.ts'

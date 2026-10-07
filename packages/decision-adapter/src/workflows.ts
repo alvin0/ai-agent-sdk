@@ -1,7 +1,8 @@
 import type { ModelInvocationContext } from '@alvin0/ai-agent-sdk-core/provider'
 import { ModelError, MODEL_ERROR_CODES } from '@alvin0/ai-agent-sdk-core'
 import { abortable, throwIfAborted } from './async.ts'
-import type { DecisionDescription, DecisionInput, DecisionModelHandle, DecisionQuestions, DecisionResult } from './types.ts'
+import type { DecisionDescription, DecisionInput, DecisionModelHandle, DecisionQuestions,
+  DecisionResult } from './types.ts'
 import { bindDecisionInput, decisionError, snapshotDecisionInput } from './validation.ts'
 
 export interface DecisionCallOptions {
@@ -25,18 +26,19 @@ export async function evaluateDecisionBatch<Q extends DecisionQuestions>(
   const timeout = options.timeoutMs ?? 30_000
   const callerSignal = options.signal
   const context = options.context
-  if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 256) decisionError('Invalid decision batch concurrency')
-  if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 2_147_483_647) decisionError('Invalid decision batch timeout')
-  if (!Array.isArray(inputs) || inputs.length > 1_024) decisionError('Decision batch accepts at most 1024 inputs')
+  validateBatchLimits(concurrency, timeout, inputs)
   const controller = new AbortController()
   const signal = AbortSignal.any([controller.signal, ...(callerSignal === undefined ? [] : [callerSignal])])
-  const timer = setTimeout(() => controller.abort(new ModelError('Decision batch deadline exceeded', MODEL_ERROR_CODES.TIMEOUT)), timeout)
+  const timer = setTimeout(() => controller.abort(new ModelError('Decision batch deadline exceeded',
+    MODEL_ERROR_CODES.TIMEOUT)), timeout)
   try {
     throwIfAborted(signal)
     // Include queued inputs in the snapshot: caller edits cannot change later dispatches.
     const captured = Array.from(inputs, input => {
-      if (input === null || typeof input !== 'object' || Array.isArray(input)) decisionError('Invalid decision batch input')
-      if (input.timeoutMs !== undefined && (!Number.isSafeInteger(input.timeoutMs) || input.timeoutMs < 1 || input.timeoutMs > 2_147_483_647)) decisionError('Invalid decision item timeout')
+      if (input === null || typeof input !== 'object' || Array.isArray(input)) decisionError(
+        'Invalid decision batch input')
+      if (input.timeoutMs !== undefined && (!Number.isSafeInteger(input.timeoutMs) || input.timeoutMs < 1 ||
+        input.timeoutMs > 2_147_483_647)) decisionError('Invalid decision item timeout')
       return snapshotDecisionInput<Q>(input)
     })
     const results: DecisionBatchItem<Q>[] = new Array(captured.length)
@@ -48,7 +50,8 @@ export async function evaluateDecisionBatch<Q extends DecisionQuestions>(
         const input = captured[index]!
         const item = new AbortController()
         const itemSignal = AbortSignal.any([signal, item.signal, ...(input.signal === undefined ? [] : [input.signal])])
-        const itemTimer = input.timeoutMs === undefined ? undefined : setTimeout(() => item.abort(new ModelError('Decision item deadline exceeded', MODEL_ERROR_CODES.TIMEOUT)), input.timeoutMs)
+        const itemTimer = input.timeoutMs === undefined ? undefined : setTimeout(() => item.abort(
+          new ModelError('Decision item deadline exceeded', MODEL_ERROR_CODES.TIMEOUT)), input.timeoutMs)
         try {
           throwIfAborted(itemSignal)
           const value = await abortable(Promise.resolve().then(() => {
@@ -80,24 +83,39 @@ export interface DecisionTaskOptions<Q extends DecisionQuestions> {
 }
 export interface DecisionTask<Q extends DecisionQuestions> {
   readonly questions: Q
-  evaluate(state: DecisionDescription, options?: DecisionCallOptions, context?: ModelInvocationContext): Promise<DecisionResult<Q>>
-  evaluateBatch(states: readonly DecisionDescription[], options?: DecisionBatchOptions): Promise<readonly DecisionBatchItem<Q>[]>
+  evaluate(state: DecisionDescription, options?: DecisionCallOptions,
+    context?: ModelInvocationContext): Promise<DecisionResult<Q>>
+  evaluateBatch(states: readonly DecisionDescription[],
+    options?: DecisionBatchOptions): Promise<readonly DecisionBatchItem<Q>[]>
 }
 /** Bind a reusable rubric to any model handle; keep model selection and credentials in setup code. */
-export function createDecisionTask<const Q extends DecisionQuestions>(model: DecisionModelHandle, options: DecisionTaskOptions<Q>): DecisionTask<Q> {
+export function createDecisionTask<const Q extends DecisionQuestions>(model: DecisionModelHandle,
+  options: DecisionTaskOptions<Q>): DecisionTask<Q> {
   const questions = snapshotDecisionInput({ state: '', questions: options.questions }).questions
   const timeoutMs = options.timeoutMs
   const context = options.context
-  if (timeoutMs !== undefined && (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2_147_483_647)) decisionError('Invalid decision task timeout')
+  if (timeoutMs !== undefined && (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 ||
+    timeoutMs > 2_147_483_647)) decisionError('Invalid decision task timeout')
   const input = (state: DecisionDescription, call: DecisionCallOptions = {}): DecisionInput<Q> => ({
     state, questions, ...(timeoutMs === undefined ? {} : { timeoutMs }), ...call,
   })
   return Object.freeze({
     questions,
-    evaluate(state: DecisionDescription, call?: DecisionCallOptions, invocation = context) { return model.evaluate(input(state, call), invocation) },
+    evaluate(state: DecisionDescription, call?: DecisionCallOptions, invocation = context) {
+      return model.evaluate(input(state, call), invocation) },
     evaluateBatch(states: readonly DecisionDescription[], batch: DecisionBatchOptions = {}) {
-      if (!Array.isArray(states) || states.length > 1_024) return Promise.reject(new ModelError('Decision batch accepts at most 1024 states', MODEL_ERROR_CODES.INVALID_REQUEST))
-      return evaluateDecisionBatch(model, states.map(state => input(state)), { ...(context === undefined ? {} : { context }), ...batch })
+      if (!Array.isArray(states) || states.length > 1_024) return Promise.reject(new ModelError(
+        'Decision batch accepts at most 1024 states', MODEL_ERROR_CODES.INVALID_REQUEST))
+      return evaluateDecisionBatch(model, states.map(state => input(state)), { ...(context === undefined ? {
+      } : { context }), ...batch })
     },
   })
+}
+
+function validateBatchLimits(concurrency: number, timeout: number, inputs: readonly unknown[]): void {
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 256) decisionError(
+    'Invalid decision batch concurrency')
+  if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 2_147_483_647) decisionError(
+    'Invalid decision batch timeout')
+  if (!Array.isArray(inputs) || inputs.length > 1_024) decisionError('Decision batch accepts at most 1024 inputs')
 }

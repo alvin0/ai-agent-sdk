@@ -43,7 +43,10 @@ interface Entry {
 }
 
 export type ProgramResultLoad =
-  | { readonly kind: 'found'; readonly value: JsonValue; readonly schema: 'validated' | 'unchecked'; readonly provenance: ProgramResultProvenance }
+  | {
+    readonly kind: 'found'; readonly value: JsonValue; readonly schema: 'validated' | 'unchecked'
+    readonly provenance: ProgramResultProvenance
+  }
   | { readonly kind: 'unavailable'; readonly reason: 'unknown' | 'expired' | 'closed' | 'stale' }
 
 export class ProgramResultStore {

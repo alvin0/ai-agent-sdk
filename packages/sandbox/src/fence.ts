@@ -112,11 +112,7 @@ async function canonicalize(
     // while what it names does not.
     const link = await resolver.readLink?.(candidate)
     if (link !== undefined) {
-      const parent = parentPath(candidate) ?? candidate
-      const target = isAbsolutePath(link) ? link : `${parent}/${link}`
-      const tail = normalized.slice(candidate.length).replace(/^[\\/]+/, '')
-      const resolved = await canonicalize(target, resolver, depth + 1)
-      return tail === '' ? resolved : normalizePath(`${resolved}/${tail}`)
+      return canonicalLink({ candidate, link, normalized, resolver, depth })
     }
 
     const real = await resolver.realpath(candidate)
@@ -124,4 +120,15 @@ async function canonicalize(
     return tail === '' ? normalizePath(real) : normalizePath(`${real}/${tail}`)
   }
   return normalized
+}
+
+async function canonicalLink(input: {
+  candidate: string; link: string; normalized: string; resolver: PathResolver; depth: number
+}): Promise<string> {
+  const { candidate, link, normalized, resolver, depth } = input
+  const parent = parentPath(candidate) ?? candidate
+  const target = isAbsolutePath(link) ? link : `${parent}/${link}`
+  const tail = normalized.slice(candidate.length).replace(/^[\\/]+/, '')
+  const resolved = await canonicalize(target, resolver, depth + 1)
+  return tail === '' ? resolved : normalizePath(`${resolved}/${tail}`)
 }

@@ -24,6 +24,15 @@ import type { RuntimeAgentInvocationOptions } from '../agent/types.ts'
 import type { RuntimeAgentSession } from '../agent/types.ts'
 import type { TeamSessionPort } from '../../agent/team/contracts.ts'
 
+interface RuntimeTeamValueInput {
+  readonly host: RuntimeAgentHost
+  readonly team: AgentTeam
+  readonly sessions: Map<string, RuntimeAgentSession>
+  readonly memberNames: readonly string[]
+  readonly onClosed: (registration: RuntimeTeamRegistration) => void
+  readonly lifecycle: AbortController
+}
+
 class RuntimeTeamValue implements RuntimeTeamRegistration {
   readonly id: string
   readonly view: RuntimeAgentTeam
@@ -32,14 +41,19 @@ class RuntimeTeamValue implements RuntimeTeamRegistration {
   private closed = false
   private readonly activeRuns = new Set<Promise<void>>()
 
-  constructor(
-    private readonly host: RuntimeAgentHost,
-    private readonly team: AgentTeam,
-    private readonly sessions: Map<string, RuntimeAgentSession>,
-    memberNames: readonly string[],
-    private readonly onClosed: (registration: RuntimeTeamRegistration) => void,
-    private readonly lifecycle: AbortController,
-  ) {
+  private readonly host: RuntimeAgentHost
+  private readonly team: AgentTeam
+  private readonly sessions: Map<string, RuntimeAgentSession>
+  private readonly onClosed: (registration: RuntimeTeamRegistration) => void
+  private readonly lifecycle: AbortController
+
+  constructor(input: RuntimeTeamValueInput) {
+    const { host, team, sessions, memberNames, onClosed, lifecycle } = input
+    this.host = host
+    this.team = team
+    this.sessions = sessions
+    this.onClosed = onClosed
+    this.lifecycle = lifecycle
     this.id = team.id
     this.view = Object.freeze({
       id: team.id, memberNames,
@@ -59,7 +73,8 @@ class RuntimeTeamValue implements RuntimeTeamRegistration {
   private session(name: string) {
     this.assertActive()
     const value = this.sessions.get(memberName(name))
-    if (value === undefined) throw new AgentSdkError('Runtime team member is unavailable', RUNTIME_TEAM_ERROR_CODES.invalid)
+    if (value === undefined) throw new AgentSdkError('Runtime team member is unavailable',
+      RUNTIME_TEAM_ERROR_CODES.invalid)
     return value
   }
 
@@ -167,7 +182,27 @@ export function createRuntimeAgentTeam(
   const pendingEvents: RuntimeAgentTeamEvent[] = []
   const lifecycle = new AbortController()
   let emit = (event: RuntimeAgentTeamEvent): void => { pendingEvents.push(event) }
-  const team = new AgentTeam({ id: options.id, maxMembers: RUNTIME_TEAM_LIMITS.members,
+  const team = createControlPlane(host, options, event => emit(event))
+  const sessions = stageTeamSessions(host, team, options, lifecycle)
+  emit = event => {
+    // Physical transport work can outlive bounded runtime shutdown.
+    if (host.operations.status !== 'closed') options.onEvent?.(event)
+  }
+  for (const event of pendingEvents) emit(event)
+  return new RuntimeTeamValue({
+    host, team, sessions, memberNames: Object.freeze([...sessions.keys()]), onClosed: registration => {
+      onClosed(registration)
+      try { emit(Object.freeze({ type: 'team-closed', teamId: team.id })) }
+      catch { /* Lifecycle observers cannot change cleanup results. */ }
+    }, lifecycle,
+  })
+}
+
+function createControlPlane(
+  host: RuntimeAgentHost, options: ReturnType<typeof captureRuntimeTeamOptions>,
+  emit: (event: RuntimeAgentTeamEvent) => void,
+): AgentTeam {
+  return new AgentTeam({ id: options.id, maxMembers: RUNTIME_TEAM_LIMITS.members,
     ...(options.maxMessages === undefined ? {} : { maxMessages: options.maxMessages }),
     ...(options.maxMessageBytes === undefined ? {} : { maxMessageBytes: options.maxMessageBytes }),
     ...(options.operationTimeoutMs === undefined ? {} : { operationTimeoutMs: options.operationTimeoutMs }),
@@ -182,11 +217,18 @@ export function createRuntimeAgentTeam(
     const lease = host.operations.acquire('team-operation', { signal })
     return () => lease.settle()
   })
+}
+
+function stageTeamSessions(
+  host: RuntimeAgentHost, team: AgentTeam, options: ReturnType<typeof captureRuntimeTeamOptions>,
+  lifecycle: AbortController,
+): Map<string, RuntimeAgentSession> {
   const sessions = new Map<string, RuntimeAgentSession>()
   const ports = new Map<string, TeamSessionPort>()
   const attachments: AgentSessionTeamAttachmentOptions[] = []
   const stagingTeam: AgentSessionTeamPort = Object.freeze({
-    attach(_session: Parameters<AgentSessionTeamPort['attach']>[0], attachment: AgentSessionTeamAttachmentOptions = {}) {
+    attach(_session: Parameters<AgentSessionTeamPort['attach']>[0],
+      attachment: AgentSessionTeamAttachmentOptions = {}) {
       attachments.push(attachment)
     },
     toolsFor: (sender: string) => team.toolsFor(sender),
@@ -194,12 +236,12 @@ export function createRuntimeAgentTeam(
   })
   try {
     for (const member of options.members) {
-      const created = createRuntimeTeamMemberSession(host, member.agent, member.session, {
+      const created = createRuntimeTeamMemberSession(host, member.agent, member.session, { team: {
         team: stagingTeam, name: member.name, role: member.role,
         ...(member.description === undefined ? {} : { description: member.description }),
         ...(member.instructions === undefined ? {} : { instructions: member.instructions }),
         ...(member.tools === undefined ? {} : { tools: member.tools }),
-      }, lifecycle.signal)
+      }, ownerSignal: lifecycle.signal })
       sessions.set(member.name, created.view)
       ports.set(member.name, created.port)
     }
@@ -214,18 +256,7 @@ export function createRuntimeAgentTeam(
     void team.dispose().catch(() => undefined)
     throw error
   }
-  emit = event => {
-    // Physical transport work can outlive bounded runtime shutdown.
-    if (host.operations.status !== 'closed') options.onEvent?.(event)
-  }
-  for (const event of pendingEvents) emit(event)
-  return new RuntimeTeamValue(
-    host, team, sessions, Object.freeze([...sessions.keys()]), registration => {
-      onClosed(registration)
-      try { emit(Object.freeze({ type: 'team-closed', teamId: team.id })) }
-      catch { /* Lifecycle observers cannot change cleanup results. */ }
-    }, lifecycle,
-  )
+  return sessions
 }
 
 function captureMessage(raw: unknown): SendAgentMessageRequest {

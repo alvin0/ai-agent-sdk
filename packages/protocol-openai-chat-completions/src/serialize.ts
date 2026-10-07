@@ -282,23 +282,45 @@ export function serializeChatCompletionsRequest(
     appendMessage(message, messages)
   }
 
-  const tools = dialect.tools && options.tools !== undefined && options.tools.length > 0
-    ? options.tools.map(toolOf)
-    : undefined
   const responseFormat = responseFormatOf(options.outputFormat, dialect.structuredOutputs)
 
   return {
     model: options.model,
     messages,
     stream: true,
+    ...generationFields(request, dialect),
+    ...requestToolFields(request, dialect),
+    ...responseFormat === undefined ? {} : { response_format: responseFormat },
+    ...dialect.promptCacheKey === undefined
+      ? {}
+      : { prompt_cache_key: dialect.promptCacheKey },
+  }
+}
+
+function requestToolFields(request: ProtocolRequest, dialect: ChatCompletionsDialect) {
+  const { options } = request
+  const tools = dialect.tools && options.tools !== undefined && options.tools.length > 0
+    ? options.tools.map(toolOf)
+    : undefined
+  return {
+    ...tools === undefined ? {} : { tools },
+    ...tools === undefined || options.toolChoice === undefined
+      ? {}
+      : { tool_choice: toolChoiceOf(options.toolChoice) },
+    // Only meaningful alongside `tools`, and older gateways reject the key
+    // outright, which is why the flag defaults off.
+    ...tools !== undefined && dialect.parallelToolCalls ? { parallel_tool_calls: true } : {},
+  }
+}
+
+function generationFields(request: ProtocolRequest, dialect: ChatCompletionsDialect) {
+  const { options } = request
+  return {
     ...dialect.streamUsage ? { stream_options: { include_usage: true } } : {},
     ...dialect.maxTokensField === false || request.maxTokens === undefined
       ? {}
       : { [dialect.maxTokensField]: request.maxTokens },
-    ...dialect.sampling && options.temperature !== undefined
-      ? { temperature: options.temperature }
-      : {},
-    ...dialect.sampling && options.topP !== undefined ? { top_p: options.topP } : {},
+    ...samplingFields(request, dialect),
     // `frequency_penalty` and `presence_penalty` have no source in
     // `GenerateOptions`, so they are never sent. Same for `seed` and `user`:
     // `dialect.seed` exists so a provider that grows a source for it does not
@@ -307,16 +329,15 @@ export function serializeChatCompletionsRequest(
       ? { stop: [...options.stop] }
       : {},
     ...reasoningFieldsOf(dialect.reasoningFormat, options.reasoningEffort),
-    ...tools === undefined ? {} : { tools },
-    ...tools === undefined || options.toolChoice === undefined
-      ? {}
-      : { tool_choice: toolChoiceOf(options.toolChoice) },
-    // Only meaningful alongside `tools`, and older gateways reject the key
-    // outright, which is why the flag defaults off.
-    ...tools !== undefined && dialect.parallelToolCalls ? { parallel_tool_calls: true } : {},
-    ...responseFormat === undefined ? {} : { response_format: responseFormat },
-    ...dialect.promptCacheKey === undefined
-      ? {}
-      : { prompt_cache_key: dialect.promptCacheKey },
+  }
+}
+
+function samplingFields(request: ProtocolRequest, dialect: ChatCompletionsDialect) {
+  const { options } = request
+  return {
+    ...dialect.sampling && options.temperature !== undefined
+      ? { temperature: options.temperature }
+      : {},
+    ...dialect.sampling && options.topP !== undefined ? { top_p: options.topP } : {},
   }
 }

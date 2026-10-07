@@ -1,12 +1,9 @@
 import type { CredentialOperationOptions, SdkLogger } from '@alvin0/ai-agent-sdk-core/provider'
 import { requireGitHubToken, type CopilotAuthStore, type CopilotCredentialStore } from './auth.ts'
-import { captureCopilotStore } from './common/store-capture.ts'
+import { captureCopilotStore, type CapturedCopilotStore } from './common/store-capture.ts'
 import { raceAbort } from './common/http.ts'
 import {
-  createCopilotTokenCache,
-  type CopilotApiToken,
-  type CopilotTokenCache,
-  type CopilotTokenCacheOptions,
+  createCopilotTokenCache, type CopilotApiToken, type CopilotTokenCache, type CopilotTokenCacheOptions,
 } from './exchange.ts'
 
 const NULL_LOGGER: SdkLogger = Object.freeze({
@@ -39,10 +36,7 @@ export async function getCopilotToken(
   }
   operation.signal.throwIfAborted()
   const captured = captureCopilotStore(store)
-  const record = captured.kind === 'versioned'
-    ? await raceAbort(captured.store.read(operation), operation.signal) : undefined
-  const file = captured.kind === 'legacy'
-    ? await raceAbort(captured.store.read(), operation.signal) : record?.value
+  const { file, record } = await readTokenSource(captured, operation)
   operation.signal.throwIfAborted()
   requireGitHubToken(file, captured.label)
   // The credential validation above establishes that file is present.
@@ -54,4 +48,12 @@ export async function getCopilotToken(
     cache.acquire({ file, revision: record?.revision ?? null, label: captured.label }, operation),
     operation.signal,
   )
+}
+
+async function readTokenSource(captured: CapturedCopilotStore, operation: CredentialOperationOptions) {
+  const record = captured.kind === 'versioned'
+    ? await raceAbort(captured.store.read(operation), operation.signal) : undefined
+  const file = captured.kind === 'legacy'
+    ? await raceAbort(captured.store.read(), operation.signal) : record?.value
+  return { file, record }
 }

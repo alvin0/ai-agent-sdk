@@ -23,20 +23,23 @@ function boundary(value: unknown): ObservationBoundary {
 
 export function exporterMetadata(source: object): ExporterMetadata {
   const id = boundedText(ownData(source, 'id'), COMPOSITION_LIMITS.identityBytes)
-  const supportedBoundaries = arrayData(ownData(source, 'supportedBoundaries'), EXPORTER_BOUNDARIES.length).map(boundary)
+  const supportedBoundaries = arrayData(ownData(source, 'supportedBoundaries'),
+    EXPORTER_BOUNDARIES.length).map(boundary)
   if (supportedBoundaries.length === 0 || new Set(supportedBoundaries).size !== supportedBoundaries.length) {
     throw new TypeError('Exporter boundaries must be non-empty and unique')
   }
   return Object.freeze({ id, supportedBoundaries: Object.freeze(supportedBoundaries) })
 }
 
-export function captureExporter(source: object, metadata: ExporterMetadata, signal?: AbortSignal): ObservationExporterPlugin {
+export function captureExporter(source: object, metadata: ExporterMetadata,
+  signal?: AbortSignal): ObservationExporterPlugin {
   checkPreflightAbort(signal)
   const ready = capturedOptionalMethod<[AbortSignal], Promise<void>>(source, 'ready')
   checkPreflightAbort(signal)
   const stage = capturedOptionalMethod<[ObservationExportItem], void | Promise<void>>(source, 'stage')
   checkPreflightAbort(signal)
-  const send = capturedMethod<[ObservationDeliveryBatch, AbortSignal], Promise<ObservationDeliveryAck>>(source, 'export')
+  const send = capturedMethod<[ObservationDeliveryBatch, AbortSignal], Promise<ObservationDeliveryAck>>(source,
+    'export')
   checkPreflightAbort(signal)
   const shutdown = capturedOptionalMethod<[AbortSignal], Promise<void>>(source, 'shutdown')
   checkPreflightAbort(signal)
@@ -60,7 +63,8 @@ export function preflightExporterIdentities(input: unknown, signal?: AbortSignal
       const registration = objectValue(input)
       const source = objectValue(ownData(registration, 'exporter'))
       if (ownData(source, 'kind', false) !== 'observation-exporter') fail(invalidPreflight('CAPABILITY_KIND_MISMATCH'))
-      if (ownData(source, 'apiVersion', false) !== OBSERVATION_EXPORTER_API_VERSION) fail(invalidPreflight('CAPABILITY_API_UNSUPPORTED'))
+      if (ownData(source, 'apiVersion',
+        false) !== OBSERVATION_EXPORTER_API_VERSION) fail(invalidPreflight('CAPABILITY_API_UNSUPPORTED'))
       const exporter = exporterMetadata(source)
       const first = ids.get(exporter.id)
       if (first !== undefined) fail(invalidPreflight('CAPABILITY_ID_CONFLICT',
@@ -69,8 +73,10 @@ export function preflightExporterIdentities(input: unknown, signal?: AbortSignal
       const ownership = ownData(registration, 'ownership')
       const requirement = ownData(registration, 'requirement')
       const selected = boundary(ownData(registration, 'boundary'))
-      if (ownership !== 'owned' && ownership !== 'borrowed') throw new TypeError('Explicit exporter ownership is required')
-      if (requirement !== 'required' && requirement !== 'best-effort') throw new TypeError('Invalid exporter requirement')
+      if (ownership !== 'owned'
+        && ownership !== 'borrowed') throw new TypeError('Explicit exporter ownership is required')
+      if (requirement !== 'required'
+        && requirement !== 'best-effort') throw new TypeError('Invalid exporter requirement')
       if (!exporter.supportedBoundaries.includes(selected)) fail(invalidPreflight('OBSERVATION_BOUNDARY_UNSUPPORTED'))
       sources.push(source)
       return Object.freeze({ exporter, ownership, requirement, boundary: selected })
@@ -87,7 +93,8 @@ export function preflightExporterIdentities(input: unknown, signal?: AbortSignal
 }
 
 /** Only after all runtime provider/exporter identities have passed. A failed capture cannot be retried. */
-export function captureExporterMethods(plan: ExporterIdentityPlan, signal?: AbortSignal): readonly RuntimeObservationExporterRegistration[] {
+export function captureExporterMethods(plan: ExporterIdentityPlan,
+  signal?: AbortSignal): readonly RuntimeObservationExporterRegistration[] {
   checkPreflightAbort(signal)
   const previous = methodsByPlan.get(plan)
   if (previous !== undefined) return previous
@@ -97,7 +104,8 @@ export function captureExporterMethods(plan: ExporterIdentityPlan, signal?: Abor
   try {
     const registrations = Object.freeze(plan.registrations.map((registration, index) => {
       checkPreflightAbort(signal)
-      return Object.freeze({ ...registration, exporter: captureExporter(sources[index]!, registration.exporter, signal) })
+      return Object.freeze({ ...registration, exporter: captureExporter(sources[index]!, registration.exporter,
+        signal) })
     }))
     checkPreflightAbort(signal)
     methodsByPlan.set(plan, registrations)

@@ -62,12 +62,87 @@ export interface AgentCompactionConfig {
 }
 
 export function resolveCompactionConfig(input: AgentCompactionOptions | undefined): AgentCompactionConfig {
+  validateCompactionOptions(input)
+  const { thresholdRatio, retainRatio } = resolveRatios(input)
+  return Object.freeze({
+    ...baseConfig(input, thresholdRatio, retainRatio),
+    ...summaryConfig(input),
+    ...timingConfig(input),
+  })
+}
+
+function baseConfig(
+  input: AgentCompactionOptions | undefined,
+  thresholdRatio: number,
+  retainRatio: number | undefined,
+): Pick<AgentCompactionConfig, 'auto' | 'maxInputTokens' | 'thresholdRatio' | 'retainRatio' | 'retainTokens'
+  | 'summarizationProvider' | 'summarizationModel' | 'summarizationEffort'> {
+  return {
+    auto: input?.auto ?? true,
+    maxInputTokens: optionalPositiveInteger(input?.maxInputTokens, 'maxInputTokens'),
+    thresholdRatio, retainRatio,
+    retainTokens: optionalNonNegativeInteger(input?.retainTokens, 'retainTokens'),
+    summarizationProvider: optionalNonEmpty(input?.summarizationProvider, 'summarizationProvider'),
+    summarizationModel: optionalNonEmpty(input?.summarizationModel, 'summarizationModel'),
+    summarizationEffort: optionalNonEmpty(input?.summarizationEffort, 'summarizationEffort'),
+  }
+}
+
+function summaryConfig(input: AgentCompactionOptions | undefined): Pick<AgentCompactionConfig,
+  'maxSummaryTokens' | 'compactionRetries' | 'maxOverflowRetries' | 'maxSummaryInputChars'
+  | 'maxSummaryRequestChars' | 'maxSummaryRequestBytes' | 'maxSummaryResponseBytes' | 'maxSummaryStreamEvents'> {
+  return {
+    ...summaryLimits(input),
+    ...summaryPayloadLimits(input),
+  }
+}
+
+function summaryLimits(input: AgentCompactionOptions | undefined): Pick<AgentCompactionConfig,
+  'maxSummaryTokens' | 'compactionRetries' | 'maxOverflowRetries' | 'maxSummaryInputChars'> {
+  return {
+    maxSummaryTokens: positiveInteger(input?.maxSummaryTokens ?? 4096, 'maxSummaryTokens'),
+    compactionRetries: nonNegativeInteger(input?.compactionRetries ?? 1, 'compactionRetries'),
+    maxOverflowRetries: nonNegativeInteger(input?.maxOverflowRetries ?? 1, 'maxOverflowRetries'),
+    maxSummaryInputChars: positiveInteger(input?.maxSummaryInputChars ?? 12_000, 'maxSummaryInputChars'),
+  }
+}
+
+function summaryPayloadLimits(input: AgentCompactionOptions | undefined): Pick<AgentCompactionConfig,
+  'maxSummaryRequestChars' | 'maxSummaryRequestBytes' | 'maxSummaryResponseBytes' | 'maxSummaryStreamEvents'> {
+  return {
+    maxSummaryRequestChars: positiveInteger(input?.maxSummaryRequestChars ?? 256_000, 'maxSummaryRequestChars'),
+    maxSummaryRequestBytes: positiveInteger(
+      input?.maxSummaryRequestBytes ?? 32 * 1024 * 1024, 'maxSummaryRequestBytes',
+    ),
+    maxSummaryResponseBytes: positiveInteger(
+      input?.maxSummaryResponseBytes ?? 8 * 1024 * 1024, 'maxSummaryResponseBytes',
+    ),
+    maxSummaryStreamEvents: positiveInteger(input?.maxSummaryStreamEvents ?? 50_000, 'maxSummaryStreamEvents'),
+  }
+}
+
+function timingConfig(input: AgentCompactionOptions | undefined): Pick<AgentCompactionConfig,
+  'summaryTimeoutMs' | 'teardownTimeoutMs' | 'maxToolResultChars'> {
+  return {
+    summaryTimeoutMs: timeoutValue(input?.summaryTimeoutMs ?? 10 * 60_000),
+    teardownTimeoutMs: timeoutValue(input?.teardownTimeoutMs ?? 30_000),
+    maxToolResultChars: positiveInteger(input?.maxToolResultChars ?? 24_000, 'maxToolResultChars'),
+  }
+}
+
+function validateCompactionOptions(input: AgentCompactionOptions | undefined): void {
   if (input?.retainRatio !== undefined && input.retainTokens !== undefined) {
     throw new TypeError('agent compaction retainRatio and retainTokens are mutually exclusive')
   }
   if ((input?.summarizationProvider === undefined) !== (input?.summarizationModel === undefined)) {
     throw new TypeError('agent compaction summarizationProvider and summarizationModel must be set together')
   }
+}
+
+function resolveRatios(input: AgentCompactionOptions | undefined): {
+  thresholdRatio: number
+  retainRatio: number | undefined
+} {
   const thresholdRatio = ratio(input?.thresholdRatio ?? 0.8, 'thresholdRatio')
   const retainRatio = input?.retainTokens === undefined
     ? ratio(input?.retainRatio ?? 0.2, 'retainRatio')
@@ -75,27 +150,7 @@ export function resolveCompactionConfig(input: AgentCompactionOptions | undefine
   if (retainRatio !== undefined && retainRatio >= thresholdRatio) {
     throw new RangeError('agent compaction retainRatio must be lower than thresholdRatio')
   }
-  return Object.freeze({
-    auto: input?.auto ?? true,
-    maxInputTokens: optionalPositiveInteger(input?.maxInputTokens, 'maxInputTokens'),
-    thresholdRatio,
-    retainRatio,
-    retainTokens: optionalNonNegativeInteger(input?.retainTokens, 'retainTokens'),
-    summarizationProvider: optionalNonEmpty(input?.summarizationProvider, 'summarizationProvider'),
-    summarizationModel: optionalNonEmpty(input?.summarizationModel, 'summarizationModel'),
-    summarizationEffort: optionalNonEmpty(input?.summarizationEffort, 'summarizationEffort'),
-    maxSummaryTokens: positiveInteger(input?.maxSummaryTokens ?? 4096, 'maxSummaryTokens'),
-    compactionRetries: nonNegativeInteger(input?.compactionRetries ?? 1, 'compactionRetries'),
-    maxOverflowRetries: nonNegativeInteger(input?.maxOverflowRetries ?? 1, 'maxOverflowRetries'),
-    maxSummaryInputChars: positiveInteger(input?.maxSummaryInputChars ?? 12_000, 'maxSummaryInputChars'),
-    maxSummaryRequestChars: positiveInteger(input?.maxSummaryRequestChars ?? 256_000, 'maxSummaryRequestChars'),
-    maxSummaryRequestBytes: positiveInteger(input?.maxSummaryRequestBytes ?? 32 * 1024 * 1024, 'maxSummaryRequestBytes'),
-    maxSummaryResponseBytes: positiveInteger(input?.maxSummaryResponseBytes ?? 8 * 1024 * 1024, 'maxSummaryResponseBytes'),
-    maxSummaryStreamEvents: positiveInteger(input?.maxSummaryStreamEvents ?? 50_000, 'maxSummaryStreamEvents'),
-    summaryTimeoutMs: timeoutValue(input?.summaryTimeoutMs ?? 10 * 60_000),
-    teardownTimeoutMs: timeoutValue(input?.teardownTimeoutMs ?? 30_000),
-    maxToolResultChars: positiveInteger(input?.maxToolResultChars ?? 24_000, 'maxToolResultChars'),
-  })
+  return { thresholdRatio, retainRatio }
 }
 
 function ratio(value: number, name: string): number {

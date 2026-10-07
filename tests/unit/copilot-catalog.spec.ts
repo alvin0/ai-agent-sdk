@@ -323,8 +323,8 @@ describe('Feature: github-copilot-provider, Property 27: Truyền `models` thì 
         touching.push(path.split('/src/')[1] ?? path)
       }
     }
-    // `index.ts` re-exports the constant; only `catalog.ts` may USE it.
-    expect(touching.sort()).toEqual(['catalog.ts', 'index.ts'])
+    // The leaf declares the path and the entry point re-exports it; catalog.ts owns dispatch.
+    expect(touching.sort()).toEqual(['catalog-types.ts', 'catalog.ts', 'index.ts'])
   })
 
   it('dispatches zero requests and returns the supplied list verbatim when `models` is given', async () => {

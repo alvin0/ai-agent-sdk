@@ -66,15 +66,19 @@ export function validateCatalogModels(
   })
 }
 
+function invalidCatalogIdentity(snapshot: ModelCatalogSnapshot, provider: string): boolean {
+  return typeof snapshot !== 'object' || snapshot === null
+    || snapshot.provider?.id !== provider || typeof snapshot.provider.name !== 'string'
+    || snapshot.provider.name.length === 0
+}
+
 export function validateModelCatalogSnapshot(
   provider: string,
   snapshot: ModelCatalogSnapshot,
   maxModels: number,
   maxBytes: number,
 ): ModelCatalogSnapshot {
-  if (typeof snapshot !== 'object' || snapshot === null
-    || snapshot.provider?.id !== provider || typeof snapshot.provider.name !== 'string'
-    || snapshot.provider.name.length === 0
+  if (invalidCatalogIdentity(snapshot, provider)
     || !['static', 'fresh', 'empty', 'stale', 'unavailable'].includes(snapshot.state)
     || typeof snapshot.revision !== 'string' || snapshot.revision.length === 0
     || typeof snapshot.observedAt !== 'string' || !Number.isFinite(Date.parse(snapshot.observedAt))) {
@@ -87,17 +91,14 @@ export function validateModelCatalogSnapshot(
   return deepFreeze({ ...structuredClone(snapshot), provider: { ...snapshot.provider }, models })
 }
 
-export function normalizeResolvedModelInfo(
-  provider: string,
-  model: string,
-  info: ResolvedModelInfo,
-  maxBytes: number,
-  defaults: RuntimeDefaults = {},
-): ResolvedModelInfo {
+function validateResolvedIdentity(provider: string, model: string, info: ResolvedModelInfo): void {
   if (info.provider !== provider || info.id !== model
     || typeof info.name !== 'string' || info.name.length === 0) {
     throw invalidModel(provider, model, 'mismatched identity')
   }
+}
+
+function validateContextCapacity(provider: string, model: string, info: ResolvedModelInfo): void {
   if (info.context !== undefined
     && (!Number.isSafeInteger(info.context.contextWindow) || info.context.contextWindow <= 0)) {
     throw invalidModel(provider, model, 'a non-positive context window')
@@ -106,15 +107,25 @@ export function normalizeResolvedModelInfo(
     && (!Number.isSafeInteger(info.defaultMaxTokens) || info.defaultMaxTokens <= 0)) {
     throw invalidModel(provider, model, 'a non-positive defaultMaxTokens')
   }
-  for (const value of [info.context?.maxContextWindow, info.context?.defaultContextWindow, info.context?.standardPriceInputTokens]) {
+}
+
+function validateContextPolicy(provider: string, model: string, info: ResolvedModelInfo): void {
+  for (const value of [info.context?.maxContextWindow, info.context?.defaultContextWindow,
+    info.context?.standardPriceInputTokens]) {
     if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0)) {
       throw invalidModel(provider, model, 'invalid context policy')
     }
   }
+}
+
+function validateContextCeiling(provider: string, model: string, info: ResolvedModelInfo): void {
   if (info.context?.maxContextWindow !== undefined && (
     info.context.contextWindow > info.context.maxContextWindow
     || (info.context.defaultContextWindow ?? 0) > info.context.maxContextWindow
   )) throw invalidModel(provider, model, 'contextWindow above maxContextWindow')
+}
+
+function validateOutputCapacity(provider: string, model: string, info: ResolvedModelInfo): void {
   if (info.maxOutputTokens !== undefined
     && (!Number.isSafeInteger(info.maxOutputTokens) || info.maxOutputTokens <= 0)) {
     throw invalidModel(provider, model, 'a non-positive maxOutputTokens')
@@ -123,6 +134,9 @@ export function normalizeResolvedModelInfo(
     && info.defaultMaxTokens > info.maxOutputTokens) {
     throw invalidModel(provider, model, 'defaultMaxTokens above maxOutputTokens')
   }
+}
+
+function validateInputHeadroom(provider: string, model: string, info: ResolvedModelInfo): void {
   if (info.context !== undefined && info.defaultMaxTokens !== undefined
     && info.defaultMaxTokens >= info.context.contextWindow) {
     throw invalidModel(provider, model, 'no input headroom')
@@ -131,6 +145,21 @@ export function normalizeResolvedModelInfo(
     && info.maxOutputTokens >= (info.context.maxContextWindow ?? info.context.contextWindow)) {
     throw invalidModel(provider, model, 'no input headroom')
   }
+}
+
+export function normalizeResolvedModelInfo(
+  provider: string,
+  model: string,
+  info: ResolvedModelInfo,
+  options: { maxBytes: number; defaults?: RuntimeDefaults },
+): ResolvedModelInfo {
+  const { maxBytes, defaults = {} } = options
+  validateResolvedIdentity(provider, model, info)
+  validateContextCapacity(provider, model, info)
+  validateContextPolicy(provider, model, info)
+  validateContextCeiling(provider, model, info)
+  validateOutputCapacity(provider, model, info)
+  validateInputHeadroom(provider, model, info)
   validateReasoning(provider, model, info)
   validateCapabilities(provider, model, info)
   // Fill what the adapter left silent, in priority order: the route/model
@@ -188,6 +217,52 @@ function invalidModel(provider: string, model: string, reason: string): ModelErr
   )
 }
 
+function resolvedCallConfig(config: CallConfig, reasoningEffort: CallConfig['reasoningEffort'],
+  maxTokens: number | undefined): CallConfig {
+  return {
+    provider: config.provider,
+    model: config.model,
+    ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
+    ...(config.temperature === undefined ? {} : { temperature: config.temperature }),
+    ...(config.topP === undefined ? {} : { topP: config.topP }),
+    ...(maxTokens === undefined ? {} : { maxTokens }),
+    ...(config.stop === undefined ? {} : { stop: [...config.stop] }),
+    ...(config.contextWindow === undefined ? {} : { contextWindow: config.contextWindow }),
+    ...(config.inputModalities === undefined ? {} : { inputModalities: [...config.inputModalities] }),
+  }
+}
+
+function validateCallContext(info: ResolvedModelInfo, context: ModelContext | undefined): void {
+  if (context !== undefined && context.maxContextWindow !== undefined
+    && context.contextWindow > context.maxContextWindow) {
+    throw new ModelError(
+      `model "${info.id}" on route "${info.provider}" was asked for a ${context.contextWindow}-token `
+      + `context window, above its ${context.maxContextWindow}-token technical ceiling`,
+      REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
+    )
+  }
+}
+
+function validateCallOutput(info: ResolvedModelInfo, context: ModelContext | undefined,
+  maxTokens: number | undefined): void {
+  if (maxTokens !== undefined && info.maxOutputTokens !== undefined
+    && maxTokens > info.maxOutputTokens) {
+    throw new ModelError(
+      `model "${info.id}" on route "${info.provider}" supports at most `
+      + `${info.maxOutputTokens} output tokens, received ${maxTokens}`,
+      REGISTRY_ERROR_CODES.OUTPUT_TOKEN_LIMIT_EXCEEDED,
+    )
+  }
+  if (maxTokens !== undefined && context !== undefined
+    && maxTokens >= context.contextWindow) {
+    throw new ModelError(
+      `model "${info.id}" on route "${info.provider}" cannot reserve ${maxTokens} output tokens `
+      + `inside its ${context.contextWindow}-token combined context window`,
+      REGISTRY_ERROR_CODES.OUTPUT_TOKEN_LIMIT_EXCEEDED,
+    )
+  }
+}
+
 export function resolveCallWithModelInfo(
   config: CallConfig,
   info: ResolvedModelInfo,
@@ -208,46 +283,14 @@ export function resolveCallWithModelInfo(
   const context = config.contextWindow === undefined || info.context === undefined
     ? info.context
     : { ...info.context, contextWindow: config.contextWindow }
-  if (context !== undefined && context.maxContextWindow !== undefined
-    && context.contextWindow > context.maxContextWindow) {
-    throw new ModelError(
-      `model "${info.id}" on route "${info.provider}" was asked for a ${context.contextWindow}-token `
-      + `context window, above its ${context.maxContextWindow}-token technical ceiling`,
-      REGISTRY_ERROR_CODES.INVALID_MODEL_INFO,
-    )
-  }
+  validateCallContext(info, context)
   const inputModalities = config.inputModalities ?? info.inputModalities
   // maxTokens has no SDK-constant tier: unlike context/modalities, an unset
   // output cap is not sent at all rather than defaulted (see RuntimeDefaults).
   const maxTokens = config.maxTokens ?? info.defaultMaxTokens ?? defaults.maxTokens
-  if (maxTokens !== undefined && info.maxOutputTokens !== undefined
-    && maxTokens > info.maxOutputTokens) {
-    throw new ModelError(
-      `model "${info.id}" on route "${info.provider}" supports at most `
-      + `${info.maxOutputTokens} output tokens, received ${maxTokens}`,
-      REGISTRY_ERROR_CODES.OUTPUT_TOKEN_LIMIT_EXCEEDED,
-    )
-  }
-  if (maxTokens !== undefined && context !== undefined
-    && maxTokens >= context.contextWindow) {
-    throw new ModelError(
-      `model "${info.id}" on route "${info.provider}" cannot reserve ${maxTokens} output tokens `
-      + `inside its ${context.contextWindow}-token combined context window`,
-      REGISTRY_ERROR_CODES.OUTPUT_TOKEN_LIMIT_EXCEEDED,
-    )
-  }
+  validateCallOutput(info, context, maxTokens)
   return {
-    config: {
-      provider: config.provider,
-      model: config.model,
-      ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
-      ...(config.temperature === undefined ? {} : { temperature: config.temperature }),
-      ...(config.topP === undefined ? {} : { topP: config.topP }),
-      ...(maxTokens === undefined ? {} : { maxTokens }),
-      ...(config.stop === undefined ? {} : { stop: [...config.stop] }),
-      ...(config.contextWindow === undefined ? {} : { contextWindow: config.contextWindow }),
-      ...(config.inputModalities === undefined ? {} : { inputModalities: [...config.inputModalities] }),
-    },
+    config: resolvedCallConfig(config, reasoningEffort, maxTokens),
     context,
     inputModalities,
   }

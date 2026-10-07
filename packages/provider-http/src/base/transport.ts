@@ -60,9 +60,10 @@ export function resolvedCatalogModelInfo(
   provider: string,
   modelId: string,
   models: readonly ProviderCatalogModel[],
-  defaultMaxTokens?: number,
-  defaultContextWindow?: number,
+  ...defaults: [defaultMaxTokens?: number, defaultContextWindow?: number]
+
 ): ResolvedModelInfo {
+  const [defaultMaxTokens, defaultContextWindow] = defaults
   const configured = models.find(entry => entry.id === modelId)
   const resolvedMaxTokens = configured?.defaultMaxTokens ?? configured?.maxTokens ?? defaultMaxTokens
   return applyModelContextPolicy({
@@ -70,9 +71,7 @@ export function resolvedCatalogModelInfo(
       ? { provider, id: modelId, name: modelId }
       : catalogModelInfo(provider, configured)),
     ...(resolvedMaxTokens === undefined ? {} : { defaultMaxTokens: resolvedMaxTokens }),
-    ...(configured?.maxTokens === undefined ? {} : { maxOutputTokens: configured.maxTokens }),
-    ...(configured?.reasoning === undefined ? {} : { reasoning: configured.reasoning }),
-    ...(configured?.outputModalities === undefined ? {} : { outputModalities: configured.outputModalities }),
+    ...configuredDetails(configured),
     // The ROUTE's own configured fallback rides as `context.defaultContextWindow`
     // rather than as `providerOverride` below, so a model's own (softer)
     // `defaultContextWindow` still outranks it — only the model's exact
@@ -80,4 +79,12 @@ export function resolvedCatalogModelInfo(
     // none, so `applyModelContextPolicy` sees a genuine absence, not a guess.
     ...(defaultContextWindow === undefined ? {} : { context: { defaultContextWindow } }),
   }, undefined, configured)
+}
+
+function configuredDetails(configured: ProviderCatalogModel | undefined) {
+  return {
+    ...(configured?.maxTokens === undefined ? {} : { maxOutputTokens: configured.maxTokens }),
+    ...(configured?.reasoning === undefined ? {} : { reasoning: configured.reasoning }),
+    ...(configured?.outputModalities === undefined ? {} : { outputModalities: configured.outputModalities }),
+  }
 }

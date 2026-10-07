@@ -127,17 +127,7 @@ export function resolveSandboxPolicy(
 ): SandboxExecutionPolicy {
   const approval = request.approval === undefined ? undefined : requireSandboxApproval(request.approval)
 
-  // The ceiling is what the deployment and the session already allow. A request
-  // is clamped to it; only an approval may raise it.
-  const ceiling = request.sessionMode ?? defaults.mode
-  if (!isSandboxMode(ceiling)) throw new SandboxPolicyError(`Unknown sandbox mode '${String(ceiling)}'`)
-  const requested = request.mode
-  if (requested !== undefined && !isSandboxMode(requested)) {
-    throw new SandboxPolicyError(`Unknown sandbox mode '${String(requested)}'`)
-  }
-  const narrowed = requested !== undefined && modeAuthority(requested) < modeAuthority(ceiling)
-    ? requested
-    : ceiling
+  const narrowed = requestedMode(request, defaults)
   const mode = approval?.mode ?? narrowed
 
   const workspaceRoot = normalizePath(request.cwd ?? defaults.workspaceRoot)
@@ -145,31 +135,18 @@ export function resolveSandboxPolicy(
     throw new SandboxPolicyError(`Sandbox workspace root must be absolute, received '${workspaceRoot}'`)
   }
 
-  for (const entry of request.entries ?? []) {
-    if (entry.access === 'write') {
-      throw new SandboxPolicyError(
-        `A requested entry may not grant write access to '${entry.path}'; `
-        + 'widening a policy requires an approval minted by approveSandboxEscalation()',
-      )
-    }
-  }
+  assertRestrictions(request.entries ?? [])
 
   // Preserve the authority boundary instead of flattening all three sources
   // into one last-entry-wins list. grantLayers() intersects restrictions with
   // the standing policy, then applies only minted approvals as widenings.
-  const entries = orderEntries(defaults.entries ?? [])
-  const restrictions = orderEntries(request.entries ?? [])
-  const approvedEntries = orderEntries(approval?.entries ?? [])
-  // Reach narrows the same way authority does, and widens only with approval.
-  const network = approval?.network
-    ?? narrowNetwork(defaults.network ?? 'allow-all', request.network)
+  const grants = resolvedEntries(defaults, request, approval)
+  const network = resolvedNetwork(defaults, request, approval)
 
   return Object.freeze({
     mode, workspaceRoot, network,
     ...(defaults.baseline === undefined ? {} : { baseline: defaults.baseline }),
-    ...(entries.length === 0 ? {} : { entries }),
-    ...(restrictions.length === 0 ? {} : { restrictions }),
-    ...(approvedEntries.length === 0 ? {} : { approvedEntries }),
+    ...grants,
     ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
   })
 }
@@ -189,4 +166,51 @@ export function confiningPolicy(policy: SandboxExecutionPolicy): SandboxPolicy |
  */
 export function narrowPolicy(policy: SandboxExecutionPolicy, mode: SandboxMode): SandboxExecutionPolicy {
   return modeAuthority(mode) < modeAuthority(policy.mode) ? Object.freeze({ ...policy, mode }) : policy
+}
+
+function requestedMode(request: SandboxPolicyRequest, defaults: SandboxPolicyDefaults): SandboxMode {
+  // The ceiling is what the deployment and the session already allow. A request
+  // is clamped to it; only an approval may raise it.
+  const ceiling = request.sessionMode ?? defaults.mode
+  if (!isSandboxMode(ceiling)) throw new SandboxPolicyError(`Unknown sandbox mode '${String(ceiling)}'`)
+  const requested = request.mode
+  if (requested !== undefined && !isSandboxMode(requested)) {
+    throw new SandboxPolicyError(`Unknown sandbox mode '${String(requested)}'`)
+  }
+  const narrowed = requested !== undefined && modeAuthority(requested) < modeAuthority(ceiling)
+    ? requested
+    : ceiling
+  return narrowed
+}
+
+function assertRestrictions(entries: readonly FileSystemEntry[]): void {
+  for (const entry of entries) {
+    if (entry.access === 'write') {
+      throw new SandboxPolicyError(
+        `A requested entry may not grant write access to '${entry.path}'; `
+        + 'widening a policy requires an approval minted by approveSandboxEscalation()',
+      )
+    }
+  }
+}
+
+function resolvedEntries(
+  defaults: SandboxPolicyDefaults, request: SandboxPolicyRequest, approval: SandboxApproval | undefined,
+) {
+  const entries = orderEntries(defaults.entries ?? [])
+  const restrictions = orderEntries(request.entries ?? [])
+  const approvedEntries = orderEntries(approval?.entries ?? [])
+  return {
+    ...(entries.length === 0 ? {} : { entries }),
+    ...(restrictions.length === 0 ? {} : { restrictions }),
+    ...(approvedEntries.length === 0 ? {} : { approvedEntries }),
+  }
+}
+
+function resolvedNetwork(
+  defaults: SandboxPolicyDefaults, request: SandboxPolicyRequest, approval: SandboxApproval | undefined,
+) {
+  // Reach narrows the same way authority does, and widens only with approval.
+  return approval?.network
+    ?? narrowNetwork(defaults.network ?? 'allow-all', request.network)
 }

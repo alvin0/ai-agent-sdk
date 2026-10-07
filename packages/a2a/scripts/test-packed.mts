@@ -57,23 +57,7 @@ async function testNegativeWorker(consumer: string): Promise<void> {
   try {
     const base = `http://127.0.0.1:${port}`
     await poll(base, child)
-    const runtimeResponse = await fetch(`${base}/runtime`)
-    const runtime = await runtimeResponse.json() as Record<string, unknown>
-    if (!runtimeResponse.ok || runtime.buffer !== 'undefined' || runtime.process !== 'undefined'
-      || runtime.packageLoaded !== true) {
-      throw new Error(`invalid strict Worker runtime evidence: ${JSON.stringify(runtime)}`)
-    }
-    const textResponse = await fetch(`${base}/text`)
-    const text = await textResponse.json() as Record<string, unknown>
-    if (!textResponse.ok || !JSON.stringify(text).includes('hello')) {
-      throw new Error(`A2A text promotion guard failed: ${JSON.stringify(text)}`)
-    }
-    const binaryResponse = await fetch(`${base}/binary`)
-    const binary = await binaryResponse.json() as Record<string, unknown>
-    if (binaryResponse.status !== 500 || binary.guard !== 'expected-node-elevation'
-      || binary.errorType !== 'TypeError' || binary.promotionCandidate === true) {
-      throw new Error(`A2A binary guard no longer proves Node elevation: ${JSON.stringify(binary)}`)
-    }
+    await assertWorkerEvidence(base)
   } catch (error) {
     throw new Error(`A2A negative Worker fixture failed\n${output}`, { cause: error })
   } finally {
@@ -114,4 +98,28 @@ async function stop(child: ChildProcess): Promise<void> {
     new Promise<void>(done => setTimeout(done, 5_000)),
   ])
   if (child.exitCode === null) child.kill('SIGKILL')
+}
+
+async function assertWorkerEvidence(base: string): Promise<void> {
+  const runtimeResponse = await fetch(`${base}/runtime`)
+  const runtime = await runtimeResponse.json() as Record<string, unknown>
+  if (!runtimeResponse.ok || runtime.buffer !== 'undefined' || runtime.process !== 'undefined'
+    || runtime.packageLoaded !== true) {
+    throw new Error(`invalid strict Worker runtime evidence: ${JSON.stringify(runtime)}`)
+  }
+  await assertWorkerTextAndBinary(base)
+}
+
+async function assertWorkerTextAndBinary(base: string): Promise<void> {
+  const textResponse = await fetch(`${base}/text`)
+  const text = await textResponse.json() as Record<string, unknown>
+  if (!textResponse.ok || !JSON.stringify(text).includes('hello')) {
+    throw new Error(`A2A text promotion guard failed: ${JSON.stringify(text)}`)
+  }
+  const binaryResponse = await fetch(`${base}/binary`)
+  const binary = await binaryResponse.json() as Record<string, unknown>
+  if (binaryResponse.status !== 500 || binary.guard !== 'expected-node-elevation'
+    || binary.errorType !== 'TypeError' || binary.promotionCandidate === true) {
+    throw new Error(`A2A binary guard no longer proves Node elevation: ${JSON.stringify(binary)}`)
+  }
 }

@@ -1,13 +1,14 @@
+import { defaultLimit } from './common/limits.ts'
+import { sendStreaming } from './client/stream.ts'
+import { contentPart, normalizeResult } from './client/content.ts'
+import { nonEmpty, positiveInteger, byteLength, combineSignals, raceWithSignal } from './client/values.ts'
+import { validateAgentCard, snapshotLinkOptions, validateEndpoint, endpointFetch } from './client/endpoints.ts'
 /** Official A2A Protocol client transport and AgentTeam linking helpers. */
 
 import {
   Role,
-  TaskState,
   type AgentCard,
-  type Message,
-  type Part,
   type SendMessageRequest,
-  type Task,
 } from '@a2a-js/sdk'
 import {
   DefaultAgentCardResolver,
@@ -19,12 +20,9 @@ import type {
   LinkedAgentSendInput,
   LinkedAgentTransport,
 } from '@alvin0/ai-agent-sdk-core/agent'
-import type { ContentBlock } from '@alvin0/ai-agent-sdk-core'
 import { detachedFrozen } from '@alvin0/ai-agent-sdk-core'
-import { waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 import { a2aErrorCode, beginA2AIntegrationOperation } from './common/integration-operation.ts'
 import { defaultFactory, unlinkReport } from './client/link-helpers.ts'
-import { fetchA2AEndpoint } from './client/http-redirect.ts'
 import type {
   A2AAgentLinkOptions, A2ALinkableTeam, A2AUnlinkReport, LinkA2AAgentOptions,
 } from './client/types.ts'
@@ -64,15 +62,15 @@ export class A2AAgentLink implements LinkedAgentTransport {
       options.agentId ?? agentCard?.name ?? options.baseUrl,
       'A2A linked agent id',
     )
-    this.timeoutMs = positiveInteger(options.timeoutMs ?? 120_000, 'timeoutMs')
-    this.teardownTimeoutMs = positiveInteger(options.teardownTimeoutMs ?? 30_000, 'teardownTimeoutMs')
-    this.maxRequestBytes = positiveInteger(options.maxRequestBytes ?? 1024 * 1024, 'maxRequestBytes')
-    this.maxResponseBytes = positiveInteger(options.maxResponseBytes ?? 1024 * 1024, 'maxResponseBytes')
-    this.maxTransportBytes = positiveInteger(options.maxTransportBytes ?? 16 * 1024 * 1024, 'maxTransportBytes')
-    this.maxStreamEvents = positiveInteger(options.maxStreamEvents ?? 10_000, 'maxStreamEvents')
-    this.maxStreamBytes = positiveInteger(options.maxStreamBytes ?? 8 * 1024 * 1024, 'maxStreamBytes')
-    this.maxContexts = positiveInteger(options.maxContexts ?? 1_000, 'maxContexts')
-    this.contextTtlMs = positiveInteger(options.contextTtlMs ?? 30 * 60_000, 'contextTtlMs')
+    this.timeoutMs = defaultLimit(options.timeoutMs, 120_000, 'timeoutMs')
+    this.teardownTimeoutMs = defaultLimit(options.teardownTimeoutMs, 30_000, 'teardownTimeoutMs')
+    this.maxRequestBytes = defaultLimit(options.maxRequestBytes, 1024 * 1024, 'maxRequestBytes')
+    this.maxResponseBytes = defaultLimit(options.maxResponseBytes, 1024 * 1024, 'maxResponseBytes')
+    this.maxTransportBytes = defaultLimit(options.maxTransportBytes, 16 * 1024 * 1024, 'maxTransportBytes')
+    this.maxStreamEvents = defaultLimit(options.maxStreamEvents, 10_000, 'maxStreamEvents')
+    this.maxStreamBytes = defaultLimit(options.maxStreamBytes, 8 * 1024 * 1024, 'maxStreamBytes')
+    this.maxContexts = defaultLimit(options.maxContexts, 1_000, 'maxContexts')
+    this.contextTtlMs = defaultLimit(options.contextTtlMs, 30 * 60_000, 'contextTtlMs')
     if (options.historyLength !== undefined) positiveInteger(options.historyLength, 'historyLength')
   }
 
@@ -90,37 +88,8 @@ export class A2AAgentLink implements LinkedAgentTransport {
         throw new Error(`A2A request exceeds the ${this.maxRequestBytes}-byte limit`)
       }
       signal = combineSignals(input.signal, AbortSignal.timeout(this.timeoutMs))
-      const requestOptions: RequestOptions = {
-        signal,
-        ...(this.options.serviceParameters === undefined
-          ? {}
-          : { serviceParameters: this.options.serviceParameters }),
-      }
-      const streaming = this.options.streaming
-        ?? this.agentCard?.capabilities?.streaming
-        ?? false
-      let result: LinkedAgentResult
-      if (streaming) {
-        const stream = beginA2AIntegrationOperation(input.logger, 'a2a-client-link', 'stream')
-        const streamAttempt = stream.attempt(1)
-        try {
-          result = await this.sendStreaming(request, requestOptions)
-          streamAttempt.success(); stream.success()
-        } catch (error: unknown) {
-          if (signal.aborted) { streamAttempt.abort(); stream.abort() }
-          else {
-            const code = a2aErrorCode(error)
-            streamAttempt.fail(code); stream.fail(code)
-          }
-          throw error
-        }
-      } else {
-        const wireResult = await raceWithSignal(this.client.sendMessage(request, requestOptions), signal)
-        if (byteLength(wireResult) > this.maxTransportBytes) {
-          throw new Error(`A2A transport response exceeds the ${this.maxTransportBytes}-byte limit`)
-        }
-        result = normalizeResult(wireResult)
-      }
+      const requestOptions = this.requestOptions(signal)
+      const result = await this.dispatchRequest(request, requestOptions, input.logger)
       if (byteLength(result) > this.maxResponseBytes) {
         throw new Error(`A2A response exceeds the ${this.maxResponseBytes}-byte limit`)
       }
@@ -139,6 +108,47 @@ export class A2AAgentLink implements LinkedAgentTransport {
     } finally {
       if (contextKey !== undefined) this.pendingContextKeys.delete(contextKey)
     }
+  }
+
+  private requestOptions(signal: AbortSignal): RequestOptions {
+    return {
+      signal,
+      ...(this.options.serviceParameters === undefined
+        ? {}
+        : { serviceParameters: this.options.serviceParameters }),
+    }
+  }
+
+  private async dispatchRequest(
+    request: SendMessageRequest, requestOptions: RequestOptions, logger: LinkedAgentSendInput['logger'],
+  ): Promise<LinkedAgentResult> {
+    const signal = requestOptions.signal!
+    const streaming = this.options.streaming
+      ?? this.agentCard?.capabilities?.streaming
+      ?? false
+    let result: LinkedAgentResult
+    if (streaming) {
+      const stream = beginA2AIntegrationOperation(logger, 'a2a-client-link', 'stream')
+      const streamAttempt = stream.attempt(1)
+      try {
+        result = await this.sendStreaming(request, requestOptions)
+        streamAttempt.success(); stream.success()
+      } catch (error: unknown) {
+        if (signal.aborted) { streamAttempt.abort(); stream.abort() }
+        else {
+          const code = a2aErrorCode(error)
+          streamAttempt.fail(code); stream.fail(code)
+        }
+        throw error
+      }
+    } else {
+      const wireResult = await raceWithSignal(this.client.sendMessage(request, requestOptions), signal)
+      if (byteLength(wireResult) > this.maxTransportBytes) {
+        throw new Error(`A2A transport response exceeds the ${this.maxTransportBytes}-byte limit`)
+      }
+      result = normalizeResult(wireResult)
+    }
+    return result
   }
 
   private request(input: LinkedAgentSendInput, contextId: string | undefined): SendMessageRequest {
@@ -170,110 +180,10 @@ export class A2AAgentLink implements LinkedAgentTransport {
     }
   }
 
-  private async sendStreaming(
-    request: SendMessageRequest,
-    options: RequestOptions,
-  ): Promise<LinkedAgentResult> {
-    let lastTask: Task | undefined
-    let lastMessage: Message | undefined
-    let taskId = ''
-    let contextId = request.message?.contextId ?? ''
-    let state: TaskState | undefined
-    const streamedArtifactText: string[] = []
-    const streamedStatusText: string[] = []
-    let eventCount = 0
-    let streamBytes = 0
-    const iterator = this.client.sendMessageStream(request, options)[Symbol.asyncIterator]()
-    let exhausted = false
-    try {
-      while (true) {
-        const next = await raceWithSignal(iterator.next(), options.signal)
-        if (next.done === true) {
-          exhausted = true
-          break
-        }
-        const rawEvent = next.value
-        eventCount++
-        streamBytes += byteLength(rawEvent)
-        if (eventCount > this.maxStreamEvents) {
-          throw new Error(`A2A stream exceeds the ${this.maxStreamEvents}-event limit`)
-        }
-        if (streamBytes > this.maxStreamBytes) {
-          throw new Error(`A2A stream exceeds the ${this.maxStreamBytes}-byte limit`)
-        }
-        // A diagnostic observer must never be able to mutate the protocol value
-        // before transport state is reduced from it.
-        const event = detachedFrozen(rawEvent)
-        try { this.options.onStreamEvent?.(event) } catch { /* observers do not own transport correctness */ }
-        const payload = event.payload
-        if (payload?.$case === 'task') {
-          lastTask = payload.value
-          taskId = payload.value.id
-          contextId = payload.value.contextId
-          state = payload.value.status?.state
-        } else if (payload?.$case === 'message') {
-          lastMessage = payload.value
-          contextId = payload.value.contextId
-          taskId = payload.value.taskId
-        } else if (payload?.$case === 'statusUpdate') {
-          taskId = payload.value.taskId
-          contextId = payload.value.contextId
-          state = payload.value.status?.state
-          const text = textOfMessage(payload.value.status?.message)
-          if (text.length > 0) streamedStatusText.push(text)
-        } else if (payload?.$case === 'artifactUpdate') {
-          taskId = payload.value.taskId
-          contextId = payload.value.contextId
-          const text = textOfParts(payload.value.artifact?.parts ?? [])
-          if (text.length > 0) streamedArtifactText.push(text)
-        }
-      }
-    } finally {
-      if (!exhausted) {
-        const close = iterator.return?.bind(iterator)
-        if (close !== undefined) {
-          const settled = await waitForSettlement(
-            Promise.resolve().then(async () => { await close() }),
-            this.teardownTimeoutMs,
-          )
-          if (!settled) {
-            throw new Error(`A2A stream teardown exceeded ${this.teardownTimeoutMs}ms`)
-          }
-        }
-      }
-    }
-    if (lastMessage !== undefined && (state === undefined || taskId.length === 0)) {
-      return normalizeMessage(lastMessage)
-    }
-    if (lastMessage !== undefined) {
-      return Object.freeze({
-        kind: 'task',
-        succeeded: state === TaskState.TASK_STATE_COMPLETED,
-        text: textOfMessage(lastMessage) || streamedArtifactText.join('') || streamedStatusText.at(-1) || '',
-        contextId,
-        taskId,
-        ...(state === undefined ? {} : { state: taskStateName(state) }),
-      })
-    }
-    if (lastTask !== undefined) {
-      const normalized = normalizeTask(lastTask)
-      const streamed = streamedArtifactText.join('') || streamedStatusText.at(-1) || ''
-      const effectiveState = state ?? lastTask.status?.state
-      return Object.freeze({
-        ...normalized,
-        succeeded: effectiveState === TaskState.TASK_STATE_COMPLETED,
-        text: normalized.text || streamed,
-        ...(effectiveState === undefined ? {} : { state: taskStateName(effectiveState) }),
-      })
-    }
-    if (taskId.length === 0) throw new Error('A2A stream ended without a message or task')
-    return Object.freeze({
-      kind: 'task',
-      succeeded: state === TaskState.TASK_STATE_COMPLETED,
-      text: streamedArtifactText.join('') || streamedStatusText.at(-1) || '',
-      contextId,
-      taskId,
-      ...(state === undefined ? {} : { state: taskStateName(state) }),
+  private sendStreaming(request: SendMessageRequest, options: RequestOptions): Promise<LinkedAgentResult> {
+    return sendStreaming(this.client, request, options, {
+      maxStreamEvents: this.maxStreamEvents, maxStreamBytes: this.maxStreamBytes,
+      teardownTimeoutMs: this.teardownTimeoutMs, onStreamEvent: this.options.onStreamEvent,
     })
   }
 
@@ -301,45 +211,9 @@ export async function createA2AAgentLink(options: A2AAgentLinkOptions): Promise<
   const operation = beginA2AIntegrationOperation(options.logger, 'a2a-client-link', 'agent-card-resolve')
   const attempt = operation.attempt(1)
   try {
-  options = snapshotLinkOptions(options)
-  const sources = [options.client, options.agentCard, options.baseUrl].filter(value => value !== undefined)
-  if (sources.length !== 1) {
-    throw new TypeError('createA2AAgentLink requires exactly one of client, agentCard, or baseUrl')
-  }
-  if (options.client !== undefined) {
-    const link = new A2AAgentLink(options.client, options)
+    const link = await resolveAgentLink(options)
     attempt.success(); operation.success()
     return link
-  }
-  if (options.agentCard !== undefined) {
-    const cardOptions: A2AAgentLinkOptions = { ...options }
-    validateAgentCard(options.agentCard, cardOptions)
-    const guardedFetch = endpointFetch(options.fetch ?? globalThis.fetch, cardOptions)
-    const factory = options.clientFactory ?? defaultFactory({ ...cardOptions, fetch: guardedFetch })
-    const signal = AbortSignal.timeout(positiveInteger(options.timeoutMs ?? 120_000, 'timeoutMs'))
-    const link = new A2AAgentLink(
-      await raceWithSignal(factory.createFromAgentCard(options.agentCard), signal),
-      cardOptions,
-      options.agentCard,
-    )
-    attempt.success(); operation.success()
-    return link
-  }
-  const baseUrl = validateEndpoint(options.baseUrl as string, options)
-  const discoveryOptions: A2AAgentLinkOptions = { ...options }
-  const guardedFetch = endpointFetch(options.fetch ?? globalThis.fetch, discoveryOptions)
-  const resolver = new DefaultAgentCardResolver({
-    fetchImpl: guardedFetch,
-    legacyCompat: { enabled: options.legacyCompat ?? false },
-  })
-  const signal = AbortSignal.timeout(positiveInteger(options.timeoutMs ?? 120_000, 'timeoutMs'))
-  const agentCard = await raceWithSignal(resolver.resolve(baseUrl.href, options.cardPath), signal)
-  validateAgentCard(agentCard, discoveryOptions)
-  const factory = options.clientFactory ?? defaultFactory({ ...discoveryOptions, fetch: guardedFetch })
-  const client = await raceWithSignal(factory.createFromAgentCard(agentCard), signal)
-  const link = new A2AAgentLink(client, discoveryOptions, agentCard)
-  attempt.success(); operation.success()
-  return link
   } catch (error: unknown) {
     const code = a2aErrorCode(error)
     attempt.fail(code); operation.fail(code)
@@ -404,219 +278,6 @@ export async function linkA2AAgent(
   return Object.freeze({ link, unlink, unlinkWithReport })
 }
 
-function contentPart(block: ContentBlock): Part {
-  if (block.type === 'text') return part({ $case: 'text', value: block.text }, 'text/plain')
-  if (block.type === 'image') {
-    if (block.source.kind === 'url') return part({ $case: 'url', value: block.source.url }, 'image/*')
-    if (block.source.kind === 'base64') {
-      return part(
-        { $case: 'url', value: `data:${block.source.mediaType};base64,${block.source.data}` },
-        block.source.mediaType,
-      )
-    }
-    return part({ $case: 'data', value: { type: 'image-file', fileId: block.source.fileId } }, 'application/json')
-  }
-  return part({ $case: 'data', value: structuredClone(block) }, 'application/json')
-}
-
-function part(content: NonNullable<Part['content']>, mediaType: string): Part {
-  return { content, metadata: undefined, filename: '', mediaType }
-}
-
-function normalizeResult(result: Message | Task): LinkedAgentResult {
-  return 'messageId' in result ? normalizeMessage(result) : normalizeTask(result)
-}
-
-function normalizeMessage(message: Message): LinkedAgentResult {
-  return Object.freeze({
-    kind: 'message', succeeded: message.role === Role.ROLE_AGENT,
-    text: textOfMessage(message), contextId: message.contextId,
-    ...(message.taskId.length === 0 ? {} : { taskId: message.taskId }),
-  })
-}
-
-function normalizeTask(task: Task): LinkedAgentResult {
-  const state = task.status?.state
-  const artifactText = task.artifacts.map(artifact => textOfParts(artifact.parts)).filter(Boolean).join('\n')
-  const statusText = textOfMessage(task.status?.message)
-  const historyText = [...task.history].reverse()
-    .find(message => message.role === Role.ROLE_AGENT)
-  return Object.freeze({
-    kind: 'task',
-    succeeded: state === TaskState.TASK_STATE_COMPLETED,
-    text: artifactText || statusText || textOfMessage(historyText),
-    contextId: task.contextId,
-    taskId: task.id,
-    ...(state === undefined ? {} : { state: taskStateName(state) }),
-  })
-}
-
-function textOfMessage(message: Message | undefined): string {
-  return message === undefined ? '' : textOfParts(message.parts)
-}
-
-function textOfParts(parts: readonly Part[]): string {
-  return parts.flatMap(item => item.content?.$case === 'text' ? [item.content.value] : []).join('')
-}
-
-function taskStateName(state: TaskState): string {
-  return TaskState[state] ?? String(state)
-}
-
-function nonEmpty(value: unknown, label: string): string {
-  if (typeof value !== 'string' || value.trim().length === 0) throw new TypeError(`${label} must be a non-empty string`)
-  if (value.length > 256) throw new TypeError(`${label} must be at most 256 characters`)
-  return value
-}
-
-function positiveInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value < 1) throw new TypeError(`${label} must be a positive integer`)
-  return value
-}
-
-function utf8Bytes(value: string): number {
-  return new TextEncoder().encode(value).byteLength
-}
-
-function byteLength(value: unknown): number {
-  const serialized = JSON.stringify(value)
-  if (serialized === undefined) throw new TypeError('A2A value is not JSON serializable')
-  return utf8Bytes(serialized)
-}
-
-function combineSignals(...signals: readonly (AbortSignal | undefined)[]): AbortSignal {
-  const active = signals.filter((signal): signal is AbortSignal => signal !== undefined)
-  if (active.length === 1) return active[0]!
-  return AbortSignal.any(active)
-}
-
-async function raceWithSignal<T>(pending: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
-  if (signal === undefined) return pending
-  if (signal.aborted) throw signal.reason ?? new Error('A2A operation aborted')
-  return await new Promise<T>((resolve, reject) => {
-    const abort = () => {
-      signal.removeEventListener('abort', abort)
-      reject(signal.reason ?? new Error('A2A operation aborted'))
-    }
-    signal.addEventListener('abort', abort, { once: true })
-    void pending.then(
-      value => { signal.removeEventListener('abort', abort); resolve(value) },
-      error => { signal.removeEventListener('abort', abort); reject(error) },
-    )
-  })
-}
-
-function validateAgentCard(card: AgentCard, options: A2AAgentLinkOptions): void {
-  const maxBytes = positiveInteger(options.maxResponseBytes ?? 1024 * 1024, 'maxResponseBytes')
-  if (byteLength(card) > maxBytes) {
-    throw new RangeError(`A2A Agent Card exceeds the ${maxBytes}-byte limit`)
-  }
-  if (card.supportedInterfaces.length === 0) {
-    throw new TypeError('A2A Agent Card must advertise at least one interface')
-  }
-  for (const item of card.supportedInterfaces) validateEndpoint(item.url, options)
-}
-
-function snapshotLinkOptions(options: A2AAgentLinkOptions): A2AAgentLinkOptions {
-  return Object.freeze({
-    ...options,
-    ...(options.allowedOrigins === undefined ? {} : {
-      allowedOrigins: Object.freeze([...options.allowedOrigins]),
-    }),
-    ...(options.acceptedOutputModes === undefined ? {} : {
-      acceptedOutputModes: Object.freeze([...options.acceptedOutputModes]),
-    }),
-    ...(options.serviceParameters === undefined ? {} : {
-      serviceParameters: detachedFrozen(options.serviceParameters),
-    }),
-    ...(options.agentCard === undefined ? {} : { agentCard: detachedFrozen(options.agentCard) }),
-  })
-}
-
-function validateEndpoint(value: string, options: A2AAgentLinkOptions): URL {
-  const url = new URL(value)
-  if (url.username.length > 0 || url.password.length > 0) {
-    throw new TypeError('A2A endpoint URL must not contain credentials')
-  }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-    throw new TypeError('A2A endpoint URL must use http or https')
-  }
-  if (options.requireHttps === true && url.protocol !== 'https:') {
-    throw new TypeError('A2A endpoint URL must use https under the configured policy')
-  }
-  const allowedOrigins = options.allowedOrigins?.map(origin => new URL(origin).origin)
-  if (allowedOrigins !== undefined && !allowedOrigins.includes(url.origin)) {
-    throw new TypeError(`A2A endpoint origin '${url.origin}' is not allowed`)
-  }
-  if (options.allowPrivateNetwork === false && isPrivateHostname(url.hostname)) {
-    throw new TypeError(`A2A endpoint host '${url.hostname}' is private or local`)
-  }
-  options.validateEndpoint?.(new URL(url))
-  return url
-}
-
-function endpointFetch(baseFetch: typeof fetch, options: A2AAgentLinkOptions): typeof fetch {
-  if (typeof baseFetch !== 'function') throw new TypeError('A2A endpoint resolution requires fetch')
-  const maxBytes = positiveInteger(options.maxTransportBytes ?? 16 * 1024 * 1024, 'maxTransportBytes')
-  const timeoutMs = positiveInteger(options.timeoutMs ?? 120_000, 'timeoutMs')
-  const teardownTimeoutMs = positiveInteger(options.teardownTimeoutMs ?? 30_000, 'teardownTimeoutMs')
-  return (async (input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> => {
-    const value = typeof input === 'string' || input instanceof URL ? input.toString() : input.url
-    validateEndpoint(value, options)
-    const signal = combineSignals(init?.signal ?? undefined, AbortSignal.timeout(timeoutMs))
-    const response = await fetchA2AEndpoint(baseFetch, input, init, {
-      signal,
-      allowRedirects: options.allowRedirects !== false,
-      teardownTimeoutMs,
-      validateEndpoint: value => validateEndpoint(value.toString(), options),
-    })
-    if (response.url.length > 0) validateEndpoint(response.url, options)
-    const declared = Number(response.headers.get('content-length'))
-    if (Number.isFinite(declared) && declared > maxBytes) {
-      if (response.body !== null) {
-        await waitForSettlement(response.body.cancel().catch(() => undefined), teardownTimeoutMs)
-      }
-      throw new Error(`A2A HTTP response exceeds the ${maxBytes}-byte limit`)
-    }
-    if (response.body === null) return response
-    let received = 0
-    const limited = response.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
-      transform(chunk, controller) {
-        received += chunk.byteLength
-        if (received > maxBytes) {
-          controller.error(new Error(`A2A HTTP response exceeds the ${maxBytes}-byte limit`))
-          return
-        }
-        controller.enqueue(chunk)
-      },
-    }))
-    return new Response(limited, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    })
-  }) as typeof fetch
-}
-
-function isPrivateHostname(value: string): boolean {
-  const hostname = value.toLowerCase().replace(/^\[|\]$/g, '')
-  if (hostname === 'localhost' || hostname.endsWith('.localhost')
-    || hostname.endsWith('.local') || hostname.endsWith('.internal')
-    || hostname.endsWith('.home.arpa') || !hostname.includes('.')) return true
-  if (hostname.includes(':')) return true
-  const octets = hostname.split('.').map(Number)
-  if (octets.length !== 4 || octets.some(octet => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
-    return false
-  }
-  const [first = 0, second = 0] = octets
-  return first === 0 || first === 10 || first === 127 || first >= 224
-    || (first === 100 && second >= 64 && second <= 127)
-    || (first === 169 && second === 254)
-    || (first === 172 && second >= 16 && second <= 31)
-    || (first === 192 && second === 168)
-    || (first === 198 && (second === 18 || second === 19))
-}
-
 export {
   ClientFactory,
   DefaultAgentCardResolver,
@@ -633,3 +294,42 @@ export type {
   StreamResponse,
   Task,
 } from '@a2a-js/sdk'
+
+async function resolveAgentLink(options: A2AAgentLinkOptions): Promise<A2AAgentLink> {
+  options = snapshotLinkOptions(options)
+  const sources = [options.client, options.agentCard, options.baseUrl].filter(value => value !== undefined)
+  if (sources.length !== 1) {
+    throw new TypeError('createA2AAgentLink requires exactly one of client, agentCard, or baseUrl')
+  }
+  if (options.client !== undefined) {
+    const link = new A2AAgentLink(options.client, options)
+    return link
+  }
+  if (options.agentCard !== undefined) {
+    const cardOptions: A2AAgentLinkOptions = { ...options }
+    validateAgentCard(options.agentCard, cardOptions)
+    const guardedFetch = endpointFetch(options.fetch ?? globalThis.fetch, cardOptions)
+    const factory = options.clientFactory ?? defaultFactory({ ...cardOptions, fetch: guardedFetch })
+    const signal = AbortSignal.timeout(defaultLimit(options.timeoutMs, 120_000, 'timeoutMs'))
+    const link = new A2AAgentLink(
+      await raceWithSignal(factory.createFromAgentCard(options.agentCard), signal),
+      cardOptions,
+      options.agentCard,
+    )
+    return link
+  }
+  const baseUrl = validateEndpoint(options.baseUrl as string, options)
+  const discoveryOptions: A2AAgentLinkOptions = { ...options }
+  const guardedFetch = endpointFetch(options.fetch ?? globalThis.fetch, discoveryOptions)
+  const resolver = new DefaultAgentCardResolver({
+    fetchImpl: guardedFetch,
+    legacyCompat: { enabled: options.legacyCompat ?? false },
+  })
+  const signal = AbortSignal.timeout(defaultLimit(options.timeoutMs, 120_000, 'timeoutMs'))
+  const agentCard = await raceWithSignal(resolver.resolve(baseUrl.href, options.cardPath), signal)
+  validateAgentCard(agentCard, discoveryOptions)
+  const factory = options.clientFactory ?? defaultFactory({ ...discoveryOptions, fetch: guardedFetch })
+  const client = await raceWithSignal(factory.createFromAgentCard(agentCard), signal)
+  const link = new A2AAgentLink(client, discoveryOptions, agentCard)
+  return link
+}

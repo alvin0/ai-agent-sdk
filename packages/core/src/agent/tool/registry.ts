@@ -67,7 +67,8 @@ function assertValid(definition: ToolDefinition): void {
     // Not pedantry: the description IS the tool's interface to the model, and an
     // undescribed tool gets called wrongly or not at all.
     throw new AgentSdkError(
-      `tool "${definition.name}" must have a non-empty description; it is what the model reads to decide when to call it`,
+      `tool "${definition.name}" must have a non-empty description; `
+        + 'it is what the model reads to decide when to call it',
       REGISTRY_ERROR_CODES.INVALID_TOOL,
     )
   }
@@ -83,13 +84,7 @@ function assertValid(definition: ToolDefinition): void {
       REGISTRY_ERROR_CODES.INVALID_TOOL,
     )
   }
-  if (definition.timeoutMs !== undefined
-    && (!Number.isFinite(definition.timeoutMs) || definition.timeoutMs <= 0)) {
-    throw new AgentSdkError(
-      `tool "${definition.name}" declared a non-positive timeoutMs`,
-      REGISTRY_ERROR_CODES.INVALID_TOOL,
-    )
-  }
+  validateToolTimeout(definition)
 }
 
 /**
@@ -245,6 +240,16 @@ export class ToolRegistry implements ToolCatalog {
       this,
       filter.allow === undefined ? undefined : new Set(filter.allow),
       new Set(filter.deny ?? []),
+    )
+  }
+}
+
+function validateToolTimeout(definition: ToolDefinition): void {
+  if (definition.timeoutMs !== undefined
+    && (!Number.isFinite(definition.timeoutMs) || definition.timeoutMs <= 0)) {
+    throw new AgentSdkError(
+      `tool "${definition.name}" declared a non-positive timeoutMs`,
+      REGISTRY_ERROR_CODES.INVALID_TOOL,
     )
   }
 }

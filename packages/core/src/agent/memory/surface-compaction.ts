@@ -71,12 +71,7 @@ export function pruneToolResults(
 
 function toolPairingBalanced(messages: readonly Message[], split: number): boolean {
   const side = new Map<ToolCallId, 'head' | 'tail'>()
-  for (let index = 0; index < messages.length; index++) {
-    const location = index < split ? 'head' : 'tail'
-    for (const block of messages[index]?.content ?? []) {
-      if (block.type === 'tool-call') side.set(block.id, location)
-    }
-  }
+  indexToolCalls(messages, split, side)
   for (let index = 0; index < messages.length; index++) {
     const location = index < split ? 'head' : 'tail'
     for (const block of messages[index]?.content ?? []) {
@@ -94,4 +89,15 @@ function truncateMiddleCodePoints(value: string, maxChars: number): string {
   const head = Math.ceil((maxChars - marker.length) / 2)
   const tail = Math.floor((maxChars - marker.length) / 2)
   return [...points.slice(0, head), ...marker, ...points.slice(points.length - tail)].join('')
+}
+
+function indexToolCalls(
+  messages: readonly Message[], split: number, side: Map<ToolCallId, 'head' | 'tail'>,
+): void {
+  for (let index = 0; index < messages.length; index++) {
+    const location = index < split ? 'head' : 'tail'
+    for (const block of messages[index]?.content ?? []) {
+      if (block.type === 'tool-call') side.set(block.id, location)
+    }
+  }
 }

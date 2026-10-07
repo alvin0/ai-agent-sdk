@@ -124,9 +124,7 @@ function assertFixture(value: unknown, runtime: string): void {
   if (result.text !== 'packed provider completed' || result.totalTokens !== 12
     || result.attempts !== 1 || result.dispatchState !== 'sent'
     || result.requestId !== 'packed-request' || result.eventCount !== 6
-    || result.staticCatalogState !== 'static' || result.staticModelContext !== 64_000
-    || result.staticModelTool !== 'web-search' || result.staticCredentialCalls !== 0
-    || result.staticDiscoveryCalls !== 0
+    || !validStaticModelEvidence(result)
     || result.buffer !== 'undefined' || result.process !== 'undefined') {
     throw new Error(`${runtime} fixture returned invalid evidence: ${JSON.stringify(result)}`)
   }
@@ -165,4 +163,12 @@ async function stop(child: ChildProcess): Promise<void> {
     new Promise<void>(resolvePromise => setTimeout(resolvePromise, 5_000)),
   ])
   if (child.exitCode === null) child.kill('SIGKILL')
+}
+
+function validStaticModelEvidence(result: Record<string, unknown>): boolean {
+  return !(
+    result.staticCatalogState !== 'static' || result.staticModelContext !== 64_000
+    || result.staticModelTool !== 'web-search' || result.staticCredentialCalls !== 0
+    || result.staticDiscoveryCalls !== 0
+  )
 }

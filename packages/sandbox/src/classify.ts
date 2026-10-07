@@ -146,7 +146,8 @@ export function annotateStderr(
 ): string {
   if (classification.kind === 'success' || classification.kind === 'command-failure') return stderr
   const note = classification.kind === 'runner-failure'
-    ? `[sandbox] The sandbox runner failed before the command ran; the command did not execute. ${classification.evidence ?? ''}`.trim()
+    ? ('[sandbox] The sandbox runner failed before the command ran; the command did not execute. '
+      + `${classification.evidence ?? ''}`).trim()
     : `[sandbox] Blocked by sandbox mode '${mode}'. ${classification.evidence ?? ''}`.trim()
   return stderr.endsWith('\n') || stderr === '' ? `${stderr}${note}\n` : `${stderr}\n${note}\n`
 }

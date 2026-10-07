@@ -157,10 +157,7 @@ export function resolveInstructionsConfig(
   cwd: string,
 ): ResolvedInstructionsConfig {
   const maxBytes = positiveBytes(options.maxBytes, DEFAULT_MAX_BYTES, 'maxBytes')
-  const fileNames = (options.fileNames ?? DEFAULT_FILE_NAMES).filter(name => (
-    !RESERVED_SEGMENTS.has(name) && !/[\\/]/.test(name)
-  ))
-  if (fileNames.length === 0) throw new TypeError('fileNames must contain at least one plain file name')
+  const fileNames = resolveFileNames(options.fileNames)
   return Object.freeze({
     id: options.id ?? DEFAULT_SECTION_ID,
     cwd: options.cwd ?? cwd,
@@ -180,4 +177,12 @@ export function resolveInstructionsConfig(
     intro: options.intro ?? DEFAULT_INTRO,
     retractionText: options.retractionText ?? DEFAULT_RETRACTION,
   })
+}
+
+function resolveFileNames(names: readonly string[] | undefined): readonly string[] {
+  const accepted = (names ?? DEFAULT_FILE_NAMES).filter(name => (
+    !RESERVED_SEGMENTS.has(name) && !/[\\/]/.test(name)
+  ))
+  if (accepted.length === 0) throw new TypeError('fileNames must contain at least one plain file name')
+  return accepted
 }

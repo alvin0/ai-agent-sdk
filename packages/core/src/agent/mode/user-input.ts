@@ -55,15 +55,18 @@ export function userInputResponseProblem(
   const expected = new Set(questions.map(question => question.id))
   for (const id of expected) {
     const answer = (answers as Record<string, unknown>)[id] as { answers?: unknown } | null | undefined
-    if (answer === null || typeof answer !== 'object' || !Array.isArray(answer.answers) || answer.answers.length === 0
-      || answer.answers.some(value => typeof value !== 'string' || value.trim().length === 0)) {
-      return `no valid answer for "${id}"`
-    }
+    if (!validAnswer(answer)) return `no valid answer for "${id}"`
   }
   for (const id of Object.keys(answers)) {
     if (!expected.has(id)) return `an answer for unknown question "${id}"`
   }
   return undefined
+}
+
+function validAnswer(answer: { answers?: unknown } | null | undefined): boolean {
+  if (answer === null || typeof answer !== 'object' || !Array.isArray(answer.answers)) return false
+  return answer.answers.length > 0
+    && answer.answers.every(value => typeof value === 'string' && value.trim().length > 0)
 }
 
 export interface UserInputBroker {

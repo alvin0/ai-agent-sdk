@@ -57,7 +57,7 @@ describe('core-owned capability operation logging', () => {
       reads++
       return (resolve: (value: string) => void) => { calls++; resolve('resolved') }
     } })
-    const result = runCoreCapabilityMaybeAsync(logger, 'core-credential', 'resolve', undefined,
+    const result = runCoreCapabilityMaybeAsync(logger, { family: 'core-credential', name: 'resolve' }, undefined,
       () => foreign as never) as Promise<string>
     await expect(result).resolves.toBe('resolved')
     expect({ reads, calls }).toEqual({ reads: 1, calls: 1 })
@@ -131,7 +131,7 @@ describe('core-owned capability operation logging', () => {
     })
     const persistence = createRuntimeMemoryPersistence(binding, 'agent')
     await persistence.load('conversation', signal, logger)
-    await persistence.commit('conversation', new AgentMemory().snapshot(), null, signal, logger)
+    await persistence.commit('conversation', { snapshot: new AgentMemory().snapshot(), expectedRevision: null }, signal, logger)
     expect(integrationOperations(logger)).toEqual(['load', 'commit'])
 
     const privateFailure = 'PRIVATE_CAPABILITY/BODY~SENTINEL%'

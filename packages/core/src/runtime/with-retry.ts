@@ -25,11 +25,11 @@ import {
   type ResolvedRetryPolicy,
   type RetryPolicyConfig,
 } from '../contract/retry-policy.ts'
-import { normalizeModelFailure, type ModelFailure } from '../errors/failure.ts'
-import { MODEL_ERROR_CODES, ModelError } from '../errors/model-error.ts'
+import type { ModelFailure } from '../errors/failure.ts'
+import { MODEL_ERROR_CODES } from '../errors/model-error.ts'
 import type { StreamChunk } from '../stream/chunk.ts'
 import type { ModelInvocationContext } from '../observation/report.ts'
-import { waitForSettlement } from '../async/settlement.ts'
+import { RetryAttemptRunner } from './retry-attempt.ts'
 
 /** One retry that is about to be waited out. */
 export interface RetryAttempt {
@@ -108,6 +108,25 @@ function cancellableDelay(delayMs: number, signal?: AbortSignal): Promise<boolea
   })
 }
 
+function retryDecision(input: {
+  policy: ResolvedRetryPolicy
+  options: GenerateOptions
+  failure: ModelFailure
+  retries: number
+  random: () => number
+}): Extract<StreamChunk, { type: 'finish' }> | { type: 'retry'; delayMs: number } {
+  const { policy, options, failure, retries, random } = input
+  if (options.signal?.aborted === true || failure.code === MODEL_ERROR_CODES.ABORTED) {
+    return { type: 'finish', reason: { kind: 'aborted', failure } }
+  }
+  const eligible = policy.mode === 'always'
+    || (policy.retryableCodes.includes(failure.code) && retries < policy.maxRetries)
+  if (!eligible) return { type: 'finish', reason: { kind: 'error', failure } }
+  const delayMs = delayFor(policy, failure, retries + 1, random)
+  if (delayMs === 'give-up') return { type: 'finish', reason: { kind: 'error', failure } }
+  return { type: 'retry', delayMs }
+}
+
 class RetryingAdapter extends ModelAdapter {
   private readonly inner: ModelAdapter
   private readonly options: WithRetryOptions
@@ -154,7 +173,8 @@ class RetryingAdapter extends ModelAdapter {
       // Retries reuse the SAME prepared generation. Re-preparing mid-retry could
       // pair a fresh endpoint with capabilities resolved against the old one,
       // which is exactly what the prepare/dispatch binding exists to prevent.
-      stream: (options, invocation = context) => this.retryStream(options, request => prepared.stream(request, invocation), policy, invocation),
+      stream: (options, invocation = context) => this.retryStream(options, request => prepared.stream(request,
+        invocation), policy, invocation),
     }
   }
 
@@ -198,49 +218,22 @@ class RetryingAdapter extends ModelAdapter {
     let retries = 0
 
     while (true) {
-      const attempt = yield* this.runAttempt(options, dispatch)
+      const attempt = yield* new RetryAttemptRunner(this.options).runAttempt(options, dispatch)
       if (attempt.kind === 'forward') {
         yield* attempt.chunks
         return
       }
 
       const failure = attempt.failure
-      // An abort is the caller's decision, never a transient fault.
-      if (options.signal?.aborted === true || failure.code === MODEL_ERROR_CODES.ABORTED) {
-        yield { type: 'finish', reason: { kind: 'aborted', failure } }
+      const decision = retryDecision({ policy, options, failure, retries, random })
+      if (decision.type === 'finish') {
+        yield decision
         return
       }
-
-      const eligible = policy.mode === 'always'
-        || (policy.retryableCodes.includes(failure.code) && retries < policy.maxRetries)
-      if (!eligible) {
-        yield { type: 'finish', reason: { kind: 'error', failure } }
-        return
-      }
-
-      const delayMs = delayFor(policy, failure, retries + 1, random)
-      if (delayMs === 'give-up') {
-        yield { type: 'finish', reason: { kind: 'error', failure } }
-        return
-      }
+      const delayMs = decision.delayMs
 
       retries += 1
-      context?.recordProviderRetry?.({
-        nextAttemptNumber: retries + 1,
-        delayMs,
-        failureCode: failure.code,
-      })
-      try {
-        this.options.onRetry?.({
-          provider: options.provider,
-          attempt: retries,
-          maxRetries: policy.mode === 'normal' ? policy.maxRetries : undefined,
-          failure,
-          delayMs,
-        })
-      } catch {
-        // Metrics/logging observers do not own request availability.
-      }
+      this.observeRetry({ options, context, policy, attempt: retries, failure, delayMs })
       if (!await cancellableDelay(delayMs, options.signal)) {
         yield {
           type: 'finish',
@@ -257,173 +250,31 @@ class RetryingAdapter extends ModelAdapter {
     }
   }
 
-  /**
-   * Run one attempt, forwarding only provisional usage before committing content.
-   *
-   * Buffering is what makes retry safe: until the attempt either produces its
-   * first non-progress chunk or fails, no content has been committed. Once that
-   * chunk exists the attempt is no longer retryable, so it switches to
-   * `forward` and streams the rest through untouched.
-   */
-  private async *runAttempt(
-    options: GenerateOptions,
-    dispatch: (request: GenerateOptions) => AsyncIterable<StreamChunk>,
-  ): AsyncGenerator<StreamChunk,
-    | { kind: 'forward'; chunks: AsyncIterable<StreamChunk> }
-    | { kind: 'retryable'; failure: ModelFailure }
-  > {
-    const cap = reasoningBufferCap(this.options.bufferReasoningPrefix)
-    let iterator: AsyncIterator<StreamChunk>
+  private observeRetry(input: {
+    options: GenerateOptions
+    context: ModelInvocationContext | undefined
+    policy: ResolvedRetryPolicy
+    attempt: number
+    failure: ModelFailure
+    delayMs: number
+  }): void {
+    const { options, context, policy, attempt, failure, delayMs } = input
+    context?.recordProviderRetry?.({
+      nextAttemptNumber: attempt + 1,
+      delayMs,
+      failureCode: failure.code,
+    })
     try {
-      iterator = dispatch(options)[Symbol.asyncIterator]()
-    } catch (error: unknown) {
-      return { kind: 'retryable', failure: normalizeModelFailure(error) }
+      this.options.onRetry?.({
+        provider: options.provider,
+        attempt,
+        maxRetries: policy.mode === 'normal' ? policy.maxRetries : undefined,
+        failure,
+        delayMs,
+      })
+    } catch {
+      // Metrics/logging observers do not own request availability.
     }
-
-    let first: IteratorResult<StreamChunk>
-    try {
-      first = await iterator.next()
-      // Provisional accounting is not response content: preserve pre-content
-      // retries while allowing the caller to observe usage as it arrives.
-      while (!first.done && first.value.type === 'usage-progress') {
-        let resumed = false
-        try {
-          yield first.value
-          resumed = true
-        } finally {
-          if (!resumed) await closeIterator(iterator, this.options.teardownTimeoutMs ?? 30_000)
-        }
-        first = await iterator.next()
-      }
-    } catch (error: unknown) {
-      await closeIterator(iterator, this.options.teardownTimeoutMs ?? 30_000)
-      return { kind: 'retryable', failure: normalizeModelFailure(error) }
-    }
-
-    // A stream that ends with no chunks at all told us nothing; treat it as the
-    // degenerate empty response rather than a silently successful turn.
-    if (first.done === true) {
-      return {
-        kind: 'retryable',
-        failure: {
-          message: 'the adapter produced no chunks',
-          code: MODEL_ERROR_CODES.UNKNOWN,
-        },
-      }
-    }
-
-    // An adapter behind the registry's funnel reports failure as a terminal
-    // error finish rather than a throw. As the FIRST chunk, that is still a
-    // clean nothing-emitted failure and remains retryable.
-    let chunk = first.value
-    if (chunk.type === 'finish' && chunk.reason.kind === 'error') {
-      await closeIterator(iterator, this.options.teardownTimeoutMs ?? 30_000)
-      return { kind: 'retryable', failure: chunk.reason.failure }
-    }
-
-    const held: StreamChunk[] = []
-    if (cap > 0) {
-      const reasoningBlocks = new Set<number>()
-      let ended = false
-      try {
-        while (isReasoningChunk(chunk, reasoningBlocks) && held.length < cap) {
-          held.push(chunk)
-          let next = await iterator.next()
-          while (!next.done && next.value.type === 'usage-progress') {
-            let resumed = false
-            try {
-              yield next.value
-              resumed = true
-            } finally {
-              if (!resumed) await closeIterator(iterator, this.options.teardownTimeoutMs ?? 30_000)
-            }
-            next = await iterator.next()
-          }
-          if (next.done === true) { ended = true; break }
-          chunk = next.value
-          // Still only thinking when it failed: nothing was shown, so retry.
-          if (chunk.type === 'finish' && chunk.reason.kind === 'error') {
-            await closeIterator(iterator, this.options.teardownTimeoutMs ?? 30_000)
-            return { kind: 'retryable', failure: chunk.reason.failure }
-          }
-        }
-      } catch (error: unknown) {
-        await closeIterator(iterator, this.options.teardownTimeoutMs ?? 30_000)
-        return { kind: 'retryable', failure: normalizeModelFailure(error) }
-      }
-      // A stream that only reasoned and then ended releases what it held.
-      if (ended) {
-        return { kind: 'forward', chunks: resume(held, undefined, iterator, this.options.teardownTimeoutMs ?? 30_000) }
-      }
-    }
-
-    return {
-      kind: 'forward',
-      chunks: resume(held, chunk, iterator, this.options.teardownTimeoutMs ?? 30_000),
-    }
-  }
-}
-
-function positiveFinite(value: number, name: string): number {
-  if (!Number.isFinite(value) || value <= 0) throw new RangeError(`${name} must be a positive finite number`)
-  return value
-}
-
-function reasoningBufferCap(option: WithRetryOptions['bufferReasoningPrefix']): number {
-  if (option === undefined || option === false) return 0
-  if (option === true) return 4096
-  if (!Number.isSafeInteger(option.maxChunks) || option.maxChunks < 1) {
-    throw new RangeError('bufferReasoningPrefix.maxChunks must be a positive safe integer')
-  }
-  return option.maxChunks
-}
-
-/** Whether a chunk only carries reasoning, tracking which block indexes are reasoning. */
-function isReasoningChunk(chunk: StreamChunk, reasoningBlocks: Set<number>): boolean {
-  if (chunk.type === 'reasoning-delta') return true
-  if (chunk.type === 'block-start' && chunk.blockType === 'reasoning') {
-    reasoningBlocks.add(chunk.index)
-    return true
-  }
-  return chunk.type === 'block-end' && (chunk.block.type === 'reasoning' || reasoningBlocks.has(chunk.index))
-}
-
-/** Re-attach already-read chunks to the front of their iterator. */
-async function* resume(
-  held: readonly StreamChunk[],
-  first: StreamChunk | undefined,
-  iterator: AsyncIterator<StreamChunk>,
-  teardownTimeoutMs: number,
-): AsyncGenerator<StreamChunk> {
-  let exhausted = false
-  try {
-    for (const chunk of held) yield chunk
-    if (first !== undefined) yield first
-    while (true) {
-      const next = await iterator.next()
-      if (next.done === true) {
-        exhausted = true
-        return
-      }
-      yield next.value
-    }
-  } finally {
-    if (!exhausted) await closeIterator(iterator, teardownTimeoutMs)
-  }
-}
-
-async function closeIterator(iterator: AsyncIterator<StreamChunk>, timeoutMs: number): Promise<void> {
-  const closing = iterator.return?.()
-  if (closing === undefined) return
-  const settled = await waitForSettlement(
-    Promise.resolve(closing),
-    positiveFinite(timeoutMs, 'withRetry teardownTimeoutMs'),
-  )
-  if (!settled) {
-    throw new ModelError(
-      `retry attempt teardown exceeded ${timeoutMs}ms`,
-      MODEL_ERROR_CODES.TEARDOWN_TIMEOUT,
-    )
   }
 }
 

@@ -28,8 +28,7 @@ export const DEFAULT_BOUNDS: TurnBounds = Object.freeze({
   maxToolDurationMs: 10 * 60_000,
   toolTeardownTimeoutMs: 30_000,
 })
-export function resolveBounds(input: Partial<TurnBounds> | undefined): TurnBounds {
-  const bounds = { ...DEFAULT_BOUNDS, ...input }
+function validateTokenBounds(bounds: TurnBounds): void {
   if (bounds.maxTotalTokens !== 'auto' && (!Number.isSafeInteger(bounds.maxTotalTokens) || bounds.maxTotalTokens < 1)) {
     throw new RangeError("maxTotalTokens must be a positive safe integer or 'auto'")
   }
@@ -37,15 +36,26 @@ export function resolveBounds(input: Partial<TurnBounds> | undefined): TurnBound
     || (bounds.maxTotalTokens !== 'auto' && bounds.finalReportReserveTokens >= bounds.maxTotalTokens)) {
     throw new RangeError('finalReportReserveTokens must be a non-negative safe integer below maxTotalTokens')
   }
-  if (bounds.maxTurnDurationMs !== 'auto' && (!Number.isSafeInteger(bounds.maxTurnDurationMs) || bounds.maxTurnDurationMs < 1)) {
-    throw new RangeError("maxTurnDurationMs must be a positive safe integer or 'auto'")
+}
+
+function validateAutomaticBound(value: number | 'auto', name: string): void {
+  if (value !== 'auto' && (!Number.isSafeInteger(value) || value < 1)) {
+    throw new RangeError(`${name} must be a positive safe integer or 'auto'`)
   }
+}
+
+function validateStepBounds(bounds: TurnBounds): void {
   if (!Number.isSafeInteger(bounds.finalizeSteps) || bounds.finalizeSteps < 0 || bounds.finalizeSteps > 8) {
     throw new RangeError('finalizeSteps must be a safe integer from 0 to 8')
   }
-  if (bounds.maxSteps !== 'auto' && (!Number.isSafeInteger(bounds.maxSteps) || bounds.maxSteps < 1)) {
-    throw new RangeError("maxSteps must be a positive safe integer or 'auto'")
-  }
+}
+
+export function resolveBounds(input: Partial<TurnBounds> | undefined): TurnBounds {
+  const bounds = { ...DEFAULT_BOUNDS, ...input }
+  validateTokenBounds(bounds)
+  validateAutomaticBound(bounds.maxTurnDurationMs, 'maxTurnDurationMs')
+  validateStepBounds(bounds)
+  validateAutomaticBound(bounds.maxSteps, 'maxSteps')
   for (const key of [
     'maxToolCalls', 'maxConsecutiveToolErrors', 'repeatToolWarningAt',
     'repeatToolLimit', 'toolCycleWarningAt', 'toolCycleLimit', 'maxToolCycleLength',
@@ -53,7 +63,8 @@ export function resolveBounds(input: Partial<TurnBounds> | undefined): TurnBound
     'maxToolDurationMs',
     'toolTeardownTimeoutMs',
   ] as const) {
-    if (!Number.isSafeInteger(bounds[key]) || bounds[key] < 1) throw new RangeError(`${key} must be a positive safe integer`)
+    if (!Number.isSafeInteger(bounds[key])
+      || bounds[key] < 1) throw new RangeError(`${key} must be a positive safe integer`)
   }
   if (!['auto', 'truncate', 'spill'].includes(bounds.toolResultOverflow)) {
     throw new RangeError("toolResultOverflow must be 'auto', 'truncate', or 'spill'")
@@ -61,7 +72,9 @@ export function resolveBounds(input: Partial<TurnBounds> | undefined): TurnBound
   if (!['force-final-answer', 'stop', 'continue'].includes(bounds.onExhausted)) {
     throw new RangeError("onExhausted must be 'force-final-answer', 'stop', or 'continue'")
   }
-  if (bounds.repeatToolLimit < bounds.repeatToolWarningAt) throw new RangeError('repeatToolLimit must be >= repeatToolWarningAt')
+  if (bounds.repeatToolLimit < bounds.repeatToolWarningAt) {
+    throw new RangeError('repeatToolLimit must be >= repeatToolWarningAt')
+  }
   if (bounds.toolCycleLimit < bounds.toolCycleWarningAt) {
     throw new RangeError('toolCycleLimit must be >= toolCycleWarningAt')
   }
@@ -82,8 +95,8 @@ export function positiveSafeInteger(value: number, name: string): number {
   if (!Number.isSafeInteger(value) || value < 1) throw new RangeError(`${name} must be a positive safe integer`)
   return value
 }
-export function snapshotRunTurnOptions(options: RunTurnOptions): RunTurnOptions {
-  const config = Object.freeze({
+function snapshotRunConfiguration(options: RunTurnOptions): RunTurnOptions['config'] {
+  return Object.freeze({
     provider: options.config.provider,
     model: options.config.model,
     ...(options.config.reasoningEffort === undefined ? {} : { reasoningEffort: options.config.reasoningEffort }),
@@ -96,6 +109,10 @@ export function snapshotRunTurnOptions(options: RunTurnOptions): RunTurnOptions 
     }),
     ...(options.config.stop === undefined ? {} : { stop: Object.freeze([...options.config.stop]) }),
   })
+}
+
+export function snapshotRunTurnOptions(options: RunTurnOptions): RunTurnOptions {
+  const config = snapshotRunConfiguration(options)
   return Object.freeze({
     ...options,
     config,

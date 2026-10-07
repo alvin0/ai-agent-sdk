@@ -8,7 +8,7 @@ import { event } from './delivery-fixtures.ts'
 
 function fixture(options: RuntimeObservationPortOptions = {}) {
   const platform = createRuntimePlatform(), resources = new RuntimeResources(platform), resource = createRuntimeResource(undefined, platform)
-  const port = new RuntimeObservationPort(resource, [], platform, resources, { mode: 'operational', ...options })
+  const port = new RuntimeObservationPort(resource, [], { platform, resources }, { mode: 'operational', ...options })
   return { platform, resources, resource, port }
 }
 

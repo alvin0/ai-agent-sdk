@@ -26,7 +26,7 @@ function registration(
 
 function fixture(mode: DeliveryMode, registrations: readonly RuntimeObservationExporterRegistration[], options: RuntimeObservationPortOptions = {}) {
   const platform = createRuntimePlatform(), resources = new RuntimeResources(platform), resource = createRuntimeResource(undefined, platform)
-  const port = new RuntimeObservationPort(resource, registrations, platform, resources, { ...options, mode })
+  const port = new RuntimeObservationPort(resource, registrations, { platform, resources }, { ...options, mode })
   return { platform, resources, resource, port }
 }
 

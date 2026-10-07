@@ -134,10 +134,12 @@ async function testWorker(consumer: string): Promise<void> {
 
 function assertFixture(value: unknown, runtime: string): void {
   const result = value as Record<string, unknown>
-  if (result.spanCount !== 1 || typeof result.traceparent !== 'string' || !result.traceparent.endsWith('-00')
-    || result.ended !== true || result.semanticDuration !== true || result.semanticTokens !== 2
-    || result.logCount !== 1 || result.safe !== true || result.providerUnchanged !== true
-    || result.buffer !== 'undefined' || result.process !== 'undefined') {
+  const expected = {
+    spanCount: 1, ended: true, semanticDuration: true, semanticTokens: 2,
+    logCount: 1, safe: true, providerUnchanged: true, buffer: 'undefined', process: 'undefined',
+  }
+  const matches = Object.entries(expected).every(([key, expectedValue]) => result[key] === expectedValue)
+  if (!matches || typeof result.traceparent !== 'string' || !result.traceparent.endsWith('-00')) {
     throw new Error(`${runtime} fixture returned invalid evidence: ${JSON.stringify(result)}`)
   }
 }

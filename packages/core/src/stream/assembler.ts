@@ -51,45 +51,23 @@ export class BlockAssembler {
    */
   push(chunk: StreamChunk): void {
     switch (chunk.type) {
-      case 'block-start': {
-        if (!this.partials.has(chunk.index)) {
-          this.order.push(chunk.index)
-          this.partials.set(chunk.index, {
-            blockType: chunk.blockType,
-            text: '',
-            toolCallArguments: '',
-          })
-        }
+      case 'block-start':
+        this.startBlock(chunk)
         return
-      }
       case 'text-delta':
-      case 'reasoning-delta': {
-        const partial = this.ensure(chunk.index, chunk.type === 'text-delta' ? 'text' : 'reasoning')
-        if (partial.block !== undefined) return // closed by block-end; ignore stragglers
-        partial.text += chunk.text
-        if (chunk.type === 'text-delta' && chunk.phase !== undefined) partial.textPhase = chunk.phase
+      case 'reasoning-delta':
+        this.appendText(chunk)
         return
-      }
-      case 'tool-call-delta': {
-        const partial = this.ensure(chunk.index, 'tool-call')
-        if (partial.block !== undefined) return // closed by block-end; ignore stragglers
-        partial.toolCallId = chunk.id
-        if (chunk.name !== undefined && chunk.name.length > 0) partial.toolCallName = chunk.name
-        partial.toolCallArguments += chunk.argumentsDelta
+      case 'tool-call-delta':
+        this.appendToolCall(chunk)
         return
-      }
       case 'image-delta':
         // Progressive images are presentation-only. The authoritative final
         // image arrives inside the native-tool-call `block-end`.
         return
-      case 'block-end': {
-        const partial = this.ensure(chunk.index, chunk.block.type)
-        // First close wins. Ignoring re-close stragglers keeps the streamed
-        // output and the final assembled block in agreement.
-        if (partial.block !== undefined) return
-        partial.block = chunk.block
+      case 'block-end':
+        this.closeBlock(chunk)
         return
-      }
       case 'usage': {
         this._usage = chunk.usage
         return
@@ -104,6 +82,40 @@ export class BlockAssembler {
       default:
         return assertNever(chunk, 'BlockAssembler.push')
     }
+  }
+
+  private startBlock(chunk: Extract<StreamChunk, { type: 'block-start' }>): void {
+    if (!this.partials.has(chunk.index)) {
+      this.order.push(chunk.index)
+      this.partials.set(chunk.index, {
+        blockType: chunk.blockType,
+        text: '',
+        toolCallArguments: '',
+      })
+    }
+  }
+
+  private appendText(chunk: Extract<StreamChunk, { type: 'text-delta' | 'reasoning-delta' }>): void {
+    const partial = this.ensure(chunk.index, chunk.type === 'text-delta' ? 'text' : 'reasoning')
+    if (partial.block !== undefined) return // closed by block-end; ignore stragglers
+    partial.text += chunk.text
+    if (chunk.type === 'text-delta' && chunk.phase !== undefined) partial.textPhase = chunk.phase
+  }
+
+  private appendToolCall(chunk: Extract<StreamChunk, { type: 'tool-call-delta' }>): void {
+    const partial = this.ensure(chunk.index, 'tool-call')
+    if (partial.block !== undefined) return // closed by block-end; ignore stragglers
+    partial.toolCallId = chunk.id
+    if (chunk.name !== undefined && chunk.name.length > 0) partial.toolCallName = chunk.name
+    partial.toolCallArguments += chunk.argumentsDelta
+  }
+
+  private closeBlock(chunk: Extract<StreamChunk, { type: 'block-end' }>): void {
+    const partial = this.ensure(chunk.index, chunk.block.type)
+    // First close wins. Ignoring re-close stragglers keeps the streamed
+    // output and the final assembled block in agreement.
+    if (partial.block !== undefined) return
+    partial.block = chunk.block
   }
 
   private ensure(index: number, blockType: string): PartialBlock {

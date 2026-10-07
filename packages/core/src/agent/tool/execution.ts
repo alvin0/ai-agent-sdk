@@ -25,7 +25,8 @@ export interface ToolExecutionBackend {
 }
 export const localToolExecutionBackend: ToolExecutionBackend = Object.freeze({
   id: 'local',
-  capabilities: Object.freeze({ cancellation: 'cooperative', filesystem: 'host', network: 'host', cleanup: 'best-effort' }),
+  capabilities: Object.freeze({ cancellation: 'cooperative', filesystem: 'host', network: 'host',
+    cleanup: 'best-effort' }),
   execute: (_request: ToolExecutionRequest, local: () => Promise<ToolExecutionResult>) => local(),
 })
 
@@ -67,19 +68,21 @@ export function createToolExecutionInterceptor(options: {
     name: `execution:${backend.id}`,
     around: async (call: ToolCallContext, local: () => Promise<ToolExecutionResult>) => {
       const id = operationId(call)
-      if (typeof id !== 'string' || id.length === 0 || id.length > 512) throw ToolError.fatal('invalid operation identity', 'INVALID_OPERATION_ID')
+      validateOperationId(id)
       const operation = detachedFrozen({ operationId: id, toolName: call.toolName, args: call.args, identity })
       if (call.signal.aborted) throw ToolError.fatal('execution cancelled', 'TOOL_ABORTED')
       if (claim !== undefined) {
-        if (!isJsonValue(operation.args) || !isJsonValue(operation.identity)) throw ToolError.fatal('durable operation input must be lossless JSON', 'INVALID_OPERATION_INPUT')
+        if (!isJsonValue(operation.args)
+          || !isJsonValue(operation.identity)) {
+          throw ToolError.fatal('durable operation input must be lossless JSON', 'INVALID_OPERATION_INPUT')
+        }
         const previous = await claim(operation, call.signal)
         if (previous.status !== 'claimed') {
-          if (canonical(previous.operation) !== canonical(operation)) throw ToolError.fatal('operation identity conflicts with saved input', 'OPERATION_ID_CONFLICT')
-          if (previous.status === 'unknown') throw ToolError.fatal('operation outcome is unknown; reconcile before retrying', 'OPERATION_OUTCOME_UNKNOWN')
-          return detachedFrozen(previous.result)
+          return recoveredResult(previous, operation)
         }
       }
-      if (call.signal.aborted) throw ToolError.fatal('execution cancelled after claim; reconcile operation', 'OPERATION_OUTCOME_UNKNOWN')
+      if (call.signal.aborted) throw ToolError.fatal('execution cancelled after claim; reconcile operation',
+        'OPERATION_OUTCOME_UNKNOWN')
       // A throw, cancellation, or failed completion write leaves the durable claim
       // unresolved. A subsequent attempt must reconcile; it cannot execute again.
       const result = await execute({ ...operation, signal: call.signal }, local)
@@ -89,9 +92,26 @@ export function createToolExecutionInterceptor(options: {
   })
 }
 
+function validateOperationId(id: string): void {
+  if (typeof id !== 'string' || id.length === 0
+    || id.length > 512) throw ToolError.fatal('invalid operation identity', 'INVALID_OPERATION_ID')
+}
+
+function recoveredResult(previous: Exclude<ToolOperationClaim, { status: 'claimed' }>,
+  operation: ToolOperation): ToolExecutionResult {
+  if (canonical(previous.operation) !== canonical(operation)) {
+    throw ToolError.fatal('operation identity conflicts with saved input', 'OPERATION_ID_CONFLICT')
+  }
+  if (previous.status === 'unknown') {
+    throw ToolError.fatal('operation outcome is unknown; reconcile before retrying', 'OPERATION_OUTCOME_UNKNOWN')
+  }
+  return detachedFrozen(previous.result)
+}
+
 function canonical(value: unknown): string {
   if (value === undefined) return 'undefined'
   if (value === null || typeof value !== 'object') return JSON.stringify(value)
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
-  return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(',')}}`
+  return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical((value as Record<string,
+    unknown>)[key])}`).join(',')}}`
 }

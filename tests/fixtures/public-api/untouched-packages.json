@@ -378,7 +378,7 @@
           "withRetry",
           "withoutRunReport"
         ],
-        "declarationSha256": "8ddbe1bc8ea5000cf9d467e2f18c2d5d8954ace0842859b8b2acf9818a809c08"
+        "declarationSha256": "ede9d791c55753f7cbf843a849a3addeda7cee0e361fced8d3bd5cee1aa95b67"
       },
       "./agent": {
         "exports": [
@@ -674,7 +674,7 @@
           "validateSkillSource",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "b3571348f9c3bdf66c511d735a6c497baabecd4727698307f4f1a47d45313ff6"
+        "declarationSha256": "bdd76ff2cc6f7835041ca630ec468215b6494e5b7583e704fb87ac53c305f5bc"
       },
       "./memory": {
         "exports": [
@@ -713,7 +713,7 @@
           "resolveMemoryConfig",
           "selectCompactablePrefix"
         ],
-        "declarationSha256": "5d5250ddc4e1c7ce83d4747f5da7ba06557255fcdc3b11d2efd19b4f4a071ea0"
+        "declarationSha256": "2791b4ae2fafa64d4a7c10a8f9929cec277834f0005af3ee9f605fa1adaac1e2"
       },
       "./provider": {
         "exports": [
@@ -923,7 +923,7 @@
           "truncateMiddleToTokens",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "119d55dbe70d2bb61391c28ee05d8f14af3e6f3850ea2f05138f69322d7ba1c2"
+        "declarationSha256": "a6cc2396c26af393979cffd2176f57bc1f386b3b979c7ef7dd717bfb7b54a033"
       },
       "./observability": {
         "exports": [
@@ -1063,7 +1063,7 @@
           "retryAfterMs",
           "transportJson"
         ],
-        "declarationSha256": "db087b40c82984df8af78bd9805ab23d5ebcd3609322d7bb5675bd9cfa4e8d5a"
+        "declarationSha256": "ac4a7334985b114cc9d8b23e28d97491af5cd94fe5a73c1f5c7670c77a3958bc"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-responses": {
@@ -1212,7 +1212,7 @@
           "openAiPlugin",
           "openAiResponsesProtocol"
         ],
-        "declarationSha256": "e8abcc89b86f93e2adae8fcf2ebe73c08517dce42e9b55c1521dbe40438063ba"
+        "declarationSha256": "89268d74c27a1022ef71742f9c39ef718b9ca0f39d8eec725520a76acc51328f"
       }
     },
     "@alvin0/ai-agent-sdk-provider-gemini": {
@@ -1233,7 +1233,7 @@
           "geminiInteractionsProtocol",
           "geminiPlugin"
         ],
-        "declarationSha256": "5e2edf0a5088e1874161c295a63dac64eeaea27ed333551bb8eb49e0b934352f"
+        "declarationSha256": "58ce2980de908680db5f84a5e1daf3999170acf69f7b13265d8060e92968b4ce"
       }
     }
   }

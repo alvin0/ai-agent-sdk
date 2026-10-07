@@ -1,5 +1,6 @@
 import { deepFreeze } from '../primitives/freeze.ts'
-import { createSpanId, createTraceId, freezeCorrelation, isSpanId, isTraceId, traceparent, type CorrelationContext } from './context.ts'
+import { createSpanId, createTraceId, freezeCorrelation, isSpanId, isTraceId, traceparent,
+  type CorrelationContext } from './context.ts'
 import type { ObservationEvent, OperationStatus, SafeErrorRecord } from './event.ts'
 
 export type DeliveryMode = 'operational' | 'reliable' | 'audit'
@@ -37,17 +38,13 @@ export function validateCaptureReceipt(value: unknown, eventId: string): Capture
   } catch {
     throw new TypeError('observation receipt properties could not be read')
   }
-  if (receipt.eventId !== eventId) throw new TypeError('observation receipt eventId mismatch')
-  if (!RECEIPT_STATUSES.has(receipt.status as CaptureReceipt['status'])) throw new TypeError('observation receipt status is invalid')
-  if (typeof receipt.durable !== 'boolean') throw new TypeError('observation receipt durable flag is invalid')
-  if (!RECEIPT_BOUNDARIES.has(receipt.boundary as ObservationBoundary)) throw new TypeError('observation receipt boundary is invalid')
-  if (receipt.reason !== undefined && !RECEIPT_REASONS.has(receipt.reason as NonNullable<CaptureReceipt['reason']>)) {
-    throw new TypeError('observation receipt reason is invalid')
-  }
+  validateReceiptShape(receipt, eventId)
   const status = receipt.status as CaptureReceipt['status']
   const boundary = receipt.boundary as ObservationBoundary
   const durable = receipt.durable
-  if ((boundary === 'none') === durable) throw new TypeError('observation receipt durable flag contradicts its boundary')
+  if ((boundary === 'none') === durable) {
+    throw new TypeError('observation receipt durable flag contradicts its boundary')
+  }
   if (status !== 'accepted' && (durable || boundary !== 'none')) {
     throw new TypeError('a rejected or disabled observation receipt cannot claim durability')
   }
@@ -58,6 +55,22 @@ export function validateCaptureReceipt(value: unknown, eventId: string): Capture
     boundary,
     ...receipt.reason === undefined ? {} : { reason: receipt.reason as NonNullable<CaptureReceipt['reason']> },
   })
+}
+
+function validateReceiptShape(
+  receipt: Readonly<Record<string, unknown>>, eventId: string,
+): asserts receipt is Readonly<Record<string, unknown>> & CaptureReceipt {
+  if (receipt.eventId !== eventId) throw new TypeError('observation receipt eventId mismatch')
+  if (!RECEIPT_STATUSES.has(receipt.status as CaptureReceipt['status'])) {
+    throw new TypeError('observation receipt status is invalid')
+  }
+  if (typeof receipt.durable !== 'boolean') throw new TypeError('observation receipt durable flag is invalid')
+  if (!RECEIPT_BOUNDARIES.has(receipt.boundary as ObservationBoundary)) {
+    throw new TypeError('observation receipt boundary is invalid')
+  }
+  if (receipt.reason !== undefined && !RECEIPT_REASONS.has(receipt.reason as NonNullable<CaptureReceipt['reason']>)) {
+    throw new TypeError('observation receipt reason is invalid')
+  }
 }
 
 export type ObservationSpanName =
@@ -154,21 +167,8 @@ export function snapshotObservationSpan(value: unknown): ObservationSpanSnapshot
     if (typeof value !== 'object' || value === null) return undefined
     const correlationValue = Reflect.get(value, 'correlation')
     if (typeof correlationValue !== 'object' || correlationValue === null) return undefined
-    const traceId = Reflect.get(correlationValue, 'traceId')
-    const spanId = Reflect.get(correlationValue, 'spanId')
-    const parentSpanId = Reflect.get(correlationValue, 'parentSpanId')
-    const runId = Reflect.get(correlationValue, 'runId')
-    if (!isTraceId(traceId) || !isSpanId(spanId)
-      || (parentSpanId !== null && !isSpanId(parentSpanId))
-      || typeof runId !== 'string' || runId.length === 0) return undefined
-    const optional: Partial<Record<typeof OPTIONAL_CORRELATION_KEYS[number], string>> = {}
-    for (const key of OPTIONAL_CORRELATION_KEYS) {
-      const field = Reflect.get(correlationValue, key)
-      if (field === undefined) continue
-      if (typeof field !== 'string' || field.length === 0) return undefined
-      optional[key] = field
-    }
-    const correlation = freezeCorrelation({ traceId, spanId, parentSpanId, runId, ...optional })
+    const correlation = snapshotCorrelation(correlationValue)
+    if (correlation === undefined) return undefined
     const backendTraceparent = Reflect.get(value, 'traceparent')
     const end = Reflect.get(value, 'end')
     if (!traceparentMatchesCorrelation(backendTraceparent, correlation) || typeof end !== 'function') return undefined
@@ -182,6 +182,30 @@ export function snapshotObservationSpan(value: unknown): ObservationSpanSnapshot
   } catch {
     return undefined
   }
+}
+
+function snapshotCorrelation(correlationValue: object): CorrelationContext | undefined {
+  const traceId = Reflect.get(correlationValue, 'traceId')
+  const spanId = Reflect.get(correlationValue, 'spanId')
+  const parentSpanId = Reflect.get(correlationValue, 'parentSpanId')
+  const runId = Reflect.get(correlationValue, 'runId')
+  if (!isTraceId(traceId) || !isSpanId(spanId)
+    || (parentSpanId !== null && !isSpanId(parentSpanId))
+    || typeof runId !== 'string' || runId.length === 0) return undefined
+  const optional = snapshotOptionalCorrelation(correlationValue)
+  if (optional === undefined) return undefined
+  return freezeCorrelation({ traceId, spanId, parentSpanId, runId, ...optional })
+}
+
+function snapshotOptionalCorrelation(correlationValue: object) {
+  const optional: Partial<Record<typeof OPTIONAL_CORRELATION_KEYS[number], string>> = {}
+  for (const key of OPTIONAL_CORRELATION_KEYS) {
+    const field = Reflect.get(correlationValue, key)
+    if (field === undefined) continue
+    if (typeof field !== 'string' || field.length === 0) return undefined
+    optional[key] = field
+  }
+  return optional
 }
 
 export function validObservationSpan(value: unknown): value is ObservationSpan {
@@ -207,6 +231,7 @@ export const NOOP_OBSERVATION_PORT: ObservationPort = Object.freeze({
     return Object.freeze({ eventId: event.eventId, status: 'disabled', durable: false, boundary: 'none' })
   },
   checkpoint(event: ObservationEvent): Promise<CaptureReceipt> {
-    return Promise.resolve(Object.freeze({ eventId: event.eventId, status: 'disabled', durable: false, boundary: 'none' }))
+    return Promise.resolve(Object.freeze({ eventId: event.eventId, status: 'disabled', durable: false,
+      boundary: 'none' }))
   },
 })

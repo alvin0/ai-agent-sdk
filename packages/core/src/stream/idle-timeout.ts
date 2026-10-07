@@ -38,22 +38,7 @@ export async function* withIdleTimeout<T>(
   let exhausted = false
   try {
     while (true) {
-      let timer: ReturnType<typeof setTimeout> | undefined
-      const expiry = new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(onTimeout()), timeoutMs)
-      })
-      let result: IteratorResult<T>
-      try {
-        // Both branches settle: `iterator.next()` on data or source failure, the
-        // timer on silence. Whichever loses the race is discarded, and the timer
-        // is always cleared so a resolved read cannot leave the process alive.
-        result = await Promise.race([iterator.next(), expiry])
-      } finally {
-        if (timer !== undefined) clearTimeout(timer)
-        // The losing `expiry` promise rejects later with nothing awaiting it.
-        // Attach a no-op handler so that rejection is never "unhandled".
-        void expiry.catch(() => {})
-      }
+      const result = await readWithTimeout(iterator, timeoutMs, onTimeout)
       if (result.done === true) {
         exhausted = true
         return
@@ -66,13 +51,34 @@ export async function* withIdleTimeout<T>(
         throw new RangeError('teardownTimeoutMs must be a positive finite number')
       }
       const close = iterator.return?.bind(iterator)
-      if (close !== undefined) {
-        const closing = Promise.resolve().then(async () => { await close() })
-        if (!await waitForSettlement(closing, teardownTimeoutMs)) {
-          throw new Error(`stream source ignored cancellation for more than ${teardownTimeoutMs}ms`)
-        }
-      }
+      await closeWithTimeout(close, teardownTimeoutMs)
     }
+  }
+}
+
+async function readWithTimeout<T>(
+  iterator: AsyncIterator<T>, timeoutMs: number, onTimeout: () => Error,
+): Promise<IteratorResult<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const expiry = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(onTimeout()), timeoutMs)
+  })
+  try {
+    return await Promise.race([iterator.next(), expiry])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+    void expiry.catch(() => {})
+  }
+}
+
+async function closeWithTimeout(
+  close: (() => Promise<IteratorResult<unknown> | undefined>) | undefined,
+  timeoutMs: number,
+): Promise<void> {
+  if (close === undefined) return
+  const closing = Promise.resolve().then(async () => { await close() })
+  if (!await waitForSettlement(closing, timeoutMs)) {
+    throw new Error(`stream source ignored cancellation for more than ${timeoutMs}ms`)
   }
 }
 import { waitForSettlement } from '../async/settlement.ts'

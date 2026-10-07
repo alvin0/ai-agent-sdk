@@ -154,7 +154,9 @@ function responseTooLarge(): Response {
 }
 async function settleClose(close: () => Promise<void>): Promise<void> { try { await close() } catch {} }
 function objectValue(value: unknown): object {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid MCP server definition')
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new TypeError('Invalid MCP server definition')
+  }
   return value
 }
 function ownValue(source: object, key: PropertyKey, required = true): unknown {
@@ -181,6 +183,8 @@ function positive(value: unknown, label: string): number {
 }
 function optionalObject<T>(value: unknown, label: string): T | undefined {
   if (value === undefined) return undefined
-  if ((typeof value !== 'object' || value === null) && typeof value !== 'function') throw new TypeError(`${label} is invalid`)
+  if ((typeof value !== 'object' || value === null) && typeof value !== 'function') {
+    throw new TypeError(`${label} is invalid`)
+  }
   return value as T
 }

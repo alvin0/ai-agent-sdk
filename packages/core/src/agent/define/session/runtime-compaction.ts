@@ -35,10 +35,15 @@ export async function runRuntimeCompaction(input: RuntimeCompactionInput): Promi
       { error },
     )
   }
+  const outcome = invocation.signal?.aborted === true ? 'aborted' : compactionOutcome(failure)
   const report = await accounting.finalize(
-    invocation.signal?.aborted === true ? 'aborted' : failure === undefined ? 'success' : 'error',
+    outcome,
     failure === undefined,
     failure,
   )
   return Object.freeze({ result, report, ...(failure === undefined ? {} : { failure }) })
+}
+
+function compactionOutcome(failure: unknown): 'success' | 'error' {
+  return failure === undefined ? 'success' : 'error'
 }

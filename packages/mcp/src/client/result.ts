@@ -78,13 +78,8 @@ function renderRemoteBlock(value: JsonValue): ContentBlock[] {
     return [{ type: 'text', text: JSON.stringify(value) }]
   }
   if (value.type === 'text' && typeof value.text === 'string') return [{ type: 'text', text: value.text }]
-  if (value.type === 'image' && typeof value.data === 'string'
-    && typeof value.mimeType === 'string' && isImageMediaType(value.mimeType)) {
-    return [{ type: 'image', source: { kind: 'base64', mediaType: value.mimeType, data: value.data } }]
-  }
-  if (value.type === 'resource' && isJsonObject(value.resource) && typeof value.resource.text === 'string') {
-    return [{ type: 'text', text: value.resource.text }]
-  }
+  const embedded = renderEmbeddedBlock(value)
+  if (embedded !== undefined) return embedded
   if (value.type === 'resource_link' && typeof value.uri === 'string') {
     const name = typeof value.name === 'string' ? value.name : value.uri
     return [{ type: 'text', text: `[MCP resource: ${name}](${value.uri})` }]
@@ -109,4 +104,15 @@ function isJsonObject(value: unknown): value is Record<string, JsonValue> {
 
 function isImageMediaType(value: string): value is ImageMediaType {
   return value === 'image/jpeg' || value === 'image/png' || value === 'image/gif' || value === 'image/webp'
+}
+
+function renderEmbeddedBlock(value: Record<string, JsonValue>): ContentBlock[] | undefined {
+  if (value.type === 'image' && typeof value.data === 'string'
+    && typeof value.mimeType === 'string' && isImageMediaType(value.mimeType)) {
+    return [{ type: 'image', source: { kind: 'base64', mediaType: value.mimeType, data: value.data } }]
+  }
+  if (value.type === 'resource' && isJsonObject(value.resource) && typeof value.resource.text === 'string') {
+    return [{ type: 'text', text: value.resource.text }]
+  }
+  return undefined
 }

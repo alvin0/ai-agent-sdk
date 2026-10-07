@@ -72,6 +72,5 @@ export function event(runId = 'run-one', sequence = 1): ObservationEvent {
 
 export async function deliveryBatch(): Promise<ObservationDeliveryBatch> {
   const platform = createRuntimePlatform()
-  return createDeliveryBatch(createRuntimeResource(undefined, platform), [event()],
-    [createRunTerminalRecord(await ledgerReport())], platform)
+  return createDeliveryBatch(createRuntimeResource(undefined, platform), { events: [event()], records: [createRunTerminalRecord(await ledgerReport())] }, platform)
 }

@@ -121,20 +121,7 @@ function countProviderInputs(batches: readonly EmbeddingBatchUsageEvidence[], in
   return seen.size
 }
 
-/**
- * Folds batch evidence into one `EmbeddingUsageReport`.
- *
- * `status` follows the coverage of the batches that were dispatched, so a call
- * served entirely from cache reports `missing` with `batches: 0` instead of
- * claiming complete knowledge of a cost that was never incurred. `tokens` is
- * published only for `complete`, and `totalTokens` only when every readable
- * batch reported one — a partial sum of totals would understate the call.
- */
-export function aggregateEmbeddingUsage(input: EmbeddingUsageAggregationInput): EmbeddingUsageAggregation {
-  const inputCount = Number.isSafeInteger(input.inputCount) && input.inputCount > 0 ? input.inputCount : 0
-  const batches = input.batches
-  const warnings: EmbeddingWarning[] = []
-
+function sumBatchUsage(batches: readonly EmbeddingBatchUsageEvidence[], warnings: EmbeddingWarning[]) {
   let batchesWithUsage = 0
   // The sum of every attempt spent on the call, retries included. Zero here can
   // only come from an empty batch list, never from a default (Requirement 16.6).
@@ -156,6 +143,26 @@ export function aggregateEmbeddingUsage(input: EmbeddingUsageAggregationInput): 
     if (reading.reported.totalTokens === undefined) everyReadableBatchHasTotal = false
     else totalTokens += reading.reported.totalTokens
   }
+
+  return { batchesWithUsage, providerAttempts, inputTokens, totalTokens, everyReadableBatchHasTotal }
+}
+
+/**
+ * Folds batch evidence into one `EmbeddingUsageReport`.
+ *
+ * `status` follows the coverage of the batches that were dispatched, so a call
+ * served entirely from cache reports `missing` with `batches: 0` instead of
+ * claiming complete knowledge of a cost that was never incurred. `tokens` is
+ * published only for `complete`, and `totalTokens` only when every readable
+ * batch reported one — a partial sum of totals would understate the call.
+ */
+export function aggregateEmbeddingUsage(input: EmbeddingUsageAggregationInput): EmbeddingUsageAggregation {
+  const inputCount = Number.isSafeInteger(input.inputCount) && input.inputCount > 0 ? input.inputCount : 0
+  const batches = input.batches
+  const warnings: EmbeddingWarning[] = []
+
+  const { batchesWithUsage, providerAttempts, inputTokens, totalTokens, everyReadableBatchHasTotal }
+    = sumBatchUsage(batches, warnings)
 
   const status = classifyEmbeddingUsageStatus(batches.length, batchesWithUsage)
   const inputsFromProvider = countProviderInputs(batches, inputCount)

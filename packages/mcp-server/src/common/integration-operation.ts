@@ -107,7 +107,9 @@ function validateOperation(family: McpServerIntegrationFamily, operation: McpSer
   const operations = MCP_SERVER_INTEGRATION_OPERATIONS[family] as readonly string[] | undefined
   assertIdentity(family, 64, 'integration family')
   assertIdentity(operation, 64, 'integration operation')
-  if (operations === undefined || !operations.includes(operation)) throw new TypeError('Invalid MCP integration operation')
+  if (operations === undefined || !operations.includes(operation)) {
+    throw new TypeError('Invalid MCP integration operation')
+  }
 }
 
 function emit(logger: SdkLogger | undefined, level: 'info' | 'error', message: string,
@@ -116,7 +118,9 @@ function emit(logger: SdkLogger | undefined, level: 'info' | 'error', message: s
 }
 
 function terminalMessage(status: 'success' | 'error' | 'aborted'): string {
-  return status === 'success' ? MESSAGES.success : status === 'error' ? MESSAGES.failure : MESSAGES.abort
+  if (status === 'success') return MESSAGES.success
+  if (status === 'error') return MESSAGES.failure
+  return MESSAGES.abort
 }
 function monotonicNow(): number { return performance.now() }
 function durationSince(startedAt: number): number {

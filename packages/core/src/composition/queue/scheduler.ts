@@ -1,5 +1,4 @@
 import type { ObservationBoundary, ObservationEvent } from '../../observation/index.ts'
-import type { RuntimePlatform } from '../../platform/adapter.ts'
 import { RuntimeResources } from '../../platform/resources.ts'
 import { createDeliveryBatch, deliveryBatchItemsBytes } from '../delivery/batch.ts'
 import { DeliveryCheckpoint, type BatchCheckpointReport } from '../delivery/checkpoint.ts'
@@ -54,7 +53,6 @@ export class DeliveryQueueScheduler {
     private readonly store: DeliveryQueueStore,
     private readonly resource: RuntimeObservationResource,
     private readonly registrations: readonly RuntimeObservationExporterRegistration[],
-    private readonly platform: RuntimePlatform,
     private readonly resources: RuntimeResources,
   ) {}
 
@@ -62,7 +60,8 @@ export class DeliveryQueueScheduler {
     return this.schedule(this.store.activeEntries(), deadlineAt, caller)
   }
 
-  checkpointRun(runId: string, throughSequence: number | undefined, deadlineAt: number, caller?: AbortSignal): Promise<QueueFlushReport> {
+  checkpointRun(runId: string, throughSequence: number | undefined, deadlineAt: number,
+    caller?: AbortSignal): Promise<QueueFlushReport> {
     return this.schedule(this.store.runEntries(runId, throughSequence), deadlineAt, caller)
   }
 
@@ -82,16 +81,20 @@ export class DeliveryQueueScheduler {
       ...(this.lastExportAt === undefined ? {} : { lastExportAt: this.lastExportAt }) })
   }
 
-  private schedule(targets: readonly DeliveryQueueEntry[], deadlineAt: number, caller?: AbortSignal): Promise<QueueFlushReport> {
+  private schedule(targets: readonly DeliveryQueueEntry[], deadlineAt: number,
+    caller?: AbortSignal): Promise<QueueFlushReport> {
     const run = this.tail.then(() => this.flushOnce(targets, deadlineAt, caller))
     this.tail = run.then(() => undefined, () => undefined)
     return run
   }
 
-  private async flushOnce(targets: readonly DeliveryQueueEntry[], deadlineAt: number, caller?: AbortSignal): Promise<QueueFlushReport> {
+  private async flushOnce(targets: readonly DeliveryQueueEntry[], deadlineAt: number,
+    caller?: AbortSignal): Promise<QueueFlushReport> {
     if (this.sealed || this.resources.isClosed) return this.report('closed', targets, [])
     if (caller?.aborted) return this.report('aborted', targets, [])
-    if (!Number.isFinite(deadlineAt) || this.platform.monotonicNow() >= deadlineAt) return this.report('timed-out', targets, [])
+    if (!Number.isFinite(deadlineAt) || this.resources.platform.monotonicNow() >= deadlineAt) {
+      return this.report('timed-out', targets, [])
+    }
     const activeTargets = targets.filter(entry => this.store.contains(entry))
     this.createTasks(activeTargets.filter(entry => !this.assigned.has(entry)))
     const relevant = [...this.tasks].filter(task => task.entries.some(entry => targets.includes(entry)))
@@ -101,12 +104,15 @@ export class DeliveryQueueScheduler {
       reports.push(report)
       this.apply(task, report)
     }
-    const state = this.sealed || this.resources.isClosed ? 'closed'
-      : caller?.aborted ? 'aborted'
-        : this.platform.monotonicNow() >= deadlineAt ? 'timed-out'
-          : undefined
+    const state = this.flushState(caller, deadlineAt)
     if (state === 'timed-out') this.flushTimeouts = saturatingCounterAdd(this.flushTimeouts, 1)
     return this.report(state, targets, reports)
+  }
+
+  private flushState(caller: AbortSignal | undefined, deadlineAt: number): QueueFlushReport['status'] | undefined {
+    if (this.sealed || this.resources.isClosed) return 'closed'
+    if (caller?.aborted) return 'aborted'
+    return this.resources.platform.monotonicNow() >= deadlineAt ? 'timed-out' : undefined
   }
 
   private createTasks(entries: readonly DeliveryQueueEntry[]): void {
@@ -116,13 +122,16 @@ export class DeliveryQueueScheduler {
       while (cursor < entries.length && selected.length < this.store.maxBatchEvents) {
         const candidate = entries[cursor]!
         if (selected.length > 0 && this.batchBytes([...selected, candidate]) > this.store.maxBatchBytes) break
-        if (this.batchBytes([candidate]) > this.store.maxBatchBytes) throw new Error('Queue admitted an undeliverable item')
+        if (this.batchBytes([candidate]) > this.store.maxBatchBytes) {
+          throw new Error('Queue admitted an undeliverable item')
+        }
         selected.push(candidate)
         cursor++
       }
       const events = selected.filter(entry => entry.kind === 'event').map(entry => entry.item as ObservationEvent)
-      const records = selected.filter(entry => entry.kind === 'run-record').map(entry => entry.item as RunTerminalRecord)
-      const batch = createDeliveryBatch(this.resource, events, records, this.platform,
+      const records = selected.filter(entry => entry.kind === 'run-record')
+        .map(entry => entry.item as RunTerminalRecord)
+      const batch = createDeliveryBatch(this.resource, { events, records }, this.resources.platform,
         { content: this.store.content, maxItems: this.store.maxBatchEvents, maxBytes: this.store.maxBatchBytes })
       const task: QueueTask = Object.freeze({ entries: Object.freeze(selected),
         checkpoint: new DeliveryCheckpoint(batch, this.registrations, this.resources) })
@@ -143,19 +152,7 @@ export class DeliveryQueueScheduler {
 
   private apply(task: QueueTask, report: BatchCheckpointReport): void {
     for (const row of report.exporters) {
-      if (row.delivery.status === 'failed' || row.delivery.status === 'timed-out') {
-        this.exporterFailures = saturatingCounterAdd(this.exporterFailures, 1)
-        if (row.requirement === 'required') this.requiredFailure = true
-      }
-      const acceptedEvents = new Set(row.delivery.acceptedEventIds), acceptedRuns = new Set(row.delivery.acceptedRunIds)
-      const terminalBestEffort = row.requirement === 'best-effort'
-        && ['failed', 'timed-out', 'aborted', 'closed'].includes(row.delivery.status)
-      for (const entry of task.entries) {
-        if (terminalBestEffort) this.failed.add(entry)
-        if (terminalBestEffort || (entry.kind === 'event' ? acceptedEvents.has(entry.id) : acceptedRuns.has(entry.id))) {
-          this.pending.get(entry)?.delete(row.exporterIndex)
-        }
-      }
+      this.applyExporter(task.entries, row)
     }
     const settled = task.entries.filter(entry => this.pending.get(entry)?.size === 0)
     for (const entry of settled) this.finished.add(entry)
@@ -163,7 +160,7 @@ export class DeliveryQueueScheduler {
       for (const entry of settled) this.delivered.add(entry)
       if (this.registrations.length > 0 && settled.length > 0) {
         this.exported = saturatingCounterAdd(this.exported, settled.length)
-        this.lastExportAt = new Date(this.platform.wallNow()).toISOString()
+        this.lastExportAt = new Date(this.resources.platform.wallNow()).toISOString()
       }
     }
     this.store.unprotect(settled)
@@ -172,10 +169,31 @@ export class DeliveryQueueScheduler {
     if (settled.length === task.entries.length) this.tasks.delete(task)
   }
 
+  private applyExporter(
+    entries: readonly DeliveryQueueEntry[], row: BatchCheckpointReport['exporters'][number],
+  ): void {
+    if (row.delivery.status === 'failed' || row.delivery.status === 'timed-out') {
+      this.exporterFailures = saturatingCounterAdd(this.exporterFailures, 1)
+      if (row.requirement === 'required') this.requiredFailure = true
+    }
+    const acceptedEvents = new Set(row.delivery.acceptedEventIds)
+    const acceptedRuns = new Set(row.delivery.acceptedRunIds)
+    const terminal = row.requirement === 'best-effort'
+      && ['failed', 'timed-out', 'aborted', 'closed'].includes(row.delivery.status)
+    for (const entry of entries) {
+      if (terminal) this.failed.add(entry)
+      if (terminal || acceptedEntry(entry, acceptedEvents, acceptedRuns)) {
+        this.pending.get(entry)?.delete(row.exporterIndex)
+      }
+    }
+  }
+
   private report(
-    forced: QueueFlushReport['status'] | undefined, targets: readonly DeliveryQueueEntry[], batches: readonly BatchCheckpointReport[],
+    forced: QueueFlushReport['status'] | undefined, targets: readonly DeliveryQueueEntry[],
+      batches: readonly BatchCheckpointReport[],
   ): QueueFlushReport {
-    const requiredIndexes = new Set(this.registrations.map((value, index) => value.requirement === 'required' ? index : -1).filter(index => index >= 0))
+    const requiredIndexes = new Set(this.registrations.map((value,
+      index) => value.requirement === 'required' ? index : -1).filter(index => index >= 0))
     const outstanding = (entry: DeliveryQueueEntry): number => this.finished.has(entry) ? 0
       : this.pending.get(entry)?.size ?? (this.store.contains(entry) ? Math.max(1, this.registrations.length) : 1)
     const pendingItems = targets.filter(entry => outstanding(entry) > 0).length
@@ -185,19 +203,34 @@ export class DeliveryQueueScheduler {
       if (pending !== undefined) return [...pending].some(index => requiredIndexes.has(index))
       return requiredIndexes.size > 0
     }).length
-    const requiredComplete = forced !== 'closed' && forced !== 'aborted' && forced !== 'timed-out' && pendingRequired === 0
+    const requiredComplete = forced !== 'closed' && forced !== 'aborted' && forced !== 'timed-out'
+      && pendingRequired === 0
     const complete = requiredComplete && pendingItems === 0 && batches.every(batch => batch.complete)
       && targets.every(entry => !this.failed.has(entry))
     const reachedBoundary = requiredComplete && requiredIndexes.size > 0
       ? [...requiredIndexes].map(index => this.registrations[index]!.boundary).reduce(weakerBoundary)
       : 'none'
-    const status = forced ?? (complete ? 'complete' : requiredComplete ? 'required-complete' : 'incomplete')
+    const status = forced ?? reportStatus(complete, requiredComplete)
     return Object.freeze({ status, requiredComplete, complete, reachedBoundary,
       targetItems: targets.length, pendingRequired, pendingItems, batches: Object.freeze([...batches]) })
   }
 }
 
+function acceptedEntry(
+  entry: DeliveryQueueEntry, events: ReadonlySet<string>, runs: ReadonlySet<string>,
+): boolean {
+  return entry.kind === 'event' ? events.has(entry.id) : runs.has(entry.id)
+}
+
+function reportStatus(complete: boolean, requiredComplete: boolean): QueueFlushReport['status'] {
+  if (complete) return 'complete'
+  return requiredComplete ? 'required-complete' : 'incomplete'
+}
+
 function weakerBoundary(left: ObservationBoundary, right: ObservationBoundary): ObservationBoundary {
   return rank(left) <= rank(right) ? left : right
 }
-function rank(value: ObservationBoundary): number { return value === 'remote-acknowledged' ? 2 : value === 'local-durable' ? 1 : 0 }
+function rank(value: ObservationBoundary): number {
+  if (value === 'remote-acknowledged') return 2
+  return value === 'local-durable' ? 1 : 0
+}

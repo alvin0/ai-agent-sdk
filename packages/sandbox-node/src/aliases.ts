@@ -68,15 +68,13 @@ export async function findAliasedPaths(
       catch { complete = false; continue }
       if (stats.isSymbolicLink()) continue
       if (stats.isDirectory()) { await walk(path, depth + 1); continue }
-      if (stats.isFile() && stats.nlink > 1) aliased.push(path)
+      if (isAliasedFile(stats)) aliased.push(path)
     }
   }
 
-  const canonicalRoots = new Set<string>()
-  for (const root of roots) {
-    try { canonicalRoots.add(await realpath(root)) }
-    catch { complete = false }
-  }
+  const canonical = await canonicalScanRoots(roots)
+  complete = canonical.complete
+  const canonicalRoots = canonical.roots
   for (const root of canonicalRoots) {
     let stats: Awaited<ReturnType<typeof lstat>>
     try { stats = await lstat(root) }
@@ -86,4 +84,18 @@ export async function findAliasedPaths(
     else if (stats.isFile() && stats.nlink > 1) aliased.push(root)
   }
   return Object.freeze({ aliased: Object.freeze(aliased), complete, examined })
+}
+
+function isAliasedFile(stats: Awaited<ReturnType<typeof lstat>>): boolean {
+  return stats.isFile() && stats.nlink > 1
+}
+
+async function canonicalScanRoots(roots: readonly string[]) {
+  let complete = true
+  const canonicalRoots = new Set<string>()
+  for (const root of roots) {
+    try { canonicalRoots.add(await realpath(root)) }
+    catch { complete = false }
+  }
+  return { roots: canonicalRoots, complete }
 }

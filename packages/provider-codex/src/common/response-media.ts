@@ -22,11 +22,7 @@ export function codexResponseMediaFetch(
     // standards runtimes and refuses to broaden the exception for other inputs.
     if (typeof input !== 'string') return response
     const requestedUrl = input
-    if (!official || requestedUrl !== configuredEndpoint
-      || response.status !== 200 || response.body === null
-      || response.headers.get('content-type') !== null
-      || response.redirected || response.type === 'opaqueredirect'
-      || (response.url.length > 0 && response.url !== requestedUrl)) return response
+    if (!official || requestedUrl !== configuredEndpoint || !allowsMissingMedia(response, requestedUrl)) return response
     const headers = new Headers(response.headers)
     headers.set('content-type', 'text/event-stream')
     return new Response(response.body, {
@@ -45,4 +41,11 @@ function endpoint(value: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+function allowsMissingMedia(response: Response, requestedUrl: string): boolean {
+  return !(response.status !== 200 || response.body === null
+    || response.headers.get('content-type') !== null
+    || response.redirected || response.type === 'opaqueredirect'
+    || (response.url.length > 0 && response.url !== requestedUrl))
 }

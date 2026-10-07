@@ -1,48 +1,33 @@
-import { randomBytes } from 'node:crypto'
+import { recoverJournal  } from './journal/recovery.ts'
+import { journalLimits   } from './journal/runtime-options.ts'
 import {
-  chmod,
   lstat,
   readFile,
   readdir,
-  rename,
   stat,
-  truncate,
   unlink,
   type FileHandle,
 } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join   } from 'node:path'
 import {
   deepFreeze,
   type ObservationBoundary,
   type ObservationEvent,
 } from '@alvin0/ai-agent-sdk-core'
-import type { ExportAck, ObservationBatch, ObservationExporter } from '@alvin0/ai-agent-sdk-core/observability'
+import type { ExportAck, ObservationBatch, ObservationExporter   } from '@alvin0/ai-agent-sdk-core/observability'
 import {
-  JOURNAL_DEFAULTS,
   JOURNAL_FILES,
   JOURNAL_LIMITS,
-  positiveSafeInteger,
   safeSegmentId,
 } from './journal/config.ts'
-import { journalFailure } from './journal/errors.ts'
-import { journalChecksum, validObservationEvent } from './journal/frame.ts'
-import { atomicWriteJson, ensureSafeRoot, openExclusiveFile } from './common/safe-filesystem.ts'
-import type { JsonlObservationJournalOptions } from './journal/types.ts'
+import { journalFailure   } from './journal/errors.ts'
+import { journalChecksum } from './journal/frame.ts'
+import { atomicWriteJson, ensureSafeRoot, openExclusiveFile   } from './common/safe-filesystem.ts'
+import type { JournalRecoveryRecord, JournalRecoveryResult, JsonlObservationJournalOptions } from './journal/types.ts'
 
 export type { JournalDurabilityMode, JsonlObservationJournalOptions } from './journal/types.ts'
 
-export interface JournalRecoveryRecord {
-  readonly segment: string
-  readonly line: number
-  readonly event: ObservationEvent
-  readonly payloadJson: string
-}
-
-export interface JournalRecoveryResult {
-  readonly records: readonly JournalRecoveryRecord[]
-  readonly quarantinedSegments: readonly string[]
-  readonly truncatedSegments: readonly string[]
-}
+export type { JournalRecoveryRecord, JournalRecoveryResult } from './journal/types.ts'
 
 export interface JournalStats {
   readonly segmentCount: number
@@ -70,7 +55,8 @@ interface PendingStage {
 }
 
 function journalLine(event: ObservationEvent, payloadJson: string): string {
-  return `${JSON.stringify({ schemaVersion: 1, eventId: event.eventId, payloadJson, sha256: journalChecksum(payloadJson) })}\n`
+  const frame = { schemaVersion: 1, eventId: event.eventId, payloadJson, sha256: journalChecksum(payloadJson) }
+  return `${JSON.stringify(frame)}\n`
 }
 
 function dateDay(value: Date): string {
@@ -100,18 +86,7 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
     this.id = options.id ?? 'journal'
     if (!/^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,63})$/.test(this.id)) throw new TypeError('journal id is invalid')
     this.supportedBoundaries = Object.freeze(options.mode === 'operational' ? ['none'] : ['local-durable'])
-    this.options = {
-      mode: options.mode,
-      maxSegmentBytes: positiveSafeInteger(options.maxSegmentBytes ?? JOURNAL_DEFAULTS.maxSegmentBytes, 'maxSegmentBytes'),
-      maxRetainedBytes: positiveSafeInteger(options.maxRetainedBytes ?? JOURNAL_DEFAULTS.maxRetainedBytes, 'maxRetainedBytes'),
-      acknowledgedRetentionMs: positiveSafeInteger(
-        options.acknowledgedRetentionMs ?? JOURNAL_DEFAULTS.acknowledgedRetentionMs, 'acknowledgedRetentionMs',
-      ),
-      syncIntervalMs: positiveSafeInteger(options.syncIntervalMs ?? JOURNAL_DEFAULTS.syncIntervalMs, 'syncIntervalMs'),
-      syncRecordCount: positiveSafeInteger(options.syncRecordCount ?? JOURNAL_DEFAULTS.syncRecordCount, 'syncRecordCount'),
-      now: options.now ?? (() => new Date()),
-      segmentId: options.segmentId ?? (() => randomBytes(12).toString('hex')),
-    }
+    this.options = { mode: options.mode, ...journalLimits(options) }
     this.rootPromise = this.initialize(options.rootDir)
     void this.rootPromise.catch(() => undefined)
   }
@@ -125,7 +100,8 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
     const payloadJson = JSON.stringify(event)
     const existing = this.pendingStages.get(event.eventId)
     if (existing !== undefined) {
-      if (existing.payloadJson !== payloadJson) throw journalFailure('corrupt', 'duplicate journal eventId has different data')
+      if (existing.payloadJson !== payloadJson)
+        throw journalFailure('corrupt', 'duplicate journal eventId has different data')
       return existing.promise
     }
     const promise = this.enqueueWrite(async () => {
@@ -212,7 +188,7 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
     })
   }
 
-  private async cleanupNow(root: string): Promise<void> {
+  private async cleanupCandidates(root: string) {
     const recovered = await recoverJournal(root)
     const bySegment = new Map<string, JournalRecoveryRecord[]>()
     for (const record of recovered.records) {
@@ -220,7 +196,6 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
       records.push(record)
       bySegment.set(record.segment, records)
     }
-    const now = this.options.now().getTime()
     const candidates: Array<{ name: string; bytes: number; mtimeMs: number; acknowledged: boolean }> = []
     for (const [name, records] of bySegment) {
       if (name === this.current?.name) continue
@@ -230,12 +205,22 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
         acknowledged: records.every(record => this.acknowledged.has(record.event.eventId)),
       })
     }
+    return { bySegment, candidates }
+  }
+
+  private shouldDeleteSegment(candidate: { acknowledged: boolean; mtimeMs: number }, now: number, retained: number) {
+    if (!candidate.acknowledged) return false
+    return !(now - candidate.mtimeMs < this.options.acknowledgedRetentionMs
+      && retained <= this.options.maxRetainedBytes)
+  }
+
+  private async cleanupNow(root: string): Promise<void> {
+    const { bySegment, candidates } = await this.cleanupCandidates(root)
+    const now = this.options.now().getTime()
     let retained = candidates.reduce((sum, item) => sum + item.bytes, this.current?.bytes ?? 0)
     const deletedAcknowledged = new Set<string>()
     for (const candidate of candidates.sort((left, right) => left.mtimeMs - right.mtimeMs)) {
-      if (!candidate.acknowledged) continue
-      if (now - candidate.mtimeMs < this.options.acknowledgedRetentionMs
-        && retained <= this.options.maxRetainedBytes) continue
+      if (!this.shouldDeleteSegment(candidate, now, retained)) continue
       await unlink(join(root, candidate.name))
       retained -= candidate.bytes
       for (const record of bySegment.get(candidate.name) ?? []) deletedAcknowledged.add(record.event.eventId)
@@ -310,7 +295,8 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
       return
     }
     const day = dateDay(this.options.now())
-    if (current.day === day && (current.bytes === 0 || current.bytes + incomingBytes <= this.options.maxSegmentBytes)) return
+    if (current.day === day
+      && (current.bytes === 0 || current.bytes + incomingBytes <= this.options.maxSegmentBytes)) return
     await this.syncCurrent()
     await current.handle.close()
     this.current = undefined
@@ -339,7 +325,9 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
     this.unsyncedCritical = 0
   }
 
-  private async ensureCapacity(root: string, incomingBytes: number, priority: ObservationEvent['priority']): Promise<void> {
+  private async ensureCapacity(
+    root: string, incomingBytes: number, priority: ObservationEvent['priority'],
+  ): Promise<void> {
     const files = (await readdir(root)).filter(name => name.endsWith('.jsonl'))
     let total = 0
     for (const name of files) total += (await stat(join(root, name))).size
@@ -362,7 +350,8 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
     try {
       const path = join(root, JOURNAL_FILES.advancedCursor)
       const info = await lstat(path)
-      if (!info.isFile() || info.isSymbolicLink() || info.size > JOURNAL_LIMITS.cursorBytes) throw new Error('unsafe cursor')
+      if (!info.isFile() || info.isSymbolicLink() || info.size > JOURNAL_LIMITS.cursorBytes)
+        throw new Error('unsafe cursor')
       raw = await readFile(path, 'utf8')
     }
     catch (error) {
@@ -371,10 +360,7 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
     }
     try {
       const value = JSON.parse(raw) as CursorFile
-      if (value.schemaVersion !== 1 || !Array.isArray(value.acknowledgedEventIds)
-        || value.acknowledgedEventIds.some(id => typeof id !== 'string' || !/^[0-9a-f]{32}$/.test(id))) {
-        throw new Error('invalid cursor')
-      }
+      assertCursor(value)
       for (const id of value.acknowledgedEventIds) this.acknowledged.add(id)
     } catch (error) {
       throw journalFailure('corrupt', 'journal cursor is corrupt', error)
@@ -393,54 +379,11 @@ export class JsonlObservationJournalExporter implements ObservationExporter {
   }
 }
 
-export async function recoverJournal(rootInput: string): Promise<JournalRecoveryResult> {
-  const root = await ensureSafeRoot(rootInput)
-  const names = (await readdir(root)).filter(name => name.endsWith('.jsonl')).sort()
-  const records: JournalRecoveryRecord[] = []
-  const quarantinedSegments: string[] = []
-  const truncatedSegments: string[] = []
-  const eventIds = new Set<string>()
-  for (const name of names) {
-    const path = join(root, name)
-    const info = await lstat(path)
-    if (!info.isFile() || info.isSymbolicLink()) throw journalFailure('io', 'journal segment is not a regular file')
-    if (info.size > JOURNAL_LIMITS.recoverySegmentBytes) throw journalFailure('corrupt', 'journal segment exceeds recovery bound')
-    await chmod(path, 0o600)
-    let text = await readFile(path, 'utf8')
-    if (text.length > 0 && !text.endsWith('\n')) {
-      const boundary = text.lastIndexOf('\n') + 1
-      await truncate(path, Buffer.byteLength(text.slice(0, boundary)))
-      text = text.slice(0, boundary)
-      truncatedSegments.push(name)
-    }
-    const lines = text.length === 0 ? [] : text.slice(0, -1).split('\n')
-    const segmentEventIds: string[] = []
-    for (let index = 0; index < lines.length; index++) {
-      const line = lines[index] ?? ''
-      try {
-        const envelope = JSON.parse(line) as Record<string, unknown>
-        if (envelope.schemaVersion !== 1 || typeof envelope.eventId !== 'string'
-          || typeof envelope.payloadJson !== 'string' || typeof envelope.sha256 !== 'string'
-          || envelope.sha256 !== journalChecksum(envelope.payloadJson)) throw new Error('invalid frame')
-        const event = JSON.parse(envelope.payloadJson) as unknown
-        if (!validObservationEvent(event, envelope.eventId) || eventIds.has(envelope.eventId)) throw new Error('invalid event')
-        eventIds.add(envelope.eventId)
-        segmentEventIds.push(envelope.eventId)
-        records.push(deepFreeze({ segment: name, line: index + 1, event, payloadJson: envelope.payloadJson }))
-      } catch (error) {
-        if (index === lines.length - 1) {
-          const quarantine = `${name}.corrupt-${Date.now()}`
-          await rename(path, join(root, quarantine))
-          quarantinedSegments.push(quarantine)
-          for (let recordIndex = records.length - 1; recordIndex >= 0; recordIndex--) {
-            if (records[recordIndex]?.segment === name) records.splice(recordIndex, 1)
-          }
-          for (const eventId of segmentEventIds) eventIds.delete(eventId)
-          break
-        }
-        throw journalFailure('corrupt', `journal segment ${name} has mid-file corruption`, error)
-      }
-    }
+export { recoverJournal } from './journal/recovery.ts'
+
+function assertCursor(value: CursorFile): void {
+  if (value.schemaVersion !== 1 || !Array.isArray(value.acknowledgedEventIds)
+    || value.acknowledgedEventIds.some(id => typeof id !== 'string' || !/^[0-9a-f]{32}$/.test(id))) {
+    throw new Error('invalid cursor')
   }
-  return deepFreeze({ records, quarantinedSegments, truncatedSegments })
 }

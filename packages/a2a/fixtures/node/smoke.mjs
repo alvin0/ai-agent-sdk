@@ -36,9 +36,12 @@ const wireMessage = {
   messageId: 'packed-message', contextId: '', taskId: '', role: Role.ROLE_USER,
   parts: [
     { content: { $case: 'text', value: 'hello' }, mediaType: 'text/plain', filename: '', metadata: undefined },
-    { content: { $case: 'data', value: { key: 'value' } }, mediaType: 'application/json', filename: '', metadata: undefined },
-    { content: { $case: 'url', value: 'https://images.example.test/a.png' }, mediaType: 'image/png', filename: '', metadata: undefined },
-    { content: { $case: 'raw', value: new Uint8Array([1, 2, 3]) }, mediaType: 'image/png', filename: '', metadata: undefined },
+    { content: { $case: 'data', value: { key: 'value' } },
+      mediaType: 'application/json', filename: '', metadata: undefined },
+    { content: { $case: 'url', value: 'https://images.example.test/a.png' },
+      mediaType: 'image/png', filename: '', metadata: undefined },
+    { content: { $case: 'raw', value: new Uint8Array([1, 2, 3]) },
+      mediaType: 'image/png', filename: '', metadata: undefined },
   ],
   metadata: undefined, extensions: [], referenceTaskIds: [],
 }

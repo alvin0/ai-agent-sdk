@@ -73,7 +73,8 @@ function usageMetrics(event: ObservationEvent): MetricProjection[] {
     name: 'ai_agent_sdk.usage.coverage', value: 1,
     attributes: Object.freeze({ ...safeAttributes(event), coverage }),
   }))
-  for (const [source, counters] of [['reported', object(report.reported)], ['estimated', object(report.estimated)]] as const) {
+  for (const [source, counters] of [['reported', object(report.reported)], ['estimated',
+    object(report.estimated)]] as const) {
     if (counters === undefined) continue
     for (const [key, tokenType] of [
       ['inputTokens', 'input'], ['outputTokens', 'output'], ['cacheReadTokens', 'cache-read'],
@@ -94,13 +95,7 @@ function usageMetrics(event: ObservationEvent): MetricProjection[] {
 export function projectMetrics(event: ObservationEvent): readonly MetricProjection[] {
   const output: MetricProjection[] = []
   const durationMs = finite(event.data.durationMs)
-  const durationName = event.name === 'sdk.model.call'
-    ? 'ai_agent_sdk.model.call.duration'
-    : event.name === 'sdk.provider.attempt'
-      ? 'ai_agent_sdk.provider.attempt.duration'
-      : event.name === 'sdk.tool.call'
-        ? 'ai_agent_sdk.tool.call.duration'
-        : undefined
+  const durationName = durationMetricName(event.name)
   if (event.phase === 'end' && durationName !== undefined && durationMs !== undefined) {
     output.push(Object.freeze({ name: durationName, value: durationMs, attributes: safeAttributes(event) }))
   }
@@ -109,4 +104,13 @@ export function projectMetrics(event: ObservationEvent): readonly MetricProjecti
   }
   output.push(...usageMetrics(event))
   return Object.freeze(output)
+}
+
+function durationMetricName(name: ObservationEvent['name']): string | undefined {
+  switch (name) {
+    case 'sdk.model.call': return 'ai_agent_sdk.model.call.duration'
+    case 'sdk.provider.attempt': return 'ai_agent_sdk.provider.attempt.duration'
+    case 'sdk.tool.call': return 'ai_agent_sdk.tool.call.duration'
+    default: return undefined
+  }
 }

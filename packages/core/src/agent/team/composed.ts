@@ -34,6 +34,30 @@ export interface DefinedAgentTeamOptions {
   readonly sessionOptions?: DetachedSessionOptions
 }
 
+function memberRole(member: DefinedAgentTeamMemberInput, hasExplicitLead: boolean): 'lead' | 'peer' | undefined {
+  return member.role ?? (hasExplicitLead ? 'peer' : undefined)
+}
+
+function createMemberSession(options: DefinedAgentTeamOptions, member: DefinedAgentTeamMemberInput, team: AgentTeam,
+  identity: { name: string; role: 'lead' | 'peer' | undefined }): AgentSession {
+  const { name, role } = identity
+  return member.agent.createSession({
+    ...options.sessionOptions,
+    ...member.sessionOptions,
+    registry: member.registry ?? options.registry,
+    team: {
+      team: team,
+      name,
+      ...(member.description === undefined ? {} : { description: member.description }),
+      ...(member.collaborationInstructions === undefined
+        ? {}
+        : { instructions: member.collaborationInstructions }),
+      ...(role === undefined ? {} : { role }),
+      ...(member.tools === undefined ? {} : { tools: member.tools }),
+    },
+  })
+}
+
 /**
  * A stable graph of agent definitions instantiated as connected sessions.
  * Remote A2A peers can be added later through the exposed AgentTeam.
@@ -57,22 +81,8 @@ export class DefinedAgentTeam {
     try {
       for (const member of options.members) {
         const name = member.name ?? member.agent.id
-        const role = member.role ?? (hasExplicitLead ? 'peer' : undefined)
-        const session = member.agent.createSession({
-          ...options.sessionOptions,
-          ...member.sessionOptions,
-          registry: member.registry ?? options.registry,
-          team: {
-            team: this.team,
-            name,
-            ...(member.description === undefined ? {} : { description: member.description }),
-            ...(member.collaborationInstructions === undefined
-              ? {}
-              : { instructions: member.collaborationInstructions }),
-            ...(role === undefined ? {} : { role }),
-            ...(member.tools === undefined ? {} : { tools: member.tools }),
-          },
-        })
+        const role = memberRole(member, hasExplicitLead)
+        const session = createMemberSession(options, member, this.team, { name, role })
         this.sessions.set(name, session)
         attached.push(name)
       }

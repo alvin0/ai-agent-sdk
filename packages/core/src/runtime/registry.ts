@@ -4,25 +4,20 @@
  * This is the deepseek-harness `LlmRuntime` with its dependency-injection
  * framework removed: a plain `Map` for routes, an ordered array for the
  * interception point that was a cordis waterfall, and a listener set for the
- * topology event. What is kept is everything that made it trustworthy  E * all-or-nothing validating registration, an atomic route swap, prepare/dispatch
+ * topology event. What is kept is everything that made it trustworthy  E * all-or-nothing validating registration,
+   an atomic route swap, prepare/dispatch
  * generation binding, and a single failure funnel at the adapter boundary.
  *
  * @module ai-agent-sdk/core/runtime/registry
  */
 
 import type { ModelAdapter } from '../contract/adapter.ts'
-import {
-  callConfigEquals,
-  type CallConfig,
-  type CallConfigAdapterDefaults,
-} from '../contract/call-config.ts'
+import type { CallConfig } from '../contract/call-config.ts'
 import type { GenerateOptions } from '../contract/generate-options.ts'
 import type {
-  ModelContext,
   ModelCatalogOptions,
   ModelCatalogSnapshot,
   ModelInfo,
-  ModelModality,
   ProviderInfo,
   ResolvedModelInfo,
   RuntimeDefaults,
@@ -36,19 +31,24 @@ import type { ObservationPort } from '../observation/port.ts'
 import type { ModelCallHandle, ModelInvocationContext } from '../observation/report.ts'
 import type { StreamChunk } from '../stream/chunk.ts'
 import { createModelCallHandle } from './model-call-handle.ts'
-import { normalizeResolvedModelInfo, resolveCallWithModelInfo,
+import { normalizeResolvedModelInfo,
   validateCatalogModels, validateModelCatalogSnapshot } from './model-metadata.ts'
-import { streamAdapter, type PreparedDispatch,
-  type RuntimeAdapterRegistration } from './model-stream.ts'
+import type { PreparedDispatch,
+  RuntimeAdapterRegistration } from './model-stream.ts'
 import {
-  PLUGIN_ERROR_CODES,
-  PluginError,
   type AdapterRegistrationHandle,
   type ModelProviderPlugin,
-  type ModelProviderRegistrar,
   type PluginRegistrationHandle,
   type StreamMiddleware,
 } from '../plugin/provider-plugin.ts'
+
+import { positiveSafeInteger, registrationEvidence, validateAdapterInfo,
+  validateRuntimeDefaults } from './registry-support.ts'
+import { installProviderPlugin, type InstalledPlugin } from './registry-plugin.ts'
+
+import { createRegistryStream } from './registry-dispatch.ts'
+import { prepareRegistryCall, type PreparedCall } from './registry-call.ts'
+export type { PreparedCall } from './registry-call.ts'
 
 export type { AdapterRegistrationHandle, StreamMiddleware } from '../plugin/provider-plugin.ts'
 
@@ -59,28 +59,6 @@ export type { AdapterRegistrationHandle, StreamMiddleware } from '../plugin/prov
  * This is the extension point for retry, caching, request logging, replay, and
  * test doubles. Middleware registered EARLIER sits further out.
  */
-/** One call whose configuration and adapter registration were resolved together. */
-export interface PreparedCall {
-  /** Detached, deep-frozen config with any adapter-owned default materialized. */
-  readonly config: CallConfig
-  /** Immutable retry policy captured with the adapter registration. */
-  readonly retryPolicy: ResolvedRetryPolicy
-  /** Context capacity resolved with the registration-bound call. */
-  readonly context?: ModelContext
-  /** Exact model modalities captured with the dispatch generation. */
-  readonly inputModalities?: readonly ModelModality[]
-  /** Complete validated capability snapshot bound to this adapter generation. */
-  readonly model: ResolvedModelInfo
-  /** Which config fields the adapter supplied rather than the caller. */
-  readonly adapterDefaults: CallConfigAdapterDefaults
-  /**
-   * Dispatch this call ONCE, through the registration captured at preparation.
-   * @param options - the assembled request, carrying the prepared config.
-   * @returns the chunk stream, including middleware.
-   */
-  stream(options: GenerateOptions, context?: ModelInvocationContext): ModelCallHandle
-}
-
 export interface ModelRegistryOptions {
   /** Maximum model rows accepted from one adapter catalog. Defaults to 2,048. */
   readonly maxCatalogModels?: number
@@ -98,37 +76,6 @@ export interface ModelRegistryOptions {
 }
 
 type AdapterRegistration = RuntimeAdapterRegistration
-
-interface InstalledPlugin {
-  readonly routes: ReadonlySet<string>
-  readonly registrations: readonly AdapterRegistration[]
-  readonly middleware: readonly StreamMiddleware[]
-  readonly cleanup?: () => void
-}
-
-
-function containThenable(value: unknown): boolean {
-  if ((typeof value !== 'object' || value === null) && typeof value !== 'function') return false
-  let then: unknown
-  try {
-    then = Reflect.get(value, 'then')
-  } catch {
-    return true
-  }
-  if (typeof then !== 'function') return false
-  try { void Promise.resolve(value).catch(() => {}) } catch { /* hostile thenable contained */ }
-  return true
-}
-
-function synchronousCleanupFailure(cleanup: () => void): unknown | undefined {
-  try {
-    const result: unknown = cleanup()
-    return containThenable(result) ? new TypeError('plugin cleanup must be synchronous') : undefined
-  } catch (error) {
-    return error
-  }
-}
-
 
 /**
  * Routes model calls to registered adapters.
@@ -161,142 +108,11 @@ export class ModelRegistry {
 
   /** Install one provider plugin as a single synchronous topology transaction. */
   install(plugin: ModelProviderPlugin): PluginRegistrationHandle {
-    const pluginId = typeof plugin?.id === 'string' ? plugin.id : ''
-    const fail = (message: string, cause?: unknown, cleanupFailures: readonly unknown[] = []): never => {
-      const causes = [...cause === undefined ? [] : [cause], ...cleanupFailures]
-      const wrappedCause = causes.length <= 1 ? causes[0] : new AggregateError(causes, `plugin ${pluginId} install cleanup failed`)
-      throw new PluginError(message, PLUGIN_ERROR_CODES.INSTALL_FAILED, pluginId, wrappedCause === undefined ? undefined : { cause: wrappedCause })
-    }
-    if (pluginId.trim().length === 0 || pluginId !== pluginId.trim()) fail('plugin id must be a non-empty trimmed string')
-    if (this.plugins.has(pluginId)) fail(`plugin "${pluginId}" is already installed`)
-    if (typeof plugin.displayName !== 'string' || plugin.displayName.trim().length === 0) fail(`plugin "${pluginId}" displayName must be non-empty`)
-    if (typeof plugin.setup !== 'function') fail(`plugin "${pluginId}" setup must be a function`)
-    const family = plugin.family ?? pluginId
-    if (typeof family !== 'string' || family.trim().length === 0 || family !== family.trim()) {
-      fail(`plugin "${pluginId}" family must be a non-empty trimmed string`)
-    }
-    const owner = Object.freeze({ pluginId, family })
-
-    interface StagedAdapter {
-      active: boolean
-      routes: string[]
-      readonly adapter: ModelAdapter
-    }
-    interface StagedMiddleware { active: boolean; readonly middleware: StreamMiddleware }
-    const stagedAdapters: StagedAdapter[] = []
-    const stagedMiddleware: StagedMiddleware[] = []
-    let staging = true
-
-    const registrar: ModelProviderRegistrar = {
-      registerAdapter: (routes, adapter) => {
-        if (!staging) fail(`plugin "${pluginId}" staging registrar is closed`)
-        if (routes.length === 0) throw new ModelError('an adapter must register at least one provider route', REGISTRY_ERROR_CODES.INVALID_ADAPTER)
-        const item: StagedAdapter = { active: true, routes: [...routes], adapter }
-        // Validate metadata and conflicts without mutating live routes.
-        const occupied = new Set(stagedAdapters.filter(value => value.active).flatMap(value => value.routes))
-        for (const route of routes) if (occupied.has(route)) {
-          throw new ModelError(`an adapter for provider route "${route}" is already staged`, REGISTRY_ERROR_CODES.DUPLICATE_ADAPTER)
-        }
-        this.prepareRoutes(routes, adapter, new Set(), owner)
-        stagedAdapters.push(item)
-        const handle = (() => {
-          if (staging) item.active = false
-        }) as AdapterRegistrationHandle
-        handle.replace = (next) => {
-          if (!staging || !item.active) throw new ModelError('a disposed staged registration cannot replace routes', REGISTRY_ERROR_CODES.REGISTRATION_DISPOSED)
-          const occupiedByOthers = new Set(stagedAdapters.filter(value => value.active && value !== item).flatMap(value => value.routes))
-          for (const route of next) if (occupiedByOthers.has(route)) {
-            throw new ModelError(`an adapter for provider route "${route}" is already staged`, REGISTRY_ERROR_CODES.DUPLICATE_ADAPTER)
-          }
-          this.prepareRoutes(next, adapter, new Set(), owner)
-          item.routes = [...next]
-        }
-        return handle
-      },
-      use: (middleware) => {
-        if (!staging) fail(`plugin "${pluginId}" staging registrar is closed`)
-        if (typeof middleware !== 'function') throw new TypeError('plugin middleware must be a function')
-        const item: StagedMiddleware = { active: true, middleware }
-        stagedMiddleware.push(item)
-        return () => { if (staging) item.active = false }
-      },
-    }
-
-    let cleanup: (() => void) | undefined
-    try {
-      const result = plugin.setup(registrar)
-      if (containThenable(result)) fail(`plugin "${pluginId}" setup must be synchronous`)
-      if (result !== undefined && typeof result !== 'function') fail(`plugin "${pluginId}" setup must be synchronous and return void or cleanup`)
-      cleanup = typeof result === 'function' ? result : undefined
-    } catch (error) {
-      if (error instanceof PluginError && error.code === PLUGIN_ERROR_CODES.INSTALL_FAILED) throw error
-      fail(`plugin "${pluginId}" setup failed`, error)
-    } finally {
-      staging = false
-    }
-
-    const registrations: AdapterRegistration[] = []
-    const routeNames = new Set<string>()
-    try {
-      for (const item of stagedAdapters) {
-        if (!item.active) continue
-        for (const route of item.routes) {
-          if (routeNames.has(route)) throw new ModelError(`an adapter for provider route "${route}" is already staged`, REGISTRY_ERROR_CODES.DUPLICATE_ADAPTER)
-          routeNames.add(route)
-        }
-        registrations.push(...this.prepareRoutes(item.routes, item.adapter, new Set(), owner))
-      }
-    } catch (error) {
-      const cleanupFailures: unknown[] = []
-      if (cleanup) {
-        const cleanupFailure = synchronousCleanupFailure(cleanup)
-        if (cleanupFailure !== undefined) cleanupFailures.push(cleanupFailure)
-      }
-      fail(`plugin "${pluginId}" commit validation failed`, error, cleanupFailures)
-    }
-
-    const committedMiddleware = stagedMiddleware.filter(item => item.active).map(item => item.middleware)
-    for (const registration of registrations) this.adapters.set(registration.provider.id, registration)
-    this.middleware.push(...committedMiddleware)
-    const installed: InstalledPlugin = {
-      routes: routeNames,
-      registrations,
-      middleware: committedMiddleware,
-      ...(cleanup === undefined ? {} : { cleanup }),
-    }
-    this.plugins.set(pluginId, installed)
-    this.emitAdaptersUpdated()
-
-    let disposed = false
-    const dispose = (() => {
-      if (disposed) return
-      disposed = true
-      this.plugins.delete(pluginId)
-      for (const registration of installed.registrations) {
-        if (this.adapters.get(registration.provider.id) === registration) this.adapters.delete(registration.provider.id)
-      }
-      for (let index = installed.middleware.length - 1; index >= 0; index--) {
-        const middleware = installed.middleware[index]
-        const liveIndex = middleware === undefined ? -1 : this.middleware.lastIndexOf(middleware)
-        if (liveIndex >= 0) this.middleware.splice(liveIndex, 1)
-      }
-      this.emitAdaptersUpdated()
-      const failures: unknown[] = []
-      if (installed.cleanup) {
-        const cleanupFailure = synchronousCleanupFailure(installed.cleanup)
-        if (cleanupFailure !== undefined) failures.push(cleanupFailure)
-      }
-      if (failures.length > 0) {
-        throw new PluginError(
-          `plugin "${pluginId}" cleanup failed`,
-          PLUGIN_ERROR_CODES.CLEANUP_FAILED,
-          pluginId,
-          { cause: new AggregateError(failures, `plugin "${pluginId}" cleanup failed`) },
-        )
-      }
-    }) as PluginRegistrationHandle
-    Object.defineProperty(dispose, 'pluginId', { value: pluginId, enumerable: true })
-    return dispose
+    return installProviderPlugin(plugin, {
+      adapters: this.adapters, middleware: this.middleware, plugins: this.plugins,
+      prepareRoutes: (routes, adapter, owned, owner) => this.prepareRoutes(routes, adapter, owned, owner),
+      emitAdaptersUpdated: () => this.emitAdaptersUpdated(),
+    })
   }
 
   /**
@@ -375,13 +191,7 @@ export class ModelRegistry {
         )
       }
       const info = adapter.providerInfo(provider)
-      if (typeof info.id !== 'string' || info.id !== provider
-        || typeof info.name !== 'string' || info.name.length === 0) {
-        throw new ModelError(
-          `adapter metadata for route "${provider}" must preserve its id and carry a non-empty name`,
-          REGISTRY_ERROR_CODES.INVALID_ADAPTER,
-        )
-      }
+      validateAdapterInfo(provider, info)
       unique.add(provider)
       registrations.push({
         adapter,
@@ -496,7 +306,8 @@ export class ModelRegistry {
   ): Promise<ResolvedModelInfo> {
     const registration = this.registration(provider)
     const resolved = await registration.adapter.resolveModel(provider, model, signal)
-    return normalizeResolvedModelInfo(registration.provider.id, model, resolved, this.maxCatalogBytes, this.defaults)
+    return normalizeResolvedModelInfo(registration.provider.id, model, resolved,
+      { maxBytes: this.maxCatalogBytes, defaults: this.defaults })
   }
 
   /** The retry policy captured for one route. */
@@ -511,61 +322,13 @@ export class ModelRegistry {
    * @param signal - cancellation for adapter-side capability lookup.
    * @returns the prepared config and its registration-bound stream entry point.
    */
-  async prepareCall(
-    config: CallConfig,
-    signal?: AbortSignal,
-    invocationContext?: ModelInvocationContext,
+  prepareCall(
+    config: CallConfig, signal?: AbortSignal, invocationContext?: ModelInvocationContext,
   ): Promise<PreparedCall> {
-    const registration = this.registration(config.provider)
-    const adapterCall = await registration.adapter.prepareCall(config.provider, config.model, signal, invocationContext)
-    const modelInfo = normalizeResolvedModelInfo(
-      registration.provider.id, config.model, adapterCall.model, this.maxCatalogBytes, this.defaults,
-    )
-    const resolved = resolveCallWithModelInfo(config, modelInfo, this.defaults)
-    const resolvedConfig = deepFreeze(structuredClone(resolved.config))
-    const context = resolved.context === undefined
-      ? undefined
-      : deepFreeze(structuredClone(resolved.context))
-    const adapterDefaults = deepFreeze<CallConfigAdapterDefaults>({
-      ...config.maxTokens === undefined && resolvedConfig.maxTokens !== undefined
-        ? { maxTokens: true as const }
-        : {},
-    })
-
-    let dispatched = false
-    const model = deepFreeze(structuredClone(modelInfo))
-    return Object.freeze({
-      config: resolvedConfig,
-      model,
-      retryPolicy: registration.retryPolicy,
-      adapterDefaults,
-      ...context === undefined ? {} : { context },
-      ...resolved.inputModalities === undefined
-        ? {}
-        : { inputModalities: Object.freeze([...resolved.inputModalities]) },
-      stream: (options: GenerateOptions, context = invocationContext): ModelCallHandle => {
-        // Both guards below exist so a stale handle fails loudly instead of
-        // quietly dispatching against a configuration nobody vetted.
-        if (dispatched) {
-          throw new ModelError(
-            'a prepared call can only be dispatched once',
-            REGISTRY_ERROR_CODES.INVALID_PREPARED_CALL,
-          )
-        }
-        if (!callConfigEquals(options, resolvedConfig)) {
-          throw new ModelError(
-            'prepared call config changed before adapter dispatch',
-            REGISTRY_ERROR_CODES.INVALID_PREPARED_CALL,
-          )
-        }
-        dispatched = true
-        return this.dispatch(options, context, {
-          registration,
-          config: resolvedConfig,
-          modelInfo,
-          dispatch: (request, activeContext) => adapterCall.stream(request, activeContext),
-        })
-      },
+    return prepareRegistryCall(config, signal, invocationContext, {
+      maxCatalogBytes: this.maxCatalogBytes, defaults: this.defaults,
+      registration: provider => this.registration(provider),
+      dispatch: (options, context, prepared) => this.dispatch(options, context, prepared),
     })
   }
 
@@ -592,12 +355,7 @@ export class ModelRegistry {
     const registration = prepared?.registration ?? this.adapters.get(options.provider)
     return createModelCallHandle({
       options,
-      ...(registration?.family === undefined ? {} : { providerFamily: registration.family }),
-      ...(registration?.pluginId === undefined ? {} : { providerPluginId: registration.pluginId }),
-      ...(registration === undefined ? {} : { isRetryable: (code: string) => (
-        registration.retryPolicy.mode === 'always'
-          || registration.retryPolicy.retryableCodes.includes(code)
-      ) }),
+      ...registrationEvidence(registration),
       ...(context === undefined ? {} : { context }),
       ...(this.observation === undefined ? {} : { defaultObservation: this.observation }),
       resource: this.observationResource,
@@ -612,45 +370,14 @@ export class ModelRegistry {
     })
   }
 
-  /**
-   * Compose installed middleware around the adapter boundary.
-   *
-   * Composition is deferred to the first iteration rather than done eagerly, so
-   * that `stream()` ALWAYS returns an iterable and every failure — including a
-   * middleware that throws synchronously — surfaces on the same path. Composing
-   * eagerly would give callers two different error channels for the same class of
-   * fault, and they would inevitably handle only one.
-   *
-   * The middleware list is snapshotted here so that installing or removing
-   * middleware mid-stream cannot change the chain of a call already in flight.
-   */
   private dispatchRaw(
-    options: GenerateOptions,
-    context: ModelInvocationContext,
-    onDispatch: () => void,
-    prepared?: PreparedDispatch,
+    options: GenerateOptions, context: ModelInvocationContext, onDispatch: () => void, prepared?: PreparedDispatch,
   ): AsyncIterable<StreamChunk> {
-    const chain = [...this.middleware]
-    const run = (): AsyncIterable<StreamChunk> => {
-      let next = (): AsyncIterable<StreamChunk> => streamAdapter({
-        options, context, onDispatch, maxCatalogBytes: this.maxCatalogBytes, defaults: this.defaults,
-        registration: provider => this.registration(provider),
-        registeredAdapter: provider => this.adapters.get(provider)?.adapter,
-        ...(prepared === undefined ? {} : { prepared }),
-      })
-      for (let index = chain.length - 1; index >= 0; index--) {
-        const middleware = chain[index]
-        if (middleware === undefined) continue
-        const inner = next
-        next = () => middleware(options, inner, context)
-      }
-      return next()
-    }
-    return {
-      async * [Symbol.asyncIterator]() {
-        yield* run()
-      },
-    }
+    return createRegistryStream(options, context, onDispatch, {
+      chain: [...this.middleware], maxCatalogBytes: this.maxCatalogBytes, defaults: this.defaults, prepared,
+      registration: provider => this.registration(provider),
+      registeredAdapter: provider => this.adapters.get(provider)?.adapter,
+    })
   }
 
   private registration(provider: string): AdapterRegistration {
@@ -664,26 +391,4 @@ export class ModelRegistry {
     return registration
   }
 
-}
-
-function positiveSafeInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value < 1) {
-    throw new RangeError(`ModelRegistry ${label} must be a positive safe integer`)
-  }
-  return value
-}
-
-function validateRuntimeDefaults(defaults: RuntimeDefaults): RuntimeDefaults {
-  if (defaults.contextWindow !== undefined) positiveSafeInteger(defaults.contextWindow, 'defaults.contextWindow')
-  if (defaults.maxTokens !== undefined) positiveSafeInteger(defaults.maxTokens, 'defaults.maxTokens')
-  if (defaults.inputModalities !== undefined
-    && (defaults.inputModalities.length === 0
-      || new Set(defaults.inputModalities).size !== defaults.inputModalities.length)) {
-    throw new RangeError('ModelRegistry defaults.inputModalities must be non-empty and unique')
-  }
-  return deepFreeze({
-    ...(defaults.contextWindow === undefined ? {} : { contextWindow: defaults.contextWindow }),
-    ...(defaults.maxTokens === undefined ? {} : { maxTokens: defaults.maxTokens }),
-    ...(defaults.inputModalities === undefined ? {} : { inputModalities: [...defaults.inputModalities] }),
-  })
 }

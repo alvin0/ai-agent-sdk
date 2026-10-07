@@ -16,7 +16,7 @@ export function defineCredentialSource(definition: CredentialSourceDefinition): 
     const id = boundedText(ownData(source, 'id'), COMPOSITION_LIMITS.identityBytes)
     const capturedResolve = capturedMethod<[CredentialOperationOptions], string | Promise<string>>(source, 'resolve')
     const resolve = (options: CredentialOperationOptions): string | Promise<string> =>
-      runCoreCapabilityMaybeAsync(options.logger, 'core-credential', 'resolve', options.signal,
+      runCoreCapabilityMaybeAsync(options.logger, { family: 'core-credential', name: 'resolve' }, options.signal,
         () => capturedResolve(options))
     return Object.freeze({ kind: 'credential-source', apiVersion: CREDENTIAL_CAPABILITY_API_VERSION, id, resolve })
   } catch {
@@ -30,15 +30,17 @@ export function defineCredentialStore<Value>(definition: CredentialStoreDefiniti
     const source = objectValue(definition)
     const id = boundedText(ownData(source, 'id'), COMPOSITION_LIMITS.identityBytes)
     const label = boundedText(ownData(source, 'label'), COMPOSITION_LIMITS.displayNameBytes)
-    const capturedRead = capturedMethod<[CredentialOperationOptions], Promise<CredentialRecord<Value> | undefined>>(source, 'read')
+    const capturedRead = capturedMethod<
+      [CredentialOperationOptions], Promise<CredentialRecord<Value> | undefined>
+    >(source, 'read')
     const capturedCommit = capturedMethod<
       [CredentialCommitInput<Value>, CredentialOperationOptions], Promise<CredentialCommitResult>
     >(source, 'commit')
     const read = (options: CredentialOperationOptions) =>
-      runCoreCapabilityAsync(options.logger, 'core-credential', 'read', options.signal,
+      runCoreCapabilityAsync(options.logger, { family: 'core-credential', name: 'read' }, options.signal,
         () => capturedRead(options))
     const commit = (input: CredentialCommitInput<Value>, options: CredentialOperationOptions) =>
-      runCoreCapabilityAsync(options.logger, 'core-credential', 'commit', options.signal,
+      runCoreCapabilityAsync(options.logger, { family: 'core-credential', name: 'commit' }, options.signal,
         () => capturedCommit(input, options))
     return Object.freeze({ kind: 'credential-store', apiVersion: CREDENTIAL_CAPABILITY_API_VERSION,
       id, label, read, commit })

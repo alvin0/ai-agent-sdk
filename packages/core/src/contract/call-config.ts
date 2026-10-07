@@ -51,21 +51,17 @@ export interface CallConfigAdapterDefaults {
  * @returns whether every field matches, comparing `stop` element-wise.
  */
 export function callConfigEquals(a: CallConfig, b: CallConfig): boolean {
-  if (
-    a.provider !== b.provider
-    || a.model !== b.model
-    || a.reasoningEffort !== b.reasoningEffort
-    || a.temperature !== b.temperature
-    || a.topP !== b.topP
-    || a.maxTokens !== b.maxTokens
-    || a.contextWindow !== b.contextWindow
-  ) return false
-  if (a.stop === undefined || b.stop === undefined) {
-    if (a.stop !== b.stop) return false
-  } else if (a.stop.length !== b.stop.length || !a.stop.every((value, index) => value === b.stop?.[index])) {
-    return false
-  }
-  if (a.inputModalities === undefined || b.inputModalities === undefined) return a.inputModalities === b.inputModalities
-  return a.inputModalities.length === b.inputModalities.length
-    && a.inputModalities.every((value, index) => value === b.inputModalities?.[index])
+  if (!sameScalars(a, b)) return false
+  return sameList(a.stop, b.stop) && sameList(a.inputModalities, b.inputModalities)
+}
+
+function sameScalars(a: CallConfig, b: CallConfig): boolean {
+  return a.provider === b.provider && a.model === b.model
+    && a.reasoningEffort === b.reasoningEffort && a.temperature === b.temperature
+    && a.topP === b.topP && a.maxTokens === b.maxTokens && a.contextWindow === b.contextWindow
+}
+
+function sameList<T>(a: readonly T[] | undefined, b: readonly T[] | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b
+  return a.length === b.length && a.every((value, index) => value === b[index])
 }

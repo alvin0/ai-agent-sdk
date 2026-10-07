@@ -17,23 +17,40 @@ export function createRuntimeMemoryPersistence(
   return Object.freeze({
     bindingId: binding.bindingId,
     load: (conversationId: string, signal: AbortSignal, logger: SdkLogger) =>
-      loadMemory(binding, agentId, conversationId, signal, logger, timeoutMs),
+      loadMemory(binding, agentId, conversationId, { signal, logger, timeoutMs }),
     commit: (
-      conversationId: string, snapshot: AgentMemorySnapshot, expectedRevision: string | null,
+      conversationId: string, input: { snapshot: AgentMemorySnapshot; expectedRevision: string | null },
       signal: AbortSignal, logger: SdkLogger,
     ) =>
-      commitMemory(binding, agentId, conversationId, snapshot, expectedRevision, signal, logger, timeoutMs),
+      commitMemory(binding, agentId,
+        { conversationId, snapshot: input.snapshot, expectedRevision: input.expectedRevision },
+        { signal, logger, timeoutMs }),
   })
+}
+
+interface MemoryOperationContext {
+  readonly signal: AbortSignal
+  readonly logger: SdkLogger
+  readonly timeoutMs: number
+}
+
+function captureLoadedMemory(value: unknown) {
+  const source = objectValue(value)
+  if (Reflect.ownKeys(source).some(key => typeof key !== 'string' || (key !== 'snapshot' && key !== 'revision'))) {
+    throw new TypeError('Invalid load result')
+  }
+  const revision = boundedText(ownData(source, 'revision'), MEMORY_LIMITS.revisionBytes)
+  const snapshot = AgentMemory.fromSnapshot(ownData(source, 'snapshot') as AgentMemorySnapshot).snapshot()
+  return { revision, snapshot }
 }
 
 async function loadMemory(
   binding: CapturedMemoryBinding,
   agentId: string,
   conversationId: string,
-  signal: AbortSignal,
-  logger: SdkLogger,
-  timeoutMs: number,
+  context: MemoryOperationContext,
 ): Promise<MemoryLoadState> {
+  const { signal, logger, timeoutMs } = context
   const fields = fieldsFor(binding, 'load')
   const operation = beginCoreCapabilityOperation(logger, 'core-memory-store', 'load')
   let operationSignal = signal
@@ -57,12 +74,7 @@ async function loadMemory(
       operation.success()
       return Object.freeze({ status: 'not-found', revision: null })
     }
-    const source = objectValue(value)
-    if (Reflect.ownKeys(source).some(key => typeof key !== 'string' || (key !== 'snapshot' && key !== 'revision'))) {
-      throw new TypeError('Invalid load result')
-    }
-    const revision = boundedText(ownData(source, 'revision'), MEMORY_LIMITS.revisionBytes)
-    const snapshot = AgentMemory.fromSnapshot(ownData(source, 'snapshot') as AgentMemorySnapshot).snapshot()
+    const { revision, snapshot } = captureLoadedMemory(value)
     logger.info('Memory load completed', { ...fields, outcome: 'loaded' })
     operation.success()
     return Object.freeze({ status: 'loaded', snapshot, revision })
@@ -78,13 +90,11 @@ async function loadMemory(
 async function commitMemory(
   binding: CapturedMemoryBinding,
   agentId: string,
-  conversationId: string,
-  snapshot: AgentMemorySnapshot,
-  expectedRevision: string | null,
-  signal: AbortSignal,
-  logger: SdkLogger,
-  timeoutMs: number,
+  input: { conversationId: string; snapshot: AgentMemorySnapshot; expectedRevision: string | null },
+  context: MemoryOperationContext,
 ): Promise<MemoryCommitState> {
+  const { conversationId, snapshot, expectedRevision } = input
+  const { signal, logger, timeoutMs } = context
   const fields = fieldsFor(binding, 'commit')
   const operation = beginCoreCapabilityOperation(logger, 'core-memory-store', 'commit')
   let operationSignal = signal
@@ -133,7 +143,8 @@ function abortIfNeeded(signal: AbortSignal, caller = signal, stage?: 'load' | 'c
   )
   throw new AgentSdkError(
     stage === 'commit' ? 'Memory commit outcome is unknown after its deadline' : 'Memory load exceeded its deadline',
-    stage === 'commit' ? MEMORY_OPERATION_ERROR_CODES.COMMIT_OUTCOME_UNKNOWN : MEMORY_OPERATION_ERROR_CODES.LOAD_TIMEOUT,
+    stage === 'commit'
+      ? MEMORY_OPERATION_ERROR_CODES.COMMIT_OUTCOME_UNKNOWN : MEMORY_OPERATION_ERROR_CODES.LOAD_TIMEOUT,
   )
 }
 

@@ -62,7 +62,9 @@ function run(command: string, args: readonly string[], cwd: string): string {
     parameters = [cli, ...args]
   }
   const result = spawnSync(executable, parameters, { cwd, encoding: 'utf8', env: process.env, windowsHide: true })
-  if (result.error !== undefined) throw new Error(`${command} could not start: ${result.error.message}`, { cause: result.error })
+  if (result.error !== undefined) {
+    throw new Error(`${command} could not start: ${result.error.message}`, { cause: result.error })
+  }
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(' ')} failed\n${result.stdout}\n${result.stderr}`)
   }
@@ -94,7 +96,8 @@ async function testBrowser(consumer: string): Promise<void> {
     const page = await browser.newPage()
     await page.goto(`http://127.0.0.1:${address.port}/`)
     await page.waitForFunction(() => '__coreFixture' in globalThis)
-    const result = await page.evaluate(() => (globalThis as typeof globalThis & { __coreFixture: unknown }).__coreFixture)
+    const result = await page.evaluate(() =>
+      (globalThis as typeof globalThis & { __coreFixture: unknown }).__coreFixture)
     assertFixture(result, 5, 'browser')
   } finally {
     try { await browser?.close() } finally {
@@ -106,7 +109,9 @@ async function testBrowser(consumer: string): Promise<void> {
 async function testWorker(consumer: string): Promise<void> {
   const port = await availablePort()
   const wrangler = join(workspaceRoot, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
-  const child = spawn(process.execPath, [wrangler, 'dev', '--config', 'wrangler.jsonc', '--ip', '127.0.0.1', '--port', String(port)], {
+  const child = spawn(process.execPath, [
+    wrangler, 'dev', '--config', 'wrangler.jsonc', '--ip', '127.0.0.1', '--port', String(port),
+  ], {
     cwd: consumer,
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -126,11 +131,7 @@ async function testWorker(consumer: string): Promise<void> {
 }
 
 function assertFixture(value: unknown, totalTokens: number, runtime: string): void {
-  const result = value as { traceId?: unknown; status?: unknown; totalTokens?: unknown; buffer?: unknown; process?: unknown;
-    overflow?: { settled?: unknown; authoritative?: unknown; errorCode?: unknown; attempts?: unknown };
-    topology?: { providers?: unknown; catalogs?: unknown };
-    logic?: { admission?: unknown; completion?: unknown; cancellation?: unknown; compaction?: unknown };
-    optimization?: { fused?: unknown; packed?: unknown; verified?: unknown } }
+  const result = value as PackedEvidence
   const expectedProviders = [
     { route: 'route-a', pluginId: 'account-a', family: 'openai' },
     { route: 'route-b', pluginId: 'account-b', family: 'openai' },
@@ -139,18 +140,40 @@ function assertFixture(value: unknown, totalTokens: number, runtime: string): vo
     { route: 'route-a', pluginId: 'account-a', family: 'openai', model: 'model-a' },
     { route: 'route-b', pluginId: 'account-b', family: 'openai', model: 'model-b' },
   ]
-  if (typeof result.traceId !== 'string' || !/^[0-9a-f]{32}$/.test(result.traceId)
-    || result.status !== 'success' || result.totalTokens !== totalTokens
-    || result.buffer !== 'undefined' || result.process !== 'undefined'
-    || result.overflow?.settled !== true || result.overflow.authoritative !== false
-    || result.overflow.errorCode !== 'USAGE_COUNTER_OVERFLOW' || result.overflow.attempts !== 1
-    || result.logic?.admission !== true || result.logic.completion !== true || result.logic.cancellation !== true
-    || result.logic.compaction !== true
-    || result.optimization?.fused !== true || result.optimization.packed !== true || result.optimization.verified !== true
+  if (!validBasicEvidence(result, totalTokens) || !validOverflowEvidence(result)
+    || !validLogicEvidence(result) || !validOptimizationEvidence(result)
     || JSON.stringify(result.topology?.providers) !== JSON.stringify(expectedProviders)
     || JSON.stringify(result.topology?.catalogs) !== JSON.stringify(expectedCatalogs)) {
     throw new Error(`${runtime} fixture returned invalid evidence: ${JSON.stringify(result)}`)
   }
+}
+
+interface PackedEvidence {
+  traceId?: unknown; status?: unknown; totalTokens?: unknown; buffer?: unknown; process?: unknown;
+    overflow?: { settled?: unknown; authoritative?: unknown; errorCode?: unknown; attempts?: unknown };
+    topology?: { providers?: unknown; catalogs?: unknown };
+    logic?: { admission?: unknown; completion?: unknown; cancellation?: unknown; compaction?: unknown };
+    optimization?: { fused?: unknown; packed?: unknown; verified?: unknown } }
+
+function validBasicEvidence(result: PackedEvidence, totalTokens: number): boolean {
+  return typeof result.traceId === 'string' && /^[0-9a-f]{32}$/.test(result.traceId)
+    && result.status === 'success' && result.totalTokens === totalTokens
+    && result.buffer === 'undefined' && result.process === 'undefined'
+}
+
+function validOverflowEvidence(result: PackedEvidence): boolean {
+  return result.overflow?.settled === true && result.overflow.authoritative === false
+    && result.overflow.errorCode === 'USAGE_COUNTER_OVERFLOW' && result.overflow.attempts === 1
+}
+
+function validLogicEvidence(result: PackedEvidence): boolean {
+  return result.logic?.admission === true && result.logic.completion === true && result.logic.cancellation === true
+    && result.logic.compaction === true
+}
+
+function validOptimizationEvidence(result: PackedEvidence): boolean {
+  return result.optimization?.fused === true && result.optimization.packed === true
+    && result.optimization.verified === true
 }
 
 async function availablePort(): Promise<number> {

@@ -364,22 +364,27 @@ function unknownLocator(locator: string): JsonObject {
 function parseReadSpill(raw: unknown): ReadSpillArgs {
   if (typeof raw !== 'object' || raw === null) throw new TypeError('arguments must be an object')
   const value = raw as Record<string, unknown>
-  const locator = value['locator']
-  if (typeof locator !== 'string' || locator.length === 0) {
-    throw new TypeError('locator must be a non-empty string')
-  }
-  const offset = optionalCount(value['offset'], 'offset')
-  const limit = optionalCount(value['limit'], 'limit')
-  const pattern = value['pattern']
-  if (pattern !== undefined && typeof pattern !== 'string') {
-    throw new TypeError('pattern must be a string')
-  }
-  return {
-    locator,
-    ...offset === undefined ? {} : { offset },
-    ...limit === undefined ? {} : { limit },
-    ...pattern === undefined || pattern === '' ? {} : { pattern },
-  }
+  return Object.freeze({
+    locator: requiredLocator(value.locator),
+    ...optionalNumber(value.offset, 'offset'),
+    ...optionalNumber(value.limit, 'limit'),
+    ...optionalPattern(value.pattern),
+  })
+}
+
+function requiredLocator(value: unknown): string {
+  if (typeof value !== 'string' || value.length === 0) throw new TypeError('locator must be a non-empty string')
+  return value
+}
+
+function optionalNumber(value: unknown, field: string): Readonly<Record<string, number>> {
+  const parsed = optionalCount(value, field)
+  return parsed === undefined ? {} : { [field]: parsed }
+}
+
+function optionalPattern(value: unknown): Readonly<{ pattern?: string }> {
+  if (value !== undefined && typeof value !== 'string') throw new TypeError('pattern must be a string')
+  return value === undefined || value === '' ? {} : { pattern: value }
 }
 
 function optionalCount(value: unknown, name: string): number | undefined {

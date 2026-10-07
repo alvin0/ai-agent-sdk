@@ -1,7 +1,7 @@
 /** Programs: the scheduler-granted port through which one tool calls others. Internal to the loop. */
 import type { ToolAdmission } from './admission.ts'
 import {
-  emitEvent, errorCode, immutableResult, messageOf, now, raceWithSignal, teardownFailure, withApprovalEvents,
+  emitEvent, errorCode, immutableResult, messageOf, now, raceWithSignal, withApprovalEvents,
   type ToolCallHost,
 } from './tool-call-support.ts'
 import { waitForSettlement } from '../../async/index.ts'
@@ -11,16 +11,20 @@ import type { ToolDefinition, ToolExecutionResult } from '../tool/definition.ts'
 import { TOOL_ERROR_CODES, ToolError } from '../tool/errors.ts'
 import {
   NESTED_TOOL_ERROR_CODES,
-  type NestedCallOptions, type NestedLoadResult, type NestedToolDescriptor, type NestedToolPort,
+  type NestedCallOptions, type NestedLoadResult, type NestedToolPort,
   type NestedToolResult, type ProgramGrant,
 } from '../tool/nested.ts'
-import { checkOutputSchema, outputSchemaSupported } from '../tool/output-schema.ts'
+import { checkOutputSchema } from '../tool/output-schema.ts'
 import {
   authorizeToolCall, dispatchAuthorizedToolCall, finalizeToolCall, prepareToolCall, toolFailure,
   type ToolCallRequest,
 } from '../tool/pipeline.ts'
 import type { ProgramResultStore } from '../tool/program-results.ts'
 import { createSpanId, type TraceRef } from '../trace/trace.ts'
+import { assertStageSettled, checkpointFailure, describe, programSpanStatus,
+  refuse, settleWithin } from './program-support.ts'
+export { validPrograms, describe, refuse, settleWithin } from './program-support.ts'
+
 
 /** What every slot of one step shares. */
 export interface StepRuntime {
@@ -38,23 +42,6 @@ const ARGUMENT_LIMITS = Object.freeze({
   maxBytes: MAX_NESTED_ARGUMENT_BYTES, maxDepth: 64, maxNodes: 32_768,
   maxArrayItems: 16_384, maxObjectFields: 16_384, maxKeyBytes: MAX_NESTED_ARGUMENT_BYTES,
 })
-
-export function validPrograms(programs: ReadonlyMap<string, ProgramGrant> | undefined): ReadonlyMap<string, ProgramGrant> {
-  const valid = new Map<string, ProgramGrant>()
-  for (const [name, grant] of programs ?? []) {
-    if (!Number.isSafeInteger(grant.maxCalls) || grant.maxCalls < 1) {
-      throw new RangeError(`program "${name}" maxCalls must be a positive safe integer`)
-    }
-    const allow = Object.freeze([...new Set(grant.allow)])
-    for (const target of allow) {
-      if (typeof target !== 'string' || target.length === 0) throw new TypeError(`program "${name}" grants an invalid tool name`)
-      // No recursion and no program-in-program: nested admission is one level.
-      if (programs?.has(target) === true) throw new RangeError(`program "${name}" may not call program "${target}"`)
-    }
-    valid.set(name, Object.freeze({ allow, maxCalls: grant.maxCalls }))
-  }
-  return valid
-}
 
 /**
  * One running program: the port its body calls, and the latch that outlives
@@ -91,7 +78,8 @@ export class ProgramRun {
       return definition === undefined ? [] : [describe(definition)]
     }))
     this.port = Object.freeze({
-      call: (toolName: string, args: JsonValue, callOptions?: NestedCallOptions) => this.request(toolName, args, callOptions?.retain === true),
+      call: (toolName: string, args: JsonValue, callOptions?: NestedCallOptions) => this.request(toolName, args,
+        callOptions?.retain === true),
       catalog: () => descriptors,
       load: (handle: string) => this.load(handle),
       release: (handle: string) => this.step.programResults?.release(handle, this.outer.call.toolName) === true,
@@ -128,18 +116,21 @@ export class ProgramRun {
 
   private load(handle: string): NestedLoadResult {
     const store = this.step.programResults
-    if (typeof handle !== 'string' || store === undefined || this.fatal !== undefined || this.closedCode !== undefined) {
+    if (typeof handle !== 'string' || store === undefined || this.fatal !== undefined
+      || this.closedCode !== undefined) {
       return refuse(NESTED_TOOL_ERROR_CODES.RESULT_UNAVAILABLE, 'no retained result is available')
     }
     // The owner is the program tool, never anything the program says it is.
     let loaded: ReturnType<ProgramResultStore['load']>
-    try { loaded = store.load(handle, this.outer.call.toolName, name => this.options.catalog.get(name)) } catch (error) {
+    try { loaded = store.load(handle, this.outer.call.toolName,
+      name => this.options.catalog.get(name)) } catch (error) {
       this.fatal ??= ToolError.fatal(messageOf(error), errorCode(error), { cause: error })
       this.latch(NESTED_TOOL_ERROR_CODES.CLOSED, 'retained-result authority could not be checked')
       throw this.fatal
     }
     if (loaded.kind === 'unavailable') {
-      return refuse(NESTED_TOOL_ERROR_CODES.RESULT_UNAVAILABLE, `the retained result is ${loaded.reason === 'unknown' ? 'not available to this program' : loaded.reason}`)
+      return refuse(NESTED_TOOL_ERROR_CODES.RESULT_UNAVAILABLE,
+        `the retained result is ${loaded.reason === 'unknown' ? 'not available to this program' : loaded.reason}`)
     }
     return Object.freeze({ ok: true, value: loaded.value, schema: loaded.schema, provenance: loaded.provenance })
   }
@@ -168,7 +159,7 @@ export class ProgramRun {
     try { return await pending } finally { this.inFlight = undefined }
   }
 
-  private async run(toolName: string, args: JsonValue, retain: boolean): Promise<NestedToolResult> {
+  private captureRequest(toolName: string, args: JsonValue) {
     if (!this.captured.has(toolName)) {
       return refuse(NESTED_TOOL_ERROR_CODES.NOT_ALLOWED, `the program may not call "${toolName}"`)
     }
@@ -182,10 +173,18 @@ export class ProgramRun {
     if (rawArguments === undefined || new TextEncoder().encode(rawArguments).byteLength > MAX_NESTED_ARGUMENT_BYTES) {
       return refuse(NESTED_TOOL_ERROR_CODES.INVALID_ARGUMENTS, 'tool arguments must be JSON within the size limit')
     }
+    return { definition, rawArguments }
+  }
+
+  private async run(toolName: string, args: JsonValue, retain: boolean): Promise<NestedToolResult> {
+    const prepared = this.captureRequest(toolName, args)
+    if (!('definition' in prepared)) return prepared
+    const { definition, rawArguments } = prepared
     const call: ToolCallRequest = Object.freeze({
       callId: ToolCallId(`${this.outer.call.callId}:${String(++this.sequence)}`), toolName, rawArguments,
     })
-    const trace: TraceRef = { traceId: this.outer.trace.traceId, spanId: createSpanId(), parentSpanId: this.outer.trace.spanId }
+    const trace: TraceRef = { traceId: this.outer.trace.traceId, spanId: createSpanId(),
+      parentSpanId: this.outer.trace.spanId }
     const signal = AbortSignal.any([this.outer.signal, this.shutdown.signal])
     await emitEvent(this.options, {
       type: 'span-start', trace, at: now(), name: `execute_tool ${toolName}`, kind: 'execute_tool',
@@ -209,23 +208,34 @@ export class ProgramRun {
     // Authority is checked again at publication: a result produced under a
     // grant that changed while it ran is not handed to the program.
     const publishable = this.current(toolName) && !signal.aborted
-    if (!this.current(toolName)) this.latch(NESTED_TOOL_ERROR_CODES.STALE_CATALOG, `"${toolName}" changed while the program was running`)
+    if (!this.current(toolName)) this.latch(NESTED_TOOL_ERROR_CODES.STALE_CATALOG,
+      `"${toolName}" changed while the program was running`)
     await emitEvent(this.options, {
       type: 'span-end', trace, at: now(),
-      status: signal.aborted ? 'aborted' : result.isError ? 'error' : 'success',
+      status: programSpanStatus(signal, result),
       ...result.isError ? { error: { type: 'ToolError', message: result.error.message, code: result.error.code } } : {},
     })
     if (!publishable) return this.refusal()
+    return this.publishResult({ toolName, definition, call }, result, retain)
+  }
+
+  private publishResult(
+    child: { readonly toolName: string; readonly definition: ToolDefinition; readonly call: ToolCallRequest },
+    result: ToolExecutionResult, retain: boolean,
+  ): NestedToolResult {
+    const { toolName, definition, call } = child
     if (result.isError) return refuse(result.error.code, result.error.message)
     // Policy may have removed the value. Rendered text is for the model and is
     // never parsed back into data the policy chose not to release.
     if (result.value === undefined) {
-      return refuse(NESTED_TOOL_ERROR_CODES.STRUCTURED_OUTPUT_UNAVAILABLE, `"${toolName}" returned no structured value the program may read`)
+      return refuse(NESTED_TOOL_ERROR_CODES.STRUCTURED_OUTPUT_UNAVAILABLE,
+        `"${toolName}" returned no structured value the program may read`)
     }
     const schema = definition.experimentalOutputSchema
     const verdict = schema === undefined ? 'unsupported' : checkOutputSchema(schema, result.value)
     if (verdict === 'invalid') {
-      return refuse(NESTED_TOOL_ERROR_CODES.OUTPUT_SCHEMA_MISMATCH, `"${toolName}" returned a value outside its declared output schema`)
+      return refuse(NESTED_TOOL_ERROR_CODES.OUTPUT_SCHEMA_MISMATCH,
+        `"${toolName}" returned a value outside its declared output schema`)
     }
     const checked = verdict === 'valid' ? 'validated' as const : 'unchecked' as const
     if (!retain) return Object.freeze({ ok: true, value: result.value, schema: checked })
@@ -246,18 +256,10 @@ export class ProgramRun {
     signal: AbortSignal,
   ): Promise<ToolExecutionResult> {
     const { teardownTimeoutMs } = this.step
-    const prepared = prepareToolCall({
-      catalog: this.options.catalog, call, position: this.options.position, signal, teardownTimeoutMs,
-      parentCallId: this.outer.call.callId,
-      ...(this.options.logger === undefined ? {} : { logger: this.options.logger }),
-      ...this.options.interceptors === undefined ? {} : { interceptors: this.options.interceptors },
-      ...this.options.approvals === undefined ? {} : { approvals: this.options.approvals },
-    })
+    const prepared = this.prepareChildCall(call, signal, teardownTimeoutMs)
     const ticket = this.step.admission.reserve(definition.budgetExempt === true)
     if (ticket === undefined) {
-      const message = 'the turn has spent its tool-call budget'
-      this.latch(NESTED_TOOL_ERROR_CODES.BUDGET_EXHAUSTED, message)
-      return toolFailure(message, NESTED_TOOL_ERROR_CODES.BUDGET_EXHAUSTED)
+      return this.budgetRefusal()
     }
     try {
       const authorizing = authorizeToolCall(withApprovalEvents(this.options, prepared, trace))
@@ -266,47 +268,76 @@ export class ProgramRun {
         authorization = await raceWithSignal(authorizing, signal)
       } catch (error: unknown) {
         if (!signal.aborted) throw error
-        if (!await waitForSettlement(authorizing, teardownTimeoutMs)) {
-          throw teardownFailure(call.toolName, 'authorization', teardownTimeoutMs, error)
-        }
+        assertStageSettled(await waitForSettlement(authorizing, teardownTimeoutMs), {
+          toolName: call.toolName, stage: 'authorization', teardownTimeoutMs, error,
+        })
         return toolFailure('the call was cancelled', TOOL_ERROR_CODES.ABORTED)
       }
       if (authorization.kind === 'final') return authorization.result
       try {
-        const checkpointing = Promise.resolve(this.options.checkpoint?.({
-          kind: 'before-tool-dispatch', call, parentCallId: this.outer.call.callId,
-          snapshot: this.options.history.snapshot(), signal,
-          ...(this.options.logger === undefined ? {} : { logger: this.options.logger }),
-        }))
+        const checkpointing = this.checkpointChildCall(call, signal)
         try { await raceWithSignal(checkpointing, signal) }
         catch (error: unknown) {
           if (!signal.aborted) throw error
-          if (!await waitForSettlement(checkpointing, teardownTimeoutMs)) {
-            throw teardownFailure(call.toolName, 'checkpoint', teardownTimeoutMs, error)
-          }
+          assertStageSettled(await waitForSettlement(checkpointing, teardownTimeoutMs), {
+            toolName: call.toolName, stage: 'checkpoint', teardownTimeoutMs, error,
+          })
         }
       } catch (error: unknown) {
-        if (error instanceof ToolError && error.code === TOOL_ERROR_CODES.TEARDOWN_TIMEOUT) throw error
-        return toolFailure(`history checkpoint failed: ${messageOf(error)}`, TOOL_ERROR_CODES.CHECKPOINT_FAILED)
+        return checkpointFailure(error)
       }
       // Approval and checkpoint both await. Whatever changed meanwhile decides.
-      if (!this.current(call.toolName)) {
-        const message = `"${call.toolName}" changed while the program was running`
-        this.latch(NESTED_TOOL_ERROR_CODES.STALE_CATALOG, message)
-        return toolFailure(message, NESTED_TOOL_ERROR_CODES.STALE_CATALOG)
-      }
-      if (this.fatal !== undefined || signal.aborted) return toolFailure('the program was cancelled', TOOL_ERROR_CODES.ABORTED)
+      const refused = this.dispatchRefusal(call, signal)
+      if (refused !== undefined) return refused
       ticket.confirm()
       const executing = dispatchAuthorizedToolCall(authorization.call)
       void executing.catch(() => undefined)
-      const executed = await settleWithin(executing, signal, teardownTimeoutMs, call.toolName, 'execution')
+      const executed = await settleWithin(executing, signal, teardownTimeoutMs,
+        { toolName: call.toolName, stage: 'execution' })
       const finalized = await settleWithin(
-        finalizeToolCall(authorization.call, executed), signal, teardownTimeoutMs, call.toolName, 'finalization',
+        finalizeToolCall(authorization.call, executed), signal, teardownTimeoutMs,
+        { toolName: call.toolName, stage: 'finalization' },
       )
       return finalized
     } finally {
       ticket.release()
     }
+  }
+
+  private budgetRefusal(): ToolExecutionResult {
+    const message = 'the turn has spent its tool-call budget'
+    this.latch(NESTED_TOOL_ERROR_CODES.BUDGET_EXHAUSTED, message)
+    return toolFailure(message, NESTED_TOOL_ERROR_CODES.BUDGET_EXHAUSTED)
+  }
+
+  private prepareChildCall(call: ToolCallRequest, signal: AbortSignal, teardownTimeoutMs: number) {
+    return prepareToolCall({
+      catalog: this.options.catalog, call, position: this.options.position, signal,
+      teardownTimeoutMs,
+      parentCallId: this.outer.call.callId,
+      ...(this.options.logger === undefined ? {} : { logger: this.options.logger }),
+      ...this.options.interceptors === undefined ? {} : { interceptors: this.options.interceptors },
+      ...this.options.approvals === undefined ? {} : { approvals: this.options.approvals },
+    })
+  }
+
+  private checkpointChildCall(call: ToolCallRequest, signal: AbortSignal): Promise<void> {
+    return Promise.resolve(this.options.checkpoint?.({
+      kind: 'before-tool-dispatch', call, parentCallId: this.outer.call.callId,
+      snapshot: this.options.history.snapshot(), signal,
+      ...(this.options.logger === undefined ? {} : { logger: this.options.logger }),
+    }))
+  }
+
+  private dispatchRefusal(call: ToolCallRequest, signal: AbortSignal): ToolExecutionResult | undefined {
+    if (!this.current(call.toolName)) {
+      const message = `"${call.toolName}" changed while the program was running`
+      this.latch(NESTED_TOOL_ERROR_CODES.STALE_CATALOG, message)
+      return toolFailure(message, NESTED_TOOL_ERROR_CODES.STALE_CATALOG)
+    }
+    if (this.fatal !== undefined || signal.aborted) return toolFailure('the program was cancelled',
+      TOOL_ERROR_CODES.ABORTED)
+    return undefined
   }
 
   private current(toolName: string): boolean {
@@ -326,35 +357,5 @@ export class ProgramRun {
 
   private refusal(): NestedToolResult {
     return refuse(this.closedCode ?? NESTED_TOOL_ERROR_CODES.CLOSED, this.closedMessage || 'the program is closed')
-  }
-}
-
-export function describe(definition: ToolDefinition): NestedToolDescriptor {
-  const schema = definition.experimentalOutputSchema
-  return Object.freeze({
-    name: definition.name, description: definition.description, parameters: definition.parameters,
-    output: schema === undefined ? 'unknown' : outputSchemaSupported(schema) ? 'declared' : 'unsupported',
-    ...schema === undefined ? {} : { outputSchema: schema },
-  })
-}
-
-export function refuse(code: string, message: string): { readonly ok: false; readonly code: string; readonly message: string } {
-  return Object.freeze({ ok: false, code, message })
-}
-
-/** Wait for one stage; on cancellation, give it the teardown allowance to settle. */
-export async function settleWithin(
-  pending: Promise<ToolExecutionResult>,
-  signal: AbortSignal,
-  teardownTimeoutMs: number,
-  toolName: string,
-  stage: string,
-): Promise<ToolExecutionResult> {
-  try {
-    return await raceWithSignal(pending, signal)
-  } catch (error: unknown) {
-    if (!signal.aborted) throw error
-    if (!await waitForSettlement(pending, teardownTimeoutMs)) throw teardownFailure(toolName, stage, teardownTimeoutMs, error)
-    return toolFailure('the call was cancelled', TOOL_ERROR_CODES.ABORTED)
   }
 }

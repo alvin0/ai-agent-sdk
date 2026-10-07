@@ -12,9 +12,9 @@ import type { ModelModality } from './model-info.ts'
 
 /** One fully assembled model request. */
 export interface GenerateOptions {
-  /** strict rejects known text-only models when request history contains images; project permits lossy conversion. */
+  /** strict rejects text-only models with images; project permits lossy conversion. */
   readonly imagePolicy?: 'strict' | 'project'
-  /** strict rejects models that decline document input when history contains documents; project permits lossy conversion. */
+  /** strict rejects document-incompatible models; project permits lossy conversion. */
   readonly documentPolicy?: 'strict' | 'project'
   /** Registered provider route, selecting the adapter instance. */
   provider: string

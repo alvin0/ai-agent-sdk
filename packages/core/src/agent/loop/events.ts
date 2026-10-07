@@ -85,12 +85,28 @@ export type AgentMaintenanceEvent =
 export type AgentEvent = TraceEvent
   | (AgentMaintenanceEvent & Traced)
   | ({ readonly type: 'turn-start'; readonly turn: number } & Traced)
-  | ({ readonly type: 'step-start'; readonly turn: number; readonly step: number; readonly forcedFinal?: true } & Traced)
-  | ({ readonly type: 'text-delta'; readonly index: number; readonly text: string; readonly phase: StreamedAssistantTextPhase } & Traced)
+  | ({
+    readonly type: 'step-start'
+    readonly turn: number
+    readonly step: number
+    readonly forcedFinal?: true
+  } & Traced)
+  | ({
+    readonly type: 'text-delta'
+    readonly index: number
+    readonly text: string
+    readonly phase: StreamedAssistantTextPhase
+  } & Traced)
   /** Authoritative text and phase for a model-round block, before step-end.
    * A final-answer block is local to this agent/round, not whole-team completion.
    * incomplete marks output retained from an error, abort or output-token limit. */
-  | ({ readonly type: 'text-end'; readonly index: number; readonly text: string; readonly phase: AssistantTextPhase; readonly incomplete?: true } & Traced)
+  | ({
+    readonly type: 'text-end'
+    readonly index: number
+    readonly text: string
+    readonly phase: AssistantTextPhase
+    readonly incomplete?: true
+  } & Traced)
   | ({ readonly type: 'reasoning-delta'; readonly index: number; readonly text: string } & Traced)
   | ({
     readonly type: 'image-delta'
@@ -138,7 +154,11 @@ export type AgentEvent = TraceEvent
   } & Traced)
   | ({ readonly type: 'approval-request'; readonly request: ApprovalRequest } & Traced)
   | ({ readonly type: 'usage'; readonly usage: TokenUsage } & Traced)
-  | ({ readonly type: 'usage-progress'; readonly usage: import('../../observation/usage.ts').UsageCounters; readonly attemptId?: string } & Traced)
+  | ({
+    readonly type: 'usage-progress'
+    readonly usage: import('../../observation/usage.ts').UsageCounters
+    readonly attemptId?: string
+  } & Traced)
   | ({ readonly type: 'step-end'; readonly turn: number; readonly step: number } & Traced)
   | ({ readonly type: 'turn-end'; readonly outcome: TurnOutcome } & Traced)
 

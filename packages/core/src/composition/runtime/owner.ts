@@ -28,6 +28,21 @@ import type { RuntimeModelCatalogSnapshot } from '../model-catalog/types.ts'
 import { createRuntimeAgentTeam } from '../team/runtime.ts'
 import type { RuntimeAgentTeam, RuntimeAgentTeamOptions, RuntimeTeamRegistration } from '../team/types.ts'
 
+interface RuntimeCompositionOwnerInput {
+  registry: ModelRegistry
+  operations: RuntimeOperations
+  platform: RuntimePlatform
+  resources: RuntimeResources
+  observation: RuntimeObservationPort
+  resource: import('../delivery/resource.ts').RuntimeObservationResource
+  topology: readonly RuntimeProviderInfo[]
+  selection: ProviderSelection
+  providersOwned: readonly ProviderRegistration[]
+  exporters: Awaited<ReturnType<typeof activateRuntimeCapabilities>>['exporters']
+  closeTimeoutMs: number
+  embeddingRegistry?: EmbeddingRegistry
+}
+
 /** Internal composition owner used to finish lifecycle semantics before the public agent surface is exported. */
 export class RuntimeCompositionOwner implements RuntimeCompositionView {
   readonly registry: ModelRegistry
@@ -38,29 +53,34 @@ export class RuntimeCompositionOwner implements RuntimeCompositionView {
   private readonly teams: RuntimeTeamRegistration[] = []
   private readonly closedTeams: RuntimeComponentCloseReport[] = []
 
-  constructor(
-    registry: ModelRegistry,
-    operations: RuntimeOperations,
-    private readonly platform: RuntimePlatform,
-    readonly resources: RuntimeResources,
-    readonly observation: RuntimeObservationPort,
-    readonly resource: import('../delivery/resource.ts').RuntimeObservationResource,
-    private readonly topology: readonly RuntimeProviderInfo[],
-    /** Read by the agent surface so a per-invocation model override resolves against these routes. */
-    readonly selection: ProviderSelection,
-    private readonly providersOwned: readonly ProviderRegistration[],
-    private readonly exporters: Awaited<ReturnType<typeof activateRuntimeCapabilities>>['exporters'],
-    private readonly closeTimeoutMs: number,
-    /**
-     * Runtime-owned embedding topology. Present even with zero embedding plugins,
-     * so a generation-only runtime resolves nothing rather than failing on a
-     * missing registry (Requirement 11.8).
-     */
-    readonly embeddingRegistry: EmbeddingRegistry = new EmbeddingRegistry(),
-  ) {
+  private readonly platform: RuntimePlatform
+  readonly resources: RuntimeResources
+  readonly observation: RuntimeObservationPort
+  readonly resource: import('../delivery/resource.ts').RuntimeObservationResource
+  private readonly topology: readonly RuntimeProviderInfo[]
+  /** Model overrides resolve against this runtime's captured routes. */
+  readonly selection: ProviderSelection
+  private readonly providersOwned: readonly ProviderRegistration[]
+  private readonly exporters: Awaited<ReturnType<typeof activateRuntimeCapabilities>>['exporters']
+  private readonly closeTimeoutMs: number
+  readonly embeddingRegistry: EmbeddingRegistry
+
+  constructor(input: RuntimeCompositionOwnerInput) {
+    const { registry, operations, platform, resources, observation, resource, topology, selection,
+      providersOwned, exporters, closeTimeoutMs, embeddingRegistry = new EmbeddingRegistry() } = input
+    this.platform = platform
+    this.resources = resources
+    this.observation = observation
+    this.resource = resource
+    this.topology = topology
+    this.selection = selection
+    this.providersOwned = providersOwned
+    this.exporters = exporters
+    this.closeTimeoutMs = closeTimeoutMs
+    this.embeddingRegistry = embeddingRegistry
     this.registry = registry
     this.operations = operations
-    this.catalogs = new RuntimeModelCatalog(registry, operations, resources, topology)
+    this.catalogs = new RuntimeModelCatalog({ registry, operations, resources }, topology)
     // Constructed unconditionally, exactly like the catalog manager: a runtime
     // with zero embedding plugins resolves nothing and reports
     // `EMBEDDING_ADAPTER_MISSING`, which is a better answer than a missing
@@ -103,7 +123,8 @@ export class RuntimeCompositionOwner implements RuntimeCompositionView {
     this.closing = new Promise((done, fail) => { resolve = done; reject = fail })
     const shared = this.closing
     try {
-      const quiescence = this.operations.beginClose({ timeoutMs: this.closeTimeoutMs, ...(signal === undefined ? {} : { signal }) })
+      const quiescence = this.operations.beginClose({ timeoutMs: this.closeTimeoutMs,
+        ...(signal === undefined ? {} : { signal }) })
       this.observation.stopAdmission()
       void this.finishClose(quiescence).then(resolve, reject)
       return shared
@@ -161,34 +182,22 @@ export async function createRuntimeCompositionOwner(
   let observation: RuntimeObservationPort | undefined
   try {
     const resource = createRuntimeResource(options.resource, platform)
-    observation = new RuntimeObservationPort(resource, plan.exporters, platform, resources, {
-      mode: options.observability.mode,
-      ...(options.observability.content === undefined ? {} : { content: options.observability.content }),
-      ...(options.observability.minimumLogLevel === undefined ? {} : { minimumLogLevel: options.observability.minimumLogLevel }),
-      ...(options.observability.processors === undefined ? {} : { processors: options.observability.processors }),
-      ...(options.observability.redactors === undefined ? {} : { redactors: options.observability.redactors }),
-      ...(options.observability.includeErrorStacks === undefined ? {} : { includeErrorStacks: options.observability.includeErrorStacks }),
-      ...(options.observability.openSpan === undefined ? {} : { openSpan: options.observability.openSpan }),
-      ...(options.observability.maxQueueEvents === undefined ? {} : { maxEvents: options.observability.maxQueueEvents }),
-      ...(options.observability.maxQueueBytes === undefined ? {} : { maxBytes: options.observability.maxQueueBytes }),
-      ...(options.observability.maxBatchEvents === undefined ? {} : { maxBatchEvents: options.observability.maxBatchEvents }),
-      ...(options.observability.maxBatchBytes === undefined ? {} : { maxBatchBytes: options.observability.maxBatchBytes }),
-      ...(options.observability.flushTimeoutMs === undefined ? {} : { flushTimeoutMs: options.observability.flushTimeoutMs }),
-      ...(options.observability.shutdownTimeoutMs === undefined ? {} : { shutdownTimeoutMs: options.observability.shutdownTimeoutMs }),
-      ...(options.diagnosticMaxEvents === undefined ? {} : { diagnosticMaxEvents: options.diagnosticMaxEvents }),
-      ...(options.diagnosticMaxBytes === undefined ? {} : { diagnosticMaxBytes: options.diagnosticMaxBytes }),
-    })
+    observation = new RuntimeObservationPort(resource, plan.exporters, { platform, resources },
+      observationOptions(options))
     const registry = new ModelRegistry({ observation, observationResource: resource,
       ...(options.defaults === undefined ? {} : { defaults: options.defaults }) })
-    const capabilities = await activateRuntimeCapabilities(plan, registry,
-      observation.logger({ scope: 'sdk.provider.setup' }), resources, {
+    const capabilities = await activateRuntimeCapabilities(plan, {
+      registry, logger: observation.logger({ scope: 'sdk.provider.setup' }), resources,
+    }, {
         startupTimeoutMs: options.startupTimeoutMs, rollbackTimeoutMs: options.closeTimeoutMs,
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       })
-    return new RuntimeCompositionOwner(registry, new RuntimeOperations(resources), platform, resources,
-      observation, resource, providerTopology(plan.selection), plan.selection,
-      capabilities.providers, capabilities.exporters, options.closeTimeoutMs,
-      capabilities.embeddingRegistry)
+    return new RuntimeCompositionOwner({
+      registry, operations: new RuntimeOperations(resources), platform, resources, observation, resource,
+      topology: providerTopology(plan.selection), selection: plan.selection,
+      providersOwned: capabilities.providers, exporters: capabilities.exporters,
+      closeTimeoutMs: options.closeTimeoutMs, embeddingRegistry: capabilities.embeddingRegistry,
+    })
   } catch (error) {
     observation?.seal()
     resources.close()
@@ -200,4 +209,25 @@ function timedOutProvider(index: number): RuntimeComponentCloseReport {
   return Object.freeze({ kind: 'provider-registration', id: `provider-${index}`, status: 'timed-out',
     error: Object.freeze({ code: 'CAPABILITY_CLEANUP_TIMEOUT', stage: 'provider-cleanup',
       message: 'Provider cleanup did not start before the runtime close deadline' }) })
+}
+
+function observationOptions(options: ReturnType<typeof captureRuntimeOwnerOptions>) {
+  const config = options.observability
+  return Object.fromEntries(Object.entries({
+    mode: config.mode,
+    content: config.content,
+    minimumLogLevel: config.minimumLogLevel,
+    processors: config.processors,
+    redactors: config.redactors,
+    includeErrorStacks: config.includeErrorStacks,
+    openSpan: config.openSpan,
+    maxEvents: config.maxQueueEvents,
+    maxBytes: config.maxQueueBytes,
+    maxBatchEvents: config.maxBatchEvents,
+    maxBatchBytes: config.maxBatchBytes,
+    flushTimeoutMs: config.flushTimeoutMs,
+    shutdownTimeoutMs: config.shutdownTimeoutMs,
+    diagnosticMaxEvents: options.diagnosticMaxEvents,
+    diagnosticMaxBytes: options.diagnosticMaxBytes,
+  }).filter(([, value]) => value !== undefined)) as ConstructorParameters<typeof RuntimeObservationPort>[3]
 }

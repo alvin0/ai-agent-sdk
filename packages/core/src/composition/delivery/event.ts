@@ -15,7 +15,8 @@ export function prepareDeliveryEvent(
     if (!isRuntimeResource(resource) || (content !== 'none' && content !== 'metadata')) throw new DeliveryDataError()
     const previous = prepared.get(input)
     if (previous?.resource === resource && previous.content === content) return input
-    const event = Object.freeze({ ...sanitizeObservationEvent(input, { content, redactors: [], includeErrorStacks: false }), resource })
+    const event = Object.freeze({ ...sanitizeObservationEvent(input, { content, redactors: [],
+      includeErrorStacks: false }), resource })
     if (bytes(event) > MAX_EVENT_BYTES) throw new DeliveryDataError()
     prepared.set(event, { resource, content })
     return event

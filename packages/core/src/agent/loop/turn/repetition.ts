@@ -16,25 +16,30 @@ export function repeatedSuffixCycle(
   const maximum = Math.min(maxPeriod, Math.floor(steps.length / 2))
   let best: { readonly period: number; readonly repetitions: number } | undefined
   for (let period = 1; period <= maximum; period++) {
-    let repetitions = 1
-    while ((repetitions + 1) * period <= steps.length) {
-      const rightStart = steps.length - period
-      const leftStart = rightStart - repetitions * period
-      let equal = true
-      for (let offset = 0; offset < period; offset++) {
-        if (steps[leftStart + offset] !== steps[rightStart + offset]) {
-          equal = false
-          break
-        }
-      }
-      if (!equal) break
-      repetitions++
-    }
+    const repetitions = suffixRepetitions(steps, period)
     if (repetitions >= 2 && (best === undefined || repetitions > best.repetitions)) {
       best = { period, repetitions }
     }
   }
   return best
+}
+
+function suffixRepetitions(steps: readonly string[], period: number): number {
+  let repetitions = 1
+  while ((repetitions + 1) * period <= steps.length) {
+    const rightStart = steps.length - period
+    const leftStart = rightStart - repetitions * period
+    if (!sameSlice(steps, leftStart, rightStart, period)) break
+    repetitions++
+  }
+  return repetitions
+}
+
+function sameSlice(steps: readonly string[], left: number, right: number, length: number): boolean {
+  for (let offset = 0; offset < length; offset++) {
+    if (steps[left + offset] !== steps[right + offset]) return false
+  }
+  return true
 }
 export function jsonTextFingerprint(value: string): string {
   let first = 0x811c9dc5
@@ -48,11 +53,16 @@ export function jsonTextFingerprint(value: string): string {
     length++
     first = Math.imul(first ^ code, 0x01000193)
     second = Math.imul(second ^ (code + length), 0x85ebca6b)
-    if (quoted) {
-      if (escaped) escaped = false
-      else if (code === 0x5c) escaped = true
-      else if (code === 0x22) quoted = false
-    } else if (code === 0x22) quoted = true
+    const state = quoteState(code, quoted, escaped)
+    quoted = state.quoted
+    escaped = state.escaped
   }
   return `${length.toString(36)}:${(first >>> 0).toString(36)}:${(second >>> 0).toString(36)}`
+}
+
+function quoteState(code: number, quoted: boolean, escaped: boolean): { quoted: boolean; escaped: boolean } {
+  if (!quoted) return { quoted: code === 0x22, escaped: false }
+  if (escaped) return { quoted: true, escaped: false }
+  if (code === 0x5c) return { quoted: true, escaped: true }
+  return { quoted: code !== 0x22, escaped: false }
 }

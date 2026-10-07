@@ -87,7 +87,7 @@ describe('standard-price context policy', () => {
     const { reasoning: _reasoning, ...info } = await openAiAdapter({ ...key,
       models: [{ id: 'gpt-5.6-luna', contextWindow: 200_000, maxTokens: 32_000, defaultMaxTokens: 16_000 }],
     }).resolveModel('openai', 'gpt-5.6-luna')
-    expect(() => normalizeResolvedModelInfo('openai', info.id, info, 100_000)).not.toThrow()
+    expect(() => normalizeResolvedModelInfo('openai', info.id, info, { maxBytes: 100_000 })).not.toThrow()
   })
 
   it('enforces policy overrides through the preferred runtime plugin before dispatch', async () => {

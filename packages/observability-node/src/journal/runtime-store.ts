@@ -1,12 +1,10 @@
+import { recoverRuntimeSegment } from './runtime-recovery.ts'
 import { randomBytes } from 'node:crypto'
 import {
-  chmod,
   lstat,
   readFile,
   readdir,
-  rename,
   stat,
-  truncate,
   unlink,
   type FileHandle,
 } from 'node:fs/promises'
@@ -21,7 +19,6 @@ import { atomicWriteJson, ensureSafeRoot, openExclusiveFile } from '../common/sa
 import { JOURNAL_FILES, JOURNAL_LIMITS, safeSegmentId } from './config.ts'
 import { journalFailure } from './errors.ts'
 import {
-  parseRuntimeJournalLine,
   runtimeItemIdentity,
   runtimeJournalLine,
   type RuntimeJournalRecord,
@@ -100,12 +97,14 @@ export class RuntimeJsonlJournal {
     const payloadJson = JSON.stringify(item)
     const persisted = this.payloads.get(identity.key)
     if (persisted !== undefined) {
-      if (persisted !== payloadJson) throw journalFailure('corrupt', 'duplicate runtime journal item has different data')
+      if (persisted !== payloadJson)
+        throw journalFailure('corrupt', 'duplicate runtime journal item has different data')
       return Promise.resolve()
     }
     const existing = this.pending.get(identity.key)
     if (existing !== undefined) {
-      if (existing.payloadJson !== payloadJson) throw journalFailure('corrupt', 'duplicate runtime journal item has different data')
+      if (existing.payloadJson !== payloadJson)
+        throw journalFailure('corrupt', 'duplicate runtime journal item has different data')
       return existing.promise
     }
     const promise = this.enqueue(async () => {
@@ -142,7 +141,8 @@ export class RuntimeJsonlJournal {
     const keys = items.map(item => runtimeItemIdentity(item).key)
     const previous = this.batches.get(batch.id)
     if (previous !== undefined) {
-      if (!sameList(previous, keys)) throw journalFailure('corrupt', 'duplicate runtime journal batch has different items')
+      if (!sameList(previous, keys))
+        throw journalFailure('corrupt', 'duplicate runtime journal batch has different items')
       return deliveryAck(batch)
     }
     await Promise.all(items.map(item => this.stage(item)))
@@ -207,7 +207,8 @@ export class RuntimeJsonlJournal {
     const current = this.current
     if (current === undefined) return this.openSegment(root)
     const day = validNow(this.options.now()).toISOString().slice(0, 10)
-    if (current.day === day && (current.bytes === 0 || current.bytes + incomingBytes <= this.options.maxSegmentBytes)) return
+    if (current.day === day
+      && (current.bytes === 0 || current.bytes + incomingBytes <= this.options.maxSegmentBytes)) return
     await this.syncCurrent()
     await current.handle.close()
     this.current = undefined
@@ -249,7 +250,7 @@ export class RuntimeJsonlJournal {
     )
   }
 
-  private async cleanupNow(root: string): Promise<void> {
+  private async cleanupCandidates(root: string) {
     const recovered = await recoverRuntimeJournal(root)
     const bySegment = new Map<string, RuntimeJournalRecord[]>()
     for (const record of recovered.records) {
@@ -264,13 +265,22 @@ export class RuntimeJsonlJournal {
       candidates.push({ name, bytes: info.size, mtimeMs: info.mtimeMs,
         accepted: records.every(record => this.accepted.has(record.key)) })
     }
+    return { bySegment, candidates }
+  }
+
+  private shouldDeleteSegment(candidate: { accepted: boolean; mtimeMs: number }, now: number, retained: number) {
+    if (!candidate.accepted) return false
+    return !(now - candidate.mtimeMs < this.options.acknowledgedRetentionMs
+      && retained <= this.options.maxRetainedBytes)
+  }
+
+  private async cleanupNow(root: string): Promise<void> {
+    const { bySegment, candidates } = await this.cleanupCandidates(root)
     let retained = candidates.reduce((sum, value) => sum + value.bytes, this.current?.bytes ?? 0)
     let cursorChanged = false
     const now = validNow(this.options.now()).getTime()
     for (const candidate of candidates.sort((left, right) => left.mtimeMs - right.mtimeMs)) {
-      if (!candidate.accepted) continue
-      if (now - candidate.mtimeMs < this.options.acknowledgedRetentionMs
-        && retained <= this.options.maxRetainedBytes) continue
+      if (!this.shouldDeleteSegment(candidate, now, retained)) continue
       await unlink(join(root, candidate.name))
       retained -= candidate.bytes
       for (const record of bySegment.get(candidate.name) ?? []) {
@@ -288,12 +298,10 @@ export class RuntimeJsonlJournal {
     try {
       const path = join(root, JOURNAL_FILES.runtimeCursor)
       const info = await lstat(path)
-      if (!info.isFile() || info.isSymbolicLink() || info.size > JOURNAL_LIMITS.cursorBytes) throw new Error('unsafe cursor')
+      if (!info.isFile() || info.isSymbolicLink() || info.size > JOURNAL_LIMITS.cursorBytes)
+        throw new Error('unsafe cursor')
       const parsed = JSON.parse(await readFile(path, 'utf8')) as RuntimeCursor
-      if (parsed.schemaVersion !== 1 || !Array.isArray(parsed.acceptedItemKeys)
-        || parsed.acceptedItemKeys.some(key => typeof key !== 'string' || key.length === 0 || key.length > 256)) {
-        throw new Error('invalid cursor')
-      }
+      assertCursor(parsed)
       for (const key of parsed.acceptedItemKeys) this.accepted.add(key)
     } catch (error) {
       if (typeof error === 'object' && error !== null && Reflect.get(error, 'code') === 'ENOENT') return
@@ -317,39 +325,9 @@ export async function recoverRuntimeJournal(root: string): Promise<RuntimeJourna
   const truncatedSegments: string[] = []
   const quarantinedSegments: string[] = []
   for (const name of names) {
-    const path = join(root, name)
-    const info = await lstat(path)
-    if (!info.isFile() || info.isSymbolicLink()) throw journalFailure('io', 'runtime journal segment is not a regular file')
-    if (info.size > JOURNAL_LIMITS.recoverySegmentBytes) {
-      throw journalFailure('corrupt', 'runtime journal segment exceeds recovery bound')
-    }
-    await chmod(path, 0o600)
-    let text = await readFile(path, 'utf8')
-    if (text.length > 0 && !text.endsWith('\n')) {
-      const boundary = text.lastIndexOf('\n') + 1
-      await truncate(path, Buffer.byteLength(text.slice(0, boundary)))
-      text = text.slice(0, boundary)
-      truncatedSegments.push(name)
-    }
-    const lines = text.length === 0 ? [] : text.slice(0, -1).split('\n')
-    const segmentRecords: RuntimeJournalRecord[] = []
-    for (let index = 0; index < lines.length; index++) {
-      try {
-        const record = parseRuntimeJournalLine(lines[index] ?? '', name, index + 1)
-        const previous = payloads.get(record.key)
-        if (previous !== undefined && previous !== record.payloadJson) throw new Error('conflicting duplicate item')
-        segmentRecords.push(record)
-      } catch (error) {
-        if (index !== lines.length - 1) {
-          throw journalFailure('corrupt', `runtime journal segment ${name} has mid-file corruption`, error)
-        }
-        const quarantine = `${name}.corrupt-${Date.now()}`
-        await rename(path, join(root, quarantine))
-        quarantinedSegments.push(quarantine)
-        segmentRecords.length = 0
-        break
-      }
-    }
+    const segmentRecords = await recoverRuntimeSegment(root, name, {
+      payloads, truncatedSegments, quarantinedSegments,
+    })
     for (const record of segmentRecords) {
       payloads.set(record.key, record.payloadJson)
       records.push(record)
@@ -375,7 +353,8 @@ function sameList(left: readonly string[], right: readonly string[]): boolean {
 }
 
 function validNow(value: Date): Date {
-  if (!(value instanceof Date) || Number.isNaN(value.getTime())) throw new TypeError('journal now must return a valid Date')
+  if (!(value instanceof Date) || Number.isNaN(value.getTime()))
+    throw new TypeError('journal now must return a valid Date')
   return value
 }
 
@@ -384,4 +363,12 @@ async function retainedBytes(root: string): Promise<number> {
   let total = 0
   for (const name of names) total += await stat(join(root, name)).then(value => value.size, () => 0)
   return total
+}
+
+
+function assertCursor(parsed: RuntimeCursor): void {
+  if (parsed.schemaVersion !== 1 || !Array.isArray(parsed.acceptedItemKeys)
+    || parsed.acceptedItemKeys.some(key => typeof key !== 'string' || key.length === 0 || key.length > 256)) {
+    throw new Error('invalid cursor')
+  }
 }

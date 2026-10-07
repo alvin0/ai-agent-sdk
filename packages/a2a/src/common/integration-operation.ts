@@ -98,8 +98,9 @@ function elapsed(startedAt: number): number {
   return Number.isFinite(value) ? Math.max(0, value) : 0
 }
 function message(status: TerminalStatus): string {
-  return status === 'success' ? 'SDK integration operation completed'
-    : status === 'error' ? 'SDK integration operation failed' : 'SDK integration operation aborted'
+  if (status === 'success') return 'SDK integration operation completed'
+  if (status === 'error') return 'SDK integration operation failed'
+  return 'SDK integration operation aborted'
 }
 function boundedCode(value: string): string {
   const normalized = value.replace(/[^A-Za-z0-9_.:-]/g, '_')

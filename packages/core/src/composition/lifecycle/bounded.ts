@@ -18,8 +18,11 @@ export async function atDeadline<T>(
   if (caller?.aborted) throw new BoundaryFailure('aborted')
   if (!Number.isFinite(remaining) || remaining <= 0) throw new BoundaryFailure('timed-out')
   const scope = resources.cancellation(caller === undefined ? [] : [caller], Math.ceil(remaining))
-  const reason = (): BoundaryFailure['reason'] => caller?.aborted ? 'aborted'
-    : scope.signal.aborted || resources.platform.monotonicNow() >= deadlineAt ? 'timed-out' : 'failed'
+  const reason = (): BoundaryFailure['reason'] => {
+    if (caller?.aborted) return 'aborted'
+    if (scope.signal.aborted || resources.platform.monotonicNow() >= deadlineAt) return 'timed-out'
+    return 'failed'
+  }
   const checkDeadline = (): void => {
     if (resources.platform.monotonicNow() >= deadlineAt) scope.cancel()
     if (scope.signal.aborted) throw new BoundaryFailure(reason())

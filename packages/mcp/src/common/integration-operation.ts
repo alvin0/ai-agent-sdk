@@ -52,7 +52,7 @@ export function beginIntegrationOperation(
       ...(errorCode === undefined ? {} : { errorCode: boundedCode(errorCode) }),
     }
     emit(logger, status === 'error' ? 'error' : 'info',
-      status === 'success' ? SUCCESS_MESSAGE : status === 'error' ? FAILURE_MESSAGE : ABORT_MESSAGE,
+      terminalMessage(status),
       fields)
   }
   return {
@@ -71,7 +71,7 @@ export function beginIntegrationOperation(
         if (attemptTerminal) return
         attemptTerminal = true
         emit(logger, status === 'error' ? 'error' : 'info',
-          status === 'success' ? SUCCESS_MESSAGE : status === 'error' ? FAILURE_MESSAGE : ABORT_MESSAGE, {
+          terminalMessage(status), {
             integrationSchemaVersion: 1, integrationFamily: family,
             integrationOperation: operation, operationId, kind: 'attempt-terminal',
             attemptId, attemptNumber, status, durationMs: durationSince(attemptStartedAt),
@@ -134,4 +134,10 @@ function boundedCode(value: string): string {
 
 function assertIdentity(value: string, limit: number, label: string): void {
   if (value.length === 0 || value.length > limit) throw new TypeError(`${label} must contain 1-${limit} characters`)
+}
+
+function terminalMessage(status: 'success' | 'error' | 'aborted'): string {
+  if (status === 'success') return SUCCESS_MESSAGE
+  if (status === 'error') return FAILURE_MESSAGE
+  return ABORT_MESSAGE
 }

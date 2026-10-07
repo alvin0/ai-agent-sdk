@@ -42,13 +42,7 @@ export async function executeMcpClosePlan(plan: McpClosePlan): Promise<McpCloseR
   removeAbort()
   const unsettledOperations = states.filter(state => state === 'pending').length
   const failed = states.includes('failed')
-  const error = aborted && unsettledOperations > 0
-    ? mcpSupportError('MCP_CLOSE_ABORTED', 'mcp-close', 'MCP cleanup was interrupted before it settled')
-    : unsettledOperations > 0
-    ? mcpSupportError('MCP_CLOSE_TIMEOUT', 'mcp-close', 'MCP cleanup did not settle before its deadline')
-    : failed
-      ? mcpSupportError('MCP_CLOSE_FAILED', 'mcp-close', 'MCP cleanup failed')
-      : undefined
+  const error = closeError(aborted, unsettledOperations, failed)
   if (error === undefined) {
     attempt.success()
     operation.success()
@@ -62,4 +56,15 @@ export async function executeMcpClosePlan(plan: McpClosePlan): Promise<McpCloseR
     unsettledOperations,
     ...(error === undefined ? {} : { error }),
   })
+}
+
+function closeError(aborted: boolean, unsettledOperations: number, failed: boolean) {
+  if (aborted && unsettledOperations > 0) {
+    return mcpSupportError('MCP_CLOSE_ABORTED', 'mcp-close', 'MCP cleanup was interrupted before it settled')
+  }
+  if (unsettledOperations > 0) {
+    return mcpSupportError('MCP_CLOSE_TIMEOUT', 'mcp-close', 'MCP cleanup did not settle before its deadline')
+  }
+  if (failed) return mcpSupportError('MCP_CLOSE_FAILED', 'mcp-close', 'MCP cleanup failed')
+  return undefined
 }

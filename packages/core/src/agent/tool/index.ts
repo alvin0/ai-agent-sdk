@@ -68,7 +68,11 @@ export {
 
 export { defineToolFromSchema, type RuntimeSchema } from './schema.ts'
 
-export { createToolExecutionInterceptor, localToolExecutionBackend, type ToolExecutionBackend, type ToolExecutionCapabilities, type ToolExecutionRequest, type ToolExecutionStore, type ToolOperation, type ToolOperationClaim } from './execution.ts'
+export {
+  createToolExecutionInterceptor, localToolExecutionBackend, type ToolExecutionBackend,
+  type ToolExecutionCapabilities, type ToolExecutionRequest, type ToolExecutionStore,
+  type ToolOperation, type ToolOperationClaim,
+} from './execution.ts'
 
 export { withApprovalPersistence, type ApprovalStateStore } from './approval.ts'
 export { defineActionFusion, type ActionFusionStep } from './action-fusion.ts'

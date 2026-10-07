@@ -26,7 +26,8 @@ import { detachedFrozen } from '../../primitives/index.ts'
 
 const issuedRequests = new WeakSet<object>()
 
-export function createApprovalRequest(input: Omit<ApprovalRequest, 'approvalRequestId' | 'providerCallId'>): ApprovalRequest {
+export function createApprovalRequest(input: Omit<ApprovalRequest,
+  'approvalRequestId' | 'providerCallId'>): ApprovalRequest {
   const request = detachedFrozen({ ...input, approvalRequestId: systemRandomId(), providerCallId: input.callId })
   issuedRequests.add(request)
   return request
@@ -143,7 +144,9 @@ export function createApprovalBroker(options: InteractiveApprovalBrokerOptions =
 
   return {
     request(request, signal) {
-      if (!issuedRequests.delete(request)) return Promise.reject(new Error('approval request must be fresh and SDK-issued'))
+      if (!issuedRequests.delete(request)) {
+        return Promise.reject(new Error('approval request must be fresh and SDK-issued'))
+      }
       if (signal?.aborted === true) return Promise.resolve('abort')
       if (waiters.has(request.approvalRequestId)) {
         return Promise.reject(new Error(`approval request '${request.approvalRequestId}' is already pending`))
@@ -171,20 +174,11 @@ export function createApprovalBroker(options: InteractiveApprovalBrokerOptions =
         waiters.set(request.approvalRequestId, { request: published, settle })
         signal?.addEventListener('abort', onAbort, { once: true })
 
-        for (const listener of [...listeners]) {
-          try {
-            listener(published)
-          } catch {
-            // A broken observer must not strand the call. If nobody else answers,
-            // cancellation or `abortAll` still settles it.
-          }
-        }
+        publishRequest(listeners, published)
       })
     },
 
-    pending() {
-      return [...waiters.values()].map(waiter => waiter.request)
-    },
+    pending: () => [...waiters.values()].map(waiter => waiter.request),
 
     onRequest(listener) {
       listeners.add(listener)
@@ -203,11 +197,24 @@ export function createApprovalBroker(options: InteractiveApprovalBrokerOptions =
       for (const waiter of [...waiters.values()]) if (waiter.request.runId === runId) waiter.settle('abort')
     },
     abortSession(conversationId) {
-      for (const waiter of [...waiters.values()]) if (waiter.request.conversationId === conversationId) waiter.settle('abort')
+      for (const waiter of [...waiters.values()]) {
+        if (waiter.request.conversationId === conversationId) waiter.settle('abort')
+      }
     },
     abortAll() {
       for (const waiter of [...waiters.values()]) waiter.settle('abort')
     },
+  }
+}
+
+function publishRequest(listeners: ReadonlySet<(request: ApprovalRequest) => void>, published: ApprovalRequest): void {
+  for (const listener of [...listeners]) {
+    try {
+      listener(published)
+    } catch {
+      // A broken observer must not strand the call. If nobody else answers,
+      // cancellation or `abortAll` still settles it.
+    }
   }
 }
 

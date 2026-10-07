@@ -29,18 +29,31 @@ interface CatalogFlight {
   settled: boolean
 }
 
+interface CatalogDependencies {
+  readonly registry: ModelRegistry
+  readonly operations: RuntimeOperations
+  readonly resources: RuntimeResources
+}
+
 /** Runtime-owned dynamic catalog cache with per-waiter cancellation. */
 export class RuntimeModelCatalog {
   private readonly entries = new Map<string, CacheEntry>()
   private readonly policy: Required<ModelCatalogPolicy>
 
+  private readonly registry: ModelRegistry
+  private readonly operations: RuntimeOperations
+  private readonly resources: RuntimeResources
+
   constructor(
-    private readonly registry: ModelRegistry,
-    private readonly operations: RuntimeOperations,
-    private readonly resources: RuntimeResources,
+    dependencies: CatalogDependencies,
     private readonly topology: readonly RuntimeProviderInfo[],
     policy?: ModelCatalogPolicy,
-  ) { this.policy = resolveCatalogPolicy(policy) }
+  ) {
+    this.registry = dependencies.registry
+    this.operations = dependencies.operations
+    this.resources = dependencies.resources
+    this.policy = resolveCatalogPolicy(policy)
+  }
 
   get(routeValue: unknown, optionsValue?: unknown): Promise<RuntimeModelCatalogSnapshot> {
     const route = captureCatalogRoute(routeValue)
@@ -88,7 +101,8 @@ export class RuntimeModelCatalog {
         const generation = successfulGeneration(source)
         const now = this.resources.platform.wallNow()
         let published!: RuntimeModelCatalogSnapshot
-        if (!lease.publish(() => { published = this.publishSuccess(entry, provider, generation, now) })) throw cancelled()
+        if (!lease.publish(() => { published = this.publishSuccess(entry, provider, generation,
+          now) })) throw cancelled()
         return published
       } catch (error) {
         if (lease.signal.aborted) throw cancelled()

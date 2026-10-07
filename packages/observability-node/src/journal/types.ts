@@ -1,3 +1,5 @@
+import type { ObservationEvent } from '@alvin0/ai-agent-sdk-core'
+
 export type JournalDurabilityMode = 'operational' | 'reliable' | 'audit'
 
 export interface JsonlObservationJournalOptions {
@@ -11,4 +13,17 @@ export interface JsonlObservationJournalOptions {
   readonly syncRecordCount?: number
   readonly now?: () => Date
   readonly segmentId?: () => string
+}
+
+export interface JournalRecoveryRecord {
+  readonly segment: string
+  readonly line: number
+  readonly event: ObservationEvent
+  readonly payloadJson: string
+}
+
+export interface JournalRecoveryResult {
+  readonly records: readonly JournalRecoveryRecord[]
+  readonly quarantinedSegments: readonly string[]
+  readonly truncatedSegments: readonly string[]
 }

@@ -76,7 +76,8 @@ export class RuntimeOperations {
   }
 
   /** Admit before evaluating an executable callback and settle public waits even if its work ignores abort. */
-  execute<T>(kind: RuntimeOperationKind, options: OperationOptions, work: (lease: OperationLease) => Promise<T>): Promise<T> {
+  execute<T>(kind: RuntimeOperationKind, options: OperationOptions,
+    work: (lease: OperationLease) => Promise<T>): Promise<T> {
     const lease = this.acquire(kind, options)
     const task = Promise.resolve().then(() => {
       if (lease.signal.aborted) throw operationCancelled()

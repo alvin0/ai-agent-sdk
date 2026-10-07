@@ -24,6 +24,41 @@ export interface ModelErrorOptions extends ErrorOptions {
   requestId?: ProviderRequestId
 }
 
+function validateModelErrorInputs(message: string, code: string, options?: ModelErrorOptions): void {
+  validateText(message, 'message'); validateText(code, 'code')
+  validateStatus(options?.status)
+  validateRetryAfter(options?.providerRetryAfterMs)
+  validateRequestId(options?.requestId)
+}
+
+function validateText(value: string, label: string): void {
+  if (typeof value !== 'string' || value.length === 0) throw new Error(`ModelError ${label} must be a non-empty string`)
+}
+function validateStatus(value: number | undefined): void {
+  if (value !== undefined && (!Number.isInteger(value) || value < 100 || value > 599)) {
+    throw new Error('ModelError status must be an integer from 100 through 599')
+  }
+}
+function validateRetryAfter(value: number | undefined): void {
+  if (value !== undefined && (!Number.isFinite(value) || value <= 0)) {
+    throw new Error('ModelError providerRetryAfterMs must be a positive finite number')
+  }
+}
+function validateRequestId(value: ProviderRequestId | undefined): void {
+  if (value !== undefined && (typeof value !== 'string' || value.length === 0)) {
+    throw new Error('ModelError requestId must be a non-empty string')
+  }
+}
+
+function modelFailure(message: string, code: string, options?: ModelErrorOptions): ModelFailure {
+  return Object.freeze({
+    message, code,
+    ...options?.status === undefined ? {} : { status: options.status },
+    ...options?.providerRetryAfterMs === undefined ? {} : { providerRetryAfterMs: options.providerRetryAfterMs },
+    ...options?.requestId === undefined ? {} : { requestId: options.requestId },
+  })
+}
+
 /**
  * Typed error for model-call failures, carrying a stable `code` from the shared
  * taxonomy plus the serializable {@link failure} twin.
@@ -42,35 +77,10 @@ export class ModelError extends AgentSdkError {
    * @param options - optional cause and validated serializable provider facts.
    */
   constructor(message: string, code: string, options?: ModelErrorOptions) {
-    if (typeof message !== 'string' || message.length === 0) {
-      throw new Error('ModelError message must be a non-empty string')
-    }
-    if (typeof code !== 'string' || code.length === 0) {
-      throw new Error('ModelError code must be a non-empty string')
-    }
-    if (options?.status !== undefined
-      && (!Number.isInteger(options.status) || options.status < 100 || options.status > 599)) {
-      throw new Error('ModelError status must be an integer from 100 through 599')
-    }
-    if (options?.providerRetryAfterMs !== undefined
-      && (!Number.isFinite(options.providerRetryAfterMs) || options.providerRetryAfterMs <= 0)) {
-      throw new Error('ModelError providerRetryAfterMs must be a positive finite number')
-    }
-    if (options?.requestId !== undefined
-      && (typeof options.requestId !== 'string' || options.requestId.length === 0)) {
-      throw new Error('ModelError requestId must be a non-empty string')
-    }
+    validateModelErrorInputs(message, code, options)
     super(message, code, options)
     this.name = 'ModelError'
-    this.failure = Object.freeze({
-      message,
-      code,
-      ...options?.status === undefined ? {} : { status: options.status },
-      ...options?.providerRetryAfterMs === undefined
-        ? {}
-        : { providerRetryAfterMs: options.providerRetryAfterMs },
-      ...options?.requestId === undefined ? {} : { requestId: options.requestId },
-    })
+    this.failure = modelFailure(message, code, options)
   }
 }
 

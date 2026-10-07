@@ -129,21 +129,7 @@ export function createProjectInstructionsSection(
       if (config.nested) {
         for (const touch of input.touches) {
           const path = config.filePathFromTouch(touch)
-          if (path === undefined) continue
-          for (const dir of descendantDirsBetween(config.cwd, path)) {
-            // Every retained directory is re-probed on every model round. An
-            // agent that walks a large tree would otherwise turn one section
-            // into thousands of stat calls per step, so the set is capped and
-            // the directories already in scope win.
-            if (state.nestedDirs.size >= config.maxNestedDirs) {
-              if (!state.nestedLimitReported) {
-                state.nestedLimitReported = true
-                config.onNestedLimit?.(config.maxNestedDirs)
-              }
-              break
-            }
-            state.nestedDirs.add(dir)
-          }
+          if (path !== undefined) trackNestedDirectories(state, config, path)
         }
       }
       input.signal.throwIfAborted()
@@ -162,4 +148,17 @@ export function createProjectInstructionsSection(
     ...section,
     loadedPaths: (scope?: ContextSectionScope) => scopes.get(scopeKey(scope))?.loaded ?? Object.freeze([]),
   })
+}
+
+function trackNestedDirectories(state: ScopeState, config: ResolvedInstructionsConfig, path: string): void {
+  for (const dir of descendantDirsBetween(config.cwd, path)) {
+    if (state.nestedDirs.size >= config.maxNestedDirs) {
+      if (!state.nestedLimitReported) {
+        state.nestedLimitReported = true
+        config.onNestedLimit?.(config.maxNestedDirs)
+      }
+      break
+    }
+    state.nestedDirs.add(dir)
+  }
 }
