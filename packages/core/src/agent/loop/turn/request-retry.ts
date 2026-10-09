@@ -12,7 +12,8 @@ type RetryContext = {
 async function requestRetryDecision(ctx: FinalRoundContext, round: Round, step: number): Promise<unknown> {
   if (round.finish.kind !== 'error') return 'fail'
   return runOptionalHook(ctx.options.hooks?.onRequestError, [{
-    turn: ctx.turn, step, failure: round.finish.failure, snapshot: ctx.options.history.snapshot(),
+    turn: ctx.turn, step, failure: round.finish.failure,
+    consecutiveFailures: ctx.consecutiveFailures, retries: ctx.grantedRetries, snapshot: ctx.options.history.snapshot(),
     signal: ctx.signal, ...(ctx.options.logger === undefined ? {} : { logger: ctx.options.logger }),
     emit: ctx.emitMaintenance,
   }], ctx.options, { signal: ctx.signal, name: 'onRequestError' })
@@ -36,7 +37,7 @@ export async function retryErroredRound(
   }
   if (decision === 'retry' && !ctx.signal.aborted) {
     if (ctx.retriedRounds < MAX_FREE_REQUEST_RETRIES) ctx.retriedRounds++
-    if (retry.workSteps() < retry.limit) return 'retry'
+    if (retry.workSteps() < retry.limit) { ctx.grantedRetries++; return 'retry' }
   }
   await retry.commitRound()
   if (ctx.signal.aborted) return { kind: 'aborted' }

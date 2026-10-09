@@ -10,6 +10,7 @@ message.
 
 ## Setup
 
+For the 0.1.11 release, read the [release notes](CHANGELOG.md).
 For the 0.1.10 decision runtime release, read the [release notes](CHANGELOG.md).
 For the 0.1.9 release, read the [release notes](CHANGELOG.md).
 For the 0.1.8 release, read [upgrading from 0.1.7](docs/upgrading-from-0.1.7.md).

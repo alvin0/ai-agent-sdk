@@ -192,6 +192,17 @@ export interface RequestErrorContext {
   readonly turn: number
   readonly step: number
   readonly failure: ModelFailure
+  /**
+   * Failed model requests in a row in this turn, this one included. A request
+   * that succeeds resets it, so a retry limit read from it applies per outage
+   * rather than to the whole turn.
+   */
+  readonly consecutiveFailures: number
+  /**
+   * Retries already granted in this turn, across every outage, by whichever
+   * hook granted them (the session's own overflow compaction included).
+   */
+  readonly retries: number
   readonly snapshot: HistorySnapshot
   readonly signal: AbortSignal
   readonly logger?: SdkLogger

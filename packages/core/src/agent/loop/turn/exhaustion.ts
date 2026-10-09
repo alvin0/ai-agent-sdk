@@ -2,8 +2,11 @@ import type { TurnBounds, TurnOutcome, ExhaustedBudget } from '../types.ts'
 import type { modelRound } from './model-round.ts'
 import type { scheduleToolCalls } from '../schedule.ts'
 import { repeatKey } from './repetition.ts'
+import type { ModelCallReport } from '../../../observation/index.ts'
+import { reportReserve } from './report-budget.ts'
 
 type ExhaustionContext = {
+  modelCallReports: readonly ModelCallReport[]
   bounds: TurnBounds; budgetTokens: number | undefined; maxTotalTokens: number; maxSteps: number
   repeatedLimitBeforeDispatch: boolean; round: Awaited<ReturnType<typeof modelRound>>
   recoveredCallIds: Set<string>; recoveredReplanKeys: Set<string>; individuallyRepeatedCallIds: Set<string>
@@ -59,7 +62,8 @@ function exhaustedBudget(
 function reachedReportReserve(ctx: ExhaustionContext): boolean {
   return ctx.bounds.maxTotalTokens !== 'auto' && ctx.bounds.finalReportReserveTokens > 0
     && ctx.budgetTokens !== undefined
-    && ctx.budgetTokens >= ctx.maxTotalTokens - ctx.bounds.finalReportReserveTokens
+    && ctx.budgetTokens >= ctx.maxTotalTokens
+      - reportReserve(ctx.bounds.finalReportReserveTokens, ctx.maxTotalTokens, ctx.modelCallReports)
 }
 
 function markRecoveredFreshCalls(

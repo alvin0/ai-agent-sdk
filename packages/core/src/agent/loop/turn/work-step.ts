@@ -1,4 +1,5 @@
-import { modelRound } from './model-round.ts'
+import type { modelRound } from './model-round.ts'
+import { requestModelRound } from './request-round.ts'
 import { accountingUsageStop } from './usage-stop.ts'
 import { remindTurnBudgets } from './budget-reminders.ts'
 import { prepareDispatch } from './dispatch-preparation.ts'
@@ -36,7 +37,7 @@ async function prepareWorkRound(state: TurnState): Promise<boolean> {
 
 async function requestRound(state: TurnState) {
   const step = state.steps + 1
-  const round = await modelRound({ ...state, step,
+  const round = await requestModelRound(state, { ...state, step,
     phase: roundPhase(state.options, state.dedicatedFinalOutput), position: state.position() })
   state.steps++
   if (round.report !== undefined) state.modelCallReports.push(round.report)

@@ -32,6 +32,7 @@ function budgetState(options: RunTurnOptions) {
     finalizeOrigin: undefined as Extract<TurnOutcome['reason'],
       { kind: 'budget-exhausted' } | { kind: 'completed' }> | undefined,
     forcedText: '', forcedMessage: undefined as Message | undefined,
+    finalizePromptSeq: undefined as number | undefined,
     finalizeTools: new Set(options.finalize?.tools ?? []),
   }
 }
@@ -71,7 +72,8 @@ function baseState(options: RunTurnOptions, signal: AbortSignal, emit: (event: A
   const contextSections = createTurnContextSections(options, signal)
   return {
     ...budgets, ...toolState(options), ...clock, options, signal, emit, root, traceId, turn,
-    startedAt, steps: 0, retriedRounds: 0, text: '', modelCallReports: [] as ModelCallReport[],
+    startedAt, steps: 0, retriedRounds: 0, consecutiveFailures: 0, grantedRetries: 0, text: '',
+    modelCallReports: [] as ModelCallReport[],
     reason: undefined as TurnOutcome['reason'] | undefined,
     usageStop: undefined as TurnOutcome['reason'] | undefined,
     contextTouches: [] as ContextToolTouch[], contextSections,
@@ -109,6 +111,10 @@ export function createTurnState(
     get retriedRounds() { return state.retriedRounds },
     set retriedRounds(value: number) { state.retriedRounds = value },
     get text() { return state.text }, set text(value: string) { state.text = value },
+    get consecutiveFailures() { return state.consecutiveFailures },
+    set consecutiveFailures(value: number) { state.consecutiveFailures = value },
+    get grantedRetries() { return state.grantedRetries },
+    set grantedRetries(value: number) { state.grantedRetries = value },
     position, admissionStop: stop,
   }
   return Object.assign(state, { workSteps, position, admissionStop: stop, finalContext })

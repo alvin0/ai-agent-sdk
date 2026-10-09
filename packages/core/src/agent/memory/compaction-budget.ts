@@ -1,5 +1,6 @@
 import type { CallConfig, ResolvedModelInfo } from '../../contract/index.ts'
 import type { AgentCompactionConfig } from './compaction-config.ts'
+import { defaultOutputTokens } from '../../runtime/model-metadata.ts'
 
 export interface ResolvedBudget {
   readonly thresholdTokens: number
@@ -13,7 +14,8 @@ export function modelCompactionBudget(config: CallConfig, info: ResolvedModelInf
   if (contextWindow === undefined) return null
   return {
     contextWindow,
-    outputReserve: config.maxTokens ?? info.defaultMaxTokens ?? info.maxOutputTokens ?? 0,
+    outputReserve: config.maxTokens ?? defaultOutputTokens(info, {}, contextWindow)
+      ?? Math.min(info.maxOutputTokens ?? 0, Math.floor(contextWindow / 2)),
   }
 }
 

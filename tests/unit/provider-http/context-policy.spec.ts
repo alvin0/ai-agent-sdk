@@ -3,6 +3,7 @@ import { openAiAdapter, openAiPlugin } from '@alvin0/ai-agent-sdk-provider-opena
 import { createAgentRuntime, ModelRegistry } from '@alvin0/ai-agent-sdk-core'
 import { resolvedCatalogModelInfo } from '../../../packages/provider-http/src/base/transport.ts'
 import { normalizeResolvedModelInfo } from '../../../packages/core/src/runtime/model-metadata.ts'
+import type { ResolvedModelInfo } from '../../../packages/core/src/contract/model-info.ts'
 
 const noNetwork = async (): Promise<Response> => { throw new Error('Unexpected network request') }
 const key = { apiKey: 'fixture-only', fetch: noNetwork }
@@ -65,6 +66,18 @@ describe('standard-price context policy', () => {
       'custom', 'custom', [{ id: 'custom', defaultContextWindow: 200_000 }], undefined, 128_000,
     )
     expect(info.context?.contextWindow).toBe(200_000)
+  })
+
+  it('lets a route fallback yield to a smaller model ceiling', () => {
+    const info = resolvedCatalogModelInfo('custom', 'small',
+      [{ id: 'small', maxContextWindow: 64_000, maxTokens: 8_000 }], undefined, 128_000)
+    expect(info.context).toMatchObject({ contextWindow: 64_000, maxContextWindow: 64_000 })
+    expect(() => normalizeResolvedModelInfo('custom', 'small', info as unknown as ResolvedModelInfo,
+      { maxBytes: 100_000 })).not.toThrow()
+    // A model-level operating default is explicit, so it still must fit its ceiling.
+    expect(() => resolvedCatalogModelInfo('custom', 'small',
+      [{ id: 'small', defaultContextWindow: 128_000, maxContextWindow: 64_000 }], undefined, 128_000))
+      .toThrow(/maxContextWindow/)
   })
 
   it('rejects known technical overflow, without clamping', async () => {

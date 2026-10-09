@@ -4,6 +4,7 @@ import type { AgentEvent, TurnOutcome } from '../types.ts'
 import type { RunTurnOptions } from './types.ts'
 
 type FinalizedAnswer = {
+  finalizePromptSeq: number | undefined
   options: RunTurnOptions; emit: (event: AgentEvent) => Promise<void>; root: TraceRef
   reason: TurnOutcome['reason']; text: string; forcedText: string; forcedMessage: Message | undefined
   finalizeOrigin: Extract<TurnOutcome['reason'], { kind: 'budget-exhausted' } | { kind: 'completed' }>
@@ -14,7 +15,11 @@ async function restoreForcedMessage(ctx: FinalizedAnswer): Promise<void> {
   if (ctx.forcedMessage === undefined || last?.id === ctx.forcedMessage.id) return
   const restored = createMessage({ role: 'assistant', content: ctx.forcedMessage.content,
     source: ctx.forcedMessage.source })
-  ctx.options.history.append({ kind: 'assistant', message: restored })
+  const windowStart = ctx.finalizePromptSeq ?? Infinity
+  const superseded = ctx.options.history.surface()
+    .filter(node => node.seq > windowStart && node.message.source.kind !== 'user').map(node => node.seq)
+  ctx.options.history.append({ kind: 'assistant', message: restored }, superseded.length === 0 ? undefined
+    : { op: 'replace', from: Math.min(...superseded), to: Math.max(...superseded), targets: superseded })
   await ctx.emit({ type: 'assistant-message', message: restored, trace: ctx.root })
 }
 

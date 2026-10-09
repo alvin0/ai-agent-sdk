@@ -20,7 +20,7 @@ import { ModelAdapter, type PreparedAdapterCall } from '../contract/adapter.ts'
 import type { GenerateOptions } from '../contract/generate-options.ts'
 import type { ModelInfo, ResolvedModelInfo } from '../contract/model-info.ts'
 import {
-  backoffDelayMs,
+  retryDelayMs,
   resolveRetryPolicy,
   type ResolvedRetryPolicy,
   type RetryPolicyConfig,
@@ -73,25 +73,6 @@ export interface WithRetryOptions {
   bufferReasoningPrefix?: boolean | { readonly maxChunks: number }
 }
 
-/** Resolve a delay that honours a provider-requested `retry-after` when sane. */
-function delayFor(
-  policy: ResolvedRetryPolicy,
-  failure: ModelFailure,
-  attempt: number,
-  random: () => number,
-): number | 'give-up' {
-  const requested = failure.providerRetryAfterMs
-  if (requested !== undefined && Number.isFinite(requested) && requested > 0) {
-    if (requested <= policy.maxDelayMs) return requested
-    // The provider asked for longer than this policy is willing to wait. Under a
-    // bounded policy that is a refusal: sleeping less than asked would just earn
-    // another rate-limit response. An `always` policy has nowhere to give up to,
-    // so it falls back to local backoff and keeps trying.
-    return policy.mode === 'always' ? backoffDelayMs(policy, attempt, random) : 'give-up'
-  }
-  return backoffDelayMs(policy, attempt, random)
-}
-
 /** Sleep, resolving early and reporting false if the signal aborts first. */
 function cancellableDelay(delayMs: number, signal?: AbortSignal): Promise<boolean> {
   if (signal?.aborted === true) return Promise.resolve(false)
@@ -122,7 +103,7 @@ function retryDecision(input: {
   const eligible = policy.mode === 'always'
     || (policy.retryableCodes.includes(failure.code) && retries < policy.maxRetries)
   if (!eligible) return { type: 'finish', reason: { kind: 'error', failure } }
-  const delayMs = delayFor(policy, failure, retries + 1, random)
+  const delayMs = retryDelayMs(policy, failure, retries + 1, random)
   if (delayMs === 'give-up') return { type: 'finish', reason: { kind: 'error', failure } }
   return { type: 'retry', delayMs }
 }

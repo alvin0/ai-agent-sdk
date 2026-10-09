@@ -63,22 +63,23 @@ export function resolvedCatalogModelInfo(
   ...defaults: [defaultMaxTokens?: number, defaultContextWindow?: number]
 
 ): ResolvedModelInfo {
-  const [defaultMaxTokens, defaultContextWindow] = defaults
+  const [, defaultContextWindow] = defaults
   const configured = models.find(entry => entry.id === modelId)
-  const resolvedMaxTokens = configured?.defaultMaxTokens ?? configured?.maxTokens ?? defaultMaxTokens
-  return applyModelContextPolicy({
+  const routeContextWindow = routeWindowFor(configured, defaultContextWindow)
+  const info = applyModelContextPolicy({
     ...(configured === undefined
       ? { provider, id: modelId, name: modelId }
       : catalogModelInfo(provider, configured)),
-    ...(resolvedMaxTokens === undefined ? {} : { defaultMaxTokens: resolvedMaxTokens }),
     ...configuredDetails(configured),
     // The ROUTE's own configured fallback rides as `context.defaultContextWindow`
     // rather than as `providerOverride` below, so a model's own (softer)
     // `defaultContextWindow` still outranks it — only the model's exact
     // `contextWindow` outranks the route. Omitted entirely when the route names
     // none, so `applyModelContextPolicy` sees a genuine absence, not a guess.
-    ...(defaultContextWindow === undefined ? {} : { context: { defaultContextWindow } }),
+    ...(routeContextWindow === undefined ? {} : { context: { defaultContextWindow: routeContextWindow } }),
   }, undefined, configured)
+  const resolvedMaxTokens = catalogMaxTokens(configured, defaults, info, routeContextWindow)
+  return resolvedMaxTokens === undefined ? info : { ...info, defaultMaxTokens: resolvedMaxTokens }
 }
 
 function configuredDetails(configured: ProviderCatalogModel | undefined) {
@@ -87,4 +88,57 @@ function configuredDetails(configured: ProviderCatalogModel | undefined) {
     ...(configured?.reasoning === undefined ? {} : { reasoning: configured.reasoning }),
     ...(configured?.outputModalities === undefined ? {} : { outputModalities: configured.outputModalities }),
   }
+}
+
+/**
+ * The route's fallback window for one model.
+ *
+ * The fallback is shared by every model on the route; a model's own declared
+ * ceiling is the more specific fact, so the fallback yields to it instead of
+ * failing. An explicit `contextWindow`/`defaultContextWindow` is never clamped.
+ * A model that declares no window at all but an output ceiling or default the fallback
+ * cannot hold with input to spare proves that fallback wrong for it: it is
+ * dropped, leaving the window to the registry's own defaults rather than
+ * failing every call on a guess the model never made.
+ */
+function routeWindowFor(configured: ProviderCatalogModel | undefined, fallback?: number): number | undefined {
+  if (fallback === undefined || configured === undefined) return fallback
+  if (configured.maxContextWindow !== undefined) {
+    return clampedRouteWindow(configured, fallback, configured.maxContextWindow)
+  }
+  const declaresWindow = configured.contextWindow !== undefined || configured.defaultContextWindow !== undefined
+  const declaredOutput = Math.max(configured.maxTokens ?? 0, configured.defaultMaxTokens ?? 0)
+  if (!declaresWindow && declaredOutput >= fallback) return undefined
+  return fallback
+}
+
+/**
+ * A legacy catalog `maxTokens` doubles as the per-request default, but only
+ * while it still leaves input headroom: a model whose output ceiling fills its
+ * operating window falls back to the route default, else names none at all.
+ */
+function inheritedMaxTokens(ceiling?: number, routeDefault?: number, contextWindow?: number): number | undefined {
+  const fits = (value?: number): value is number =>
+    value !== undefined && (contextWindow === undefined || value < contextWindow)
+  if (ceiling !== undefined && fits(ceiling)) return ceiling
+  // The route's default is shared by every model on it, so it too must fit.
+  return fits(routeDefault) ? routeDefault : undefined
+}
+
+function catalogMaxTokens(
+  configured: ProviderCatalogModel | undefined,
+  defaults: readonly [defaultMaxTokens?: number, defaultContextWindow?: number],
+  info: ResolvedModelInfo,
+  routeContextWindow: number | undefined,
+): number | undefined {
+  const [defaultMaxTokens, defaultContextWindow] = defaults
+  const fallbackDropped = routeContextWindow === undefined && defaultContextWindow !== undefined
+  return configured?.defaultMaxTokens ?? inheritedMaxTokens(configured?.maxTokens,
+    defaultMaxTokens, fallbackDropped ? configured?.maxTokens : info.context?.contextWindow)
+}
+
+function clampedRouteWindow(configured: ProviderCatalogModel, fallback: number, ceiling: number): number {
+  const clamped = Math.min(fallback, ceiling)
+  const ownDefault = configured.defaultMaxTokens
+  return ownDefault !== undefined && ownDefault >= clamped && ownDefault < ceiling ? ceiling : clamped
 }

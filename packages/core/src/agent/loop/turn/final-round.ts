@@ -4,7 +4,8 @@ import type { TraceRef } from '../../trace/trace.ts'
 import type { AgentEvent, AgentMaintenanceEvent, ExhaustedBudget, TurnOutcome } from '../types.ts'
 import { emitAssistantContent, textOf } from './content.ts'
 import { accountingUsageStop } from './usage-stop.ts'
-import { modelRound } from './model-round.ts'
+import type { modelRound } from './model-round.ts'
+import { requestModelRound, type RequestRetryState } from './request-round.ts'
 import { runOptionalHook } from './hooks.ts'
 import type { RunTurnOptions } from './types.ts'
 
@@ -12,7 +13,7 @@ export const MAX_FREE_REQUEST_RETRIES = 8
 
 type FinalRound = Awaited<ReturnType<typeof modelRound>>
 
-export type FinalRoundContext = {
+export type FinalRoundContext = RequestRetryState & {
   options: RunTurnOptions
   signal: AbortSignal
   emit: (event: AgentEvent) => Promise<void>
@@ -41,6 +42,7 @@ export async function retryFinalRound(
     if (final.finish.kind !== 'error') break
     const decision = await runOptionalHook(ctx.options.hooks?.onRequestError, [{
       turn: ctx.turn, step: ctx.steps + 1, failure: final.finish.failure,
+      consecutiveFailures: ctx.consecutiveFailures, retries: ctx.grantedRetries,
       snapshot: ctx.options.history.snapshot(), signal: ctx.signal,
       ...(ctx.options.logger === undefined ? {} : { logger: ctx.options.logger }),
       emit: ctx.emitMaintenance,
@@ -50,10 +52,11 @@ export async function retryFinalRound(
         throw error
       })
     if (decision !== 'retry' || ctx.admissionStop(final.report) !== undefined) break
+    ctx.grantedRetries++
     if (final.report !== undefined) ctx.modelCallReports.push(final.report)
     ctx.steps++
     ctx.retriedRounds++
-    final = await modelRound({
+    final = await requestModelRound(ctx, {
       options: ctx.options, signal: ctx.signal, emit: ctx.emit,
       emitMaintenance: ctx.emitMaintenance, root: ctx.root, turn: ctx.turn,
       step: ctx.steps + 1, phase, position: ctx.position(),
@@ -76,7 +79,7 @@ async function retryEmptyFinalAnswer(ctx: FinalRoundContext, final: FinalRound):
   }) })
   ctx.steps++
   ctx.retriedRounds++
-  return modelRound({
+  return requestModelRound(ctx, {
     options: ctx.options, signal: ctx.signal, emit: ctx.emit,
     emitMaintenance: ctx.emitMaintenance, root: ctx.root, turn: ctx.turn,
     step: ctx.steps + 1, phase: 'forced-final', position: ctx.position(),
@@ -134,7 +137,7 @@ async function finishForcedAnswer(
 export async function forceAnswer(
   ctx: FinalRoundContext, exhausted: ExhaustedBudget, reserveTrigger: boolean,
 ): Promise<TurnOutcome['reason']> {
-  let final = await retryFinalRound(ctx, await modelRound({
+  let final = await retryFinalRound(ctx, await requestModelRound(ctx, {
     options: ctx.options, signal: ctx.signal, emit: ctx.emit,
     emitMaintenance: ctx.emitMaintenance, root: ctx.root, turn: ctx.turn,
     step: ctx.steps + 1, phase: 'forced-final', position: ctx.position(),
@@ -162,7 +165,7 @@ export async function finalizeStructuredOutput(ctx: FinalRoundContext): Promise<
         + 'Do not call tools.',
     }],
   }) })
-  const final = await retryFinalRound(ctx, await modelRound({
+  const final = await retryFinalRound(ctx, await requestModelRound(ctx, {
     options: ctx.options, signal: ctx.signal, emit: ctx.emit, emitMaintenance: ctx.emitMaintenance,
     root: ctx.root, turn: ctx.turn, step: ctx.steps + 1, phase: 'final', position: ctx.position(),
   }), 'final')

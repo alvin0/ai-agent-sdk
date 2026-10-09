@@ -505,6 +505,7 @@
           "PreToolDecision",
           "PreparedToolCall",
           "RequestErrorContext",
+          "RequestRetryOptions",
           "ResolvedAgentSkillOptions",
           "ResolvedManagedAgentSpawnRequest",
           "RunAccountingPort",
@@ -657,6 +658,7 @@
           "reduceEvidence",
           "renderJsonValue",
           "renderSkillCatalog",
+          "requestRetryHook",
           "resolveCompactionConfig",
           "resolveMemoryConfig",
           "resolveSkillOptions",
@@ -674,7 +676,7 @@
           "validateSkillSource",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "bdd76ff2cc6f7835041ca630ec468215b6494e5b7583e704fb87ac53c305f5bc"
+        "declarationSha256": "5411ae3759302446f4958f46fa51846c3f2c8172287797e2cdd1342a43b97fad"
       },
       "./memory": {
         "exports": [

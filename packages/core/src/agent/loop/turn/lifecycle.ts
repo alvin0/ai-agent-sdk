@@ -11,6 +11,7 @@ function beginFinalizeWindow(state: TurnState) {
   const window = openFinalizeWindow({ ...state,
     finalizeSteps: state.bounds.finalizeSteps, workStep: state.workSteps() })
   if (window === undefined) return false
+  state.finalizePromptSeq = window.promptSeq
   state.finalizeOrigin = window.origin
   state.finalizeReason = window.budget
   state.forcedText = state.text

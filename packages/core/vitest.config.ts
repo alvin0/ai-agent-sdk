@@ -30,6 +30,7 @@ export default defineConfig({
       '../../tests/unit/provider-plugin.spec.ts',
       '../../tests/unit/registry.spec.ts',
       '../../tests/unit/retry-policy.spec.ts',
+      '../../tests/unit/request-retry.spec.ts',
       '../../tests/unit/usage-accounting.spec.ts',
       '../../tests/unit/with-retry.spec.ts'
     ]

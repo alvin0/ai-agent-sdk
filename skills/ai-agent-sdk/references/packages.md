@@ -7,9 +7,9 @@
 | **Universal** | ECMAScript, Fetch types, Web Streams, `AbortController`, Web Crypto only. No Node built-ins, `process`, `Buffer`, paths, filesystem, child processes, stdio. Runs on Edge/Worker, Deno, Bun, browser, Node. |
 | **Node** | Elevated: uses Node built-ins. Install only in a Node process. |
 
-## The 25 published packages
+## The 27 published packages
 
-The workspace contains 26 top-level package manifests. The 25 below are publishable;
+The workspace contains 28 top-level package manifests. The 27 below are publishable;
 `@alvin0/ai-agent-sdk-testkit` is private and used from the workspace or a local
 tarball.
 
@@ -26,6 +26,8 @@ tarball.
 | `@alvin0/ai-agent-sdk-protocol-openai-chat-completions` | Universal | OpenAI Chat Completions wire protocol, dialect-configurable |
 | `@alvin0/ai-agent-sdk-protocol-anthropic-messages` | Universal | Messages wire protocol |
 | `@alvin0/ai-agent-sdk-protocol-gemini-interactions` | Universal | Gemini wire protocol |
+| `@alvin0/ai-agent-sdk-decision-adapter` | Universal | Typed decision companion runtime; `llmDecisionPlugin` bridges any provider adapter (see decision.md) |
+| `@alvin0/ai-agent-sdk-provider-typesafe` | Universal | TypeSafe Jev decisions with native probabilities, injected `apiKey` |
 | `@alvin0/ai-agent-sdk-auth-node` | Node | `envCredential()`, Codex and Copilot device-code login |
 | `@alvin0/ai-agent-sdk-mcp` | Universal | MCP HTTP client + `ToolSource`; also `/server` |
 | `@alvin0/ai-agent-sdk-mcp-server` | Universal | Inert `Request`/`Response` MCP server host |

@@ -217,6 +217,29 @@ function invalidModel(provider: string, model: string, reason: string): ModelErr
   )
 }
 
+/**
+ * The output cap a request carries when its caller names none.
+ *
+ * The model's (or runtime's) default is advice, not a demand: it is held to
+ * the model's output ceiling, and one the context window cannot hold with
+ * input to spare is not sent at all, leaving the cap to the provider. Only a
+ * caller's explicit `maxTokens` is refused for not fitting.
+ * @param info - the resolved model.
+ * @param defaults - runtime defaults, consulted after the model's own default.
+ * @param contextWindow - the window the request will run in, when known.
+ * @returns the cap to send, or undefined to send none.
+ */
+export function defaultOutputTokens(
+  info: Pick<ResolvedModelInfo, 'defaultMaxTokens' | 'maxOutputTokens'>,
+  defaults: RuntimeDefaults,
+  contextWindow: number | undefined,
+): number | undefined {
+  const requested = info.defaultMaxTokens ?? defaults.maxTokens
+  if (requested === undefined) return undefined
+  const capped = info.maxOutputTokens === undefined ? requested : Math.min(requested, info.maxOutputTokens)
+  return contextWindow !== undefined && capped >= contextWindow ? undefined : capped
+}
+
 function resolvedCallConfig(config: CallConfig, reasoningEffort: CallConfig['reasoningEffort'],
   maxTokens: number | undefined): CallConfig {
   return {
@@ -287,7 +310,7 @@ export function resolveCallWithModelInfo(
   const inputModalities = config.inputModalities ?? info.inputModalities
   // maxTokens has no SDK-constant tier: unlike context/modalities, an unset
   // output cap is not sent at all rather than defaulted (see RuntimeDefaults).
-  const maxTokens = config.maxTokens ?? info.defaultMaxTokens ?? defaults.maxTokens
+  const maxTokens = config.maxTokens ?? defaultOutputTokens(info, defaults, context?.contextWindow)
   validateCallOutput(info, context, maxTokens)
   return {
     config: resolvedCallConfig(config, reasoningEffort, maxTokens),
