@@ -61,6 +61,17 @@ class OutputReservedAdapter extends ScriptedAdapter {
   }
 }
 
+/** An output ceiling above the operating window (legal below its maximum), with no default cap. */
+class CeilingAboveWindowAdapter extends ScriptedAdapter {
+  override resolveModel(provider: string, model: string): Promise<ResolvedModelInfo> {
+    return Promise.resolve({
+      provider, id: model, name: model,
+      context: { contextWindow: 2_000, maxContextWindow: 8_000 },
+      maxOutputTokens: 4_000,
+    })
+  }
+}
+
 class AbortAfterTextAdapter extends ModelAdapter {
   readonly requests: GenerateOptions[] = []
 
@@ -308,6 +319,33 @@ describe('agent context compaction', () => {
     const result = await compactor.compactNow()
     expect(result?.thresholdTokens).toBe(800)
     expect(adapter.requests[0]?.maxTokens).toBe(1_200)
+  })
+
+  it('does not let an output ceiling above the window, with no cap sent, compact on every step', async () => {
+    const adapter = new CeilingAboveWindowAdapter([textRound(
+      '## Primary Request and Intent\n- Keep the objective.\n## Next Step\n- Continue.',
+    )])
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['test'], adapter)
+    const history = new History()
+    history.append({ kind: 'user', message: createTextMessage(`Objective ${'A'.repeat(8_000)}`) })
+    history.append({
+      kind: 'assistant',
+      message: createMessage({
+        role: 'assistant', source: { kind: 'model', provider: 'test', model: 'm' },
+        content: [{ type: 'text', text: `Progress ${'B'.repeat(4_000)}` }],
+      }),
+    })
+    const compactor = new ContextCompactor({
+      registry, config: () => ({ provider: 'test', model: 'm' }), history: () => history,
+      system: () => '', tools: () => [],
+      policy: resolveCompactionConfig({ auto: false, thresholdRatio: 0.8, retainTokens: 10 }),
+    })
+
+    // The ceiling is not a reservation: it is held to half the window, not
+    // subtracted whole (which left a threshold of one token).
+    const result = await compactor.compactNow()
+    expect(result?.thresholdTokens).toBe(1_000)
   })
 
   it('creates a structured checkpoint, preserves transcript, and streams lifecycle events', async () => {
@@ -706,7 +744,7 @@ describe('agent context compaction', () => {
     const controller = new AbortController()
 
     const recovery = await compactor.onRequestError({
-      turn: 1, step: 1,
+      turn: 1, step: 1, consecutiveFailures: 1, retries: 0,
       failure: { code: 'CONTEXT_WINDOW_EXCEEDED', message: 'request overflowed' },
       snapshot: history.snapshot(), signal: controller.signal, emit: async () => undefined,
     })

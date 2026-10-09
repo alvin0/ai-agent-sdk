@@ -81,6 +81,7 @@ Load only the file the task needs. Each is self-contained.
 | Stream events, render a live UI, cancellation, `stopReason` | [references/streaming.md](references/streaming.md) |
 | `defineTool`, approvals, program grants, action fusion | [references/tools.md](references/tools.md) |
 | Force JSON output with a schema | [references/structured-output.md](references/structured-output.md) |
+| Typed choice/score/boolean decisions over Responses, Chat Completions, Messages or TypeSafe | [references/decision.md](references/decision.md) |
 | Progressive-disclosure skills the model loads on demand | [references/skills.md](references/skills.md) |
 | Task memory, compaction, snapshots, resume | [references/memory.md](references/memory.md) |
 | Pack repeated observations, archive milestones, reduce exact log evidence | [references/context-optimization.md](references/context-optimization.md) |

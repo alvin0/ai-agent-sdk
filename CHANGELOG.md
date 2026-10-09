@@ -2,6 +2,35 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## 0.1.11 - 2026-10-09
+
+### Added
+
+- `RequestErrorContext.consecutiveFailures` and `RequestErrorContext.retries`. The loop now reports the outage an `onRequestError` hook is deciding on. `consecutiveFailures` counts failed model requests in a row in this turn, this one included, and any request that succeeds resets it. `retries` counts retries already granted in this turn, across every outage, by whichever hook granted them (the session's own overflow compaction included). A retry the step budget refuses to run is not counted. Hooks no longer have to infer successes from history, which compaction rewrites. Both fields are required: code that builds a `RequestErrorContext` itself (test doubles, wrappers) must supply them.
+- `requestRetryHook(options)` from `@alvin0/ai-agent-sdk-core/agent`: an `onRequestError` hook built from a retry policy.
+  - **Retry budget.** The policy's `maxRetries` applies per outage, and a request that succeeds restores it. `maxRetriesPerTurn` caps the whole turn so a flapping provider cannot hold it forever. The default cap is three outages' worth, unbounded under an `always` policy.
+  - **Backoff and `retry-after`.** Backoff is exponential with jitter. A provider `retry-after` is a floor under the backoff, never a replacement for it, so an overloaded provider answering `retry-after: 1` cannot burn every retry in seconds. A `retry-after` above `backoff.maxDelayMs` fails the request instead of retrying early.
+  - **Deadline and waiting.** An optional `deadlineAt` (a number or a function) is a time no wait may run past. The wait ends early on abort and does not keep the process alive.
+  - **Never retried.** Failures the loop decided itself (`STEP_REJECTED`, `CHECKPOINT_FAILED`, `INVALID_TOOL_CALL`) are not retried, even under an `always` policy.
+
+### Changed
+
+- **The report reserve now covers what the forced answer actually costs.** It used to be a fixed `finalReportReserveTokens`, which could be smaller than one request: late in a long run every request carries the whole accumulated context. The forced answer then started past the wall, or overshot it alone, and a transient failure or empty reply left no room for its retry or re-prompt. A fully spent run then ended with nothing for the person. The reserve is now the larger of the configured value and two of the costliest requests seen so far, capped at half of `maxTotalTokens`. The forced answer can therefore start earlier in runs whose requests are expensive.
+- The finalize window after a forced answer opens only while the token budget can hold one more request of the size the run makes. The answer is already written; it is kept rather than overshooting the wall to confirm it.
+- A default per-request output cap (the model's `defaultMaxTokens`, else the runtime default) is now fitted rather than enforced. It is held to the model's `maxOutputTokens`, and it is not sent at all when the context window cannot hold it with input to spare, which leaves the cap to the provider. A caller's explicit `maxTokens` is still refused when it does not fit.
+- Compaction reserves the output the request will actually ask for. When no cap is sent, the model's output ceiling stands in, held to half the window.
+- All 29 workspace package manifests, root metadata and `SDK_VERSION` move to `0.1.11`.
+
+### Fixed
+
+- **Catalog window and output defaults (`provider-http`).**
+  - A catalog entry with an output ceiling but no context window no longer fails every call with `INVALID_MODEL_INFO` ("no input headroom") when that ceiling is at or above the route's `defaultContextWindow`, for example an operator-entered model with `maxTokens: 128000` on a 128k route. That route fallback is dropped and the window is left to the registry defaults. A model `defaultMaxTokens` that the fallback cannot hold does the same.
+  - A route's fallback window yields to a smaller model `maxContextWindow` instead of failing. When the clamped window cannot hold the model's own explicit `defaultMaxTokens`, the model's `maxContextWindow` is used.
+  - A legacy catalog `maxTokens` stands in as the per-request default only while it leaves input headroom. Otherwise the route default is used, and only if that fits too; if neither fits, no default is sent.
+- When a finalize window ends without confirming, the kept answer now replaces what the window wrote on the visible history instead of being appended after it. Appended, a reader that joins consecutive assistant messages (a chat transcript, for one) showed the window's unconfirmed note and the answer as one reply on reload, while the stream showed the answer alone; the next request also replayed the note. Every answer, tool result and app note the window produced is replaced, so no tool call is left without its result. The durable log keeps everything that was said, and a person's message sent meanwhile stays where it was.
+- Compaction no longer runs on every step for a model whose output ceiling is above its operating window (legal below its `maxContextWindow`) and that sends no output cap. Previously the threshold collapsed to one token.
+- `withRetry`'s provider-delay handling is shared with the new hook through one internal helper; its behaviour is unchanged.
+
 ## 0.1.10 - 2026-10-06
 
 ### Added

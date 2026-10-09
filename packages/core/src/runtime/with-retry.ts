@@ -20,8 +20,8 @@ import { ModelAdapter, type PreparedAdapterCall } from '../contract/adapter.ts'
 import type { GenerateOptions } from '../contract/generate-options.ts'
 import type { ModelInfo, ResolvedModelInfo } from '../contract/model-info.ts'
 import {
-  backoffDelayMs,
   resolveRetryPolicy,
+  retryDelayMs,
   type ResolvedRetryPolicy,
   type RetryPolicyConfig,
 } from '../contract/retry-policy.ts'
@@ -71,25 +71,6 @@ export interface WithRetryOptions {
    * the attempt is forwarded as usual and retry stops applying.
    */
   bufferReasoningPrefix?: boolean | { readonly maxChunks: number }
-}
-
-/** Resolve a delay that honours a provider-requested `retry-after` when sane. */
-function delayFor(
-  policy: ResolvedRetryPolicy,
-  failure: ModelFailure,
-  attempt: number,
-  random: () => number,
-): number | 'give-up' {
-  const requested = failure.providerRetryAfterMs
-  if (requested !== undefined && Number.isFinite(requested) && requested > 0) {
-    if (requested <= policy.maxDelayMs) return requested
-    // The provider asked for longer than this policy is willing to wait. Under a
-    // bounded policy that is a refusal: sleeping less than asked would just earn
-    // another rate-limit response. An `always` policy has nowhere to give up to,
-    // so it falls back to local backoff and keeps trying.
-    return policy.mode === 'always' ? backoffDelayMs(policy, attempt, random) : 'give-up'
-  }
-  return backoffDelayMs(policy, attempt, random)
 }
 
 /** Sleep, resolving early and reporting false if the signal aborts first. */
@@ -218,7 +199,7 @@ class RetryingAdapter extends ModelAdapter {
         return
       }
 
-      const delayMs = delayFor(policy, failure, retries + 1, random)
+      const delayMs = retryDelayMs(policy, failure, retries + 1, random)
       if (delayMs === 'give-up') {
         yield { type: 'finish', reason: { kind: 'error', failure } }
         return

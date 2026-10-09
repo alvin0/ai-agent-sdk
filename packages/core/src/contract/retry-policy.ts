@@ -222,6 +222,33 @@ export function backoffDelayMs(
 }
 
 /**
+ * The delay before one retry, honouring a provider-requested `retry-after`
+ * when the policy is willing to wait that long.
+ *
+ * A bounded policy treats a longer request as a refusal: sleeping less than
+ * asked would only earn another rate-limit response. An `always` policy has
+ * nowhere to give up to, so it falls back to local backoff and keeps trying.
+ * @param policy - the resolved policy supplying growth and bounds.
+ * @param failure - the failure being retried; only its provider delay is read.
+ * @param attempt - 1-based retry number.
+ * @param random - sample in `[0, 1)`; injectable so tests can be deterministic.
+ * @returns the delay in milliseconds, or `'give-up'` when waiting is pointless.
+ */
+export function retryDelayMs(
+  policy: ResolvedRetryPolicy,
+  failure: { readonly providerRetryAfterMs?: number },
+  attempt: number,
+  random: () => number = Math.random,
+): number | 'give-up' {
+  const requested = failure.providerRetryAfterMs
+  if (requested !== undefined && Number.isFinite(requested) && requested > 0) {
+    if (requested <= policy.maxDelayMs) return requested
+    return policy.mode === 'always' ? backoffDelayMs(policy, attempt, random) : 'give-up'
+  }
+  return backoffDelayMs(policy, attempt, random)
+}
+
+/**
  * Whether a policy admits one more attempt for a given failure code.
  * @param policy - the resolved policy.
  * @param code - the failure code assigned by the adapter.

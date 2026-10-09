@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { resolvedCatalogModelInfo } from '../../../packages/provider-http/src/base/transport.ts'
-import { resolveCallWithModelInfo } from '../../../packages/core/src/runtime/model-metadata.ts'
+import {
+  normalizeResolvedModelInfo, resolveCallWithModelInfo,
+} from '../../../packages/core/src/runtime/model-metadata.ts'
+import type { ResolvedModelInfo } from '../../../packages/core/src/contract/model-info.ts'
+
+/** The transport compiles against core's published types and the check against its source; the shapes are one. */
+const normalize = (provider: string, model: string, info: object, maxBytes: number) =>
+  normalizeResolvedModelInfo(provider, model, info as ResolvedModelInfo, maxBytes)
 import { codexAdapter, memoryCodexCredentialStore } from '@alvin0/ai-agent-sdk-provider-codex'
 
 describe('catalog output defaults versus model ceilings', () => {
@@ -62,5 +69,53 @@ describe('catalog output defaults versus model ceilings', () => {
   it('preserves legacy catalog maxTokens as both default and ceiling', () => {
     expect(resolvedCatalogModelInfo('copilot', 'model', [{ id: 'model', maxTokens: 64_000 }], 8_192, 128_000))
       .toMatchObject({ defaultMaxTokens: 64_000, maxOutputTokens: 64_000 })
+  })
+
+  it('does not inherit an output ceiling that would leave no input headroom', () => {
+    // A ceiling-only catalog entry (maxContextWindow 400k, maxTokens 128k) on a
+    // 128k route used to resolve defaultMaxTokens 128k inside a 128k window.
+    const entry = { id: 'model', maxContextWindow: 400_000, maxTokens: 128_000 }
+    const withRouteDefault = resolvedCatalogModelInfo('openai', 'model', [entry], 8_192, 128_000)
+    expect(withRouteDefault).toMatchObject({
+      context: { contextWindow: 128_000 }, defaultMaxTokens: 8_192, maxOutputTokens: 128_000,
+    })
+    expect(() => normalize('openai', 'model', withRouteDefault, 100_000)).not.toThrow()
+
+    const withoutRouteDefault = resolvedCatalogModelInfo('openai', 'model', [entry], undefined, 128_000)
+    expect(withoutRouteDefault.defaultMaxTokens).toBeUndefined()
+    expect(() => normalize('openai', 'model', withoutRouteDefault, 100_000)).not.toThrow()
+  })
+
+  it('drops a route window fallback that a window-less output ceiling contradicts', () => {
+    // An operator catalog row with an output ceiling and no context window
+    // (128k ceiling on a 128k route) used to fail every call before dispatch.
+    for (const maxTokens of [128_000, 200_000]) {
+      const info = resolvedCatalogModelInfo('openai', 'model', [{ id: 'model', maxTokens }], 32_000, 128_000)
+      expect(info.context).toBeUndefined()
+      expect(info).toMatchObject({ defaultMaxTokens: 32_000, maxOutputTokens: maxTokens })
+      const normalized = normalize('openai', 'model', info, 100_000)
+      expect(() => resolveCallWithModelInfo({ provider: 'openai', model: 'model' }, normalized)).not.toThrow()
+    }
+    // Without a route default below the ceiling, no per-request default is invented.
+    const noDefault = resolvedCatalogModelInfo('openai', 'model',
+      [{ id: 'model', maxTokens: 128_000 }], undefined, 128_000)
+    expect(noDefault.defaultMaxTokens).toBeUndefined()
+    expect(() => normalize('openai', 'model', noDefault, 100_000)).not.toThrow()
+  })
+
+  it('keeps the route window when the ceiling fits it or the model names its own window', () => {
+    expect(resolvedCatalogModelInfo('openai', 'model', [{ id: 'model', maxTokens: 64_000 }], 32_000, 128_000))
+      .toMatchObject({ context: { contextWindow: 128_000 }, defaultMaxTokens: 64_000 })
+    // A declared window, however small, is the model's own fact and is never dropped.
+    const declared = resolvedCatalogModelInfo('openai', 'model',
+      [{ id: 'model', contextWindow: 32_000, maxTokens: 32_000 }], 8_192, 128_000)
+    expect(declared.context?.contextWindow).toBe(32_000)
+    expect(() => normalize('openai', 'model', declared, 100_000)).toThrow(/no input headroom/)
+  })
+
+  it('still rejects an explicit defaultMaxTokens without input headroom', () => {
+    const info = resolvedCatalogModelInfo('openai', 'model',
+      [{ id: 'model', contextWindow: 128_000, defaultMaxTokens: 128_000 }])
+    expect(() => normalize('openai', 'model', info, 100_000)).toThrow(/no input headroom/)
   })
 })

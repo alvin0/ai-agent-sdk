@@ -7,6 +7,8 @@ import type { ContentBlock, ToolCallBlock, ToolResultBlock } from '../../message
 import { createMessage, createUserMessage, type Message } from '../../message/index.ts'
 import { ReasoningEffortId } from '../../primitives/index.ts'
 import type { ModelRegistry } from '../../runtime/index.ts'
+import { defaultOutputTokens } from '../../runtime/model-metadata.ts'
+import type { ResolvedModelInfo } from '../../contract/model-info.ts'
 import { waitForSettlement } from '../../async/index.ts'
 import { BlockAssembler } from '../../stream/index.ts'
 import type { TokenUsage } from '../../stream/index.ts'
@@ -357,13 +359,7 @@ export class ContextCompactor {
         const contextWindow = config.contextWindow ?? info.context?.contextWindow
         this.modelBudget = { key, budget: contextWindow === undefined
           ? null
-          : {
-              contextWindow,
-              outputReserve: config.maxTokens
-                ?? info.defaultMaxTokens
-                ?? info.maxOutputTokens
-                ?? 0,
-            } }
+          : { contextWindow, outputReserve: outputReserve(config.maxTokens, info, contextWindow) } }
       } catch {
         if (policy.maxInputTokens === undefined) return null
         this.modelBudget = { key, budget: null }
@@ -684,4 +680,16 @@ function pressureBackoffReason(input: {
     Math.ceil(input.estimatedTokensBefore * MIN_PRESSURE_SAVINGS_RATIO),
   )
   return savings < minimum ? 'low-savings' : undefined
+}
+
+/**
+ * Output the compaction budget keeps free: what the request will actually ask
+ * for. With no cap sent, the model's ceiling is the conservative guess, but a
+ * ceiling is not a reservation; one that would leave less than half the window
+ * for input is held to half, or every step would compact.
+ */
+function outputReserve(explicit: number | undefined, info: ResolvedModelInfo, contextWindow: number): number {
+  const requested = explicit ?? defaultOutputTokens(info, {}, contextWindow)
+  if (requested !== undefined) return requested
+  return Math.min(info.maxOutputTokens ?? 0, Math.floor(contextWindow / 2))
 }

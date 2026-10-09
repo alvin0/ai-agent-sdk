@@ -336,6 +336,27 @@ describe('review findings on the budget-edge changes', () => {
     expect(lastMessage?.type === 'assistant-message' && lastMessage.message.content).toEqual([{ type: 'text', text: 'Substantive answer [1].', phase: 'final-answer' }])
   })
 
+  it('the kept answer replaces what the unconfirmed window wrote instead of following it', async () => {
+    // Appended after the window's note, a reader that joins consecutive
+    // assistant messages showed "note + answer" on reload while the stream
+    // showed the answer alone.
+    const { history } = await run(new Scripted([call('e1', 'echo'), text('Substantive answer [1].'),
+      call('s', 'submit_result', {}), text('Not supported: missing X.')]), { mode: 'deep', maxTurns: 1 })
+    const visible = history.messages()
+    const textOf = (blocks: typeof visible[number]['content']) =>
+      blocks.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
+    const texts = visible.filter(m => m.role === 'assistant').map(m => textOf(m.content))
+    expect(texts.filter(value => value.includes('Not supported'))).toEqual([])
+    expect(texts.at(-1)).toBe('Substantive answer [1].')
+    // Nothing the window did stays on the surface, so no tool call is left unanswered either.
+    const blocks = visible.flatMap(m => m.content)
+    expect(blocks.some(block => block.type === 'tool-call' && String(block.id) === 's')).toBe(false)
+    expect(blocks.some(block => block.type === 'tool-result' && String(block.toolCallId) === 's')).toBe(false)
+    // The durable log keeps everything that was said.
+    expect(JSON.stringify(history.entries())).toContain('Not supported: missing X.')
+    expect(() => History.fromSnapshot(history.snapshot())).not.toThrow()
+  })
+
   it('preserves app provenance when restoring a sanitized answer after finalize', async () => {
     const { history, events, end } = await run(new Scripted([
       text(`${UNCHANGED_ANSWER_MARKER} Answer.`), text('Not supported: missing X.'),

@@ -62,6 +62,29 @@ export function runTurn(options: RunTurnOptions): AsyncIterable<AgentEvent> {
   }
 }
 
+/**
+ * Tokens held back for the answer a spent budget forces.
+ *
+ * A fixed reserve can be smaller than one request: late in a long run every
+ * request carries the whole accumulated context, so the forced answer alone
+ * overshoots the budget and leaves nothing for its own retry or re-prompt. A
+ * transient failure there then ends a fully spent run with no answer at all.
+ * The reserve therefore covers two of the costliest requests seen so far, the
+ * answer and one more attempt, but never more than half the budget.
+ */
+function reportReserve(configured: number, maxTotalTokens: number, reports: readonly ModelCallReport[]): number {
+  return Math.max(configured, Math.min(2 * costliestRequest(reports), Math.floor(maxTotalTokens / 2)))
+}
+
+/** Budget tokens of the costliest single request so far: what the next one will likely cost. */
+function costliestRequest(reports: readonly ModelCallReport[]): number {
+  let costliest = 0
+  for (const report of reports) {
+    costliest = Math.max(costliest, budgetTokenTotal(summarizeModelCallUsage([report])) ?? 0)
+  }
+  return costliest
+}
+
 /** Request retries per turn that do not count against `maxSteps`. */
 const MAX_FREE_REQUEST_RETRIES = 8
 
@@ -88,6 +111,20 @@ async function driveTurn(
    * loop forever; past the bound a retry costs a step as it used to.
    */
   let retriedRounds = 0
+  /**
+   * What the request-error hook is told about the outage it is deciding on:
+   * failed requests in a row, reset by any request that succeeds, and every
+   * retry granted this turn. The loop sees each result, so a hook need not
+   * infer either from history (which compaction rewrites).
+   */
+  let consecutiveFailures = 0
+  let grantedRetries = 0
+  const requestRound = async (...args: Parameters<typeof modelRound>): ReturnType<typeof modelRound> => {
+    const round = await modelRound(...args)
+    if (round.finish.kind === 'error') consecutiveFailures++
+    else if (round.finish.kind !== 'aborted') consecutiveFailures = 0
+    return round
+  }
   const workSteps = (): number => steps - retriedRounds
   const position = () => ({ workStep: workSteps() + 1, finalizing: finalizeUntil !== undefined })
   // Wall-clock budget for the turn's own work. Time spent waiting for a person
@@ -120,7 +157,7 @@ async function driveTurn(
     exhausted: ExhaustedBudget,
     reserveTrigger: boolean,
   ): Promise<TurnOutcome['reason']> => {
-    let final = await retryFinalRound(await modelRound(
+    let final = await retryFinalRound(await requestRound(
       options, signal, emit, emitMaintenance, root, turn, steps + 1, 'forced-final', position(),
     ), 'forced-final')
     // No answer came back: empty text, or only a call to a tool it cannot use.
@@ -139,7 +176,7 @@ async function driveTurn(
       }) })
       steps++
       retriedRounds++
-      final = await modelRound(options, signal, emit, emitMaintenance, root, turn, steps + 1, 'forced-final', position())
+      final = await requestRound(options, signal, emit, emitMaintenance, root, turn, steps + 1, 'forced-final', position())
     }
     steps++
     if (final.report !== undefined) modelCallReports.push(final.report)
@@ -186,7 +223,8 @@ async function driveTurn(
       && !final.usageUnavailable && retriedRounds < MAX_FREE_REQUEST_RETRIES
       && admissionStop(final.report) === undefined) {
       const decision = await runOptionalHook(options.hooks?.onRequestError, [{
-        turn, step: steps + 1, failure: final.finish.failure, snapshot: options.history.snapshot(), signal,
+        turn, step: steps + 1, failure: final.finish.failure, consecutiveFailures, retries: grantedRetries,
+        snapshot: options.history.snapshot(), signal,
         ...(options.logger === undefined ? {} : { logger: options.logger }),
         emit: emitMaintenance,
       }], options, signal, 'onRequestError')
@@ -194,11 +232,12 @@ async function driveTurn(
         // that is a cancelled turn, not a crashed one.
         .catch((error: unknown) => { if (signal.aborted) return 'fail' as const; throw error })
       if (decision !== 'retry' || admissionStop(final.report) !== undefined) break
+      grantedRetries++
       if (final.report !== undefined) modelCallReports.push(final.report)
       // The failed attempt keeps its step number; the caller counts the last one.
       steps++
       retriedRounds++
-      final = await modelRound(options, signal, emit, emitMaintenance, root, turn, steps + 1, phase, position())
+      final = await requestRound(options, signal, emit, emitMaintenance, root, turn, steps + 1, phase, position())
     }
     return final
   }
@@ -223,6 +262,8 @@ async function driveTurn(
   let finalizeOrigin: Extract<TurnOutcome['reason'], { kind: 'budget-exhausted' } | { kind: 'completed' }> | undefined
   let forcedText = ''
   let forcedMessage: Message | undefined
+  /** Where the finalize window began: everything it says after this is its own. */
+  let finalizePromptSeq: number | undefined
   const finalizeTools = new Set(options.finalize?.tools ?? [])
   let tokenRemindersSent = 0
   let consecutiveErrors = 0
@@ -377,7 +418,7 @@ async function driveTurn(
       contextTouches = []
     }
     const step = steps + 1
-    const round = await modelRound(
+    const round = await requestRound(
       options, signal, emit, emitMaintenance, root, turn, step,
       dedicatedFinalOutput
         ? 'process'
@@ -429,7 +470,8 @@ async function driveTurn(
       reason = admissionStop()
       if (reason !== undefined) { await commitRound(); break }
       const decision = await runOptionalHook(options.hooks?.onRequestError, [{
-        turn, step, failure: round.finish.failure, snapshot: options.history.snapshot(), signal,
+        turn, step, failure: round.finish.failure, consecutiveFailures, retries: grantedRetries,
+        snapshot: options.history.snapshot(), signal,
         ...(options.logger === undefined ? {} : { logger: options.logger }),
         emit: emitMaintenance,
       }], options, signal, 'onRequestError')
@@ -440,7 +482,7 @@ async function driveTurn(
       if (maintenanceStop !== undefined) { await commitRound(); reason = signal.aborted ? { kind: 'aborted' } : maintenanceStop; break }
       if (decision === 'retry' && !signal.aborted) {
         if (retriedRounds < MAX_FREE_REQUEST_RETRIES) retriedRounds++
-        if (workSteps() < (finalizeUntil ?? maxSteps)) continue
+        if (workSteps() < (finalizeUntil ?? maxSteps)) { grantedRetries++; continue }
       }
       await commitRound()
       reason = signal.aborted ? { kind: 'aborted' } : { kind: 'error', failure: round.finish.failure }
@@ -461,7 +503,7 @@ async function driveTurn(
           text: 'The process phase is complete. Return the final answer now in the requested output format. Do not call tools.',
         }],
       }) })
-      const final = await retryFinalRound(await modelRound(
+      const final = await retryFinalRound(await requestRound(
         options, signal, emit, emitMaintenance, root, turn, steps + 1, 'final', position(),
       ), 'final')
       steps++
@@ -728,7 +770,8 @@ async function driveTurn(
     let exhausted: ExhaustedBudget | undefined
     const reportReserveReached = bounds.maxTotalTokens !== 'auto'
       && bounds.finalReportReserveTokens > 0 && budgetTokens !== undefined
-      && budgetTokens >= maxTotalTokens - bounds.finalReportReserveTokens
+      && budgetTokens >= maxTotalTokens
+        - reportReserve(bounds.finalReportReserveTokens, maxTotalTokens, modelCallReports)
     const recoveredOnlyReplan = repeatedLimitBeforeDispatch
       && recoveredCallIds.size === round.calls.length
       && round.calls.every(call => recoveredCallIds.has(String(call.callId))
@@ -777,6 +820,14 @@ async function driveTurn(
     }
   }
 
+  // The window is optional: the answer is already written. A token budget too
+  // spent to hold one more request of the size this run makes keeps that
+  // answer rather than overshooting the wall to confirm it.
+  const finalizeFits = (): boolean => {
+    if (bounds.maxTotalTokens === 'auto') return true
+    const spent = budgetTokenTotal(summarizeModelCallUsage(modelCallReports))
+    return spent === undefined || spent + costliestRequest(modelCallReports) <= maxTotalTokens
+  }
   // The window is for an answer written with no step left to confirm it:
   // either forced by a budget, or written freely on the last work step. Input
   // a person sent meanwhile is not answered in a tool-less window; the turn
@@ -787,10 +838,10 @@ async function driveTurn(
   if (finalizeUntil === undefined && options.finalize !== undefined && bounds.finalizeSteps > 0
     && (reason?.kind === 'budget-exhausted' || reason?.kind === 'completed') && finalizable
     && text.trim() !== '' && !signal.aborted && admissionStop() === undefined
-    && !hasQueuedInput(options.history)) {
+    && !hasQueuedInput(options.history) && finalizeFits()) {
     const prompt = options.finalize.prompt({ text, reason })
     if (prompt !== undefined) {
-      options.history.append({ kind: 'user', message: prompt })
+      finalizePromptSeq = options.history.append({ kind: 'user', message: prompt }).seq
       finalizeOrigin = reason
       finalizeReason = reason.kind === 'budget-exhausted' ? reason.budget : 'steps'
       forcedText = text
@@ -818,7 +869,17 @@ async function driveTurn(
       const last = options.history.messages().findLast(message => message.role === 'assistant')
       if (forcedMessage !== undefined && last?.id !== forcedMessage.id) {
         const restored = createMessage({ role: 'assistant', content: forcedMessage.content, source: forcedMessage.source })
-        options.history.append({ kind: 'assistant', message: restored })
+        // The kept answer takes the place of what the window wrote: appended
+        // after it, a reader joining consecutive assistant messages (or the
+        // next request) would show the unconfirmed note and the answer as one
+        // reply. The log keeps both; only the visible surface is replaced:
+        // every answer, tool result and app note the window produced, so no
+        // call is left without its result. A person's message stays where it was.
+        const windowStart = finalizePromptSeq ?? Infinity
+        const superseded = options.history.surface()
+          .filter(node => node.seq > windowStart && node.message.source.kind !== 'user').map(node => node.seq)
+        options.history.append({ kind: 'assistant', message: restored }, superseded.length === 0 ? undefined
+          : { op: 'replace', from: Math.min(...superseded), to: Math.max(...superseded), targets: superseded })
         await emit({ type: 'assistant-message', message: restored, trace: root })
       }
     }
