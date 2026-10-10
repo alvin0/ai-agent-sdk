@@ -8,6 +8,10 @@ const fusion = defineActionFusion<{ patch: string }>({ name: 'edit_and_test', de
     { tool: 'test', arguments: (_args, values) => ({ previous: values[0] ?? null }) },
   ] })
 const optimizer = createContextOptimizer({ store: createMemorySpillStore(),
-  reducer: createModelEvidenceReducer({ generate: async request => { request.signal.throwIfAborted(); return '{"status":"unknown","lines":[]}' } }) })
-const options: RuntimeAgentSessionOptions = { hooks: optimizer.wrapHooks({ beforeStep: () => ({ kind: 'proceed' }) }), experimentalPrograms: [fusion.grant] }
+  reducer: createModelEvidenceReducer({ generate: async request => {
+    request.signal.throwIfAborted(); return '{"status":"unknown","lines":[]}'
+  } }) })
+const options: RuntimeAgentSessionOptions = {
+  hooks: optimizer.wrapHooks({ beforeStep: () => ({ kind: 'proceed' }) }), experimentalPrograms: [fusion.grant],
+}
 export function mount(agent: RuntimeAgent) { return agent.createSession(options) }

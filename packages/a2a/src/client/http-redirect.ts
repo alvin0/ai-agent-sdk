@@ -58,18 +58,13 @@ function redirectedInit(
   status: number,
   crossesOrigin: boolean,
 ): RequestInit {
-  const inputMethod = typeof Request !== 'undefined' && original instanceof Request
-    ? original.method
-    : undefined
+  const inputMethod = requestInput(original)?.method
   const method = (previous.method ?? inputMethod ?? 'GET').toUpperCase()
-  const switchesToGet = status === 303 || ((status === 301 || status === 302) && method === 'POST')
-  const inputHasBody = typeof Request !== 'undefined' && original instanceof Request && original.body !== null
-  if (!switchesToGet && (inputHasBody
-    || (typeof ReadableStream !== 'undefined' && previous.body instanceof ReadableStream))) {
-    throw new Error('A2A HTTP transport cannot replay a streaming request across a redirect')
-  }
+  const switchesToGet = redirectUsesGet(status, method)
+  const inputHasBody = requestHasBody(original)
+  assertReplayable(switchesToGet, inputHasBody, previous.body)
   const sourceHeaders = previous.headers
-    ?? (typeof Request !== 'undefined' && original instanceof Request ? original.headers : undefined)
+    ?? requestInput(original)?.headers
   const headers = crossesOrigin ? new Headers() : new Headers(sourceHeaders)
   if (switchesToGet) {
     headers.delete('content-length')
@@ -96,4 +91,27 @@ function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
     signal.addEventListener('abort', abort, { once: true })
     void pending.then(value => { cleanup(); resolve(value) }, error => { cleanup(); reject(error) })
   })
+}
+
+function requestInput(input: Parameters<typeof fetch>[0]): Request | undefined {
+  return typeof Request !== 'undefined' && input instanceof Request ? input : undefined
+}
+
+function requestHasBody(input: Parameters<typeof fetch>[0]): boolean {
+  const request = requestInput(input)
+  return request !== undefined && request.body !== null
+}
+
+function isStreamingBody(body: RequestInit['body']): boolean {
+  return typeof ReadableStream !== 'undefined' && body instanceof ReadableStream
+}
+
+function redirectUsesGet(status: number, method: string): boolean {
+  return status === 303 || ((status === 301 || status === 302) && method === 'POST')
+}
+
+function assertReplayable(switchesToGet: boolean, inputHasBody: boolean, body: RequestInit['body']): void {
+  if (!switchesToGet && (inputHasBody || isStreamingBody(body))) {
+    throw new Error('A2A HTTP transport cannot replay a streaming request across a redirect')
+  }
 }

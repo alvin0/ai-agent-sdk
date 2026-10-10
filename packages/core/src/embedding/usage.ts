@@ -55,7 +55,8 @@ function validCounter(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 }
 
-function readCounter(source: Readonly<Record<string, unknown>>, key: EmbeddingCounterKey): { value?: unknown; unreadable: boolean } {
+function readCounter(source: Readonly<Record<string, unknown>>,
+  key: EmbeddingCounterKey): { value?: unknown; unreadable: boolean } {
   try {
     return { value: Reflect.get(source, key), unreadable: false }
   } catch {
@@ -63,15 +64,8 @@ function readCounter(source: Readonly<Record<string, unknown>>, key: EmbeddingCo
   }
 }
 
-/**
- * Rejects invalid fields individually and keeps only counters the provider
- * genuinely reported. A hostile or malformed payload yields
- * `reported === undefined` rather than a fabricated total.
- */
-export function validateEmbeddingUsage(value: unknown): EmbeddingUsageValidation {
-  const source = typeof value === 'object' && value !== null ? value as Readonly<Record<string, unknown>> : {}
-  const counters: Partial<Record<EmbeddingCounterKey, number>> = {}
-  const invalid: EmbeddingCounterKey[] = []
+function collectCounters(source: Readonly<Record<string, unknown>>,
+  counters: Partial<Record<EmbeddingCounterKey, number>>, invalid: EmbeddingCounterKey[]): boolean {
   let overflow = false
   for (const key of COUNTER_KEYS) {
     const read = readCounter(source, key)
@@ -88,19 +82,36 @@ export function validateEmbeddingUsage(value: unknown): EmbeddingUsageValidation
       invalid.push(key)
     }
   }
+  return overflow
+}
+
+function reportedCounters(counters: Partial<Record<EmbeddingCounterKey, number>>): EmbeddingTokenUsage | undefined {
+  const inputTokens = counters.inputTokens
+  // Without a reported input bucket there is nothing honest to publish.
+  return inputTokens === undefined
+    ? undefined
+    : Object.freeze<EmbeddingTokenUsage>(counters.totalTokens === undefined
+      ? { inputTokens }
+      : { inputTokens, totalTokens: counters.totalTokens })
+}
+
+/**
+ * Rejects invalid fields individually and keeps only counters the provider
+ * genuinely reported. A hostile or malformed payload yields
+ * `reported === undefined` rather than a fabricated total.
+ */
+export function validateEmbeddingUsage(value: unknown): EmbeddingUsageValidation {
+  const source = typeof value === 'object' && value !== null ? value as Readonly<Record<string, unknown>> : {}
+  const counters: Partial<Record<EmbeddingCounterKey, number>> = {}
+  const invalid: EmbeddingCounterKey[] = []
+  const overflow = collectCounters(source, counters, invalid)
   // A total below the only disjoint bucket cannot describe the same call.
   if (counters.inputTokens !== undefined && counters.totalTokens !== undefined
     && counters.totalTokens < counters.inputTokens) {
     delete counters.totalTokens
     invalid.push('totalTokens')
   }
-  const inputTokens = counters.inputTokens
-  // Without a reported input bucket there is nothing honest to publish.
-  const reported = inputTokens === undefined
-    ? undefined
-    : Object.freeze<EmbeddingTokenUsage>(counters.totalTokens === undefined
-      ? { inputTokens }
-      : { inputTokens, totalTokens: counters.totalTokens })
+  const reported = reportedCounters(counters)
   return Object.freeze({
     ...(reported === undefined ? {} : { reported }),
     invalidFields: Object.freeze([...new Set(invalid)]),

@@ -22,13 +22,7 @@ export function captureRuntimeJournalOptions(options: JsonlObservationJournalOpt
   if (!['operational', 'reliable', 'audit'].includes(options.mode)) throw new TypeError('journal mode is invalid')
   const id = options.id ?? 'journal'
   if (!/^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,63})$/.test(id)) throw new TypeError('journal id is invalid')
-  if (typeof options.rootDir !== 'string' || options.rootDir.trim().length === 0) {
-    throw new TypeError('observation journal rootDir must be explicit and non-empty')
-  }
-  if (options.now !== undefined && typeof options.now !== 'function') throw new TypeError('journal now must be a function')
-  if (options.segmentId !== undefined && typeof options.segmentId !== 'function') {
-    throw new TypeError('journal segmentId must be a function')
-  }
+  assertRuntimeCallbacks(options)
   const supportedBoundaries: readonly ObservationBoundary[] = Object.freeze(
     options.mode === 'operational' ? ['none'] : ['local-durable'],
   )
@@ -36,15 +30,38 @@ export function captureRuntimeJournalOptions(options: JsonlObservationJournalOpt
     id,
     rootDir: options.rootDir,
     mode: options.mode,
-    maxSegmentBytes: positiveSafeInteger(options.maxSegmentBytes ?? JOURNAL_DEFAULTS.maxSegmentBytes, 'maxSegmentBytes'),
-    maxRetainedBytes: positiveSafeInteger(options.maxRetainedBytes ?? JOURNAL_DEFAULTS.maxRetainedBytes, 'maxRetainedBytes'),
+    ...journalLimits(options),
+    supportedBoundaries,
+  })
+}
+
+export function journalLimits(options: JsonlObservationJournalOptions) {
+  return {
+    maxSegmentBytes: positiveSafeInteger(
+      options.maxSegmentBytes ?? JOURNAL_DEFAULTS.maxSegmentBytes, 'maxSegmentBytes'
+    ),
+    maxRetainedBytes: positiveSafeInteger(
+      options.maxRetainedBytes ?? JOURNAL_DEFAULTS.maxRetainedBytes, 'maxRetainedBytes'
+    ),
     acknowledgedRetentionMs: positiveSafeInteger(
       options.acknowledgedRetentionMs ?? JOURNAL_DEFAULTS.acknowledgedRetentionMs, 'acknowledgedRetentionMs',
     ),
     syncIntervalMs: positiveSafeInteger(options.syncIntervalMs ?? JOURNAL_DEFAULTS.syncIntervalMs, 'syncIntervalMs'),
-    syncRecordCount: positiveSafeInteger(options.syncRecordCount ?? JOURNAL_DEFAULTS.syncRecordCount, 'syncRecordCount'),
+    syncRecordCount: positiveSafeInteger(
+      options.syncRecordCount ?? JOURNAL_DEFAULTS.syncRecordCount, 'syncRecordCount'
+    ),
     now: options.now ?? (() => new Date()),
     segmentId: options.segmentId ?? (() => randomBytes(12).toString('hex')),
-    supportedBoundaries,
-  })
+  }
+}
+
+function assertRuntimeCallbacks(options: JsonlObservationJournalOptions): void {
+  if (typeof options.rootDir !== 'string' || options.rootDir.trim().length === 0) {
+    throw new TypeError('observation journal rootDir must be explicit and non-empty')
+  }
+  if (options.now !== undefined && typeof options.now !== 'function')
+    throw new TypeError('journal now must be a function')
+  if (options.segmentId !== undefined && typeof options.segmentId !== 'function') {
+    throw new TypeError('journal segmentId must be a function')
+  }
 }

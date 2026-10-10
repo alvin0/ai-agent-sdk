@@ -33,15 +33,19 @@ function captureDefinition(value: unknown, requireMarker: boolean): CapturedTool
     const source = objectValue(value)
     if (requireMarker) {
       const kind = ownData(source, 'kind')
-      if (kind !== 'tool-source') throw new AgentSdkError('Tool source kind is unsupported', TOOL_SOURCE_ERROR_CODES.KIND_MISMATCH)
+      if (kind !== 'tool-source') throw new AgentSdkError('Tool source kind is unsupported',
+        TOOL_SOURCE_ERROR_CODES.KIND_MISMATCH)
       const version = ownData(source, 'apiVersion')
-      if (version !== TOOL_SOURCE_API_VERSION) throw new AgentSdkError('Tool source API version is unsupported', TOOL_SOURCE_ERROR_CODES.API_UNSUPPORTED)
+      if (version !== TOOL_SOURCE_API_VERSION) throw new AgentSdkError('Tool source API version is unsupported',
+        TOOL_SOURCE_ERROR_CODES.API_UNSUPPORTED)
     }
     const id = boundedText(ownData(source, 'id'), TOOL_SOURCE_LIMITS.identityBytes)
     let snapshotMethod: unknown
     try { snapshotMethod = Reflect.get(source, 'snapshot') }
-    catch { throw new AgentSdkError('Tool source snapshot method could not be captured', TOOL_SOURCE_ERROR_CODES.SNAPSHOT_INVALID) }
-    if (typeof snapshotMethod !== 'function') throw new AgentSdkError('Tool source snapshot method is invalid', TOOL_SOURCE_ERROR_CODES.SNAPSHOT_INVALID)
+    catch { throw new AgentSdkError('Tool source snapshot method could not be captured',
+      TOOL_SOURCE_ERROR_CODES.SNAPSHOT_INVALID) }
+    if (typeof snapshotMethod !== 'function') throw new AgentSdkError('Tool source snapshot method is invalid',
+      TOOL_SOURCE_ERROR_CODES.SNAPSHOT_INVALID)
     const snapshot = (options: ToolSourceSnapshotOptions): ToolCatalogSnapshot =>
       Reflect.apply(snapshotMethod, source, [options]) as ToolCatalogSnapshot
     return Object.freeze({ kind: 'tool-source', apiVersion: TOOL_SOURCE_API_VERSION, id, snapshot })

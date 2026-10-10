@@ -41,16 +41,7 @@ export function httpErrorCode(status: number, detail = ''): string {
   // clears on its own, so retrying it burns latency and money for nothing.
   if (isQuotaExceededError(detail)) return QUOTA_EXCEEDED_CODE
   if (status === 429) return MODEL_ERROR_CODES.RATE_LIMIT
-  if (status === 400 || status === 422) {
-    return isContextWindowExceededError(detail)
-      ? CONTEXT_WINDOW_EXCEEDED_CODE
-      : MODEL_ERROR_CODES.INVALID_REQUEST
-  }
-  // A missing model or route is the caller's mistake, not a server fault, so it
-  // must not land in the retryable SERVER bucket.
-  if (status === 404) return MODEL_ERROR_CODES.INVALID_REQUEST
-  if (status >= 500) return MODEL_ERROR_CODES.SERVER
-  return `HTTP_${status}`
+  return requestOrServerErrorCode(status, detail)
 }
 
 /**
@@ -148,4 +139,17 @@ export function parseErrorBody(raw: string): ParsedErrorBody {
     message: message ?? detailField,
     detail: parts.join(' '),
   }
+}
+
+function requestOrServerErrorCode(status: number, detail: string): string {
+  if (status === 400 || status === 422) {
+    return isContextWindowExceededError(detail)
+      ? CONTEXT_WINDOW_EXCEEDED_CODE
+      : MODEL_ERROR_CODES.INVALID_REQUEST
+  }
+  // A missing model or route is the caller's mistake, not a server fault, so it
+  // must not land in the retryable SERVER bucket.
+  if (status === 404) return MODEL_ERROR_CODES.INVALID_REQUEST
+  if (status >= 500) return MODEL_ERROR_CODES.SERVER
+  return `HTTP_${status}`
 }

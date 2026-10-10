@@ -110,6 +110,28 @@ calls, truncated responses, invalid JSON, unknown fields/options, and inconsiste
 scores/distributions fail validation. Numeric constraints are checked locally to
 keep the schema portable across provider subsets.
 
+### Choosing the wire API
+
+The wrapped adapter decides which API is called. `openAiAdapter` defaults to the
+Responses API; pass `api: 'chat-completions'` for `/v1/chat/completions` and most
+OpenAI-compatible gateways. `anthropicAdapter` calls the Messages API. Register one
+plugin per wire/output-mode combination and select it by route:
+
+```ts
+llmDecisionPlugin({ id: 'openai-responses', routes: ['openai-responses'],
+  adapter: openAiAdapter({ apiKey, api: 'responses' }) })
+llmDecisionPlugin({ id: 'openai-chat', routes: ['openai-chat'],
+  adapter: openAiAdapter({ apiKey, api: 'chat-completions',
+    compat: { maxTokensField: 'max_completion_tokens' } }) })
+llmDecisionPlugin({ id: 'anthropic', routes: ['anthropic'], outputMode: 'tool',
+  adapter: anthropicAdapter({ apiKey: anthropicKey }) })
+```
+
+Observed with `gpt-6-luna`: Responses works in both modes. Chat Completions
+rejects `max_tokens` (set `compat.maxTokensField: 'max_completion_tokens'`), and in
+`tool` mode rejects function tools combined with reasoning; prefer Responses for
+`tool` mode or pass `generation: { reasoningEffort: 'none' }`.
+
 `evidence: 'none'` is the default: only choice/score/boolean values are requested.
 Missing probabilities/confidence remain absent. With `evidence: 'model-generated'`,
 Choice/Score request full probability distributions and confidence, and Boolean

@@ -102,21 +102,7 @@ export function readJwtClaims(jwt: string): CodexJwtClaims | undefined {
   } catch {
     return undefined
   }
-  const auth = parsed[AUTH_CLAIM_NAMESPACE]
-  const authClaims = typeof auth === 'object' && auth !== null
-    ? auth as Record<string, unknown>
-    : {}
-  const exp = parsed.exp
-  const email = parsed.email
-  const accountId = authClaims.chatgpt_account_id
-  const planType = authClaims.chatgpt_plan_type
-  return {
-    ...typeof exp === 'number' ? { exp } : {},
-    ...typeof email === 'string' ? { email } : {},
-    ...typeof accountId === 'string' ? { accountId } : {},
-    ...typeof planType === 'string' ? { planType } : {},
-    isFedramp: authClaims.chatgpt_account_is_fedramp === true,
-  }
+  return jwtClaimsOf(parsed)
 }
 
 /**
@@ -184,4 +170,22 @@ export function requireTokens(
     )
   }
   return tokens
+}
+
+function jwtClaimsOf(parsed: Record<string, unknown>): CodexJwtClaims {
+  const auth = parsed[AUTH_CLAIM_NAMESPACE]
+  const authClaims = typeof auth === 'object' && auth !== null
+    ? auth as Record<string, unknown>
+    : {}
+  const exp = parsed.exp
+  const email = parsed.email
+  const accountId = authClaims.chatgpt_account_id
+  const planType = authClaims.chatgpt_plan_type
+  return {
+    ...typeof exp === 'number' ? { exp } : {},
+    ...typeof email === 'string' ? { email } : {},
+    ...typeof accountId === 'string' ? { accountId } : {},
+    ...typeof planType === 'string' ? { planType } : {},
+    isFedramp: authClaims.chatgpt_account_is_fedramp === true,
+  }
 }

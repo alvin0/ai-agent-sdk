@@ -1,3 +1,4 @@
+import { openBrowser } from './common/browser.ts'
 /**
  * `npm run provider:codex:login-device`
  *
@@ -25,6 +26,7 @@ import {
   runDeviceCodeLogin,
   shouldRefresh,
   type CodexDeviceCode,
+  type CodexAuthFile,
 } from './codex.ts'
 
 const BLUE = '\u001B[94m'
@@ -61,59 +63,35 @@ function renderPrompt(code: CodexDeviceCode): void {
   process.stdout.write(
     `\n${BOLD}Sign in to Codex${RESET} ${GRAY}(device authorization)${RESET}\n`
     + `\n  1. Open this URL and sign in:\n     ${BLUE}${code.verificationUrl}${RESET}\n`
-    + `\n  2. Enter this one-time code ${GRAY}(expires in 15 minutes)${RESET}:\n     ${BOLD}${BLUE}${code.userCode}${RESET}\n`
+    + `\n  2. Enter this one-time code ${GRAY}(expires in 15 minutes)${RESET}:\n`
+    + `     ${BOLD}${BLUE}${code.userCode}${RESET}\n`
     + `\n${GRAY}Only continue if YOU started this login. If someone sent you this code, stop.${RESET}\n\n`,
   )
 }
 
-/** Best-effort browser launch; failure is fine because the URL is printed anyway. */
-async function openBrowser(url: string): Promise<void> {
-  try {
-    const { spawn } = await import('node:child_process')
-    const command = process.platform === 'win32'
-      ? { file: 'cmd', args: ['/c', 'start', '', url] }
-      : process.platform === 'darwin'
-        ? { file: 'open', args: [url] }
-        : { file: 'xdg-open', args: [url] }
-    spawn(command.file, command.args, { stdio: 'ignore', detached: true }).unref()
-  } catch {
-    // The printed URL is the real interface; auto-open is a convenience.
-  }
-}
 
-async function main(): Promise<number> {
-  const flags = parseFlags(process.argv.slice(2))
-  const location = resolveCodexAuthPath(flags.path)
-  const store = fileCodexAuthStore(location)
-  const existing = await store.read()
-
-  if (flags.status) {
-    if (existing?.tokens === undefined || existing.tokens === null) {
-      process.stdout.write(`codex: not signed in ${GRAY}(${location})${RESET}\n`)
-      return 1
-    }
-    const claims = readJwtClaims(existing.tokens.id_token)
+function renderStatus(existing: CodexAuthFile, tokens: NonNullable<CodexAuthFile['tokens']>, location: string) {
+    const claims = readJwtClaims(tokens.id_token)
     const stale = shouldRefresh(existing)
     process.stdout.write(
       `codex: signed in ${GRAY}(${location})${RESET}\n`
-      + `  account : ${claims?.accountId ?? existing.tokens.account_id ?? '<none>'}\n`
+      + `  account : ${claims?.accountId ?? tokens.account_id ?? '<none>'}\n`
       + `  email   : ${claims?.email ?? '<undisclosed>'}\n`
       + `  plan    : ${claims?.planType ?? '<undisclosed>'}\n`
       + `  token   : ${stale ? 'needs refresh' : 'valid'}\n`,
     )
-    return 0
-  }
+}
 
-  if (!flags.force && existing?.tokens !== undefined && existing.tokens !== null
-    && !shouldRefresh(existing)) {
-    const claims = readJwtClaims(existing.tokens.id_token)
-    process.stdout.write(
-      `codex: already signed in as ${claims?.email ?? claims?.accountId ?? 'this account'}\n`
-      + `${GRAY}  ${location}\n  pass --force to sign in again${RESET}\n`,
-    )
+function reportStatus(existing: CodexAuthFile | undefined, location: string): number {
+    if (existing?.tokens === undefined || existing.tokens === null) {
+      process.stdout.write(`codex: not signed in ${GRAY}(${location})${RESET}\n`)
+      return 1
+    }
+    renderStatus(existing, existing.tokens, location)
     return 0
-  }
+}
 
+async function signIn(flags: Flags, store: ReturnType<typeof fileCodexAuthStore>): Promise<number> {
   // Ctrl-C during a 15-minute poll should exit promptly rather than wait.
   const cancel = new AbortController()
   const onSigint = (): void => {
@@ -151,6 +129,33 @@ async function main(): Promise<number> {
   } finally {
     process.removeListener('SIGINT', onSigint)
   }
+}
+
+function reportExistingSignIn(flags: Flags, existing: CodexAuthFile | undefined, location: string): boolean {
+  if (!flags.force && existing?.tokens !== undefined && existing.tokens !== null
+    && !shouldRefresh(existing)) {
+    const claims = readJwtClaims(existing.tokens.id_token)
+    process.stdout.write(
+      `codex: already signed in as ${claims?.email ?? claims?.accountId ?? 'this account'}\n`
+      + `${GRAY}  ${location}\n  pass --force to sign in again${RESET}\n`,
+    )
+    return true
+  }
+
+  return false
+}
+
+async function main(): Promise<number> {
+  const flags = parseFlags(process.argv.slice(2))
+  const location = resolveCodexAuthPath(flags.path)
+  const store = fileCodexAuthStore(location)
+  const existing = await store.read()
+
+  if (flags.status) return reportStatus(existing, location)
+
+  if (reportExistingSignIn(flags, existing, location)) return 0
+
+  return signIn(flags, store)
 }
 
 try {

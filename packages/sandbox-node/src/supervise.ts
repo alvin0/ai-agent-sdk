@@ -132,36 +132,12 @@ interface TreeSample {
 export function sampleTree(root: number, platform: string = process.platform): TreeSample {
   const empty: TreeSample = { memoryBytes: 0, processes: 0, cpuMs: 0 }
   if (platform === 'win32' || root <= 0) return empty
-  let table: string
-  try {
-    const listing = spawnSync('ps', ['-A', '-o', 'pid=,ppid=,pgid=,rss=,time='], {
-      encoding: 'utf8', timeout: 5_000, windowsHide: true,
-    })
-    if (listing.status !== 0) return empty
-    table = listing.stdout ?? ''
-  } catch { return empty }
+  const table = readProcessTable()
+  if (table === undefined) return empty
 
-  interface Row { readonly ppid: number; readonly pgid: number; readonly rss: number; readonly cpuMs: number }
-  const rows = new Map<number, Row>()
-  const children = new Map<number, number[]>()
-  for (const line of table.split('\n')) {
-    const parts = line.trim().split(/\s+/)
-    if (parts.length < 5) continue
-    const pid = Number(parts[0]); const ppid = Number(parts[1]); const pgid = Number(parts[2])
-    const rss = Number(parts[3])
-    if (Number.isNaN(pid) || Number.isNaN(ppid)) continue
-    rows.set(pid, { ppid, pgid, rss: Number.isNaN(rss) ? 0 : rss, cpuMs: parseCpuTime(parts[4] ?? '') })
-    children.set(ppid, [...(children.get(ppid) ?? []), pid])
-  }
+  const { rows, children } = sampleRows(table)
 
-  const seen = new Set<number>()
-  const queue = [root]
-  while (queue.length > 0) {
-    const next = queue.shift()
-    if (next === undefined || seen.has(next)) continue
-    seen.add(next)
-    for (const child of children.get(next) ?? []) queue.push(child)
-  }
+  const seen = sampledDescendants(root, children)
   // A process that left the tree but kept the group still belongs to this run.
   for (const [pid, row] of rows) if (row.pgid === root) seen.add(pid)
 
@@ -184,4 +160,44 @@ export function parseCpuTime(value: string): number {
   for (const part of parts) seconds = seconds * 60 + part
   if (days !== undefined) seconds += Number(days) * 86_400
   return Math.round(seconds * 1000)
+}
+
+interface ProcessRow { readonly ppid: number; readonly pgid: number; readonly rss: number; readonly cpuMs: number }
+
+function sampleRows(table: string) {
+  const rows = new Map<number, ProcessRow>()
+  const children = new Map<number, number[]>()
+  for (const line of table.split('\n')) {
+    const parts = line.trim().split(/\s+/)
+    if (parts.length < 5) continue
+    const pid = Number(parts[0]); const ppid = Number(parts[1]); const pgid = Number(parts[2])
+    const rss = Number(parts[3])
+    if (Number.isNaN(pid) || Number.isNaN(ppid)) continue
+    rows.set(pid, { ppid, pgid, rss: Number.isNaN(rss) ? 0 : rss, cpuMs: parseCpuTime(parts[4] ?? '') })
+    children.set(ppid, [...(children.get(ppid) ?? []), pid])
+  }
+
+  return { rows, children }
+}
+
+function sampledDescendants(root: number, children: ReadonlyMap<number, readonly number[]>): Set<number> {
+  const seen = new Set<number>()
+  const queue = [root]
+  while (queue.length > 0) {
+    const next = queue.shift()
+    if (next === undefined || seen.has(next)) continue
+    seen.add(next)
+    for (const child of children.get(next) ?? []) queue.push(child)
+  }
+  return seen
+}
+
+function readProcessTable(): string | undefined {
+  try {
+    const listing = spawnSync('ps', ['-A', '-o', 'pid=,ppid=,pgid=,rss=,time='], {
+      encoding: 'utf8', timeout: 5_000, windowsHide: true,
+    })
+    if (listing.status !== 0) return undefined
+    return listing.stdout ?? ''
+  } catch { return undefined }
 }

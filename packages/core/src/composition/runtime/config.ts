@@ -35,6 +35,38 @@ function optionalPositive(source: object, key: string): number | undefined {
   return value === undefined ? undefined : timeoutValue(value as number)
 }
 
+function validateObservationPolicy(mode: unknown, content: unknown,
+  minimumLogLevel: unknown, includeErrorStacks: unknown): void {
+  if (!MODES.has(mode)) throw new TypeError('Invalid observation delivery mode')
+  if (content !== undefined && content !== 'none'
+    && content !== 'metadata') throw new TypeError('Invalid observation content policy')
+  if (minimumLogLevel !== undefined && !LEVELS.has(minimumLogLevel)) throw new TypeError('Invalid minimum log level')
+  if (includeErrorStacks !== undefined
+    && typeof includeErrorStacks !== 'boolean') throw new TypeError('Invalid error-stack policy')
+}
+
+function contentFields(content: unknown, minimumLogLevel: unknown) {
+  return {
+    ...(content === undefined ? {} : { content: content as 'none' | 'metadata' }),
+    ...(minimumLogLevel === undefined ? {} : { minimumLogLevel: minimumLogLevel as LogLevel }),
+  }
+}
+
+function processorFields(processors: ReturnType<typeof captureProcessors>,
+  redactors: ReturnType<typeof captureRedactors>) {
+  return {
+    ...(processors.length === 0 ? {} : { processors }),
+    ...(redactors.length === 0 ? {} : { redactors }),
+  }
+}
+
+function spanFields(includeErrorStacks: unknown, openSpan: ReturnType<typeof captureOpenSpan>) {
+  return {
+    ...(includeErrorStacks === undefined ? {} : { includeErrorStacks: includeErrorStacks as boolean }),
+    ...(openSpan === undefined ? {} : { openSpan }),
+  }
+}
+
 /** Capture option data once without invoking getters; executable capability capture follows identity preflight. */
 export function captureRuntimeOwnerOptions(input: unknown): CapturedRuntimeOwnerOptions {
   const source = objectValue(input)
@@ -46,10 +78,7 @@ export function captureRuntimeOwnerOptions(input: unknown): CapturedRuntimeOwner
   const content = optional(observation, 'content')
   const minimumLogLevel = optional(observation, 'minimumLogLevel')
   const includeErrorStacks = optional(observation, 'includeErrorStacks')
-  if (!MODES.has(mode)) throw new TypeError('Invalid observation delivery mode')
-  if (content !== undefined && content !== 'none' && content !== 'metadata') throw new TypeError('Invalid observation content policy')
-  if (minimumLogLevel !== undefined && !LEVELS.has(minimumLogLevel)) throw new TypeError('Invalid minimum log level')
-  if (includeErrorStacks !== undefined && typeof includeErrorStacks !== 'boolean') throw new TypeError('Invalid error-stack policy')
+  validateObservationPolicy(mode, content, minimumLogLevel, includeErrorStacks)
   const exporters = (optional(observation, 'exporters') ?? []) as readonly RuntimeObservationExporterRegistration[]
   const processors = captureProcessors(optional(observation, 'processors'))
   const redactors = captureRedactors(optional(observation, 'redactors'))
@@ -58,12 +87,9 @@ export function captureRuntimeOwnerOptions(input: unknown): CapturedRuntimeOwner
   const signal = optionalAbortSignal(optional(source, 'signal'))
   const resource = optional(source, 'resource')
   const capturedObservation = Object.freeze({ mode: mode as DeliveryMode, exporters,
-    ...(content === undefined ? {} : { content: content as 'none' | 'metadata' }),
-    ...(minimumLogLevel === undefined ? {} : { minimumLogLevel: minimumLogLevel as LogLevel }),
-    ...(processors.length === 0 ? {} : { processors }),
-    ...(redactors.length === 0 ? {} : { redactors }),
-    ...(includeErrorStacks === undefined ? {} : { includeErrorStacks }),
-    ...(openSpan === undefined ? {} : { openSpan }),
+    ...contentFields(content, minimumLogLevel),
+    ...processorFields(processors, redactors),
+    ...spanFields(includeErrorStacks, openSpan),
     ...copyPositive(observation, ['maxQueueEvents', 'maxQueueBytes', 'maxBatchEvents', 'maxBatchBytes',
       'flushTimeoutMs', 'shutdownTimeoutMs']),
   })

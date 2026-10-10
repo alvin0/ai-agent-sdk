@@ -40,6 +40,7 @@ export async function runPackedProviderFixture() {
     }
   }
   try {
+    await provider.verifyAdditionalCapabilities?.()
     const runtime = await createAgentRuntime({ providers: [createPlugin()] })
     try {
       const response = await runtime.agent({

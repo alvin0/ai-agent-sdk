@@ -44,7 +44,9 @@ function captureNativeTool(value: unknown): NativeToolSchema {
 }
 
 function webSearch(source: object): NativeWebSearchTool {
-  exactKeys(source, ['type', 'name', 'searchContextSize', 'allowedDomains', 'blockedDomains', 'userLocation', 'maxUses'])
+  exactKeys(source, [
+    'type', 'name', 'searchContextSize', 'allowedDomains', 'blockedDomains', 'userLocation', 'maxUses',
+  ])
   const context = ownData(source, 'searchContextSize', false)
   if (context !== undefined && context !== 'low' && context !== 'medium' && context !== 'high') throw invalid()
   const allowedDomains = domains(ownData(source, 'allowedDomains', false))

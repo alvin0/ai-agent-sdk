@@ -99,7 +99,7 @@ describe('Copilot client identity constants', () => {
 
   it('still records the outstanding live confirmation for the OAuth client id', () => {
     // One value, one reminder, and it lives with the constant it is about.
-    const oauth = readSource('oauth.ts')
+    const oauth = readSource('oauth-types.ts')
     expect(oauth.match(/TODO\(copilot-identity\)/g)).toHaveLength(1)
     expect(oauth.match(/UNVERIFIED/g)).toHaveLength(1)
   })

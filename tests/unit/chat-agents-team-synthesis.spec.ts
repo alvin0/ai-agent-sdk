@@ -266,7 +266,6 @@ async function conversation(options: ConversationOptions = {}): Promise<{
       const drain = followWorkers(
         live as never, controller, wake, queued as never, project,
         async (node: unknown) => { persisted.push(node as Persisted) },
-        // eslint-disable-next-line require-yield
         async function* () {} as never,
       )
       for await (const _wire of drain) { /* progress events */ }

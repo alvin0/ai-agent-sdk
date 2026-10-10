@@ -149,9 +149,10 @@ export abstract class EmbeddingAdapter {
     provider: string,
     model: string,
     options: PrepareEmbeddingOptions,
-    signal?: AbortSignal,
-    context?: ModelInvocationContext,
+    ...runtime: [AbortSignal?, ModelInvocationContext?]
   ): Promise<PreparedEmbeddingCall> {
+    const signal = runtime[0]
+    const context = runtime[1]
     const resolved = await this.resolveEmbeddingModel(provider, model, signal)
     const profile = this.embeddingProfile(resolved, options)
     return Object.freeze({

@@ -4,6 +4,20 @@ import { MessageId, type ToolCallId } from '../../primitives/index.ts'
 
 /** Repair provider-invalid tool pairing without mutating persisted history. */
 export function normalizeToolPairing(messages: readonly Message[]): readonly Message[] {
+  const answered = answeredToolCalls(messages)
+
+  const result: Message[] = []
+  const seenCalls = new Set<ToolCallId>()
+  for (const message of messages) {
+    if (message.source.kind === 'tool' && !seenCalls.has(message.source.callId)) continue
+    result.push(message)
+    if (message.role !== 'assistant') continue
+    appendInterruptedCalls(message, answered, seenCalls, result)
+  }
+  return Object.freeze(result)
+}
+
+function answeredToolCalls(messages: readonly Message[]): ReadonlySet<ToolCallId> {
   const calls = new Map<ToolCallId, { call: ToolCallBlock; owner: Message }>()
   const answered = new Set<ToolCallId>()
   for (const message of messages) {
@@ -13,19 +27,17 @@ export function normalizeToolPairing(messages: readonly Message[]): readonly Mes
     }
   }
 
-  const result: Message[] = []
-  const seenCalls = new Set<ToolCallId>()
-  for (const message of messages) {
-    if (message.source.kind === 'tool' && !seenCalls.has(message.source.callId)) continue
-    result.push(message)
-    if (message.role !== 'assistant') continue
-    for (const block of message.content) {
-      if (block.type !== 'tool-call') continue
-      seenCalls.add(block.id)
-      if (!answered.has(block.id)) result.push(syntheticInterruptedResult(message, block.id))
-    }
+  return answered
+}
+
+function appendInterruptedCalls(
+  message: Message, answered: ReadonlySet<ToolCallId>, seenCalls: Set<ToolCallId>, result: Message[],
+): void {
+  for (const block of message.content) {
+    if (block.type !== 'tool-call') continue
+    seenCalls.add(block.id)
+    if (!answered.has(block.id)) result.push(syntheticInterruptedResult(message, block.id))
   }
-  return Object.freeze(result)
 }
 
 function syntheticInterruptedResult(owner: Message, callId: ToolCallId): Message {

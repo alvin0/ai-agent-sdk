@@ -59,18 +59,7 @@ export async function openConfinedWrite(
   const flags = constants.O_WRONLY | constants.O_CREAT | noFollow
     | (options.truncate === false ? constants.O_APPEND : constants.O_TRUNC)
 
-  let handle: FileHandle
-  try {
-    handle = await open(path, flags, options.mode)
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
-    // ELOOP (POSIX) and EMLINK (some BSDs) are how O_NOFOLLOW reports that the
-    // last component is a symlink — here, one that appeared after the check.
-    if (code === 'ELOOP' || code === 'EMLINK') {
-      throw new SandboxDeniedError(path, 'workspace-write', fence.writableRoots)
-    }
-    throw error
-  }
+  const handle = await openWithoutLink(fence, path, flags, options.mode)
 
   // The directory the file sits in can be swapped too, and `O_NOFOLLOW` says
   // nothing about it. Re-resolving it after the open does not make the sequence
@@ -96,4 +85,21 @@ export async function writeConfinedFile(
   const handle = await openConfinedWrite(fence, path, options)
   try { await handle.write(data as Uint8Array) }
   finally { await handle.close() }
+}
+
+async function openWithoutLink(
+  fence: FsFence, path: string, flags: number, mode: Mode | undefined,
+): Promise<FileHandle> {
+  try {
+    return await open(path, flags, mode)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    // ELOOP (POSIX) and EMLINK (some BSDs) are how O_NOFOLLOW reports that the
+    // last component is a symlink — here, one that appeared after the check.
+    if (code === 'ELOOP' || code === 'EMLINK') {
+      throw new SandboxDeniedError(path, 'workspace-write', fence.writableRoots)
+    }
+    throw error
+  }
+
 }

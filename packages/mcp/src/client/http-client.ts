@@ -5,7 +5,7 @@ import {
   type StreamableHTTPClientTransportOptions,
 } from '@modelcontextprotocol/client'
 import type { McpHttpClientOptions } from './api-types.ts'
-import type { McpTransport } from './public-types.ts'
+import type { McpTransport, McpSseTransportOptions } from './public-types.ts'
 import { McpClientConnection } from './connection.ts'
 import { McpConnectionError, connectionFailureStage } from './result.ts'
 import { mcpSupportError } from '../common/support-error.ts'
@@ -38,19 +38,22 @@ export function createMcpHttpClient(options: McpHttpClientOptions): McpClientCon
       ...(Object.keys(requestInit).length === 0 ? {} : { requestInit }),
     } as StreamableHTTPClientTransportOptions) as unknown as McpTransport
   }
+  const fallbackFetch = (fallbackOptions: McpSseTransportOptions | undefined) => createGuardedMcpFetch(
+    fallbackOptions?.fetch ?? transport?.fetch ?? injectedFetch ?? globalThis.fetch, security,
+  )
+  const fallbackAuthentication = (fallbackOptions: McpSseTransportOptions | undefined) => (
+    fallbackOptions?.authProvider === undefined && transport?.authProvider !== undefined
+      ? { authProvider: transport.authProvider } : {}
+  )
   const fallbackFactory = legacySse === false ? undefined : (): McpTransport => {
     const fallbackUrl = validateHttpEndpoint(legacyOptions?.url ?? url, security)
     const fallbackOptions = legacyOptions?.transport
     const requestInit = { ...fallbackOptions?.requestInit }
     if (headers !== undefined) requestInit.headers = mergeHeaders(fallbackOptions?.requestInit?.headers, headers)
-    const guardedFetch = createGuardedMcpFetch(
-      fallbackOptions?.fetch ?? transport?.fetch ?? injectedFetch ?? globalThis.fetch,
-      security,
-    )
+    const guardedFetch = fallbackFetch(fallbackOptions)
     return new SSEClientTransport(fallbackUrl, {
       ...fallbackOptions,
-      ...(fallbackOptions?.authProvider === undefined && transport?.authProvider !== undefined
-        ? { authProvider: transport.authProvider } : {}),
+      ...fallbackAuthentication(fallbackOptions),
       fetch: guardedFetch,
       ...(Object.keys(requestInit).length === 0 ? {} : { requestInit }),
     } as SSEClientTransportOptions) as unknown as McpTransport

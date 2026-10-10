@@ -55,13 +55,12 @@ export function attachRuntimeSession(
   session: AgentSession,
   stream: RuntimeStream,
   streamPending: RuntimePendingStream,
-  compact: RuntimeCompact,
-  onConfigure: () => void,
+  bindings: { compact: RuntimeCompact; onConfigure: () => void },
 ): void {
   streams.set(session, stream)
   pendingStreams.set(session, streamPending)
-  compactors.set(session, compact)
-  configured.set(session, onConfigure)
+  compactors.set(session, bindings.compact)
+  configured.set(session, bindings.onConfigure)
 }
 
 export function streamPendingRuntimeSession(

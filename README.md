@@ -10,6 +10,7 @@ message.
 
 ## Setup
 
+For the 0.1.11 release, read the [release notes](CHANGELOG.md).
 For the 0.1.10 decision runtime release, read the [release notes](CHANGELOG.md).
 For the 0.1.9 release, read the [release notes](CHANGELOG.md).
 For the 0.1.8 release, read [upgrading from 0.1.7](docs/upgrading-from-0.1.7.md).
@@ -609,6 +610,10 @@ walkthrough in [`@alvin0/ai-agent-sdk-provider-http`](packages/provider-http/REA
 
 | Script | Purpose |
 | --- | --- |
+| `pnpm lint` | ESLint maintainability limits, package graph, and runtime boundaries |
+| `pnpm lint:code` | ESLint for all handwritten code under `packages/`, including tests, fixtures, and configs; see [code quality limits](web-documents/en/14-project/contributing.md#code-quality-limits) |
+| `pnpm lint:source` | Focus on SDK source in `packages/*/src`, with the same strict limits |
+| `pnpm test:lint` | Verify lint rules reject oversized and complex code |
 | `pnpm test:unit` | root unit suite (fast, no network) |
 | `pnpm test:contract` | frozen compatibility and runtime-identity contracts |
 | `pnpm test:packages` | every package-owned suite |

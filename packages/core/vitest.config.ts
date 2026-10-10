@@ -18,6 +18,7 @@ export default defineConfig({
       '../../tests/unit/run-ledger.spec.ts',
       '../../tests/unit/skill.spec.ts',
       '../../tests/unit/team.spec.ts',
+      '../../tests/unit/team-state-ownership.spec.ts',
       '../../tests/unit/team-concepts.spec.ts',
       '../../tests/unit/tool-loop.spec.ts',
       '../../tests/unit/tool-pipeline.spec.ts',
@@ -30,6 +31,7 @@ export default defineConfig({
       '../../tests/unit/provider-plugin.spec.ts',
       '../../tests/unit/registry.spec.ts',
       '../../tests/unit/retry-policy.spec.ts',
+      '../../tests/unit/request-retry.spec.ts',
       '../../tests/unit/usage-accounting.spec.ts',
       '../../tests/unit/with-retry.spec.ts'
     ]

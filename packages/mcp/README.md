@@ -43,6 +43,14 @@ or network egress policy, response/catalog/result bounds, and operation deadline
 according to the application's trust boundary. OAuth credential persistence and
 redirect handling remain caller-owned.
 
+Custom OAuth providers must preserve the authorization-server `issuer` when
+storing both tokens and dynamically registered client information. Credentials
+saved without an issuer must be discarded and authorized again before reuse.
+When using an upstream bundled OAuth provider, configure its `expectedIssuer`
+for the trusted authorization server. The SDK uses MCP client/core 2.2.0 or newer
+for issuer checks; caller-owned persistence must retain that binding too.
+See the [upstream OAuth security advisory](https://github.com/advisories/GHSA-6qxp-vccf-f47h).
+
 Composition: `runtime-agent.toolSources`. Lifecycle: `connected-caller-owned`;
 create the runtime first, pass `runtime.logger(...)` while connecting, close the
 runtime to quiesce runs, then inspect `connection.closeWithReport()`.

@@ -158,7 +158,7 @@ describe('runtime model catalog', () => {
     const platform: RuntimePlatform = Object.freeze({ ...base, wallNow: () => now })
     const resources = new RuntimeResources(platform)
     const operations = new RuntimeOperations(resources)
-    const catalogs = new RuntimeModelCatalog(registry, operations, resources, [Object.freeze({
+    const catalogs = new RuntimeModelCatalog({ registry, operations, resources }, [Object.freeze({
       id: 'retained-route', route: 'retained-route', name: 'Retained',
       pluginId: 'retained-account', family: 'catalog-family',
     })], { freshTtlMs: 10, staleTtlMs: 20 })

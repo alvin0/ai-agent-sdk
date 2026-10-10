@@ -69,8 +69,10 @@ export function captureInterceptors(value: unknown): readonly ToolInterceptor[] 
   return Object.freeze(arrayData(value, POLICY_LIMITS.interceptors).map((entry) => {
     const source = objectValue(entry)
     const name = boundedText(ownData(source, 'name'), POLICY_LIMITS.identityBytes)
-    const before = captureMethod<[ToolCallContext, () => Promise<PreToolDecision>], Promise<PreToolDecision>>(source, 'before', false)
-    const around = captureMethod<[ToolCallContext, () => Promise<ToolExecutionResult>], Promise<ToolExecutionResult>>(source, 'around', false)
+    const before = captureMethod<[ToolCallContext, () => Promise<PreToolDecision>],
+      Promise<PreToolDecision>>(source, 'before', false)
+    const around = captureMethod<[ToolCallContext, () => Promise<ToolExecutionResult>],
+      Promise<ToolExecutionResult>>(source, 'around', false)
     const after = captureMethod<[
       ToolCallContext, ToolExecutionResult, () => Promise<PostToolDecision>,
     ], Promise<PostToolDecision>>(source, 'after', false)
@@ -82,14 +84,28 @@ export function captureInterceptors(value: unknown): readonly ToolInterceptor[] 
 export function captureTurnHooks(value: unknown): TurnHooks | undefined {
   if (value === undefined) return undefined
   const source = objectValue(value)
-  const beforeStep = captureMethod<Parameters<NonNullable<TurnHooks['beforeStep']>>, ReturnType<NonNullable<TurnHooks['beforeStep']>>>(source, 'beforeStep', false)
-  const onRequestError = captureMethod<Parameters<NonNullable<TurnHooks['onRequestError']>>, ReturnType<NonNullable<TurnHooks['onRequestError']>>>(source, 'onRequestError', false)
-  const checkpoint = captureMethod<Parameters<NonNullable<TurnHooks['checkpoint']>>, ReturnType<NonNullable<TurnHooks['checkpoint']>>>(source, 'checkpoint', false)
-  const onTurnEnd = captureMethod<Parameters<NonNullable<TurnHooks['onTurnEnd']>>, ReturnType<NonNullable<TurnHooks['onTurnEnd']>>>(source, 'onTurnEnd', false)
+  const beforeStep = captureMethod<Parameters<NonNullable<TurnHooks['beforeStep']>>,
+    ReturnType<NonNullable<TurnHooks['beforeStep']>>>(source, 'beforeStep', false)
+  const onRequestError = captureMethod<Parameters<NonNullable<TurnHooks['onRequestError']>>,
+    ReturnType<NonNullable<TurnHooks['onRequestError']>>>(source, 'onRequestError', false)
+  const checkpoint = captureMethod<Parameters<NonNullable<TurnHooks['checkpoint']>>,
+    ReturnType<NonNullable<TurnHooks['checkpoint']>>>(source, 'checkpoint', false)
+  const onTerminalRecovery = captureMethod<Parameters<NonNullable<TurnHooks['onTerminalRecovery']>>,
+    ReturnType<NonNullable<TurnHooks['onTerminalRecovery']>>>(source, 'onTerminalRecovery', false)
+  const onTurnEnd = captureMethod<Parameters<NonNullable<TurnHooks['onTurnEnd']>>,
+    ReturnType<NonNullable<TurnHooks['onTurnEnd']>>>(source, 'onTurnEnd', false)
   return Object.freeze({ ...(beforeStep === undefined ? {} : { beforeStep }),
     ...(onRequestError === undefined ? {} : { onRequestError }),
+    ...(onTerminalRecovery === undefined ? {} : { onTerminalRecovery }),
     ...(checkpoint === undefined ? {} : { checkpoint }),
     ...(onTurnEnd === undefined ? {} : { onTurnEnd }) })
+}
+
+function validateEstimateTimeout(estimateTimeoutMs: unknown): void {
+  if (estimateTimeoutMs !== undefined && (typeof estimateTimeoutMs !== 'number'
+    || !Number.isSafeInteger(estimateTimeoutMs) || estimateTimeoutMs < 1 || estimateTimeoutMs > 2_147_483_647)) {
+    throw new TypeError('Runtime usage estimateTimeoutMs is invalid')
+  }
 }
 
 export function captureUsagePolicy(value: unknown): UsagePolicy | undefined {
@@ -101,10 +117,7 @@ export function captureUsagePolicy(value: unknown): UsagePolicy | undefined {
   }
   const estimatorValue = ownData(source, 'estimator', false)
   const estimateTimeoutMs = ownData(source, 'estimateTimeoutMs', false)
-  if (estimateTimeoutMs !== undefined && (typeof estimateTimeoutMs !== 'number'
-    || !Number.isSafeInteger(estimateTimeoutMs) || estimateTimeoutMs < 1 || estimateTimeoutMs > 2_147_483_647)) {
-    throw new TypeError('Runtime usage estimateTimeoutMs is invalid')
-  }
+  validateEstimateTimeout(estimateTimeoutMs)
   let estimator: UsageEstimator | undefined
   if (estimatorValue !== undefined) {
     const estimatorSource = objectValue(estimatorValue)

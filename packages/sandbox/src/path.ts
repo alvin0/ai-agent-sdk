@@ -34,16 +34,7 @@ export function normalizePath(path: string): string {
   const unified = flavor === 'win32' ? path.replaceAll('\\', '/') : path
   const prefix = rootPrefix(unified, flavor)
   const body = unified.slice(prefix.length)
-  const resolved: string[] = []
-  for (const segment of body.split('/')) {
-    if (segment === '' || segment === '.') continue
-    if (segment === '..') {
-      if (resolved.length > 0) resolved.pop()
-      else if (prefix === '') resolved.push('..')
-      continue
-    }
-    resolved.push(segment)
-  }
+  const resolved = resolveSegments(body, prefix)
   const joined = resolved.join('/')
   if (prefix === '') return joined === '' ? '.' : joined
   return joined === '' ? prefix : `${prefix}${joined}`
@@ -111,7 +102,8 @@ export function parentPath(path: string): string | undefined {
   const cut = normalized.lastIndexOf('/')
   if (cut < 0) return undefined
   const parent = normalized.slice(0, cut)
-  return parent.length < prefix.length ? prefix : parent === '' ? prefix : parent
+  if (parent.length < prefix.length || parent === '') return prefix
+  return parent
 }
 
 /** Every ancestor of `path` from the filesystem root down to `path` itself. */
@@ -134,4 +126,18 @@ export function dedupeRoots(roots: readonly string[]): readonly string[] {
     if (!kept.some(existing => containsPath(existing, root))) kept.push(root)
   }
   return Object.freeze(kept)
+}
+
+function resolveSegments(body: string, prefix: string): string[] {
+  const resolved: string[] = []
+  for (const segment of body.split('/')) {
+    if (segment === '' || segment === '.') continue
+    if (segment === '..') {
+      if (resolved.length > 0) resolved.pop()
+      else if (prefix === '') resolved.push('..')
+      continue
+    }
+    resolved.push(segment)
+  }
+  return resolved
 }

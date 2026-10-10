@@ -27,14 +27,7 @@ export async function readCredentialText(
   try {
     handle = await openNoFollow(location, constants.O_RDONLY)
     signal?.throwIfAborted()
-    const [opened, linked] = await Promise.all([handle.stat(), lstat(location)])
-    if (!opened.isFile() || linked.isSymbolicLink()
-      || opened.dev !== linked.dev || opened.ino !== linked.ino) {
-      throw credentialFileError('Codex credential path must be a stable regular file')
-    }
-    if (opened.size > MAX_CREDENTIAL_FILE_BYTES) {
-      throw credentialFileError('Codex credential file exceeds the 1 MiB limit')
-    }
+    await validateOpenedCredential(handle, location)
     const raw = await handle.readFile({ encoding: 'utf8', ...(signal === undefined ? {} : { signal }) })
     signal?.throwIfAborted()
     return raw
@@ -43,6 +36,17 @@ export async function readCredentialText(
     throw error
   } finally {
     await handle?.close().catch(() => undefined)
+  }
+}
+
+async function validateOpenedCredential(handle: FileHandle, location: string): Promise<void> {
+  const [opened, linked] = await Promise.all([handle.stat(), lstat(location)])
+  if (!opened.isFile() || linked.isSymbolicLink()
+    || opened.dev !== linked.dev || opened.ino !== linked.ino) {
+    throw credentialFileError('Codex credential path must be a stable regular file')
+  }
+  if (opened.size > MAX_CREDENTIAL_FILE_BYTES) {
+    throw credentialFileError('Codex credential file exceeds the 1 MiB limit')
   }
 }
 

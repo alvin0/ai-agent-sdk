@@ -37,16 +37,11 @@ export function captureRuntimeTeamOptions(value: unknown): CapturedRuntimeTeamOp
       'TEAM_MEMBER_CONFLICT', 'team-member-name', first, index,
     )
     seen.set(name, index)
-    const role = ownData(member, 'role', false) ?? (index === 0 ? 'lead' : 'peer')
-    if (role !== 'lead' && role !== 'peer') throw new TypeError('Runtime team member role is invalid')
+    const role = captureRole(member, index)
     if (role === 'lead' && ++leads > 1) throw new TypeError('Runtime team has more than one lead')
     const description = optionalBounded(member, 'description')
     const instructions = optionalBounded(member, 'instructions')
-    const tools = ownData(member, 'tools', false)
-    if (tools !== undefined && typeof tools !== 'boolean'
-      && tools !== 'full' && tools !== 'reporting') {
-      throw new TypeError('Runtime team tools flag is invalid')
-    }
+    const tools = captureTools(member)
     return Object.freeze({ name, agent: ownData(member, 'agent') as AgentTeamMemberInput['agent'], role,
       session: captureRuntimeSessionOptions(ownData(member, 'session', false)),
       ...(description === undefined ? {} : { description }),
@@ -58,15 +53,32 @@ export function captureRuntimeTeamOptions(value: unknown): CapturedRuntimeTeamOp
   const onEvent = callback === undefined ? undefined
     : (event: RuntimeAgentTeamEvent): void => { Reflect.apply(callback, source, [event]) }
   const agentCallback = ownData(source, 'onAgentEvent', false)
-  if (agentCallback !== undefined && typeof agentCallback !== 'function') throw new TypeError('Runtime team agent observer is invalid')
+  if (agentCallback !== undefined
+    && typeof agentCallback !== 'function') throw new TypeError('Runtime team agent observer is invalid')
   const onAgentEvent = agentCallback === undefined ? undefined
-    : (member: string, event: Parameters<NonNullable<RuntimeAgentTeamOptions['onAgentEvent']>>[1]): void | Promise<void> => (
+    : (member: string,
+      event: Parameters<NonNullable<RuntimeAgentTeamOptions['onAgentEvent']>>[1]): void | Promise<void> => (
       Reflect.apply(agentCallback, source, [member, event])
     )
   return Object.freeze({ id, members: Object.freeze(captured),
     ...copyPositive(source, ['maxMessages', 'maxMessageBytes', 'operationTimeoutMs', 'observerTimeoutMs']),
     ...(onEvent === undefined ? {} : { onEvent }),
     ...(onAgentEvent === undefined ? {} : { onAgentEvent }) })
+}
+
+function captureRole(member: object, index: number): CapturedTeamMember['role'] {
+  const role = ownData(member, 'role', false) ?? (index === 0 ? 'lead' : 'peer')
+  if (role !== 'lead' && role !== 'peer') throw new TypeError('Runtime team member role is invalid')
+  return role
+}
+
+function captureTools(member: object): AgentTeamMemberInput['tools'] {
+  const tools = ownData(member, 'tools', false)
+  if (tools !== undefined && typeof tools !== 'boolean'
+    && tools !== 'full' && tools !== 'reporting') {
+    throw new TypeError('Runtime team tools flag is invalid')
+  }
+  return tools as AgentTeamMemberInput['tools']
 }
 
 function optionalBounded(source: object, key: string): string | undefined {

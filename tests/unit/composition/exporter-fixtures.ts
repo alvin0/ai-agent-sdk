@@ -58,7 +58,7 @@ export function startupFixture(registrations: unknown, providers: unknown = [pro
   const bus = createObservability()
   return {
     registry, resources, bus,
-    start: () => activateRuntimeCapabilities(plan, registry, bus.logger(), resources, {
+    start: () => activateRuntimeCapabilities(plan, { registry, logger: bus.logger(), resources }, {
       startupTimeoutMs: 20, rollbackTimeoutMs: 30, ...(signal === undefined ? {} : { signal }),
     }),
   }

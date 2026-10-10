@@ -1,5 +1,7 @@
 export { AgentSdkError, ModelAdapter, ModelRegistry } from './index.ts'
-export { CREDENTIAL_CAPABILITY_API_VERSION, defineCredentialSource, defineCredentialStore } from './composition/credential/index.ts'
+export {
+  CREDENTIAL_CAPABILITY_API_VERSION, defineCredentialSource, defineCredentialStore,
+} from './composition/credential/index.ts'
 export { defineEmbeddingProviderPlugin } from './composition/embedding/definition.ts'
 export { EMBEDDING_PROVIDER_PLUGIN_API_VERSION } from './composition/embedding/plugin-types.ts'
 export { defineModelProviderPlugin } from './composition/provider/definition.ts'

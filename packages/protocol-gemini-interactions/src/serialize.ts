@@ -149,20 +149,7 @@ function appendUserMessage(
   flush()
 }
 
-function appendAssistantMessage(message: Message, output: WireStep[]): void {
-  let content: WireContent[] = []
-  const flush = (): void => {
-    if (content.length === 0) return
-    output.push({ type: 'model_output', content })
-    content = []
-  }
-  for (const block of message.content) {
-    if (block.type === 'text' || block.type === 'image' || block.type === 'document') {
-      const mapped = contentOf(block)
-      if (mapped !== undefined) content.push(mapped)
-      continue
-    }
-    flush()
+function appendAssistantControl(block: ContentBlock, output: WireStep[]): void {
     if (block.type === 'reasoning') {
       const state = thoughtStateOf(block.providerState)
       const summary = state.summary ?? (block.text.length === 0
@@ -179,6 +166,23 @@ function appendAssistantMessage(message: Message, output: WireStep[]): void {
         arguments: argumentsObject(block.arguments),
       })
     }
+}
+
+function appendAssistantMessage(message: Message, output: WireStep[]): void {
+  let content: WireContent[] = []
+  const flush = (): void => {
+    if (content.length === 0) return
+    output.push({ type: 'model_output', content })
+    content = []
+  }
+  for (const block of message.content) {
+    if (block.type === 'text' || block.type === 'image' || block.type === 'document') {
+      const mapped = contentOf(block)
+      if (mapped !== undefined) content.push(mapped)
+      continue
+    }
+    flush()
+    appendAssistantControl(block, output)
   }
   flush()
 }

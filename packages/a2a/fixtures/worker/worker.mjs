@@ -14,7 +14,9 @@ export default {
     if (path === '/text') return Response.json(Message.toJSON(message({ $case: 'text', value: 'hello' }, 'text/plain')))
     if (path === '/binary') {
       try {
-        const value = Message.toJSON(message({ $case: 'raw', value: new Uint8Array([1, 2, 3]) }, 'application/octet-stream'))
+        const value = Message.toJSON(message(
+          { $case: 'raw', value: new Uint8Array([1, 2, 3]) }, 'application/octet-stream',
+        ))
         return Response.json({ promotionCandidate: true, value })
       } catch (error) {
         return Response.json({

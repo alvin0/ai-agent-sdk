@@ -32,9 +32,7 @@ export const createPlugin = () => copilotPlugin({
   }),
   models: [],
   fetch: async (input, init) => {
-    const url = typeof input === 'string'
-      ? input
-      : input instanceof URL ? input.href : input.url
+    const url = requestUrl(input)
     if (url.includes('/copilot_internal/v2/token')) return exchangeResponse()
     return globalThis.fetch(input, init)
   },
@@ -104,3 +102,8 @@ export const frames = [
     usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 },
   },
 ]
+
+function requestUrl(input) {
+  if (typeof input === 'string') return input
+  return input instanceof URL ? input.href : input.url
+}

@@ -80,18 +80,17 @@ export function resolveBatchLimits(
   overrides?: Partial<ResolvedEmbeddingBatchLimits>,
 ): ResolvedEmbeddingBatchLimits {
   return {
-    maxItems:
-      override(overrides?.maxItems)
-      ?? declared(model.maxBatchItems)
-      ?? EMBEDDING_BATCH_DEFAULTS.maxItems,
-    maxTokens:
-      override(overrides?.maxTokens)
-      ?? declared(model.maxBatchTokens)
-      ?? EMBEDDING_BATCH_DEFAULTS.maxTokens,
-    maxBytes:
-      override(overrides?.maxBytes)
-      ?? declared(model.maxBatchBytes)
-      ?? EMBEDDING_BATCH_DEFAULTS.maxBytes,
+    maxItems: resolveLimit(overrides?.maxItems, model.maxBatchItems, EMBEDDING_BATCH_DEFAULTS.maxItems),
+    maxTokens: resolveLimit(overrides?.maxTokens, model.maxBatchTokens, EMBEDDING_BATCH_DEFAULTS.maxTokens),
+    maxBytes: resolveLimit(overrides?.maxBytes, model.maxBatchBytes, EMBEDDING_BATCH_DEFAULTS.maxBytes),
     estimateTokens: overrides?.estimateTokens ?? estimateTokens,
   }
+}
+
+function resolveLimit(
+  overrideValue: number | undefined,
+  declaredValue: EmbeddingCapability<number>,
+  fallback: number,
+): number {
+  return override(overrideValue) ?? declared(declaredValue) ?? fallback
 }

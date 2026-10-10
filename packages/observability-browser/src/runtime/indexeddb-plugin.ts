@@ -1,3 +1,4 @@
+import { raceAbort as abortable } from '../storage/indexeddb-support.ts'
 import {
   defineObservationExporter,
   type ObservationDeliveryBatch,
@@ -29,9 +30,7 @@ class RuntimeIndexedDbExporter extends IndexedDbObservationExporter {
 function captureOptions(
   value: IndexedDbObservationExporterOptions | undefined,
 ): IndexedDbObservationExporterOptions {
-  if (value !== undefined && (typeof value !== 'object' || value === null)) {
-    throw new TypeError('IndexedDB observation exporter options must be an object')
-  }
+  validateOptions(value)
   const options = value ?? {}
   return Object.freeze({
     ...(options.id === undefined ? {} : { id: options.id }),
@@ -40,16 +39,6 @@ function captureOptions(
     ...(options.maxEvents === undefined ? {} : { maxEvents: options.maxEvents }),
     ...(options.maxBytes === undefined ? {} : { maxBytes: options.maxBytes }),
     ...(options.openTimeoutMs === undefined ? {} : { openTimeoutMs: options.openTimeoutMs }),
-  })
-}
-
-function abortable<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(signal.reason ?? new DOMException('browser observation aborted', 'AbortError'))
-  return new Promise<T>((resolve, reject) => {
-    const abort = () => { cleanup(); reject(signal.reason ?? new DOMException('browser observation aborted', 'AbortError')) }
-    const cleanup = () => signal.removeEventListener('abort', abort)
-    signal.addEventListener('abort', abort, { once: true })
-    void pending.then(value => { cleanup(); resolve(value) }, error => { cleanup(); reject(error) })
   })
 }
 
@@ -80,4 +69,10 @@ export function indexedDbObservationExporter(
       if (exporter !== undefined) await exporter.shutdown(signal)
     },
   })
+}
+
+function validateOptions(value: IndexedDbObservationExporterOptions | undefined) {
+  if (value !== undefined && (typeof value !== 'object' || value === null)) {
+    throw new TypeError('IndexedDB observation exporter options must be an object')
+  }
 }

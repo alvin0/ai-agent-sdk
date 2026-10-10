@@ -1,13 +1,20 @@
 import { RuntimeResources } from '../../platform/resources.ts'
-import { AgentRuntimeConstructionError, type RuntimeComponentCloseReport } from '../common/errors.ts'
+import {
+  AgentRuntimeConstructionError,
+  type RuntimeComponentCloseReport,
+  type RuntimeConstructionFailureCode,
+} from '../common/errors.ts'
 import { atDeadline, BoundaryFailure } from '../lifecycle/bounded.ts'
 import type { RuntimeObservationExporterRegistration } from './types.ts'
 
 function failedReady(index: number, error: unknown): AgentRuntimeConstructionError {
-  const reason = error instanceof BoundaryFailure ? error.reason : 'failed'
+  let reason: 'aborted' | 'timed-out' | 'failed' = 'failed'
+  if (error instanceof BoundaryFailure) reason = error.reason
+  let failureCode: RuntimeConstructionFailureCode = 'CAPABILITY_STARTUP_FAILED'
+  if (reason === 'aborted') failureCode = 'CAPABILITY_STARTUP_ABORTED'
+  else if (reason === 'timed-out') failureCode = 'CAPABILITY_STARTUP_TIMEOUT'
   return new AgentRuntimeConstructionError({
-    failureCode: reason === 'aborted' ? 'CAPABILITY_STARTUP_ABORTED'
-      : reason === 'timed-out' ? 'CAPABILITY_STARTUP_TIMEOUT' : 'CAPABILITY_STARTUP_FAILED',
+    failureCode,
     reason, stage: 'exporter-ready', component: { kind: 'observation-exporter', id: `exporter-${index}` },
   })
 }

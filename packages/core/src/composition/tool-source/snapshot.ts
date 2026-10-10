@@ -22,27 +22,14 @@ export function snapshotToolSources(
   for (const source of sources) {
     const sourceLogger = logger.child({ toolSourceId: source.id })
     const operation = beginCoreCapabilityOperation(sourceLogger, 'core-tool-source', 'snapshot')
-    if (signal.aborted) {
-      operation.abort()
-      throw new AgentSdkError('Tool source snapshot was aborted', TOOL_SOURCE_ERROR_CODES.ABORTED)
-    }
-    let raw: unknown
-    try { raw = source.snapshot({ signal, logger: sourceLogger }) }
-    catch (error) {
-      if (signal.aborted) operation.abort(); else operation.fail(error)
-      if (signal.aborted) throw new AgentSdkError('Tool source snapshot was aborted', TOOL_SOURCE_ERROR_CODES.ABORTED, { cause: error })
-      throw new AgentSdkError('Tool source snapshot failed', TOOL_SOURCE_ERROR_CODES.SNAPSHOT_FAILED, { cause: error })
-    }
-    if (raw instanceof Promise) {
-      void raw.catch(() => undefined)
-      operation.fail(new AgentSdkError('Tool source snapshot must be synchronous', TOOL_SOURCE_ERROR_CODES.SNAPSHOT_INVALID))
-      throw new AgentSdkError('Tool source snapshot must be synchronous', TOOL_SOURCE_ERROR_CODES.SNAPSHOT_INVALID)
-    }
+    const raw = acquireSnapshot(source, signal, sourceLogger, operation)
     try {
       const snapshot = objectValue(raw)
       const revision = boundedText(ownData(snapshot, 'revision'), TOOL_SOURCE_LIMITS.revisionBytes)
       const captured = captureToolDefinitions(ownData(snapshot, 'tools'))
-      if (tools.length + captured.length > TOOL_SOURCE_LIMITS.catalogTools) throw new TypeError('Tool catalog count exceeds its bound')
+      if (tools.length + captured.length > TOOL_SOURCE_LIMITS.catalogTools) {
+        throw new TypeError('Tool catalog count exceeds its bound')
+      }
       catalogBytes += publicCatalogBytes(captured)
       if (catalogBytes > TOOL_SOURCE_LIMITS.catalogBytes) throw new TypeError('Tool catalog bytes exceed their bound')
       for (const tool of captured) {
@@ -63,6 +50,29 @@ export function snapshotToolSources(
     }
   }
   return Object.freeze({ tools: Object.freeze(tools), references: Object.freeze(references) })
+}
+
+function acquireSnapshot(source: CapturedToolSource, signal: AbortSignal, sourceLogger: SdkLogger,
+  operation: ReturnType<typeof beginCoreCapabilityOperation>): unknown {
+  if (signal.aborted) {
+    operation.abort()
+    throw new AgentSdkError('Tool source snapshot was aborted', TOOL_SOURCE_ERROR_CODES.ABORTED)
+  }
+  let raw: unknown
+  try { raw = source.snapshot({ signal, logger: sourceLogger }) }
+  catch (error) {
+    if (signal.aborted) operation.abort(); else operation.fail(error)
+    if (signal.aborted) throw new AgentSdkError('Tool source snapshot was aborted',
+      TOOL_SOURCE_ERROR_CODES.ABORTED, { cause: error })
+    throw new AgentSdkError('Tool source snapshot failed', TOOL_SOURCE_ERROR_CODES.SNAPSHOT_FAILED, { cause: error })
+  }
+  if (raw instanceof Promise) {
+    void raw.catch(() => undefined)
+    operation.fail(new AgentSdkError('Tool source snapshot must be synchronous',
+      TOOL_SOURCE_ERROR_CODES.SNAPSHOT_INVALID))
+    throw new AgentSdkError('Tool source snapshot must be synchronous', TOOL_SOURCE_ERROR_CODES.SNAPSHOT_INVALID)
+  }
+  return raw
 }
 
 function publicCatalogBytes(tools: readonly ToolDefinition[]): number {

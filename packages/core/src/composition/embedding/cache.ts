@@ -158,18 +158,22 @@ export async function readEmbeddingCacheEntry(
   try {
     const entry = await cache.store.get(key)
     if (entry === null || typeof entry !== 'object' || entry.space !== space) return undefined
-    const values = entry.values
-    if (!Array.isArray(values) || values.length === 0
-      || (dimensions !== undefined && dimensions > 0 && values.length !== dimensions)) return undefined
-    const snapshot: number[] = []
-    for (const value of values) {
-      if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
-      snapshot.push(value)
-    }
-    return Object.freeze({ space, values: Object.freeze(snapshot) })
+    const values = snapshotValues(entry.values, dimensions)
+    return values === undefined ? undefined : Object.freeze({ space, values })
   } catch {
     return undefined
   }
+}
+
+function snapshotValues(value: unknown, dimensions: number | undefined): readonly number[] | undefined {
+  if (!Array.isArray(value) || value.length === 0
+    || (dimensions !== undefined && dimensions > 0 && value.length !== dimensions)) return undefined
+  const snapshot: number[] = []
+  for (const item of value) {
+    if (typeof item !== 'number' || !Number.isFinite(item)) return undefined
+    snapshot.push(item)
+  }
+  return Object.freeze(snapshot)
 }
 
 /**

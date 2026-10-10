@@ -5,7 +5,8 @@ import { checkPreflightAbort, invalidPreflight } from '../common/errors.ts'
 import type { CapabilityIdentityConflict } from '../common/errors.ts'
 import { capabilityIdentityConflict } from '../identity/error.ts'
 import { captureModelTarget } from './model-selection.ts'
-import { PROVIDER_PLUGIN_API_VERSION, type CapturedProvider, type ProviderMetadata, type ProviderSelection } from './types.ts'
+import { PROVIDER_PLUGIN_API_VERSION, type CapturedProvider, type ProviderMetadata,
+  type ProviderSelection } from './types.ts'
 
 /** Internal phase token: identity validation is separate from executable method capture. */
 export interface ProviderIdentityPlan extends ProviderSelection {}
@@ -65,6 +66,25 @@ function metadata(source: object): ProviderMetadata {
   })
 }
 
+function selectDefaultProvider(defaultProvider: unknown, providers: readonly ProviderMetadata[],
+  fail: (error: Error) => never): string | undefined {
+  const selected = defaultProvider === undefined ? undefined
+    : boundedText(defaultProvider, COMPOSITION_LIMITS.identityBytes)
+  if (selected !== undefined && !providers.some(provider => provider.defaultModel?.provider === selected)) {
+    fail(invalidPreflight())
+  }
+  return selected
+}
+
+function registerRoutes(provider: ProviderMetadata, routes: Map<string, number>, index: number,
+  fail: (error: Error) => never): void {
+  for (const route of provider.routes) {
+    const first = routes.get(route)
+    if (first !== undefined) fail(conflict('provider-route', first, index))
+    routes.set(route, index)
+  }
+}
+
 /** No setup lookup, allocation, registration, discovery, or ownership transfer in this phase. */
 export function preflightProviderIdentities(
   input: unknown,
@@ -84,23 +104,16 @@ export function preflightProviderIdentities(
       checkPreflightAbort(signal)
       // Marker comparisons are done here so foreign property-access exceptions are never passed through.
       if (ownData(source, 'kind', false) !== 'model-provider-plugin') fail(invalidPreflight('CAPABILITY_KIND_MISMATCH'))
-      if (ownData(source, 'apiVersion', false) !== PROVIDER_PLUGIN_API_VERSION) fail(invalidPreflight('CAPABILITY_API_UNSUPPORTED'))
+      if (ownData(source, 'apiVersion',
+        false) !== PROVIDER_PLUGIN_API_VERSION) fail(invalidPreflight('CAPABILITY_API_UNSUPPORTED'))
       const provider = metadata(source)
       const previous = ids.get(provider.id)
       if (previous !== undefined) fail(conflict('provider-plugin-id', previous, index))
       ids.set(provider.id, index)
-      for (const route of provider.routes) {
-        const first = routes.get(route)
-        if (first !== undefined) fail(conflict('provider-route', first, index))
-        routes.set(route, index)
-      }
+      registerRoutes(provider, routes, index, fail)
       providers.push(provider)
     }
-    const selected = defaultProvider === undefined ? undefined
-      : boundedText(defaultProvider, COMPOSITION_LIMITS.identityBytes)
-    if (selected !== undefined && !providers.some(provider => provider.defaultModel?.provider === selected)) {
-      fail(invalidPreflight())
-    }
+    const selected = selectDefaultProvider(defaultProvider, providers, fail)
     checkPreflightAbort(signal)
     const plan: ProviderIdentityPlan = Object.freeze({
       providers: Object.freeze(providers), ...(selected === undefined ? {} : { defaultProvider: selected }),

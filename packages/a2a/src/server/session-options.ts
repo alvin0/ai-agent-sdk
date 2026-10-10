@@ -5,12 +5,7 @@ export function snapshotSessionOptions(
 ): Omit<AgentSessionOptions, 'conversationId' | 'registry'> {
   return Object.freeze({
     ...options,
-    ...(options.historyLimits === undefined ? {} : {
-      historyLimits: Object.freeze({ ...options.historyLimits }),
-    }),
-    ...(options.runtimeLimits === undefined ? {} : {
-      runtimeLimits: Object.freeze({ ...options.runtimeLimits }),
-    }),
+    ...snapshotLimits(options),
     ...(Array.isArray(options.tools) ? { tools: Object.freeze([...options.tools]) } : {}),
     ...(options.skills === undefined ? {} : { skills: Object.freeze([...options.skills]) }),
     ...(options.interceptors === undefined ? {} : { interceptors: Object.freeze([...options.interceptors]) }),
@@ -20,4 +15,15 @@ export function snapshotSessionOptions(
     ...(options.trace === undefined ? {} : { trace: Object.freeze({ ...options.trace }) }),
     ...(options.team === undefined ? {} : { team: Object.freeze({ ...options.team }) }),
   })
+}
+
+function snapshotLimits(options: Omit<AgentSessionOptions, 'conversationId' | 'registry'>) {
+  return {
+    ...(options.historyLimits === undefined ? {} : {
+      historyLimits: Object.freeze({ ...options.historyLimits }),
+    }),
+    ...(options.runtimeLimits === undefined ? {} : {
+      runtimeLimits: Object.freeze({ ...options.runtimeLimits }),
+    }),
+  }
 }

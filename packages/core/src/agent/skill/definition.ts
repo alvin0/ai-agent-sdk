@@ -140,15 +140,10 @@ export function defineSkill(input: SkillDefinitionInput): SkillDefinition {
     instructions: input.instructions,
     resources,
     resourceManifest: [...manifest.values()].sort((left, right) => left.path.localeCompare(right.path)),
-    invocation: {
-      modelInvocable: input.invocation?.modelInvocable ?? true,
-      userInvocable: input.invocation?.userInvocable ?? true,
-    },
+    invocation: skillInvocation(input),
     source: input.source ?? 'runtime',
     provider: input.provider ?? 'inline',
-    ...(input.resourceBase === undefined ? {} : { resourceBase: input.resourceBase }),
-    ...(input.path === undefined ? {} : { path: input.path }),
-    ...(input.metadata === undefined ? {} : { metadata: structuredClone(input.metadata) }),
+    ...skillLocation(input),
   })
 }
 
@@ -216,13 +211,7 @@ function validateSkillInput(input: SkillDefinitionInput): void {
   if (input.instructions.length > MAX_SKILL_INSTRUCTIONS_CHARS) {
     throw new RangeError(`skill '${input.id}' instructions exceed ${MAX_SKILL_INSTRUCTIONS_CHARS} characters`)
   }
-  if (input.invocation !== undefined) {
-    for (const [field, value] of Object.entries(input.invocation)) {
-      if (value !== undefined && typeof value !== 'boolean') {
-        throw new TypeError(`skill '${input.id}' invocation.${field} must be boolean`)
-      }
-    }
-  }
+  validateOptionalInvocation(input)
   if (input.source !== undefined) nonEmpty(input.source, `skill '${input.id}' source`)
   if (input.provider !== undefined) nonEmpty(input.provider, `skill '${input.id}' provider`)
   if (input.path !== undefined) nonEmpty(input.path, `skill '${input.id}' path`)
@@ -296,4 +285,29 @@ function nonEmpty(value: unknown, label: string): asserts value is string {
 function boundedNonEmpty(value: unknown, label: string, max: number): asserts value is string {
   nonEmpty(value, label)
   if (value.length > max) throw new RangeError(`${label} exceeds ${max} characters`)
+}
+
+function skillInvocation(input: SkillDefinitionInput): SkillInvocationPolicy {
+  return {
+    modelInvocable: input.invocation?.modelInvocable ?? true,
+    userInvocable: input.invocation?.userInvocable ?? true,
+  }
+}
+
+function skillLocation(input: SkillDefinitionInput) {
+  return {
+    ...(input.resourceBase === undefined ? {} : { resourceBase: input.resourceBase }),
+    ...(input.path === undefined ? {} : { path: input.path }),
+    ...(input.metadata === undefined ? {} : { metadata: structuredClone(input.metadata) }),
+  }
+}
+
+function validateOptionalInvocation(input: SkillDefinitionInput): void {
+  if (input.invocation !== undefined) {
+    for (const [field, value] of Object.entries(input.invocation)) {
+      if (value !== undefined && typeof value !== 'boolean') {
+        throw new TypeError(`skill '${input.id}' invocation.${field} must be boolean`)
+      }
+    }
+  }
 }

@@ -36,33 +36,7 @@ export function aggregateUsage(reports: readonly ModelCallReport[], errors: Safe
   const reported = aggregateCounterSets(reports.map(report => report.reported), errors)
   const estimatedValues = reports.flatMap(report => report.estimated === undefined ? [] : [report.estimated])
   const estimated = estimatedValues.length === 0 ? undefined : aggregateCounterSets(estimatedValues, errors)
-  let budgetTokens: number | undefined
-  for (const report of reports) {
-    // Aggregate counters can omit incomparable totals. The attempt evidence
-    // still owns those known costs, without charging call + attempts twice.
-    let attemptTokens: number | undefined
-    for (const attempt of report.attempts) {
-      if (attempt.dispatchState === 'not-sent') continue
-      const tokens = budgetTokenTotal({ ...attempt, authoritative: attempt.coverage === 'complete' })
-      if (tokens === undefined) continue
-      const sum = saturating(attemptTokens ?? 0, tokens)
-      attemptTokens = sum.value
-      if (sum.overflow) errors.push(accountingError(
-        'attempt usage budget saturated at Number.MAX_SAFE_INTEGER',
-        OBSERVATION_ERROR_CODES.USAGE_COUNTER_OVERFLOW,
-      ))
-    }
-    const logicalTokens = budgetTokenTotal(report)
-    const contribution = logicalTokens === undefined ? attemptTokens
-      : Math.max(logicalTokens, attemptTokens ?? 0)
-    if (contribution === undefined) continue
-    const sum = saturating(budgetTokens ?? 0, contribution)
-    budgetTokens = sum.value
-    if (sum.overflow) errors.push(accountingError(
-      'usage budget saturated at Number.MAX_SAFE_INTEGER',
-      OBSERVATION_ERROR_CODES.USAGE_COUNTER_OVERFLOW,
-    ))
-  }
+  const budgetTokens = aggregateBudgetTokens(reports, errors)
   const authoritative = reports.every(report => report.authoritative)
     && !errors.some(error => error.code === OBSERVATION_ERROR_CODES.USAGE_COUNTER_OVERFLOW
       || error.code === OBSERVATION_ERROR_CODES.USAGE_INVALID)
@@ -73,6 +47,41 @@ export function aggregateUsage(reports: readonly ModelCallReport[], errors: Safe
     coverage,
     authoritative,
   })
+}
+
+function aggregateBudgetTokens(
+  reports: readonly ModelCallReport[], errors: SafeErrorRecord[],
+): number | undefined {
+  let total: number | undefined
+  for (const report of reports) {
+    const attemptTokens = aggregateAttemptTokens(report, errors)
+    const logicalTokens = budgetTokenTotal(report)
+    const contribution = logicalTokens === undefined
+      ? attemptTokens : Math.max(logicalTokens, attemptTokens ?? 0)
+    if (contribution === undefined) continue
+    const sum = saturating(total ?? 0, contribution)
+    total = sum.value
+    if (sum.overflow) errors.push(accountingError(
+      'usage budget saturated at Number.MAX_SAFE_INTEGER', OBSERVATION_ERROR_CODES.USAGE_COUNTER_OVERFLOW,
+    ))
+  }
+  return total
+}
+
+function aggregateAttemptTokens(report: ModelCallReport, errors: SafeErrorRecord[]): number | undefined {
+  let total: number | undefined
+  for (const attempt of report.attempts) {
+    if (attempt.dispatchState === 'not-sent') continue
+    const tokens = budgetTokenTotal({ ...attempt, authoritative: attempt.coverage === 'complete' })
+    if (tokens === undefined) continue
+    const sum = saturating(total ?? 0, tokens)
+    total = sum.value
+    if (sum.overflow) errors.push(accountingError(
+      'attempt usage budget saturated at Number.MAX_SAFE_INTEGER',
+      OBSERVATION_ERROR_CODES.USAGE_COUNTER_OVERFLOW,
+    ))
+  }
+  return total
 }
 
 /** Deterministic public projection used by turn outcomes and the canonical ledger. */
@@ -97,7 +106,8 @@ export function authoritativeTokenUsage(report: RunUsageReport): TokenUsage | un
 }
 
 /** Budget projection: reported buckets plus estimates only where reporting is absent. */
-export function budgetTokenTotal(report: Pick<RunUsageReport, 'reported' | 'estimated' | 'authoritative' | 'budgetTokens'>): number | undefined {
+export function budgetTokenTotal(report: Pick<RunUsageReport,
+  'reported' | 'estimated' | 'authoritative' | 'budgetTokens'>): number | undefined {
   if (report.budgetTokens !== undefined) return report.budgetTokens
   if (report.authoritative) return report.reported.totalTokens ?? disjointTotal(report.reported)
   const combined: UsageCounters = Object.freeze({

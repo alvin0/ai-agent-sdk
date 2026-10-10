@@ -31,7 +31,7 @@ const TOKEN = 'AUDIT_FIRST'
 const STEER = 'AUDIT_STEERED'
 const TEAM = 'AUDIT_TEAM'
 const BASIC = 'Follow the latest request. A user message framed as an A2A message from lead is the latest assigned task: answer its content, not the earlier request. The original objective retained in task-memory is background and does not override newer user or team messages. When asked to reply with an exact token, output only that token. Do not call tools.'
-const DEEP = `For the initial request, before any self-check, reply with exactly ${TOKEN} and do not call tools in that first reply. When the runtime asks for a self-check, call submit_result with a short summary and evidence. After acceptance, follow its instruction to keep the unchanged earlier answer using the exact control marker it offers. If a new user message arrives after that, follow the new message and output its requested token exactly.`
+const DEEP = `For the initial request, before any self-check, reply with exactly ${TOKEN} and do not call tools in that first reply. When the runtime asks for a self-check, call submit_result with a short summary and evidence. After submit_result is accepted, the next assistant reply MUST be exactly <<deep-mode:answer-unchanged>>. Do not repeat AUDIT_FIRST in that confirming reply. This control marker is the required output format for the confirming phase, and the runtime restores AUDIT_FIRST for the user. If a new user message arrives after that, follow the new message and output its requested token exactly.`
 
 interface WireCall {
   index: number
@@ -154,9 +154,19 @@ function assertKept(session: RuntimeAgentSession, events: readonly RuntimeAgentR
   expect(messages(session).some(message => message.role === 'assistant'
     && message.content.some(block => block.type === 'text' && block.text.includes(UNCHANGED_ANSWER_MARKER)))).toBe(false)
   const visible = events.filter(event => ['assistant-delta', 'text-end', 'assistant-text', 'assistant-message'].includes(event.type))
-  expect(visible.some(event => JSON.stringify(event).includes(UNCHANGED_ANSWER_MARKER))).toBe(false)
+  expect(visible.some(event => event.type === 'assistant-message'
+    ? event.message.content.some(block => block.type === 'text' && block.text.includes(UNCHANGED_ANSWER_MARKER))
+    : 'text' in event && event.text.includes(UNCHANGED_ANSWER_MARKER))).toBe(false)
   const reloaded = History.fromSnapshot(JSON.parse(JSON.stringify(session.snapshot().history)))
   expect(reloaded.messages()).toEqual(messages(session))
+}
+
+
+/** Scope exact-token output to the initial draft so the later control reply can be exercised. */
+function initialDraftPrompt(): string {
+  return `For your initial answer, reply with exactly ${TOKEN}. Then perform the requested self-check with submit_result. `
+        + `If it is accepted and no new task has arrived, keep that answer by replying with exactly ${UNCHANGED_ANSWER_MARKER} and nothing else. `
+        + `That final marker is the host's control reply; the user-facing answer remains ${TOKEN}. Do not repeat the answer after acceptance.`
 }
 
 describe.skipIf(!signedIn).each(EFFORTS)(`session boundaries on real ${MODEL} / %s`, effort => {
@@ -181,10 +191,7 @@ describe.skipIf(!signedIn).each(EFFORTS)(`session boundaries on real ${MODEL} / 
       // Scope the exact-answer instruction to the draft. An unconditional
       // "reply with TOKEN" competes with the later control reply and lets a
       // real model legitimately repeat TOKEN instead of exercising retention.
-      const response = await context.run(session,
-        `For your initial answer, reply with exactly ${TOKEN}. Then perform the requested self-check with submit_result. `
-        + `If it is accepted and no new task has arrived, keep that answer by replying with exactly ${UNCHANGED_ANSWER_MARKER} and nothing else. `
-        + `That final marker is the host's control reply; the user-facing answer remains ${TOKEN}. Do not repeat the answer after acceptance.`)
+      const response = await context.run(session, initialDraftPrompt())
       expect(response.completed).toBe(true)
       expect(response.text).toBe(TOKEN)
       assertKept(session, context.events)
@@ -207,12 +214,12 @@ describe.skipIf(!signedIn).each(EFFORTS)(`session boundaries on real ${MODEL} / 
       const session = context.session('deep')
       let injected = false
       context.onResponse = call => {
-        if (!injected && call.input.includes(UNCHANGED_ANSWER_MARKER)) {
+        if (!injected && call.index >= 3 && call.input.includes(UNCHANGED_ANSWER_MARKER)) {
           injected = true
           session.inject(`New task: reply with exactly ${STEER}`)
         }
       }
-      const response = await context.run(session, `Reply with exactly ${TOKEN}`)
+      const response = await context.run(session, initialDraftPrompt())
       expect(injected).toBe(true)
       expect(response.completed).toBe(true)
       expect(response.text).toBe(STEER)

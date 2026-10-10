@@ -120,7 +120,7 @@ async function testWorker(consumer: string): Promise<void> {
 
 function assertFixture(value: unknown, runtime: string): void {
   const result = value as Record<string, unknown>
-  if (result.ready !== true || result.listed !== true || result.called !== true || result.sum !== 42
+  if (!validProtocolEvidence(result)
     || result.aborted !== true || result.authFailed !== true || result.authObserved !== true
     || result.boundedFailure !== true || result.buffer !== 'undefined' || result.process !== 'undefined') {
     throw new Error(`${runtime} fixture returned invalid evidence: ${JSON.stringify(result)}`)
@@ -160,4 +160,8 @@ async function stop(child: ChildProcess): Promise<void> {
     new Promise<void>(done => setTimeout(done, 5_000)),
   ])
   if (child.exitCode === null) child.kill('SIGKILL')
+}
+
+function validProtocolEvidence(result: Record<string, unknown>): boolean {
+  return result.ready === true && result.listed === true && result.called === true && result.sum === 42
 }

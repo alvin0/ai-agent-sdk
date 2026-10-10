@@ -38,12 +38,19 @@ jobs:
       - name: Frozen dependency install
         run: pnpm install --frozen-lockfile
 
+      - name: Verify ESLint enforcement
+        run: pnpm test:lint
+
       - name: Graph, runtime, type, and build gates
-        run: pnpm workspace:build && pnpm workspace:typecheck && pnpm build:cli && pnpm lint && pnpm exec tsc --noEmit
+        run: pnpm workspace:build && pnpm workspace:typecheck && pnpm build:cli && pnpm lint:boundaries && pnpm exec tsc --noEmit
       - name: Prove invalid boundaries are rejected
         run: pnpm check:boundary-fixtures
       - name: Release documentation and human coverage declarations
         run: pnpm check:docs && pnpm check:human
+
+      - name: Package maintainability gate
+        if: ${{ !cancelled() }}
+        run: pnpm lint:code
 
   functional:
     runs-on: ubuntu-latest

@@ -51,7 +51,9 @@ export function checkSandboxDependencies(
     const reason = platform === 'win32'
       ? WINDOWS_UNAVAILABLE_REASON
       : `platform ${platform} has no process-confinement backend in this package`
-    return Object.freeze({ platform, errors: Object.freeze([reason]), warnings: Object.freeze([]), fenceAvailable: true })
+    return Object.freeze({
+      platform, errors: Object.freeze([reason]), warnings: Object.freeze([]), fenceAvailable: true,
+    })
   }
 
   const errors: string[] = []

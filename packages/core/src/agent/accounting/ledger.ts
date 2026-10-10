@@ -1,81 +1,34 @@
+import { applyModelCallUsagePolicy, modelCallPolicyDecision, type UsagePolicyResult } from './ledger-policy.ts'
+import {
+  OPERATION_EVENT, OPERATION_SPAN, applyReceipt, deliverySummary, errorData, isOperationStatus, ledgerSpanInput,
+  ledgerEvent, ledgerLimit, ledgerResource, ledgerSerializedBytes, mergeDelivery, observationMode, openSpan,
+  operationCountsOf, resolveLimits, resolveUsagePolicy,
+  validateLedgerOptions,
+  type DeliveryTracker, type MutableOperation, type ResolvedLimits, type ResolvedUsagePolicy,
+} from './ledger-support.ts'
 import { AgentSdkError } from '../../errors/index.ts'
 import {
-  NOOP_OBSERVATION_PORT, OBSERVATION_ERROR_CODES, createCoreSpan, createObservationRunScope,
-  createOperationId, disabledDeliverySummary, hasUsageCounters, safeErrorRecord,
-  snapshotObservationSpan, validateCaptureReceipt, validateUsageCounters, type CaptureReceipt,
+  NOOP_OBSERVATION_PORT, OBSERVATION_ERROR_CODES, createObservationRunScope,
+  createOperationId, safeErrorRecord,
+  validateCaptureReceipt,
   type CorrelationContext, type DeliveryMode, type ModelCallReport, type ModelInvocationContext,
-  type ObservationBoundary, type ObservationDeliverySummary, type ObservationEvent,
+  type ObservationEvent,
   type ObservationEventName, type ObservationPort, type ObservationResource, type ObservationSpan,
   type OperationStatus, type SafeErrorRecord,
 } from '../../observation/index.ts'
-import { SDK_VERSION, deepFreeze, type JsonObject } from '../../primitives/index.ts'
+import { deepFreeze, type JsonObject } from '../../primitives/index.ts'
 import { type GenerateOptions } from '../../contract/index.ts'
 import { AGENT_ACCOUNTING_ERROR_CODES } from './error.ts'
 import type {
   EndRunOperationInput, ModelCallPolicyDecision, RunAccountingPort, StartRunOperationInput,
 } from './contracts.ts'
 import type {
-  LegacyRunReport, RunLedgerLimits, RunOperationCounts, TrackedOperationKind, UsagePolicy,
+  LegacyRunReport, RunLedgerLimits, TrackedOperationKind, UsagePolicy,
 } from './report.ts'
-import { aggregateUsage, missingCounters } from './usage.ts'
-import { estimateUsage } from './estimate.ts'
+import { aggregateUsage } from './usage.ts'
 import { accountingError } from './common.ts'
 import { OPERATION_KINDS } from './config.ts'
 import type { SdkLogger } from '../../logging/types.ts'
-
-const OPERATION_EVENT: Readonly<Record<TrackedOperationKind, ObservationEventName>> = Object.freeze({
-  turn: 'sdk.agent.turn',
-  'model-call': 'sdk.model.call',
-  'provider-attempt': 'sdk.provider.attempt',
-  tool: 'sdk.tool.call',
-  compaction: 'sdk.compaction',
-  hook: 'sdk.hook.call',
-  'user-input': 'sdk.user.input.wait',
-  skill: 'sdk.skill.operation',
-  memory: 'sdk.memory.operation',
-  credential: 'sdk.credential.operation',
-  integration: 'sdk.integration.request',
-})
-
-const OPERATION_SPAN: Readonly<Record<TrackedOperationKind, Parameters<ObservationPort['openSpan']>[0]['name']>> = Object.freeze({
-  turn: 'sdk.agent.turn',
-  'model-call': 'sdk.model.call',
-  'provider-attempt': 'sdk.provider.attempt',
-  tool: 'sdk.tool.call',
-  compaction: 'sdk.compaction',
-  hook: 'sdk.hook.call',
-  'user-input': 'sdk.user.input.wait',
-  skill: 'sdk.skill.operation',
-  memory: 'sdk.memory.operation',
-  credential: 'sdk.credential.operation',
-  integration: 'sdk.integration.request',
-})
-
-interface ResolvedLimits {
-  readonly maxModelCalls: number
-  readonly maxAttemptsPerCall: number
-  readonly maxToolCalls: number
-  readonly maxSerializedBytes: number
-}
-
-interface DeliveryTracker {
-  accepted: number
-  rejected: number
-  pending: number
-  reached: ObservationBoundary
-  lastFailure?: SafeErrorRecord
-}
-
-interface MutableOperation {
-  readonly id: string
-  readonly kind: TrackedOperationKind
-  readonly span: ObservationSpan
-  readonly startedAt: string
-  readonly startedMonotonic: number
-  readonly data: JsonObject
-  status?: OperationStatus
-  error?: SafeErrorRecord
-}
 
 export interface RunLedgerOptions {
   readonly runId?: string
@@ -118,7 +71,7 @@ export class RunLedger implements RunAccountingPort {
   private readonly startedMonotonic = this.scope.monotonicMs()
   private readonly tracker: DeliveryTracker = { accepted: 0, rejected: 0, pending: 0, reached: 'none' }
   private readonly limits: ResolvedLimits
-  private readonly usagePolicy: Required<Pick<UsagePolicy, 'onMissing' | 'estimateTimeoutMs'>> & Pick<UsagePolicy, 'estimator'>
+  private readonly usagePolicy: ResolvedUsagePolicy
   private readonly estimationClosed = new AbortController()
   private readonly cumulativeTokenBudget: boolean
   private readonly defectMode: 'production' | 'test'
@@ -133,34 +86,19 @@ export class RunLedger implements RunAccountingPort {
   private finalizing: Promise<LegacyRunReport> | undefined
 
   constructor(options: RunLedgerOptions) {
-    if (typeof options.agentId !== 'string' || options.agentId.trim().length === 0) {
-      throw new TypeError('run ledger agentId must be non-empty')
-    }
-    if (options.maxTurns !== 'auto' && (!Number.isSafeInteger(options.maxTurns) || options.maxTurns < 1)) {
-      throw new RangeError("run ledger maxTurns must be a positive safe integer or 'auto'")
-    }
+    validateLedgerOptions(options)
     this.runId = options.runId ?? createOperationId()
     if (this.runId.length === 0) throw new TypeError('run ledger runId must be non-empty')
     this.port = options.observation ?? NOOP_OBSERVATION_PORT
-    this.resource = deepFreeze(options.resource === undefined
-      ? { sdkName: 'ai-agent-sdk', sdkVersion: SDK_VERSION, runtime: 'unknown' }
-      : { ...options.resource })
+    this.resource = ledgerResource(options)
     this.mode = observationMode(this.port, this.tracker)
     this.limits = resolveLimits(options.limits)
     this.usagePolicy = resolveUsagePolicy(options.usagePolicy)
     this.cumulativeTokenBudget = options.cumulativeTokenBudget ?? false
     this.defectMode = options.defectMode ?? 'production'
-    this.runSpan = openSpan(this.port, {
-      name: 'sdk.agent.run',
-      runId: this.runId,
-      ...(options.parent === undefined ? {} : { parent: options.parent }),
-      correlation: {
-        ...(options.conversationId === undefined ? {} : { conversationId: options.conversationId }),
-        ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
-      },
-      startedAt: this.startedAt,
-      monotonicMs: this.startedMonotonic,
-    }, this.tracker)
+    this.runSpan = openSpan(this.port, ledgerSpanInput(options, this.runId, {
+      startedAt: this.startedAt, monotonicMs: this.startedMonotonic,
+    }), this.tracker)
     this.traceId = this.runSpan.correlation.traceId
     const logger = options.logger?.(this.runSpan.correlation)
     this.modelInvocation = Object.freeze({
@@ -188,7 +126,7 @@ export class RunLedger implements RunAccountingPort {
       return id
     }
     if (kind === 'tool') {
-      if (this.toolCalls >= this.limits.maxToolCalls) this.limit(`run exceeded ${this.limits.maxToolCalls} tool calls`)
+      if (this.toolCalls >= this.limits.maxToolCalls) ledgerLimit(`run exceeded ${this.limits.maxToolCalls} tool calls`)
       this.toolCalls++
     }
     const startedAt = new Date().toISOString()
@@ -237,76 +175,22 @@ export class RunLedger implements RunAccountingPort {
   }
 
   async recordModelCall(report: ModelCallReport, request: GenerateOptions): Promise<ModelCallPolicyDecision> {
-    this.assertOpen('model-call usage')
-    if (this.modelCalls.has(report.modelCallId)) {
-      this.defect(`duplicate model-call terminal '${report.modelCallId}'`)
-      const decision = Object.freeze({ report: this.modelCalls.get(report.modelCallId) ?? report, usageRequired: true, usageUnavailable: false })
-      this.stoppedUsage ??= decision
-      return decision
-    }
-    if (this.modelCalls.size >= this.limits.maxModelCalls) {
-      this.limit(`run exceeded ${this.limits.maxModelCalls} logical model calls`)
-    }
-    if (report.attempts.length > this.limits.maxAttemptsPerCall) {
-      this.limit(`model call '${report.modelCallId}' exceeded ${this.limits.maxAttemptsPerCall} attempts`)
-    }
-
-    // Reserve identity and retain provider evidence before calling user code.
-    this.charge(report)
-    this.modelCalls.set(report.modelCallId, report)
-    mergeDelivery(this.tracker, report.delivery)
-    const policyErrorIndex = this.errors.length
-    if (report.error !== undefined) this.errors.push(report.error)
-    for (const attempt of report.attempts) if (attempt.error !== undefined) this.errors.push(attempt.error)
-    let accepted = report
-    let usageRequired = false
+    const duplicate = this.validateModelCall(report)
+    if (duplicate !== undefined) return duplicate
+    const policyErrorIndex = this.reserveModelCall(report)
     const incomplete = report.coverage === 'missing' || report.coverage === 'partial'
-    if (incomplete && this.usagePolicy.onMissing === 'estimate') {
-      try {
-        const estimator = this.usagePolicy.estimator
-        if (estimator === undefined) throw new TypeError('estimate usage policy requires an estimator')
-        const raw = await estimateUsage(estimator, {
-          runId: this.runId,
-          modelCallId: report.modelCallId,
-          provider: report.provider,
-          model: report.model,
-          request,
-          report,
-        }, this.estimationClosed.signal, this.usagePolicy.estimateTimeoutMs)
-        if (this.closed) return { report, usageRequired: true, usageUnavailable: false }
-        const validation = validateUsageCounters(raw)
-        if (validation.invalidFields.length > 0 || validation.overflow || !hasUsageCounters(validation.reported)) {
-          throw new TypeError('usage estimator returned invalid or empty counters')
-        }
-        const estimated = missingCounters(validation.reported, report.reported)
-        if (!hasUsageCounters(estimated)) throw new TypeError('usage estimator did not cover a missing counter')
-        accepted = deepFreeze({
-          ...report,
-          coverage: hasUsageCounters(report.reported) ? 'partial' as const : 'estimated' as const,
-          estimated,
-          authoritative: false,
-        })
-      } catch (estimatorError) {
-        if (this.closed) return { report, usageRequired: true, usageUnavailable: false }
-        usageRequired = true
-        this.errors.splice(policyErrorIndex, 0, accountingError(
-          'usage estimation failed after a provider response',
-          OBSERVATION_ERROR_CODES.USAGE_REQUIRED,
-          estimatorError,
-        ))
-      }
-    } else if (incomplete && this.usagePolicy.onMissing === 'fail') {
-      usageRequired = true
-      this.errors.splice(policyErrorIndex, 0, accountingError(
-        'provider usage is required by the configured run policy',
-        OBSERVATION_ERROR_CODES.USAGE_REQUIRED,
-      ))
-    } else if (incomplete && report.error?.code !== OBSERVATION_ERROR_CODES.USAGE_MISSING) {
-      this.errors.splice(policyErrorIndex, 0, accountingError(
-        'model call completed without authoritative provider usage',
-        OBSERVATION_ERROR_CODES.USAGE_MISSING,
-      ))
-    }
+    return applyModelCallUsagePolicy({
+      report, request, incomplete, usagePolicy: this.usagePolicy, runId: this.runId,
+      signal: this.estimationClosed.signal, closed: () => this.closed, errors: this.errors, policyErrorIndex,
+      finish: result => this.acceptModelCall(report, incomplete, result),
+    })
+  }
+
+  private acceptModelCall(
+    report: ModelCallReport, incomplete: boolean, result: UsagePolicyResult,
+  ): ModelCallPolicyDecision {
+    const { accepted, usageRequired, closed } = result
+    if (closed) return { report, usageRequired: true, usageUnavailable: false }
 
     // Conservatively charge the added projection including its field names and
     // changed coverage, not just the counter values inside `estimated`.
@@ -314,17 +198,42 @@ export class RunLedger implements RunAccountingPort {
       estimated: accepted.estimated, coverage: accepted.coverage, authoritative: false,
     })
     this.modelCalls.set(accepted.modelCallId, accepted)
-    const decision = Object.freeze({
-      report: accepted,
-      usageRequired,
-      usageUnavailable: !usageRequired
-        && incomplete
-        && this.usagePolicy.onMissing === 'warn'
-        && this.cumulativeTokenBudget
-        && accepted.possiblyBilledAttemptsWithoutUsage > 0,
+    const decision = modelCallPolicyDecision({
+      accepted, usageRequired, incomplete, usagePolicy: this.usagePolicy,
+      cumulativeTokenBudget: this.cumulativeTokenBudget,
     })
     if (decision.usageRequired || decision.usageUnavailable) this.stoppedUsage ??= decision
     return decision
+  }
+
+  private reserveModelCall(report: ModelCallReport): number {
+    // Reserve identity and retain provider evidence before calling user code.
+    this.charge(report)
+    this.modelCalls.set(report.modelCallId, report)
+    mergeDelivery(this.tracker, report.delivery)
+    const policyErrorIndex = this.errors.length
+    if (report.error !== undefined) this.errors.push(report.error)
+    for (const attempt of report.attempts) if (attempt.error !== undefined) this.errors.push(attempt.error)
+    return policyErrorIndex
+  }
+
+  private validateModelCall(report: ModelCallReport): ModelCallPolicyDecision | undefined {
+    this.assertOpen('model-call usage')
+    if (this.modelCalls.has(report.modelCallId)) {
+      this.defect(`duplicate model-call terminal '${report.modelCallId}'`)
+      const decision = Object.freeze({ report: this.modelCalls.get(report.modelCallId) ?? report,
+        usageRequired: true, usageUnavailable: false })
+      this.stoppedUsage ??= decision
+      return decision
+    }
+    if (this.modelCalls.size >= this.limits.maxModelCalls) {
+      ledgerLimit(`run exceeded ${this.limits.maxModelCalls} logical model calls`)
+    }
+    if (report.attempts.length > this.limits.maxAttemptsPerCall) {
+      ledgerLimit(`model call '${report.modelCallId}' exceeded ${this.limits.maxAttemptsPerCall} attempts`)
+    }
+
+    return undefined
   }
 
   recordError(error: unknown): void {
@@ -408,19 +317,7 @@ export class RunLedger implements RunAccountingPort {
     correlation: CorrelationContext,
     data: JsonObject,
   ): ObservationEvent {
-    return deepFreeze({
-      schemaVersion: 1 as const,
-      eventId: createOperationId(),
-      sequence: this.scope.nextSequence(),
-      name,
-      phase,
-      occurredAt: new Date().toISOString(),
-      monotonicMs: this.scope.monotonicMs(),
-      priority: 'critical' as const,
-      resource: this.resource,
-      correlation,
-      data,
-    })
+    return ledgerEvent(this.scope, this.resource, { name, phase, correlation, data })
   }
 
   private capture(event: ObservationEvent): void {
@@ -437,7 +334,8 @@ export class RunLedger implements RunAccountingPort {
     this.tracker.pending++
     try {
       const raw = this.port.checkpoint === undefined
-        ? { eventId: event.eventId, status: 'rejected' as const, durable: false, boundary: 'none' as const, reason: 'exporter-unavailable' as const }
+        ? { eventId: event.eventId, status: 'rejected' as const, durable: false, boundary: 'none' as const,
+          reason: 'exporter-unavailable' as const }
         : await this.port.checkpoint(event)
       this.tracker.pending--
       const receipt = validateCaptureReceipt(raw, event.eventId)
@@ -470,156 +368,25 @@ export class RunLedger implements RunAccountingPort {
     }))
   }
 
-  private limit(message: string): never {
-    throw new AgentSdkError(message, OBSERVATION_ERROR_CODES.LEDGER_LIMIT_EXCEEDED)
-  }
-
   private assertOpen(action: string): void {
     if (!this.closed) return
     this.defect(`${action} occurred after run ledger closure`)
-    throw new AgentSdkError(`${action} occurred after run ledger closure`, AGENT_ACCOUNTING_ERROR_CODES.LEDGER_STATE_INVALID)
+    throw new AgentSdkError(`${action} occurred after run ledger closure`,
+      AGENT_ACCOUNTING_ERROR_CODES.LEDGER_STATE_INVALID)
   }
 
   private charge(value: unknown): void {
     let bytes: number
     try {
-      const encoded = JSON.stringify(value)
-      bytes = encoded === undefined ? 0 : new TextEncoder().encode(encoded).byteLength
+      bytes = ledgerSerializedBytes(value)
     } catch {
-      this.limit('run ledger state could not be represented as JSON')
+      ledgerLimit('run ledger state could not be represented as JSON')
     }
     if (this.serializedBytes + bytes > this.limits.maxSerializedBytes) {
-      this.limit(`run ledger exceeded ${this.limits.maxSerializedBytes} serialized bytes`)
+      ledgerLimit(`run ledger exceeded ${this.limits.maxSerializedBytes} serialized bytes`)
     }
     this.serializedBytes += bytes
   }
-}
-
-function resolveLimits(input: RunLedgerLimits | undefined): ResolvedLimits {
-  return Object.freeze({
-    maxModelCalls: positive(input?.maxModelCalls ?? 1_024, 'maxModelCalls'),
-    maxAttemptsPerCall: positive(input?.maxAttemptsPerCall ?? 16, 'maxAttemptsPerCall'),
-    maxToolCalls: positive(input?.maxToolCalls ?? 10_000, 'maxToolCalls'),
-    maxSerializedBytes: positive(input?.maxSerializedBytes ?? 16 * 1024 * 1024, 'maxSerializedBytes'),
-  })
-}
-
-function resolveUsagePolicy(input: UsagePolicy | undefined): RunLedger['usagePolicy'] {
-  const onMissing = input?.onMissing ?? 'warn'
-  if (!['warn', 'estimate', 'fail'].includes(onMissing)) throw new TypeError('usage policy onMissing is invalid')
-  if (onMissing === 'estimate') {
-    if (typeof input?.estimator?.id !== 'string' || input.estimator.id.trim().length === 0
-      || typeof input.estimator.estimate !== 'function') {
-      throw new TypeError('estimate usage policy requires an estimator with a non-empty id')
-    }
-  }
-  const estimateTimeoutMs = positive(input?.estimateTimeoutMs ?? 30_000, 'estimateTimeoutMs')
-  if (estimateTimeoutMs > 2_147_483_647) throw new RangeError('estimateTimeoutMs exceeds the timer range')
-  return Object.freeze({ onMissing, estimateTimeoutMs, ...(input?.estimator === undefined ? {} : { estimator: input.estimator }) })
-}
-
-function observationMode(port: ObservationPort, tracker: DeliveryTracker): DeliveryMode {
-  try {
-    const mode = port.mode
-    if (mode === 'operational' || mode === 'reliable' || mode === 'audit') return mode
-    throw new TypeError('observation delivery mode is invalid')
-  } catch (error) {
-    tracker.lastFailure = safeErrorRecord(error)
-    return 'operational'
-  }
-}
-
-function openSpan(
-  port: ObservationPort,
-  input: Parameters<ObservationPort['openSpan']>[0],
-  tracker: DeliveryTracker,
-): ObservationSpan {
-  try {
-    const candidate = snapshotObservationSpan(port.openSpan(input))
-    if (candidate !== undefined && candidate.correlation.runId === input.runId) return candidate
-    throw new TypeError('observation backend returned an invalid run span')
-  } catch (error) {
-    tracker.lastFailure = safeErrorRecord(error)
-    return createCoreSpan(input)
-  }
-}
-
-function applyReceipt(tracker: DeliveryTracker, receipt: CaptureReceipt): void {
-  if (receipt.status === 'accepted') tracker.accepted++
-  else tracker.rejected++
-  if (receipt.status === 'accepted' && boundaryRank(receipt.boundary) > boundaryRank(tracker.reached)) {
-    tracker.reached = receipt.boundary
-  }
-}
-
-function mergeDelivery(tracker: DeliveryTracker, summary: ObservationDeliverySummary): void {
-  tracker.accepted += summary.acceptedCritical
-  tracker.rejected += summary.rejectedCritical
-  tracker.pending += summary.pendingCritical
-  if (boundaryRank(summary.reachedBoundary) > boundaryRank(tracker.reached)) tracker.reached = summary.reachedBoundary
-  if (summary.lastFailure !== undefined) tracker.lastFailure = summary.lastFailure
-}
-
-function deliverySummary(port: ObservationPort, mode: DeliveryMode, tracker: DeliveryTracker): ObservationDeliverySummary {
-  if (port === NOOP_OBSERVATION_PORT) return disabledDeliverySummary()
-  const requiredBoundary: ObservationBoundary = mode === 'operational'
-    ? 'none'
-    : boundaryRank(tracker.reached) > 0 ? tracker.reached : 'local-durable'
-  return deepFreeze({
-    mode,
-    requiredBoundary,
-    reachedBoundary: tracker.reached,
-    complete: tracker.rejected === 0 && tracker.pending === 0
-      && boundaryRank(tracker.reached) >= boundaryRank(requiredBoundary),
-    acceptedCritical: tracker.accepted,
-    rejectedCritical: tracker.rejected,
-    pendingCritical: tracker.pending,
-    ...(tracker.lastFailure === undefined ? {} : { lastFailure: tracker.lastFailure }),
-  })
-}
-
-function operationCountsOf(
-  operations: Iterable<MutableOperation>,
-  modelCalls: Iterable<ModelCallReport>,
-): Readonly<Record<TrackedOperationKind, RunOperationCounts>> {
-  const counts = Object.fromEntries(OPERATION_KINDS.map(kind => [kind, emptyCounts()])) as Record<TrackedOperationKind, MutableCounts>
-  for (const operation of operations) addStatus(counts[operation.kind], operation.status ?? 'unknown')
-  for (const report of modelCalls) {
-    addStatus(counts['model-call'], report.status)
-    for (const attempt of report.attempts) addStatus(counts['provider-attempt'], attempt.status)
-  }
-  return deepFreeze(Object.fromEntries(OPERATION_KINDS.map(kind => [kind, { ...counts[kind] }])) as Record<TrackedOperationKind, RunOperationCounts>)
-}
-
-interface MutableCounts { total: number; success: number; error: number; aborted: number; rejected: number; unknown: number }
-function emptyCounts(): MutableCounts { return { total: 0, success: 0, error: 0, aborted: 0, rejected: 0, unknown: 0 } }
-function addStatus(counts: MutableCounts, status: OperationStatus): void {
-  counts.total++
-  counts[status]++
-}
-
-function errorData(error: SafeErrorRecord): JsonObject {
-  return {
-    type: error.type,
-    message: error.message,
-    ...(error.code === undefined ? {} : { code: error.code }),
-    ...(error.retryable === undefined ? {} : { retryable: error.retryable }),
-    ...(error.status === undefined ? {} : { status: error.status }),
-    ...(error.causeTypes === undefined ? {} : { causeTypes: [...error.causeTypes] }),
-  }
-}
-
-function isOperationStatus(value: unknown): value is OperationStatus {
-  return value === 'success' || value === 'error' || value === 'aborted' || value === 'rejected' || value === 'unknown'
-}
-
-function positive(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value < 1) throw new RangeError(`${label} must be a positive safe integer`)
-  return value
-}
-
-function boundaryRank(boundary: ObservationBoundary): number {
-  return boundary === 'remote-acknowledged' ? 2 : boundary === 'local-durable' ? 1 : 0
 }
 
 export { summarizeModelCallUsage, authoritativeTokenUsage, budgetTokenTotal } from './usage.ts'

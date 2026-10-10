@@ -28,11 +28,32 @@ export function sessionCallConfig(
   runtime: RuntimeSessionConfiguration | undefined,
   invocation?: Pick<AgentInvocationOptions, 'model' | 'maxTokens'>,
 ): SessionCallConfig {
-  const agentTier = {
+  const agentTier = agentModelContext(definition)
+  const base = baseCallConfig(definition, runtime, agentTier)
+  if (invocation === undefined) return base
+  const target = invocation.model
+  if (target === undefined && invocation.maxTokens === undefined) {
+    return base
+  }
+  const switched = target !== undefined
+    && (target.provider !== base.provider || target.model !== base.model)
+  const reasoningEffort = switched ? undefined : base.reasoningEffort
+  const maxTokens = invocation.maxTokens ?? (switched ? undefined : base.maxTokens)
+  return applyCallBinding(base, target, { reasoningEffort, maxTokens, ...agentTier })
+}
+
+function agentModelContext(definition: AgentDefinition): Pick<SessionCallConfig, 'contextWindow' | 'inputModalities'> {
+  return {
     ...(definition.contextWindow === undefined ? {} : { contextWindow: definition.contextWindow }),
     ...(definition.inputModalities === undefined ? {} : { inputModalities: definition.inputModalities }),
   }
-  const base: SessionCallConfig = runtime !== undefined
+}
+
+function baseCallConfig(
+  definition: AgentDefinition, runtime: RuntimeSessionConfiguration | undefined,
+  agentTier: Pick<SessionCallConfig, 'contextWindow' | 'inputModalities'>,
+): SessionCallConfig {
+  return runtime !== undefined
     ? {
         provider: runtime.provider,
         model: runtime.model,
@@ -47,14 +68,16 @@ export function sessionCallConfig(
         ...(definition.maxTokens === undefined ? {} : { maxTokens: definition.maxTokens }),
         ...agentTier,
       }
-  const target = invocation?.model
-  if (target === undefined && invocation?.maxTokens === undefined) {
-    return base
-  }
-  const switched = target !== undefined
-    && (target.provider !== base.provider || target.model !== base.model)
-  const reasoningEffort = switched ? undefined : base.reasoningEffort
-  const maxTokens = invocation?.maxTokens ?? (switched ? undefined : base.maxTokens)
+}
+
+function applyCallBinding(
+  base: SessionCallConfig, target: AgentInvocationOptions['model'],
+  settings: Pick<SessionCallConfig, 'contextWindow' | 'inputModalities'> & {
+    readonly reasoningEffort: SessionCallConfig['reasoningEffort']
+    readonly maxTokens: SessionCallConfig['maxTokens']
+  },
+): SessionCallConfig {
+  const { reasoningEffort, maxTokens, ...agentTier } = settings
   return {
     provider: target?.provider ?? base.provider,
     model: target?.model ?? base.model,

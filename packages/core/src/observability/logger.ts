@@ -35,24 +35,35 @@ function cloneFields(fields: Readonly<JsonObject>): Readonly<JsonObject> {
 }
 
 function resolveContext(target: LoggerTarget, input: LoggerContext | undefined): ResolvedLoggerContext {
-  const scope = input?.invocation?.scope ?? createObservationRunScope()
-  const supplied = input?.correlation ?? input?.invocation?.correlation
-  let correlation: CorrelationContext
-  if (supplied?.traceId !== undefined && supplied.spanId !== undefined
-    && supplied.parentSpanId !== undefined && supplied.runId !== undefined) {
-    correlation = supplied as CorrelationContext
-  } else {
-    const runId = supplied?.runId ?? createOperationId()
-    correlation = createCoreSpan({
-      name: 'sdk.integration.request', runId,
-      startedAt: new Date().toISOString(), monotonicMs: scope.monotonicMs(),
-    }).correlation
-  }
+  const options = input ?? {}
+  const invocation = options.invocation
+  const scope = invocation?.scope ?? createObservationRunScope()
+  const supplied = options.correlation ?? invocation?.correlation
   return {
-    correlation,
-    resource: input?.resource ?? input?.invocation?.resource ?? target.resource,
+    correlation: resolveCorrelation(supplied, scope),
+    resource: options.resource ?? invocation?.resource ?? target.resource,
     scope,
   }
+}
+
+function resolveCorrelation(
+  supplied: Partial<CorrelationContext> | undefined, scope: ObservationRunScope,
+): CorrelationContext {
+  if (supplied?.traceId !== undefined && supplied.spanId !== undefined
+    && supplied.parentSpanId !== undefined && supplied.runId !== undefined) {
+    return supplied as CorrelationContext
+  }
+  const runId = supplied?.runId ?? createOperationId()
+  return createCoreSpan({
+    name: 'sdk.integration.request', runId,
+    startedAt: new Date().toISOString(), monotonicMs: scope.monotonicMs(),
+  }).correlation
+}
+
+function logPriority(level: LogLevel): ObservationEvent['priority'] {
+  if (level === 'trace' || level === 'debug') return 'verbose'
+  if (level === 'error' || level === 'fatal') return 'critical'
+  return 'normal'
 }
 
 class BusLogger implements SdkLogger {
@@ -76,9 +87,7 @@ class BusLogger implements SdkLogger {
   private log(level: LogLevel, message: string, fields: Readonly<JsonObject> = {}): void {
     if (typeof message !== 'string') throw new TypeError('logger message must be a string')
     if (LEVEL_ORDER[level] < LEVEL_ORDER[this.target.minimumLevel]) return
-    const priority = level === 'trace' || level === 'debug'
-      ? 'verbose'
-      : level === 'error' || level === 'fatal' ? 'critical' : 'normal'
+    const priority = logPriority(level)
     this.target.emit({
       schemaVersion: 1,
       eventId: createOperationId(),

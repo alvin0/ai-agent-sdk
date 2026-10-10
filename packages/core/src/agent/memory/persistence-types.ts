@@ -56,8 +56,7 @@ export interface RuntimeMemoryPersistence {
   load(conversationId: string, signal: AbortSignal, logger: SdkLogger): Promise<MemoryLoadState>
   commit(
     conversationId: string,
-    snapshot: AgentMemorySnapshot,
-    expectedRevision: string | null,
+    input: Pick<MemoryCommitInput, 'snapshot' | 'expectedRevision'>,
     signal: AbortSignal,
     logger: SdkLogger,
   ): Promise<MemoryCommitState>

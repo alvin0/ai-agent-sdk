@@ -28,7 +28,7 @@ export function snapshotJsonValue(value: unknown, limits: JsonSnapshotLimits): J
   const clone = (input: unknown, depth: number): JsonValue => {
     nodes++
     if (nodes > limits.maxNodes || depth > limits.maxDepth) throw new TypeError('JSON data exceeds its bound')
-    if (input === null || typeof input === 'boolean' || typeof input === 'string') return input
+    if (isPrimitive(input)) return input
     if (typeof input === 'number') {
       if (!Number.isFinite(input)) throw new TypeError('JSON number must be finite')
       return input
@@ -64,7 +64,9 @@ export function snapshotJsonValue(value: unknown, limits: JsonSnapshotLimits): J
     try {
       const result: Record<string, JsonValue> = Object.create(null) as Record<string, JsonValue>
       for (const key of keys as string[]) {
-        if (encoder.encode(key).byteLength > limits.maxKeyBytes) throw new TypeError('JSON object key exceeds its bound')
+        if (encoder.encode(key).byteLength > limits.maxKeyBytes) {
+          throw new TypeError('JSON object key exceeds its bound')
+        }
         result[key] = clone(ownData(source, key), depth + 1)
       }
       return Object.freeze(result)
@@ -83,4 +85,8 @@ function ownData(source: object, key: string): unknown {
   if (descriptor === undefined) throw new TypeError('JSON arrays must not be sparse')
   if (!('value' in descriptor)) throw new TypeError('JSON data must not use accessors')
   return descriptor.value
+}
+
+function isPrimitive(input: unknown): input is null | boolean | string {
+  return input === null || typeof input === 'boolean' || typeof input === 'string'
 }

@@ -25,7 +25,7 @@ function target(id: string, requirement: 'required' | 'best-effort', send: (batc
 function fixture(registrations: readonly RuntimeObservationExporterRegistration[], options: ConstructorParameters<typeof DeliveryQueueStore>[2] = {}) {
   const platform = createRuntimePlatform(), resources = new RuntimeResources(platform), resource = createRuntimeResource(undefined, platform)
   const staging = new DeliveryStaging(registrations, vi.fn()), store = new DeliveryQueueStore(resource, staging, options)
-  const scheduler = new DeliveryQueueScheduler(store, resource, registrations, platform, resources)
+  const scheduler = new DeliveryQueueScheduler(store, resource, registrations, resources)
   return { platform, resources, resource, store, scheduler }
 }
 

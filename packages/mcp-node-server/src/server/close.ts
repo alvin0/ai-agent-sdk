@@ -17,13 +17,14 @@ export function createReportedServerClose(
   logger?: SdkLogger,
 ): (options?: { readonly signal?: AbortSignal }) => Promise<McpNodeServerCloseReport> {
   let task: Promise<McpNodeServerCloseReport> | undefined
-  return options => task ??= performClose(handle, transport, closeTimeoutMs, logger, options?.signal)
+  return options => task ??= performClose(handle, transport, closeTimeoutMs, { logger, signal: options?.signal })
 }
 
 async function performClose(
   handle: Closeable, transport: ObservedStdioTransport, timeoutMs: number,
-  logger: SdkLogger | undefined, signal: AbortSignal | undefined,
+  context: { readonly logger: SdkLogger | undefined; readonly signal: AbortSignal | undefined },
 ): Promise<McpNodeServerCloseReport> {
+  const { logger, signal } = context
   const operation = beginStdioServerOperation(logger, 'close'), attempt = operation.attempt(1)
   const close = settle(handle.close())
   const completed = Promise.all([close, transport.whenIdle()]).then(([outcome]) => outcome)
@@ -59,7 +60,9 @@ async function raceBoundary(
   if (signal?.aborted === true) return { kind: 'aborted' }
   let timer: ReturnType<typeof setTimeout> | undefined
   let removeAbort: () => void = () => {}
-  const timeout = new Promise<Boundary>(resolve => { timer = setTimeout(() => resolve({ kind: 'timeout' }), timeoutMs) })
+  const timeout = new Promise<Boundary>(resolve => {
+    timer = setTimeout(() => resolve({ kind: 'timeout' }), timeoutMs)
+  })
   const aborted = signal === undefined ? new Promise<Boundary>(() => {}) : new Promise<Boundary>(resolve => {
     const listener = () => resolve({ kind: 'aborted' })
     signal.addEventListener('abort', listener, { once: true })

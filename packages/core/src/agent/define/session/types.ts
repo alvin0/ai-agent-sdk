@@ -235,9 +235,9 @@ export interface AgentInvocationOptions {
   readonly maxTokens?: number
   readonly outputFormat?: import('../../../contract/index.ts').ModelOutputFormat
   readonly validateOutput?: (value: unknown) => void
-  /** strict rejects known text-only models when request history contains images; project permits lossy conversion. */
+  /** strict rejects text-only models with images; project permits lossy conversion. */
   readonly imagePolicy?: 'strict' | 'project'
-  /** strict rejects models that decline document input when history contains documents; project permits lossy conversion. */
+  /** strict rejects document-incompatible models; project permits lossy conversion. */
   readonly documentPolicy?: 'strict' | 'project'
   readonly signal?: AbortSignal
   /** Observe events when using run()/runPending(); stream() already exposes them directly. */

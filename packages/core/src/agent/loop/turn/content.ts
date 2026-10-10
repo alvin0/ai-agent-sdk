@@ -176,18 +176,28 @@ export function systemText(options: RunTurnOptions, forcedFinal: boolean): strin
   const parts = [options.system]
   if (options.commentary === 'concise') {
     parts.push(
-      'Before calling tools, give a brief user-visible progress update about what you are about to do. After tool results, briefly summarize what changed before another action. Do not reveal private chain-of-thought; communicate only intent and observed outcomes.',
+      'Before calling tools, give a brief user-visible progress update about what you are ' +
+      'about to do. After tool results, briefly summarize what changed before another ' +
+      'action. Do not reveal private chain-of-thought; communicate only intent and observed ' +
+      'outcomes.',
     )
   } else if (options.commentary === 'off') {
-    parts.push('Do not emit progress commentary around tool calls; call tools directly and provide only the final answer.')
+    parts.push(
+      'Do not emit progress commentary around tool calls; call tools directly and provide ' +
+      'only the final answer.')
   }
   if (forcedFinal) parts.push(
-    'Tool use is now disabled. Write the final report from the information already gathered: findings or changes, supporting evidence and verification, and what remains unknown or unfinished. Reconcile any task list in the report without claiming unfinished items are done. Do not call a submission or planning tool; this report is the final response.',
+    'Tool use is now disabled. Write the final report from the information already ' +
+    'gathered: findings or changes, supporting evidence and verification, and what ' +
+    'remains unknown or unfinished. Reconcile any task list in the report without ' +
+    'claiming unfinished items are done. Do not call a submission or planning tool; this ' +
+    'report is the final response.',
   )
   return parts.filter((part): part is string => part !== undefined && part.length > 0).join('\n\n')
 }
 
-export function createAssistant(options: RunTurnOptions, content: readonly ContentBlock[], replayState: unknown): Message {
+export function createAssistant(options: RunTurnOptions, content: readonly ContentBlock[],
+  replayState: unknown): Message {
   const source = {
     kind: 'model' as const, provider: options.config.provider, model: options.config.model,
     ...replayState === undefined ? {} : { replayState },

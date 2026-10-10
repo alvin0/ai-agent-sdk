@@ -90,6 +90,14 @@ interface LiveNode {
   readonly generation: number
 }
 
+function trackedRevision(tracked: LiveNode | undefined, seq: number): string | undefined {
+  return tracked?.seq === seq ? tracked.revision : undefined
+}
+
+function trackedRetraction(tracked: LiveNode | undefined, seq: number): boolean {
+  return tracked?.seq === seq ? tracked.retracted : false
+}
+
 export interface ContextSectionRuntimeOptions {
   readonly sections: readonly ContextSection[]
   readonly history: History
@@ -174,36 +182,50 @@ export class ContextSectionRuntime {
         })
         continue
       }
-      if (next === undefined) {
-        // A section that stays retracted must not rewrite the notice on every
-        // step; one notice replaces the content and then stands.
-        if (node !== undefined && !node.retracted) {
-          this.write(section, retraction(section), undefined, true, node.seq)
-        }
-        continue
-      }
-      if (typeof next.revision !== 'string' || typeof next.text !== 'string') {
-        this.logger?.warn('context section returned an invalid state', { section: section.id })
-        continue
-      }
-      if (node !== undefined && !node.retracted) {
-        if (node.revision === next.revision) continue
-        if (node.text === next.text) {
-          // Same text under a new revision key — an adopted node, or a producer
-          // that rekeyed identical content. Record the key; write nothing.
-          this.live.set(section.id, { ...node, revision: next.revision })
-          continue
-        }
-      }
-      const bytes = byteLength(next.text)
-      if (bytes > this.maxTextBytes) {
-        this.logger?.warn('context section exceeded its byte ceiling', {
-          section: section.id, bytes, maxTextBytes: this.maxTextBytes,
-        })
-        continue
-      }
-      this.write(section, next.text, next.revision, false, node?.seq)
+      this.applyState(section, node, next)
     }
+  }
+
+  private validState(section: ContextSection, next: ContextSectionState): boolean {
+    if (typeof next.revision !== 'string' || typeof next.text !== 'string') {
+      this.logger?.warn('context section returned an invalid state', { section: section.id })
+      return false
+    }
+    return true
+  }
+
+  private unchanged(section: ContextSection, node: LiveNode | undefined, next: ContextSectionState): boolean {
+    if (node !== undefined && !node.retracted) {
+      if (node.revision === next.revision) return true
+      if (node.text === next.text) {
+        // Same text under a new revision key — an adopted node, or a producer
+        // that rekeyed identical content. Record the key; write nothing.
+        this.live.set(section.id, { ...node, revision: next.revision })
+        return true
+      }
+    }
+    return false
+  }
+
+  private applyState(section: ContextSection, node: LiveNode | undefined, next: ContextSectionState | undefined): void {
+    if (next === undefined) {
+      // A section that stays retracted must not rewrite the notice on every
+      // step; one notice replaces the content and then stands.
+      if (node !== undefined && !node.retracted) {
+        this.write(section, retraction(section), { revision: undefined, retracted: true, previous: node.seq })
+      }
+      return
+    }
+    if (!this.validState(section, next)) return
+    if (this.unchanged(section, node, next)) return
+    const bytes = byteLength(next.text)
+    if (bytes > this.maxTextBytes) {
+      this.logger?.warn('context section exceeded its byte ceiling', {
+        section: section.id, bytes, maxTextBytes: this.maxTextBytes,
+      })
+      return
+    }
+    this.write(section, next.text, { revision: next.revision, retracted: false, previous: node?.seq })
   }
 
   /**
@@ -230,8 +252,8 @@ export class ContextSectionRuntime {
         text,
         // A tracked revision survives only while the node it described is the
         // one still on the surface.
-        revision: tracked?.seq === node.seq ? tracked.revision : undefined,
-        retracted: tracked?.seq === node.seq ? tracked.retracted : false,
+        revision: trackedRevision(tracked, node.seq),
+        retracted: trackedRetraction(tracked, node.seq),
         generation,
       }
     }
@@ -243,10 +265,9 @@ export class ContextSectionRuntime {
   private write(
     section: ContextSection,
     text: string,
-    revision: string | undefined,
-    retracted: boolean,
-    previous: number | undefined,
+    update: { revision: string | undefined; retracted: boolean; previous: number | undefined },
   ): void {
+    const { revision, retracted, previous } = update
     const message = createUserMessage({
       source: { kind: 'app', producer: `${CONTEXT_SECTION_PRODUCER_PREFIX}${section.id}` },
       content: [{ type: 'text', text }],

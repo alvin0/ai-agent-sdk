@@ -1,29 +1,24 @@
-import { contentHasDocument, contentHasImage } from '../../message/projection.ts'
-import { ModelError } from '../../errors/model-error.ts'
+import type { SessionRunHost } from './session/run-host.ts'
+import { createSessionCompactor } from './session/compactor.ts'
+import { sessionSystemInstructions } from './session/system-instructions.ts'
+import { SessionIdleState } from './session/idle-state.ts'
+import { SessionInputState } from './session/input-state.ts'
 import { type ToolCatalog } from '../tool/registry.ts'
 import { History } from '../history/history.ts'
-import { isManagedTeamNotice } from '../history/input-work.ts'
 import { bindModelRequestBoundary, bindQueuedInput } from '../loop/turn/model-request-boundary.ts'
-import { bindStepProjectionSources } from '../loop/turn/step-projection.ts'
-import { normalizeToolPairing } from '../history/normalize.ts'
 import type { TurnHooks } from '../loop/types.ts'
 import { ContextCompactor, type CompactionResult } from '../memory/compaction.ts'
 import { bindCompactionAccounting } from '../memory/accounting-binding.ts'
-import { resolveCompactionConfig } from '../memory/compaction-config.ts'
 import { AgentMemory } from '../memory/memory.ts'
-import { captureContextSections } from '../context/section.ts'
 import type { ContextSection } from '../context/types.ts'
-import { runAgent, type AgentRunEvent, type AgentRunOutcome } from '../mode/run-agent.ts'
-import type { UserInputBroker } from '../mode/user-input.ts'
-import { waitForSettlement } from '../../async/index.ts'
-import type { OperationStatus } from '../../observation/index.ts'
-import { RunEventBuffer } from '../accounting/event-buffer.ts'
-import { AgentRunError, AGENT_ACCOUNTING_ERROR_CODES } from '../accounting/error.ts'
+import { type AgentRunEvent, type AgentRunOutcome } from '../mode/run-agent.ts'
+import { runSessionDefinition } from './session-run-definition.ts'
+import { createSessionRunHandle } from './session-run-handle.ts'
+import { combinedSessionHooks, sessionSkillLookup, sessionActivationSnapshot } from './session-hooks.ts'
+import { sessionContextSections, sessionSkills, sessionCatalog, teamAttachmentOptions } from './session-init.ts'
 import type { RunAccountingPort } from '../accounting/contracts.ts'
 import type { LegacyRunReport } from '../accounting/report.ts'
-import type { RunReport } from '../accounting/delivery-types.ts'
-import { createRunTerminalRecord, withTerminalDelivery } from '../accounting/delivery/terminal.ts'
-import { SkillCatalog, createSkillTools, renderSkillCatalog, type SkillLookupOptions } from '../skill/index.ts'
+import { SkillCatalog, type SkillLookupOptions } from '../skill/index.ts'
 import type { AgentDefinition } from './definition.ts'
 import {
   type AgentInput, type AgentRuntimeLimits, type AgentSessionOptions, type AgentSessionSnapshot,
@@ -31,152 +26,72 @@ import {
   type AgentInvocationOptions, type AgentResponse, type AgentRunHandle,
 } from './session/types.ts'
 import { validateSessionSnapshot } from './session/validation.ts'
-import { resolveRuntimeLimits } from './session/config.ts'
+import { normalizeSessionOptions, resolveRuntimeLimits } from './session/config.ts'
 import {
-  conversationId, newConversationId, userMessage, deferred, messageOf, errorCodeOf,
-  toolCatalog,
+  conversationId, newConversationId,
 } from './session/common.ts'
 import { captureResumedSkillActivations, prepareSkills } from './session/skills.ts'
-import { appendRunInstructions } from './instructions.ts'
-import type { ToolSourceRunReference } from '../tool/source-types.ts'
-import { accountTraceEvent } from './session/trace-accounting.ts'
-import {
-  captureResumedObjective, commitRuntimeMemory, loadRuntimeMemory, renderRuntimeMemory,
-} from './session/runtime-memory.ts'
+import { captureResumedObjective } from './session/runtime-memory.ts'
 import { attachRuntimeSession, runtimeSessionConfiguration } from './session/runtime-binding.ts'
 import { bindSkillProviderLogger } from '../skill/provider/context.ts'
 import { createSessionLedger } from './session/accounting.ts'
 import { runRuntimeCompaction } from './session/runtime-compaction.ts'
 import { sessionCallConfig } from './session/model-config.ts'
 import { consumeSessionEvents } from './session/observer.ts'
-import { sealRuntimeRun } from './session/run-seal.ts'
+function createSessionMemory(memory: AgentSessionOptions['memory'], definition: AgentDefinition): AgentMemory {
+  if (memory instanceof AgentMemory) return memory
+  return memory === undefined
+    ? new AgentMemory(definition.memory.seed, definition.memory)
+    : AgentMemory.fromSnapshot(memory, definition.memory)
+}
 
 export class AgentSession {
   readonly definition: AgentDefinition
-  private readonly options: AgentSessionOptions
+  readonly options: AgentSessionOptions
   private readonly catalog: ToolCatalog | undefined
   private activeRuntimeCatalog: ToolCatalog | undefined
   private readonly skillCatalog: SkillCatalog | undefined
-  private readonly runtimeLimits: Readonly<AgentRuntimeLimits>
-  /** Definition sections first, then session sections; duplicate ids are rejected. */
-  private readonly contextSections: readonly ContextSection[] | undefined
-  private currentHistory: History
+  readonly runtimeLimits: Readonly<AgentRuntimeLimits>
+  readonly contextSections: readonly ContextSection[] | undefined
+  currentHistory: History
   private currentMemory: AgentMemory
-  private currentConversationId: string
+  currentConversationId: string
   private compactor: ContextCompactor | undefined
   private pendingSkillActivations: readonly AgentSessionActivatedSkillSnapshot[] = Object.freeze([])
   private active = false
-  private activeAdditionalInstructions: string | undefined
-  /** The overlay of the run that owns the session, so maintenance follows the same model. */
+  activeAdditionalInstructions: string | undefined
   private activeInvocation: AgentInvocationOptions | undefined
-  private readonly idleWaiters = new Set<() => void>()
-  /**
-   * Messages injected while a run is in flight, waiting for the next model
-   * request. Appending them at once put them AHEAD of the assistant output of
-   * the round already streaming, a round that never saw them; the next round
-   * then read "steer, then the work that ignored it" as work that answered it.
-   */
-  private pendingInjections: History | undefined
-  private lastRunOutcome: AgentRunOutcome | undefined
-  /**
-   * A model request has been built and its output is not yet fully recorded.
-   * Only then is an injection held: hooks and team notices that inject between
-   * rounds still append at once, as they always have.
-   */
-  private roundInFlight = false
-  /** The round in flight called a tool, so its output ends at step-end. */
-  private roundCalledTools = false
+  private readonly inputState = new SessionInputState({
+    history: () => this.currentHistory,
+    historyLimits: () => this.options.historyLimits,
+    isRunning: () => this.active,
+  })
+  private readonly idleState = new SessionIdleState(() => this.active)
 
   constructor(definition: AgentDefinition, options: AgentSessionOptions) {
     if (definition.mode === 'deep-human-in-loop' && options.userInput === undefined) {
       throw new TypeError(`agent '${definition.id}' requires a userInput broker in deep-human-in-loop mode`)
     }
     this.definition = definition
-    const historyLimits = options.historyLimits === undefined
-      ? undefined
-      : Object.freeze({ ...options.historyLimits })
-    // Validate reset-time policy even when the initial History was supplied by
-    // the host, and detach mutable option containers from the caller.
-    if (options.history !== undefined && historyLimits !== undefined) void new History(historyLimits)
-    const compaction = options.compaction === undefined || options.compaction === false
-      ? options.compaction
-      : Object.freeze({ ...options.compaction })
-    const trace = options.trace === undefined ? undefined : Object.freeze({ ...options.trace })
-    const team = options.team === undefined ? undefined : Object.freeze({ ...options.team })
-    const ledgerLimits = options.ledgerLimits === undefined ? undefined : Object.freeze({ ...options.ledgerLimits })
-    const eventBufferLimits = options.eventBufferLimits === undefined
-      ? undefined
-      : Object.freeze({ ...options.eventBufferLimits })
-    this.options = Object.freeze({
-      ...options,
-      ...(historyLimits === undefined ? {} : { historyLimits }),
-      ...(compaction === undefined ? {} : { compaction }),
-      ...(trace === undefined ? {} : { trace }),
-      ...(team === undefined ? {} : { team }),
-      ...(ledgerLimits === undefined ? {} : { ledgerLimits }),
-      ...(eventBufferLimits === undefined ? {} : { eventBufferLimits }),
-      ...(options.skills === undefined ? {} : { skills: Object.freeze([...options.skills]) }),
-      ...(Array.isArray(options.tools) ? { tools: Object.freeze([...options.tools]) } : {}),
-      ...(options.interceptors === undefined ? {} : { interceptors: Object.freeze([...options.interceptors]) }),
-    })
+    options = normalizeSessionOptions(options)
+    this.options = options
     this.runtimeLimits = resolveRuntimeLimits(options.runtimeLimits)
-    // A session may replace a definition section by reusing its id: the
-    // definition describes the agent, the session describes where it is
-    // running, and the more specific one wins in place. Two sections with one
-    // id inside the *same* list stays an error — a single live surface node
-    // cannot have two owners.
-    const overrides = captureContextSections(options.contextSections) ?? []
-    const base = captureContextSections(definition.contextSections) ?? []
-    const merged = [
-      ...base.map(section => overrides.find(override => override.id === section.id) ?? section),
-      ...overrides.filter(override => !base.some(section => section.id === override.id)),
-    ]
-    this.contextSections = merged.length === 0 ? undefined : Object.freeze(merged)
+    this.contextSections = sessionContextSections(definition, options)
     this.currentConversationId = conversationId(options.conversationId)
-    this.currentHistory = options.history ?? new History(historyLimits)
-    const skillSources = [...definition.skills, ...options.skills ?? []]
-    const skillRuntimeDisabled = definition.skillIds?.length === 0
-    const skillRuntimeConfigured = skillSources.length > 0 || (definition.skillIds?.length ?? 0) > 0
-    this.skillCatalog = skillRuntimeDisabled || !skillRuntimeConfigured
-      ? undefined
-      : new SkillCatalog(skillSources, {
-          ...(definition.skillIds === undefined ? {} : { allowedSkillIds: definition.skillIds }),
-          maxSkills: definition.skillOptions.maxSkills,
-          maxCatalogBytes: definition.skillOptions.maxDiscoveryBytes,
-        })
-    const skillTools = this.skillCatalog === undefined ? [] : createSkillTools(
-      this.skillCatalog,
-      definition.skillOptions,
-      () => this.skillLookup(),
-    )
-    const teamAccess = options.team?.tools === 'reporting' ? 'reporting' as const : 'full' as const
-    const teamTools = options.team?.tools === false
-      ? []
-      : options.team?.team.toolsFor(options.team.name ?? definition.id, teamAccess) ?? []
-    this.catalog = toolCatalog(definition.tools, options.tools, [...skillTools, ...teamTools])
-    this.currentMemory = options.memory instanceof AgentMemory
-      ? options.memory
-      : options.memory === undefined
-        ? new AgentMemory(definition.memory.seed, definition.memory)
-        : AgentMemory.fromSnapshot(options.memory, definition.memory)
+    this.currentHistory = options.history ?? new History(options.historyLimits)
+    this.skillCatalog = sessionSkills(definition, options)
+    this.catalog = sessionCatalog(definition, options, this.skillCatalog, () => this.skillLookup())
+    this.currentMemory = createSessionMemory(options.memory, definition)
     captureResumedObjective(this.currentMemory, this.currentHistory, this.definition.memory.autoCaptureObjective)
     this.compactor = this.createCompactor()
     attachRuntimeSession(this, (input, invocation, additionalInstructions) =>
       this.createRunHandle(input, invocation, additionalInstructions), invocation =>
-      this.createRunHandle(undefined, invocation), invocation =>
-      this.compactForRuntime(invocation), () => {
-      this.compactor = this.createCompactor()
+      this.createRunHandle(undefined, invocation), {
+      compact: invocation => this.compactForRuntime(invocation),
+      onConfigure: () => { this.compactor = this.createCompactor() },
     })
-    options.team?.team.attach(this, {
-      ...(options.team.name === undefined ? {} : { name: options.team.name }),
-      ...(options.team.description === undefined ? {} : { description: options.team.description }),
-      ...(options.team.instructions === undefined ? {} : { instructions: options.team.instructions }),
-      ...(options.team.role === undefined ? {} : { role: options.team.role }),
-      ...(options.team.tools === undefined ? {} : { tools: options.team.tools }),
-    })
+    options.team?.team.attach(this, teamAttachmentOptions(options))
   }
-
-  /** Restore a JSON-round-tripped session snapshot with fresh runtime dependencies. */
   static fromSnapshot(
     definition: AgentDefinition,
     options: AgentResumeSessionOptions,
@@ -192,36 +107,14 @@ export class AgentSession {
     session.pendingSkillActivations = captureResumedSkillActivations(snapshot.skills, session.skillCatalog)
     return session
   }
-
-  /** Stable identity for persistence keys, URLs, logs, and GUI trace grouping. */
   get conversationId(): string { return this.currentConversationId }
-
-  /** Mutable append-only history owned by this conversation. */
   get history(): History { return this.currentHistory }
-
-  /** Durable task facts injected into every request outside compactable history. */
   get memory(): AgentMemory { return this.currentMemory }
-
-  /** Refreshable skill catalog for host UIs and explicit user invocation surfaces. */
   get skills(): SkillCatalog | undefined { return this.skillCatalog }
-
-  /** Whether a model/tool turn currently owns this session. */
   get isRunning(): boolean { return this.active }
-
-  /** Capture one JSON-safe envelope that can be passed to `agent.resumeSession()`. */
   snapshot(): AgentSessionSnapshot {
     const activated = this.activationSnapshot()
-    const history = this.currentHistory.snapshot()
-    const pending = this.pendingInjections?.entries() ?? []
-    // An accepted input must survive a snapshot taken before its model round
-    // finishes. Project pending inputs at the known tail without delivering
-    // them early to the live model or changing the persisted v1 schema.
-    const persistedHistory = pending.length === 0 ? history : Object.freeze({
-      version: 1 as const,
-      entries: Object.freeze([...history.entries, ...pending.map((entry, index) => Object.freeze({
-        ...entry, seq: history.entries.length + index + 1,
-      }))]),
-    })
+    const persistedHistory = this.inputState.snapshotHistory()
     return Object.freeze({
       version: 1 as const,
       conversationId: this.currentConversationId,
@@ -236,21 +129,16 @@ export class AgentSession {
       },
     })
   }
-
-  /** Start a fresh conversation without rebuilding provider/tool configuration. */
   reset(): void {
     if (this.active) throw new Error('cannot reset an agent session while a run is active')
     this.currentConversationId = newConversationId()
     this.currentHistory = new History(this.options.historyLimits)
     this.currentMemory = new AgentMemory(this.definition.memory.seed, this.definition.memory)
-    this.pendingInjections = undefined
+    this.inputState.reset()
     this.pendingSkillActivations = Object.freeze([])
-    this.lastRunOutcome = undefined
     this.skillCatalog?.clearActivations()
     this.compactor = this.createCompactor()
   }
-
-  /** Create one explicit context checkpoint while the session is idle. */
   async compact(invocation: AgentInvocationOptions = {}): Promise<CompactionResult | null> {
     if (this.active) throw new Error('cannot compact an agent session while a run is active')
     this.active = true
@@ -262,7 +150,6 @@ export class AgentSession {
       this.releaseRun()
     }
   }
-
   private async compactForRuntime(invocation: AgentInvocationOptions): Promise<{
     readonly result: CompactionResult | null
     readonly report: LegacyRunReport
@@ -281,397 +168,80 @@ export class AgentSession {
       prepare: () => this.prepareSkills(invocation.signal, ledger),
     }) } finally { this.releaseRun() }
   }
-
-  /**
-   * Append attributed context without starting a turn.
-   *
-   * A2A quiet delivery uses this primitive. The returned count includes queued
-   * inputs and lets wake-up schedulers coalesce messages safely; a mid-round
-   * receipt is provisional rather than the eventual persisted entry sequence.
-   */
-  inject(input: AgentInput): number {
-    const message = userMessage(input)
-    // Mid-run, hold the message until the next model request is built, so it
-    // lands after every entry the model has actually answered. Bound pending
-    // inputs with the same guards as history instead of an unbounded array.
-    if (this.active && this.roundInFlight) {
-      // Reject over-capacity input at admission, before it can poison the
-      // queued buffer used by every later run and snapshot.
-      const candidate = History.fromSnapshot(this.currentHistory.snapshot(), this.options.historyLimits)
-      candidate.appendBatch([
-        ...(this.pendingInjections?.entries() ?? []).map(entry => ({ event: entry.event })),
-        { event: { kind: 'user' as const, message } },
-      ])
-      const pending = this.pendingInjections ??= new History(this.options.historyLimits)
-      pending.append({ kind: 'user', message })
-      return this.currentHistory.entries().length + pending.entries().length
-    }
-    this.drainInjections()
-    this.currentHistory.append({ kind: 'user', message })
-    return this.currentHistory.entries().length
-  }
-
-  /**
-   * Close the in-flight window once a round's output is fully recorded: after
-   * its tool results (`step-end`), or when the turn ends. The loop waits on
-   * this consumer, so held messages land exactly there, never between a tool
-   * call and its result.
-   *
-   * A round that answers without calling a tool ends the turn, and input the
-   * person sent while it was being written is still owed an answer. It stays
-   * held until the loop is about to end the turn; the loop then takes it (see
-   * `bindQueuedInput`) and answers it in another round of the same run instead
-   * of leaving it for a later `runPending()`.
-   */
-  private observeRoundBoundary(event: AgentRunEvent): void {
-    if (event.type === 'agent-end') this.lastRunOutcome = event.outcome
-    // The chat request is now fixed. beforeStep hooks still run outside this
-    // window, so their injections can be included in that request's refresh.
-    if (event.type === 'span-start' && event.kind === 'chat') {
-      this.roundInFlight = true
-      this.roundCalledTools = false
-      return
-    }
-    if (!this.roundInFlight) return
-    if (event.type === 'tool-call' || (event.type === 'assistant-message'
-      && event.message?.content.some(block => block.type === 'tool-call') === true)) {
-      this.roundCalledTools = true
-    }
-    // A tool round's output is complete at step-end; a final answer's input
-    // waits for the loop to take it at turn end, unless the turn is already over.
-    if ((event.type === 'step-end' && this.roundCalledTools) || event.type === 'turn-end' || event.type === 'agent-end') {
-      this.roundInFlight = false
-      this.drainInjections()
-    }
-  }
-
-  /** Deliver held injections, in arrival order, at the chronological tail. */
-  private drainInjections(): void {
-    if (this.pendingInjections === undefined) return
-    const pending = this.pendingInjections
-    // Atomic: a full history must not consume only the first queued input and
-    // silently lose the rest. Keep the buffer available to snapshot/recovery.
-    this.currentHistory.appendBatch(pending.entries().map(entry => ({ event: entry.event })))
-    this.pendingInjections = undefined
-  }
-
-  /**
-   * Whether attributed input or a tool result still awaits the model. App
-   * notices do not create work, except managed-team coordination. False once the model has answered everything,
-   * which lets a scheduler skip a run that would only repeat that answer.
-   */
-  hasUnansweredInput(): boolean {
-    if ((this.pendingInjections?.entries().length ?? 0) > 0) return true
-    for (const message of [...this.currentHistory.messages()].reverse()) {
-      if (message.source.kind === 'app') {
-        if (message.source.producer === 'turn-interrupted') return false
-        if (message.role === 'user' && !isManagedTeamNotice(message)) continue
-      }
-      return message.role === 'user'
-    }
-    return false
-  }
-
-  lastOutcome(): AgentRunOutcome | undefined { return this.lastRunOutcome }
-
-  /** Resolve after the current run releases the session. */
-  whenIdle(signal?: AbortSignal): Promise<void> {
-    if (!this.active) return Promise.resolve()
-    if (signal?.aborted) return Promise.reject(signal.reason)
-    return new Promise<void>((resolve, reject) => {
-      let settled = false
-      const finish = (): void => {
-        if (settled) return
-        settled = true
-        this.idleWaiters.delete(finish)
-        signal?.removeEventListener('abort', abort)
-        resolve()
-      }
-      const abort = (): void => {
-        if (settled) return
-        settled = true
-        this.idleWaiters.delete(finish)
-        reject(signal?.reason)
-      }
-      this.idleWaiters.add(finish)
-      signal?.addEventListener('abort', abort, { once: true })
-      if (!this.active) finish()
-    })
-  }
-
-  /** Start an eager run and expose both public events and its canonical terminal report. */
+  inject(input: AgentInput): number { return this.inputState.inject(input) }
+  observeRoundBoundary(event: AgentRunEvent): void { return this.inputState.observeRoundBoundary(event) }
+  private drainInjections(): void { this.inputState.drainInjections() }
+  hasUnansweredInput(): boolean { return this.inputState.hasUnansweredInput() }
+  lastOutcome(): AgentRunOutcome | undefined { return this.inputState.lastOutcome() }
+  whenIdle(signal?: AbortSignal): Promise<void> { return this.idleState.whenIdle(signal) }
   stream(input: AgentInput, invocation: AgentInvocationOptions = {}): AgentRunHandle {
     return this.createRunHandle(input, invocation)
   }
-
-  /** Process context already appended with {@link inject} without duplicating it. */
   streamPending(invocation: AgentInvocationOptions = {}): AgentRunHandle {
     return this.createRunHandle(undefined, invocation)
   }
-
-  /** Run one user turn and return the terminal response. */
   async run(input: AgentInput, invocation: AgentInvocationOptions = {}): Promise<AgentResponse> {
     const handle = this.stream(input, invocation)
     await consumeSessionEvents(handle, invocation.onEvent, this.runtimeLimits.observerTimeoutMs ?? 30_000)
     return await handle.result
   }
-
-  /** Run one turn over already-injected context and return its terminal response. */
   async runPending(invocation: AgentInvocationOptions = {}): Promise<AgentResponse> {
     const handle = this.streamPending(invocation)
     await consumeSessionEvents(handle, invocation.onEvent, this.runtimeLimits.observerTimeoutMs ?? 30_000)
     return await handle.result
   }
-
   private createRunHandle(
     input: AgentInput | undefined,
     invocation: AgentInvocationOptions,
     additionalInstructions?: string,
   ): AgentRunHandle {
-    if (this.active) throw new Error(`agent session '${this.definition.id}' is already running`)
-    this.drainInjections()
-    const firstTurnSeq = this.currentHistory.entries().length + 1
-    const owned = new AbortController()
-    let terminal = false
-    const signal = invocation.signal === undefined
-      ? owned.signal
-      : AbortSignal.any([invocation.signal, owned.signal])
-    const buffer = new RunEventBuffer<AgentRunEvent>(
-      this.options.eventBufferLimits?.maxEvents,
-      this.options.eventBufferLimits?.maxBytes,
-    )
-    const reportDeferred = deferred<RunReport>()
-    const resultDeferred = deferred<AgentResponse>()
-    const toolSourcesDeferred = deferred<readonly ToolSourceRunReference[]>()
-    const ledger = this.createLedger()
-    let toolSourceReferences: readonly ToolSourceRunReference[] = Object.freeze([])
-    if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, ledger)
-    if (this.skillCatalog !== undefined) {
-      bindSkillProviderLogger(this.skillCatalog, ledger.modelInvocation.logger)
-    }
-    this.active = true
-    bindModelRequestBoundary(this.currentHistory, inFlight => {
-      this.roundInFlight = inFlight
-      if (!inFlight) this.drainInjections()
-    })
-    bindQueuedInput(this.currentHistory, () => {
-      // By entries, not by the buffer: an input refused at admission leaves an
-      // empty buffer behind, and that must not buy the run another round.
-      const held = this.pendingInjections?.entries() ?? []
-      if (held.length === 0) return false
-      // Person input and managed-team coordination extend the run. Team deliveries keep
-      // their contract: queued behind the answer, then processed exactly once
-      // by the team's wake-up through runPending().
-      const extendsRun = held.some(entry => entry.event.kind === 'user'
-        && (entry.event.message.source.kind === 'user' || isManagedTeamNotice(entry.event.message)))
-      if (!extendsRun) return false
-      this.roundInFlight = false
-      this.drainInjections()
-      return true
-    }, () => (this.pendingInjections?.entries() ?? []).some(entry => entry.event.kind === 'user'
-      && (entry.event.message.source.kind === 'user' || isManagedTeamNotice(entry.event.message))))
-    this.activeAdditionalInstructions = additionalInstructions
-    this.activeInvocation = invocation
-    const spanOperations = new Map<string, string>()
-    const task = (async (): Promise<void> => {
-      let failure: unknown
-      let outcome: AgentRunOutcome | undefined
-      let memoryState: Awaited<ReturnType<typeof loadRuntimeMemory>>['state'] | undefined
-      try {
-        const runtime = runtimeSessionConfiguration(this)
-        if (runtime?.memory !== undefined) {
-          const prepared = await loadRuntimeMemory(
-            runtime.memory, this.currentConversationId, this.definition.memory, signal, ledger,
-          )
-          memoryState = prepared.state
-          if (prepared.memory !== undefined) this.currentMemory = prepared.memory
-        }
-        if (runtime?.prepareTools !== undefined) {
-          const logger = ledger.modelInvocation.logger
-          if (logger === undefined) throw new Error('runtime tool source logger is unavailable')
-          const generation = runtime.prepareTools(signal, logger, [...this.catalog?.names() ?? [], ...this.definition.nativeTools.map(tool => tool.name)])
-          this.activeRuntimeCatalog = toolCatalog([], this.catalog, generation.tools)
-          toolSourceReferences = generation.references
-        }
-        toolSourcesDeferred.resolve(toolSourceReferences)
-        await this.prepareSkills(signal, ledger)
-        if (input !== undefined) {
-          const message = userMessage(input)
-          if (this.definition.memory.autoCaptureObjective) {
-            const operation = ledger.startOperation('memory', { data: { action: 'capture-objective' } })
-            try {
-              this.currentMemory.captureOriginalObjective(message)
-              ledger.endOperation(operation, 'success')
-            } catch (error) {
-              ledger.endOperation(operation, 'error', { error })
-              throw error
-            }
-          }
-          this.currentHistory.append({ kind: 'user', message })
-        }
-        // Preflight before compaction can turn a required image into a summary.
-        if (invocation.imagePolicy === 'strict' && this.history.messages().some(message => contentHasImage(message.content))) {
-          const config = this.callConfig(invocation)
-          const model = await this.options.registry.resolveModelInfo(config.provider, config.model, signal)
-          if (model.inputModalities !== undefined && !model.inputModalities.includes('image')) {
-            throw new ModelError(`model ${model.id} does not support required image input`, 'UNSUPPORTED_IMAGE_INPUT')
-          }
-        }
-        // Same preflight for documents, for the same reason.
-        if (invocation.documentPolicy === 'strict' && this.history.messages().some(message => contentHasDocument(message.content))) {
-          const config = this.callConfig(invocation)
-          const model = await this.options.registry.resolveModelInfo(config.provider, config.model, signal)
-          if (model.inputModalities !== undefined && !model.inputModalities.includes('document')) {
-            throw new ModelError(`model ${model.id} does not support required document input`, 'UNSUPPORTED_DOCUMENT_INPUT')
-          }
-        }
-        for await (const event of this.runDefinition({ ...invocation, signal }, ledger)) {
-          this.observeRoundBoundary(event)
-          accountTraceEvent(ledger, spanOperations, event)
-          if (event.type === 'agent-end') outcome = event.outcome
-          buffer.push(event)
-        }
-        if (outcome === undefined) {
-          throw new Error(`agent session '${this.definition.id}' ended without agent-end`)
-        }
-        if (signal.aborted) throw signal.reason ?? new Error('agent run was aborted')
-        if (outcome.reason.kind === 'error' && outcome.reason.failure.code === 'USAGE_REQUIRED') {
-          const error = new Error(outcome.reason.failure.message) as Error & { code: string }
-          error.code = 'USAGE_REQUIRED'
-          throw error
-        }
-        if (runtime?.memory !== undefined && memoryState !== undefined && memoryState.status !== 'disabled') {
-          await commitRuntimeMemory(
-            runtime.memory, this.currentConversationId, this.currentMemory.snapshot(),
-            memoryState, signal, ledger,
-          )
-        }
-      } catch (error: unknown) {
-        failure = error
-        toolSourcesDeferred.resolve(toolSourceReferences)
-      }
-
-      try { this.drainInjections() } catch (error) { failure ??= error }
-
-      let report: RunReport
-      try {
-        const status: OperationStatus = signal.aborted || outcome?.reason.kind === 'aborted'
-          ? 'aborted'
-          : failure !== undefined || outcome?.reason.kind === 'error'
-            ? 'error'
-            : 'success'
-        const ledgerReport = await ledger.finalize(status, outcome?.completed ?? false, failure)
-        report = withTerminalDelivery(createRunTerminalRecord(ledgerReport), ledgerReport.delivery)
-        reportDeferred.resolve(report)
-      } catch (finalizeError: unknown) {
-        reportDeferred.reject(finalizeError)
-        resultDeferred.reject(finalizeError)
-        buffer.fail(finalizeError)
-        terminal = true
-        this.releaseRun()
-        return
-      }
-      if (terminal) return
-
-      if (failure === undefined && ledger.terminalAuditFailure) {
-        const error = new Error('audit observation checkpoint failed after run finalization') as Error & { code: string }
-        error.code = 'OBSERVABILITY_AUDIT_UNAVAILABLE'
-        failure = error
-      }
-      if (failure !== undefined) {
-        const error = new AgentRunError(
-          messageOf(failure),
-          errorCodeOf(failure) ?? AGENT_ACCOUNTING_ERROR_CODES.RUN_FAILED,
-          report,
-          { cause: failure },
-        )
-        resultDeferred.reject(error)
-        buffer.fail(error)
-      } else {
-        const terminal = outcome as AgentRunOutcome
-        const historyEvent = [...this.currentHistory.entries()].reverse()
-          .find(entry => entry.seq >= firstTurnSeq && entry.event.kind === 'assistant')
-          ?.event
-        const assistantMessage = historyEvent?.kind === 'assistant' ? historyEvent.message : undefined
-        const response: AgentResponse = Object.freeze({
-          text: terminal.text,
-          outcome: terminal,
-          report,
-          ...assistantMessage === undefined ? {} : { message: assistantMessage },
-        })
-        resultDeferred.resolve(response)
-        buffer.close()
-      }
-      terminal = true
-      this.releaseRun()
-    })()
-    void task.catch(error => {
-      if (terminal) return
-      reportDeferred.reject(error)
-      resultDeferred.reject(error)
-      buffer.fail(error)
-      terminal = true
-      this.releaseRun()
-    })
-    void resultDeferred.promise.catch(() => undefined)
-    void reportDeferred.promise.catch(() => undefined)
-    let iterated = false
-    return Object.freeze({
-      runId: ledger.runId,
-      traceId: ledger.traceId,
-      toolSourceSnapshots: toolSourcesDeferred.promise,
-      eventsSettled: task.then(() => undefined, () => undefined),
-      result: resultDeferred.promise,
-      report: reportDeferred.promise,
-      seal: () => sealRuntimeRun({ ledger, buffer, report: reportDeferred, result: resultDeferred,
-        toolSources: toolSourcesDeferred, currentToolSources: () => toolSourceReferences, isTerminal: () => terminal,
-        markTerminal: () => { terminal = true }, abort: () => owned.abort(new Error('Agent run was sealed')),
-        release: () => this.releaseRun() }),
-      abort(_reason?: unknown): void {
-        if (!terminal && !owned.signal.aborted) owned.abort(new Error('Agent run was aborted'))
-      },
-      [Symbol.asyncIterator](): AsyncIterator<AgentRunEvent> {
-        if (iterated) return (async function* () { throw new Error('an agent run handle can only be iterated once') })()
-        iterated = true
-        return (async function* () {
-          let exhausted = false
-          try {
-            while (true) {
-              const item = await buffer.take()
-              if (item.done) { exhausted = true; break }
-              yield item.value
-            }
-          } finally {
-            if (!exhausted) {
-              owned.abort(new Error('agent event consumer stopped'))
-              buffer.stop()
-              await waitForSettlement(task, 30_000)
-            }
-          }
-        })()
-      },
-    })
+    return createSessionRunHandle(this.runHost(), input, invocation, additionalInstructions)
   }
-
+  private runHost(): SessionRunHost {
+    const owner = this
+    return {
+      definition: this.definition, options: this.options,
+      get currentHistory() { return owner.currentHistory },
+      get currentConversationId() { return owner.currentConversationId },
+      get history() { return owner.history },
+      get catalog() { return owner.catalog },
+      get skillCatalog() { return owner.skillCatalog },
+      get compactor() { return owner.compactor },
+      inputState: this.inputState,
+      get currentMemory() { return owner.currentMemory },
+      set currentMemory(value) { owner.currentMemory = value },
+      get activeRuntimeCatalog() { return owner.activeRuntimeCatalog },
+      set activeRuntimeCatalog(value) { owner.activeRuntimeCatalog = value },
+      get active() { return owner.active },
+      set active(value) { owner.active = value },
+      get activeInvocation() { return owner.activeInvocation },
+      set activeInvocation(value) { owner.activeInvocation = value },
+      get activeAdditionalInstructions() { return owner.activeAdditionalInstructions },
+      set activeAdditionalInstructions(value) { owner.activeAdditionalInstructions = value },
+      callConfig: invocation => owner.callConfig(invocation),
+      observeRoundBoundary: event => owner.observeRoundBoundary(event),
+      runDefinition: (invocation, accounting) => owner.runDefinition(invocation, accounting),
+      runtime: () => runtimeSessionConfiguration(owner),
+      createLedger: () => owner.createLedger(),
+      prepareSkills: (signal, accounting) => owner.prepareSkills(signal, accounting),
+      drainInjections: () => owner.drainInjections(),
+      releaseRun: () => owner.releaseRun(),
+    }
+  }
   private releaseRun(): void {
-    // A message that arrived during the final model round is still delivered,
-    // so the next run (or a waiting scheduler) reads it.
     try { this.drainInjections() } finally {
       bindModelRequestBoundary(this.currentHistory)
       bindQueuedInput(this.currentHistory)
-      this.roundInFlight = false
+      this.inputState.releaseRound()
       this.active = false
       this.activeAdditionalInstructions = undefined
       this.activeInvocation = undefined
       this.activeRuntimeCatalog = undefined
       if (this.skillCatalog !== undefined) bindSkillProviderLogger(this.skillCatalog, undefined)
       if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, undefined)
-      const waiters = [...this.idleWaiters]
-      this.idleWaiters.clear()
-      for (const resolve of waiters) resolve()
+      this.idleState.release()
     }
   }
-
   private createLedger() {
     const runtime = runtimeSessionConfiguration(this)
     return createSessionLedger({
@@ -682,247 +252,50 @@ export class AgentSession {
       ...(runtime === undefined ? {} : { runtime }),
     })
   }
-
-  private runDefinition(
-    invocation: AgentInvocationOptions,
-    accounting?: RunAccountingPort,
-  ): AsyncIterable<AgentRunEvent> {
-    const definition = this.definition
-    const hooks = this.combinedHooks(accounting)
-    const catalog = this.effectiveCatalog()
-    const outputFormat = invocation.outputFormat ?? definition.outputFormat
-    const common = {
-      registry: this.options.registry,
-      config: this.callConfig(invocation),
-      history: this.history,
-      ...catalog === undefined ? {} : { tools: catalog },
-      ...definition.nativeTools.length === 0 ? {} : { nativeTools: definition.nativeTools },
-      ...definition.toolChoice === undefined ? {} : { toolChoice: definition.toolChoice },
-      ...invocation.imagePolicy === undefined ? {} : { imagePolicy: invocation.imagePolicy },
-      ...invocation.documentPolicy === undefined ? {} : { documentPolicy: invocation.documentPolicy },
-      ...outputFormat === undefined ? {} : { outputFormat },
-      ...(invocation.validateOutput === undefined ? {} : { validateOutput: invocation.validateOutput }),
-      system: this.systemInstructions(this.activeAdditionalInstructions),
-      maxTurns: definition.maxTurns,
-      bounds: {
-        maxToolCalls: definition.maxToolCalls,
-        ...this.runtimeLimits.maxParallelToolCalls === undefined
-          ? {}
-          : { maxParallel: this.runtimeLimits.maxParallelToolCalls },
-        ...this.runtimeLimits.maxConsecutiveToolErrors === undefined
-          ? {}
-          : { maxConsecutiveToolErrors: this.runtimeLimits.maxConsecutiveToolErrors },
-        ...this.runtimeLimits.repeatToolWarningAt === undefined
-          ? {}
-          : { repeatToolWarningAt: this.runtimeLimits.repeatToolWarningAt },
-        ...this.runtimeLimits.repeatToolLimit === undefined
-          ? {}
-          : { repeatToolLimit: this.runtimeLimits.repeatToolLimit },
-        ...this.runtimeLimits.toolCycleWarningAt === undefined
-          ? {}
-          : { toolCycleWarningAt: this.runtimeLimits.toolCycleWarningAt },
-        ...this.runtimeLimits.toolCycleLimit === undefined
-          ? {}
-          : { toolCycleLimit: this.runtimeLimits.toolCycleLimit },
-        ...this.runtimeLimits.onExhausted === undefined
-          ? {}
-          : { onExhausted: this.runtimeLimits.onExhausted },
-        ...this.runtimeLimits.maxToolResultTokens === undefined
-          ? {}
-          : { maxToolResultTokens: this.runtimeLimits.maxToolResultTokens },
-        ...this.runtimeLimits.toolResultOverflow === undefined
-          ? {}
-          : { toolResultOverflow: this.runtimeLimits.toolResultOverflow },
-        ...this.runtimeLimits.maxToolCycleLength === undefined
-          ? {}
-          : { maxToolCycleLength: this.runtimeLimits.maxToolCycleLength },
-        ...this.runtimeLimits.finalReportReserveTokens === undefined ? {} : {
-          finalReportReserveTokens: this.runtimeLimits.finalReportReserveTokens,
-        },
-        ...this.runtimeLimits.finalizeSteps === undefined ? {} : { finalizeSteps: this.runtimeLimits.finalizeSteps },
-        ...this.runtimeLimits.maxTurnDurationMs === undefined ? {} : { maxTurnDurationMs: this.runtimeLimits.maxTurnDurationMs },
-        ...this.runtimeLimits.maxTotalTokens === undefined
-          ? {}
-          : { maxTotalTokens: this.runtimeLimits.maxTotalTokens },
-        ...this.runtimeLimits.maxToolResultBytes === undefined
-          ? {}
-          : { maxToolResultBytes: this.runtimeLimits.maxToolResultBytes },
-        ...this.runtimeLimits.maxToolDurationMs === undefined
-          ? {}
-          : { maxToolDurationMs: this.runtimeLimits.maxToolDurationMs },
-        ...this.runtimeLimits.toolTeardownTimeoutMs === undefined
-          ? {}
-          : { toolTeardownTimeoutMs: this.runtimeLimits.toolTeardownTimeoutMs },
-      },
-      commentary: definition.commentary,
-      ...this.runtimeLimits.teardownTimeoutMs === undefined ? {} : { teardownTimeoutMs: this.runtimeLimits.teardownTimeoutMs },
-      ...this.runtimeLimits.modelTimeoutMs === undefined ? {} : { modelTimeoutMs: this.runtimeLimits.modelTimeoutMs },
-      ...this.runtimeLimits.maxModelRequestBytes === undefined ? {} : { maxModelRequestBytes: this.runtimeLimits.maxModelRequestBytes },
-      ...this.runtimeLimits.maxModelResponseBytes === undefined ? {} : { maxModelResponseBytes: this.runtimeLimits.maxModelResponseBytes },
-      ...this.runtimeLimits.maxModelStreamEvents === undefined ? {} : { maxModelStreamEvents: this.runtimeLimits.maxModelStreamEvents },
-      ...this.runtimeLimits.hookTimeoutMs === undefined ? {} : { hookTimeoutMs: this.runtimeLimits.hookTimeoutMs },
-      ...this.runtimeLimits.hookTeardownTimeoutMs === undefined ? {} : { hookTeardownTimeoutMs: this.runtimeLimits.hookTeardownTimeoutMs },
-      ...this.options.approvals === undefined ? {} : { approvals: this.options.approvals },
-      ...this.options.spillStore === undefined ? {} : { spillStore: this.options.spillStore },
-      ...this.options.experimentalPrograms === undefined ? {} : { experimentalPrograms: this.options.experimentalPrograms },
-      ...this.options.interceptors === undefined ? {} : { interceptors: this.options.interceptors },
-      ...this.contextSections === undefined ? {} : { contextSections: this.contextSections },
-      ...hooks === undefined ? {} : { hooks },
-      ...invocation.signal === undefined ? {} : { signal: invocation.signal },
-      ...accounting === undefined ? {} : { accounting },
-      ...accounting?.modelInvocation.logger === undefined ? {} : { logger: accounting.modelInvocation.logger },
-      trace: {
-        ...this.options.trace,
-        conversationId: this.currentConversationId,
-        agentId: definition.id,
-        agentName: definition.name,
-      },
-    }
-    if (definition.mode === 'deep-human-in-loop') {
-      return runAgent({
-        ...common, mode: definition.mode, userInput: this.options.userInput as UserInputBroker,
-        ...this.runtimeLimits.userInputTimeoutMs === undefined ? {} : { userInputTimeoutMs: this.runtimeLimits.userInputTimeoutMs },
-      })
-    }
-    if (definition.mode === 'deep') {
-      return runAgent({
-        ...common, mode: definition.mode,
-        ...this.options.userInput === undefined ? {} : { userInput: this.options.userInput },
-        ...this.runtimeLimits.userInputTimeoutMs === undefined ? {} : { userInputTimeoutMs: this.runtimeLimits.userInputTimeoutMs },
-      })
-    }
-    return runAgent({ ...common, mode: 'basic' })
+  runDefinition(invocation: AgentInvocationOptions, accounting?: RunAccountingPort): AsyncIterable<AgentRunEvent> {
+    return runSessionDefinition(this, invocation, accounting)
   }
-
   private createCompactor(): ContextCompactor | undefined {
-    const configured = this.options.compaction === false
-      ? false
-      : this.options.compaction === undefined
-        ? this.definition.compaction
-        : resolveCompactionConfig(this.options.compaction)
-    if (configured === false) return undefined
-    return new ContextCompactor({
-      registry: this.options.registry,
+    return createSessionCompactor({
+      options: this.options, definition: this.definition,
       config: () => this.callConfig(this.activeInvocation),
       history: () => this.currentHistory,
       system: () => this.systemInstructions(this.activeAdditionalInstructions),
-      pinnedMessages: () => renderRuntimeMemory(
-        this.currentMemory, this.definition.memory.maxInjectedChars,
-      ),
-      tools: () => [
-        ...this.effectiveCatalog()?.schemas() ?? [],
-        ...this.definition.nativeTools,
-      ],
-      policy: configured,
+      memory: () => this.currentMemory,
+      tools: () => [...this.effectiveCatalog()?.schemas() ?? [], ...this.definition.nativeTools],
     })
   }
-
-  private effectiveCatalog(): ToolCatalog | undefined {
+  effectiveCatalog(): ToolCatalog | undefined {
     return this.activeRuntimeCatalog ?? this.catalog
   }
-
-  private combinedHooks(accounting?: RunAccountingPort): TurnHooks | undefined {
-    const user = this.options.hooks
-    const hooks: TurnHooks = {
-      ...user,
-      beforeStep: async context => {
-        // Before anything reads history for this request: model-round refreshes
-        // its messages when entries changed, so delivered input is included.
-        const generation = this.currentHistory.generation()
-        const entries = this.currentHistory.entries().length
-        this.drainInjections()
-        const prepared = this.currentHistory.entries().length === entries
-          ? context
-          : { ...context, messages: normalizeToolPairing(this.currentHistory.messages()), snapshot: this.currentHistory.snapshot() }
-        if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, accounting)
-        await this.compactor?.beforeStep(prepared)
-        if (accounting?.usageStop !== undefined) return { kind: 'proceed' as const }
-        const refreshed = this.currentHistory.generation() === generation && this.currentHistory.entries().length === entries
-          ? context
-          : {
-            ...context,
-            messages: normalizeToolPairing(this.currentHistory.messages()),
-            snapshot: this.currentHistory.snapshot(),
-          }
-        const memory = renderRuntimeMemory(
-          this.currentMemory, this.definition.memory.maxInjectedChars, accounting,
-        )
-        const current = memory.length === 0
-          ? refreshed
-          : { ...refreshed, messages: Object.freeze([...memory, ...refreshed.messages]) }
-        const decision = await user?.beforeStep?.(current) ?? { kind: 'proceed' as const }
-        if (decision.kind === 'reject') return decision
-        // A projection sees injected memory already; do not inject it twice.
-        const prepend = [...decision.messages === undefined ? memory : [], ...decision.prepend ?? []]
-        return bindStepProjectionSources(prepend.length === 0 ? decision : { ...decision, prepend }, refreshed.messages)
-      },
-      onRequestError: async context => {
-        if (this.compactor !== undefined) bindCompactionAccounting(this.compactor, accounting)
-        const recovery = await this.compactor?.onRequestError(context)
-        if (accounting?.usageStop !== undefined) return 'fail'
-        if (recovery === 'retry') return 'retry'
-        return await user?.onRequestError?.(context) ?? 'fail'
-      },
-    }
-    return hooks
+  combinedHooks(accounting?: RunAccountingPort): TurnHooks | undefined {
+    return combinedSessionHooks(this, accounting)
   }
-
-  private callConfig(invocation?: AgentInvocationOptions) {
+  callConfig(invocation?: AgentInvocationOptions) {
     return sessionCallConfig(this.definition, runtimeSessionConfiguration(this), invocation)
   }
-
-  private systemInstructions(additionalInstructions?: string): string {
-    const base = this.skillCatalog === undefined
-      ? this.definition.instructions
-      : renderSkillCatalog(
-          this.definition.instructions,
-          this.skillCatalog.summaries(),
-          this.definition.skillOptions,
-        )
-    const team = this.options.team
-    const composed = team === undefined
-      ? base
-      : `${base}\n\n${team.team.instructionsFor(team.name ?? this.definition.id)}`
-    return appendRunInstructions(composed, additionalInstructions)
+  systemInstructions(additionalInstructions?: string): string {
+    return sessionSystemInstructions({
+      definition: this.definition, skills: this.skillCatalog, team: this.options.team,
+    }, additionalInstructions)
   }
-
   private skillLookup(signal?: AbortSignal): SkillLookupOptions {
-    return {
-      ...(this.options.skillCwd === undefined ? {} : { cwd: this.options.skillCwd }),
-      ...(signal === undefined ? {} : { signal }),
-    }
+    return sessionSkillLookup(this, signal)
   }
-
   private activationSnapshot(): readonly AgentSessionActivatedSkillSnapshot[] {
-    const activated = new Map<string, AgentSessionActivatedSkillSnapshot>()
-    for (const entry of this.pendingSkillActivations) activated.set(entry.id, entry)
-    for (const reference of this.skillCatalog?.activatedSkillReferences() ?? []) {
-      activated.set(reference.id, reference)
-    }
-    for (const summary of this.skillCatalog?.activatedSummaries() ?? []) {
-      if (activated.has(summary.id)) continue
-      activated.set(summary.id, Object.freeze({
-        id: summary.id, provider: summary.provider, source: summary.source,
-        ...summary.resourceBase === undefined ? {} : {
-          resourceBase: Object.freeze({ ...summary.resourceBase }),
-        },
-      }))
-    }
-    return Object.freeze([...activated.values()].sort((left, right) => left.id.localeCompare(right.id)))
+    return sessionActivationSnapshot(this)
   }
-
   private async prepareSkills(signal?: AbortSignal, accounting?: RunAccountingPort): Promise<void> {
     await prepareSkills(
       this.definition, this.skillCatalog, this.pendingSkillActivations,
-      signal => this.skillLookup(signal),
-      () => { this.pendingSkillActivations = Object.freeze([]) }, signal, accounting,
+      { skillLookup: signal => this.skillLookup(signal),
+        clearPending: () => { this.pendingSkillActivations = Object.freeze([]) }, signal, accounting },
     )
   }
 }
-
 export { configureRuntimeSessionModel, streamRuntimeSession } from './session/runtime-binding.ts'
 export type {
-  AgentInput, AgentRuntimeLimits, AgentSessionOptions, AgentTeamMemberOptions,
-  AgentSessionSnapshot, AgentSessionActivatedSkillSnapshot, AgentResumeSessionOptions,
-  AgentInvocationOptions, AgentResponse, AgentRunHandle,
+  AgentInput, AgentRuntimeLimits, AgentSessionOptions, AgentTeamMemberOptions, AgentSessionSnapshot,
+  AgentSessionActivatedSkillSnapshot, AgentResumeSessionOptions, AgentInvocationOptions, AgentResponse,
+  AgentRunHandle,
 } from './session/types.ts'

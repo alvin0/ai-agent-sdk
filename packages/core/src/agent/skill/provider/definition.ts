@@ -40,14 +40,15 @@ export function captureSkillProviderPlugin(
     const loadMethod = method(source, 'load', true)
     const resourceMethod = method(source, 'readResource', false)
     const list = (options: RuntimeSkillLookupOptions & { readonly allowedSkillIds?: readonly string[] }) =>
-      runCoreCapabilityMaybeAsync(options.logger, 'core-skill-provider', 'list', options.signal,
+      runCoreCapabilityMaybeAsync(options.logger, { family: 'core-skill-provider', name: 'list' }, options.signal,
         () => Reflect.apply(listMethod!, source, [options]) as Promise<SkillCatalogSnapshot>)
     const load = (reference: SkillReference, options: RuntimeSkillLookupOptions) =>
-      runCoreCapabilityMaybeAsync(options.logger, 'core-skill-provider', 'load', options.signal,
+      runCoreCapabilityMaybeAsync(options.logger, { family: 'core-skill-provider', name: 'load' }, options.signal,
         () => Reflect.apply(loadMethod!, source, [reference, options]) as ReturnType<SkillProviderPlugin['load']>)
     const readResource = resourceMethod === undefined ? undefined
       : (reference: SkillReference, path: string, options: RuntimeSkillLookupOptions) =>
-        runCoreCapabilityMaybeAsync(options.logger, 'core-skill-provider', 'read-resource', options.signal,
+        runCoreCapabilityMaybeAsync(options.logger, { family: 'core-skill-provider', name: 'read-resource' },
+          options.signal,
           () => Reflect.apply(resourceMethod, source, [reference, path, options]) as SkillResourceResult)
     return Object.freeze({ kind: 'skill-provider', apiVersion: SKILL_PROVIDER_API_VERSION,
       id, list, load, ...(readResource === undefined ? {} : { readResource }) })

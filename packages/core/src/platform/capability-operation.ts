@@ -14,6 +14,11 @@ export type CoreCapabilityFamily = keyof typeof CORE_CAPABILITY_OPERATIONS
 export type CoreCapabilityOperationName = (typeof CORE_CAPABILITY_OPERATIONS)[CoreCapabilityFamily][number]
 type TerminalStatus = 'success' | 'error' | 'aborted'
 
+interface CoreCapabilityOperationInput {
+  readonly family: CoreCapabilityFamily
+  readonly name: CoreCapabilityOperationName
+}
+
 export interface CoreCapabilityOperation {
   success(): void
   fail(error?: unknown): void
@@ -60,10 +65,10 @@ export function beginCoreCapabilityOperation(
 }
 
 export function runCoreCapabilitySync<T>(
-  logger: SdkLogger, family: CoreCapabilityFamily, name: CoreCapabilityOperationName,
+  logger: SdkLogger, input: CoreCapabilityOperationInput,
   signal: AbortSignal | undefined, invoke: () => T,
 ): T {
-  const operation = beginCoreCapabilityOperation(logger, family, name)
+  const operation = beginCoreCapabilityOperation(logger, input.family, input.name)
   try {
     signal?.throwIfAborted()
     const value = invoke()
@@ -77,10 +82,10 @@ export function runCoreCapabilitySync<T>(
 }
 
 export async function runCoreCapabilityAsync<T>(
-  logger: SdkLogger, family: CoreCapabilityFamily, name: CoreCapabilityOperationName,
+  logger: SdkLogger, input: CoreCapabilityOperationInput,
   signal: AbortSignal | undefined, invoke: () => Promise<T>,
 ): Promise<T> {
-  const operation = beginCoreCapabilityOperation(logger, family, name)
+  const operation = beginCoreCapabilityOperation(logger, input.family, input.name)
   try {
     signal?.throwIfAborted()
     const value = await invoke()
@@ -95,10 +100,10 @@ export async function runCoreCapabilityAsync<T>(
 }
 
 export function runCoreCapabilityMaybeAsync<T>(
-  logger: SdkLogger, family: CoreCapabilityFamily, name: CoreCapabilityOperationName,
+  logger: SdkLogger, input: CoreCapabilityOperationInput,
   signal: AbortSignal | undefined, invoke: () => T,
 ): T {
-  const operation = beginCoreCapabilityOperation(logger, family, name)
+  const operation = beginCoreCapabilityOperation(logger, input.family, input.name)
   try {
     signal?.throwIfAborted()
     const value = invoke()
@@ -174,6 +179,7 @@ function captureThenable<T>(value: T): Promise<Awaited<T>> | undefined {
 }
 
 function terminalMessage(status: TerminalStatus): string {
-  return status === 'success' ? 'SDK capability operation completed'
-    : status === 'error' ? 'SDK capability operation failed' : 'SDK capability operation aborted'
+  if (status === 'success') return 'SDK capability operation completed'
+  if (status === 'error') return 'SDK capability operation failed'
+  return 'SDK capability operation aborted'
 }

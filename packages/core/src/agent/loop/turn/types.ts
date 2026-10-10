@@ -25,7 +25,8 @@ export interface TurnFinalize {
    * The instruction that opens the window, given the forced answer; undefined
    * ends the turn on that answer as before.
    */
-  prompt(forced: { readonly text: string; readonly reason: Extract<TurnEndReason, { kind: 'budget-exhausted' } | { kind: 'completed' }> }): Message | undefined
+  prompt(forced: { readonly text: string; readonly reason: Extract<TurnEndReason,
+    { kind: 'budget-exhausted' } | { kind: 'completed' }> }): Message | undefined
   /**
    * Whether the window confirmed an answer. Only then may text written in the
    * window replace the forced answer; a model that declines to confirm often
@@ -47,7 +48,7 @@ export interface RunTurnOptions {
   readonly validateOutput?: (value: unknown) => void
   /** strict rejects known text-only models when request history contains images; project permits lossy conversion. */
   readonly imagePolicy?: 'strict' | 'project'
-  /** strict rejects models that decline document input when history contains documents; project permits lossy conversion. */
+  /** strict rejects document refusal; project permits lossy conversion. */
   readonly documentPolicy?: 'strict' | 'project'
   readonly registry: ModelRegistry
   readonly config: CallConfig

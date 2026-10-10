@@ -120,3 +120,66 @@ not implemented yet; only effort and per-call `maxTokens` are agent/call-scoped
 today. This package's adapter never guesses a vendor's real context window for
 an uncatalogued model id; declare it via `models: [{ id, contextWindow }]` when
 the SDK default doesn't match reality.
+
+## Native Decisions API
+
+Install the companion runtime as a direct dependency:
+
+```sh
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-decision-adapter @alvin0/ai-agent-sdk-provider-openai
+```
+
+Use the `/decisions` entry point with the companion decision runtime:
+
+```ts
+import { createDecisionRuntime, choiceQuestion, scoreQuestion, booleanQuestion }
+  from '@alvin0/ai-agent-sdk-decision-adapter'
+import { openAiDecisionPlugin } from '@alvin0/ai-agent-sdk-provider-openai/decisions'
+
+const runtime = createDecisionRuntime({ providers: [openAiDecisionPlugin({
+  apiKey: process.env.OPENAI_API_KEY!,
+  // baseUrl: 'https://api.openai.com/v1', // API root, including /v1
+})] })
+try {
+  const result = await runtime.decisionModel({ provider: 'openai', model: 'gpt-6-luna' }).evaluate({
+    state: { message: 'Please refund my order today.' },
+    questions: {
+      route: choiceQuestion('Choose the department.', { billing: 'Payments and refunds', support: 'Technical issues' }),
+      urgency: scoreQuestion('How urgent is this?', ['Routine', 'Urgent']),
+      refund: booleanQuestion('Does the customer request a refund?'),
+    },
+  })
+  console.log(result.answers, result.usage)
+} finally {
+  await runtime.close()
+}
+```
+
+`openAiDecisionAdapter` also works directly with `DecisionRequest`. API keys may
+be strings or SDK credential sources. Custom routes, API roots, headers, retry
+policies, `safetyIdentifier`, deadlines and request/response byte limits are
+configurable. The adapter performs one HTTP attempt; the decision runtime owns
+retries. It never falls back to Responses after a Decisions error.
+
+String state and instructions remain text; structured JSON descriptions are
+serialized as text. This entry point currently accepts the SDK's text/JSON
+`DecisionInput`, rather than native image messages. Choice options use their SDK
+record keys as wire values. Score labels are zero-based indexes, with the SDK
+level description preserved as the wire description. SDK boolean questions map
+to native predicates; `value` uses a probability threshold of 0.5 and
+`probabilityTrue` retains the provider probability. Use decision evidence gates
+when your application needs stronger confidence.
+
+Answers retain provider probability provenance. Usage maps cached and uncached
+input into disjoint SDK buckets, and zero output tokens remain authoritative.
+A native refusal throws a non-retryable `ModelError` with code
+`OPENAI_DECISION_REFUSED`; it produces no fabricated answer. Attempt accounting
+retains reported usage even when a refusal or invalid answer prevents a result.
+
+The current native model catalog contains `gpt-6-luna`. Explicit model IDs remain
+configurable for consumers and compatible gateways; the server determines
+availability. Native Decisions requires an OpenAI API key. Codex uses
+`CODEX_GUARDIAN_DECISIONS_API_KEY` (or `OPENAI_API_KEY`) for this call independently
+of its ChatGPT OAuth Responses credentials; OAuth login alone does not configure
+Decisions access. See the [Decisions guide](https://developers.openai.com/api/docs/guides/decisions)
+and [Codex startup source](https://github.com/openai/codex/blob/main/codex-rs/ext/guardian-v2/src/async_scorer/startup.rs).

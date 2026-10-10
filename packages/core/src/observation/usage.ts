@@ -32,7 +32,8 @@ export interface AttemptUsageReport {
   readonly error?: SafeErrorRecord
 }
 
-const COUNTER_KEYS = ['inputTokens', 'outputTokens', 'totalTokens', 'cacheReadTokens', 'cacheWriteTokens', 'reasoningTokens'] as const
+const COUNTER_KEYS = ['inputTokens', 'outputTokens', 'totalTokens', 'cacheReadTokens', 'cacheWriteTokens',
+  'reasoningTokens'] as const
 type CounterKey = typeof COUNTER_KEYS[number]
 
 export interface UsageValidationResult {
@@ -46,7 +47,8 @@ function validCounter(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 }
 
-function readCounter(source: Readonly<Record<string, unknown>>, key: CounterKey): { value?: unknown; unreadable: boolean } {
+function readCounter(source: Readonly<Record<string, unknown>>,
+  key: CounterKey): { value?: unknown; unreadable: boolean } {
   try {
     return { value: Reflect.get(source, key), unreadable: false }
   } catch {
@@ -54,11 +56,10 @@ function readCounter(source: Readonly<Record<string, unknown>>, key: CounterKey)
   }
 }
 
-/** Rejects invalid fields individually and derives a total only from valid disjoint buckets. */
-export function validateUsageCounters(value: unknown, normalizedProviderReport = false): UsageValidationResult {
-  const source = typeof value === 'object' && value !== null ? value as Readonly<Record<string, unknown>> : {}
-  const counters: Partial<Record<CounterKey, number>> = {}
-  const invalid: CounterKey[] = []
+type MutableCounters = Partial<Record<CounterKey, number>>
+
+function collectCounters(source: Readonly<Record<string, unknown>>, counters: MutableCounters,
+  invalid: CounterKey[]): void {
   for (const key of COUNTER_KEYS) {
     const read = readCounter(source, key)
     if (read.unreadable) {
@@ -70,6 +71,9 @@ export function validateUsageCounters(value: unknown, normalizedProviderReport =
     if (validCounter(field)) counters[key] = field
     else invalid.push(key)
   }
+}
+
+function sumDisjointCounters(counters: MutableCounters): { disjoint: number; overflow: boolean } {
   let disjoint = 0
   let overflow = false
   for (const key of ['inputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'outputTokens'] as const) {
@@ -79,6 +83,12 @@ export function validateUsageCounters(value: unknown, normalizedProviderReport =
       disjoint = Number.MAX_SAFE_INTEGER
     } else disjoint = next
   }
+  return { disjoint, overflow }
+}
+
+function validateCounterRelationships(counters: MutableCounters, invalid: CounterKey[],
+  sum: { disjoint: number; overflow: boolean }): void {
+  const { disjoint, overflow } = sum
   if (!overflow && counters.totalTokens !== undefined && counters.totalTokens < disjoint) {
     delete counters.totalTokens
     invalid.push('totalTokens')
@@ -88,10 +98,28 @@ export function validateUsageCounters(value: unknown, normalizedProviderReport =
     delete counters.reasoningTokens
     invalid.push('reasoningTokens')
   }
-  const completeBuckets = counters.inputTokens !== undefined && counters.outputTokens !== undefined
-  if (normalizedProviderReport && completeBuckets && counters.totalTokens === undefined && !overflow && invalid.length === 0) {
+}
+
+function normalizeTotal(counters: MutableCounters, invalid: CounterKey[],
+  options: { normalizedProviderReport: boolean; completeBuckets: boolean; overflow: boolean; disjoint: number }): void {
+  const { normalizedProviderReport, completeBuckets, overflow, disjoint } = options
+  if (normalizedProviderReport && completeBuckets && counters.totalTokens === undefined && !overflow
+    && invalid.length === 0) {
     counters.totalTokens = disjoint
   }
+}
+
+/** Rejects invalid fields individually and derives a total only from valid disjoint buckets. */
+export function validateUsageCounters(value: unknown, normalizedProviderReport = false): UsageValidationResult {
+  const source = typeof value === 'object' && value !== null ? value as Readonly<Record<string, unknown>> : {}
+  const counters: Partial<Record<CounterKey, number>> = {}
+  const invalid: CounterKey[] = []
+  collectCounters(source, counters, invalid)
+  const sum = sumDisjointCounters(counters)
+  const { disjoint, overflow } = sum
+  validateCounterRelationships(counters, invalid, sum)
+  const completeBuckets = counters.inputTokens !== undefined && counters.outputTokens !== undefined
+  normalizeTotal(counters, invalid, { normalizedProviderReport, completeBuckets, overflow, disjoint })
   return Object.freeze({
     reported: Object.freeze({ ...counters }),
     invalidFields: Object.freeze([...new Set(invalid)]),
@@ -103,6 +131,20 @@ export function validateUsageCounters(value: unknown, normalizedProviderReport =
 export interface UsageAdditionResult {
   readonly counters: UsageCounters
   readonly overflow: boolean
+}
+
+function addValidatedCounters(output: MutableCounters, reported: UsageCounters): boolean {
+  let overflow = false
+  for (const key of COUNTER_KEYS) {
+    const addend = reported[key]
+    if (addend === undefined) continue
+    const sum = (output[key] ?? 0) + addend
+    if (!Number.isSafeInteger(sum) || sum > Number.MAX_SAFE_INTEGER) {
+      output[key] = Number.MAX_SAFE_INTEGER
+      overflow = true
+    } else output[key] = sum
+  }
+  return overflow
 }
 
 export function addUsageCounters(values: readonly UsageCounters[]): UsageAdditionResult {
@@ -120,15 +162,8 @@ export function addUsageCounters(values: readonly UsageCounters[]): UsageAdditio
     if (hasUsageCounters(validated.reported) && validated.reported.totalTokens === undefined) {
       comparableTotal = false
     }
-    for (const key of COUNTER_KEYS) {
-      const addend = validated.reported[key]
-      if (addend === undefined) continue
-      const sum = (output[key] ?? 0) + addend
-      if (!Number.isSafeInteger(sum) || sum > Number.MAX_SAFE_INTEGER) {
-        output[key] = Number.MAX_SAFE_INTEGER
-        overflow = true
-      } else output[key] = sum
-    }
+    const additionOverflow = addValidatedCounters(output, validated.reported)
+    overflow ||= additionOverflow
   }
   // A subset's total cannot describe buckets summed over a wider scope.
   // Leaf reports retain the original evidence; do not invent missing buckets.

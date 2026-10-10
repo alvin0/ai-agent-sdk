@@ -49,7 +49,8 @@ export function numericFields<const Key extends string>(
   keys: readonly Key[],
 ): Readonly<Record<Key, number>> {
   const source = objectValue(value)
-  return Object.freeze(Object.fromEntries(keys.map(key => [key, count(ownData(source, key))]))) as Readonly<Record<Key, number>>
+  const entries = keys.map(key => [key, count(ownData(source, key))])
+  return Object.freeze(Object.fromEntries(entries)) as Readonly<Record<Key, number>>
 }
 
 export function bytes(value: unknown): number {

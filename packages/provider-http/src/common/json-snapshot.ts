@@ -9,81 +9,88 @@ export interface JsonObjectSnapshotLimits {
 
 /** Clone bounded JSON data without invoking accessors, prototypes, or serialization hooks. */
 export function snapshotJsonObject(
-  value: unknown,
-  limits: JsonObjectSnapshotLimits,
+  value: unknown, limits: JsonObjectSnapshotLimits,
 ): Readonly<Record<string, unknown>> {
-  let nodes = 0
-  const seen = new Set<object>()
-  const encoder = new TextEncoder()
+  return new JsonSnapshot(limits).snapshot(value)
+}
 
-  const clone = (input: unknown, depth: number): unknown => {
-    nodes++
-    if (nodes > limits.maxNodes || depth > limits.maxDepth) {
+class JsonSnapshot {
+  private nodes = 0
+  private readonly seen = new Set<object>()
+  private readonly encoder = new TextEncoder()
+
+  constructor(private readonly limits: JsonObjectSnapshotLimits) {}
+
+  snapshot(value: unknown): Readonly<Record<string, unknown>> {
+    const snapshot = this.clone(value, 0)
+    if (snapshot === null || Array.isArray(snapshot) || typeof snapshot !== 'object') {
+      throw new TypeError('Expected a JSON object')
+    }
+    if (this.encoder.encode(JSON.stringify(snapshot)).byteLength > this.limits.maxBytes) {
+      throw new TypeError('JSON data exceeds its byte bound')
+    }
+    return snapshot as Readonly<Record<string, unknown>>
+  }
+
+  private clone(input: unknown, depth: number): unknown {
+    this.nodes++
+    if (this.nodes > this.limits.maxNodes || depth > this.limits.maxDepth) {
       throw new TypeError('JSON data exceeds its structural bound')
     }
-    if (input === null || typeof input === 'boolean' || typeof input === 'string') return input
+    if (isJsonPrimitive(input)) return input
     if (typeof input === 'number') {
       if (!Number.isFinite(input)) throw new TypeError('JSON number must be finite')
       return input
     }
-    if (Array.isArray(input)) return cloneArray(input, depth)
+    if (Array.isArray(input)) return this.cloneArray(input, depth)
     if (input === null || typeof input !== 'object') {
       throw new TypeError('JSON data contains an unsupported value')
     }
-    return cloneRecord(input, depth)
+    return this.cloneRecord(input, depth)
   }
 
-  const cloneArray = (source: readonly unknown[], depth: number): readonly unknown[] => {
-    if (seen.has(source)) throw new TypeError('JSON data is cyclic')
+  private cloneArray(source: readonly unknown[], depth: number): readonly unknown[] {
+    if (this.seen.has(source)) throw new TypeError('JSON data is cyclic')
     const length = ownValue(source, 'length')
-    if (!Number.isSafeInteger(length) || Number(length) < 0 || Number(length) > limits.maxArrayItems) {
+    if (!Number.isSafeInteger(length) || Number(length) < 0 || Number(length) > this.limits.maxArrayItems) {
       throw new TypeError('JSON array exceeds its item bound')
     }
-    seen.add(source)
+    this.seen.add(source)
     try {
       const result: unknown[] = []
       for (let index = 0; index < Number(length); index++) {
-        result.push(clone(ownValue(source, String(index)), depth + 1))
+        result.push(this.clone(ownValue(source, String(index)), depth + 1))
       }
       return Object.freeze(result)
     } finally {
-      seen.delete(source)
+      this.seen.delete(source)
     }
   }
 
-  const cloneRecord = (source: object, depth: number): Readonly<Record<string, unknown>> => {
+  private cloneRecord(source: object, depth: number): Readonly<Record<string, unknown>> {
     const prototype = Object.getPrototypeOf(source)
     if (prototype !== Object.prototype && prototype !== null) {
       throw new TypeError('JSON object must be plain')
     }
-    if (seen.has(source)) throw new TypeError('JSON data is cyclic')
+    if (this.seen.has(source)) throw new TypeError('JSON data is cyclic')
     const keys = Reflect.ownKeys(source)
-    if (keys.some(key => typeof key !== 'string') || keys.length > limits.maxObjectFields) {
+    if (keys.some(key => typeof key !== 'string') || keys.length > this.limits.maxObjectFields) {
       throw new TypeError('JSON object exceeds its field bound')
     }
-    seen.add(source)
+    this.seen.add(source)
     try {
       const result: Record<string, unknown> = Object.create(null) as Record<string, unknown>
       for (const key of keys as string[]) {
-        if (encoder.encode(key).byteLength > limits.maxKeyBytes) {
+        if (this.encoder.encode(key).byteLength > this.limits.maxKeyBytes) {
           throw new TypeError('JSON object key exceeds its byte bound')
         }
-        result[key] = clone(ownValue(source, key), depth + 1)
+        result[key] = this.clone(ownValue(source, key), depth + 1)
       }
       return Object.freeze(result)
     } finally {
-      seen.delete(source)
+      this.seen.delete(source)
     }
   }
-
-  const snapshot = clone(value, 0)
-  if (snapshot === null || Array.isArray(snapshot) || typeof snapshot !== 'object') {
-    throw new TypeError('Expected a JSON object')
-  }
-  if (encoder.encode(JSON.stringify(snapshot)).byteLength > limits.maxBytes) {
-    throw new TypeError('JSON data exceeds its byte bound')
-  }
-  return snapshot as Readonly<Record<string, unknown>>
 }
 
 function ownValue(source: object, key: string): unknown {
@@ -91,4 +98,8 @@ function ownValue(source: object, key: string): unknown {
   if (descriptor === undefined) throw new TypeError('JSON arrays must not be sparse')
   if (!('value' in descriptor)) throw new TypeError('JSON data must not use accessors')
   return descriptor.value
+}
+
+function isJsonPrimitive(input: unknown): boolean {
+  return input === null || typeof input === 'boolean' || typeof input === 'string'
 }

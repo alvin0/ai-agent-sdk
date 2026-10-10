@@ -78,7 +78,8 @@ const runtimeLimits = {
 const session = definition.createSession({ registry, runtimeLimits })
 const snapshot = session.snapshot() satisfies AgentSessionSnapshot
 const resumed = definition.resumeSession({ registry, snapshot, compaction: false })
-const invocation = { signal: new AbortController().signal, onEvent: async () => undefined } satisfies AgentInvocationOptions
+const invocation = { signal: new AbortController().signal,
+  onEvent: async () => undefined } satisfies AgentInvocationOptions
 
 void resumed.compact(invocation)
 void resumed.stream('continue', invocation)

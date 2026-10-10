@@ -53,39 +53,20 @@ function probeFailureEnvelope(value: unknown): EnvelopeProbe {
   const outerCode = ownDataProbe(value, 'code')
   const carried = ownDataProbe(value, 'failure')
   if (!outerCode.present && !carried.present) return { kind: 'absent' }
-  if (!outerCode.data || !carried.data
-    || !boundedString(outerCode.value, HTTP_FOREIGN_FAILURE_LIMITS.codeBytes)
-    || typeof carried.value !== 'object' || carried.value === null || Array.isArray(carried.value)) {
-    return { kind: 'invalid' }
-  }
+  if (!validCarriedFailure(outerCode, carried)) return { kind: 'invalid' }
 
   const message = optionalFailureField(carried.value, 'message')
   const code = optionalFailureField(carried.value, 'code')
   const status = optionalFailureField(carried.value, 'status')
   const providerRetryAfterMs = optionalFailureField(carried.value, 'providerRetryAfterMs')
   const requestId = optionalFailureField(carried.value, 'requestId')
-  if (message === INVALID_FIELD || code === INVALID_FIELD || status === INVALID_FIELD
-    || providerRetryAfterMs === INVALID_FIELD || requestId === INVALID_FIELD
-    || !boundedString(message, HTTP_FOREIGN_FAILURE_LIMITS.messageBytes)
-    || !boundedString(code, HTTP_FOREIGN_FAILURE_LIMITS.codeBytes)
-    || code !== outerCode.value
-    || (status !== undefined && (!Number.isSafeInteger(status) || (status as number) < 100 || (status as number) > 599))
-    || (providerRetryAfterMs !== undefined
-      && (!Number.isFinite(providerRetryAfterMs) || (providerRetryAfterMs as number) <= 0))
-    || (requestId !== undefined
-      && !boundedString(requestId, HTTP_FOREIGN_FAILURE_LIMITS.requestIdBytes))) {
-    return { kind: 'invalid' }
-  }
+  const fields = { message, code, status, providerRetryAfterMs, requestId }
+  if (hasInvalidField(fields) || !validFailureIdentity(message, code, outerCode.value)
+    || !validFailureMetadata(fields)) return { kind: 'invalid' }
 
   return {
     kind: 'valid',
-    failure: Object.freeze({
-      message,
-      code,
-      ...status === undefined ? {} : { status: status as number },
-      ...providerRetryAfterMs === undefined ? {} : { providerRetryAfterMs: providerRetryAfterMs as number },
-      ...requestId === undefined ? {} : { requestId: requestId as ProviderRequestId },
-    }),
+    failure: freezeFailure(fields),
   }
 }
 
@@ -111,4 +92,52 @@ export function normalizeHttpBoundaryError(value: unknown, fallbackMessage: stri
       : { providerRetryAfterMs: failure.providerRetryAfterMs },
     ...failure.requestId === undefined ? {} : { requestId: failure.requestId },
   })
+}
+
+interface FailureFields {
+  message: unknown; code: unknown; status: unknown; providerRetryAfterMs: unknown; requestId: unknown
+}
+
+function hasInvalidField(fields: FailureFields): boolean {
+  return fields.message === INVALID_FIELD || fields.code === INVALID_FIELD || fields.status === INVALID_FIELD
+    || fields.providerRetryAfterMs === INVALID_FIELD || fields.requestId === INVALID_FIELD
+}
+
+function validFailureIdentity(message: unknown, code: unknown, outerCode: unknown): boolean {
+  return boundedString(message, HTTP_FOREIGN_FAILURE_LIMITS.messageBytes)
+    && boundedString(code, HTTP_FOREIGN_FAILURE_LIMITS.codeBytes) && code === outerCode
+}
+
+function validFailureMetadata(fields: FailureFields): boolean {
+  const { status, providerRetryAfterMs, requestId } = fields
+  return validFailureStatus(status) && validRetryAfter(providerRetryAfterMs)
+    && (requestId === undefined || boundedString(requestId, HTTP_FOREIGN_FAILURE_LIMITS.requestIdBytes))
+}
+
+function validFailureStatus(status: unknown): boolean {
+  return !(status !== undefined
+    && (!Number.isSafeInteger(status) || (status as number) < 100 || (status as number) > 599))
+}
+
+function validRetryAfter(value: unknown): boolean {
+  return !(value !== undefined && (!Number.isFinite(value) || (value as number) <= 0))
+}
+
+function validCarriedFailure(
+  outerCode: ReturnType<typeof ownDataProbe>, carried: ReturnType<typeof ownDataProbe>,
+): carried is ReturnType<typeof ownDataProbe> & { readonly value: object } {
+  return outerCode.data && carried.data
+    && boundedString(outerCode.value, HTTP_FOREIGN_FAILURE_LIMITS.codeBytes)
+    && typeof carried.value === 'object' && carried.value !== null && !Array.isArray(carried.value)
+}
+
+function freezeFailure(fields: FailureFields): ModelFailure {
+  const { message, code, status, providerRetryAfterMs, requestId } = fields
+  return Object.freeze({
+      message: message as string,
+      code: code as string,
+      ...status === undefined ? {} : { status: status as number },
+      ...providerRetryAfterMs === undefined ? {} : { providerRetryAfterMs: providerRetryAfterMs as number },
+      ...requestId === undefined ? {} : { requestId: requestId as ProviderRequestId },
+    })
 }

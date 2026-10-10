@@ -8,7 +8,8 @@ export class SandboxUnavailableError extends Error {
 
   constructor(readonly platform: string, attempted: readonly string[] = [], detail?: string) {
     const options = attempted.length === 0 ? 'no runner is available' : `tried ${attempted.join(', ')}`
-    super(`No sandbox backend can confine this execution on ${platform}: ${options}${detail === undefined ? '' : ` (${detail})`}`)
+    const suffix = detail === undefined ? '' : ` (${detail})`
+    super(`No sandbox backend can confine this execution on ${platform}: ${options}${suffix}`)
     this.name = 'SandboxUnavailableError'
     this.attempted = Object.freeze([...attempted])
   }

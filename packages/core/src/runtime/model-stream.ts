@@ -55,29 +55,7 @@ export async function* streamAdapter(input: AdapterStreamInput): AsyncGenerator<
     const withConfig = callConfigEquals(options, prepared.config)
       ? options
       : { ...options, ...prepared.config }
-    // The agent tier (CallConfig.inputModalities, folded into `withConfig` by
-    // `resolveCallWithModelInfo`) wins over the model's own declared value.
-    const effectiveInputModalities = withConfig.inputModalities ?? prepared.modelInfo.inputModalities
-    const hasUnsupportedImages = effectiveInputModalities !== undefined
-      && !effectiveInputModalities.includes('image')
-      && withConfig.messages.some(message => contentHasImage(message.content))
-    const hasUnsupportedDocuments = effectiveInputModalities !== undefined
-      && !effectiveInputModalities.includes('document')
-      && withConfig.messages.some(message => contentHasDocument(message.content))
-    if (withConfig.imagePolicy !== undefined && withConfig.imagePolicy !== 'strict' && withConfig.imagePolicy !== 'project') throw new ModelError('invalid image policy', 'INVALID_IMAGE_POLICY')
-    if (withConfig.documentPolicy !== undefined && withConfig.documentPolicy !== 'strict' && withConfig.documentPolicy !== 'project') throw new ModelError('invalid document policy', 'INVALID_DOCUMENT_POLICY')
-    if (hasUnsupportedImages && withConfig.imagePolicy === 'strict') throw new ModelError(
-      `model ${prepared.modelInfo.id} does not support required image input`, 'UNSUPPORTED_IMAGE_INPUT',
-    )
-    if (hasUnsupportedDocuments && withConfig.documentPolicy === 'strict') throw new ModelError(
-      `model ${prepared.modelInfo.id} does not support required document input`, 'UNSUPPORTED_DOCUMENT_INPUT',
-    )
-    const withImages = hasUnsupportedImages
-      ? { ...withConfig, messages: projectImagesForTextModel(withConfig.messages) }
-      : withConfig
-    const projected = hasUnsupportedDocuments
-      ? { ...withImages, messages: projectDocumentsForTextModel(withImages.messages) }
-      : withImages
+    const projected = projectCallInput(withConfig, prepared.modelInfo)
     validateNativeTools(projected, prepared.modelInfo)
     input.onDispatch()
     iterator = prepared.dispatch(projectReplayForAdapter(
@@ -88,6 +66,51 @@ export async function* streamAdapter(input: AdapterStreamInput): AsyncGenerator<
     return
   }
   yield* consumeIterator(iterator, options.signal)
+}
+
+function unsupportedInputs(withConfig: GenerateOptions,
+  effectiveInputModalities: ResolvedModelInfo['inputModalities']) {
+  const hasUnsupportedImages = effectiveInputModalities !== undefined
+    && !effectiveInputModalities.includes('image')
+    && withConfig.messages.some(message => contentHasImage(message.content))
+  const hasUnsupportedDocuments = effectiveInputModalities !== undefined
+    && !effectiveInputModalities.includes('document')
+    && withConfig.messages.some(message => contentHasDocument(message.content))
+  return { hasUnsupportedImages, hasUnsupportedDocuments }
+}
+
+function validateInputPolicies(withConfig: GenerateOptions): void {
+  if (withConfig.imagePolicy !== undefined && withConfig.imagePolicy !== 'strict'
+    && withConfig.imagePolicy !== 'project') throw new ModelError('invalid image policy', 'INVALID_IMAGE_POLICY')
+  if (withConfig.documentPolicy !== undefined && withConfig.documentPolicy !== 'strict'
+    && withConfig.documentPolicy !== 'project') throw new ModelError('invalid document policy',
+      'INVALID_DOCUMENT_POLICY')
+}
+
+function validateRequiredInputs(withConfig: GenerateOptions, modelInfo: ResolvedModelInfo,
+  unsupported: { hasUnsupportedImages: boolean; hasUnsupportedDocuments: boolean }): void {
+  const { hasUnsupportedImages, hasUnsupportedDocuments } = unsupported
+  if (hasUnsupportedImages && withConfig.imagePolicy === 'strict') throw new ModelError(
+    `model ${modelInfo.id} does not support required image input`, 'UNSUPPORTED_IMAGE_INPUT',
+  )
+  if (hasUnsupportedDocuments && withConfig.documentPolicy === 'strict') throw new ModelError(
+    `model ${modelInfo.id} does not support required document input`, 'UNSUPPORTED_DOCUMENT_INPUT',
+  )
+}
+
+function projectCallInput(withConfig: GenerateOptions, modelInfo: ResolvedModelInfo): GenerateOptions {
+  // The agent tier (CallConfig.inputModalities, folded into `withConfig` by
+  // `resolveCallWithModelInfo`) wins over the model's own declared value.
+  const effectiveInputModalities = withConfig.inputModalities ?? modelInfo.inputModalities
+  const { hasUnsupportedImages, hasUnsupportedDocuments } = unsupportedInputs(withConfig, effectiveInputModalities)
+  validateInputPolicies(withConfig)
+  validateRequiredInputs(withConfig, modelInfo, { hasUnsupportedImages, hasUnsupportedDocuments })
+  const withImages = hasUnsupportedImages
+    ? { ...withConfig, messages: projectImagesForTextModel(withConfig.messages) }
+    : withConfig
+  return hasUnsupportedDocuments
+    ? { ...withImages, messages: projectDocumentsForTextModel(withImages.messages) }
+    : withImages
 }
 
 async function prepareDispatch(
@@ -110,7 +133,8 @@ async function prepareDispatch(
     options.provider, options.model, options.signal, context,
   )
   const modelInfo = normalizeResolvedModelInfo(
-    registration.provider.id, options.model, adapterCall.model, input.maxCatalogBytes, input.defaults,
+    registration.provider.id, options.model, adapterCall.model,
+    { maxBytes: input.maxCatalogBytes, defaults: input.defaults },
   )
   return {
     modelInfo,

@@ -1,3 +1,4 @@
+import { openBrowser } from './common/browser.ts'
 /**
  * `npm run provider:copilot:login-device`
  *
@@ -114,20 +115,6 @@ function renderPrompt(code: CopilotDeviceCode): void {
   )
 }
 
-/** Best-effort browser launch; failure is fine because the URL is printed anyway. */
-async function openBrowser(url: string): Promise<void> {
-  try {
-    const { spawn } = await import('node:child_process')
-    const command = process.platform === 'win32'
-      ? { file: 'cmd', args: ['/c', 'start', '', url] }
-      : process.platform === 'darwin'
-        ? { file: 'open', args: [url] }
-        : { file: 'xdg-open', args: [url] }
-    spawn(command.file, command.args, { stdio: 'ignore', detached: true }).unref()
-  } catch {
-    // The printed URL is the real interface; auto-open is a convenience.
-  }
-}
 
 /** Read the credential file, or `undefined` when the store is empty. */
 async function readCredential(
@@ -158,21 +145,7 @@ function messageOf(error: unknown): string {
  * and only the exchange can tell the two apart. Its outcome is printed as a status
  * word plus an expiry; the token value itself never reaches stdout.
  */
-async function reportStatus(flags: Flags, signal: AbortSignal): Promise<number> {
-  const location = resolveCopilotAuthPath(flags.path)
-  const file = await readCredential(fileCopilotCredentialStore(flags.path), signal)
-  const github = file?.github
-  if (github === undefined || github.token.length === 0) {
-    process.stdout.write(`copilot: not signed in ${GRAY}(${location})${RESET}\n`)
-    return 1
-  }
-  process.stdout.write(
-    `copilot: signed in ${GRAY}(${location})${RESET}\n`
-    + `  login    : ${file?.account?.login ?? '<undisclosed>'}\n`
-    + `  account  : ${file?.account?.id ?? '<undisclosed>'}\n`
-    + `  scope    : ${github.scope ?? '<undisclosed>'}\n`
-    + `  stored   : ${location} ${GRAY}(git-ignored)${RESET}\n`,
-  )
+async function reportExchange(flags: Flags, signal: AbortSignal, github: CopilotGitHubToken): Promise<number> {
   try {
     const api = await exchangeCopilotToken(github, exchangeOptions(flags, signal))
     const secondsLeft = Math.max(0, Math.round((api.expiresAtMs - Date.now()) / 1_000))
@@ -186,6 +159,28 @@ async function reportStatus(flags: Flags, signal: AbortSignal): Promise<number> 
     process.stdout.write(`  exchange : failed — ${messageOf(error)}\n`)
     return 1
   }
+}
+
+function renderStatus(file: CopilotAuthFile | undefined, github: CopilotGitHubToken, location: string) {
+  process.stdout.write(
+    `copilot: signed in ${GRAY}(${location})${RESET}\n`
+    + `  login    : ${file?.account?.login ?? '<undisclosed>'}\n`
+    + `  account  : ${file?.account?.id ?? '<undisclosed>'}\n`
+    + `  scope    : ${github.scope ?? '<undisclosed>'}\n`
+    + `  stored   : ${location} ${GRAY}(git-ignored)${RESET}\n`,
+  )
+}
+
+async function reportStatus(flags: Flags, signal: AbortSignal): Promise<number> {
+  const location = resolveCopilotAuthPath(flags.path)
+  const file = await readCredential(fileCopilotCredentialStore(flags.path), signal)
+  const github = file?.github
+  if (github === undefined || github.token.length === 0) {
+    process.stdout.write(`copilot: not signed in ${GRAY}(${location})${RESET}\n`)
+    return 1
+  }
+  renderStatus(file, github, location)
+  return reportExchange(flags, signal, github)
 }
 
 /**
@@ -282,6 +277,23 @@ async function signIn(flags: Flags, cancel: AbortController): Promise<number> {
   return 0
 }
 
+async function reportExistingSignIn(flags: Flags, signal: AbortSignal): Promise<boolean> {
+    const location = resolveCopilotAuthPath(flags.path)
+    const existing = await readCredential(fileCopilotCredentialStore(flags.path), signal)
+    const token = existing?.github?.token
+    if (!flags.force && token !== undefined && token.length > 0) {
+      // No staleness check, unlike the Codex CLI: a `GitHub_User_Token` has no
+      // expiry this SDK can read, so "already signed in" is the whole truth
+      // available without a network call. `--status` is the command that asks.
+      process.stdout.write(
+        `copilot: already signed in as ${existing?.account?.login ?? 'this account'}\n`
+        + `${GRAY}  ${location}\n  pass --force to sign in again, or --status to verify${RESET}\n`,
+      )
+      return true
+    }
+  return false
+}
+
 async function main(): Promise<number> {
   const flags = parseFlags(process.argv.slice(2))
   // Ctrl-C during a 15-minute poll should exit promptly rather than wait, and the
@@ -297,19 +309,7 @@ async function main(): Promise<number> {
     if (flags.status) return await reportStatus(flags, cancel.signal)
     if (flags.models) return await reportModels(flags, cancel.signal)
 
-    const location = resolveCopilotAuthPath(flags.path)
-    const existing = await readCredential(fileCopilotCredentialStore(flags.path), cancel.signal)
-    const token = existing?.github?.token
-    if (!flags.force && token !== undefined && token.length > 0) {
-      // No staleness check, unlike the Codex CLI: a `GitHub_User_Token` has no
-      // expiry this SDK can read, so "already signed in" is the whole truth
-      // available without a network call. `--status` is the command that asks.
-      process.stdout.write(
-        `copilot: already signed in as ${existing?.account?.login ?? 'this account'}\n`
-        + `${GRAY}  ${location}\n  pass --force to sign in again, or --status to verify${RESET}\n`,
-      )
-      return 0
-    }
+    if (await reportExistingSignIn(flags, cancel.signal)) return 0
     return await signIn(flags, cancel)
   } finally {
     process.removeListener('SIGINT', onSigint)

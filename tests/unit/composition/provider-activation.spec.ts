@@ -32,7 +32,7 @@ function activate(sources: readonly ComposableModelProviderPlugin[], signal?: Ab
   const logger = createObservability().logger()
   const plan = preflightProviderIdentities(sources, undefined, signal)
   const captured = captureProviderMethods(plan, signal)
-  return { registry, logger, plan, start: () => activateProviders(registry, captured, logger, signal) }
+  return { registry, logger, plan, start: () => activateProviders(registry, captured, logger, { signal }) }
 }
 
 describe('claim-scoped provider activation on the real registry', () => {

@@ -56,27 +56,8 @@ export function createRuntimeHttpProvider<Dialect extends object>(
     captureRuntimeProtocol<Dialect>(ownData(source, 'protocol')),
   )
   const auth = captureRuntimeAuth(ownData(source, 'auth'), baseUrl)
-  const discover = optionalCapturedMethod<
-    [RuntimeModelDiscoveryContext], Promise<readonly import('../base/http-adapter.ts').ProviderCatalogModel[]>
-  >(source, 'discoverModels')
-  const fetch = optionalCapturedMethod<Parameters<typeof globalThis.fetch>, ReturnType<typeof globalThis.fetch>>(
-    source,
-    'fetch',
-  )
-  const describeModel = optionalCapturedMethod<
-    [import('@alvin0/ai-agent-sdk-core/provider').ResolvedModelInfo, Dialect],
-    import('@alvin0/ai-agent-sdk-core/provider').ResolvedModelInfo
-  >(source, 'describeModel')
-  const errorCode = optionalCapturedMethod<[number, string], string | undefined>(source, 'errorCode')
-  const requestLogger = optionalCapturedMethod<
-    [import('../base/http-adapter.ts').ProviderRequestLogRecord], Promise<void> | void
-  >(source, 'requestLogger')
-  const responseLogger = optionalCapturedMethod<
-    [import('../base/http-adapter.ts').ProviderResponseLogRecord], Promise<void> | void
-  >(source, 'responseLogger')
-  const transformRequest = optionalCapturedMethod<
-    [unknown, { provider: string; model: string; agentId?: string; signal?: AbortSignal }], unknown
-  >(source, 'transformRequest')
+  const { discover, fetch, describeModel, errorCode, requestLogger, responseLogger, transformRequest }
+    = captureRuntimeMethods<Dialect>(source)
   const headers = captureHeaders(source)
   const query = captureQuery(source)
   const path = capturePath(source)
@@ -117,15 +98,7 @@ export function createRuntimeHttpProvider<Dialect extends object>(
     ...copyHeaderOptional(source, 'baseHeaders', 'transport'),
     ...(requestLogger === undefined ? {} : { requestLogger }),
     ...(responseLogger === undefined ? {} : { responseLogger }),
-    ...(discover === undefined ? {} : {
-      discoverModels: async (context: ModelDiscoveryContext) => discover({
-        provider: context.provider ?? '',
-        baseUrl: new URL(context.baseUrl),
-        headers: context.headers,
-        signal: context.signal ?? NEVER_ABORTED_SIGNAL,
-        ...(context.context === undefined ? {} : { context: context.context }),
-      }),
-    }),
+    ...runtimeDiscovery(discover),
   }
   return createHttpProvider(legacy)
 }
@@ -330,4 +303,46 @@ function snapshotQuery(value: unknown): Readonly<Record<string, string>> {
 
 function snapshotHeaders(value: unknown, layer: HeaderLayer): Readonly<Record<string, string>> {
   return mergeHeaderLayers([{ layer, headers: value as Readonly<Record<string, string>> }]).headers
+}
+
+function captureRuntimeMethods<Dialect extends object>(source: object) {
+  const discover = optionalCapturedMethod<
+    [RuntimeModelDiscoveryContext], Promise<readonly import('../base/http-adapter.ts').ProviderCatalogModel[]>
+  >(source, 'discoverModels')
+  const fetch = optionalCapturedMethod<Parameters<typeof globalThis.fetch>, ReturnType<typeof globalThis.fetch>>(
+    source,
+    'fetch',
+  )
+  const describeModel = optionalCapturedMethod<
+    [import('@alvin0/ai-agent-sdk-core/provider').ResolvedModelInfo, Dialect],
+    import('@alvin0/ai-agent-sdk-core/provider').ResolvedModelInfo
+  >(source, 'describeModel')
+  const errorCode = optionalCapturedMethod<[number, string], string | undefined>(source, 'errorCode')
+  const requestLogger = optionalCapturedMethod<
+    [import('../base/http-adapter.ts').ProviderRequestLogRecord], Promise<void> | void
+  >(source, 'requestLogger')
+  const responseLogger = optionalCapturedMethod<
+    [import('../base/http-adapter.ts').ProviderResponseLogRecord], Promise<void> | void
+  >(source, 'responseLogger')
+  const transformRequest = optionalCapturedMethod<
+    [unknown, { provider: string; model: string; agentId?: string; signal?: AbortSignal }], unknown
+  >(source, 'transformRequest')
+  return { discover, fetch, describeModel, errorCode, requestLogger, responseLogger, transformRequest }
+}
+
+function runtimeDiscovery(
+  discover: ((context: RuntimeModelDiscoveryContext) =>
+    Promise<readonly import('../base/http-adapter.ts').ProviderCatalogModel[]>) | undefined,
+) {
+  return {
+    ...(discover === undefined ? {} : {
+      discoverModels: async (context: ModelDiscoveryContext) => discover({
+        provider: context.provider ?? '',
+        baseUrl: new URL(context.baseUrl),
+        headers: context.headers,
+        signal: context.signal ?? NEVER_ABORTED_SIGNAL,
+        ...(context.context === undefined ? {} : { context: context.context }),
+      }),
+    }),
+  }
 }

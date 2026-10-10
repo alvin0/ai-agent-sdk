@@ -68,11 +68,7 @@ export async function seatbeltProfileArgs(
   // Network is its own operation class in SBPL, so denying it is independent of
   // every file rule above — and a loopback carve-out is a rule, not a weaker
   // denial: the command reaches a proxy the deployment runs and nothing else.
-  const network = policy.network ?? 'allow-all'
-  if (network !== 'allow-all') {
-    forms.push('(deny network*)')
-    if (network === 'loopback') forms.push('(allow network* (remote ip "localhost:*"))')
-  }
+  applyNetworkForms(forms, policy.network ?? 'allow-all')
 
   const layers = Object.freeze(await Promise.all(grantLayers(policy, options).map(async layer =>
     Object.freeze({ ...layer, path: await resolver.realpath(layer.path) }))))
@@ -157,4 +153,11 @@ export function seatbeltProbeArgs(): readonly string[] {
     '-p', '(version 1) (allow default) (deny file-write*) (allow file-write* (literal "/dev/null"))',
     'true',
   ])
+}
+
+function applyNetworkForms(forms: string[], network: NetworkMode): void {
+  if (network !== 'allow-all') {
+    forms.push('(deny network*)')
+    if (network === 'loopback') forms.push('(allow network* (remote ip "localhost:*"))')
+  }
 }

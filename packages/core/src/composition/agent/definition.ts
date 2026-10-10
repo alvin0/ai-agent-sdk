@@ -77,6 +77,95 @@ export function cloneRuntimeAgentDefinition(
   return defineRuntimeAgentDefinition(merged as unknown as RuntimeAgentDefinitionInput)
 }
 
+interface CapturedBindingOptions {
+  readonly effort: BoundRuntimeAgentDefinition['effort']
+  readonly maxTokens: number | undefined
+  readonly contextWindow: number | undefined
+  readonly inputModalities: readonly ModelModality[] | undefined
+  readonly tools: ReturnType<typeof captureToolDefinitions> | undefined
+  readonly nativeTools: ReturnType<typeof captureNativeTools>
+  readonly memory: CapturedMemoryBinding | undefined
+  readonly skills: ReturnType<typeof captureRuntimeSkillSources> | undefined
+  readonly contextSections: ReturnType<typeof captureRuntimeContextSections>
+  readonly providerOptions: ReturnType<typeof captureProviderOptions>
+  readonly toolChoice: ReturnType<typeof captureToolChoice>
+}
+
+function assertBindingIdentity(values: Record<string, unknown>, captured: CapturedBindingOptions): void {
+  const { tools, nativeTools, skills } = captured
+  assertAgentIdentitySnapshot({ ...(tools === undefined ? {} : { tools }), nativeTools,
+    ...(skills === undefined ? {} : { skills }), ...(values.allowedSkillIds === undefined ? {} : {
+      allowedSkillIds: values.allowedSkillIds as readonly string[],
+    }) })
+}
+
+function legacyIdentityFields(values: Record<string, unknown>) {
+  return {
+    id: values.id as string,
+    ...(values.name === undefined ? {} : { name: values.name as string }),
+    ...(values.description === undefined ? {} : { description: values.description as string }),
+  }
+}
+
+function legacyModelFields(captured: CapturedBindingOptions) {
+  const { effort, maxTokens, contextWindow, inputModalities } = captured
+  return {
+    // Legacy definitions require a value; the runtime session override below preserves omission.
+    effort: effort ?? 'medium',
+    ...(maxTokens === undefined ? {} : { maxTokens }),
+    ...(contextWindow === undefined ? {} : { contextWindow }),
+    ...(inputModalities === undefined ? {} : { inputModalities }),
+  }
+}
+
+function legacyCapabilityFields(values: Record<string, unknown>, captured: CapturedBindingOptions) {
+  const { tools, nativeTools, skills, toolChoice, contextSections } = captured
+  return {
+    ...(values.mode === undefined ? {} : { mode: values.mode as NonNullable<RuntimeAgentBindingInput['mode']> }),
+    ...(tools === undefined ? {} : { tools }),
+    ...(nativeTools.length === 0 ? {} : { nativeTools }),
+    ...(skills === undefined ? {} : { skills: skills as DefinedAgent['skills'] }),
+    ...(values.allowedSkillIds === undefined ? {} : { skillIds: values.allowedSkillIds as readonly string[] }),
+    ...(toolChoice === undefined ? {} : { toolChoice }),
+    ...(contextSections === undefined ? {} : { contextSections }),
+    ...(values.outputFormat === undefined ? {} : {
+      outputFormat: values.outputFormat as NonNullable<RuntimeAgentBindingInput['outputFormat']>,
+    }),
+  }
+}
+
+function legacyRunFields(values: Record<string, unknown>, providerOptions: CapturedBindingOptions['providerOptions']) {
+  return {
+    ...(values.compaction === undefined ? {} : {
+      compaction: values.compaction as NonNullable<RuntimeAgentBindingInput['compaction']>,
+    }),
+    ...(values.maxTurns === undefined ? {} : { maxTurns: values.maxTurns as number | 'auto' }),
+    ...(values.maxToolCalls === undefined ? {} : { maxToolCalls: values.maxToolCalls as number }),
+    ...(values.commentary === undefined ? {} : {
+      commentary: values.commentary as NonNullable<RuntimeAgentBindingInput['commentary']>,
+    }),
+    ...(providerOptions === undefined ? {} : { providerOptions }),
+  }
+}
+
+function createLegacyDefinition(values: Record<string, unknown>, target: ModelTarget,
+  captured: CapturedBindingOptions): DefinedAgent {
+  return defineAgent({
+    ...legacyIdentityFields(values),
+    provider: target.provider, model: target.id,
+    ...legacyModelFields(captured),
+    instructions: values.instructions as string,
+    ...legacyCapabilityFields(values, captured),
+    ...legacyRunFields(values, captured.providerOptions),
+  })
+}
+
+function captureEffort(values: Record<string, unknown>): BoundRuntimeAgentDefinition['effort'] {
+  if (values.effort !== undefined
+    && typeof values.effort !== 'string') throw new TypeError('Runtime agent effort must be a string')
+  return values.effort === undefined ? undefined : ReasoningEffortId(values.effort)
+}
+
 /** Capture one runtime definition and resolve its immutable target before any model operation. */
 export function bindRuntimeAgentDefinition(
   input: RuntimeAgentBindingInput,
@@ -88,8 +177,7 @@ export function bindRuntimeAgentDefinition(
   }
   const values = Object.fromEntries([...KEYS].map(key => [key, ownData(source, key, false)])) as Record<string, unknown>
   const target = resolveAgentModel(selection, values.model)
-  if (values.effort !== undefined && typeof values.effort !== 'string') throw new TypeError('Runtime agent effort must be a string')
-  const effort = values.effort === undefined ? undefined : ReasoningEffortId(values.effort)
+  const effort = captureEffort(values)
   const maxTokens = values.maxTokens as number | undefined
   const contextWindow = values.contextWindow as number | undefined
   const inputModalities = values.inputModalities as readonly ModelModality[] | undefined
@@ -101,44 +189,18 @@ export function bindRuntimeAgentDefinition(
   const skills = values.skills === undefined ? undefined : captureRuntimeSkillSources(values.skills)
   const contextSections = captureRuntimeContextSections(values.contextSections)
   const providerOptions = captureProviderOptions(values.providerOptions)
-  assertAgentIdentitySnapshot({ ...(tools === undefined ? {} : { tools }), nativeTools,
-    ...(skills === undefined ? {} : { skills }), ...(values.allowedSkillIds === undefined ? {} : {
-      allowedSkillIds: values.allowedSkillIds as readonly string[],
-    }) })
-  const legacy = defineAgent({
-    id: values.id as string,
-    ...(values.name === undefined ? {} : { name: values.name as string }),
-    ...(values.description === undefined ? {} : { description: values.description as string }),
-    provider: target.provider, model: target.id,
-    // Legacy definitions require a value; the runtime session override below preserves omission.
-    effort: effort ?? 'medium',
-    ...(maxTokens === undefined ? {} : { maxTokens }),
-    ...(contextWindow === undefined ? {} : { contextWindow }),
-    ...(inputModalities === undefined ? {} : { inputModalities }),
-    instructions: values.instructions as string,
-    ...(values.mode === undefined ? {} : { mode: values.mode as NonNullable<RuntimeAgentBindingInput['mode']> }),
-    ...(tools === undefined ? {} : { tools }),
-    ...(nativeTools.length === 0 ? {} : { nativeTools }),
-    ...(skills === undefined ? {} : { skills: skills as DefinedAgent['skills'] }),
-    ...(values.allowedSkillIds === undefined ? {} : { skillIds: values.allowedSkillIds as readonly string[] }),
-    ...(toolChoice === undefined ? {} : { toolChoice }),
-    ...(contextSections === undefined ? {} : { contextSections }),
-    ...(values.outputFormat === undefined ? {} : {
-      outputFormat: values.outputFormat as NonNullable<RuntimeAgentBindingInput['outputFormat']>,
-    }),
-    ...(values.compaction === undefined ? {} : { compaction: values.compaction as NonNullable<RuntimeAgentBindingInput['compaction']> }),
-    ...(values.maxTurns === undefined ? {} : { maxTurns: values.maxTurns as number | 'auto' }),
-    ...(values.maxToolCalls === undefined ? {} : { maxToolCalls: values.maxToolCalls as number }),
-    ...(values.commentary === undefined ? {} : { commentary: values.commentary as NonNullable<RuntimeAgentBindingInput['commentary']> }),
-    ...(providerOptions === undefined ? {} : { providerOptions }),
-  })
+  const captured = { effort, maxTokens, contextWindow, inputModalities, tools, nativeTools,
+    memory, skills, contextSections, providerOptions, toolChoice }
+  assertBindingIdentity(values, captured)
+  const legacy = createLegacyDefinition(values, target, captured)
   return Object.freeze({ model: target, ...(effort === undefined ? {} : { effort }),
     ...(maxTokens === undefined ? {} : { maxTokens }), legacy, toolSources,
     ...(memory === undefined ? {} : { memory }) })
 }
 
 /** Capture `providerOptions.headers`/`.body`, rejecting anything not a plain record. */
-function captureProviderOptions(value: unknown): { headers?: Record<string, string>; body?: Record<string, unknown> } | undefined {
+function captureProviderOptions(value: unknown): { headers?: Record<string, string>; body?: Record<string,
+  unknown> } | undefined {
   if (value === undefined) return undefined
   const source = objectValue(value)
   const headers = ownData(source, 'headers', false)

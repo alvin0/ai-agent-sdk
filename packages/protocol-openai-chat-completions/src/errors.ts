@@ -77,18 +77,14 @@ export function isContentFilteredError(detail: string): boolean {
  * @returns the normalized code, or `HTTP_{status}` when nothing classified it.
  */
 export function chatCompletionsErrorCode(status: number, detail = ''): string {
-  if (status === 401 || status === 403) return MODEL_ERROR_CODES.AUTH
+  if (authenticationStatus(status)) return MODEL_ERROR_CODES.AUTH
   if (status === 413) return MODEL_ERROR_CODES.INVALID_REQUEST
   // Ahead of 429: an exhausted quota is usually delivered as 429 but never
   // clears on its own, so retrying it burns latency and money for nothing.
   if (isQuotaExceededError(detail)) return QUOTA_EXCEEDED_CODE
   if (status === 429) return MODEL_ERROR_CODES.RATE_LIMIT
   if (status === 400 || status === 422) {
-    if (isContextWindowExceededError(detail)) return CONTEXT_WINDOW_EXCEEDED_CODE
-    // Only inside the request-rejected statuses: the same wording in a 500 body
-    // describes what the endpoint was doing, not why it refused the caller.
-    if (isContentFilteredError(detail)) return MODEL_ERROR_CODES.UNSUPPORTED_CONTENT
-    return MODEL_ERROR_CODES.INVALID_REQUEST
+    return rejectedRequestCode(detail)
   }
   // A model this endpoint does not serve, or a path this gateway does not
   // mount. Both are the caller's mistake, so neither may land in the retryable
@@ -185,10 +181,7 @@ export function parseChatCompletionsErrorBody(raw: string): ParsedChatCompletion
   } catch {
     return { message: undefined, detail: raw.slice(0, MAX_DETAIL_LENGTH) }
   }
-  const error = typeof parsed === 'object' && parsed !== null
-    && 'error' in (parsed as Record<string, unknown>)
-    ? (parsed as Record<string, unknown>).error
-    : parsed
+  const error = errorPayload(parsed)
   const code = stringField(error, 'code')
   const type = stringField(error, 'type')
   const message = stringField(error, 'message')
@@ -263,13 +256,7 @@ export function chatCompletionsStreamError(
   const detail = [code, body.type, body.message]
     .filter((part): part is string => typeof part === 'string' && part.length > 0)
     .join(' ')
-  const classified = isQuotaExceededError(detail)
-    ? QUOTA_EXCEEDED_CODE
-    : isContextWindowExceededError(detail)
-      ? CONTEXT_WINDOW_EXCEEDED_CODE
-      : isContentFilteredError(detail)
-        ? MODEL_ERROR_CODES.UNSUPPORTED_CONTENT
-        : MODEL_ERROR_CODES.MALFORMED_RESPONSE
+  const classified = inlineFailureCode(detail)
   return new ModelError(
     body.message ?? `${displayName} inlined an error into the stream`,
     classified,
@@ -295,13 +282,40 @@ export function chatCompletionsTransportError(
   fallbackMessage: string,
 ): ModelError {
   const name = error instanceof Error ? error.name : ''
-  const code = name === 'TimeoutError'
-    ? MODEL_ERROR_CODES.TIMEOUT
-    : name === 'AbortError'
-      ? MODEL_ERROR_CODES.ABORTED
-      : MODEL_ERROR_CODES.TRANSPORT
+  const code = transportFailureCode(name)
   const message = error instanceof Error && error.message.length > 0
     ? error.message
     : fallbackMessage
   return new ModelError(message, code, { cause: error })
+}
+
+function authenticationStatus(status: number): boolean { return status === 401 || status === 403 }
+
+function rejectedRequestCode(detail: string): string {
+    if (isContextWindowExceededError(detail)) return CONTEXT_WINDOW_EXCEEDED_CODE
+    // Only inside the request-rejected statuses: the same wording in a 500 body
+    // describes what the endpoint was doing, not why it refused the caller.
+    if (isContentFilteredError(detail)) return MODEL_ERROR_CODES.UNSUPPORTED_CONTENT
+    return MODEL_ERROR_CODES.INVALID_REQUEST
+}
+
+function errorPayload(parsed: unknown): unknown {
+  return typeof parsed === 'object' && parsed !== null
+    && 'error' in (parsed as Record<string, unknown>)
+    ? (parsed as Record<string, unknown>).error
+    : parsed
+
+}
+
+function inlineFailureCode(detail: string): string {
+  if (isQuotaExceededError(detail)) return QUOTA_EXCEEDED_CODE
+  if (isContextWindowExceededError(detail)) return CONTEXT_WINDOW_EXCEEDED_CODE
+  if (isContentFilteredError(detail)) return MODEL_ERROR_CODES.UNSUPPORTED_CONTENT
+  return MODEL_ERROR_CODES.MALFORMED_RESPONSE
+}
+
+function transportFailureCode(name: string): string {
+  if (name === 'TimeoutError') return MODEL_ERROR_CODES.TIMEOUT
+  if (name === 'AbortError') return MODEL_ERROR_CODES.ABORTED
+  return MODEL_ERROR_CODES.TRANSPORT
 }

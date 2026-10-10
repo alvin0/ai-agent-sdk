@@ -76,6 +76,36 @@ function errorIdentity(route: unknown, model: unknown): { provider?: string; mod
   }
 }
 
+function validateAdapter(adapter: EmbeddingAdapter): void {
+  if (adapter === null || typeof adapter !== 'object' || typeof adapter.embedBatch !== 'function') {
+    throw invalidError('an embedding registration requires an EmbeddingAdapter')
+  }
+}
+
+function validateProviderInfo(info: ProviderInfo, route: string): void {
+  if (info === null || typeof info !== 'object' || info.id !== route
+    || typeof info.name !== 'string' || info.name.length === 0) {
+    throw invalidError(
+      `embedding adapter metadata for route "${route}" must preserve its id and carry a non-empty name`,
+    )
+  }
+}
+
+function checkEntryConflict(entry: RouteEntry, route: string, models: ReadonlySet<string> | undefined): void {
+  if (entry.route !== route) return
+  if (entry.models === undefined && models === undefined) {
+    throw conflictError(`an embedding adapter for route "${route}" is already registered`)
+  }
+  if (entry.models === undefined || models === undefined) return
+  for (const model of models) {
+    if (entry.models.has(model)) {
+      throw conflictError(
+        `an embedding adapter for route "${route}" and model "${model}" is already registered`,
+      )
+    }
+  }
+}
+
 /**
  * Routes embedding calls to registered `EmbeddingAdapter`s.
  *
@@ -193,9 +223,7 @@ export class EmbeddingRegistry implements EmbeddingProviderRegistrar {
     if (!Array.isArray(routes) || routes.length === 0) {
       throw invalidError('an embedding adapter must register at least one provider route')
     }
-    if (adapter === null || typeof adapter !== 'object' || typeof adapter.embedBatch !== 'function') {
-      throw invalidError('an embedding registration requires an EmbeddingAdapter')
-    }
+    validateAdapter(adapter)
     const unique = new Set<string>()
     const entries: RouteEntry[] = []
     for (const route of routes) {
@@ -207,12 +235,7 @@ export class EmbeddingRegistry implements EmbeddingProviderRegistrar {
       }
       this.checkVacancy(route, models, owner)
       const info = adapter.providerInfo(route)
-      if (info === null || typeof info !== 'object' || info.id !== route
-        || typeof info.name !== 'string' || info.name.length === 0) {
-        throw invalidError(
-          `embedding adapter metadata for route "${route}" must preserve its id and carry a non-empty name`,
-        )
-      }
+      validateProviderInfo(info, route)
       const retryPolicy = adapter.providerRetryPolicy(route)
       unique.add(route)
       entries.push(Object.freeze({
@@ -240,18 +263,7 @@ export class EmbeddingRegistry implements EmbeddingProviderRegistrar {
     for (const state of this.registrations) {
       if (state === owner) continue
       for (const entry of state.entries) {
-        if (entry.route !== route) continue
-        if (entry.models === undefined && models === undefined) {
-          throw conflictError(`an embedding adapter for route "${route}" is already registered`)
-        }
-        if (entry.models === undefined || models === undefined) continue
-        for (const model of models) {
-          if (entry.models.has(model)) {
-            throw conflictError(
-              `an embedding adapter for route "${route}" and model "${model}" is already registered`,
-            )
-          }
-        }
+        checkEntryConflict(entry, route, models)
       }
     }
   }

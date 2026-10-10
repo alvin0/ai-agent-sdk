@@ -526,6 +526,23 @@ describe('dispatchToolCall: timeout and cancellation', () => {
 })
 
 describe('dispatchToolCall: side channels', () => {
+  it.each([false, true])('retains side channels changed while rendering (throws=%s)', async throws => {
+    let context: ToolRunContext | undefined
+    const result = await run(registryWith(tool({
+      execute: (_args, callContext) => { context = callContext; return 'ok' },
+      render: () => {
+        context?.concludeTurn()
+        context?.addContext('render context')
+        if (throws) throw new Error('formatter failed')
+        return [{ type: 'text', text: 'rendered' }]
+      },
+    })))
+    expect(result.isError).toBe(false)
+    if (result.isError) return
+    expect(result.concludesTurn).toBe(true)
+    expect(result.additionalContext).toEqual([{ type: 'text', text: 'render context' }])
+  })
+
   it('records concludeTurn on the result', async () => {
     const result = await run(registryWith(tool({
       execute: (_args, ctx) => {

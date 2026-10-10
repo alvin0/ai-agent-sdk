@@ -1,6 +1,7 @@
 import type { ModelInvocationContext, UsageCounters } from '@alvin0/ai-agent-sdk-core/provider'
 
-export type DecisionJson = null | boolean | number | string | readonly DecisionJson[] | { readonly [key: string]: DecisionJson }
+export type DecisionJson = null | boolean | number | string | readonly DecisionJson[] | {
+  readonly [key: string]: DecisionJson }
 export type DecisionDescription = string | readonly DecisionJson[] | { readonly [key: string]: DecisionJson }
 export interface ChoiceQuestion<Options extends string = string> {
   readonly type: 'choice'
@@ -76,15 +77,19 @@ export interface DecisionModelInfo {
   readonly capabilities?: DecisionCapabilities
 }
 export interface DecisionModelHandle {
-  evaluate<Q extends DecisionQuestions>(input: DecisionInput<Q>, context?: ModelInvocationContext): Promise<DecisionResult<Q>>
+  evaluate<Q extends DecisionQuestions>(input: DecisionInput<Q>,
+    context?: ModelInvocationContext): Promise<DecisionResult<Q>>
 }
 export interface DecisionModelTarget { readonly provider: string; readonly model: string }
-export function choiceQuestion<const O extends string>(instructions: DecisionDescription, options: Readonly<Record<O, DecisionDescription | null>>): ChoiceQuestion<O> {
+export function choiceQuestion<const O extends string>(instructions: DecisionDescription,
+  options: Readonly<Record<O, DecisionDescription | null>>): ChoiceQuestion<O> {
   return { type: 'choice', instructions, options }
 }
-export function scoreQuestion(instructions: DecisionDescription, levels: readonly DecisionDescription[]): ScoreQuestion {
+export function scoreQuestion(instructions: DecisionDescription,
+  levels: readonly DecisionDescription[]): ScoreQuestion {
   return { type: 'score', instructions, levels }
 }
-export function booleanQuestion(instructions: DecisionDescription, criteria?: BooleanQuestion['criteria']): BooleanQuestion {
+export function booleanQuestion(instructions: DecisionDescription,
+  criteria?: BooleanQuestion['criteria']): BooleanQuestion {
   return { type: 'boolean', instructions, ...(criteria === undefined ? {} : { criteria }) }
 }

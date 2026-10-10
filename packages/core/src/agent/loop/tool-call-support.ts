@@ -93,7 +93,8 @@ export function teardownFailure(
   cause: unknown,
 ): ToolError {
   return ToolError.fatal(
-    `tool "${toolName}" ${stage} ignored cancellation for more than ${timeoutMs}ms; the in-process operation may still be running`,
+    `tool "${toolName}" ${stage} ignored cancellation for more than ${timeoutMs}ms; `
+      + 'the in-process operation may still be running',
     TOOL_ERROR_CODES.TEARDOWN_TIMEOUT,
     { cause },
   )

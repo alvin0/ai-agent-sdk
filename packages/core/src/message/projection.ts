@@ -59,9 +59,7 @@ export function contentHasDocument(content: readonly ContentBlock[]): boolean {
  * @returns model-visible replacement text.
  */
 export function textOnlyImageText(block: ImageBlock): string {
-  const detail = block.source.kind === 'url'
-    ? block.source.url
-    : block.source.kind === 'file' ? block.source.fileId : block.source.mediaType
+  const detail = sourceDetail(block.source)
   return `[image omitted: the selected model does not accept image input (${detail})]`
 }
 
@@ -75,10 +73,14 @@ export function textOnlyImageText(block: ImageBlock): string {
  * @returns model-visible replacement text.
  */
 export function textOnlyDocumentText(block: DocumentBlock): string {
-  const detail = block.filename ?? (block.source.kind === 'url'
-    ? block.source.url
-    : block.source.kind === 'file' ? block.source.fileId : block.source.mediaType)
+  const detail = block.filename ?? sourceDetail(block.source)
   return `[document omitted: the selected model does not accept document input (${detail})]`
+}
+
+function sourceDetail(source: ImageBlock['source'] | DocumentBlock['source']): string {
+  if (source.kind === 'url') return source.url
+  if (source.kind === 'file') return source.fileId
+  return source.mediaType
 }
 
 /** Replace blocks of one type with their textual stand-in, recursing into tool results. */

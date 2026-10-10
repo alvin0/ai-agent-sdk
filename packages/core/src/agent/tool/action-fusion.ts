@@ -24,12 +24,14 @@ export function defineActionFusion<Args>(options: {
   readonly parse?: ToolDefinition<Args>['parse']
   readonly steps: readonly ActionFusionStep<Args>[]
 }): { readonly tool: ToolDefinition<Args>; readonly grant: ExperimentalProgramGrant } {
-  if (!Array.isArray(options.steps) || options.steps.length < 1 || options.steps.length > 64) throw new RangeError('fusion requires 1..64 steps')
+  if (!Array.isArray(options.steps) || options.steps.length < 1
+    || options.steps.length > 64) throw new RangeError('fusion requires 1..64 steps')
   const steps = Array.from(options.steps, step => {
     if (typeof step !== 'object' || step === null) throw new TypeError('fusion steps must be a dense list of objects')
     return Object.freeze({ ...step })
   })
-  if (steps.some(step => typeof step.tool !== 'string' || !step.tool.trim() || step.tool === options.name || typeof step.arguments !== 'function'
+  if (steps.some(step => typeof step.tool !== 'string' || !step.tool.trim() || step.tool === options.name
+    || typeof step.arguments !== 'function'
     || step.accept !== undefined && typeof step.accept !== 'function')) {
     throw new TypeError('fusion steps require a distinct child tool and an arguments callback')
   }
@@ -38,7 +40,8 @@ export function defineActionFusion<Args>(options: {
     ...options.parse === undefined ? {} : { parse: options.parse },
     async execute(args, context) {
       const port = nestedToolPort(context)
-      if (port === undefined) throw ToolError.respondToModel('Mount the fusion grant in experimentalPrograms.', 'FUSION_GRANT_REQUIRED')
+      if (port === undefined) throw ToolError.respondToModel('Mount the fusion grant in experimentalPrograms.',
+        'FUSION_GRANT_REQUIRED')
       const values: JsonValue[] = []
       const results: JsonValue[] = []
       for (const step of steps) {
@@ -46,7 +49,8 @@ export function defineActionFusion<Args>(options: {
         let arguments_: JsonValue
         try { arguments_ = synchronous(step.arguments(args, Object.freeze([...values]))) }
         catch { return { ok: false, completedSteps: values.length, results, failedTool: step.tool,
-          error: { code: 'FUSION_ARGUMENTS_FAILED', message: 'The host could not prepare this step; completed steps were not rolled back.' } } }
+          error: { code: 'FUSION_ARGUMENTS_FAILED',
+            message: 'The host could not prepare this step; completed steps were not rolled back.' } } }
         const result = await port.call(step.tool, arguments_)
         if (!result.ok) return { ok: false, completedSteps: values.length, results,
           failedTool: step.tool, error: { code: result.code, message: result.message } }
@@ -56,7 +60,8 @@ export function defineActionFusion<Args>(options: {
         try { accepted = step.accept === undefined || synchronous(step.accept(result.value)) === true }
         catch { accepted = false }
         if (!accepted) {
-          return { ok: false, completedSteps: values.length, results, failedTool: step.tool, error: { code: 'FUSION_STEP_REJECTED', message: 'The step did not meet the host success condition.' } }
+          return { ok: false, completedSteps: values.length, results, failedTool: step.tool,
+            error: { code: 'FUSION_STEP_REJECTED', message: 'The step did not meet the host success condition.' } }
         }
       }
       return { ok: true, completedSteps: values.length, results }

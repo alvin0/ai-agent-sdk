@@ -20,14 +20,7 @@ class FixtureAdapter extends ModelAdapter {
     return Promise.resolve([{ provider, id: 'fixture-model', name: 'Fixture model' }])
   }
 
-  async *stream(options, context) {
-    context?.declareProviderAttemptAccounting?.()
-    const attempt = await context?.startProviderAttempt?.({
-      provider: options.provider, model: options.model,
-      method: 'POST', origin: 'https://conformance.invalid',
-    }, options.signal)
-    this.state.dispatchCalls++
-    this.state.enter()
+  async beforeResponse(options, attempt) {
     if (this.scenario === 'stream-bound-failure') {
       attempt?.end({ status: 'error', dispatchState: 'sent',
         error: { type: 'ModelError', message: 'provider stream exceeded configured bound',
@@ -54,6 +47,17 @@ class FixtureAdapter extends ModelAdapter {
         error: { type: 'ModelError', message: 'conformance transient failure', code: MODEL_ERROR_CODES.SERVER } })
       throw new ModelError('conformance transient failure', MODEL_ERROR_CODES.SERVER)
     }
+  }
+
+  async *stream(options, context) {
+    context?.declareProviderAttemptAccounting?.()
+    const attempt = await context?.startProviderAttempt?.({
+      provider: options.provider, model: options.model,
+      method: 'POST', origin: 'https://conformance.invalid',
+    }, options.signal)
+    this.state.dispatchCalls++
+    this.state.enter()
+    await this.beforeResponse(options, attempt)
     const reported = this.scenario === 'malformed-usage'
       ? { inputTokens: 3, outputTokens: 2, totalTokens: 1 }
       : { inputTokens: 3, outputTokens: 2, totalTokens: 5 }

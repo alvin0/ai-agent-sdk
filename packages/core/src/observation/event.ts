@@ -95,20 +95,38 @@ function isError(value: unknown): value is Error {
   }
 }
 
-/** Converts thrown values without retaining bodies, credentials, or stacks by default. */
-export function safeErrorRecord(value: unknown, includeStack = false): SafeErrorRecord {
-  if (!isError(value)) return Object.freeze({ type: typeof value, message: boundedUnknownMessage(value) })
-  const source = value as object
+function causeType(cause: unknown, causeIsError: boolean): string {
+  const causeName = causeIsError ? safeRead(cause as object, 'name') : undefined
+  if (typeof causeName === 'string' && causeName.length > 0) return causeName
+  return causeIsError ? 'Error' : typeof cause
+}
+
+function readCauseTypes(source: object): string[] {
   const causeTypes: string[] = []
   let cause = safeRead(source, 'cause')
   const seen = new Set<unknown>()
   while (cause !== undefined && cause !== null && !seen.has(cause)) {
     seen.add(cause)
     const causeIsError = isError(cause)
-    const causeName = causeIsError ? safeRead(cause, 'name') : undefined
-    causeTypes.push(typeof causeName === 'string' && causeName.length > 0 ? causeName : causeIsError ? 'Error' : typeof cause)
+    causeTypes.push(causeType(cause, causeIsError))
     cause = causeIsError ? safeRead(cause, 'cause') : undefined
   }
+  return causeTypes
+}
+
+function failureFields(code: unknown, retryable: unknown, status: unknown) {
+  return {
+    ...typeof code === 'string' && code.length > 0 ? { code } : {},
+    ...typeof retryable === 'boolean' ? { retryable } : {},
+    ...typeof status === 'number' && Number.isInteger(status) ? { status } : {},
+  }
+}
+
+/** Converts thrown values without retaining bodies, credentials, or stacks by default. */
+export function safeErrorRecord(value: unknown, includeStack = false): SafeErrorRecord {
+  if (!isError(value)) return Object.freeze({ type: typeof value, message: boundedUnknownMessage(value) })
+  const source = value as object
+  const causeTypes = readCauseTypes(source)
   const name = safeRead(source, 'name')
   const message = safeRead(source, 'message')
   const code = safeRead(source, 'code')
@@ -118,9 +136,7 @@ export function safeErrorRecord(value: unknown, includeStack = false): SafeError
   return Object.freeze({
     type: typeof name === 'string' && name.length > 0 ? name : 'Error',
     message: boundedUnknownMessage(message),
-    ...typeof code === 'string' && code.length > 0 ? { code } : {},
-    ...typeof retryable === 'boolean' ? { retryable } : {},
-    ...typeof status === 'number' && Number.isInteger(status) ? { status } : {},
+    ...failureFields(code, retryable, status),
     ...causeTypes.length > 0 ? { causeTypes: Object.freeze(causeTypes) } : {},
     ...typeof stack === 'string' ? { stack } : {},
   })

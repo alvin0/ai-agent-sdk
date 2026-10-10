@@ -19,36 +19,7 @@ const protocol = {
 export async function runPackedProviderFixture() {
   const originalFetch = globalThis.fetch
   const events = []
-  globalThis.fetch = async () => {
-    const encoder = new TextEncoder()
-    const frames = [
-      { type: 'text', text: 'packed provider completed' },
-      { type: 'usage', usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 } },
-      { type: 'done' },
-    ]
-    const body = new ReadableStream({
-        start(controller) {
-          for (const frame of frames) controller.enqueue(encoder.encode(`data: ${JSON.stringify(frame)}\n\n`))
-          controller.close()
-        },
-      })
-    return {
-      type: 'basic',
-      redirected: false,
-      url: '',
-      ok: true,
-      status: 200,
-      headers: {
-        get(name) {
-          const normalized = name.toLowerCase()
-          if (normalized === 'content-type') return 'text/event-stream'
-          if (normalized === 'request-id') return 'packed-request'
-          return null
-        },
-      },
-      body,
-    }
-  }
+  globalThis.fetch = fixtureFetch
   try {
     let staticCredentialCalls = 0
     let staticDiscoveryCalls = 0
@@ -103,3 +74,34 @@ export async function runPackedProviderFixture() {
     globalThis.fetch = originalFetch
   }
 }
+
+async function fixtureFetch() {
+    const encoder = new TextEncoder()
+    const frames = [
+      { type: 'text', text: 'packed provider completed' },
+      { type: 'usage', usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 } },
+      { type: 'done' },
+    ]
+    const body = new ReadableStream({
+        start(controller) {
+          for (const frame of frames) controller.enqueue(encoder.encode(`data: ${JSON.stringify(frame)}\n\n`))
+          controller.close()
+        },
+      })
+    return {
+      type: 'basic',
+      redirected: false,
+      url: '',
+      ok: true,
+      status: 200,
+      headers: {
+        get(name) {
+          const normalized = name.toLowerCase()
+          if (normalized === 'content-type') return 'text/event-stream'
+          if (normalized === 'request-id') return 'packed-request'
+          return null
+        },
+      },
+      body,
+    }
+  }

@@ -33,6 +33,7 @@ export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {
     // Completions from one route, choosing per model (`models[].api`).
     workspaceDependencies: [
       scoped('core'),
+      scoped('decision-adapter'),
       scoped('provider-http'),
       scoped('protocol-responses'),
       scoped('protocol-openai-chat-completions'),

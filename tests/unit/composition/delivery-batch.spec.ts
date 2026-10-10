@@ -55,7 +55,7 @@ describe('immutable mixed event/run delivery batches', () => {
     const platform = createRuntimePlatform(), resource = createRuntimeResource({ serviceName: 'sdk-test' }, platform)
     const records = [createRunTerminalRecord(await ledgerReport('a')), createRunTerminalRecord(await ledgerReport('b', 'missing'))]
     const input = { ...event('a'), data: { prompt: 'PRIVATE_PROMPT/BODY~SENTINEL%', authorization: 'Bearer PRIVATE_TOKEN' } }
-    const batch = createDeliveryBatch(resource, [input, event('b')], records, platform)
+    const batch = createDeliveryBatch(resource, { events: [input, event('b')], records: records }, platform)
     expect(batch).not.toHaveProperty('usage')
     expect(batch.runRecords[0]).toBe(records[0])
     expect(batch.runRecords[1]).toBe(records[1])
@@ -65,7 +65,7 @@ describe('immutable mixed event/run delivery batches', () => {
     expect(JSON.stringify(batch)).not.toContain('PRIVATE_PROMPT/BODY~SENTINEL%')
     expect(Object.isFrozen(batch.events[0]!.data)).toBe(true)
     expect(Object.isFrozen(batch.runRecords)).toBe(true)
-    const later = createDeliveryBatch(resource, [event('a', 2)], [records[0]!], platform)
+    const later = createDeliveryBatch(resource, { events: [event('a', 2)], records: [records[0]!] }, platform)
     expect(later.runRecords[0]).toBe(batch.runRecords[0])
     expect(later.id).not.toBe(batch.id)
   })
@@ -73,14 +73,17 @@ describe('immutable mixed event/run delivery batches', () => {
   it('enforces item/byte bounds, duplicate identities and prepared terminal/resource boundaries', async () => {
     const platform = createRuntimePlatform(), resource = createRuntimeResource(undefined, platform)
     const item = event(), record = createRunTerminalRecord(await ledgerReport())
-    const batch = createDeliveryBatch(resource, [item], [record], platform)
-    expect(() => createDeliveryBatch(resource, [item], [record], platform, { maxBytes: bytes(batch) })).not.toThrow()
-    expect(() => createDeliveryBatch(resource, [item], [record], platform, { maxBytes: bytes(batch) - 1 })).toThrow()
-    expect(() => createDeliveryBatch(resource, [item], [record], platform, { maxItems: 1 })).toThrow()
-    expect(() => createDeliveryBatch(resource, [item, item], [], platform)).toThrow()
-    expect(() => createDeliveryBatch(resource, [], [record, record], platform)).toThrow()
-    expect(() => createDeliveryBatch(resource, [], [], platform)).toThrow()
-    expect(() => createDeliveryBatch(resource, [], [{ ...record }], platform)).toThrow()
-    expect(() => createDeliveryBatch({ ...resource }, [item], [], platform)).toThrow()
+    const batch = createDeliveryBatch(resource, { events: [item], records: [record] }, platform)
+    expect(() => createDeliveryBatch(resource, { events: [item], records: [record] }, platform,
+        { maxBytes: bytes(batch) })).not.toThrow()
+    expect(() => createDeliveryBatch(resource, { events: [item], records: [record] }, platform,
+        { maxBytes: bytes(batch) - 1 })).toThrow()
+    expect(() => createDeliveryBatch(resource, { events: [item], records: [record] }, platform,
+        { maxItems: 1 })).toThrow()
+    expect(() => createDeliveryBatch(resource, { events: [item, item], records: [] }, platform)).toThrow()
+    expect(() => createDeliveryBatch(resource, { events: [], records: [record, record] }, platform)).toThrow()
+    expect(() => createDeliveryBatch(resource, { events: [], records: [] }, platform)).toThrow()
+    expect(() => createDeliveryBatch(resource, { events: [], records: [{ ...record }] }, platform)).toThrow()
+    expect(() => createDeliveryBatch({ ...resource }, { events: [item], records: [] }, platform)).toThrow()
   })
 })

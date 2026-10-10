@@ -33,6 +33,33 @@ const MAX_PROGRAM_GRANTS = 16
 const MAX_GRANTED_TOOLS = 64
 const MAX_PROGRAM_CALLS = 1_000
 
+function grantedToolNames(allow: unknown, tool: string): unknown[] {
+  // Copy once, then validate the copy: the host's array is read exactly one time.
+  const names: unknown[] = Array.isArray(allow)
+    && allow.length <= MAX_GRANTED_TOOLS ? Array.from(allow as unknown[]) : []
+  if (!Array.isArray(allow) || names.length !== allow.length
+    || !names.every(name => typeof name === 'string' && name.length > 0)) {
+    throw new TypeError(`program "${tool}" allow must list at most ${MAX_GRANTED_TOOLS} tool names`)
+  }
+  return names
+}
+
+function validateMaxCalls(maxCalls: unknown, tool: string): asserts maxCalls is number {
+  if (typeof maxCalls !== 'number' || !Number.isSafeInteger(maxCalls) || maxCalls < 1
+    || maxCalls > MAX_PROGRAM_CALLS) {
+    throw new RangeError(`program "${tool}" maxCalls must be an integer from 1 to ${MAX_PROGRAM_CALLS}`)
+  }
+}
+
+function rejectNestedPrograms(grants: ReadonlyMap<string, ProgramGrant>): void {
+  // One level only: a program may not call a program, itself included. Refused
+  // when the session is created rather than on the first turn.
+  for (const [tool, grant] of grants) {
+    const nested = grant.allow.find(name => grants.has(name))
+    if (nested !== undefined) throw new RangeError(`program "${tool}" may not call program "${nested}"`)
+  }
+}
+
 /**
  * Validate and detach host grants.
  * @param value - What the host passed.
@@ -48,25 +75,14 @@ export function captureProgramGrants(value: unknown): ReadonlyMap<string, Progra
     const tool: unknown = Reflect.get(entry, 'tool')
     const allow: unknown = Reflect.get(entry, 'allow')
     const maxCalls: unknown = Reflect.get(entry, 'maxCalls')
-    if (typeof tool !== 'string' || tool.length === 0) throw new TypeError('program grant tool must be a non-empty string')
+    if (typeof tool !== 'string'
+      || tool.length === 0) throw new TypeError('program grant tool must be a non-empty string')
     if (grants.has(tool)) throw new TypeError(`program "${tool}" is granted twice`)
-    // Copy once, then validate the copy: the host's array is read exactly one time.
-    const names: unknown[] = Array.isArray(allow) && allow.length <= MAX_GRANTED_TOOLS ? Array.from(allow as unknown[]) : []
-    if (!Array.isArray(allow) || names.length !== allow.length
-      || !names.every(name => typeof name === 'string' && name.length > 0)) {
-      throw new TypeError(`program "${tool}" allow must list at most ${MAX_GRANTED_TOOLS} tool names`)
-    }
-    if (typeof maxCalls !== 'number' || !Number.isSafeInteger(maxCalls) || maxCalls < 1 || maxCalls > MAX_PROGRAM_CALLS) {
-      throw new RangeError(`program "${tool}" maxCalls must be an integer from 1 to ${MAX_PROGRAM_CALLS}`)
-    }
+    const names = grantedToolNames(allow, tool)
+    validateMaxCalls(maxCalls, tool)
     grants.set(tool, Object.freeze({ allow: Object.freeze([...new Set(names as string[])]), maxCalls }))
   }
-  // One level only: a program may not call a program, itself included. Refused
-  // when the session is created rather than on the first turn.
-  for (const [tool, grant] of grants) {
-    const nested = grant.allow.find(name => grants.has(name))
-    if (nested !== undefined) throw new RangeError(`program "${tool}" may not call program "${nested}"`)
-  }
+  rejectNestedPrograms(grants)
   return grants
 }
 
@@ -110,7 +126,12 @@ export type NestedLoadResult =
     readonly ok: true
     readonly value: JsonValue
     readonly schema: 'validated' | 'unchecked'
-    readonly provenance: { readonly toolName: string; readonly callId: string; readonly parentCallId: string; readonly storedAt: number }
+    readonly provenance: {
+      readonly toolName: string
+      readonly callId: string
+      readonly parentCallId: string
+      readonly storedAt: number
+    }
   }
   | { readonly ok: false; readonly code: string; readonly message: string }
 
@@ -154,11 +175,13 @@ export const NESTED_TOOL_ERROR_CODES = Object.freeze({
   CONFIGURATION: 'PROGRAM_CONFIGURATION',
 })
 
-const portsByCall = new WeakMap<object, { readonly port: NestedToolPort; readonly bindSignal?: (signal: AbortSignal) => void }>()
+const portsByCall = new WeakMap<object,
+  { readonly port: NestedToolPort; readonly bindSignal?: (signal: AbortSignal) => void }>()
 const portsByContext = new WeakMap<object, NestedToolPort>()
 
 /** Scheduler side: the authorized outer call that owns this port. */
-export function attachNestedToolPort(call: object, port: NestedToolPort, bindSignal?: (signal: AbortSignal) => void): void {
+export function attachNestedToolPort(call: object, port: NestedToolPort,
+  bindSignal?: (signal: AbortSignal) => void): void {
   portsByCall.set(call, { port, ...bindSignal === undefined ? {} : { bindSignal } })
 }
 

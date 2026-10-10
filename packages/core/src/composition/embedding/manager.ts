@@ -39,7 +39,7 @@
  */
 
 import type { EmbeddingCacheOptions, EmbeddingModelHandle } from '../../embedding/handle.ts'
-import { EMBEDDING_ERROR_CODES, EmbeddingError } from '../../embedding/errors.ts'
+import { captureHandleOptions, embeddingConfigurationError } from './manager-options.ts'
 import type { ResolvedEmbeddingBatchLimits } from '../../embedding/limits.ts'
 import type { ObservationResource } from '../../observation/event.ts'
 import type { ObservationPort } from '../../observation/port.ts'
@@ -109,98 +109,6 @@ export interface RuntimeEmbeddingOptions {
    * this map without limit for the lifetime of the runtime. `0` disables caching.
    */
   readonly maxCachedHandles?: number
-}
-
-function configurationError(message: string): EmbeddingError {
-  return new EmbeddingError(message, EMBEDDING_ERROR_CODES.CONFIGURATION_INVALID)
-}
-
-/** A non-empty string, or a configuration failure naming the field. */
-function requiredIdentifier(value: unknown, field: string): string {
-  if (typeof value !== 'string' || value.length === 0) {
-    throw configurationError(`\`embeddingModel()\` requires a non-empty \`${field}\``)
-  }
-  return value
-}
-
-/**
- * Copies the caller's options into a frozen snapshot of its own.
- *
- * Two reasons this is a copy and not a pass-through. A remembered handle would
- * otherwise share a mutable object with the caller, so a later mutation would
- * change the configuration of a handle that was already validated. And `model()`
- * is the earliest point at which route identity can be checked at all, which is
- * where Requirement 3.1's "fails at the call that made it" comes from.
- *
- * Everything beyond route identity is left to the owners that already validate
- * it: `resolveEmbeddingConcurrency()`, `resolveEmbeddingCache()` and the fallback
- * group check, all reached through `createEmbeddingModelHandle()`.
- */
-function captureHandleOptions(value: unknown): EmbeddingHandleOptions {
-  if (value === null || typeof value !== 'object') {
-    throw configurationError('`embeddingModel()` requires an options object')
-  }
-  const source = value as Partial<EmbeddingHandleOptions>
-  const fallback = source.fallback
-  return Object.freeze<EmbeddingHandleOptions>({
-    provider: requiredIdentifier(source.provider, 'provider'),
-    model: requiredIdentifier(source.model, 'model'),
-    ...(source.dimensions === undefined ? {} : { dimensions: source.dimensions }),
-    ...(source.truncation === undefined ? {} : { truncation: source.truncation }),
-    ...(source.expectedSpace === undefined ? {} : { expectedSpace: source.expectedSpace }),
-    ...(source.concurrency === undefined ? {} : { concurrency: source.concurrency }),
-    ...(source.batchLimits === undefined
-      ? {}
-      : { batchLimits: capturedBatchLimits(source.batchLimits) }),
-    ...(source.cache === undefined ? {} : { cache: capturedCache(source.cache) }),
-    ...(source.compatibilityIdentity === undefined
-      ? {}
-      : { compatibilityIdentity: requiredIdentifier(source.compatibilityIdentity, 'compatibilityIdentity') }),
-    ...(fallback === undefined ? {} : { fallback: capturedFallback(fallback) }),
-  })
-}
-
-/** Shallow frozen copy; value validation belongs to `resolveBatchLimits()`. */
-function capturedBatchLimits(
-  value: Partial<ResolvedEmbeddingBatchLimits>,
-): Partial<ResolvedEmbeddingBatchLimits> {
-  if (value === null || typeof value !== 'object') {
-    throw configurationError('`batchLimits` must be an object when it is provided')
-  }
-  return Object.freeze({ ...value })
-}
-
-/**
- * Shallow frozen copy. The `store` reference is kept as given — it is the
- * caller's live cache, not data to clone — while `scope` is validated by
- * `resolveEmbeddingCache()`.
- */
-function capturedCache(value: EmbeddingCacheOptions): EmbeddingCacheOptions {
-  if (value === null || typeof value !== 'object') {
-    throw configurationError('`cache` must be an object when it is provided')
-  }
-  return Object.freeze({ ...value })
-}
-
-/**
- * Frozen copy of a declared fallback group.
- *
- * Only the shape needed to make the copy is checked here; whether the group is a
- * legitimate one — every member declaring the SAME `compatibilityIdentity` — is
- * the handle's decision, so that exactly one place answers Requirement 6.7.
- */
-function capturedFallback(
-  value: readonly EmbeddingFallbackDeclaration[],
-): readonly EmbeddingFallbackDeclaration[] {
-  if (!Array.isArray(value)) {
-    throw configurationError('`fallback` must be an array when it is provided')
-  }
-  return Object.freeze(value.map(entry => {
-    if (entry === null || typeof entry !== 'object') {
-      throw configurationError('each `fallback` entry must be an object')
-    }
-    return Object.freeze({ ...entry })
-  }))
 }
 
 /**
@@ -329,23 +237,8 @@ export class RuntimeEmbedding {
     if (limits === undefined) return undefined
     const fallback = this.fallbackComponent(options.fallback)
     if (fallback === undefined) return undefined
-    if (!isOptionalPrimitive(options.dimensions, 'number')) return undefined
-    if (!isOptionalPrimitive(options.truncation, 'string')) return undefined
-    if (!isOptionalPrimitive(options.expectedSpace, 'string')) return undefined
-    if (!isOptionalPrimitive(options.concurrency, 'number')) return undefined
-
-    return JSON.stringify([
-      options.provider,
-      options.model,
-      options.dimensions ?? null,
-      options.truncation ?? null,
-      options.expectedSpace ?? null,
-      options.concurrency ?? null,
-      limits,
-      cache,
-      options.compatibilityIdentity ?? null,
-      fallback,
-    ])
+    if (!validHandlePrimitives(options)) return undefined
+    return serializeHandleKey(options, limits, cache, fallback)
   }
 
   /**
@@ -359,9 +252,7 @@ export class RuntimeEmbedding {
     limits: Partial<ResolvedEmbeddingBatchLimits> | undefined,
   ): readonly unknown[] | null | undefined {
     if (limits === undefined) return null
-    if (!isOptionalPrimitive(limits.maxItems, 'number')) return undefined
-    if (!isOptionalPrimitive(limits.maxTokens, 'number')) return undefined
-    if (!isOptionalPrimitive(limits.maxBytes, 'number')) return undefined
+    if (!validLimitPrimitives(limits)) return undefined
     const estimate = limits.estimateTokens
     if (estimate !== undefined && typeof estimate !== 'function') return undefined
     return [
@@ -419,11 +310,43 @@ export class RuntimeEmbedding {
   }
 }
 
+function validHandlePrimitives(options: EmbeddingHandleOptions): boolean {
+  if (!isOptionalPrimitive(options.dimensions, 'number')) return false
+  if (!isOptionalPrimitive(options.truncation, 'string')) return false
+  if (!isOptionalPrimitive(options.expectedSpace, 'string')) return false
+  if (!isOptionalPrimitive(options.concurrency, 'number')) return false
+
+  return true
+}
+
+function serializeHandleKey(options: EmbeddingHandleOptions, limits: readonly unknown[] | null,
+  cache: readonly unknown[] | null, fallback: readonly unknown[] | null): string {
+  return JSON.stringify([
+    options.provider,
+    options.model,
+    options.dimensions ?? null,
+    options.truncation ?? null,
+    options.expectedSpace ?? null,
+    options.concurrency ?? null,
+    limits,
+    cache,
+    options.compatibilityIdentity ?? null,
+    fallback,
+  ])
+}
+
+function validLimitPrimitives(limits: Partial<ResolvedEmbeddingBatchLimits>): boolean {
+  if (!isOptionalPrimitive(limits.maxItems, 'number')) return false
+  if (!isOptionalPrimitive(limits.maxTokens, 'number')) return false
+  if (!isOptionalPrimitive(limits.maxBytes, 'number')) return false
+  return true
+}
+
 /** `undefined` takes the default; anything unusable is a configuration error. */
 function resolveMaxCachedHandles(configured: number | undefined): number {
   if (configured === undefined) return DEFAULT_MAX_CACHED_HANDLES
   if (!Number.isInteger(configured) || configured < 0) {
-    throw configurationError('`maxCachedHandles` must be a non-negative integer')
+    throw embeddingConfigurationError('`maxCachedHandles` must be a non-negative integer')
   }
   return configured
 }

@@ -45,15 +45,9 @@ async function observeProviderOperation<T>(
   input: ProviderOperationInput,
   task: () => Promise<T>,
 ): Promise<T> {
-  const port = context?.observation
-  const parent = context?.correlation
-  const resource = context?.resource
-  const scope = context?.scope
-  if (port === undefined || parent?.runId === undefined || resource === undefined || scope === undefined
-    || !isTraceId(parent.traceId) || !isSpanId(parent.spanId)
-    || (parent.parentSpanId !== null && !isSpanId(parent.parentSpanId))) {
-    return await task()
-  }
+  const observed = operationContext(context)
+  if (observed === undefined) return await task()
+  const { port, parent, resource, scope } = observed
   const correlationParent = parent as CorrelationContext
 
   const startedAt = new Date().toISOString()
@@ -97,21 +91,7 @@ async function observeProviderOperation<T>(
   } catch (error) {
     const endedAt = new Date().toISOString()
     try { span?.end('error', endedAt, scope.monotonicMs()) } catch { /* contained */ }
-    const safe = safeErrorRecord(error)
-    const type = SAFE_OPERATION_ERROR_TYPES.has(safe.type) ? safe.type : 'Error'
-    capture('end', {
-      ...input.data,
-      status: 'error',
-      error: {
-        type,
-        message: input.failureMessage,
-        ...safe.code !== undefined && SAFE_OPERATION_ERROR_CODES.has(safe.code)
-          ? { code: safe.code }
-          : {},
-        ...safe.status === undefined ? {} : { status: safe.status },
-        ...safe.retryable === undefined ? {} : { retryable: safe.retryable },
-      },
-    })
+    capture('end', { ...input.data, status: 'error', error: operationError(error, input.failureMessage) })
     throw error
   }
 }
@@ -142,4 +122,38 @@ export function observeModelCatalogOperation<T>(
     data: { integration: 'model-catalog', provider, operation: 'discover', origin },
     failureMessage: 'model catalog operation failed',
   }, task)
+}
+
+function operationContext(context: ModelInvocationContext | undefined) {
+  if (context === undefined || context === null) return undefined
+  const port = context.observation
+  const parent = context.correlation
+  const resource = context.resource
+  const scope = context.scope
+  if (port === undefined || parent?.runId === undefined || resource === undefined || scope === undefined
+    || !validOperationParent(parent)) {
+    return undefined
+  }
+  return { port, parent: parent as CorrelationContext & {
+    readonly runId: NonNullable<CorrelationContext['runId']>
+  }, resource, scope }
+}
+
+function operationError(error: unknown, failureMessage: string) {
+    const safe = safeErrorRecord(error)
+    const type = SAFE_OPERATION_ERROR_TYPES.has(safe.type) ? safe.type : 'Error'
+  return {
+        type,
+        message: failureMessage,
+        ...safe.code !== undefined && SAFE_OPERATION_ERROR_CODES.has(safe.code)
+          ? { code: safe.code }
+          : {},
+        ...safe.status === undefined ? {} : { status: safe.status },
+        ...safe.retryable === undefined ? {} : { retryable: safe.retryable },
+      }
+}
+
+function validOperationParent(parent: NonNullable<ModelInvocationContext['correlation']>): boolean {
+  return isTraceId(parent.traceId) && isSpanId(parent.spanId)
+    && (parent.parentSpanId === null || isSpanId(parent.parentSpanId))
 }

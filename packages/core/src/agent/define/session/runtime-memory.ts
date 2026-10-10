@@ -15,9 +15,9 @@ export async function loadRuntimeMemory(
   persistence: RuntimeMemoryPersistence,
   conversationId: string,
   limits: AgentMemoryConfig,
-  signal: AbortSignal,
-  ledger: RunLedger,
+  context: { signal: AbortSignal; ledger: RunLedger },
 ): Promise<PreparedRuntimeMemory> {
+  const { signal, ledger } = context
   const logger = ledger.modelInvocation.logger
   if (logger === undefined) throw new Error('runtime memory logger is unavailable')
   const operation = ledger.startOperation('memory', { data: { action: 'load' } })
@@ -38,17 +38,17 @@ export async function loadRuntimeMemory(
 export async function commitRuntimeMemory(
   persistence: RuntimeMemoryPersistence,
   conversationId: string,
-  snapshot: AgentMemorySnapshot,
-  state: Exclude<MemoryLoadState, { readonly status: 'disabled' }>,
-  signal: AbortSignal,
-  ledger: RunLedger,
+  input: { snapshot: AgentMemorySnapshot; state: Exclude<MemoryLoadState, { readonly status: 'disabled' }> },
+  context: { signal: AbortSignal; ledger: RunLedger },
 ): Promise<void> {
+  const { snapshot, state } = input
+  const { signal, ledger } = context
   const logger = ledger.modelInvocation.logger
   if (logger === undefined) throw new Error('runtime memory logger is unavailable')
   const operation = ledger.startOperation('memory', { data: { action: 'commit' } })
   try {
     const committed = await persistence.commit(
-      conversationId, snapshot, state.revision, signal, logger,
+      conversationId, { snapshot, expectedRevision: state.revision }, signal, logger,
     )
     ledger.endOperation(operation, committed.status === 'disabled' ? 'error' : 'success',
       committed.status === 'disabled' ? { error: committed.error } : {})

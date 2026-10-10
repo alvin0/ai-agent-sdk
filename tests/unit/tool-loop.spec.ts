@@ -524,6 +524,30 @@ describe('runTurn', () => {
     })
   })
 
+  it('validates final JSON before rejecting a disabled host tool call', async () => {
+    const state = await setup([[
+      { type: 'block-end', index: 0, block: {
+        type: 'tool-call', id: ToolCallId('disabled-final-call'), name: 'echo', arguments: '{}',
+      } },
+      { type: 'block-end', index: 1, block: {
+        type: 'text', text: '{"answer":"done"}', phase: 'final-answer',
+      } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ]])
+    const validated: unknown[] = []
+    let terminal: Extract<AgentEvent, { type: 'turn-end' }> | undefined
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      outputFormat: { type: 'json_schema', name: 'answer', schema: { type: 'object' } },
+      validateOutput(value) { validated.push(value) },
+    })) if (event.type === 'turn-end') terminal = event
+    expect(validated).toEqual([{ answer: 'done' }])
+    expect(terminal?.outcome.reason).toMatchObject({
+      kind: 'error', failure: { code: 'INVALID_TOOL_CALL' },
+    })
+    expect(state.history.entries().some(entry => entry.event.kind === 'tool-result')).toBe(false)
+  })
+
   it('synthesizes declined results and reserves one no-tools forced-final request', async () => {
     const state = await setup([
       toolRound([

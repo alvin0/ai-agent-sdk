@@ -24,9 +24,7 @@ class Span {
   recordException() {}
 }
 
-export async function runPackedOtelFixture() {
-  const spans = []
-  let sequence = 1
+function createTracer(spans) {
   const tracer = {
     startSpan(name, options, parentContext) {
       const parent = trace.getSpanContext(parentContext)
@@ -40,6 +38,10 @@ export async function runPackedOtelFixture() {
       return span
     },
   }
+  return tracer
+}
+
+function createInstruments() {
   const measurements = []
   const instrument = name => ({
     add: (value, attributes) => measurements.push({ name, value, attributes }),
@@ -51,6 +53,14 @@ export async function runPackedOtelFixture() {
   }
   const logs = []
   const logger = { enabled: () => true, emit: record => logs.push(record) }
+  return { measurements, meter, logs, logger }
+}
+
+export async function runPackedOtelFixture() {
+  const spans = []
+  let sequence = 1
+  const tracer = createTracer(spans)
+  const { measurements, meter, logs, logger } = createInstruments()
   const providerBefore = trace.getTracerProvider()
   const bridge = createOpenTelemetryBridge({ tracer, meter, logger })
   const observation = createObservability({ openSpan: bridge.openSpan, processors: [bridge.processor] })
@@ -87,7 +97,8 @@ export async function runPackedOtelFixture() {
     spanCount: spans.length,
     traceparent: span.traceparent,
     ended: spans[0]?.ended,
-    semanticDuration: measurements.some(value => value.name === 'gen_ai.client.operation.duration' && value.value === 2),
+    semanticDuration: measurements.some(value =>
+      value.name === 'gen_ai.client.operation.duration' && value.value === 2),
     semanticTokens: measurements.filter(value => value.name === 'gen_ai.client.token.usage').length,
     logCount: logs.length,
     safe: !serialized.includes('private packed prompt'),

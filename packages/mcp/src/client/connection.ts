@@ -1,15 +1,8 @@
+import type { McpConnectionHost, PendingHttpAuthorization } from './connection-host.ts'
+import { connectGeneration } from './connection-startup.ts'
+import { enqueueToolSync, clearTools } from './connection-catalog.ts'
 /** MCP client lifecycle and remote-tool bridge for Universal runtimes. */
-import {
-  Client,
-  InsufficientScopeError,
-  SSEClientTransport,
-  StreamableHTTPClientTransport,
-  UnauthorizedError,
-  type ClientOptions,
-  type Tool,
-  type Transport,
-} from '@modelcontextprotocol/client'
-import type { JsonValue } from '@alvin0/ai-agent-sdk-core'
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import {
   ToolRegistry,
   type ToolCatalog,
@@ -30,17 +23,13 @@ import type {
   McpOAuthCallbackOptions,
   McpProtocolState,
   McpTransportFactory,
-  McpTransportKind,
   ResolvedMcpReconnectOptions,
 } from './api-types.ts'
 import {
-  McpRemoteToolError,
-  normalizeResult,
-  protocolState,
-  renderMcpResult,
-} from './result.ts'
-import { beginIntegrationOperation, integrationErrorCode,
-  type McpIntegrationFamily } from '../common/integration-operation.ts'
+  beginIntegrationOperation,
+  integrationErrorCode,
+  type McpIntegrationFamily,
+} from '../common/integration-operation.ts'
 import { executeMcpClosePlan } from './close.ts'
 import { mcpSupportError } from '../common/support-error.ts'
 import { MCP_CLIENT_DEFAULTS } from './config.ts'
@@ -48,41 +37,16 @@ import {
   McpOperationTimeoutError,
   assertServerName,
   errorOf,
-  filterRemoteTools,
-  isJsonObject,
   positiveSafeInteger,
   timeoutMilliseconds,
-  publicToolName,
-  raceAbort,
   resolveMcpReconnectOptions,
-  serializedBytes,
+  snapshotToolFilter,
+  snapshotLifecycleOptions,
   withAbortTimeout,
 } from './runtime-helpers.ts'
 
 export type * from './public-types.ts'
 export type * from './api-types.ts'
-
-type OAuthCapableTransport = StreamableHTTPClientTransport | SSEClientTransport
-
-interface PendingHttpAuthorization {
-  readonly client: Client
-  readonly transport: OAuthCapableTransport
-}
-
-function isOAuthCapableTransport(transport: Transport | undefined): transport is OAuthCapableTransport {
-  return transport instanceof StreamableHTTPClientTransport || transport instanceof SSEClientTransport
-}
-
-function transportKindOf(transport: Transport): McpTransportKind {
-  if (transport instanceof StreamableHTTPClientTransport) return 'streamable-http'
-  if (transport instanceof SSEClientTransport) return 'sse'
-  return 'custom'
-}
-
-function shouldTryLegacyTransport(error: unknown): boolean {
-  if (UnauthorizedError.isInstance(error) || InsufficientScopeError.isInstance(error)) return false
-  return !(error instanceof Error && error.name === 'AbortError')
-}
 
 /**
  * Owns one MCP server connection across transport generations.
@@ -147,12 +111,9 @@ export class McpClientConnection implements ToolSource {
     this.maxToolResultBytes = positiveSafeInteger(
       options.maxToolResultBytes ?? MCP_CLIENT_DEFAULTS.maxToolResultBytes, 'maxToolResultBytes',
     )
-    const toolFilter = options.toolFilter === undefined ? undefined : Object.freeze({
-      ...(options.toolFilter.allow === undefined ? {} : { allow: Object.freeze([...options.toolFilter.allow]) }),
-      ...(options.toolFilter.deny === undefined ? {} : { deny: Object.freeze([...options.toolFilter.deny]) }),
-    })
+    const toolFilter = snapshotToolFilter(options.toolFilter)
     this.reconnect = resolveMcpReconnectOptions(options.reconnect)
-    this.options = Object.freeze({ ...options, ...(toolFilter === undefined ? {} : { toolFilter }) })
+    this.options = snapshotLifecycleOptions(options, toolFilter)
     this.transportFactory = transportFactory
     this.fallbackTransportFactory = runtime.fallbackTransportFactory
     this.authenticationKind = runtime.authenticationKind ?? 'unknown'
@@ -194,7 +155,7 @@ export class McpClientConnection implements ToolSource {
     } catch (error: unknown) {
       if (error instanceof McpOperationTimeoutError && this.current === generation) {
         this.current = undefined
-        this.clearTools()
+        clearTools(this.connectionHost())
         await this.closeGeneration(generation)
         if (!this.closed) this.scheduleReconnect(error)
       }
@@ -217,7 +178,7 @@ export class McpClientConnection implements ToolSource {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = undefined
     }
-    const attempt = this.connectGeneration(this.currentState.status === 'reconnecting')
+    const attempt = connectGeneration(this.connectionHost(), this.currentState.status === 'reconnecting')
     const tracked = attempt.finally(() => {
       if (this.connecting === tracked) this.connecting = undefined
     })
@@ -229,7 +190,7 @@ export class McpClientConnection implements ToolSource {
   refreshTools(options: { readonly signal?: AbortSignal } = {}): Promise<void> {
     const generation = this.current
     if (generation === undefined) return Promise.reject(new Error(`MCP server '${this.serverName}' is not connected`))
-    return this.enqueueToolSync(generation, undefined, options.signal)
+    return enqueueToolSync(this.connectionHost(), generation, undefined, options.signal)
   }
 
   /**
@@ -283,13 +244,47 @@ export class McpClientConnection implements ToolSource {
     return this.closeTask
   }
 
-  private async performClose(signal?: AbortSignal): Promise<McpCloseReport> {
-    this.closed = true
-    if (this.reconnectTimer !== undefined) clearTimeout(this.reconnectTimer)
-    this.reconnectTimer = undefined
-    const generation = this.current
-    this.current = undefined
-    const tasks: (() => Promise<unknown>)[] = []
+  private connectionHost(): McpConnectionHost {
+    const connection = this
+    return {
+      get serverName() { return connection.serverName },
+      get options() { return connection.options },
+      get transportFactory() { return connection.transportFactory },
+      get fallbackTransportFactory() { return connection.fallbackTransportFactory },
+      get authenticationKind() { return connection.authenticationKind },
+      get integrationFamily() { return connection.integrationFamily },
+      get toolCallTimeoutMs() { return connection.toolCallTimeoutMs },
+      get operationTimeoutMs() { return connection.operationTimeoutMs },
+      get maxTools() { return connection.maxTools },
+      get maxCatalogBytes() { return connection.maxCatalogBytes },
+      get maxToolResultBytes() { return connection.maxToolResultBytes },
+      get registry() { return connection.registry },
+      get toolDisposers() { return connection.toolDisposers },
+      set toolDisposers(value) { connection.toolDisposers = value },
+      get current() { return connection.current },
+      set current(value) { connection.current = value },
+      get pendingAuthorization() { return connection.pendingAuthorization },
+      set pendingAuthorization(value) { connection.pendingAuthorization = value },
+      get syncTail() { return connection.syncTail },
+      set syncTail(value) { connection.syncTail = value },
+      get pendingToolSyncs() { return connection.pendingToolSyncs },
+      set pendingToolSyncs(value) { connection.pendingToolSyncs = value },
+      get reconnectAttempts() { return connection.reconnectAttempts },
+      get catalogRevision() { return connection.catalogRevision },
+      set catalogRevision(value) { connection.catalogRevision = value },
+      get connectedAt() { return connection.connectedAt },
+      set connectedAt(value) { connection.connectedAt = value },
+      get closed() { return connection.closed },
+      get currentState() { return connection.currentState },
+      set currentState(value) { connection.currentState = value },
+      generationDown: (...args) => connection.generationDown(...args),
+      scheduleReconnect: (...args) => connection.scheduleReconnect(...args),
+      closeGeneration: (...args) => connection.closeGeneration(...args),
+      publish: (...args) => connection.publish(...args),
+    }
+  }
+
+  private addGenerationCleanup(tasks: (() => Promise<unknown>)[], generation: Client | undefined): void {
     if (generation !== undefined) {
       try {
         const transport = generation.transport
@@ -299,6 +294,16 @@ export class McpClientConnection implements ToolSource {
       } catch { /* connection may still be initializing */ }
       tasks.push(() => generation.close())
     }
+  }
+
+  private async performClose(signal?: AbortSignal): Promise<McpCloseReport> {
+    this.closed = true
+    if (this.reconnectTimer !== undefined) clearTimeout(this.reconnectTimer)
+    this.reconnectTimer = undefined
+    const generation = this.current
+    this.current = undefined
+    const tasks: (() => Promise<unknown>)[] = []
+    this.addGenerationCleanup(tasks, generation)
     const pending = this.pendingAuthorization
     this.pendingAuthorization = undefined
     if (pending !== undefined && pending.client !== generation) {
@@ -312,156 +317,9 @@ export class McpClientConnection implements ToolSource {
       family: this.integrationFamily, ...(signal === undefined ? {} : { signal }),
       timeoutMs: this.closeTimeoutMs, tasks,
     })
-    this.clearTools()
+    clearTools(this.connectionHost(), )
     this.publish('closed', this.reconnectAttempts)
     return report
-  }
-
-  private async connectGeneration(reconnecting: boolean): Promise<void> {
-    const attempt = reconnecting ? this.reconnectAttempts : 0
-    const operation = beginIntegrationOperation(
-      this.options.logger,
-      this.integrationFamily,
-      reconnecting ? 'reconnect' : 'connect',
-    )
-    this.publish(reconnecting ? 'reconnecting' : 'connecting', attempt)
-    const factories = [this.transportFactory, this.fallbackTransportFactory]
-      .filter((factory): factory is McpTransportFactory => factory !== undefined)
-    let lastFailure: Error | undefined
-
-    for (let index = 0; index < factories.length; index++) {
-      const physicalAttempt = operation.attempt(index + 1)
-      let generation: Client
-      try { generation = this.createGeneration() }
-      catch (error: unknown) {
-        const code = integrationErrorCode(error)
-        physicalAttempt.fail(code); operation.fail(code)
-        throw error
-      }
-      let starting = true
-      let transport: Transport | undefined
-      this.current = generation
-      generation.onclose = () => {
-        if (!starting) this.generationDown(generation)
-      }
-      try {
-        const openedTransport = (factories[index] as McpTransportFactory)() as unknown as Transport
-        transport = openedTransport
-        await withAbortTimeout(
-          () => generation.connect(openedTransport),
-          this.operationTimeoutMs,
-          `MCP connection '${this.serverName}' exceeded ${this.operationTimeoutMs}ms`,
-          this.options.signal,
-        )
-        if (this.current !== generation || this.closed) throw new Error(`MCP connection '${this.serverName}' closed during startup`)
-        await this.enqueueToolSync(generation, undefined, this.options.signal)
-        if (this.current !== generation || this.closed) throw new Error(`MCP connection '${this.serverName}' closed during tool discovery`)
-        this.connectedAt = Date.now()
-        starting = false
-        this.publish('ready', this.reconnectAttempts, undefined, {
-          protocol: protocolState(generation, transportKindOf(transport), index > 0),
-        })
-        physicalAttempt.success()
-        operation.success()
-        if (this.authenticationKind !== 'none' && this.authenticationKind !== 'unknown') {
-          const authentication = beginIntegrationOperation(
-            this.options.logger, this.integrationFamily, 'authenticate',
-          )
-          authentication.attempt(1).success()
-          authentication.success()
-        }
-        return
-      } catch (error: unknown) {
-        physicalAttempt.fail(integrationErrorCode(error))
-        starting = false
-        const failure = errorOf(error)
-        lastFailure = failure
-        if (this.current === generation) this.current = undefined
-
-        if (UnauthorizedError.isInstance(error)) {
-          if (this.authenticationKind === 'oauth' && isOAuthCapableTransport(transport)) {
-            this.pendingAuthorization = { client: generation, transport }
-            this.publish('oauth-authorization-required', this.reconnectAttempts, failure, {
-              authorization: { kind: 'oauth', reason: 'authorization-code-required' },
-            })
-            operation.fail(integrationErrorCode(error))
-            this.logAuthenticationFailure(error)
-            throw failure
-          }
-          await this.closeGeneration(generation)
-          const status = this.authenticationKind === 'bearer' ? 'authentication-failed' : 'authentication-required'
-          this.publish(status, this.reconnectAttempts, failure, {
-            authorization: {
-              kind: this.authenticationKind,
-              reason: this.authenticationKind === 'bearer' ? 'invalid-credentials' : 'credentials-required',
-            },
-          })
-          operation.fail(integrationErrorCode(error))
-          this.logAuthenticationFailure(error)
-          throw failure
-        }
-
-        await this.closeGeneration(generation)
-        const canFallback = index + 1 < factories.length && shouldTryLegacyTransport(error)
-        if (canFallback) continue
-        if (!this.closed) this.scheduleReconnect(failure)
-        operation.fail(integrationErrorCode(error))
-        throw failure
-      }
-    }
-    const failure = lastFailure ?? new Error(`MCP connection '${this.serverName}' has no transport candidate`)
-    if (!this.closed) this.scheduleReconnect(failure)
-    operation.fail(integrationErrorCode(failure))
-    throw failure
-  }
-
-  private createGeneration(): Client {
-    let generation!: Client
-    generation = new Client(
-      {
-        name: this.options.clientName ?? 'ai-agent-sdk',
-        version: this.options.clientVersion ?? '0.0.0',
-      },
-      this.clientOptions((error, items) => {
-        if (this.current !== generation || this.closed) return
-        if (error !== null || items === null) {
-          try {
-            this.options.onStateChange?.(Object.freeze({
-              ...this.currentState,
-              ...(error === null ? {} : { error }),
-              ...(error === null ? {} : {
-                supportError: mcpSupportError(
-                  integrationErrorCode(error), 'mcp-client', 'MCP client operation failed',
-                ),
-              }),
-            }))
-          } catch { /* lifecycle observers do not own connection state */ }
-          return
-        }
-        void this.enqueueToolSync(generation, items).catch(error => {
-          try {
-            this.options.onStateChange?.(Object.freeze({
-              ...this.currentState,
-              error: errorOf(error),
-              supportError: mcpSupportError(
-                integrationErrorCode(error), 'mcp-client', 'MCP client operation failed',
-              ),
-            }))
-          } catch { /* lifecycle observers do not own connection state */ }
-        })
-      }),
-    )
-    return generation
-  }
-
-  private clientOptions(onToolsChanged: (error: Error | null, tools: Tool[] | null) => void): ClientOptions {
-    return {
-      capabilities: {},
-      versionNegotiation: { mode: this.options.protocol ?? 'auto' },
-      listChanged: {
-        tools: { autoRefresh: true, onChanged: onToolsChanged },
-      },
-    }
   }
 
   private generationDown(generation: Client): void {
@@ -483,7 +341,7 @@ export class McpClientConnection implements ToolSource {
     this.connectedAt = undefined
     this.reconnectAttempts += 1
     if (this.reconnectAttempts > policy.maxAttempts) {
-      this.clearTools()
+      clearTools(this.connectionHost(), )
       this.publish('failed', policy.maxAttempts, error)
       return
     }
@@ -495,175 +353,6 @@ export class McpClientConnection implements ToolSource {
     }, delay)
     const timer = this.reconnectTimer as ReturnType<typeof setTimeout> & { unref?: () => void }
     timer.unref?.()
-  }
-
-  private enqueueToolSync(
-    generation: Client,
-    supplied?: readonly Tool[],
-    callerSignal?: AbortSignal,
-  ): Promise<void> {
-    this.pendingToolSyncs += 1
-    const run = this.syncTail.then(async () => {
-      if (this.closed || this.current !== generation) return
-      const operation = beginIntegrationOperation(this.options.logger, this.integrationFamily, 'catalog-refresh')
-      const attempt = operation.attempt(1)
-      try {
-        const tools = supplied ?? (await withAbortTimeout(
-          signal => generation.listTools(undefined, { cacheMode: 'refresh', signal }),
-          this.operationTimeoutMs,
-          `MCP tool discovery exceeded ${this.operationTimeoutMs}ms`,
-          callerSignal,
-        )).tools
-        if (this.closed || this.current !== generation) {
-          attempt.abort(); operation.abort(); return
-        }
-        this.swapTools(tools)
-        attempt.success(); operation.success()
-      } catch (error: unknown) {
-        attempt.fail(integrationErrorCode(error)); operation.fail(integrationErrorCode(error))
-        throw error
-      }
-    })
-    const tracked = run.finally(() => { this.pendingToolSyncs -= 1 })
-    this.syncTail = tracked.catch(() => undefined)
-    return tracked
-  }
-
-  private swapTools(remoteTools: readonly Tool[]): void {
-    if (remoteTools.length > this.maxTools) {
-      throw new RangeError(`MCP server '${this.serverName}' exceeds the ${this.maxTools}-tool limit`)
-    }
-    if (serializedBytes(remoteTools) > this.maxCatalogBytes) {
-      throw new RangeError(`MCP server '${this.serverName}' catalog exceeds the ${this.maxCatalogBytes}-byte limit`)
-    }
-    const next = new ToolRegistry()
-    const seen = new Set<string>()
-    for (const remote of filterRemoteTools(remoteTools, this.options.toolFilter)) {
-      const name = publicToolName(this.serverName, remote.name, this.options.prefixToolNames !== false)
-      if (seen.has(name)) throw new Error(`MCP server '${this.serverName}' produced duplicate tool name '${name}'`)
-      seen.add(name)
-      next.register(this.bridgeTool(name, remote))
-    }
-    this.clearTools(false)
-    this.toolDisposers = next.names().map(name => this.registry.register(next.get(name) as ToolDefinition))
-    this.bumpCatalogRevision()
-  }
-
-  private bridgeTool(publicName: string, remote: Tool): ToolDefinition<Record<string, JsonValue>> {
-    const inputSchema = isJsonObject(remote.inputSchema)
-      ? structuredClone(remote.inputSchema)
-      : { type: 'object', additionalProperties: true }
-    return {
-      name: publicName,
-      description: remote.description?.trim() || `Tool '${remote.name}' from MCP server '${this.serverName}'.`,
-      parameters: inputSchema,
-      // The bridge returns `{ content, structuredContent }`; a declared output
-      // schema describes the structured half. Programs validate against it.
-      ...isJsonObject(remote.outputSchema) ? {
-        experimentalOutputSchema: {
-          type: 'object',
-          properties: { structuredContent: structuredClone(remote.outputSchema) },
-          required: ['structuredContent'],
-        },
-      } : {},
-      timeoutMs: this.toolCallTimeoutMs,
-      parse: raw => {
-        if (!isJsonObject(raw)) throw new TypeError('MCP tool arguments must be a JSON object')
-        return raw
-      },
-      execute: async (args, context) => {
-        const generation = this.current
-        if (generation === undefined) throw new Error(`MCP server '${this.serverName}' is not connected`)
-        const operation = beginIntegrationOperation(context.logger, this.integrationFamily, 'tool-call')
-        const attempt = operation.attempt(1)
-        try {
-          const result = await raceAbort(generation.callTool(
-            { name: remote.name, arguments: args },
-            {
-              signal: context.signal,
-              toolDefinition: remote,
-              timeout: this.toolCallTimeoutMs,
-            },
-          ), context.signal)
-          if (serializedBytes(result) > this.maxToolResultBytes) {
-            throw new RangeError(
-              `MCP tool '${this.serverName}/${remote.name}' result exceeds the ${this.maxToolResultBytes}-byte limit`,
-            )
-          }
-          if (result.isError === true) throw new McpRemoteToolError(this.serverName, remote.name, result)
-          const normalized = normalizeResult(result)
-          attempt.success(); operation.success()
-          return normalized
-        } catch (error: unknown) {
-          if (context.signal.aborted) {
-            attempt.abort(); operation.abort()
-          } else {
-            attempt.fail(integrationErrorCode(error)); operation.fail(integrationErrorCode(error))
-          }
-          if (InsufficientScopeError.isInstance(error)) {
-            this.publish('scope-authorization-required', this.reconnectAttempts, errorOf(error), {
-              authorization: {
-                kind: this.authenticationKind,
-                reason: 'insufficient-scope',
-                ...(error.requiredScope === undefined ? {} : { requiredScope: error.requiredScope }),
-              },
-              ...(this.currentState.protocol === undefined ? {} : { protocol: this.currentState.protocol }),
-            })
-          } else if (UnauthorizedError.isInstance(error)) {
-            const transport = generation.transport
-            if (this.current === generation) this.current = undefined
-            if (this.authenticationKind === 'oauth' && isOAuthCapableTransport(transport)) {
-              this.pendingAuthorization = { client: generation, transport }
-              this.publish('oauth-authorization-required', this.reconnectAttempts, errorOf(error), {
-                authorization: { kind: 'oauth', reason: 'authorization-code-required' },
-                ...(this.currentState.protocol === undefined ? {} : { protocol: this.currentState.protocol }),
-              })
-            } else {
-              await this.closeGeneration(generation)
-              this.publish(
-                this.authenticationKind === 'bearer' ? 'authentication-failed' : 'authentication-required',
-                this.reconnectAttempts,
-                errorOf(error),
-                {
-                  authorization: {
-                    kind: this.authenticationKind,
-                    reason: this.authenticationKind === 'bearer' ? 'invalid-credentials' : 'credentials-required',
-                  },
-                  ...(this.currentState.protocol === undefined ? {} : { protocol: this.currentState.protocol }),
-                },
-              )
-            }
-          }
-          throw error
-        }
-      },
-      render: value => renderMcpResult(value),
-      meta: () => ({ kind: 'mcp', serverName: this.serverName, remoteToolName: remote.name }),
-      ...(this.options.trustReadOnlyAnnotations === true && remote.annotations?.readOnlyHint === true
-        ? { isConcurrencySafe: () => true }
-        : {}),
-    }
-  }
-
-  private clearTools(recordRevision = true): void {
-    if (this.toolDisposers.length === 0) return
-    for (const dispose of this.toolDisposers) dispose()
-    this.toolDisposers = []
-    if (recordRevision) this.bumpCatalogRevision()
-  }
-
-  private bumpCatalogRevision(): void {
-    if (this.catalogRevision < Number.MAX_SAFE_INTEGER) this.catalogRevision += 1
-    this.currentState = Object.freeze({ ...this.currentState, catalogRevision: this.catalogRevision })
-    try { this.options.onStateChange?.(this.currentState) } catch { /* observers do not own state */ }
-  }
-
-  private logAuthenticationFailure(error: unknown): void {
-    const operation = beginIntegrationOperation(this.options.logger, this.integrationFamily, 'authenticate')
-    const attempt = operation.attempt(1)
-    const code = integrationErrorCode(error)
-    attempt.fail(code)
-    operation.fail(code)
   }
 
   private async closeGeneration(generation: Client): Promise<boolean> {
@@ -692,7 +381,8 @@ export class McpClientConnection implements ToolSource {
       ...(details.authorization === undefined ? {} : { authorization: Object.freeze(details.authorization) }),
       ...(details.protocol === undefined ? {} : { protocol: Object.freeze(details.protocol) }),
     })
-    try { this.options.onStateChange?.(this.currentState) } catch { /* lifecycle observers do not own connection state */ }
+    try { this.options.onStateChange?.(this.currentState) }
+    catch { /* lifecycle observers do not own connection state */ }
   }
 }
 

@@ -82,6 +82,49 @@ export interface EmbeddingErrorOptions extends ModelErrorOptions {
   space?: EmbeddingSpaceId
 }
 
+function validateIdentity(message: string, code: string): void {
+  if (typeof message !== 'string' || message.length === 0) {
+    throw new Error('EmbeddingError message must be a non-empty string')
+  }
+  if (typeof code !== 'string' || code.length === 0) {
+    throw new Error('EmbeddingError code must be a non-empty string')
+  }
+}
+
+function validateInputFacts(options: EmbeddingErrorOptions | undefined): void {
+  if (options?.itemIndexes !== undefined
+    && (!Array.isArray(options.itemIndexes)
+      || options.itemIndexes.some(index => !Number.isInteger(index) || index < 0))) {
+    throw new Error('EmbeddingError itemIndexes must be an array of non-negative integers')
+  }
+  if (options?.limit !== undefined
+    && (!Number.isFinite(options.limit) || options.limit <= 0)) {
+    throw new Error('EmbeddingError limit must be a positive finite number')
+  }
+}
+
+function validateRouteFact(options: EmbeddingErrorOptions | undefined, key: 'provider' | 'model' | 'space'): void {
+  if (options?.[key] !== undefined
+    && (typeof options[key] !== 'string' || options[key].length === 0)) {
+    throw new Error(`EmbeddingError ${key} must be a non-empty string`)
+  }
+}
+
+function validateRouteFacts(options: EmbeddingErrorOptions | undefined): void {
+  validateRouteFact(options, 'provider')
+  validateRouteFact(options, 'model')
+  validateRouteFact(options, 'space')
+}
+
+function assignEmbeddingFacts(target: EmbeddingError, options: EmbeddingErrorOptions | undefined): void {
+  if (options?.itemIndexes !== undefined) {
+    Object.assign(target, { itemIndexes: Object.freeze([...options.itemIndexes]) })
+  }
+  for (const key of ['limit', 'provider', 'model', 'space'] as const) {
+    if (options?.[key] !== undefined) Object.assign(target, { [key]: options[key] })
+  }
+}
+
 /**
  * Typed error for embedding failures, carrying a stable `code` plus the facts a
  * caller needs to act without re-deriving them.
@@ -116,43 +159,13 @@ export class EmbeddingError extends AgentSdkError {
    * @param options - optional cause and validated embedding facts.
    */
   constructor(message: string, code: string, options?: EmbeddingErrorOptions) {
-    if (typeof message !== 'string' || message.length === 0) {
-      throw new Error('EmbeddingError message must be a non-empty string')
-    }
-    if (typeof code !== 'string' || code.length === 0) {
-      throw new Error('EmbeddingError code must be a non-empty string')
-    }
-    if (options?.itemIndexes !== undefined
-      && (!Array.isArray(options.itemIndexes)
-        || options.itemIndexes.some(index => !Number.isInteger(index) || index < 0))) {
-      throw new Error('EmbeddingError itemIndexes must be an array of non-negative integers')
-    }
-    if (options?.limit !== undefined
-      && (!Number.isFinite(options.limit) || options.limit <= 0)) {
-      throw new Error('EmbeddingError limit must be a positive finite number')
-    }
-    if (options?.provider !== undefined
-      && (typeof options.provider !== 'string' || options.provider.length === 0)) {
-      throw new Error('EmbeddingError provider must be a non-empty string')
-    }
-    if (options?.model !== undefined
-      && (typeof options.model !== 'string' || options.model.length === 0)) {
-      throw new Error('EmbeddingError model must be a non-empty string')
-    }
-    if (options?.space !== undefined
-      && (typeof options.space !== 'string' || options.space.length === 0)) {
-      throw new Error('EmbeddingError space must be a non-empty string')
-    }
+    validateIdentity(message, code)
+    validateInputFacts(options)
+    validateRouteFacts(options)
     const failure = new ModelError(message, code, options).failure
     super(message, code, options)
     this.name = 'EmbeddingError'
     this.failure = failure
-    if (options?.itemIndexes !== undefined) {
-      this.itemIndexes = Object.freeze([...options.itemIndexes])
-    }
-    if (options?.limit !== undefined) this.limit = options.limit
-    if (options?.provider !== undefined) this.provider = options.provider
-    if (options?.model !== undefined) this.model = options.model
-    if (options?.space !== undefined) this.space = options.space
+    assignEmbeddingFacts(this, options)
   }
 }

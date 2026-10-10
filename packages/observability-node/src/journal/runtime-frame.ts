@@ -37,12 +37,7 @@ export function runtimeJournalLine(item: ObservationExportItem, payloadJson: str
 
 export function parseRuntimeJournalLine(line: string, segment: string, lineNumber: number): RuntimeJournalRecord {
   const envelope = JSON.parse(line) as Record<string, unknown>
-  if (envelope.schemaVersion !== 1
-    || (envelope.itemKind !== 'event' && envelope.itemKind !== 'run-terminal-record')
-    || typeof envelope.itemId !== 'string'
-    || typeof envelope.payloadJson !== 'string'
-    || typeof envelope.sha256 !== 'string'
-    || envelope.sha256 !== journalChecksum(envelope.payloadJson)) throw new Error('invalid frame')
+  if (!validRuntimeEnvelope(envelope)) throw new Error('invalid frame')
   const parsed = JSON.parse(envelope.payloadJson) as unknown
   let item: ObservationExportItem
   if (envelope.itemKind === 'event') {
@@ -71,16 +66,8 @@ function validTerminalRecord(value: unknown, runId: string): value is RunTermina
     const durationMs = Reflect.get(value, 'durationMs')
     return Reflect.get(value, 'kind') === 'run-terminal-record'
       && Reflect.get(value, 'runId') === runId && runId.length > 0 && runId.length <= 128
-      && isTraceId(Reflect.get(value, 'traceId'))
-      && validIsoDate(startedAt) && validIsoDate(endedAt)
-      && typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs >= 0
-      && ['success', 'error', 'aborted', 'rejected', 'unknown'].includes(Reflect.get(value, 'status'))
-      && objectRecord(Reflect.get(value, 'usage'))
-      && Array.isArray(Reflect.get(value, 'modelCalls'))
-      && Array.isArray(Reflect.get(value, 'toolSourceSnapshots'))
-      && objectRecord(Reflect.get(value, 'operationCounts'))
-      && Array.isArray(Reflect.get(value, 'errors'))
-      && !Object.prototype.hasOwnProperty.call(value, 'delivery')
+      && validTerminalTiming(value, startedAt, endedAt, durationMs)
+      && validTerminalFields(value)
   } catch { return false }
 }
 
@@ -90,4 +77,31 @@ function validIsoDate(value: unknown): value is string {
 
 function objectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function validRuntimeEnvelope(envelope: Record<string, unknown>): envelope is {
+  schemaVersion: 1; itemKind: RuntimeFrameKind; itemId: string; payloadJson: string; sha256: string
+} {
+  return !(envelope.schemaVersion !== 1
+    || (envelope.itemKind !== 'event' && envelope.itemKind !== 'run-terminal-record')
+    || typeof envelope.itemId !== 'string'
+    || typeof envelope.payloadJson !== 'string'
+    || typeof envelope.sha256 !== 'string'
+    || envelope.sha256 !== journalChecksum(envelope.payloadJson))
+}
+
+function validTerminalFields(value: object): boolean {
+  return ['success', 'error', 'aborted', 'rejected', 'unknown'].includes(Reflect.get(value, 'status'))
+    && objectRecord(Reflect.get(value, 'usage'))
+      && Array.isArray(Reflect.get(value, 'modelCalls'))
+      && Array.isArray(Reflect.get(value, 'toolSourceSnapshots'))
+      && objectRecord(Reflect.get(value, 'operationCounts'))
+      && Array.isArray(Reflect.get(value, 'errors'))
+      && !Object.prototype.hasOwnProperty.call(value, 'delivery')
+}
+
+function validTerminalTiming(value: object, startedAt: unknown, endedAt: unknown, durationMs: unknown): boolean {
+  return isTraceId(Reflect.get(value, 'traceId'))
+    && validIsoDate(startedAt) && validIsoDate(endedAt)
+    && typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs >= 0
 }

@@ -208,10 +208,10 @@ describe('provider-copilot subclasses no adapter (Requirement 7.1)', () => {
   })
 
   it('builds the adapter by configuring the runtime HTTP provider', () => {
-    // The positive half: `HttpModelAdapter` appears in `adapter.ts` only as a
+    // The positive half: `HttpModelAdapter` appears in adapter modules only as a
     // TYPE — an imported type and return annotations — while the value that
     // produces the adapter is `createRuntimeHttpProvider`.
-    const adapterCode = stripComments(source('adapter.ts'))
+    const adapterCode = stripComments(source('adapter.ts') + source('adapter-build.ts'))
     expect(adapterCode).toContain('createRuntimeHttpProvider')
     expect(adapterCode).toContain('type HttpModelAdapter')
     expect(adapterCode).not.toMatch(/new\s+HttpModelAdapter\b/)
@@ -344,7 +344,7 @@ describe('the two token tiers are separate types (Requirements 3.1, 5.1)', () =>
 
   it('declares each tier where its lifetime lives, neither as an alias of the other', () => {
     const storeTypes = stripComments(source('common/store-types.ts'))
-    const exchange = stripComments(source('exchange.ts'))
+    const exchange = stripComments(source('exchange-types.ts'))
     // Declarations, not `type X = Y` aliases pointing at the other tier.
     expect(storeTypes).toMatch(/export interface CopilotGitHubToken\s*\{/)
     expect(exchange).toMatch(/export interface CopilotApiToken\s*\{/)

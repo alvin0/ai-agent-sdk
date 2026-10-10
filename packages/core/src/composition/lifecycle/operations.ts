@@ -76,7 +76,8 @@ export class RuntimeOperations {
   }
 
   /** Admit before evaluating an executable callback and settle public waits even if its work ignores abort. */
-  execute<T>(kind: RuntimeOperationKind, options: OperationOptions, work: (lease: OperationLease) => Promise<T>): Promise<T> {
+  execute<T>(kind: RuntimeOperationKind, options: OperationOptions,
+    work: (lease: OperationLease) => Promise<T>): Promise<T> {
     const lease = this.acquire(kind, options)
     const task = Promise.resolve().then(() => {
       if (lease.signal.aborted) throw operationCancelled()
@@ -118,20 +119,9 @@ export class RuntimeOperations {
         this.active.delete(entry)
         entry.seal()
       }
-      const operations = Object.freeze(RUNTIME_OPERATION_KINDS.map(kind => {
-        const rows = entries.filter(entry => entry.kind === kind)
-        const settled = rows.filter(entry => entry.settled).length
-        return Object.freeze({
-          kind, activeAtClose: rows.length, aborted: rows.filter(entry => entry.cancellation.signal.aborted).length,
-          settled, unsettled: rows.length - settled,
-        })
-      }))
-      const runs = operations[0]!
+      const report = quiescenceReport(entries, reason)
       this.quiesced = true
-      resolve(Object.freeze({
-        quiescenceEnd: reason, deadlineReached: reason === 'timeout', operations,
-        activeRunsAtClose: runs.activeAtClose, abortedRuns: runs.aborted, unsettledRuns: runs.unsettled,
-      }))
+      resolve(report)
     }
     const checkSettled = (): void => {
       // Settlement callbacks run inside root abort dispatch. Do not remove later
@@ -175,4 +165,21 @@ export class RuntimeOperations {
     this.state = 'closed'
     this.resources.close()
   }
+}
+
+/** Snapshot the close generation after its unsettled leases have been sealed. */
+function quiescenceReport(entries: readonly Entry[], reason: QuiescenceReport['quiescenceEnd']): QuiescenceReport {
+  const operations = Object.freeze(RUNTIME_OPERATION_KINDS.map(kind => {
+    const rows = entries.filter(entry => entry.kind === kind)
+    const settled = rows.filter(entry => entry.settled).length
+    return Object.freeze({
+      kind, activeAtClose: rows.length, aborted: rows.filter(entry => entry.cancellation.signal.aborted).length,
+      settled, unsettled: rows.length - settled,
+    })
+  }))
+  const runs = operations[0]!
+  return Object.freeze({
+    quiescenceEnd: reason, deadlineReached: reason === 'timeout', operations,
+    activeRunsAtClose: runs.activeAtClose, abortedRuns: runs.aborted, unsettledRuns: runs.unsettled,
+  })
 }

@@ -32,36 +32,8 @@ export function captureToolDefinition<Args>(input: ToolDefinition<Args>): ToolDe
         maxKeyBytes: TOOL_DEFINITION_LIMITS.schemaKeyBytes,
         maxBytes: TOOL_DEFINITION_LIMITS.schemaBytes,
       })
-    const execute = method<[Args, ToolRunContext], Promise<JsonValue | void> | JsonValue | void>(receiver, 'execute', true)!
-    const parse = method<[unknown], Args>(receiver, 'parse', false)
-    const render = method<[JsonValue | undefined, Args], readonly ContentBlock[]>(receiver, 'render', false)
-    const meta = method<[JsonValue | undefined, Args], JsonObject | undefined>(receiver, 'meta', false)
-    const isConcurrencySafe = method<[Args], boolean>(receiver, 'isConcurrencySafe', false)
-    const timeoutMs = optionalOwnData(receiver, 'timeoutMs')
-    if (timeoutMs !== undefined && (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs) || timeoutMs <= 0)) invalid()
-    // Fail-closed like every other flag here: only an exact `true` exempts a
-    // tool from the turn budget, so a truthy accident cannot quietly widen it.
-    const budgetExempt = optionalOwnData(receiver, 'budgetExempt')
-    if (budgetExempt !== undefined && budgetExempt !== true) invalid()
-    const awaitsPerson = optionalOwnData(receiver, 'awaitsPerson')
-    if (awaitsPerson !== undefined && awaitsPerson !== true) invalid()
-    const completionExempt = optionalOwnData(receiver, 'completionExempt')
-    if (completionExempt !== undefined && completionExempt !== true) invalid()
-    const maxOutputTokens = optionalOwnData(receiver, 'maxOutputTokens')
-    if (maxOutputTokens !== undefined
-      && (!Number.isSafeInteger(maxOutputTokens) || Number(maxOutputTokens) < 1)) invalid()
-    return Object.freeze({ name, description, parameters,
-      ...(parse === undefined ? {} : { parse }), execute,
-      ...(render === undefined ? {} : { render }),
-      ...(meta === undefined ? {} : { meta }),
-      ...(timeoutMs === undefined ? {} : { timeoutMs: Number(timeoutMs) }),
-      ...(isConcurrencySafe === undefined ? {} : { isConcurrencySafe }),
-      ...(budgetExempt === undefined ? {} : { budgetExempt: true as const }),
-      ...(awaitsPerson === undefined ? {} : { awaitsPerson: true as const }),
-      ...(completionExempt === undefined ? {} : { completionExempt: true as const }),
-      ...(maxOutputTokens === undefined ? {} : { maxOutputTokens: Number(maxOutputTokens) }),
-      ...(outputSchema === undefined ? {} : { experimentalOutputSchema: outputSchema }),
-    })
+    const behavior = captureBehavior<Args>(receiver)
+    return freezeCapturedTool({ name, description, parameters, outputSchema, behavior })
   } catch (error) {
     if (error instanceof AgentSdkError && error.code === TOOL_REGISTRY_ERROR_CODES.INVALID_TOOL) throw error
     throw new AgentSdkError('tool definition is invalid', TOOL_REGISTRY_ERROR_CODES.INVALID_TOOL, { cause: error })
@@ -118,4 +90,71 @@ function method<Args extends readonly unknown[], Result>(
 
 function invalid(): never {
   throw new AgentSdkError('tool definition is invalid', TOOL_REGISTRY_ERROR_CODES.INVALID_TOOL)
+}
+
+function captureBehavior<Args>(receiver: object) {
+  const execute = method<[Args, ToolRunContext], Promise<JsonValue | void> | JsonValue | void>(receiver,
+    'execute', true)!
+  const parse = method<[unknown], Args>(receiver, 'parse', false)
+  const render = method<[JsonValue | undefined, Args], readonly ContentBlock[]>(receiver, 'render', false)
+  const meta = method<[JsonValue | undefined, Args], JsonObject | undefined>(receiver, 'meta', false)
+  const isConcurrencySafe = method<[Args], boolean>(receiver, 'isConcurrencySafe', false)
+  const timeoutMs = captureTimeout(receiver)
+  // Fail-closed like every other flag here: only an exact `true` exempts a
+  // tool from the turn budget, so a truthy accident cannot quietly widen it.
+  const budgetExempt = captureTrueFlag(receiver, 'budgetExempt')
+  const awaitsPerson = captureTrueFlag(receiver, 'awaitsPerson')
+  const completionExempt = captureTrueFlag(receiver, 'completionExempt')
+  const maxOutputTokens = captureMaxOutputTokens(receiver)
+  return { execute, parse, render, meta, isConcurrencySafe, timeoutMs, budgetExempt, awaitsPerson,
+    completionExempt, maxOutputTokens }
+}
+
+function captureTimeout(receiver: object): unknown {
+  const value = optionalOwnData(receiver, 'timeoutMs')
+  if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value) || value <= 0)) invalid()
+  return value
+}
+
+function captureTrueFlag(receiver: object, key: string): true | undefined {
+  const value = optionalOwnData(receiver, key)
+  if (value !== undefined && value !== true) invalid()
+  return value
+}
+
+function captureMaxOutputTokens(receiver: object): unknown {
+  const value = optionalOwnData(receiver, 'maxOutputTokens')
+  if (value !== undefined && (!Number.isSafeInteger(value) || Number(value) < 1)) invalid()
+  return value
+}
+
+function freezeCapturedTool<Args>(input: {
+  name: string
+  description: string
+  parameters: JsonObject
+  outputSchema: JsonObject | undefined
+  behavior: ReturnType<typeof captureBehavior<Args>>
+}): ToolDefinition<Args> {
+  const { name, description, parameters, outputSchema } = input
+  const { execute, parse, render, meta, isConcurrencySafe, timeoutMs, maxOutputTokens } = input.behavior
+  return Object.freeze({ name, description, parameters,
+    ...(parse === undefined ? {} : { parse }), execute,
+    ...(render === undefined ? {} : { render }),
+    ...(meta === undefined ? {} : { meta }),
+    ...(timeoutMs === undefined ? {} : { timeoutMs: Number(timeoutMs) }),
+    ...(isConcurrencySafe === undefined ? {} : { isConcurrencySafe }),
+    ...capturedFlags(input.behavior),
+    ...(maxOutputTokens === undefined ? {} : { maxOutputTokens: Number(maxOutputTokens) }),
+    ...(outputSchema === undefined ? {} : { experimentalOutputSchema: outputSchema }),
+  })
+}
+
+function capturedFlags(input: {
+  budgetExempt: true | undefined; awaitsPerson: true | undefined; completionExempt: true | undefined
+}) {
+  const { budgetExempt, awaitsPerson, completionExempt } = input
+  return {
+    ...(budgetExempt === undefined ? {} : { budgetExempt: true as const }),
+    ...(awaitsPerson === undefined ? {} : { awaitsPerson: true as const }),
+    ...(completionExempt === undefined ? {} : { completionExempt: true as const }),  }
 }

@@ -85,6 +85,117 @@ function plugin(adapter: ModelAdapter): ComposableModelProviderPlugin {
 }
 
 describe('runtime agent policy capture', () => {
+  it.each([{ maxSteps: 1 }, { maxTotalTokens: 1 }, { maxSteps: 3 }])(
+    'seals steering after a nonempty answer without bypassing %j', async limits => {
+      let steer: (() => void) | undefined
+      class SteeringAdapter extends ModelAdapter {
+        calls = 0
+        async * stream(): AsyncIterable<StreamChunk> {
+          this.calls++
+          if (this.calls === 1) steer?.()
+          const text = this.calls === 1 ? 'Original answer' : 'Updated answer'
+          yield { type: 'text-delta', index: 0, text }
+          yield { type: 'block-end', index: 0, block: { type: 'text', text } }
+          yield { type: 'usage', usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 } }
+          yield { type: 'finish', reason: { kind: 'stop' } }
+        }
+      }
+      const adapter = new SteeringAdapter()
+      const runtime = await createRuntimeCompositionOwner({ providers: [plugin(adapter)] })
+      try {
+        const session = runtime.agent({ id: 'nonempty-steering', instructions: 'Answer', compaction: false })
+          .createSession({ runtimeLimits: limits, hooks: { onTerminalRecovery: context => context.defaultText } })
+        steer = () => { session.inject('Updated request') }
+        const response = await session.run('Original request')
+        const final = session.snapshot().history.entries.at(-1)?.event
+        expect(final).toMatchObject({ kind: 'assistant' })
+        if (limits.maxSteps === 3) {
+          expect(adapter.calls).toBe(2)
+          expect(response.completed).toBe(true)
+          expect(response.text).toBe('Updated answer')
+        } else {
+          expect(adapter.calls).toBe(1)
+          expect(response.completed).toBe(false)
+          expect(response.endReason).toMatchObject({ kind: 'budget-exhausted', forcedFinalAnswer: false,
+            budget: limits.maxSteps ? 'steps' : 'tokens' })
+          expect(final).toMatchObject({ message: { source: { producer: 'terminal-recovery' } } })
+          expect(response.text).toContain('not fully completed')
+          expect(response.text).toContain('Original answer')
+        }
+      } finally { await runtime.close() }
+    },
+  )
+
+  it('seals input accepted by onTurnEnd after the work step limit', async () => {
+    const adapter = new RetryPolicyAdapter()
+    adapter.calls = 1
+    const runtime = await createRuntimeCompositionOwner({ providers: [plugin(adapter)] })
+    try {
+      let steer: (() => void) | undefined
+      const session = runtime.agent({ id: 'late-hook-steering', instructions: 'Answer', compaction: false })
+        .createSession({ runtimeLimits: { maxSteps: 1 }, hooks: {
+          onTerminalRecovery: context => context.defaultText,
+          onTurnEnd: () => { steer?.() },
+        } })
+      steer = () => { session.inject('Request accepted at turn end') }
+      const response = await session.run('Original request')
+      expect(response.completed).toBe(false)
+      expect(response.endReason).toMatchObject({ kind: 'budget-exhausted', budget: 'steps' })
+      expect(session.snapshot().history.entries.at(-1)?.event)
+        .toMatchObject({ kind: 'assistant', message: { source: { producer: 'terminal-recovery' } } })
+      expect(adapter.calls).toBe(2)
+    } finally { await runtime.close() }
+  })
+
+  it('answers steering queued during an empty model response before sealing the native history', async () => {
+    let steer: (() => void) | undefined
+    class EmptySteeringAdapter extends ModelAdapter {
+      calls = 0
+      async * stream(): AsyncIterable<StreamChunk> {
+        this.calls++
+        steer?.()
+        yield { type: 'usage', usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 } }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+      }
+    }
+    const adapter = new EmptySteeringAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [plugin(adapter)] })
+    try {
+      const session = runtime.agent({ id: 'empty-steering', instructions: 'Answer', compaction: false })
+        .createSession({ hooks: { onTerminalRecovery: context => context.defaultText } })
+      steer = () => { session.inject('Latest steering request') }
+      const response = await session.run('go')
+      const entries = session.snapshot().history.entries
+      expect(adapter.calls).toBe(1)
+      expect(response.completed).toBe(false)
+      expect(response.text.trim()).toBeTruthy()
+      expect(entries.filter(entry => entry.event.kind === 'user').at(-1)?.event)
+        .toMatchObject({ message: { content: [{ type: 'text', text: 'Latest steering request' }] } })
+      expect(entries.at(-1)?.event).toMatchObject({ kind: 'assistant', message: { source: { producer: 'terminal-recovery' } } })
+    } finally { await runtime.close() }
+  })
+
+  it('captures terminal recovery and returns a native answer at the hard token wall without another request', async () => {
+    const adapter = new PolicyAdapter(), execute = vi.fn(() => ({ result: 391 }))
+    const formatter = vi.fn((context: Parameters<NonNullable<TurnHooks['onTerminalRecovery']>>[0]) => context.defaultText)
+    const hooks = { onTerminalRecovery: formatter as NonNullable<TurnHooks['onTerminalRecovery']> }
+    const runtime = await createRuntimeCompositionOwner({ providers: [plugin(adapter)] })
+    try {
+      const session = runtime.agent({ id: 'terminal-capture', instructions: 'Use work', tools: [
+        defineTool({ name: 'work', description: 'Work', parameters: { type: 'object' }, execute }),
+      ], compaction: false }).createSession({ hooks, runtimeLimits: { maxTotalTokens: 1 } })
+      hooks.onTerminalRecovery = () => 'uncaptured replacement'
+      const response = await session.run('go')
+      expect(adapter.calls).toBe(1)
+      expect(formatter).toHaveBeenCalledOnce()
+      expect(response.completed).toBe(false)
+      expect(response.text).toContain('not fully completed')
+      expect(response.text).not.toContain('uncaptured replacement')
+      expect(response.message?.source).toEqual({ kind: 'app', producer: 'terminal-recovery' })
+      expect(response.endReason).toMatchObject({ kind: 'budget-exhausted', budget: 'tokens' })
+    } finally { await runtime.close() }
+  })
+
   it('keeps the captured approval method while the original broker is parked', async () => {
     const adapter = new PolicyAdapter(), execute = vi.fn(() => ({ ok: true }))
     let answer!: (decision: 'allow' | 'deny' | 'abort') => void

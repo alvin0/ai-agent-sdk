@@ -88,6 +88,30 @@ export async function runPackedMcpFixture() {
   } catch { /* the bounded abort is the expected result */ }
   finally { await abortConnection.close() }
 
+  const { authFailed, authObserved, authStatus, authReason } = await authenticationFixture()
+
+  const { boundedFailure, boundedMessage } = await boundedFixture()
+
+  return {
+    ready: methods.includes('server/discover'),
+    listed: methods.includes('tools/list'),
+    called: methods.includes('tools/call'),
+    methods,
+    sum,
+    mainError,
+    aborted,
+    authFailed,
+    authObserved,
+    authStatus,
+    authReason,
+    boundedFailure,
+    boundedMessage,
+    buffer: typeof globalThis.Buffer,
+    process: typeof globalThis.process,
+  }
+}
+
+async function authenticationFixture() {
   const auth = createMcpHttpClient({
     serverName: 'auth', url: 'https://mcp.example.test/api', reconnect: false, legacySse: false,
     transport: {
@@ -109,6 +133,10 @@ export async function runPackedMcpFixture() {
   }
   finally { await auth.close() }
 
+  return { authFailed, authObserved, authStatus, authReason }
+}
+
+async function boundedFixture() {
   const bounded = createMcpHttpClient({
     serverName: 'bounded', url: 'https://mcp.example.test/api', reconnect: false,
     legacySse: false, maxTools: 1, transport: { fetch: createProtocolFetch([], 2) },
@@ -121,21 +149,5 @@ export async function runPackedMcpFixture() {
   }
   finally { await bounded.close() }
 
-  return {
-    ready: methods.includes('server/discover'),
-    listed: methods.includes('tools/list'),
-    called: methods.includes('tools/call'),
-    methods,
-    sum,
-    mainError,
-    aborted,
-    authFailed,
-    authObserved,
-    authStatus,
-    authReason,
-    boundedFailure,
-    boundedMessage,
-    buffer: typeof globalThis.Buffer,
-    process: typeof globalThis.process,
-  }
+  return { boundedFailure, boundedMessage }
 }

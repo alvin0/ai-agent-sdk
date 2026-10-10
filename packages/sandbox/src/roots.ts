@@ -113,50 +113,11 @@ export function grantLayers(
   policy: SandboxPolicy,
   options: WritableRootOptions = {},
 ): readonly GrantLayer[] {
-  const proposed: GrantLayer[] = []
-  if (policy.mode === 'workspace-write') {
-    for (const root of [policy.workspaceRoot, ...(options.tempRoots ?? [])]) {
-      proposed.push({ path: normalizePath(root), access: 'write', origin: 'mode' })
-    }
-  }
-  for (const denied of options.deniedPaths ?? []) {
-    proposed.push({ path: normalizePath(denied), access: 'deny', origin: 'protected' })
-  }
-  if (options.protectSubpaths !== false) {
-    for (const layer of proposed.filter(candidate => candidate.access === 'write')) {
-      for (const name of PROTECTED_SUBPATHS) {
-        proposed.push({ path: joinPath(layer.path, name), access: 'read', origin: 'protected' })
-      }
-    }
-  }
-  for (const entry of orderEntries(policy.entries ?? [])) {
-    proposed.push({ path: entry.path, access: entry.access, origin: 'entry' })
-  }
+  const proposed = proposedLayers(policy, options)
   const baseline = policy.baseline ?? BASELINE_ACCESS
   let kept = collapseLayers(proposed, baseline)
 
-  // A request is an intersection, not another last-wins grant list. Recompute
-  // every boundary named by either side so a broad request restriction also
-  // survives narrower standing grants nested beneath it.
-  const restrictions = orderEntries(policy.restrictions ?? [])
-  if (restrictions.length > 0) {
-    const boundaries = orderEntries([
-      ...kept.map(layer => ({ path: layer.path, access: layer.access })),
-      ...restrictions,
-    ]).map(entry => entry.path)
-    const distinctBoundaries = [...new Set(boundaries)]
-    const intersected: GrantLayer[] = []
-    for (const path of distinctBoundaries) {
-      const access = narrower(
-        accessInLayers(path, kept, baseline),
-        accessFor(path, restrictions, 'write'),
-      )
-      if (accessInLayers(path, intersected, baseline) !== access) {
-        intersected.push(Object.freeze({ path, access, origin: 'restriction' }))
-      }
-    }
-    kept = intersected
-  }
+  kept = intersectRestrictions(kept, policy, baseline)
 
   kept = collapseLayers([
     ...kept,
@@ -218,3 +179,59 @@ export function unreadablePaths(
 
 /** Re-export so a backend can name the entry shape without a second import. */
 export type { FileSystemAccess, FileSystemEntry }
+
+function proposedLayers(policy: SandboxPolicy, options: WritableRootOptions): GrantLayer[] {
+  const proposed: GrantLayer[] = []
+  if (policy.mode === 'workspace-write') {
+    for (const root of [policy.workspaceRoot, ...(options.tempRoots ?? [])]) {
+      proposed.push({ path: normalizePath(root), access: 'write', origin: 'mode' })
+    }
+  }
+  for (const denied of options.deniedPaths ?? []) {
+    proposed.push({ path: normalizePath(denied), access: 'deny', origin: 'protected' })
+  }
+  protectSubpaths(proposed, options)
+  for (const entry of orderEntries(policy.entries ?? [])) {
+    proposed.push({ path: entry.path, access: entry.access, origin: 'entry' })
+  }
+  return proposed
+}
+
+function intersectRestrictions(
+  kept: GrantLayer[], policy: SandboxPolicy, baseline: FileSystemAccess,
+): GrantLayer[] {
+  // A request is an intersection, not another last-wins grant list. Recompute
+  // every boundary named by either side so a broad request restriction also
+  // survives narrower standing grants nested beneath it.
+  const restrictions = orderEntries(policy.restrictions ?? [])
+  if (restrictions.length > 0) {
+    const boundaries = orderEntries([
+      ...kept.map(layer => ({ path: layer.path, access: layer.access })),
+      ...restrictions,
+    ]).map(entry => entry.path)
+    const distinctBoundaries = [...new Set(boundaries)]
+    const intersected: GrantLayer[] = []
+    for (const path of distinctBoundaries) {
+      const access = narrower(
+        accessInLayers(path, kept, baseline),
+        accessFor(path, restrictions, 'write'),
+      )
+      if (accessInLayers(path, intersected, baseline) !== access) {
+        intersected.push(Object.freeze({ path, access, origin: 'restriction' }))
+      }
+    }
+    kept = intersected
+  }
+
+  return kept
+}
+
+function protectSubpaths(proposed: GrantLayer[], options: WritableRootOptions): void {
+  if (options.protectSubpaths !== false) {
+    for (const layer of proposed.filter(candidate => candidate.access === 'write')) {
+      for (const name of PROTECTED_SUBPATHS) {
+        proposed.push({ path: joinPath(layer.path, name), access: 'read', origin: 'protected' })
+      }
+    }
+  }
+}

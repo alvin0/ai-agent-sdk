@@ -232,19 +232,9 @@ export async function readCopilotResponseText(
     options.maxResponseChunks ?? COPILOT_DEFAULT_MAX_RESPONSE_CHUNKS,
     'maxResponseChunks',
   )
-  const declared = Number(response.headers.get('content-length'))
-  if (Number.isFinite(declared) && declared > maxBytes) {
-    if (response.body !== null) {
-      await waitForSettlement(response.body.cancel().catch(() => undefined), TEARDOWN_TIMEOUT_MS)
-    }
-    throw new RangeError(`Copilot HTTP response exceeds the ${maxBytes}-byte limit`)
-  }
+  await checkDeclaredResponseSize(response, maxBytes)
   if (response.body === null) return ''
-  const timeout = AbortSignal.timeout(positiveSafeInteger(
-    options.requestTimeoutMs ?? COPILOT_DEFAULT_REQUEST_TIMEOUT_MS,
-    'requestTimeoutMs',
-  ))
-  const signal = options.signal === undefined ? timeout : AbortSignal.any([options.signal, timeout])
+  const signal = responseReadSignal(options)
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let bytes = 0
@@ -346,4 +336,22 @@ function originError(message: string, cause?: unknown): AgentSdkError {
 
 function abortReason(signal: AbortSignal): unknown {
   return signal.reason ?? new AgentSdkError('Copilot HTTP request aborted', MODEL_ERROR_CODES.ABORTED)
+}
+
+async function checkDeclaredResponseSize(response: Response, maxBytes: number): Promise<void> {
+  const declared = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    if (response.body !== null) {
+      await waitForSettlement(response.body.cancel().catch(() => undefined), TEARDOWN_TIMEOUT_MS)
+    }
+    throw new RangeError(`Copilot HTTP response exceeds the ${maxBytes}-byte limit`)
+  }
+}
+
+function responseReadSignal(options: CopilotHttpOptions): AbortSignal {
+  const timeout = AbortSignal.timeout(positiveSafeInteger(
+    options.requestTimeoutMs ?? COPILOT_DEFAULT_REQUEST_TIMEOUT_MS,
+    'requestTimeoutMs',
+  ))
+  return options.signal === undefined ? timeout : AbortSignal.any([options.signal, timeout])
 }

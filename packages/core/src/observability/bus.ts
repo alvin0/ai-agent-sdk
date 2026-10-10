@@ -1,29 +1,23 @@
 import {
-  SDK_VERSION,
   deepFreeze,
 } from '../primitives/index.ts'
 import {
   createCoreSpan,
   createObservationRunScope,
   createOperationId,
-  safeErrorRecord,
   snapshotObservationSpan,
   type CaptureReceipt,
-  type ObservationBoundary,
   type ObservationEvent,
   type ObservationResource,
   type ObservationSpan,
   type OpenObservationSpanInput,
-  type SafeErrorRecord,
 } from '../observation/index.ts'
 import { createBusLogger } from './logger.ts'
 import { sanitizeObservationEvent, serializedEventBytes } from './privacy.ts'
 import type {
-  ExportAck,
   FlushResult,
   LoggerContext,
   LogLevel,
-  ObservationBatch,
   ObservationExporterRegistration,
   ObservationHealthSnapshot,
   ObservationProcessor,
@@ -32,188 +26,20 @@ import type {
   SdkLogger,
 } from './types.ts'
 
-const DEFAULT_MAX_QUEUE_EVENTS = 10_000
-const DEFAULT_MAX_QUEUE_BYTES = 16 * 1024 * 1024
-const DEFAULT_MAX_BATCH_EVENTS = 256
-const DEFAULT_MAX_BATCH_BYTES = 512 * 1024
-const DEFAULT_FLUSH_TIMEOUT_MS = 10_000
-const DEFAULT_SHUTDOWN_TIMEOUT_MS = 30_000
-
-interface QueueEntry {
-  readonly event: ObservationEvent
-  readonly bytes: number
-  readonly pending: Set<string>
-  readonly protected: boolean
-}
-
-interface MutableHealth {
-  accepted: number
-  exported: number
-  droppedVerbose: number
-  droppedNormal: number
-  criticalRejected: number
-  processorFailures: number
-  exporterFailures: number
-  flushTimeouts: number
-  lastExportAt?: string
-  lastFailure?: SafeErrorRecord
-  requiredFailure: boolean
-}
-
-interface FlushOutcome extends FlushResult {
-  readonly requiredComplete: boolean
-}
-
-const BOUNDARY_RANK: Readonly<Record<ObservationBoundary, number>> = {
-  none: 0, 'local-durable': 1, 'remote-acknowledged': 2,
-}
-const SAFE_FAILURE_CODES = new Set([
-  'ABORT_ERR', 'ECONNREFUSED', 'ECONNRESET', 'EHOSTUNREACH', 'ENETUNREACH',
-  'ETIMEDOUT', 'OBSERVABILITY_EXPORT_FAILED', 'OBSERVABILITY_FLUSH_TIMEOUT',
-  'OBSERVABILITY_PROCESSOR_FAILED', 'OTEL_PROVIDER_UNCONFIGURED',
-])
-const COMPONENT_ID_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,63})$/
-const CONTENT_POLICIES = new Set(['none', 'metadata', 'redacted', 'full'])
-const LOG_LEVELS = new Set(['trace', 'debug', 'info', 'warn', 'error', 'fatal'])
-
-function positiveSafeInteger(value: number, field: string): number {
-  if (!Number.isSafeInteger(value) || value < 1) throw new RangeError(`${field} must be a positive safe integer`)
-  return value
-}
-
-function safeFailure(error: unknown, message: string): SafeErrorRecord {
-  const source = safeErrorRecord(error)
-  return deepFreeze({
-    type: ['AbortError', 'Error', 'RangeError', 'TypeError'].includes(source.type) ? source.type : 'Error',
-    message,
-    ...source.code !== undefined && SAFE_FAILURE_CODES.has(source.code) ? { code: source.code } : {},
-    ...source.retryable === undefined ? {} : { retryable: source.retryable },
-    ...source.status === undefined ? {} : { status: source.status },
-  })
-}
-
-function receipt(
-  eventId: string,
-  status: CaptureReceipt['status'],
-  boundary: ObservationBoundary = 'none',
-  reason?: CaptureReceipt['reason'],
-): CaptureReceipt {
-  return Object.freeze({
-    eventId, status, durable: status === 'accepted' && boundary !== 'none', boundary,
-    ...reason === undefined ? {} : { reason },
-  })
-}
-
-function eventIdOf(event: unknown): string {
-  try {
-    const value = Reflect.get(event as object, 'eventId')
-    return typeof value === 'string' && value.length > 0 ? value : createOperationId()
-  } catch { return createOperationId() }
-}
-
-function requiredBoundary(registrations: readonly ObservationExporterRegistration[]): ObservationBoundary {
-  let result: ObservationBoundary = 'none'
-  for (const registration of registrations) {
-    if (registration.requirement === 'required'
-      && BOUNDARY_RANK[registration.boundary] > BOUNDARY_RANK[result]) result = registration.boundary
-  }
-  return result
-}
-
-function validateRegistrations(
-  mode: Observability['mode'],
-  registrations: readonly ObservationExporterRegistration[],
-): readonly ObservationExporterRegistration[] {
-  const ids = new Set<string>()
-  for (const registration of registrations) {
-    const id = registration.exporter?.id
-    if (typeof id !== 'string' || !COMPONENT_ID_PATTERN.test(id)) {
-      throw new TypeError('observation exporter id must be a safe 1-64 character identifier')
-    }
-    if (ids.has(id)) throw new TypeError(`duplicate observation exporter id: ${id}`)
-    ids.add(id)
-    if (registration.requirement !== 'required' && registration.requirement !== 'best-effort') {
-      throw new TypeError(`observation exporter ${id} has an invalid requirement`)
-    }
-    if (!(registration.boundary in BOUNDARY_RANK)) throw new TypeError(`observation exporter ${id} has an invalid boundary`)
-    const supported = registration.exporter.supportedBoundaries ?? ['none']
-    if (typeof registration.exporter.export !== 'function') {
-      throw new TypeError(`observation exporter ${id} has no export function`)
-    }
-    if (!supported.includes(registration.boundary)) {
-      throw new TypeError(`observation exporter ${id} does not support ${registration.boundary}`)
-    }
-    if (mode === 'operational' && registration.requirement === 'required') {
-      throw new TypeError('operational observation exporters must be best-effort')
-    }
-  }
-  if (mode !== 'operational' && !registrations.some(registration => (
-    registration.requirement === 'required' && registration.boundary !== 'none'
-  ))) throw new TypeError(`${mode} observability requires a durable required exporter`)
-  return Object.freeze(registrations.map(registration => Object.freeze({ ...registration })))
-}
-
-function deadlineSignal(timeoutMs: number, external?: AbortSignal): { signal: AbortSignal; clear(): void } {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(new DOMException('observation deadline exceeded', 'TimeoutError')), timeoutMs)
-  const abort = () => controller.abort(external?.reason ?? new DOMException('observation aborted', 'AbortError'))
-  if (external?.aborted === true) abort()
-  else external?.addEventListener('abort', abort, { once: true })
-  return {
-    signal: controller.signal,
-    clear() { clearTimeout(timeout); external?.removeEventListener('abort', abort) },
-  }
-}
-
-function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(signal.reason ?? new Error('observation aborted'))
-  return new Promise<T>((resolve, reject) => {
-    const abort = () => { cleanup(); reject(signal.reason ?? new Error('observation aborted')) }
-    const cleanup = () => signal.removeEventListener('abort', abort)
-    signal.addEventListener('abort', abort, { once: true })
-    void pending.then(
-      value => { cleanup(); resolve(value) },
-      error => { cleanup(); reject(error) },
-    )
-  })
-}
-
-function isTimeoutAbort(signal: AbortSignal): boolean {
-  try {
-    const reason = signal.reason
-    return typeof reason === 'object' && reason !== null
-      && Reflect.get(reason, 'name') === 'TimeoutError'
-  } catch { return false }
-}
-
-function publicFlushResult(outcome: FlushOutcome): FlushResult {
-  return Object.freeze({
-    complete: outcome.complete,
-    exportedEvents: outcome.exportedEvents,
-    pendingEvents: outcome.pendingEvents,
-    rejectedCritical: outcome.rejectedCritical,
-    timedOut: outcome.timedOut,
-  })
-}
-
-function sameEnvelope(left: ObservationEvent, right: ObservationEvent): boolean {
-  return left.eventId === right.eventId && left.sequence === right.sequence
-    && left.name === right.name && left.phase === right.phase
-    && left.occurredAt === right.occurredAt && left.monotonicMs === right.monotonicMs
-    && left.priority === right.priority
-    && JSON.stringify(left.resource) === JSON.stringify(right.resource)
-    && JSON.stringify(left.correlation) === JSON.stringify(right.correlation)
-}
+import type { BusOptions, QueueEntry, MutableHealth } from './bus-types.ts'
+import {
+  busResource, busProcessors, busOptions, busHealthState, validateRegistrations, eventIdOf,
+  safeFailure, receipt, requiredBoundary, deadlineSignal, raceAbort, publicFlushResult, sameEnvelope,
+} from './bus-helpers.ts'
+import { flushBus } from './bus-delivery.ts'
+import type { FlushOutcome } from './bus-types.ts'
 
 class ObservationBus implements Observability {
   readonly mode: Observability['mode']
   readonly resource: ObservationResource
   private readonly registrations: readonly ObservationExporterRegistration[]
   private readonly processors: readonly ObservationProcessor[]
-  private readonly options: Required<Pick<ObservabilityOptions,
-    'content' | 'includeErrorStacks' | 'minimumLogLevel' | 'maxQueueEvents' | 'maxQueueBytes'
-    | 'maxBatchEvents' | 'maxBatchBytes' | 'flushTimeoutMs' | 'shutdownTimeoutMs'>>
-    & Pick<ObservabilityOptions, 'redactors' | 'onHealthChange' | 'openSpan'>
+  private readonly options: BusOptions
   private readonly queue: QueueEntry[] = []
   private queueBytes = 0
   private closing = false
@@ -236,47 +62,10 @@ class ObservationBus implements Observability {
   constructor(input: ObservabilityOptions) {
     this.mode = input.mode ?? 'operational'
     if (!['operational', 'reliable', 'audit'].includes(this.mode)) throw new TypeError('invalid observation mode')
-    this.resource = deepFreeze({
-      sdkName: 'ai-agent-sdk',
-      sdkVersion: input.resource?.sdkVersion ?? SDK_VERSION,
-      ...input.resource?.serviceName === undefined ? {} : { serviceName: input.resource.serviceName },
-      ...input.resource?.serviceVersion === undefined ? {} : { serviceVersion: input.resource.serviceVersion },
-      runtime: input.resource?.runtime ?? 'unknown',
-    })
+    this.resource = busResource(input)
     this.registrations = validateRegistrations(this.mode, input.exporters ?? [])
-    const processorIds = new Set<string>()
-    for (const processor of input.processors ?? []) {
-      if (typeof processor.id !== 'string' || !COMPONENT_ID_PATTERN.test(processor.id)) {
-        throw new TypeError('processor id must be a safe 1-64 character identifier')
-      }
-      if (processorIds.has(processor.id)) throw new TypeError(`duplicate observation processor id: ${processor.id}`)
-      if (typeof processor.transform !== 'function') throw new TypeError(`observation processor ${processor.id} is invalid`)
-      processorIds.add(processor.id)
-    }
-    this.processors = Object.freeze([...(input.processors ?? [])])
-    if (!CONTENT_POLICIES.has(input.content ?? 'none')) throw new TypeError('invalid observation content policy')
-    if (!LOG_LEVELS.has(input.minimumLogLevel ?? 'info')) throw new TypeError('invalid minimum log level')
-    const redactorIds = new Set<string>()
-    for (const redactor of input.redactors ?? []) {
-      if (typeof redactor.id !== 'string' || !COMPONENT_ID_PATTERN.test(redactor.id)
-        || typeof redactor.redact !== 'function') throw new TypeError('invalid observation content redactor')
-      if (redactorIds.has(redactor.id)) throw new TypeError(`duplicate observation redactor id: ${redactor.id}`)
-      redactorIds.add(redactor.id)
-    }
-    this.options = {
-      content: input.content ?? 'none',
-      includeErrorStacks: input.includeErrorStacks ?? false,
-      minimumLogLevel: input.minimumLogLevel ?? 'info',
-      maxQueueEvents: positiveSafeInteger(input.maxQueueEvents ?? DEFAULT_MAX_QUEUE_EVENTS, 'maxQueueEvents'),
-      maxQueueBytes: positiveSafeInteger(input.maxQueueBytes ?? DEFAULT_MAX_QUEUE_BYTES, 'maxQueueBytes'),
-      maxBatchEvents: positiveSafeInteger(input.maxBatchEvents ?? DEFAULT_MAX_BATCH_EVENTS, 'maxBatchEvents'),
-      maxBatchBytes: positiveSafeInteger(input.maxBatchBytes ?? DEFAULT_MAX_BATCH_BYTES, 'maxBatchBytes'),
-      flushTimeoutMs: positiveSafeInteger(input.flushTimeoutMs ?? DEFAULT_FLUSH_TIMEOUT_MS, 'flushTimeoutMs'),
-      shutdownTimeoutMs: positiveSafeInteger(input.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS, 'shutdownTimeoutMs'),
-      redactors: Object.freeze([...(input.redactors ?? [])]),
-      ...input.onHealthChange === undefined ? {} : { onHealthChange: input.onHealthChange },
-      ...input.openSpan === undefined ? {} : { openSpan: input.openSpan },
-    }
+    this.processors = busProcessors(input)
+    this.options = busOptions(input)
   }
 
   openSpan(input: OpenObservationSpanInput): ObservationSpan {
@@ -286,7 +75,8 @@ class ObservationBus implements Observability {
       const span = snapshotObservationSpan(backend(input))
       if (span !== undefined) return span
       this.counters.processorFailures++
-      this.recordFailure('span:invalid', new TypeError('invalid span'), 'observation span backend returned an invalid span', false)
+      this.recordFailure('span:invalid', new TypeError('invalid span'),
+        'observation span backend returned an invalid span', false)
     } catch (error) {
       this.counters.processorFailures++
       this.recordFailure('span:throw', error, 'observation span backend failed', false)
@@ -337,14 +127,7 @@ class ObservationBus implements Observability {
   }
 
   health(): ObservationHealthSnapshot {
-    const state: ObservationHealthSnapshot['state'] = this.closed
-      ? 'closed'
-      : this.counters.requiredFailure || this.counters.criticalRejected > 0 || this.counters.flushTimeouts > 0
-        ? 'failed'
-        : this.counters.processorFailures > 0 || this.counters.exporterFailures > 0
-          || this.counters.droppedVerbose > 0 || this.counters.droppedNormal > 0
-          ? 'degraded'
-          : 'healthy'
+    const state = busHealthState(this.counters, this.closed)
     return deepFreeze({
       state,
       queuedEvents: this.queue.length,
@@ -383,7 +166,8 @@ class ObservationBus implements Observability {
         for (const registration of [...this.registrations].reverse()) {
           const shutdown = registration.exporter.shutdown
           if (shutdown === undefined) continue
-          try { await raceAbort(Promise.resolve(shutdown.call(registration.exporter, deadline.signal)), deadline.signal) }
+          try { await raceAbort(Promise.resolve(shutdown.call(registration.exporter, deadline.signal)),
+            deadline.signal) }
           catch (error) {
             this.recordExporterFailure(registration, error, false)
             result = Object.freeze({ ...result, complete: false })
@@ -451,19 +235,26 @@ class ObservationBus implements Observability {
         const pending = stage.call(registration.exporter, event)
         if (pending !== undefined) void Promise.resolve(pending).catch(() => undefined)
       } catch (error) {
-        this.recordExporterFailure(registration, error, false)
-        entry.pending.delete(registration.exporter.id)
+        const failed = this.rejectStagedExporter(entry, registration, error)
         removedPending = true
-        if (registration.requirement === 'required') {
-          this.removeEntry(entry, false)
-          if (event.priority === 'critical') this.counters.criticalRejected++
-          this.notifyHealth()
-          return receipt(event.eventId, 'rejected', 'none', 'exporter-unavailable')
-        }
+        if (failed !== undefined) return failed
       }
     }
     if (removedPending && entry.pending.size === 0) this.removeEntry(entry, false)
     return captured
+  }
+
+  private rejectStagedExporter(
+    entry: QueueEntry, registration: ObservationExporterRegistration, error: unknown,
+  ): CaptureReceipt | undefined {
+    const event = entry.event
+    this.recordExporterFailure(registration, error, false)
+    entry.pending.delete(registration.exporter.id)
+    if (registration.requirement !== 'required') return undefined
+    this.removeEntry(entry, false)
+    if (event.priority === 'critical') this.counters.criticalRejected++
+    this.notifyHealth()
+    return receipt(event.eventId, 'rejected', 'none', 'exporter-unavailable')
   }
 
   private makeCapacity(incomingBytes: number, protectedPath: boolean): boolean {
@@ -483,7 +274,8 @@ class ObservationBus implements Observability {
     return true
   }
 
-  private scheduleFlush(targetIds: ReadonlySet<string>, timeoutMs: number, signal?: AbortSignal): Promise<FlushOutcome> {
+  private scheduleFlush(targetIds: ReadonlySet<string>, timeoutMs: number,
+    signal?: AbortSignal): Promise<FlushOutcome> {
     let resolveResult!: (result: FlushOutcome) => void
     let rejectResult!: (error: unknown) => void
     const result = new Promise<FlushOutcome>((resolve, reject) => { resolveResult = resolve; rejectResult = reject })
@@ -500,82 +292,12 @@ class ObservationBus implements Observability {
     timeoutMs: number,
     external?: AbortSignal,
   ): Promise<FlushOutcome> {
-    const beforeExported = this.counters.exported
-    const deadline = deadlineSignal(timeoutMs, external)
-    let failed = false
-    let timedOut = false
-    try {
-      if (this.registrations.length === 0) {
-        for (const entry of [...this.queue]) if (targetIds.has(entry.event.eventId)) this.removeEntry(entry, false)
-      }
-      for (const registration of this.registrations) {
-        while (true) {
-          const candidates = this.queue.filter(entry => (
-            targetIds.has(entry.event.eventId) && entry.pending.has(registration.exporter.id)
-          ))
-          if (candidates.length === 0) break
-          const entries: QueueEntry[] = []
-          let bytes = 0
-          for (const entry of candidates) {
-            if (entries.length >= this.options.maxBatchEvents || bytes + entry.bytes > this.options.maxBatchBytes) break
-            entries.push(entry)
-            bytes += entry.bytes
-          }
-          if (entries.length === 0) break
-          const batch: ObservationBatch = deepFreeze({
-            schemaVersion: 1,
-            batchId: createOperationId(),
-            createdAt: new Date().toISOString(),
-            events: entries.map(entry => entry.event),
-          })
-          let ack: ExportAck
-          try {
-            ack = await raceAbort(Promise.resolve(registration.exporter.export(batch, deadline.signal)), deadline.signal)
-            if (ack.batchId !== batch.batchId || ack.accepted !== true) {
-              throw new TypeError(`observation exporter ${registration.exporter.id} returned an invalid acknowledgment`)
-            }
-          } catch (error) {
-            failed = true
-            timedOut ||= isTimeoutAbort(deadline.signal)
-            this.recordExporterFailure(registration, error, true)
-            if (registration.requirement === 'best-effort') {
-              for (const entry of entries) {
-                entry.pending.delete(registration.exporter.id)
-                if (entry.pending.size === 0) this.removeEntry(entry, false)
-              }
-            }
-            break
-          }
-          this.counters.lastExportAt = new Date().toISOString()
-          for (const entry of entries) {
-            entry.pending.delete(registration.exporter.id)
-            if (entry.pending.size === 0) this.removeEntry(entry, true)
-          }
-          this.notifyHealth()
-        }
-      }
-    } finally {
-      if (isTimeoutAbort(deadline.signal)) {
-        timedOut = true
-        this.counters.flushTimeouts++
-        this.counters.lastFailure = safeFailure(deadline.signal.reason, 'observation flush timed out')
-        this.notifyHealth()
-      }
-      deadline.clear()
-    }
-    const pendingEntries = this.queue.filter(entry => targetIds.has(entry.event.eventId))
-    const requiredIds = this.registrations
-      .filter(registration => registration.requirement === 'required')
-      .map(registration => registration.exporter.id)
-    const requiredComplete = pendingEntries.every(entry => requiredIds.every(id => !entry.pending.has(id)))
-    return Object.freeze({
-      complete: !failed && !timedOut && pendingEntries.length === 0,
-      requiredComplete,
-      exportedEvents: this.counters.exported - beforeExported,
-      pendingEvents: pendingEntries.length,
-      rejectedCritical: this.counters.criticalRejected,
-      timedOut,
-    })
+    return await flushBus({
+      queue: this.queue, registrations: this.registrations, counters: this.counters, options: this.options,
+      removeEntry: (entry, exported) => this.removeEntry(entry, exported),
+      recordExporterFailure: (registration, error) => this.recordExporterFailure(registration, error, true),
+      notifyHealth: () => this.notifyHealth(),
+    }, targetIds, timeoutMs, external)
   }
 
   private removeEntry(entry: QueueEntry, exported: boolean): void {

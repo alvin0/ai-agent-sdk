@@ -2,26 +2,31 @@ packages:
   - packages/*
   - samples/*/*
   - tests/fixtures/*
+  - scripts/eslint-tooling
 
 catalog:
   '@a2a-js/sdk': 1.1.0
   '@arethetypeswrong/cli': 0.18.5
-  '@modelcontextprotocol/client': 2.0.0
+  '@modelcontextprotocol/client': 2.2.0
   '@modelcontextprotocol/node': 2.0.0
-  '@modelcontextprotocol/server': 2.0.0
+  '@modelcontextprotocol/server': 2.2.0
   '@opentelemetry/api': 1.9.1
   '@opentelemetry/api-logs': 0.221.0
   '@shikijs/langs': 4.4.3
+  '@stylistic/eslint-plugin': 5.10.0
   '@types/mdast': 4.0.4
   '@types/node': 26.4.0
   '@types/react': 19.2.18
   '@types/react-dom': 19.2.7
+  '@typescript-eslint/parser': 8.70.0
   '@vitest/browser-playwright': 4.1.11
   anser: 2.3.5
   clsx: 2.1.1
   dependency-cruiser: 18.2.0
   drizzle-kit: 0.31.10
   drizzle-orm: 0.45.2
+  eslint: 10.12.0
+  eslint-plugin-sonarjs: 4.2.2
   hono: 4.13.7
   katex: 0.18.5
   mdast-util-from-markdown: 2.0.3
@@ -36,7 +41,7 @@ catalog:
   micromark-util-sanitize-uri: 2.0.1
   micromark-util-symbol: 2.0.1
   micromark-util-types: 2.0.2
-  next: 16.3.6
+  next: 16.3.8
   playwright: 1.62.1
   publint: 0.3.24
   react: 19.2.8
@@ -50,11 +55,19 @@ catalog:
   wrangler: 4.127.1
   yaml: 2.9.0
 
+catalogs:
+  eslint:
+    # Only ESLint tooling uses the JS compiler API; project builds stay on TS 7.
+    typescript: 6.0.3
+
 catalogMode: strict
 catalogPrune: true
 saveExact: true
 saveWorkspaceProtocol: rolling
 sharedWorkspaceLockfile: true
+overrides:
+  # Keep Next.js image optimization on the patched Sharp/libvips binaries.
+  'next>sharp': 0.35.5
 disallowWorkspaceCycles: true
 minimumReleaseAge: 1440
 minimumReleaseAgeStrict: true

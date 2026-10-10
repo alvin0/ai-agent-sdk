@@ -106,12 +106,14 @@ async function testWorker(consumer: string): Promise<void> {
 
 function assertFixture(value: unknown, runtime: string): void {
   const result = value as Record<string, unknown>
-  if (result.durable !== true || result.boundary !== 'remote-acknowledged' || result.calls !== 2
-    || result.identicalBody !== true || result.identicalKey !== true || result.complete !== true
-    || result.lifetimeCount !== 1 || result.safe !== true
-    || result.runtimeFactory !== true
-    || result.buffer !== 'undefined' || result.process !== 'undefined') {
-    throw new Error(`${runtime} fixture returned invalid evidence: ${JSON.stringify(result)}`)
+  const expected = {
+    durable: true, boundary: 'remote-acknowledged', calls: 2, identicalBody: true, identicalKey: true,
+    complete: true, lifetimeCount: 1, safe: true, runtimeFactory: true, buffer: 'undefined', process: 'undefined',
+  }
+  for (const [field, expectedValue] of Object.entries(expected)) {
+    if (result[field] !== expectedValue) {
+      throw new Error(`${runtime} fixture returned invalid evidence: ${JSON.stringify(result)}`)
+    }
   }
 }
 

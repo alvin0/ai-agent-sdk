@@ -22,18 +22,11 @@ import { AgentSdkError, MISSING_CREDENTIAL_CODE } from '@alvin0/ai-agent-sdk-cor
 import { defineCredentialStore } from '@alvin0/ai-agent-sdk-core/provider'
 import { COPILOT_ERROR_CODES } from './errors.ts'
 import type {
-  CopilotAuthFile,
-  CopilotAuthStore,
-  CopilotCredentialStore,
-  CopilotGitHubToken,
+  CopilotAuthFile, CopilotAuthStore, CopilotCredentialStore, CopilotGitHubToken,
 } from './common/store-types.ts'
 
 export type {
-  CopilotAccountIdentity,
-  CopilotAuthFile,
-  CopilotAuthStore,
-  CopilotCredentialStore,
-  CopilotGitHubToken,
+  CopilotAccountIdentity, CopilotAuthFile, CopilotAuthStore, CopilotCredentialStore, CopilotGitHubToken,
 } from './common/store-types.ts'
 
 /**

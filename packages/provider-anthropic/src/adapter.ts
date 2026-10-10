@@ -335,11 +335,7 @@ function dialectOf(
   options: AnthropicAdapterOptions | AnthropicProviderOptions,
   promptCachingOverride?: boolean,
 ): Partial<AnthropicDialect> {
-  if (options.reasoningFormat !== undefined && !ANTHROPIC_REASONING_FORMATS.has(options.reasoningFormat)) {
-    throw new TypeError(
-      `Anthropic reasoningFormat must be 'output-config' or 'thinking-budget', received ${JSON.stringify(options.reasoningFormat)}`,
-    )
-  }
+  validateReasoningFormat(options.reasoningFormat)
   const budgets = options.thinkingBudgets ?? DEFAULT_THINKING_BUDGETS
   const promptCaching = promptCachingOverride ?? options.promptCaching
   return {
@@ -350,6 +346,15 @@ function dialectOf(
     ...(options.beta === undefined ? {} : { beta: options.beta }),
     ...(promptCaching === undefined ? {} : { promptCaching }),
     ...(options.promptCachingTtl === undefined ? {} : { promptCachingTtl: options.promptCachingTtl }),
+  }
+}
+
+function validateReasoningFormat(format: AnthropicAdapterOptions['reasoningFormat']): void {
+  if (format !== undefined && !ANTHROPIC_REASONING_FORMATS.has(format)) {
+    throw new TypeError(
+      "Anthropic reasoningFormat must be 'output-config' or 'thinking-budget', "
+      + `received ${JSON.stringify(format)}`,
+    )
   }
 }
 
@@ -375,6 +380,12 @@ function transportLimits(options: AnthropicAdapterOptions | AnthropicProviderOpt
     ...options.body === undefined ? {} : { body: options.body },
     ...options.transformRequest === undefined ? {} : { transformRequest: options.transformRequest },
     ...options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs },
+    ...responseLimits(options),
+  }
+}
+
+function responseLimits(options: AnthropicAdapterOptions | AnthropicProviderOptions) {
+  return {
     ...options.maxRequestBytes === undefined ? {} : { maxRequestBytes: options.maxRequestBytes },
     ...options.maxResponseBytes === undefined ? {} : { maxResponseBytes: options.maxResponseBytes },
     ...options.maxResponseChunks === undefined ? {} : { maxResponseChunks: options.maxResponseChunks },

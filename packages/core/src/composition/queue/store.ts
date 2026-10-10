@@ -72,7 +72,8 @@ export class DeliveryQueueStore {
     const previous = this.runIds.get(record.runId)
     if (previous !== undefined) return outcome('existing', undefined, previous)
     return this.admit({ kind: 'run-record', id: record.runId, runId: record.runId,
-      priority: 'critical', bytes: bytes(record), item: record }, deliveryBatchItemBytes(this.resource, record), this.runIds)
+      priority: 'critical', bytes: bytes(record), item: record }, deliveryBatchItemBytes(this.resource, record),
+        this.runIds)
   }
 
   remove(entries: readonly DeliveryQueueEntry[]): void {
@@ -101,7 +102,8 @@ export class DeliveryQueueStore {
 
   runEntries(runId: string, throughSequence?: number): readonly DeliveryQueueEntry[] {
     return Object.freeze(this.entries.filter(entry => this.active.has(entry) && entry.runId === runId
-      && entry.priority === 'critical' && (entry.sequence === undefined || throughSequence === undefined || entry.sequence <= throughSequence)))
+      && entry.priority === 'critical' && (entry.sequence === undefined || throughSequence === undefined
+        || entry.sequence <= throughSequence)))
   }
 
   snapshot(): DeliveryQueueSnapshot {
@@ -139,8 +141,10 @@ export class DeliveryQueueStore {
   }
 
   private evictionCandidate(): DeliveryQueueEntry | undefined {
-    return this.entries.find(entry => this.active.has(entry) && !this.protectedEntries.has(entry) && entry.priority === 'verbose')
-      ?? this.entries.find(entry => this.active.has(entry) && !this.protectedEntries.has(entry) && entry.priority === 'normal')
+    return this.entries.find(entry => this.active.has(entry) && !this.protectedEntries.has(entry)
+      && entry.priority === 'verbose')
+      ?? this.entries.find(entry => this.active.has(entry) && !this.protectedEntries.has(entry)
+        && entry.priority === 'normal')
   }
 
   private evict(entry: DeliveryQueueEntry): void {
@@ -166,6 +170,8 @@ function positive(value: number): number {
   return result
 }
 
-function outcome(status: QueueAdmission['status'], reason?: QueueAdmission['reason'], entry?: DeliveryQueueEntry): QueueAdmission {
-  return Object.freeze({ status, ...(reason === undefined ? {} : { reason }), ...(entry === undefined ? {} : { entry }) })
+function outcome(status: QueueAdmission['status'], reason?: QueueAdmission['reason'],
+  entry?: DeliveryQueueEntry): QueueAdmission {
+  return Object.freeze({ status, ...(reason === undefined ? {} : { reason }),
+    ...(entry === undefined ? {} : { entry }) })
 }

@@ -49,6 +49,7 @@ mkdirSync(artifacts, { recursive: true })
 const tarballs = [
   pack(join(workspaceRoot, 'packages', 'core'), artifacts),
   pack(join(workspaceRoot, 'packages', 'provider-http'), artifacts),
+  ...(packageName === 'provider-openai' ? [pack(join(workspaceRoot, 'packages', 'decision-adapter'), artifacts)] : []),
   ...protocolNames.map(name => pack(join(workspaceRoot, 'packages', name), artifacts)),
   pack(packageRoot, artifacts),
 ]

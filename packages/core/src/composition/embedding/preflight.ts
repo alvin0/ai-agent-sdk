@@ -88,6 +88,65 @@ interface ScannedProvider {
   readonly metadata: ProviderMetadata
 }
 
+interface ProviderScanState {
+  readonly failures: ProviderPreflightFailure[]
+  readonly scanned: ScannedProvider[]
+  readonly ids: Map<string, number>
+  /** Keyed by operation + route: the pair IS the namespace (Requirement 11.10). */
+  readonly routes: Map<string, number>
+}
+
+function scanProvider(source: object, index: number, state: ProviderScanState, signal: AbortSignal | undefined): void {
+  const { failures, scanned, ids } = state
+  checkPreflightAbort(signal)
+  const operation = operationOf(source)
+  if (operation === undefined) {
+    failures.push(failure(index, 'CAPABILITY_KIND_MISMATCH', source))
+    return
+  }
+  if (!supportedApiVersion(source, operation)) {
+    failures.push(failure(index, 'CAPABILITY_API_UNSUPPORTED', source))
+    return
+  }
+  let metadata: ProviderMetadata
+  try {
+    metadata = readProviderMetadata(source)
+  } catch {
+    if (signal?.aborted === true) checkPreflightAbort(signal)
+    failures.push(failure(index, 'CAPABILITY_STARTUP_FAILED', source))
+    return
+  }
+  const duplicateId = ids.get(metadata.id)
+  if (duplicateId !== undefined) {
+    failures.push(failure(index, 'CAPABILITY_ID_CONFLICT', source,
+      { knownId: metadata.id, conflictsWithIndex: duplicateId }))
+    return
+  }
+  ids.set(metadata.id, index)
+  const candidate = { index, operation, source, metadata }
+  if (!claimRoutes(candidate, state)) return
+  scanned.push(candidate)
+}
+
+function claimRoutes(candidate: ScannedProvider, state: ProviderScanState): boolean {
+  const { index, operation, source, metadata } = candidate
+  const { routes, failures } = state
+  for (const route of metadata.routes) {
+    const key = `${operation}\u0000${route}`
+    const first = routes.get(key)
+    if (first !== undefined) {
+      // A generation collision keeps its historical code; an embedding
+      // collision is the new route–operation class.
+      failures.push(failure(index,
+        operation === 'generation' ? 'PROVIDER_ROUTE_CONFLICT' : 'PROVIDER_OPERATION_CONFLICT',
+        source, { knownId: metadata.id, conflictsWithIndex: first }))
+      return false
+    }
+    routes.set(key, index)
+  }
+  return true
+}
+
 /**
  * Validate an entire `providers` list without committing anything.
  *
@@ -104,55 +163,9 @@ export function preflightRuntimeProviders(
 ): RuntimeProviderPlan {
   checkPreflightAbort(signal)
   const sources = readSources(input, signal)
-  const failures: ProviderPreflightFailure[] = []
-  const scanned: ScannedProvider[] = []
-  const ids = new Map<string, number>()
-  // Keyed by operation + route: the pair IS the namespace (Requirement 11.10).
-  const routes = new Map<string, number>()
-
-  for (const [index, source] of sources.entries()) {
-    checkPreflightAbort(signal)
-    const operation = operationOf(source)
-    if (operation === undefined) {
-      failures.push(failure(index, 'CAPABILITY_KIND_MISMATCH', source))
-      continue
-    }
-    if (!supportedApiVersion(source, operation)) {
-      failures.push(failure(index, 'CAPABILITY_API_UNSUPPORTED', source))
-      continue
-    }
-    let metadata: ProviderMetadata
-    try {
-      metadata = readProviderMetadata(source)
-    } catch {
-      if (signal?.aborted === true) checkPreflightAbort(signal)
-      failures.push(failure(index, 'CAPABILITY_STARTUP_FAILED', source))
-      continue
-    }
-    const duplicateId = ids.get(metadata.id)
-    if (duplicateId !== undefined) {
-      failures.push(failure(index, 'CAPABILITY_ID_CONFLICT', source, metadata.id, duplicateId))
-      continue
-    }
-    ids.set(metadata.id, index)
-    let conflicted = false
-    for (const route of metadata.routes) {
-      const key = `${operation}\u0000${route}`
-      const first = routes.get(key)
-      if (first !== undefined) {
-        // A generation collision keeps its historical code; an embedding
-        // collision is the new route–operation class.
-        failures.push(failure(index,
-          operation === 'generation' ? 'PROVIDER_ROUTE_CONFLICT' : 'PROVIDER_OPERATION_CONFLICT',
-          source, metadata.id, first))
-        conflicted = true
-        break
-      }
-      routes.set(key, index)
-    }
-    if (conflicted) continue
-    scanned.push({ index, operation, source, metadata })
-  }
+  const state: ProviderScanState = { failures: [], scanned: [], ids: new Map(), routes: new Map() }
+  for (const [index, source] of sources.entries()) scanProvider(source, index, state, signal)
+  const { failures, scanned } = state
 
   checkPreflightAbort(signal)
   if (failures.length > 0) throw aggregateFailure(failures)
@@ -268,9 +281,9 @@ function failure(
   index: number,
   code: ProviderPreflightFailure['code'],
   source: object,
-  knownId?: string,
-  conflictsWithIndex?: number,
+  details: { knownId?: string; conflictsWithIndex?: number } = {},
 ): ProviderPreflightFailure {
+  const { knownId, conflictsWithIndex } = details
   const pluginId = knownId ?? readableId(source)
   return Object.freeze({
     index, code,

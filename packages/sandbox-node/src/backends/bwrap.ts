@@ -110,61 +110,7 @@ export async function bwrapProfileArgs(
     Object.freeze({ ...layer, path: await resolver.realpath(layer.path) }))))
 
   for (const [index, layer] of layers.entries()) {
-    // Bind the canonical location: a layer named through a symlink would
-    // otherwise govern whatever the link happens to point at.
-    const real = layer.path
-
-    // A mount needs its destination to exist: `--ro-bind-try` tolerates a
-    // missing SOURCE, not a missing DESTINATION, and outside the workspace the
-    // root is read-only so bubblewrap cannot create one. A hardened deny list
-    // names paths that are absent on most hosts (`~/.aws` on a machine without
-    // it), and emitting a mount for those aborts the whole sandbox with
-    // "Can't create file at ...: Read-only file system" — the command then
-    // never runs at all. Nothing needs masking where nothing exists.
-    if (layer.access !== 'write' && !(await resolver.exists(real))) {
-      // A protected child of a writable mount must still occupy the name: if
-      // it is skipped, the command can create it through the writable parent.
-      const before = accessInLayers(layer.path, layers.slice(0, index), policy.baseline ?? 'read')
-      if (before === 'write') {
-        args.push('--tmpfs', real)
-        sealReadOnly.push(real)
-      }
-      continue
-    }
-
-    if (layer.access === 'write') {
-      args.push('--bind', real, real)
-      continue
-    }
-
-    // bubblewrap builds the mount point itself, and since 0.12.0 it has to read
-    // the destination's parent to do so. A host daemon socket routinely sits in
-    // a root-owned `0711` directory — `/run/containerd` on a GitHub runner —
-    // which the confined user may traverse but not list, and naming the socket
-    // there aborts the whole sandbox instead of masking anything. Masking the
-    // directory denies strictly more and mounts cleanly, so the mask climbs to
-    // the shallowest ancestor bubblewrap can actually mount.
-    const mask = await mountableMaskPoint(real)
-    if (mask === undefined) {
-      throw new Error(
-        `bubblewrap cannot mask ${real}: no ancestor of it can carry a mount point, `
-        + 'so this policy has no profile that expresses it',
-      )
-    }
-
-    if (layer.access === 'read' && mask === real) {
-      args.push('--ro-bind-try', real, real)
-    } else if (await isDirectory(mask)) {
-      // An empty tmpfs hides the contents, but a bare tmpfs is writable, so the
-      // denial is only real once it is remounted read-only. That remount is
-      // deferred: sealing it here would leave bubblewrap unable to create the
-      // mount point for a narrower grant reopened inside this subtree
-      // ("Can't mkdir ...: Read-only file system").
-      args.push('--tmpfs', mask)
-      sealReadOnly.push(mask)
-    } else {
-      args.push('--ro-bind-try', '/dev/null', mask)
-    }
+    await applyLayer(index, layer, { resolver, args, sealReadOnly, layers, policy })
   }
 
   // A hard link is two names for one inode, and the grant above named only one
@@ -229,4 +175,73 @@ export function bwrapProbeArgs(workspaceRoot: string, variant: BwrapVariant): re
  */
 export function bwrapNetworkEnforcement(network: NetworkMode): NetworkEnforcement {
   return network === 'allow-all' ? 'none' : 'full'
+}
+
+interface BwrapLayerContext {
+  resolver: ReturnType<typeof nodePathResolver>
+  args: string[]
+  sealReadOnly: string[]
+  layers: ReturnType<typeof grantLayers>
+  policy: SandboxPolicy
+}
+
+async function applyLayer(
+  index: number, layer: ReturnType<typeof grantLayers>[number], context: BwrapLayerContext,
+): Promise<void> {
+  const { resolver, args, sealReadOnly, layers, policy } = context
+  // Bind the canonical location: a layer named through a symlink would
+  // otherwise govern whatever the link happens to point at.
+  const real = layer.path
+
+  // A mount needs its destination to exist: `--ro-bind-try` tolerates a
+  // missing SOURCE, not a missing DESTINATION, and outside the workspace the
+  // root is read-only so bubblewrap cannot create one. A hardened deny list
+  // names paths that are absent on most hosts (`~/.aws` on a machine without
+  // it), and emitting a mount for those aborts the whole sandbox with
+  // "Can't create file at ...: Read-only file system" — the command then
+  // never runs at all. Nothing needs masking where nothing exists.
+  if (layer.access !== 'write' && !(await resolver.exists(real))) {
+    // A protected child of a writable mount must still occupy the name: if
+    // it is skipped, the command can create it through the writable parent.
+    const before = accessInLayers(layer.path, layers.slice(0, index), policy.baseline ?? 'read')
+    if (before === 'write') {
+      args.push('--tmpfs', real)
+      sealReadOnly.push(real)
+    }
+    return
+  }
+
+  if (layer.access === 'write') {
+    args.push('--bind', real, real)
+    return
+  }
+
+  // bubblewrap builds the mount point itself, and since 0.12.0 it has to read
+  // the destination's parent to do so. A host daemon socket routinely sits in
+  // a root-owned `0711` directory — `/run/containerd` on a GitHub runner —
+  // which the confined user may traverse but not list, and naming the socket
+  // there aborts the whole sandbox instead of masking anything. Masking the
+  // directory denies strictly more and mounts cleanly, so the mask climbs to
+  // the shallowest ancestor bubblewrap can actually mount.
+  const mask = await mountableMaskPoint(real)
+  if (mask === undefined) {
+    throw new Error(
+      `bubblewrap cannot mask ${real}: no ancestor of it can carry a mount point, `
+      + 'so this policy has no profile that expresses it',
+    )
+  }
+
+  if (layer.access === 'read' && mask === real) {
+    args.push('--ro-bind-try', real, real)
+  } else if (await isDirectory(mask)) {
+    // An empty tmpfs hides the contents, but a bare tmpfs is writable, so the
+    // denial is only real once it is remounted read-only. That remount is
+    // deferred: sealing it here would leave bubblewrap unable to create the
+    // mount point for a narrower grant reopened inside this subtree
+    // ("Can't mkdir ...: Read-only file system").
+    args.push('--tmpfs', mask)
+    sealReadOnly.push(mask)
+  } else {
+    args.push('--ro-bind-try', '/dev/null', mask)
+  }
 }
