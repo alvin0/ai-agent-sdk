@@ -164,9 +164,9 @@ const reviewedLicense = (expression: string, value: unknown): boolean => {
     if (!entry.versions?.length) return false
     if (expression === 'CC-BY-4.0') return entry.name === 'caniuse-lite' && entry.versions.every(version => version === '1.0.30001810')
     if (expression === 'LGPL-3.0-or-later') return /^@img\/sharp-libvips-(?:darwin-arm64|darwin-x64|linux-arm|linux-arm64|linux-ppc64|linux-riscv64|linux-s390x|linux-x64|linuxmusl-arm64|linuxmusl-x64)$/.test(entry.name ?? '')
-      && entry.versions.every(version => version === '1.3.3')
+      && entry.versions.every(version => version === '1.3.4')
     if (expression === 'Apache-2.0 AND LGPL-3.0-or-later') return entry.name === '@img/sharp-win32-x64'
-      && entry.versions.every(version => version === '0.35.4')
+      && entry.versions.every(version => version === '0.35.5')
     return false
   })
 }

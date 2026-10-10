@@ -2,7 +2,12 @@
 import type { AgentTeam } from './team.ts'
 import type { ManagedAgentWorkerStatus, WorkerRuntime } from './managed-types.ts'
 import type { ManagedWorkerScheduling } from './managed-scheduling.ts'
-import { abortable, recordEvidence } from './managed-support.ts'
+import {
+  abortable,
+} from './managed-cancellation.ts'
+import {
+  recordEvidence,
+} from './managed-outcomes.ts'
 
 interface ManagedCloseHost {
 readonly team: AgentTeam

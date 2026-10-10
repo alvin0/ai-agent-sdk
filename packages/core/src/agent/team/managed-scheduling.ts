@@ -1,7 +1,15 @@
 /** Schedules dependencies while retaining write claims for unfinished follow-ups. */
 import type { AgentTeam } from './team.ts'
 import type { ManagedAgentTeamOptions, ResolvedManagedAgentSpawnRequest, WorkerRuntime } from './managed-types.ts'
-import { memberName, scopesOverlap, SETTLED_WORKER_STATUS } from './managed-support.ts'
+import {
+  memberName,
+} from './managed-validation.ts'
+import {
+  scopesOverlap,
+} from './managed-write-scopes.ts'
+import {
+  SETTLED_WORKER_STATUS,
+} from './managed-outcomes.ts'
 
 interface ManagedSchedulingHost {
   readonly options: ManagedAgentTeamOptions

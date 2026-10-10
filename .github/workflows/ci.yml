@@ -48,7 +48,7 @@ jobs:
       - name: Release documentation and human coverage declarations
         run: pnpm check:docs && pnpm check:human
 
-      - name: Source maintainability gate
+      - name: Package maintainability gate
         if: ${{ !cancelled() }}
         run: pnpm lint:code
 

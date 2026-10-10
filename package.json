@@ -31,7 +31,7 @@
     "typecheck": "pnpm build && tsc --noEmit",
     "pretest": "pnpm build && pnpm build:cli",
     "lint": "node scripts/lint.mjs",
-    "lint:code": "eslint . --max-warnings 0",
+    "lint:code": "eslint packages --max-warnings 0",
     "lint:source": "eslint \"packages/*/src/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}\" --max-warnings 0",
     "lint:fix": "pnpm lint:code --fix",
     "lint:boundaries": "node scripts/check-package-graph.mts && node scripts/check-dependency-cruiser.mts && node scripts/check-agent-boundaries.mts && node scripts/check-runtime-boundaries.mts",

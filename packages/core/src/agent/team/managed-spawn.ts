@@ -14,9 +14,23 @@ import type {
   ManagedAgentWorker, ManagedAgentTeamOptions, WorkerRuntime,
 } from './managed-types.ts'
 import {
-  mergeTools, spawnContext, memberName, nonEmpty, boundedString, errorMessage,
-  abortable, combineSignals, normalizeWriteScope, recordEvidence, completedHistoryPrefix, SETTLED_WORKER_STATUS,
-} from './managed-support.ts'
+  spawnContext, memberName, nonEmpty, boundedString,
+} from './managed-validation.ts'
+import {
+  mergeTools,
+} from './managed-tool-input.ts'
+import {
+  completedHistoryPrefix,
+} from './managed-history.ts'
+import {
+  abortable, combineSignals,
+} from './managed-cancellation.ts'
+import {
+  normalizeWriteScope,
+} from './managed-write-scopes.ts'
+import {
+  errorMessage, recordEvidence, SETTLED_WORKER_STATUS,
+} from './managed-outcomes.ts'
 
 interface ManagedSpawnHost {
   readonly options: ManagedAgentTeamOptions

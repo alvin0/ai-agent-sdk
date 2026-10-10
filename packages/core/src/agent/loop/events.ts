@@ -222,6 +222,12 @@ export interface TurnEndContext {
   readonly canContinue: boolean
 }
 export interface TurnHooks {
+  /** Enables terminal recovery for a user-facing turn and synchronously formats
+   * its provider-free report. A thrown or empty formatter uses the default.
+   * Machine/structured consumers without this policy retain failure semantics. */
+  readonly onTerminalRecovery?: (ctx: { readonly reason: TurnEndReason;
+    readonly text: string; readonly defaultText: string;
+    readonly evidence: readonly { readonly toolName: string; readonly text: string }[] }) => string
   readonly beforeStep?: (ctx: BeforeStepContext) => Promise<StepDecision> | StepDecision
   readonly onRequestError?: (ctx: RequestErrorContext) => Promise<'retry' | 'fail'> | 'retry' | 'fail'
   readonly checkpoint?: (ctx: CheckpointContext) => Promise<void> | void

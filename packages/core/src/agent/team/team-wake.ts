@@ -9,49 +9,26 @@ interface WakeHost {
 }
 
 export async function runWakeLoop(member: LocalMemberRuntime, signal: AbortSignal, host: WakeHost): Promise<void> {
-    let cancellationReported = false
-    try {
-      while (member.wakeConsumedSeq < member.wakeRequestedSeq) {
-        signal.throwIfAborted()
-        await member.session.whenIdle(signal)
-        const through = member.wakeRequestedSeq
-        if (answeredWake(member)) {
-          recordAnsweredWake(member)
-          member.wakeConsumedSeq = through
-          continue
-        }
-        host.emit({ type: 'member-run-start', member: member.name })
-        try {
-          const response = await member.session.runPending({
-            signal,
-            onEvent: event => host.observeAgentEvent(member.name, event),
-          })
-          if (signal.aborted) {
-            recordWakeCancellation(member, through, host)
-            cancellationReported = true
-            continue
-          }
-          const failure = recordWakeResponse(member, response)
-          member.wakeConsumedSeq = through
-          emitWakeResult(member, failure, host)
-        } catch (error: unknown) {
-          if (signal.aborted) {
-            member.error = undefined
-            recordWakeCancellation(member, through, host)
-            cancellationReported = true
-            continue
-          }
-          recordWakeError(member, error, through, host)
-        }
+  let cancellationReported = false
+  try {
+    while (member.wakeConsumedSeq < member.wakeRequestedSeq) {
+      signal.throwIfAborted()
+      await member.session.whenIdle(signal)
+      const through = member.wakeRequestedSeq
+      if (answeredWake(member)) {
+        recordAnsweredWake(member)
+        member.wakeConsumedSeq = through
+        continue
       }
-    } catch (error: unknown) {
-      if (!signal.aborted) throw error
-      member.error = undefined
-      member.wakeConsumedSeq = member.wakeRequestedSeq
-      if (!cancellationReported) host.emit({ type: 'member-run-cancelled', member: member.name })
+      if (await runOneWake(member, signal, host, through)) cancellationReported = true
     }
+  } catch (error: unknown) {
+    if (!signal.aborted) throw error
+    member.error = undefined
+    member.wakeConsumedSeq = member.wakeRequestedSeq
+    if (!cancellationReported) host.emit({ type: 'member-run-cancelled', member: member.name })
   }
-
+}
 
 function emitWakeResult(member: LocalMemberRuntime, failure: string | undefined, host: WakeHost): void {
   if (failure === undefined) host.emit({ type: 'member-run-end', member: member.name })
@@ -67,4 +44,32 @@ function recordWakeError(member: LocalMemberRuntime, error: unknown, through: nu
   member.outcome = { kind: 'failed', message: member.error }
   member.wakeConsumedSeq = through
   host.emit({ type: 'member-run-error', member: member.name, error: member.error })
+}
+
+/** Run and settle one admitted wake without mixing it with queue consumption. */
+async function runOneWake(
+  member: LocalMemberRuntime, signal: AbortSignal, host: WakeHost, through: number,
+): Promise<boolean> {
+  host.emit({ type: 'member-run-start', member: member.name })
+  try {
+    const response = await member.session.runPending({
+      signal,
+      onEvent: event => host.observeAgentEvent(member.name, event),
+    })
+    if (signal.aborted) {
+      recordWakeCancellation(member, through, host)
+      return true
+    }
+    const failure = recordWakeResponse(member, response)
+    member.wakeConsumedSeq = through
+    emitWakeResult(member, failure, host)
+  } catch (error: unknown) {
+    if (signal.aborted) {
+      member.error = undefined
+      recordWakeCancellation(member, through, host)
+      return true
+    }
+    recordWakeError(member, error, through, host)
+  }
+  return false
 }

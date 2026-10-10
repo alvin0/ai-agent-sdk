@@ -6,6 +6,7 @@ import { preserveFinalizedAnswer } from './finalized-answer.ts'
 import { buildTurnOutcome, continueAfterTurnHook, turnOutcomeStatus } from './outcome.ts'
 import { emitTurnSpanStart, appendTurnInterruption } from './lifecycle-events.ts'
 import { now, errorCodeOf, messageOf } from './common.ts'
+import { ensureTerminalAnswer, hasUnansweredUserInput } from './terminal-answer.ts'
 
 function beginFinalizeWindow(state: TurnState) {
   const window = openFinalizeWindow({ ...state,
@@ -31,6 +32,7 @@ async function finalizedOutcome(state: TurnState) {
     state.text = finalized.text
     state.reason = finalized.reason
   }
+  await ensureTerminalAnswer(state)
   return buildTurnOutcome({ ...state, reason: state.reason })
 }
 
@@ -44,6 +46,12 @@ async function runLifecycle(state: TurnState): Promise<TurnOutcome> {
     if (await continueAfterTurnHook(state.options, state.signal, candidate, canContinue)) {
       state.reason = undefined
       continue
+    }
+    // A hook may accept steering after the first terminal check. Refused
+    // continuation must still seal that input with an honest terminal answer.
+    if (!canContinue && hasUnansweredUserInput(state.options.history)) {
+      await ensureTerminalAnswer(state)
+      return buildTurnOutcome({ ...state, reason: state.reason! })
     }
     return candidate
   }
@@ -89,4 +97,13 @@ export async function executeTurn(state: TurnState) {
   await state.emit({ type: 'turn-start', turn: state.turn, trace: state.root })
   const outcome = await runLifecycle(state)
   await finishTurn(state, outcome)
+}
+
+export async function recoverTurnFailure(state: TurnState, error: unknown): Promise<void> {
+  if (state.options.hooks?.onTerminalRecovery === undefined || state.signal.aborted || state.rootEnded
+    || errorCodeOf(error) === 'TOOL_ABORTED') throw error
+  state.reason = { kind: 'error', failure: { code: errorCodeOf(error) ?? 'TURN_RUNTIME_ERROR',
+    message: messageOf(error) } }
+  await ensureTerminalAnswer(state)
+  await finishTurn(state, buildTurnOutcome({ ...state, reason: state.reason }))
 }

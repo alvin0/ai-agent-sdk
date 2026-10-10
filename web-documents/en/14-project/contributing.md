@@ -53,7 +53,9 @@ lifecycle, and who closes it.
 
 The root `eslint.config.mjs` applies to handwritten JavaScript and TypeScript,
 including TSX, package sources, tests, scripts, samples, and documentation apps.
-All limits are errors; `pnpm lint` includes ESLint and CI rejects violations.
+All limits are errors. `pnpm lint:code`, `pnpm lint`, and the CI maintainability
+gate check `packages/`, including package tests, consumer fixtures, and configs.
+Other directories use the same rules when targeted directly with ESLint.
 
 | Measure | Maximum | Rule |
 | --- | --- | --- |
@@ -104,7 +106,7 @@ comments, blank lines, and IIFEs. Run the lint regression suite when upgrading
 ESLint; this adapter depends on that version's visitor contract.
 
 Run `pnpm lint:source` to focus on SDK source under `packages/*/src` with the
-same strict limits. Run `pnpm lint:code` for all code checks, `pnpm lint:boundaries` for architecture
+same strict limits. Run `pnpm lint:code` for all package code checks, `pnpm lint:boundaries` for architecture
 checks, and `pnpm test:lint` to verify enforcement without live provider calls.
 `pnpm lint` runs every code and architecture gate even if an earlier gate fails,
 and exits unsuccessfully if any gate fails. CI runs maintainability separately

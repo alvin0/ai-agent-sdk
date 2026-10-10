@@ -39,7 +39,9 @@ export async function runtimeResult(
   try {
     const response = await legacy
     const final = await report
-    if (final.status !== 'success') {
+    const recovered = response.message?.source.kind === 'app'
+      && response.message.source.producer === 'terminal-recovery'
+    if (final.status !== 'success' && !recovered) {
       throw runtimeFailure(undefined, final, final.errors.at(-1)?.code ?? 'AGENT_RUN_FAILED')
     }
     const parsedOutput = output()
@@ -63,4 +65,3 @@ export function runtimeFailure(value: unknown, report: RuntimeRunReport, code: s
     new AgentRunError('Agent run did not complete', code, report as never), value,
   )
 }
-

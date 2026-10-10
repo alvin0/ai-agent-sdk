@@ -116,7 +116,8 @@ function sleep(delayMs: number, signal: AbortSignal): Promise<void> {
     }
     const timer = setTimeout(done, Math.min(delayMs, MAX_TIMER_DELAY_MS))
     // A backoff must not keep a host process alive on its own.
-    if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+    // Universal declarations type timers as numbers; Node supplies an object at runtime.
+    if (typeof timer === 'object' && 'unref' in timer) (timer as { unref(): void }).unref()
     signal.addEventListener('abort', done, { once: true })
   })
 }

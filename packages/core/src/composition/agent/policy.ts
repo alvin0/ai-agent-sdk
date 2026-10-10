@@ -90,10 +90,13 @@ export function captureTurnHooks(value: unknown): TurnHooks | undefined {
     ReturnType<NonNullable<TurnHooks['onRequestError']>>>(source, 'onRequestError', false)
   const checkpoint = captureMethod<Parameters<NonNullable<TurnHooks['checkpoint']>>,
     ReturnType<NonNullable<TurnHooks['checkpoint']>>>(source, 'checkpoint', false)
+  const onTerminalRecovery = captureMethod<Parameters<NonNullable<TurnHooks['onTerminalRecovery']>>,
+    ReturnType<NonNullable<TurnHooks['onTerminalRecovery']>>>(source, 'onTerminalRecovery', false)
   const onTurnEnd = captureMethod<Parameters<NonNullable<TurnHooks['onTurnEnd']>>,
     ReturnType<NonNullable<TurnHooks['onTurnEnd']>>>(source, 'onTurnEnd', false)
   return Object.freeze({ ...(beforeStep === undefined ? {} : { beforeStep }),
     ...(onRequestError === undefined ? {} : { onRequestError }),
+    ...(onTerminalRecovery === undefined ? {} : { onTerminalRecovery }),
     ...(checkpoint === undefined ? {} : { checkpoint }),
     ...(onTurnEnd === undefined ? {} : { onTurnEnd }) })
 }

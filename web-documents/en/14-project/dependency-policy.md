@@ -38,14 +38,27 @@ are expressed as **exact-version optional dependencies**.
 An upgrade must re-audit the package, version, lifecycle script, source,
 integrity, and platform dependency set **before** changing the allowlist.
 
-## Windows Sharp license review
+## Sharp binary license review
 
-The Next.js samples install `@img/sharp-win32-x64@0.35.4` on Windows.
-Its `Apache-2.0 AND LGPL-3.0-or-later` expression covers Sharp and the bundled
-libvips binary, matching the libvips licensing already reviewed for Linux.
-The checker accepts only this exact package/version and license expression;
+The Next.js samples pin `sharp@0.35.5` through the `next>sharp` override.
+Its platform dependencies are exact registry versions with SHA-512 integrity:
+`@img/sharp-libvips-*@1.3.4` on Linux and macOS, and
+`@img/sharp-win32-x64@0.35.5` on Windows. The libvips packages retain
+`LGPL-3.0-or-later` and have no install lifecycle scripts.
+The Windows package's `Apache-2.0 AND LGPL-3.0-or-later` expression covers Sharp and the bundled
+libvips binary on Windows, matching the libvips licensing reviewed for Linux.
+The reviewed platform binaries have no install lifecycle scripts; `sharp`
+itself also has no install lifecycle script. Registry manifests, optional
+platform dependencies, licenses and integrity were rechecked on 2026-10-10.
+The checker accepts only these exact packages/versions and license expressions;
 registry integrity and advisory checks still apply. Owner: SDK maintainers.
 Review expiry: 2026-12-06.
+
+`next@16.3.8` and `sharp@0.35.5` address
+[GHSA-cjq9-62q9-8jv4](https://github.com/advisories/GHSA-cjq9-62q9-8jv4) and
+[GHSA-wq5f-xc86-pv6w](https://github.com/advisories/GHSA-wq5f-xc86-pv6w).
+Both releases satisfy the existing 24-hour minimum release age; no age or
+advisory exception is required.
 
 ## SSE parser retention
 

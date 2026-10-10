@@ -4,38 +4,10 @@ import type { LocalMemberRuntime } from './team-runtime-types.ts'
 import { responseFailure } from './team-support.ts'
 import { waitForSettlement } from '../../async/index.ts'
 
-type MailboxHost = {
-  mailbox: readonly unknown[]
-  maxMessages: number
-  maxMailboxBytes: number
-  mailboxBytes: () => number
-  pendingMessages: () => number
-  setPendingMessages: (value: number) => void
-  pendingMailboxBytes: () => number
-  setPendingMailboxBytes: (value: number) => void
-}
-
 type ObserverHost = { roster: ReadonlyMap<string, LocalMemberRuntime>
   onAgentEvent: ((member: string, event: AgentRunEvent) => void | Promise<void>) | undefined
   observerTimeoutMs: number; emit(event: AgentTeamEvent): void }
 
-export function reserveMailbox(host: MailboxHost, contentBytes: number): () => void {
-  if (host.mailbox.length + host.pendingMessages() >= host.maxMessages) {
-    throw new Error(`A2A team reached its ${host.maxMessages}-message mailbox limit`)
-  }
-  if (host.mailboxBytes() + host.pendingMailboxBytes() + contentBytes > host.maxMailboxBytes) {
-    throw new Error(`A2A team reached its ${host.maxMailboxBytes}-byte mailbox limit`)
-  }
-  host.setPendingMessages(host.pendingMessages() + 1)
-  host.setPendingMailboxBytes(host.pendingMailboxBytes() + contentBytes)
-  let released = false
-  return () => {
-    if (released) return
-    released = true
-    host.setPendingMessages(host.pendingMessages() - 1)
-    host.setPendingMailboxBytes(host.pendingMailboxBytes() - contentBytes)
-  }
-}
 export function recordOutcome(member: LocalMemberRuntime, outcome: AgentMemberOutcome): void {
   member.outcome = outcome; member.error = outcome.kind === 'failed' ? outcome.message : undefined
 }

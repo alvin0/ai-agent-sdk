@@ -4,7 +4,12 @@ import type { AgentRunEvent } from '../mode/run-agent.ts'
 import type { AgentTeam } from './team.ts'
 import type { ManagedAgentTeamOptions, WorkerRuntime } from './managed-types.ts'
 import { managedDependencyReport } from './managed-reports.ts'
-import { abortable, combineSignals, errorMessage, failureOf, recordEvidence } from './managed-support.ts'
+import {
+  abortable, combineSignals,
+} from './managed-cancellation.ts'
+import {
+  errorMessage, failureOf, recordEvidence,
+} from './managed-outcomes.ts'
 import { waitForSettlement } from '../../async/index.ts'
 
 interface ManagedWorkerHost {

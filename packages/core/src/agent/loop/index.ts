@@ -1,4 +1,5 @@
 export { requestRetryHook, type RequestRetryOptions } from './request-retry.ts'
+export { createTerminalRecoveryMessage } from './turn/terminal-answer.ts'
 export { runTurn, type RunTurnOptions } from './run-turn.ts'
 export { runToolCalls, type RunToolCallsOptions, type ToolCallsOutcome } from './schedule.ts'
 

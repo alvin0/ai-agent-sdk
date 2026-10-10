@@ -1,5 +1,5 @@
 import { createTurnState } from './turn/state.ts'
-import { executeTurn, reportTurnFailure } from './turn/lifecycle.ts'
+import { executeTurn, recoverTurnFailure, reportTurnFailure } from './turn/lifecycle.ts'
 import { detachedFrozen } from '../../primitives/index.ts'
 import { waitForSettlement } from '../../async/index.ts'
 import type { AgentEvent } from './types.ts'
@@ -50,8 +50,11 @@ async function driveTurn(
   try {
     await executeTurn(state)
   } catch (error: unknown) {
-    await reportTurnFailure(state, error)
-    throw error
+    try { await recoverTurnFailure(state, error) }
+    catch (recoveryError: unknown) {
+      await reportTurnFailure(state, recoveryError)
+      throw recoveryError
+    }
   } finally {
     state.programResults?.close()
   }

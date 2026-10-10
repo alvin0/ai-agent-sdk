@@ -2,10 +2,12 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
-## 0.1.11 - 2026-10-09
+## 0.1.11 - 2026-10-10
 
 ### Added
 
+- OpenAI native `/v1/decisions` integration through `@alvin0/ai-agent-sdk-provider-openai/decisions`, with choice, score and predicate mapping, provider probability evidence, bounded transport and refusal handling. Requires a separate API key from Codex ChatGPT OAuth.
+- Optional terminal recovery through `TurnHooks.onTerminalRecovery` and `createTerminalRecoveryMessage`: deliver committed public text and tool results when the run cannot make another model request, while retaining its unsuccessful outcome and honoring explicit cancellation.
 - `RequestErrorContext.consecutiveFailures` and `RequestErrorContext.retries`. The loop now reports the outage an `onRequestError` hook is deciding on. `consecutiveFailures` counts failed model requests in a row in this turn, this one included, and any request that succeeds resets it. `retries` counts retries already granted in this turn, across every outage, by whichever hook granted them (the session's own overflow compaction included). A retry the step budget refuses to run is not counted. Hooks no longer have to infer successes from history, which compaction rewrites. Both fields are required: code that builds a `RequestErrorContext` itself (test doubles, wrappers) must supply them.
 - `requestRetryHook(options)` from `@alvin0/ai-agent-sdk-core/agent`: an `onRequestError` hook built from a retry policy.
   - **Retry budget.** The policy's `maxRetries` applies per outage, and a request that succeeds restores it. `maxRetriesPerTurn` caps the whole turn so a flapping provider cannot hold it forever. The default cap is three outages' worth, unbounded under an `always` policy.
@@ -19,10 +21,15 @@ All notable changes to the AI Agent SDK are documented in this file.
 - The finalize window after a forced answer opens only while the token budget can hold one more request of the size the run makes. The answer is already written; it is kept rather than overshooting the wall to confirm it.
 - A default per-request output cap (the model's `defaultMaxTokens`, else the runtime default) is now fitted rather than enforced. It is held to the model's `maxOutputTokens`, and it is not sent at all when the context window cannot hold it with input to spare, which leaves the cap to the provider. A caller's explicit `maxTokens` is still refused when it does not fit.
 - Compaction reserves the output the request will actually ask for. When no cap is sent, the model's output ceiling stands in, held to half the window.
-- All 29 workspace package manifests, root metadata and `SDK_VERSION` move to `0.1.11`.
+- All 28 workspace package manifests, root metadata and `SDK_VERSION` move to `0.1.11`; 27 packages are publishable and the private testkit remains unpublished.
+- ESLint gates check all handwritten code under `packages/`, including package tests, fixtures and configs, with the existing strict limits.
+- Decompose internal session, managed-team, output-budget and sample chat modules by responsibility while preserving their public entrypoints.
+- Sample web dependencies pin Next.js `16.3.8` and Sharp `0.35.5`, including the patched libvips binaries and updated exact license review.
 
 ### Fixed
 
+- Universal package typechecking accepts Node's runtime timer `unref` without changing the emitted runtime behavior.
+- Terminal recovery accounts for accepted steering after the final model answer and catches late lifecycle failures before ending the user-facing run.
 - **Catalog window and output defaults (`provider-http`).**
   - A catalog entry with an output ceiling but no context window no longer fails every call with `INVALID_MODEL_INFO` ("no input headroom") when that ceiling is at or above the route's `defaultContextWindow`, for example an operator-entered model with `maxTokens: 128000` on a 128k route. That route fallback is dropped and the window is left to the registry defaults. A model `defaultMaxTokens` that the fallback cannot hold does the same.
   - A route's fallback window yields to a smaller model `maxContextWindow` instead of failing. When the clamped window cannot hold the model's own explicit `defaultMaxTokens`, the model's `maxContextWindow` is used.

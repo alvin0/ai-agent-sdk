@@ -1,5 +1,7 @@
 import type { ManagedAgentWorker, WorkerRuntime } from './managed-types.ts'
-import { truncate } from './managed-support.ts'
+import {
+  truncate,
+} from './managed-report-text.ts'
 
 /** What the dependencies produced, as context for a dependent about to start. */
 function failedDependencyReport(runtime: WorkerRuntime, name: string, maxReportBytes: number) {

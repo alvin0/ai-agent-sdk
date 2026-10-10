@@ -1,6 +1,6 @@
 import { runAgent } from '../mode/run-agent.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
-import type { AgentInvocationOptions, AgentRuntimeLimits, AgentSessionOptions } from './session.ts'
+import type { AgentInvocationOptions, AgentSession } from './session.ts'
 import type { RunAccountingPort } from '../accounting/contracts.ts'
 import type { UserInputBroker } from '../mode/user-input.ts'
 
@@ -9,19 +9,10 @@ function optional(key: string, value: unknown): Record<string, unknown> {
   return value === undefined ? {} : { [key]: value }
 }
 
-type SessionDefinitionHost = {
-  readonly definition: any
-  readonly options: AgentSessionOptions
-  readonly runtimeLimits: AgentRuntimeLimits
-  readonly history: any
-  readonly activeAdditionalInstructions: string | undefined
-  readonly currentConversationId: string
-  readonly contextSections: readonly any[] | undefined
-  combinedHooks(accounting?: RunAccountingPort): any
-  effectiveCatalog(): any
-  callConfig(invocation: AgentInvocationOptions): any
-  systemInstructions(additional?: string): string
-}
+type SessionDefinitionHost = Pick<AgentSession,
+  'definition' | 'options' | 'runtimeLimits' | 'history' | 'activeAdditionalInstructions'
+  | 'currentConversationId' | 'contextSections' | 'combinedHooks' | 'effectiveCatalog'
+  | 'callConfig' | 'systemInstructions'>
 
 function sessionBounds(host: SessionDefinitionHost): Record<string, unknown> {
   const limits = host.runtimeLimits
@@ -51,7 +42,7 @@ function sessionCommon(
   host: SessionDefinitionHost,
   invocation: AgentInvocationOptions,
   accounting: RunAccountingPort | undefined,
-): any {
+) {
   const definition = host.definition
   const catalog = host.effectiveCatalog()
   const outputFormat = invocation.outputFormat ?? definition.outputFormat

@@ -1,7 +1,5 @@
 import { contentHasDocument, contentHasImage } from '../../message/projection.ts'
 import { ModelError } from '../../errors/model-error.ts'
-import { isManagedTeamNotice } from '../history/input-work.ts'
-import { bindModelRequestBoundary, bindQueuedInput } from '../loop/turn/model-request-boundary.ts'
 import { bindCompactionAccounting } from '../memory/accounting-binding.ts'
 import { toolCatalog } from './session/common.ts'
 import type { AgentRunEvent, AgentRunOutcome } from '../mode/run-agent.ts'
@@ -15,10 +13,12 @@ import { userMessage, deferred, messageOf, errorCodeOf } from './session/common.
 import type { ToolSourceRunReference } from '../tool/source-types.ts'
 import { accountTraceEvent } from './session/trace-accounting.ts'
 import { commitRuntimeMemory, loadRuntimeMemory } from './session/runtime-memory.ts'
-import { runtimeSessionConfiguration } from './session/runtime-binding.ts'
+import type { RuntimeSessionConfiguration } from './session/runtime-binding.ts'
+import type { SessionRunHost, SessionRunLedger } from './session/run-host.ts'
 import { bindSkillProviderLogger } from '../skill/provider/context.ts'
 import type { OperationStatus } from '../../observation/index.ts'
 import { sealRuntimeRun } from './session/run-seal.ts'
+import type { SessionInputState } from './session/input-state.ts'
 
 function sessionOperationStatus(
   signal: AbortSignal, outcome: AgentRunOutcome | undefined, failure: unknown,
@@ -29,11 +29,11 @@ function sessionOperationStatus(
 }
 
 type SessionTaskState = {
-  host: any
+  host: SessionRunHost
   input: AgentInput | undefined
   invocation: AgentInvocationOptions
   signal: AbortSignal
-  ledger: any
+  ledger: SessionRunLedger
   buffer: RunEventBuffer<AgentRunEvent>
   reportDeferred: ReturnType<typeof deferred<RunReport>>
   resultDeferred: ReturnType<typeof deferred<AgentResponse>>
@@ -52,7 +52,10 @@ type SessionWorkResult = {
   toolSourceReferences: readonly ToolSourceRunReference[]
 }
 
-async function loadSessionMemory(host: any, runtime: any, signal: AbortSignal, ledger: any): Promise<any> {
+async function loadSessionMemory(
+  host: SessionRunHost, runtime: RuntimeSessionConfiguration | undefined,
+  signal: AbortSignal, ledger: SessionRunLedger,
+): Promise<Awaited<ReturnType<typeof loadRuntimeMemory>>['state'] | undefined> {
   if (runtime?.memory === undefined) return undefined
   const prepared = await loadRuntimeMemory(
     runtime.memory, host.currentConversationId, host.definition.memory, { signal, ledger },
@@ -62,7 +65,7 @@ async function loadSessionMemory(host: any, runtime: any, signal: AbortSignal, l
 }
 
 async function prepareSessionTools(options: {
-  host: any; runtime: any; signal: AbortSignal; ledger: any;
+  host: SessionRunHost; runtime: RuntimeSessionConfiguration | undefined; signal: AbortSignal; ledger: SessionRunLedger;
   references: readonly ToolSourceRunReference[]
 }): Promise<readonly ToolSourceRunReference[]> {
   const { host, runtime, signal, ledger, references } = options
@@ -70,12 +73,12 @@ async function prepareSessionTools(options: {
   const logger = ledger.modelInvocation.logger
   if (logger === undefined) throw new Error('runtime tool source logger is unavailable')
   const generation = runtime.prepareTools(signal, logger, [...host.catalog?.names() ?? [],
-    ...host.definition.nativeTools.map((tool: any) => tool.name)])
+    ...host.definition.nativeTools.map(tool => tool.name)])
   host.activeRuntimeCatalog = toolCatalog([], host.catalog, generation.tools)
   return generation.references
 }
 
-function appendSessionInput(host: any, input: AgentInput | undefined, ledger: any): void {
+function appendSessionInput(host: SessionRunHost, input: AgentInput | undefined, ledger: SessionRunLedger): void {
   if (input === undefined) return
   const message = userMessage(input)
   if (host.definition.memory.autoCaptureObjective) {
@@ -87,10 +90,10 @@ function appendSessionInput(host: any, input: AgentInput | undefined, ledger: an
 }
 
 async function validateSessionModality(
-  host: any, invocation: AgentInvocationOptions, signal: AbortSignal, kind: 'image' | 'document',
+  host: SessionRunHost, invocation: AgentInvocationOptions, signal: AbortSignal, kind: 'image' | 'document',
 ): Promise<void> {
   const policy = invocation[`${kind}Policy`]
-  if (policy !== 'strict' || !host.history.messages().some((message: any) =>
+  if (policy !== 'strict' || !host.history.messages().some(message =>
     (kind === 'image' ? contentHasImage(message.content) : contentHasDocument(message.content)))) return
   const config = host.callConfig(invocation)
   const model = await host.options.registry.resolveModelInfo(config.provider, config.model, signal)
@@ -102,8 +105,13 @@ async function validateSessionModality(
   }
 }
 
+function hasRecoveredAnswer(host: SessionRunHost): boolean {
+  const last = host.currentHistory.messages().at(-1)
+  return last?.source.kind === 'app' && last.source.producer === 'terminal-recovery'
+}
+
 async function consumeSessionEvents(options: {
-  host: any; invocation: AgentInvocationOptions; signal: AbortSignal; ledger: any;
+  host: SessionRunHost; invocation: AgentInvocationOptions; signal: AbortSignal; ledger: SessionRunLedger;
   buffer: RunEventBuffer<AgentRunEvent>; spanOperations: Map<string, string>
 }): Promise<AgentRunOutcome> {
   const { host, invocation, signal, ledger, buffer, spanOperations } = options
@@ -115,7 +123,8 @@ async function consumeSessionEvents(options: {
   }
   if (outcome === undefined) throw new Error(`agent session '${host.definition.id}' ended without agent-end`)
   if (signal.aborted) throw signal.reason ?? new Error('agent run was aborted')
-  if (outcome.reason.kind === 'error' && outcome.reason.failure.code === 'USAGE_REQUIRED') {
+  const recovered = hasRecoveredAnswer(host)
+  if (!recovered && outcome.reason.kind === 'error' && outcome.reason.failure.code === 'USAGE_REQUIRED') {
     const error = new Error(outcome.reason.failure.message) as Error & { code: string }
     error.code = 'USAGE_REQUIRED'; throw error
   }
@@ -129,7 +138,7 @@ async function executeSessionWork(ctx: SessionTaskState): Promise<SessionWorkRes
   let outcome: AgentRunOutcome | undefined
   let memoryState: Awaited<ReturnType<typeof loadRuntimeMemory>>['state'] | undefined
   try {
-    const runtime = runtimeSessionConfiguration(host)
+    const runtime = host.runtime()
     memoryState = await loadSessionMemory(host, runtime, signal, ledger)
     toolSourceReferences = await prepareSessionTools({
       host, runtime, signal, ledger, references: toolSourceReferences,
@@ -154,35 +163,35 @@ function publishSessionResult(
   ctx: SessionTaskState, failure: unknown, outcome: AgentRunOutcome | undefined, report: RunReport,
 ): void {
   const { host, ledger, buffer, resultDeferred, firstTurnSeq } = ctx
-if (failure === undefined && ledger.terminalAuditFailure) {
-  const error = new Error('audit observation checkpoint failed after run finalization') as Error & { code: string }
-  error.code = 'OBSERVABILITY_AUDIT_UNAVAILABLE'
-  failure = error
-}
-if (failure !== undefined) {
-  const error = new AgentRunError(
-    messageOf(failure),
-    errorCodeOf(failure) ?? AGENT_ACCOUNTING_ERROR_CODES.RUN_FAILED,
-    report,
-    { cause: failure },
-  )
-  resultDeferred.reject(error)
-  buffer.fail(error)
-} else {
-  const terminal = outcome as AgentRunOutcome
-  const historyEvent = [...host.currentHistory.entries()].reverse()
-    .find((entry: any) => entry.seq >= firstTurnSeq && entry.event.kind === 'assistant')
-    ?.event
-  const assistantMessage = historyEvent?.kind === 'assistant' ? historyEvent.message : undefined
-  const response: AgentResponse = Object.freeze({
-    text: terminal.text,
-    outcome: terminal,
-    report,
-    ...assistantMessage === undefined ? {} : { message: assistantMessage },
-  })
-  resultDeferred.resolve(response)
-  buffer.close()
-}
+  if (failure === undefined && ledger.terminalAuditFailure) {
+    const error = new Error('audit observation checkpoint failed after run finalization') as Error & { code: string }
+    error.code = 'OBSERVABILITY_AUDIT_UNAVAILABLE'
+    failure = error
+  }
+  if (failure !== undefined) {
+    const error = new AgentRunError(
+      messageOf(failure),
+      errorCodeOf(failure) ?? AGENT_ACCOUNTING_ERROR_CODES.RUN_FAILED,
+      report,
+      { cause: failure },
+    )
+    resultDeferred.reject(error)
+    buffer.fail(error)
+  } else {
+    const terminal = outcome as AgentRunOutcome
+    const historyEvent = [...host.currentHistory.entries()].reverse()
+      .find(entry => entry.seq >= firstTurnSeq && entry.event.kind === 'assistant')
+      ?.event
+    const assistantMessage = historyEvent?.kind === 'assistant' ? historyEvent.message : undefined
+    const response: AgentResponse = Object.freeze({
+      text: terminal.text,
+      outcome: terminal,
+      report,
+      ...assistantMessage === undefined ? {} : { message: assistantMessage },
+    })
+    resultDeferred.resolve(response)
+    buffer.close()
+  }
 
 }
 
@@ -190,20 +199,20 @@ async function finishSessionTask(
   ctx: SessionTaskState, failure: unknown, outcome: AgentRunOutcome | undefined,
 ): Promise<boolean> {
   const { host, signal, ledger, buffer, reportDeferred, resultDeferred } = ctx
-try { host.drainInjections() } catch (error) { failure ??= error }
+  try { host.drainInjections() } catch (error) { failure ??= error }
 
-let report: RunReport
-try {
-  const status = sessionOperationStatus(signal, outcome, failure)
-  const ledgerReport = await ledger.finalize(status, outcome?.completed ?? false, failure)
-  report = withTerminalDelivery(createRunTerminalRecord(ledgerReport), ledgerReport.delivery)
-  reportDeferred.resolve(report)
-} catch (finalizeError: unknown) {
-  reportDeferred.reject(finalizeError)
-  resultDeferred.reject(finalizeError)
-  buffer.fail(finalizeError)
-  ctx.terminal = true
-  host.releaseRun()
+  let report: RunReport
+  try {
+    const status = sessionOperationStatus(signal, outcome, failure)
+    const ledgerReport = await ledger.finalize(status, outcome?.completed ?? false, failure)
+    report = withTerminalDelivery(createRunTerminalRecord(ledgerReport), ledgerReport.delivery)
+    reportDeferred.resolve(report)
+  } catch (finalizeError: unknown) {
+    reportDeferred.reject(finalizeError)
+    resultDeferred.reject(finalizeError)
+    buffer.fail(finalizeError)
+    ctx.terminal = true
+    host.releaseRun()
   return ctx.terminal
 }
 if (ctx.terminal) return ctx.terminal
@@ -222,7 +231,7 @@ async function runSessionTask(ctx: SessionTaskState): Promise<void> {
 }
 
 type SessionHandleState = {
-  host: any; ledger: any; buffer: RunEventBuffer<AgentRunEvent>
+  host: SessionRunHost; ledger: SessionRunLedger; buffer: RunEventBuffer<AgentRunEvent>
   reportDeferred: ReturnType<typeof deferred<RunReport>>
   resultDeferred: ReturnType<typeof deferred<AgentResponse>>
   toolSourcesDeferred: ReturnType<typeof deferred<readonly ToolSourceRunReference[]>>
@@ -233,72 +242,52 @@ type SessionHandleState = {
 
 function makeSessionRunHandle(state: SessionHandleState): AgentRunHandle {
   const { host, ledger, buffer, reportDeferred, resultDeferred, toolSourcesDeferred, task, owned } = state
-void resultDeferred.promise.catch(() => undefined)
-void reportDeferred.promise.catch(() => undefined)
-let iterated = false
-return Object.freeze({
-  runId: ledger.runId,
-  traceId: ledger.traceId,
-  toolSourceSnapshots: toolSourcesDeferred.promise,
-  eventsSettled: task.then(() => undefined, () => undefined),
-  result: resultDeferred.promise,
-  report: reportDeferred.promise,
-  seal: () => sealRuntimeRun({ ledger, buffer, report: reportDeferred, result: resultDeferred,
-    toolSources: toolSourcesDeferred, currentToolSources: state.currentToolSources, isTerminal: state.isTerminal,
-    markTerminal: state.markTerminal, abort: () => owned.abort(new Error('Agent run was sealed')),
-    release: () => host.releaseRun() }),
-  abort(_reason?: unknown): void {
-    if (!state.isTerminal() && !owned.signal.aborted) owned.abort(new Error('Agent run was aborted'))
-  },
-  [Symbol.asyncIterator](): AsyncIterator<AgentRunEvent> {
-    if (iterated) return (async function* () { throw new Error('an agent run handle can only be iterated once') })()
-    iterated = true
-    return (async function* () {
-      let exhausted = false
-      try {
-        while (true) {
-          const item = await buffer.take()
-          if (item.done) { exhausted = true; break }
-          yield item.value
+  void resultDeferred.promise.catch(() => undefined)
+  void reportDeferred.promise.catch(() => undefined)
+  let iterated = false
+  return Object.freeze({
+    runId: ledger.runId,
+    traceId: ledger.traceId,
+    toolSourceSnapshots: toolSourcesDeferred.promise,
+    eventsSettled: task.then(() => undefined, () => undefined),
+    result: resultDeferred.promise,
+    report: reportDeferred.promise,
+    seal: () => sealRuntimeRun({ ledger, buffer, report: reportDeferred, result: resultDeferred,
+      toolSources: toolSourcesDeferred, currentToolSources: state.currentToolSources, isTerminal: state.isTerminal,
+      markTerminal: state.markTerminal, abort: () => owned.abort(new Error('Agent run was sealed')),
+      release: () => host.releaseRun() }),
+    abort(_reason?: unknown): void {
+      if (!state.isTerminal() && !owned.signal.aborted) owned.abort(new Error('Agent run was aborted'))
+    },
+    [Symbol.asyncIterator](): AsyncIterator<AgentRunEvent> {
+      if (iterated) return (async function* () { throw new Error('an agent run handle can only be iterated once') })()
+      iterated = true
+      return (async function* () {
+        let exhausted = false
+        try {
+          while (true) {
+            const item = await buffer.take()
+            if (item.done) { exhausted = true; break }
+            yield item.value
+          }
+        } finally {
+          if (!exhausted) {
+            owned.abort(new Error('agent event consumer stopped'))
+            buffer.stop()
+            await waitForSettlement(task, 30_000)
+          }
         }
-      } finally {
-        if (!exhausted) {
-          owned.abort(new Error('agent event consumer stopped'))
-          buffer.stop()
-          await waitForSettlement(task, 30_000)
-        }
-      }
-    })()
-  },
-})
+      })()
+    },
+  })
 }
 
-function bindSessionBoundaries(host: any): void {
-bindModelRequestBoundary(host.currentHistory, inFlight => {
-    host.roundInFlight = inFlight
-    if (!inFlight) host.drainInjections()
-  })
-  bindQueuedInput(host.currentHistory, () => {
-    // By entries, not by the buffer: an input refused at admission leaves an
-    // empty buffer behind, and that must not buy the run another round.
-    const held = host.pendingInjections?.entries() ?? []
-    if (held.length === 0) return false
-    // Person input and managed-team coordination extend the run. Team deliveries keep
-    // their contract: queued behind the answer, then processed exactly once
-    // by the team's wake-up through runPending().
-    const extendsRun = held.some((entry: any) => entry.event.kind === 'user'
-      && (entry.event.message.source.kind === 'user' || isManagedTeamNotice(entry.event.message)))
-    if (!extendsRun) return false
-    host.roundInFlight = false
-    host.drainInjections()
-    return true
-  }, () => (host.pendingInjections?.entries() ?? []).some((entry: any) => entry.event.kind === 'user'
-    && (entry.event.message.source.kind === 'user' || isManagedTeamNotice(entry.event.message))))
-
+function bindSessionBoundaries(host: { readonly inputState: SessionInputState }): void {
+  host.inputState.bindBoundaries()
 }
 
 export function createSessionRunHandle(
-  host: any,
+  host: SessionRunHost,
   input: AgentInput | undefined,
   invocation: AgentInvocationOptions,
   additionalInstructions?: string,
@@ -355,5 +344,3 @@ export function createSessionRunHandle(
     currentToolSources: () => toolSourceReferences,
   })
 }
-
-

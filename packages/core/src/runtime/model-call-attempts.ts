@@ -32,6 +32,14 @@ interface AttemptState {
   readonly attemptSpan: ObservationSpan
 }
 
+interface AttemptEndSummary {
+  readonly endedAt: string
+  readonly durationMs: number
+  readonly coverage: ReturnType<typeof attemptCoverage>
+  readonly validated: ReturnType<typeof validateUsageCounters>
+  readonly terminalError: EndProviderAttemptInput['error']
+}
+
 export class ModelCallAttempts {
   readonly attempts: AttemptUsageReport[] = []
   readonly openAttempts = new Set<(input: EndProviderAttemptInput) => AttemptUsageReport>()
@@ -133,7 +141,7 @@ export class ModelCallAttempts {
   }
 
   private attemptEnd(state: AttemptState): (input: EndProviderAttemptInput) => AttemptUsageReport {
-    const { input, scope, capture } = this.host
+    const { scope } = this.host
     const { attemptInput, attemptNumber, attemptId, attemptStartedAt, attemptStartedMonotonic, attemptSpan } = state
     let finalReport: AttemptUsageReport | undefined
     const end = (endInput: EndProviderAttemptInput): AttemptUsageReport => {
@@ -146,6 +154,36 @@ export class ModelCallAttempts {
       const terminalError = endInput.error ?? invalidError
       const durationMs = Math.max(0, endedMonotonic - attemptStartedMonotonic)
       attemptSpan.end(endInput.status, endedAt, scope.monotonicMs())
+      this.captureAttemptEnd(state, endInput, { endedAt, durationMs, coverage, validated, terminalError })
+      finalReport = deepFreeze({
+        attemptId,
+        spanId: attemptSpan.correlation.spanId,
+        attemptNumber,
+        status: endInput.status,
+        startedAt: attemptStartedAt, endedAt, durationMs,
+        dispatchState: endInput.dispatchState,
+        coverage,
+        reported: validated.reported,
+        origin: attemptInput.origin,
+        ...endInput.httpStatus === undefined ? {} : { httpStatus: endInput.httpStatus },
+        ...endInput.providerRequestId === undefined ? {} : { providerRequestId: endInput.providerRequestId },
+        ...terminalError === undefined ? {} : { error: terminalError },
+      })
+      this.attempts.push(finalReport)
+      this.openAttempts.delete(end)
+      return finalReport
+    }
+    return end
+  }
+
+
+  /** Emit the terminal observation using the same attempt identity and validated usage. */
+  private captureAttemptEnd(
+    state: AttemptState, endInput: EndProviderAttemptInput, summary: AttemptEndSummary,
+  ): void {
+    const { input, scope, capture } = this.host
+    const { attemptSpan, attemptInput } = state
+    const { endedAt, durationMs, coverage, validated, terminalError } = summary
       const terminalCorrelation = endInput.providerRequestId === undefined
         ? attemptSpan.correlation
         : deepFreeze({ ...attemptSpan.correlation, providerRequestId: endInput.providerRequestId })
@@ -172,25 +210,6 @@ export class ModelCallAttempts {
           ...terminalError === undefined ? {} : { error: { ...terminalError } },
         },
       }))
-      finalReport = deepFreeze({
-        attemptId,
-        spanId: attemptSpan.correlation.spanId,
-        attemptNumber,
-        status: endInput.status,
-        startedAt: attemptStartedAt, endedAt, durationMs,
-        dispatchState: endInput.dispatchState,
-        coverage,
-        reported: validated.reported,
-        origin: attemptInput.origin,
-        ...endInput.httpStatus === undefined ? {} : { httpStatus: endInput.httpStatus },
-        ...endInput.providerRequestId === undefined ? {} : { providerRequestId: endInput.providerRequestId },
-        ...terminalError === undefined ? {} : { error: terminalError },
-      })
-      this.attempts.push(finalReport)
-      this.openAttempts.delete(end)
-      return finalReport
-    }
-    return end
   }
 
   private acceptCheckpoint(rawReceipt: CaptureReceipt, eventId: string, attemptSpan: ObservationSpan): void {

@@ -4,7 +4,9 @@ import type { AgentSession } from '../define/session.ts'
 import type { TurnHooks } from '../loop/events.ts'
 import type { AgentTeam } from './team.ts'
 import type { ManagedAgentTeamOptions, WorkerRuntime } from './managed-types.ts'
-import { abortable, combineSignals } from './managed-support.ts'
+import {
+  abortable, combineSignals,
+} from './managed-cancellation.ts'
 
 interface ManagedLeadHost {
   readonly options: ManagedAgentTeamOptions

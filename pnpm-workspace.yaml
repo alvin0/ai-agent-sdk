@@ -7,9 +7,9 @@ packages:
 catalog:
   '@a2a-js/sdk': 1.1.0
   '@arethetypeswrong/cli': 0.18.5
-  '@modelcontextprotocol/client': 2.0.0
+  '@modelcontextprotocol/client': 2.2.0
   '@modelcontextprotocol/node': 2.0.0
-  '@modelcontextprotocol/server': 2.0.0
+  '@modelcontextprotocol/server': 2.2.0
   '@opentelemetry/api': 1.9.1
   '@opentelemetry/api-logs': 0.221.0
   '@shikijs/langs': 4.4.3
@@ -41,7 +41,7 @@ catalog:
   micromark-util-sanitize-uri: 2.0.1
   micromark-util-symbol: 2.0.1
   micromark-util-types: 2.0.2
-  next: 16.3.6
+  next: 16.3.8
   playwright: 1.62.1
   publint: 0.3.24
   react: 19.2.8
@@ -65,6 +65,9 @@ catalogPrune: true
 saveExact: true
 saveWorkspaceProtocol: rolling
 sharedWorkspaceLockfile: true
+overrides:
+  # Keep Next.js image optimization on the patched Sharp/libvips binaries.
+  'next>sharp': 0.35.5
 disallowWorkspaceCycles: true
 minimumReleaseAge: 1440
 minimumReleaseAgeStrict: true

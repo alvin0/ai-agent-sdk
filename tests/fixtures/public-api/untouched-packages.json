@@ -378,7 +378,7 @@
           "withRetry",
           "withoutRunReport"
         ],
-        "declarationSha256": "ede9d791c55753f7cbf843a849a3addeda7cee0e361fced8d3bd5cee1aa95b67"
+        "declarationSha256": "9687595102e8963eac7805b13db9f443621d204abce956cc267d938a42367dd4"
       },
       "./agent": {
         "exports": [
@@ -628,6 +628,7 @@
           "createMemorySpillStore",
           "createModelEvidenceReducer",
           "createSkillTools",
+          "createTerminalRecoveryMessage",
           "createToolExecutionInterceptor",
           "createUserInputBroker",
           "defineActionFusion",
@@ -676,7 +677,7 @@
           "validateSkillSource",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "5411ae3759302446f4958f46fa51846c3f2c8172287797e2cdd1342a43b97fad"
+        "declarationSha256": "8feb54171b78f513d369eb053e510d2cd1de2fd504aed972451e9a5156152e0a"
       },
       "./memory": {
         "exports": [
@@ -925,7 +926,7 @@
           "truncateMiddleToTokens",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "a6cc2396c26af393979cffd2176f57bc1f386b3b979c7ef7dd717bfb7b54a033"
+        "declarationSha256": "f07397d81f2a6d75bd10ce138e3d1683665b4bdebb8ce2da50f9107b176e78ca"
       },
       "./observability": {
         "exports": [
@@ -986,7 +987,7 @@
           "projectMetrics",
           "projectTrace"
         ],
-        "declarationSha256": "c6dcfc95daaa9230de91373db5646d4429824eeadd2f099649080b60c5c9e9c6"
+        "declarationSha256": "7603d1e198a36b7a2573cd4f3b9330427c8102399b9e59a943bcd79448ad3dd1"
       }
     },
     "@alvin0/ai-agent-sdk-provider-http": {

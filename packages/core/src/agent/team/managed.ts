@@ -31,11 +31,20 @@ export type {
   ManagedAgentWorkerResult, ManagedAgentWorkerStatus, ManagedAgentWorker, ManagedAgentTeamOptions,
 } from './managed-types.ts'
 import {
-  mergeTools, memberName,
-  positiveInteger, abortable, combineSignals,
-  truncate, managedTimeouts, managedRoles,
-  managedControlPlane,
-} from './managed-support.ts'
+  memberName, positiveInteger,
+} from './managed-validation.ts'
+import {
+  mergeTools,
+} from './managed-tool-input.ts'
+import {
+  abortable, combineSignals,
+} from './managed-cancellation.ts'
+import {
+  truncate,
+} from './managed-report-text.ts'
+import {
+  managedTimeouts, managedRoles, managedControlPlane,
+} from './managed-options.ts'
 export { completedHistoryPrefix } from './managed-support.ts'
 
 /**

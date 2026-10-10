@@ -1,5 +1,10 @@
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
-import { asJson, parseCloseTool, parseSpawnTool } from './managed-support.ts'
+import {
+  parseCloseTool, parseSpawnTool,
+} from './managed-tool-input.ts'
+import {
+  asJson,
+} from './managed-outcomes.ts'
 import type { ManagedAgentRole, ManagedAgentSpawnRequest, ManagedAgentTeamOptions,
   ManagedAgentWorker, ManagedAgentWorkerStatus, WorkerRuntime } from './managed-types.ts'
 

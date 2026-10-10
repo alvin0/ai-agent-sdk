@@ -1,6 +1,11 @@
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
 import type { WorkerRuntime } from './managed-types.ts'
-import { assertDependencyOffset, prefixWithinBytes } from './managed-support.ts'
+import {
+  assertDependencyOffset,
+} from './managed-validation.ts'
+import {
+  prefixWithinBytes,
+} from './managed-report-text.ts'
 
 export function managedDependencyReadTool(
   dependencies: readonly WorkerRuntime[], maxReportBytes: number,
