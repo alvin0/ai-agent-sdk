@@ -50,7 +50,7 @@ const agent = runtime.agent({
   id: 'calculator',
   name: 'Calculator',
   instructions: 'Use the available tools and explain the result briefly.',
-  model: { provider: 'openai', id: 'gpt-5.4' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
   tools: [multiply],
 })
 
@@ -116,7 +116,7 @@ export const calculator = defineAgent({
   name: 'Calculator',
   instructions: 'Use the available tools and explain the result briefly.',
   provider: 'openai',
-  model: 'gpt-5.4',
+  model: 'gpt-6-luna',
   tools: [multiply],
 })
 
@@ -129,8 +129,8 @@ module and reuse across requests. Definitions never mutate — derive with
 `.with()` for a local variant, or `cloneAgent()` when the derived agent needs a
 new stable identity.
 
-Omitting `provider`, `model`, and `effort` on a definition selects Codex
-`gpt-5.6-luna` at `medium` effort.
+Omitted effort stays omitted. The low-level authoring API retains a legacy
+Codex model default; project examples explicitly select `gpt-6-luna` or newer.
 
 ## Full working file
 
@@ -159,7 +159,7 @@ try {
   const agent = runtime.agent({
     id: 'calculator',
     instructions: 'Use the available tools and explain the result briefly.',
-    model: { provider: 'openai', id: 'gpt-5.4' },
+    model: { provider: 'openai', id: 'gpt-6-luna' },
     tools: [multiply],
   })
 

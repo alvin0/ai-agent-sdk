@@ -125,7 +125,7 @@ entry yourself:
 ```ts
 codexNodeAdapter({
   authStore,
-  models: [{ id: 'gpt-5.6-luna', inputModalities: ['text', 'image', 'document'] }],
+  models: [{ id: 'gpt-6-luna', inputModalities: ['text', 'image', 'document'] }],
 })
 ```
 

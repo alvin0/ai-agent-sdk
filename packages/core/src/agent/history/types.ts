@@ -22,6 +22,11 @@ export type HistoryEvent =
     readonly message: Message
     readonly interrupted?: true
     readonly usage?: TokenUsage
+    /**
+     * Generated images left out of `message` because the reply did not fit a
+     * history entry with them. The host received them on `assistant-message`.
+     */
+    readonly omittedImages?: number
   }
   | {
     readonly kind: 'tool-call'

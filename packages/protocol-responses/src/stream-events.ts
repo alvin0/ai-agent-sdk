@@ -66,14 +66,20 @@ function* summaryDelta(state: StreamState, event: WireStreamEvent): Generator<Pr
   entry.summaryIndex = event.summary_index
   const text = `${separator}${event.delta}`
   entry.text += text
-  yield { type: 'reasoning-delta', index: entry.index, text }
+  entry.reasoningKind = mergeKind(entry.reasoningKind, 'summary')
+  yield { type: 'reasoning-delta', index: entry.index, text, kind: 'summary' }
 }
 
 function* reasoningDelta(state: StreamState, event: WireStreamEvent): Generator<ProtocolStreamChunk> {
   const entry = event.item_id === undefined ? undefined : state.open.get(event.item_id)
   if (entry === undefined || event.delta === undefined) return
   entry.text += event.delta
-  yield { type: 'reasoning-delta', index: entry.index, text: event.delta }
+  entry.reasoningKind = mergeKind(entry.reasoningKind, 'content')
+  yield { type: 'reasoning-delta', index: entry.index, text: event.delta, kind: 'content' }
+}
+
+function mergeKind(current: OpenItem['reasoningKind'], next: 'summary' | 'content'): OpenItem['reasoningKind'] {
+  return current === undefined || current === next ? next : 'mixed'
 }
 
 function* toolDelta(state: StreamState, event: WireStreamEvent): Generator<ProtocolStreamChunk> {
@@ -184,5 +190,6 @@ function createOpenItem(
     nativeName: nativeName(item.type),
     summaryIndex: undefined,
     phase: textPhase(item.phase),
+    reasoningKind: undefined,
   }
 }

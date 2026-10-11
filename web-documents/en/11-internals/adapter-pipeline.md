@@ -61,7 +61,6 @@ input/output modalities, and explicit native-tool support.
 Before any provider I/O it:
 
 - materializes model defaults;
-- rejects an unsupported reasoning effort → `UNSUPPORTED_REASONING_EFFORT`;
 - rejects an unsupported native tool → `UNSUPPORTED_NATIVE_TOOL`;
 - rejects output above the hard ceiling → `OUTPUT_TOKEN_LIMIT_EXCEEDED`;
 - projects image input away **only** for models that explicitly lack vision;

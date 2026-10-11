@@ -110,7 +110,7 @@ usage và trạng thái kết thúc.
 const assembler = new BlockAssembler()
 for await (const chunk of registry.stream(call)) assembler.push(chunk)
 
-const message = assembler.message({ kind: 'model', provider: 'openai', model: 'gpt-5.4' })
+const message = assembler.message({ kind: 'model', provider: 'openai', model: 'gpt-6-luna' })
 assembler.usage     // TokenUsage | undefined
 assembler.finish    // FinishReason
 ```
@@ -134,6 +134,18 @@ dùng chung. Chính điều đó cho phép bộ lắp ráp giữ metadata khớp
 không cần hiểu nửa nào. Khi bộ lắp ráp bỏ một block, nó bỏ luôn mục ở cùng vị
 trí; một envelope có độ dài không khớp số block đã phát sẽ bị bỏ toàn bộ, vì một
 ánh xạ lệch còn tệ hơn không có ánh xạ.
+
+## Nhãn nguồn reasoning (0.1.12)
+
+`ReasoningBlock.kind` và `kind` của chunk `reasoning-delta` tầng thấp là trường
+không bắt buộc, nhận `'summary' | 'content'`. Event `reasoning-delta` và
+`assistant-reasoning` ở cả hai tầng bắt buộc có `reasoningKind`, thêm `'unknown'`
+khi provider không gắn nhãn. Test double và code tự tạo event phải thêm trường này.
+Responses phân biệt summary và nội dung raw; thought summary của Gemini là
+`summary`, `reasoning_content` của Chat Completions là `content`, thinking của
+Anthropic là `unknown`. SDK không đoán nhãn. Block bị ngắt hoặc có nguồn trộn
+chỉ giữ nhãn khi mọi delta đồng nhất; block cuối có thẩm quyền được ưu tiên.
+History cũ không có `kind` vẫn hợp lệ. Reasoning luôn tách khỏi văn bản công khai.
 
 ## Đọc tiếp
 

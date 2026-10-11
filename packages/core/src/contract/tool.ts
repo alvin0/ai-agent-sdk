@@ -29,7 +29,15 @@ export interface NativeWebSearchTool {
   readonly blockedDomains?: readonly string[]
   readonly userLocation?: WebSearchLocation
   readonly maxUses?: number
+  /**
+   * What the search may return; `['text']` when unset. Adding `image` lets it
+   * return images the model can see and cite. A provider that cannot search
+   * for images rejects the request rather than search text alone.
+   */
+  readonly searchContentTypes?: readonly WebSearchContentType[]
 }
+
+export type WebSearchContentType = 'text' | 'image'
 
 /** Image generation executed inside the provider response. */
 export interface NativeImageGenerationTool {

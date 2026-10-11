@@ -25,6 +25,9 @@ export function nativeToolName(name: string): string {
 }
 
 export function webSearchTool(tool: NativeWebSearchTool): WireTool {
+  if (tool.searchContentTypes?.includes('image') === true) {
+    throw new ModelError('Anthropic web search does not return images', MODEL_ERROR_CODES.INVALID_REQUEST)
+  }
   if (tool.allowedDomains !== undefined && tool.blockedDomains !== undefined) {
     throw new ModelError(
       'Anthropic web search accepts allowedDomains or blockedDomains, not both',

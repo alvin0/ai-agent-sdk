@@ -1,6 +1,8 @@
 import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
 import { isJsonValue } from '@alvin0/ai-agent-sdk-core'
-import type { AssistantTextPhase, ContentBlock, ImageMediaType, TextAnnotation } from '@alvin0/ai-agent-sdk-core'
+import type {
+  AssistantTextPhase, ContentBlock, ImageMediaType, ReasoningKind, TextAnnotation,
+} from '@alvin0/ai-agent-sdk-core'
 import type { ProtocolRequest } from './contract.ts'
 import type { ResponsesReasoningState } from './serialize.ts'
 import type { WireOutputItem } from './wire.ts'
@@ -18,6 +20,11 @@ export interface OpenItem {
   /** Last `summary_index` seen, so a new paragraph gets a separator. */
   summaryIndex: number | undefined
   phase: AssistantTextPhase | undefined
+  /**
+   * Which reasoning stream filled `text`; `mixed` when both did, which leaves
+   * the block unlabelled. The done item's summary still overrides it.
+   */
+  reasoningKind: ReasoningKind | 'mixed' | undefined
 }
 
 export function textPhase(value: string | undefined): AssistantTextPhase | undefined {
@@ -120,9 +127,12 @@ function doneReasoning(item: WireOutputItem, open: OpenItem): ContentBlock {
       : {},
     ...summary.length > 0 ? { summary } : {},
   }
+  const streamed = open.reasoningKind === 'mixed' ? undefined : open.reasoningKind
+  const kind = summary.length > 0 ? 'summary' : streamed
   return {
     type: 'reasoning',
     text: summary.length > 0 ? summary.join('\n\n') : open.text,
+    ...kind === undefined ? {} : { kind },
     providerState: state,
   }
 }
@@ -154,8 +164,14 @@ function doneNative(item: WireOutputItem, open: OpenItem, imageMediaType: ImageM
     ...typeof item.status === 'string' ? { status: item.status } : {},
     ...isJsonValue(item.action) ? { arguments: item.action } : {},
     content,
-    providerState: item,
+    // The image is kept once, as public content; replay reads it back from there.
+    providerState: content.length > 0 ? withoutResult(item) : item,
   }
+}
+
+function withoutResult(item: WireOutputItem): WireOutputItem {
+  const { result: _result, ...rest } = item
+  return rest
 }
 
 

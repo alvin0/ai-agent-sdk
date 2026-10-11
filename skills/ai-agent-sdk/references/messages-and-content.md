@@ -81,8 +81,15 @@ is the same distinction the run events carry.
 ### `reasoning`
 
 ```ts
-interface ReasoningBlock { type: 'reasoning'; text: string; providerState?: unknown }
+type ReasoningKind = 'summary' | 'content'
+interface ReasoningBlock { type: 'reasoning'; text: string; kind?: ReasoningKind; providerState?: unknown }
 ```
+
+`kind` is the provider's label, never inferred. Missing means unknown; preserve
+it when restoring old histories. Responses labels summary and raw reasoning,
+Gemini thought summaries are `summary`, Chat Completions `reasoning_content` is
+`content`, and Anthropic thinking remains unlabelled. Mixed or interrupted deltas
+keep a label only if every delta agrees; an authoritative `block-end` wins.
 
 Kept distinct from visible text and **never** mixed into it. `providerState`
 exists for a concrete reason: Anthropic requires a thinking block to be echoed
@@ -183,7 +190,7 @@ incomplete declaration at the route or agent:
 ```ts
 codexNodeAdapter({
   authStore,
-  models: [{ id: 'gpt-5.6-luna', inputModalities: ['text', 'image', 'document'] }],
+  models: [{ id: 'gpt-6-luna', inputModalities: ['text', 'image', 'document'] }],
 })
 ```
 
@@ -259,3 +266,24 @@ freezeMessage(message)                 // deep-freeze one message
 
 Both `contentHas*` helpers recurse into `tool-result` and `native-tool-call`, so a
 tool that returns a screenshot or a generated PDF is not missed by a shallow scan.
+
+
+## Image-only answers and bounded history (0.1.12)
+
+A basic turn can answer with an `image` block or an image in a native tool's
+`content`, even when terminal text is empty. A completed tool status alone is
+insufficient. Budget-forced image answers set `forcedFinalAnswer: true`; deep
+completion still needs text and its accepted completion submission.
+
+If image bytes make an assistant entry exceed history limits, the loop retries
+recording without inline base64 images. Direct images become commentary notes;
+native tool images are removed from `content`. The assistant history event's
+optional positive `omittedImages` counts removed images and survives snapshots.
+The low-level `assistant-message` event still contains the original image bytes:
+store them in host-owned durable storage while consuming the stream. History,
+terminal `.text`, and the runtime's bounded native-tool projection are not an
+image archive. Other oversized content still fails if the reduced entry cannot fit.
+
+Responses stores the generated image once in `content`, without duplicating
+`providerState.result`. Replay uses that content, with legacy provider state as
+fallback. An image omitted from history cannot be recovered from its replay state.

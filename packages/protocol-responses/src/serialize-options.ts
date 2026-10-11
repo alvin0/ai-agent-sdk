@@ -51,6 +51,7 @@ export function webSearchTool(tool: NativeWebSearchTool): WireTool {
     ...tool.userLocation === undefined ? {} : {
       user_location: { type: 'approximate', ...tool.userLocation },
     },
+    ...tool.searchContentTypes === undefined ? {} : { search_content_types: [...tool.searchContentTypes] },
   }
 }
 

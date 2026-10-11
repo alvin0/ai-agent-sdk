@@ -1,5 +1,6 @@
 import type {
-  NativeImageGenerationTool, NativeToolSchema, NativeWebSearchTool, ToolChoice, WebSearchLocation,
+  NativeImageGenerationTool, NativeToolSchema, NativeWebSearchTool, ToolChoice, WebSearchContentType,
+  WebSearchLocation,
 } from '../../contract/tool.ts'
 import { AgentSdkError } from '../../errors/agent-sdk-error.ts'
 import { arrayData, boundedText, objectValue, ownData } from '../common/data.ts'
@@ -46,19 +47,29 @@ function captureNativeTool(value: unknown): NativeToolSchema {
 function webSearch(source: object): NativeWebSearchTool {
   exactKeys(source, [
     'type', 'name', 'searchContextSize', 'allowedDomains', 'blockedDomains', 'userLocation', 'maxUses',
+    'searchContentTypes',
   ])
-  const context = ownData(source, 'searchContextSize', false)
-  if (context !== undefined && context !== 'low' && context !== 'medium' && context !== 'high') throw invalid()
+  const context = choice(ownData(source, 'searchContextSize', false), ['low', 'medium', 'high'])
   const allowedDomains = domains(ownData(source, 'allowedDomains', false))
   const blockedDomains = domains(ownData(source, 'blockedDomains', false))
   const userLocation = location(ownData(source, 'userLocation', false))
   const maxUses = boundedInteger(ownData(source, 'maxUses', false))
-  return Object.freeze({ type: 'native', name: 'web-search',
-    ...(context === undefined ? {} : { searchContextSize: context }),
-    ...(allowedDomains === undefined ? {} : { allowedDomains }),
-    ...(blockedDomains === undefined ? {} : { blockedDomains }),
-    ...(userLocation === undefined ? {} : { userLocation }),
-    ...(maxUses === undefined ? {} : { maxUses }) })
+  const contentTypes = searchContentTypes(ownData(source, 'searchContentTypes', false))
+  return Object.freeze({ type: 'native', name: 'web-search', ...definedFields({ searchContextSize: context,
+    allowedDomains, blockedDomains, userLocation, maxUses, searchContentTypes: contentTypes }) })
+}
+
+/** The fields that are set; an unset option is absent, never `undefined`. */
+function definedFields<T extends object>(fields: T): { [K in keyof T]?: Exclude<T[K], undefined> } {
+  return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined)) as
+    { [K in keyof T]?: Exclude<T[K], undefined> }
+}
+
+function searchContentTypes(value: unknown): readonly WebSearchContentType[] | undefined {
+  if (value === undefined) return undefined
+  const types = arrayData(value, 2).map(item => choice<WebSearchContentType>(item ?? '', ['text', 'image']))
+  if (types.length === 0 || new Set(types).size !== types.length) throw invalid()
+  return Object.freeze(types as WebSearchContentType[])
 }
 
 function imageGeneration(source: object): NativeImageGenerationTool {

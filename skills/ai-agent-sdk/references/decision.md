@@ -18,6 +18,7 @@ pnpm add @alvin0/ai-agent-sdk-provider-typesafe    # TypeSafe native evidence
 
 | Backend | Install into `createDecisionRuntime({ providers })` | Evidence |
 | --- | --- | --- |
+| OpenAI native Decisions | `openAiDecisionPlugin({ apiKey })` from `/decisions` | Native `provider` probabilities |
 | TypeSafe | `typesafePlugin({ apiKey })` | Native `provider` probabilities |
 | Any SDK chat provider | `llmDecisionPlugin({ id, routes, adapter })` | None, or opt-in `model-generated` |
 
@@ -26,6 +27,45 @@ pnpm add @alvin0/ai-agent-sdk-provider-typesafe    # TypeSafe native evidence
 adapter's credentials, `baseUrl`, gateway headers, injected `fetch`, and wire
 protocol are used unchanged. Which API is called is decided by the adapter, not by
 the decision package.
+
+## Native OpenAI Decisions (0.1.11+)
+
+`openAiDecisionPlugin` and `openAiDecisionAdapter` are exported from
+`@alvin0/ai-agent-sdk-provider-openai/decisions`. This is a native `/v1/decisions`
+transport with `provider` probability evidence, distinct from the LLM bridge's
+Responses or Chat Completions calls. Use a separate OpenAI API key; ChatGPT OAuth
+for Codex Responses alone does not provide Decisions access. There is no fallback
+to Responses on error. A custom API root includes `/v1`.
+
+```ts
+import { createDecisionRuntime, choiceQuestion }
+  from '@alvin0/ai-agent-sdk-decision-adapter'
+import { openAiDecisionPlugin }
+  from '@alvin0/ai-agent-sdk-provider-openai/decisions'
+
+const runtime = createDecisionRuntime({
+  providers: [openAiDecisionPlugin({ apiKey })], // injected string or CredentialSource
+})
+try {
+  const result = await runtime.decisionModel({ provider: 'openai', model: 'gpt-6-luna' }).evaluate({
+    state: { message: 'Please refund the duplicate payment.' },
+    questions: {
+      department: choiceQuestion('Choose the department.', {
+        billing: 'Payments and refunds', support: 'Technical issues',
+      }),
+    },
+  })
+  console.log(result.answers.department.choice)
+} finally {
+  await runtime.close()
+}
+```
+
+The adapter performs one attempt; the companion runtime owns retries and the
+logical deadline. Native refusals throw non-retryable `OPENAI_DECISION_REFUSED`
+errors. The current input is text/JSON, not native image messages. Nested decision
+usage is not merged into an agent's token budget. Close both runtimes when they
+are used together; decision plugins do not belong in `AgentRuntime.providers`.
 
 ## Setup per wire API
 

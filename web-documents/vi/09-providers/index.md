@@ -80,7 +80,6 @@ phương thức đầu vào/đầu ra, và hỗ trợ native tool tường minh.
 Trước bất kỳ thao tác I/O nào tới nhà cung cấp, registry:
 
 - hiện thực hoá các giá trị mặc định của model;
-- từ chối mức nỗ lực suy luận không hỗ trợ (`UNSUPPORTED_REASONING_EFFORT`);
 - từ chối native tool không hỗ trợ (`UNSUPPORTED_NATIVE_TOOL`);
 - từ chối lựa chọn output vượt trần cứng của model
   (`OUTPUT_TOKEN_LIMIT_EXCEEDED`);
@@ -124,7 +123,7 @@ Ví dụ chủ động bật context lớn hơn:
 ```ts
 openAiPlugin({
   apiKey,
-  models: [{ id: 'gpt-5.6-luna', contextWindow: 800_000 }],
+  models: [{ id: 'gpt-6-luna', contextWindow: 800_000 }],
 })
 ```
 
@@ -203,7 +202,7 @@ Cấu hình vận hành theo giá tiêu chuẩn cho endpoint API này:
 
 ```ts
 models: [{
-  id: 'gpt-5.6-luna',
+  id: configuredModelId, // Use limits verified for this exact endpoint/model.
   contextWindow: 272_000, // Ngân sách vận hành, không phải context mở rộng tối đa.
   maxTokens: 128_000,
   defaultMaxTokens: 32_000,
@@ -272,10 +271,10 @@ Không có model mặc định. Danh mục model của nhà cung cấp thay đ�
 phát hành của package này, nên bất kỳ mặc định dựng sẵn nào rồi cũng trỏ vào một
 model đã ngừng phục vụ.
 
-Ngoại lệ duy nhất là `defineAgent()`: bỏ trống `provider`, `model`, và `effort`
-trong một *định nghĩa* sẽ chọn Codex `gpt-5.6-luna` ở mức `medium` — đây là một
-quyết định đã được rà soát và phê duyệt tường minh, không phải phương án dự phòng
-ngầm.
+API authoring tầng thấp `defineAgent()` vẫn giữ model Codex mặc định cũ;
+effort bỏ trống vẫn được giữ bỏ trống. Ví dụ và live call của project phải đặt
+`provider` và `model` tường minh, chọn `gpt-6-luna` hoặc model mới hơn. SDK vẫn
+cho consumer cấu hình model.
 
 ## Nhiều tài khoản của cùng một provider
 

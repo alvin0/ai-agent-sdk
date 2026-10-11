@@ -42,7 +42,7 @@ describe('Gemini Interactions SSE translation', () => {
     expect(chunks).toContainEqual({
       type: 'block-end', index: 0,
       block: {
-        type: 'reasoning', text: 'Checking.',
+        type: 'reasoning', text: 'Checking.', kind: 'summary',
         providerState: {
           signature: 'sig_1', summary: [{ type: 'text', text: 'Checking.' }],
         },

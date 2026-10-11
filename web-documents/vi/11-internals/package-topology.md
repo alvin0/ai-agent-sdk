@@ -32,11 +32,13 @@ nào phải giữ đồng bộ.
 Schema v5 đóng băng các baseline này một cách tường minh, **để một nhãn runtime
 không thể qua cửa chỉ vì phần import nhìn có vẻ sạch**.
 
-## 25 package đích
+## 27 package đích
 
 | Package | Tầng | Vai trò |
 | --- | --- | --- |
 | `core` | universal | core-runtime |
+| `decision-adapter` | universal | decision-runtime |
+| `provider-typesafe` | universal | decision-provider |
 | `provider-http` | universal | provider-extension-kit |
 | `protocol-responses` | universal | wire-protocol |
 | `protocol-anthropic-messages` | universal | wire-protocol |
@@ -67,11 +69,13 @@ hành.)
 
 ## Package nhiều điểm vào
 
-Năm package có nhiều hơn một điểm vào công khai:
+Bảy package có nhiều hơn một điểm vào công khai:
 
 | Package | Điểm vào |
 | --- | --- |
 | `core` | `.` `./agent` `./memory` `./provider` `./skills` `./tools` `./embedding` `./observability` |
+| `provider-openai` | `.` `./decisions` |
+| `decision-adapter` | `.` `./transport` |
 | `auth-node` | `.` `./env` `./codex` `./copilot` |
 | `a2a` | `.` `./client` `./server` |
 | `mcp` | `.` `./client` `./server` |
@@ -80,11 +84,11 @@ Năm package có nhiều hơn một điểm vào công khai:
 MCP `/server`, auth `/codex` và auth `/copilot` là **khung nhìn theo peer tuỳ
 chọn**; các tuyến danh tính được ghi riêng.
 
-Trên 25 package, tổng cộng là 41 định danh công khai.
+Trên 27 package, tổng cộng là 45 định danh công khai.
 
 ## Quy tắc manifest
 
-Cả 25 package:
+Cả 27 package:
 
 - **cấm tuyến wildcard và tuyến `require`**;
 - có export `"./package.json"` tường minh;

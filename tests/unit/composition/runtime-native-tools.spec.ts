@@ -106,10 +106,23 @@ describe('runtime native tool binding', () => {
       [{ type: 'native', name: 'web-search', callback: () => undefined }],
       [{ type: 'native', name: 'web-search', apiKey: 'secret' }],
       [{ type: 'native', name: 'unknown' }],
+      [{ type: 'native', name: 'web-search', searchContentTypes: [] }],
+      [{ type: 'native', name: 'web-search', searchContentTypes: ['image', 'image'] }],
+      [{ type: 'native', name: 'web-search', searchContentTypes: ['video'] }],
+      [{ type: 'native', name: 'web-search', searchContentTypes: [undefined] }],
+      [{ type: 'native', name: 'web-search', searchContentTypes: 'image' }],
     ]) expect(() => runtime.agent({ id: `invalid-${String(nativeTools.length)}`, instructions: 'No', nativeTools: nativeTools as never }))
       .toThrow(expect.objectContaining({ code: 'NATIVE_TOOL_CONFIG_INVALID' }))
     expect(adapter.requests).toHaveLength(0)
     await runtime.close()
+  })
+
+  it('carries the web search content types it was given', async () => {
+    const adapter = new NativeAdapter(), runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const agent = runtime.agent({ id: 'image-search', instructions: 'Search', compaction: false,
+      nativeTools: [{ type: 'native', name: 'web-search', searchContentTypes: ['text', 'image'] }] })
+    await agent.createSession().run('search')
+    expect(adapter.requests[0]?.tools?.[0]).toEqual({ type: 'native', name: 'web-search', searchContentTypes: ['text', 'image'] })
   })
 
   it('treats absent capability metadata as unknown and an explicit list as an allowlist', async () => {

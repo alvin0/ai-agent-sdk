@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { History } from '@alvin0/ai-agent-sdk-core/agent'
+import { DEFAULT_MAX_SSE_IMAGE_EVENT_CHARS } from '../../packages/provider-http/src/stream/config.ts'
 import { normalizeToolPairing } from '@alvin0/ai-agent-sdk-core/agent'
 import { createMessage, createTextMessage, createToolResultMessage } from '@alvin0/ai-agent-sdk-core'
 import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
@@ -269,3 +270,41 @@ describe('History', () => {
     expect(() => History.fromSnapshot(snapshot as never)).toThrow(/maximum content depth/)
   })
 })
+
+describe('reasoning kind in stored history', () => {
+  function withReasoning(kind: unknown) {
+    const history = new History()
+    history.append({ kind: 'user', message: createTextMessage('Q') })
+    history.append({ kind: 'assistant', message: createMessage({
+      role: 'assistant', source: { kind: 'model', provider: 'test', model: 'm' },
+      content: [{ type: 'reasoning', text: 'Plan.', ...(kind === undefined ? {} : { kind }) } as never, { type: 'text', text: 'A' }],
+    }) })
+    return JSON.parse(JSON.stringify(history.snapshot()))
+  }
+
+  it('restores labelled and unlabelled reasoning, and keeps the label', () => {
+    expect(() => History.fromSnapshot(withReasoning(undefined))).not.toThrow()
+    const restored = History.fromSnapshot(withReasoning('summary'))
+    expect(restored.messages().at(-1)?.content[0]).toMatchObject({ type: 'reasoning', kind: 'summary' })
+  })
+
+  it('rejects a reasoning kind it does not know', () => {
+    expect(() => History.fromSnapshot(withReasoning('chain-of-thought'))).toThrow(/kind must be summary or content/)
+  })
+})
+
+describe('generated image size', () => {
+  const drawn = (chars: number) => ({ kind: 'assistant' as const, message: createMessage({
+    role: 'assistant', source: { kind: 'model', provider: 'test', model: 'm' },
+    content: [{ type: 'native-tool-call', id: 'ig_1', name: 'image-generation', status: 'completed',
+      content: [{ type: 'image', source: { kind: 'base64', mediaType: 'image/png', data: 'x'.repeat(chars) } }] }],
+  }) })
+
+  it('records any image the HTTP transport accepts by default', () => {
+    // The transport's own image bound: an image it lets through must be one a
+    // default history can record, or the run fails after the image is paid for.
+    expect(() => new History().append(drawn(DEFAULT_MAX_SSE_IMAGE_EVENT_CHARS))).not.toThrow()
+    expect(() => new History().append(drawn(17 * 1_048_576))).toThrow(RangeError)
+  })
+})
+

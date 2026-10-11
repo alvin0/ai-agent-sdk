@@ -174,6 +174,18 @@ hãy dùng thẳng `ModelRegistry.stream()` và `BlockAssembler`. Đó là tần
 chương này — xem [Tham chiếu API `Types`](/vi/13-api-reference/types) cho
 `StreamChunk`, `TokenUsage`, `FinishReason`, và `ReplayEnvelope`.
 
+## Nhãn nguồn reasoning (0.1.12)
+
+`ReasoningBlock.kind` và `kind` của chunk `reasoning-delta` tầng thấp là trường
+không bắt buộc, nhận `'summary' | 'content'`. Event `reasoning-delta` và
+`assistant-reasoning` ở cả hai tầng bắt buộc có `reasoningKind`, thêm `'unknown'`
+khi provider không gắn nhãn. Test double và code tự tạo event phải thêm trường này.
+Responses phân biệt summary và nội dung raw; thought summary của Gemini là
+`summary`, `reasoning_content` của Chat Completions là `content`, thinking của
+Anthropic là `unknown`. SDK không đoán nhãn. Block bị ngắt hoặc có nguồn trộn
+chỉ giữ nhãn khi mọi delta đồng nhất; block cuối có thẩm quyền được ưu tiên.
+History cũ không có `kind` vẫn hợp lệ. Reasoning luôn tách khỏi văn bản công khai.
+
 ## Đọc tiếp
 
 - [Lifecycle](/vi/02-agents/lifecycle) — hook, huỷ, bằng chứng đóng

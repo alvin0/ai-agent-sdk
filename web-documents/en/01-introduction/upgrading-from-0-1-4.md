@@ -1,8 +1,7 @@
 # Upgrading from 0.1.4 to 0.1.5
 
-This page describes changes introduced in **0.1.5**. The workspace now targets
-0.1.8; see [upgrading from 0.1.7](/en/01-introduction/upgrading-from-0-1-7)
-for the latest exact-repeat recovery and embedding diagnostic changes.
+This guide covers changes introduced in **0.1.5**. For the current workspace,
+see [upgrading to 0.1.12](/en/01-introduction/upgrading-to-0-1-12).
 
 Existing import routes, provider/model/effort configuration, ordinary tools,
 `run`/`stream`, and snapshot/resume remain available. The effort redesign in the

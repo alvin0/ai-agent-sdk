@@ -10,7 +10,8 @@ message.
 
 ## Setup
 
-For the 0.1.11 release, read the [release notes](CHANGELOG.md).
+For the 0.1.12 release, read the [release notes](CHANGELOG.md).
+For migration to 0.1.12, read [upgrading to 0.1.12](docs/upgrading-to-0.1.12.md).
 For the 0.1.10 decision runtime release, read the [release notes](CHANGELOG.md).
 For the 0.1.9 release, read the [release notes](CHANGELOG.md).
 For the 0.1.8 release, read [upgrading from 0.1.7](docs/upgrading-from-0.1.7.md).
@@ -341,8 +342,9 @@ console.log(response.text)
 await session.run('Now multiply that by 10.')
 ```
 
-Omitting `provider`, `model`, and `effort` selects Codex `gpt-5.6-luna` at
-`medium` effort. Use `session.stream()` instead of `session.run()` when a GUI
+Omitted effort stays omitted. The low-level `defineAgent()` still retains a
+legacy Codex model default; explicitly select `gpt-6-luna` or a newer chosen model
+for project examples and live calls. Use `session.stream()` instead of `session.run()` when a GUI
 needs live commentary, reasoning summaries, tool nodes, image deltas, and trace
 events. See [Creating an Agent](web-documents/en/02-agents/creating-an-agent.md) for modes,
 native tools, variants, and session ownership.
@@ -431,7 +433,7 @@ const userInput = createUserInputBroker()
 for await (const event of runAgent({
   mode: 'deep-human-in-loop', // also: 'basic' or 'deep'
   registry,
-  // config omitted: defaults to Codex gpt-5.6-luna, reasoning effort medium
+  config: { provider: 'codex', model: 'gpt-6-luna' }, // effort stays omitted
   history,
   tools,
   userInput,
@@ -490,7 +492,7 @@ for await (const event of runAgent({
   mode: 'basic',
   registry,
   history,
-  // Omit config for Codex gpt-5.6-luna with medium effort, or override it:
+  // Omit config for a legacy Codex model with no effort preference; configure gpt-6-luna explicitly, or override it:
   config: { provider: 'openai', model: 'gpt-6-luna', reasoningEffort: ReasoningEffortId('medium') },
   nativeTools: [
     { type: 'native', name: 'web-search', allowedDomains: ['openai.com'] },

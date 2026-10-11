@@ -75,7 +75,7 @@ function* reasoningDelta(state: StreamState, delta: WireStreamChoice['delta']): 
     yield { type: 'block-start', index: state.reasoning.index, blockType: 'reasoning' }
   }
   state.reasoning.text += text
-  yield { type: 'reasoning-delta', index: state.reasoning.index, text }
+  yield { type: 'reasoning-delta', index: state.reasoning.index, text, kind: 'content' }
 }
 
 function* textDelta(state: StreamState, delta: WireStreamChoice['delta']): Generator<ProtocolStreamChunk> {
@@ -102,7 +102,7 @@ function* closeBlocks(state: StreamState, reason: WireFinishReason, displayName:
   state.finish = reason
   if (state.reasoning !== undefined) {
     yield { type: 'block-end', index: state.reasoning.index,
-      block: { type: 'reasoning', text: state.reasoning.text } }
+      block: { type: 'reasoning', text: state.reasoning.text, kind: 'content' } }
   }
   if (state.text !== undefined) {
     yield { type: 'block-end', index: state.text.index, block: { type: 'text', text: state.text.text } }

@@ -187,6 +187,7 @@
           "ReasoningBlock",
           "ReasoningEffortId",
           "ReasoningEffortInfo",
+          "ReasoningKind",
           "ReplayEnvelope",
           "ResolvedAgentSkillOptions",
           "ResolvedAlwaysRetryPolicy",
@@ -290,6 +291,7 @@
           "UserInputRequest",
           "UserInputResponse",
           "UserMessage",
+          "WebSearchContentType",
           "WebSearchLocation",
           "WithRetryOptions",
           "addUsageCounters",
@@ -378,7 +380,7 @@
           "withRetry",
           "withoutRunReport"
         ],
-        "declarationSha256": "9687595102e8963eac7805b13db9f443621d204abce956cc267d938a42367dd4"
+        "declarationSha256": "39b19fde9eed6b60d73f5de2484772a46fe87c4fae69d35e52e5fb3344a739a9"
       },
       "./agent": {
         "exports": [
@@ -558,6 +560,7 @@
           "SpillStore",
           "StepDecision",
           "StreamedAssistantTextPhase",
+          "StreamedReasoningKind",
           "SupportSafeError",
           "SurfaceOp",
           "TOOL_ERROR_CODES",
@@ -677,7 +680,7 @@
           "validateSkillSource",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "8feb54171b78f513d369eb053e510d2cd1de2fd504aed972451e9a5156152e0a"
+        "declarationSha256": "3d979ed2e95e36196fc4804e351bac4b6e0537fa832865af195d7bacaa598c9c"
       },
       "./memory": {
         "exports": [

@@ -1,6 +1,6 @@
 import type { GenerateOptions } from '../../contract/index.ts'
 import type { ModelFailure } from '../../errors/index.ts'
-import type { AssistantTextPhase, ImageMediaType, NativeToolCallBlock } from '../../message/index.ts'
+import type { AssistantTextPhase, ImageMediaType, NativeToolCallBlock, ReasoningKind } from '../../message/index.ts'
 import type { Message } from '../../message/index.ts'
 import type { MessageId, ToolCallId } from '../../primitives/index.ts'
 import type { TokenUsage } from '../../stream/index.ts'
@@ -58,6 +58,8 @@ export interface TurnOutcome {
 interface Traced { readonly trace: TraceRef }
 export type AssistantContentTiming = 'standalone' | 'before-tools' | 'after-tools' | 'between-tools'
 export type StreamedAssistantTextPhase = AssistantTextPhase | 'unknown'
+/** A reasoning delta's source; `unknown` when the provider did not say, never a guess. */
+export type StreamedReasoningKind = ReasoningKind | 'unknown'
 export type CompactionTrigger = 'pressure' | 'context-overflow' | 'manual'
 export type AgentMaintenanceEvent =
   | {
@@ -107,7 +109,12 @@ export type AgentEvent = TraceEvent
     readonly phase: AssistantTextPhase
     readonly incomplete?: true
   } & Traced)
-  | ({ readonly type: 'reasoning-delta'; readonly index: number; readonly text: string } & Traced)
+  | ({
+    readonly type: 'reasoning-delta'
+    readonly index: number
+    readonly text: string
+    readonly reasoningKind: StreamedReasoningKind
+  } & Traced)
   | ({
     readonly type: 'image-delta'
     readonly itemId: string
@@ -135,6 +142,7 @@ export type AgentEvent = TraceEvent
     readonly type: 'assistant-reasoning'
     readonly messageId: MessageId
     readonly text: string
+    readonly reasoningKind: StreamedReasoningKind
     readonly timing: AssistantContentTiming
     readonly toolCallIds: readonly ToolCallId[]
     readonly afterToolCallIds: readonly ToolCallId[]

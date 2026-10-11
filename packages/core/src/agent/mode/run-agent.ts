@@ -377,7 +377,7 @@ async function driveAgent(
   const emitAnswerEvent = createAnswerEventHandler(answerState)
   const turnResult = await runAgentTurnLoop({ options, state, tools, turnOptions, answerState, emitAnswerEvent })
   const { terminal } = turnResult
-  const completionEligible = isAgentCompletionEligible(mode, terminal, state)
+  const completionEligible = isAgentCompletionEligible(mode, terminal, state, options.history)
   const completed = completionEligible && !taskChangedSince(options.history, answerState.lastRequestSeq)
   const outcome: AgentRunOutcome = {
     ...terminal,

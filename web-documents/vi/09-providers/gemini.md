@@ -264,7 +264,7 @@ Mọi thứ phía trên adapter nói bằng từ vựng trung lập, nên một 
 const definition = { id: 'reviewer', instructions: '…', tools: [readFile] }
 
 runtime.agent({ ...definition, model: { provider: 'gemini', id: 'gemini-3-pro' } })
-runtime.agent({ ...definition, model: { provider: 'openai', id: 'gpt-5.4' } })
+runtime.agent({ ...definition, model: { provider: 'openai', id: 'gpt-6-luna' } })
 runtime.agent({ ...definition, model: { provider: 'anthropic', id: 'claude-sonnet-4-5' } })
 ```
 

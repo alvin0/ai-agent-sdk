@@ -68,12 +68,13 @@ merely because the imports look clean**.
 
 ## Multi-entry packages
 
-Six packages have more than one public entrypoint:
+Seven packages have more than one public entrypoint:
 
 | Package | Entrypoints |
 | --- | --- |
 | `core` | `.` `./agent` `./memory` `./provider` `./skills` `./tools` `./embedding` `./observability` |
 | `decision-adapter` | `.` `./transport` |
+| `provider-openai` | `.` `./decisions` |
 | `auth-node` | `.` `./env` `./codex` `./copilot` |
 | `a2a` | `.` `./client` `./server` |
 | `mcp` | `.` `./client` `./server` |
@@ -82,7 +83,7 @@ Six packages have more than one public entrypoint:
 MCP `/server`, auth `/codex` and auth `/copilot` are **optional-peer views**;
 identity routes are recorded separately.
 
-Across the 27 packages that is 44 public specifiers, excluding package metadata exports.
+Across the 27 packages that is 45 public specifiers, excluding package metadata exports.
 
 ## Manifest rules
 

@@ -181,6 +181,10 @@ describe('serializeAnthropicRequest', () => {
       user_location: { type: 'approximate', country: 'VN' },
     }])
     expect(body.tool_choice).toEqual({ type: 'tool', name: 'web_search' })
+    expect(() => serializeAnthropicRequest(providerRequest({
+      messages: [createTextMessage('search')],
+      tools: [{ type: 'native', name: 'web-search', searchContentTypes: ['image'] }],
+    }), options)).toThrow(/does not return images/)
   })
 
   it('rejects unsupported native image generation explicitly', () => {

@@ -37,8 +37,8 @@ that mixing them in would discourage running the fast suite.
 | `pnpm test:lint` | Positive and negative checks of the ESLint configuration |
 | `pnpm check:boundary-fixtures` | Proves invalid boundaries are actually **rejected** |
 | `pnpm check:supply-chain` | Lockfile integrity, exact pins, lifecycle scripts, licences, `pnpm audit --prod` |
-| `pnpm check:docs` | Documentation migration ledger |
-| `pnpm workspace:typecheck` | Typecheck all publishable packages in graph order |
+| `pnpm check:docs` | Package README runtime/install/link hygiene |
+| `pnpm workspace:typecheck` | Typecheck all workspace packages in graph order |
 | `pnpm workspace:build` | Build all package-owned bundles and declarations |
 
 `check:boundary-fixtures` matters more than it looks: a gate that never fails is
@@ -52,6 +52,7 @@ pnpm test:lint
 pnpm workspace:build && pnpm workspace:typecheck && pnpm build:cli
   && pnpm lint && pnpm exec tsc --noEmit
 pnpm check:boundary-fixtures
+pnpm check:docs && pnpm check:human
 pnpm check:supply-chain
 pnpm test
 pnpm test:packages
@@ -141,3 +142,5 @@ core, agent, base observability, protocols, observability capabilities, and MCP.
 
 - [`@alvin0/ai-agent-sdk-testkit`](/en/14-project/testkit)
 - [Contributing](/en/14-project/contributing)
+
+For the current release and hosted versus local evidence, see [upgrading to 0.1.12](/en/01-introduction/upgrading-to-0-1-12).

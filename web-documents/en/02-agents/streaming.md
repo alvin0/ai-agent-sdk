@@ -174,6 +174,18 @@ To consume the neutral chunk protocol with **no agent loop around it**, use
 than this chapter — see [`Types` API reference](/en/13-api-reference/types) for
 `StreamChunk`, `TokenUsage`, `FinishReason`, and `ReplayEnvelope`.
 
+## Reasoning source labels (0.1.12)
+
+`ReasoningBlock.kind` and raw `reasoning-delta` chunks' `kind` are optional
+`'summary' | 'content'`. Low-level and runtime `reasoning-delta` and
+`assistant-reasoning` events require `reasoningKind`, adding `'unknown'` for an
+absent provider label. Event builders and test doubles must supply that field.
+Responses distinguishes summary and raw text, Gemini thought summaries are
+`summary`, Chat Completions `reasoning_content` is `content`, and Anthropic
+thinking is `unknown`. Labels are never inferred. Mixed or interrupted blocks
+keep a label only when their deltas agree; an authoritative final block wins.
+Old histories with no `kind` remain valid. Keep reasoning separate from public text.
+
 ## Read next
 
 - [Lifecycle](/en/02-agents/lifecycle) — hooks, cancellation, close evidence

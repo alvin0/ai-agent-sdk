@@ -5,7 +5,7 @@ import type { ToolCatalog } from '../../tool/registry.ts'
 import type { TurnEndReason, TurnHooks } from '../types.ts'
 import type { TurnState } from './state.ts'
 import { UNCHANGED_ANSWER_MARKER } from '../control-text.ts'
-import { emitAssistantContent, textOf } from './content.ts'
+import { answeredWithImage, emitAssistantContent, textOf } from './content.ts'
 import { deliverQueuedInput, hasQueuedInput } from './model-request-boundary.ts'
 
 const MAX_RECOVERY_CHARS = 24_000
@@ -86,7 +86,7 @@ export function createTerminalRecoveryMessage(input: {
 }
 
 function alreadyAnswered(state: TurnState): boolean {
-  if (!state.text.trim()) return false
+  if (!state.text.trim() && !answeredWithImage(state.options.history)) return false
   const reason = state.reason
   if (reason?.kind === 'budget-exhausted') return reason.forcedFinalAnswer
   return reason?.kind === 'completed' || reason?.kind === 'concluded-by-tool'

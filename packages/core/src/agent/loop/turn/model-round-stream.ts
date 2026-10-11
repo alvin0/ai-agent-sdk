@@ -196,7 +196,7 @@ async function publishVisibleChunk(chunk: StreamChunk, context: ModelRoundContex
     phase: phase === 'process' ? 'commentary' : chunk.phase ?? 'unknown', trace,
   })
   else if (chunk.type === 'reasoning-delta') await emit({
-    type: 'reasoning-delta', index: chunk.index, text: chunk.text, trace,
+    type: 'reasoning-delta', index: chunk.index, text: chunk.text, reasoningKind: chunk.kind ?? 'unknown', trace,
   })
   else if (chunk.type === 'image-delta') await emit({
     type: 'image-delta', itemId: chunk.itemId, data: chunk.data,

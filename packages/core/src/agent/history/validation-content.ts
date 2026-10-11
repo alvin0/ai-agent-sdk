@@ -90,6 +90,9 @@ function validateReasoningBlock(
   value: Record<string, unknown>, path: string,
 ): void {
   if (typeof value.text !== 'string') throw new TypeError(`${path}.text must be a string`)
+  if (value.kind !== undefined && value.kind !== 'summary' && value.kind !== 'content') {
+    throw new TypeError(`${path}.kind must be summary or content`)
+  }
 }
 
 function validateImageBlock(

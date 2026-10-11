@@ -93,7 +93,7 @@ function* startStep(state: StreamState, event: WireStreamEvent): Generator<Proto
   yield { type: 'block-start', index: step.index, blockType: step.kind }
   if (step.text.length > 0) {
     yield step.kind === 'reasoning'
-      ? { type: 'reasoning-delta', index: step.index, text: step.text }
+      ? { type: 'reasoning-delta', index: step.index, text: step.text, kind: 'summary' }
       : { type: 'text-delta', index: step.index, text: step.text }
   }
 }

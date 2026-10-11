@@ -295,6 +295,16 @@ describe('a spent budget ends with an answer', () => {
     expect(end).toMatchObject({ outcome: { text: 'Answer on the second try.', reason: { kind: 'budget-exhausted', forcedFinalAnswer: true } } })
     expect(adapter.requests).toHaveLength(3)
   })
+  it('takes a forced answer that is only a generated image as the forced answer', async () => {
+    const block = { type: 'native-tool-call' as const, id: 'ig_1', name: 'image-generation', status: 'completed',
+      content: [{ type: 'image' as const, source: { kind: 'base64' as const, mediaType: 'image/png' as const, data: 'IMG' } }] }
+    const { adapter, end, history } = await run([call('a'), [{ type: 'block-end', index: 0, block },
+      { type: 'finish', reason: { kind: 'stop' } }]], { mode: 'basic', maxTurns: 1 })
+    expect(adapter.requests).toHaveLength(2)
+    expect(end).toMatchObject({ outcome: { reason: { kind: 'budget-exhausted', forcedFinalAnswer: true } } })
+    // The image is the answer: no recovery report is written after it.
+    expect(history.messages().at(-1)?.content).toEqual([block])
+  })
 })
 
 describe('review findings on the budget-edge changes', () => {

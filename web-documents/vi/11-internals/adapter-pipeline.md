@@ -61,7 +61,6 @@ phương thức vào/ra, và hỗ trợ native tool tường minh.
 Trước bất kỳ I/O nào tới nhà cung cấp, nó:
 
 - hiện thực hoá các giá trị mặc định của model;
-- từ chối mức nỗ lực suy luận không hỗ trợ → `UNSUPPORTED_REASONING_EFFORT`;
 - từ chối native tool không hỗ trợ → `UNSUPPORTED_NATIVE_TOOL`;
 - từ chối output vượt trần cứng → `OUTPUT_TOKEN_LIMIT_EXCEEDED`;
 - **chỉ** chiếu bỏ ảnh đầu vào với những model khai báo rõ là không có thị giác;

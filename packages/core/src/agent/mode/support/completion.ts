@@ -1,6 +1,8 @@
 import { AGENT_CONTROL_TOOLS  } from '../control-tools.ts'
 import { UNCHANGED_ANSWER_MARKER  } from '../../loop/control-text.ts'
 import type { TurnOutcome  } from '../../loop/types.ts'
+import type { History } from '../../history/history.ts'
+import { answeredWithImage } from '../../loop/turn/content.ts'
 import { defineTool, type ToolDefinition } from '../../tool/definition.ts'
 import type { ToolCatalog  } from '../../tool/registry.ts'
 import { type AgentMode, type RunAgentOptions, type CompletionSubmission, type DeepState  } from '../run-agent.ts'
@@ -101,11 +103,17 @@ export function parseCompletion(raw: unknown): CompletionSubmission {
   return { summary: value.summary, evidence: value.evidence as string[] }
 }
 
-export function isAgentCompletionEligible(mode: AgentMode, terminal: TurnOutcome, state: DeepState): boolean {
-  if (mode === 'basic') {
-    return (terminal.reason.kind === 'completed' && terminal.text.trim() !== '')
-      || terminal.reason.kind === 'concluded-by-tool'
-  }
+/** A basic turn completes with an answer: text, an image it produced, or a concluding tool. */
+function basicCompletionEligible(terminal: TurnOutcome, history: Pick<History, 'entries'> | undefined): boolean {
+  if (terminal.reason.kind === 'concluded-by-tool') return true
+  return terminal.reason.kind === 'completed'
+    && (terminal.text.trim() !== '' || (history !== undefined && answeredWithImage(history)))
+}
+
+export function isAgentCompletionEligible(
+  mode: AgentMode, terminal: TurnOutcome, state: DeepState, history?: Pick<History, 'entries'>,
+): boolean {
+  if (mode === 'basic') return basicCompletionEligible(terminal, history)
   return state.completion !== undefined && !state.userAborted
     && (terminal.reason.kind === 'completed'
       || terminal.reason.kind === 'concluded-by-tool'

@@ -110,7 +110,6 @@ mạng.
 | `INVALID_ADAPTER` | Adapter không qua được kiểm tra hợp đồng. | Chạy bộ conformance của testkit. |
 | `INVALID_CATALOG` | Ảnh chụp danh mục model không hợp lệ. | Sửa output của `listModels` trong adapter. |
 | `INVALID_MODEL_INFO` | Năng lực model khai báo không nhất quán. | Kiểm tra cửa sổ ngữ cảnh so với giới hạn output. |
-| `UNSUPPORTED_REASONING_EFFORT` | Model không khai báo mức nỗ lực được yêu cầu. | Dùng mức đã khai báo, hoặc sửa khai báo. |
 | `UNSUPPORTED_NATIVE_TOOL` | Model không khai báo native tool được yêu cầu. | Bỏ native tool, hoặc đổi model. |
 | `OUTPUT_TOKEN_LIMIT_EXCEEDED` | `maxTokens` vượt trần output cứng của model. | Giảm `maxTokens`. |
 | `INVALID_PREPARED_CALL` | Một prepared call bị sửa hoặc dùng lại qua các thế hệ. | Đừng cache một prepared call. |

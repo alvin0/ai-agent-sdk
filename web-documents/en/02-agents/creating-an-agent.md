@@ -10,7 +10,7 @@ const agent = runtime.agent({
   description: 'Reviews release candidates and reports concrete risks.',
 
   // Model route
-  model: { provider: 'openai', id: 'gpt-5.4' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
   effort: 'medium',
   maxTokens: 16_384,
   outputFormat: { type: 'text' }, // or a named JSON Schema for the final answer
@@ -45,12 +45,12 @@ const agent = runtime.agent({
 | `description` | `string` | Used by `createAgentCardFromDefinition()` and team rosters. |
 | `model` | `{ provider, id? }` | Route. `id` may be omitted when the provider has a configured default. |
 | `instructions` | `string` | **Required** on a definition. See [Agent Instructions](/en/02-agents/agent-instructions). |
-| `effort` | `string` | Reasoning effort. Validated against the model's declared efforts. |
+| `effort` | `string` | Opaque provider value, forwarded only when set. The provider validates support. |
 | `maxTokens` | `number` | Output ceiling. Checked against the model's hard limit before provider I/O. |
 | `outputFormat` | `ModelOutputFormat` | Plain text or a named JSON Schema for the final answer. |
 | `mode` | `'basic' \| 'deep' \| 'deep-human-in-loop'` | Execution policy. |
 | `commentary` | `'auto' \| 'concise' \| 'off'` | Progress narration. Default `auto` leaves the style to caller instructions and the model; opt into `concise` for short progress updates. |
-| `maxTurns` | `number` | Model steps. Default 16. |
+| `maxTurns` | `number \| 'auto'` | Model steps. Default 16. |
 | `maxToolCalls` | `number` | Dispatched tools. Default 64. |
 | `tools` | `ToolDefinition[]` | Host functions the scheduler executes. |
 | `nativeTools` | `NativeToolSchema[]` | Provider-executed. The scheduler never runs these. |
@@ -73,7 +73,7 @@ export const ada = defineAgent({
   description: 'Explains and reviews TypeScript code.',
   instructions: 'Be precise, inspect evidence before concluding, and keep answers concise.',
   provider: 'codex',
-  model: 'gpt-5.6-luna',
+  model: 'gpt-6-luna',
   effort: 'medium',
   mode: 'basic',
   maxTurns: 16,
@@ -82,17 +82,18 @@ export const ada = defineAgent({
 })
 ```
 
-Omitting `provider`, `model`, and `effort` on a definition selects Codex
-`gpt-5.6-luna` at `medium` effort. That is an explicitly reviewed and approved
-default, not an implicit fallback — and it applies **only** to `defineAgent()`.
+The low-level authoring API retains a legacy Codex model default, with no effort
+preference when omitted. Explicitly set `provider` and `model` to `gpt-6-luna`
+or a newer chosen model in project examples and live calls. Effort is forwarded
+only when set; the provider validates it.
 
 ## How the model route resolves
 
 ```text
-model: { provider: 'openai', id: 'gpt-5.4' }   → exact route + exact model
+model: { provider: 'openai', id: 'gpt-6-luna' }   → exact route + exact model
 model: { provider: 'openai' }                   → route's configured default model
 model omitted                                   → runtime's selected or unique-default provider
-defineAgent() with no provider/model            → Codex gpt-5.6-luna, effort medium
+defineAgent() with no provider/model            → Codex gpt-5.6-luna, effort omitted
 ```
 
 There is otherwise **no default model**. Provider lineups turn over faster than
@@ -131,7 +132,6 @@ impossible selection **before** any network call:
 
 | Selection | Rejected with |
 | --- | --- |
-| Unsupported reasoning effort | `UNSUPPORTED_REASONING_EFFORT` |
 | Unsupported native tool | `UNSUPPORTED_NATIVE_TOOL` |
 | `maxTokens` above the hard ceiling | `OUTPUT_TOKEN_LIMIT_EXCEEDED` |
 | Unknown provider route | `NO_ADAPTER` |

@@ -109,7 +109,6 @@ These are composition and validation failures. None of them reached the network.
 | `INVALID_ADAPTER` | The adapter failed contract validation. | Run the testkit conformance suite. |
 | `INVALID_CATALOG` | A model catalog snapshot failed validation. | Fix the adapter's `listModels` output. |
 | `INVALID_MODEL_INFO` | Declared model capabilities are inconsistent. | Check context window vs output limits. |
-| `UNSUPPORTED_REASONING_EFFORT` | The model does not declare the requested effort. | Use a declared effort, or fix the declaration. |
 | `UNSUPPORTED_NATIVE_TOOL` | The model does not declare the requested native tool. | Drop the native tool, or change model. |
 | `OUTPUT_TOKEN_LIMIT_EXCEEDED` | `maxTokens` exceeds the model's hard output ceiling. | Lower `maxTokens`. |
 | `INVALID_PREPARED_CALL` | A prepared call was mutated or reused across generations. | Do not cache a prepared call. |

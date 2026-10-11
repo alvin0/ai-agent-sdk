@@ -13,7 +13,7 @@ const runtime = await createAgentRuntime({ providers: [openAiPlugin({ apiKey })]
 const agent = runtime.agent({
   id: 'assistant',
   instructions: 'Be concise.',
-  model: { provider: 'openai', id: 'gpt-5.4' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
 })
 
 console.log((await agent.generate('Giải thích cây Merkle trong một câu.')).text)
@@ -102,3 +102,5 @@ Mọi thứ còn lại trong tài liệu này là biến thể của bốn bư�
 - [Quick Start](/vi/01-introduction/quick-start) — một agent chạy được với một tool.
 
 Đối với 0.1.8, xem [nâng cấp từ 0.1.7](/vi/01-introduction/upgrading-from-0-1-7).
+
+Thay đổi API hiện tại: [nâng cấp lên 0.1.12](/vi/01-introduction/upgrading-to-0-1-12).

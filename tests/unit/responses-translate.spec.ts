@@ -29,6 +29,62 @@ describe('Responses assistant message phase', () => {
     })
   })
 
+  it('labels reasoning summary and reasoning content deltas by their source', async () => {
+    const chunks = []
+    for await (const chunk of translateResponsesStream(events([
+      { type: 'response.output_item.added', item: { id: 'rs_1', type: 'reasoning' } },
+      { type: 'response.reasoning_summary_text.delta', item_id: 'rs_1', summary_index: 0, delta: 'Plan.' },
+      { type: 'response.output_item.done', item: {
+        id: 'rs_1', type: 'reasoning', summary: [{ type: 'summary_text', text: 'Plan.' }],
+      } },
+      { type: 'response.output_item.added', item: { id: 'rs_2', type: 'reasoning' } },
+      { type: 'response.reasoning_text.delta', item_id: 'rs_2', delta: 'raw step' },
+      { type: 'response.output_item.done', item: { id: 'rs_2', type: 'reasoning', summary: [] } },
+      { type: 'response.completed', response: {} },
+    ]), 'test')) chunks.push(chunk)
+    expect(chunks).toContainEqual({ type: 'reasoning-delta', index: 0, text: 'Plan.', kind: 'summary' })
+    expect(chunks).toContainEqual({ type: 'reasoning-delta', index: 1, text: 'raw step', kind: 'content' })
+    expect(chunks).toContainEqual(expect.objectContaining({
+      type: 'block-end', index: 0, block: expect.objectContaining({ type: 'reasoning', text: 'Plan.', kind: 'summary' }),
+    }))
+    expect(chunks).toContainEqual(expect.objectContaining({
+      type: 'block-end', index: 1, block: expect.objectContaining({ type: 'reasoning', text: 'raw step', kind: 'content' }),
+    }))
+  })
+
+  it('leaves a reasoning item unlabelled when it streamed both summary and content', async () => {
+    const chunks = []
+    for await (const chunk of translateResponsesStream(events([
+      { type: 'response.output_item.added', item: { id: 'rs_1', type: 'reasoning' } },
+      { type: 'response.reasoning_summary_text.delta', item_id: 'rs_1', summary_index: 0, delta: 'Plan.' },
+      { type: 'response.reasoning_text.delta', item_id: 'rs_1', delta: 'raw' },
+      { type: 'response.output_item.done', item: { id: 'rs_1', type: 'reasoning', summary: [] } },
+      { type: 'response.completed', response: {} },
+    ]), 'test')) chunks.push(chunk)
+    const block = chunks.find(chunk => chunk.type === 'block-end')
+    expect(block?.type === 'block-end' && block.block).toMatchObject({ type: 'reasoning' })
+    expect(block?.type === 'block-end' && 'kind' in block.block).toBe(false)
+    // Each delta still says where it came from.
+    expect(chunks.filter(chunk => chunk.type === 'reasoning-delta').map(chunk => chunk.type === 'reasoning-delta' && chunk.kind))
+      .toEqual(['summary', 'content'])
+  })
+
+  it('labels a reasoning item from its done summary even when nothing streamed', async () => {
+    const chunks = []
+    for await (const chunk of translateResponsesStream(events([
+      { type: 'response.output_item.added', item: { id: 'rs_1', type: 'reasoning' } },
+      { type: 'response.output_item.done', item: {
+        id: 'rs_1', type: 'reasoning', summary: [{ type: 'summary_text', text: 'A' }, { type: 'summary_text', text: 'B' }],
+      } },
+      { type: 'response.output_item.added', item: { id: 'rs_2', type: 'reasoning' } },
+      { type: 'response.output_item.done', item: { id: 'rs_2', type: 'reasoning', summary: [], encrypted_content: 'x' } },
+      { type: 'response.completed', response: {} },
+    ]), 'test')) chunks.push(chunk)
+    const blocks = chunks.flatMap(chunk => chunk.type === 'block-end' ? [chunk.block] : [])
+    expect(blocks[0]).toMatchObject({ type: 'reasoning', text: 'A\n\nB', kind: 'summary' })
+    expect('kind' in blocks[1]!).toBe(false)
+  })
+
   it('keeps native web-search nodes and URL citations', async () => {
     const chunks = []
     for await (const chunk of translateResponsesStream(events([
@@ -100,9 +156,8 @@ describe('Responses assistant message phase', () => {
         content: [{
           type: 'image', source: { kind: 'base64', mediaType: 'image/jpeg', data: 'FINAL' },
         }],
-        providerState: {
-          id: 'ig_1', type: 'image_generation_call', status: 'completed', result: 'FINAL',
-        },
+        // The image is kept once, in content.
+        providerState: { id: 'ig_1', type: 'image_generation_call', status: 'completed' },
       },
     })
   })

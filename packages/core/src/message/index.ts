@@ -5,6 +5,7 @@ export type {
   ContentBlockMap,
   ContentBlockType,
   AssistantTextPhase,
+  ReasoningKind,
   DocumentBlock,
   DocumentMediaType,
   DocumentSource,

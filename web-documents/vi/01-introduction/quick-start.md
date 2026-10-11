@@ -50,7 +50,7 @@ const agent = runtime.agent({
   id: 'calculator',
   name: 'Calculator',
   instructions: 'Use the available tools and explain the result briefly.',
-  model: { provider: 'openai', id: 'gpt-5.4' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
   tools: [multiply],
 })
 
@@ -116,7 +116,7 @@ export const calculator = defineAgent({
   name: 'Calculator',
   instructions: 'Use the available tools and explain the result briefly.',
   provider: 'openai',
-  model: 'gpt-5.4',
+  model: 'gpt-6-luna',
   tools: [multiply],
 })
 
@@ -130,7 +130,7 @@ chỗ — dùng `.with()` để tạo biến thể cục bộ, hoặc `cloneAgen
 xuất cần một danh tính ổn định mới.
 
 Bỏ trống `provider`, `model`, và `effort` trong một định nghĩa sẽ chọn Codex
-`gpt-5.6-luna` ở mức nỗ lực `medium`.
+`gpt-5.6-luna`; effort bỏ trống vẫn giữ bỏ trống.
 
 ## Tệp hoàn chỉnh chạy được
 
@@ -159,7 +159,7 @@ try {
   const agent = runtime.agent({
     id: 'calculator',
     instructions: 'Use the available tools and explain the result briefly.',
-    model: { provider: 'openai', id: 'gpt-5.4' },
+    model: { provider: 'openai', id: 'gpt-6-luna' },
     tools: [multiply],
   })
 

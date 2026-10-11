@@ -15,6 +15,11 @@ skills/ai-agent-sdk/
     runtime-and-agents.md         createAgentRuntime, agents, both session layers
     streaming.md                  run events, live UI, cancellation, completion
     tools.md                      defineTool, scheduling, approvals, interceptors
+    decision.md                   typed decisions and native OpenAI transport
+    prompt-caching.md             stable cache keys and provider policy
+    context-optimization.md       observation packing and evidence reduction
+    sandbox.md                    command policy and process confinement
+    upgrading-to-0.1.12.md         current migration and compatibility checklist
     structured-output.md          outputFormat and its bounds
     skills.md                     progressive disclosure, both provider contracts
     memory.md                     task memory, compaction, snapshots
@@ -38,11 +43,13 @@ loads one file for the task in front of it rather than the whole manual.
 ## Using it with Claude Code
 
 ```bash
-mkdir -p .claude/skills
-cp -R node_modules/@alvin0/ai-agent-sdk-core/../../skills/ai-agent-sdk .claude/skills/
-# or, from a clone of this repository:
+# Run from a clone of https://github.com/alvin0/ai-agent-sdk:
+mkdir -p /path/to/your/project/.claude/skills
 cp -R skills/ai-agent-sdk /path/to/your/project/.claude/skills/
 ```
+
+The npm SDK tarballs do not include this repository skill. Copy the whole
+folder, including `references/`, from a checkout matching your SDK version.
 
 The skill is then discovered by name (`ai-agent-sdk`). Any agent runtime that
 reads a `SKILL.md` front-matter contract can consume it unchanged; the same
@@ -52,9 +59,8 @@ built on this SDK.
 
 ## How these files are kept honest
 
-Every API name the skill imports is checked against the built `.d.ts` files, and
-the code paths it teaches are compiled under `--strict`. Where the prose
-documentation in `web-documents/` disagreed with the shipped typings, the skill
-follows the typings and says so — those spots are called out inline, because
-they are exactly where an agent would otherwise write code that does not
-compile.
+Use current source and built declarations to verify API examples. Validate the
+skill frontmatter and relative reference links, then run `pnpm check:docs` and
+`pnpm docs:build` for README and bilingual site checks. Those gates do not compile
+every Markdown snippet or prove live-provider behavior; typecheck changed runnable
+examples separately when their API usage changes.

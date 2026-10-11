@@ -3,7 +3,7 @@ import type {
   AgentEvent, AgentMaintenanceEvent, AssistantContentTiming, BeforeStepContext, CheckpointContext,
   CompactionBackoffReason, CompactionTrigger, ExhaustedBudget, RequestErrorContext, StepDecision,
   ToolDeclineReason,
-  StreamedAssistantTextPhase, TurnEndContext, TurnEndReason, TurnHooks, TurnOutcome,
+  StreamedAssistantTextPhase, StreamedReasoningKind, TurnEndContext, TurnEndReason, TurnHooks, TurnOutcome,
 } from './events.ts'
 
 export interface TurnBounds {
@@ -101,5 +101,6 @@ export interface TurnBounds {
 export type {
   AgentEvent, AgentMaintenanceEvent, AssistantContentTiming, BeforeStepContext, CheckpointContext,
   CompactionBackoffReason, CompactionTrigger, ExhaustedBudget, RequestErrorContext, StepDecision,
-  StreamedAssistantTextPhase, ToolDeclineReason, TurnEndContext, TurnEndReason, TurnHooks, TurnOutcome,
+  StreamedAssistantTextPhase, StreamedReasoningKind, ToolDeclineReason, TurnEndContext, TurnEndReason, TurnHooks,
+  TurnOutcome,
 }

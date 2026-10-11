@@ -16,6 +16,15 @@ import type { JsonValue } from '../primitives/json.ts'
 /** Whether assistant text is interim narration or the terminal answer. */
 export type AssistantTextPhase = 'commentary' | 'final-answer'
 
+/**
+ * What a reasoning block carries, as the provider labelled it.
+ *
+ * `summary` is provider-written prose meant for display; `content` is the raw
+ * reasoning text. An adapter that cannot tell leaves the field unset, and a
+ * host must then treat the block as neither.
+ */
+export type ReasoningKind = 'summary' | 'content'
+
 /** Plain text visible to the end user. */
 export interface TextBlock {
   type: 'text'
@@ -54,6 +63,8 @@ export type TextAnnotation = TextAnnotationMap[keyof TextAnnotationMap]
 export interface ReasoningBlock {
   type: 'reasoning'
   text: string
+  /** Summary or raw content, when the provider says which; unset when it does not. */
+  kind?: ReasoningKind
   /** Adapter-private lossless state needed to replay this block on a later request. */
   providerState?: unknown
 }

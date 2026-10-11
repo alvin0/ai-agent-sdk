@@ -11,7 +11,7 @@
 
 ## Cài đặt
 
-Cả 25 package publish được đều đã lên npm dưới scope `@alvin0`, build và ký từ CI kèm
+Các package publishable đều đã lên npm dưới scope `@alvin0`, build và ký từ CI kèm
 provenance SLSA.
 
 ```text

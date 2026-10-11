@@ -259,7 +259,7 @@ export abstract class HttpModelAdapter extends ModelAdapter {
 
     const request = this.providerRequest(options, connection, model, context)
 
-    const sseLimits = resolveSseLimits(connection)
+    const sseLimits = resolveSseLimits(connection, options)
     const adapter = this
     yield* transportStream<StreamChunk>({
       connection,

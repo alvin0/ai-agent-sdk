@@ -2,7 +2,7 @@ import { createUserMessage } from '../../../message/index.ts'
 import type { ModelCallReport } from '../../../observation/index.ts'
 import type { TraceRef } from '../../trace/trace.ts'
 import type { AgentEvent, AgentMaintenanceEvent, ExhaustedBudget, TurnOutcome } from '../types.ts'
-import { emitAssistantContent, textOf } from './content.ts'
+import { emitAssistantContent, hasImageOutput, recordAssistant, textOf } from './content.ts'
 import { accountingUsageStop } from './usage-stop.ts'
 import type { modelRound } from './model-round.ts'
 import { requestModelRound, type RequestRetryState } from './request-round.ts'
@@ -65,10 +65,16 @@ export async function retryFinalRound(
   return final
 }
 
+/** A round that stopped with nothing for the user: no text and no image it produced. */
+function emptyStop(round: FinalRound): boolean {
+  const content = round.message?.content ?? []
+  return round.finish.kind === 'stop' && textOf(content).trim() === '' && !hasImageOutput(content)
+}
+
 async function retryEmptyFinalAnswer(ctx: FinalRoundContext, final: FinalRound): Promise<FinalRound> {
   if (final.report !== undefined) ctx.modelCallReports.push(final.report)
   if (final.message !== undefined) {
-    ctx.options.history.append({ kind: 'assistant', message: final.message,
+    recordAssistant(ctx.options.history, { kind: 'assistant', message: final.message,
       ...final.usage === undefined ? {} : { usage: final.usage } })
   }
   ctx.options.history.append({ kind: 'user', message: createUserMessage({
@@ -107,15 +113,22 @@ function forcedAnswerReason(
   if (final.finish.kind === 'error') {
     if (final.finish.failure.code === 'INVALID_TOOL_CALL') {
       ctx.text = ''
-      return { kind: 'budget-exhausted', budget: exhausted, forcedFinalAnswer: false,
-        ...(reserveTrigger ? { trigger: 'report-reserve' as const } : {}) }
+      return exhaustedReason(exhausted, reserveTrigger, false)
     }
     return { kind: 'error', failure: final.finish.failure }
   }
   if (final.finish.kind === 'max-tokens') return { kind: 'max-tokens' }
   const usageReason = finalUsageReason(ctx, final)
   if (usageReason !== undefined) return usageReason
-  return { kind: 'budget-exhausted', budget: exhausted, forcedFinalAnswer: ctx.text.trim() !== '',
+  // The same test as the empty-answer retry: an image the model produced is an answer.
+  return exhaustedReason(exhausted, reserveTrigger,
+    ctx.text.trim() !== '' || hasImageOutput(final.message?.content ?? []))
+}
+
+function exhaustedReason(
+  exhausted: ExhaustedBudget, reserveTrigger: boolean, forcedFinalAnswer: boolean,
+): TurnOutcome['reason'] {
+  return { kind: 'budget-exhausted', budget: exhausted, forcedFinalAnswer,
     ...(reserveTrigger ? { trigger: 'report-reserve' as const } : {}) }
 }
 
@@ -125,7 +138,7 @@ async function finishForcedAnswer(
   ctx.steps++
   if (final.report !== undefined) ctx.modelCallReports.push(final.report)
   if (final.message !== undefined) {
-    ctx.options.history.append({ kind: 'assistant', message: final.message,
+    recordAssistant(ctx.options.history, { kind: 'assistant', message: final.message,
       ...final.usage === undefined ? {} : { usage: final.usage } })
     await ctx.emit({ type: 'assistant-message', message: final.message, trace: final.trace })
     await emitAssistantContent(final, ctx.emit)
@@ -143,8 +156,7 @@ export async function forceAnswer(
     step: ctx.steps + 1, phase: 'forced-final', position: ctx.position(),
   }), 'forced-final')
   const unanswered = (round: FinalRound): boolean => !round.usageRequired && !round.usageUnavailable
-    && ((round.finish.kind === 'stop' && textOf(round.message?.content ?? []).trim() === '')
-      || (round.finish.kind === 'error' && round.finish.failure.code === 'INVALID_TOOL_CALL'))
+    && (emptyStop(round) || (round.finish.kind === 'error' && round.finish.failure.code === 'INVALID_TOOL_CALL'))
   if (unanswered(final) && !ctx.signal.aborted && ctx.retriedRounds < MAX_FREE_REQUEST_RETRIES
     && ctx.admissionStop(final.report) === undefined) final = await retryEmptyFinalAnswer(ctx, final)
   return finishForcedAnswer(ctx, final, exhausted, reserveTrigger)
@@ -172,7 +184,7 @@ export async function finalizeStructuredOutput(ctx: FinalRoundContext): Promise<
   ctx.steps++
   if (final.report !== undefined) ctx.modelCallReports.push(final.report)
   if (final.message !== undefined) {
-    ctx.options.history.append({ kind: 'assistant', message: final.message,
+    recordAssistant(ctx.options.history, { kind: 'assistant', message: final.message,
       ...final.usage === undefined ? {} : { usage: final.usage } })
     await ctx.emit({ type: 'assistant-message', message: final.message, trace: final.trace })
     await emitAssistantContent(final, ctx.emit)

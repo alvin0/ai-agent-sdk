@@ -50,5 +50,6 @@ export {
   type NativeWebSearchTool,
   type ToolChoice,
   type ToolSchema,
+  type WebSearchContentType,
   type WebSearchLocation,
 } from './tool.ts'

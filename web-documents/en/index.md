@@ -26,7 +26,7 @@ const runtime = await createAgentRuntime({
 const agent = runtime.agent({
   id: 'assistant',
   instructions: 'Be concise.',
-  model: { provider: 'openai', id: 'gpt-5.4' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
 })
 
 console.log((await agent.generate('Explain a Merkle tree in one sentence.')).text)
@@ -67,6 +67,6 @@ See [Getting Started](/en/01-introduction/getting-started) for how to choose.
 
 ## Status
 
-Version `0.1.11`, licensed under MIT. Public packages use the
+Version `0.1.12`, licensed under MIT. Public packages use the
 `@alvin0` scope — see [Project Information](/en/14-project/) and the repository
 changelog for release details.

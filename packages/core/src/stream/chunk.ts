@@ -5,7 +5,9 @@
  */
 
 import type { ModelFailure } from '../errors/failure.ts'
-import type { AssistantTextPhase, ContentBlock, ContentBlockType, ImageMediaType } from '../message/content.ts'
+import type {
+  AssistantTextPhase, ContentBlock, ContentBlockType, ImageMediaType, ReasoningKind,
+} from '../message/content.ts'
 import type { ToolCallId } from '../primitives/brand.ts'
 
 /**
@@ -92,7 +94,7 @@ export interface ReplayEnvelope {
 export type StreamChunk =
   | { type: 'block-start'; index: number; blockType: ContentBlockType }
   | { type: 'text-delta'; index: number; text: string; phase?: AssistantTextPhase }
-  | { type: 'reasoning-delta'; index: number; text: string }
+  | { type: 'reasoning-delta'; index: number; text: string; kind?: ReasoningKind }
   | {
     type: 'image-delta'
     index: number

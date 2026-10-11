@@ -134,3 +134,17 @@ they never change run behaviour.
 To consume the neutral chunk protocol with no agent loop, use
 `ModelRegistry.stream()` with `BlockAssembler`. Types: `StreamChunk`,
 `TokenUsage`, `FinishReason`, `ReplayEnvelope`.
+
+
+## Reasoning provenance (0.1.12)
+
+Both low-level and runtime `reasoning-delta` and `assistant-reasoning` events
+require `reasoningKind: 'summary' | 'content' | 'unknown'`. Test doubles and event
+wrappers must populate it. Raw `StreamChunk` reasoning deltas instead have
+optional `kind: 'summary' | 'content'`, like `ReasoningBlock.kind`.
+Treat `unknown` as unknown; do not relabel it a summary for UI purposes.
+Reasoning stays separate from commentary and the answer.
+
+For image output, consume low-level `assistant-message` for final image bytes;
+`image-delta` is only a preview. Persist images before discarding the event,
+since bounded history may omit them. See [messages-and-content.md](messages-and-content.md).

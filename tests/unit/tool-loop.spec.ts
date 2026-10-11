@@ -343,6 +343,24 @@ describe('runTurn', () => {
     })
   })
 
+  it('carries the provider-labelled reasoning kind onto deltas and assistant reasoning', async () => {
+    const summaryRound: StreamChunk[] = [
+      { type: 'block-start', index: 0, blockType: 'reasoning' },
+      { type: 'reasoning-delta', index: 0, text: 'Plan.', kind: 'summary' },
+      ...textRound('Done.').map(chunk => 'index' in chunk ? { ...chunk, index: 1 } as StreamChunk : chunk),
+    ]
+    const state = await setup([summaryRound])
+    const events: AgentEvent[] = []
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' },
+      history: state.history, tools: state.tools,
+    })) events.push(event)
+    expect(events.find(event => event.type === 'reasoning-delta')).toMatchObject({ text: 'Plan.', reasoningKind: 'summary' })
+    expect(events.find(event => event.type === 'assistant-reasoning')).toMatchObject({ text: 'Plan.', reasoningKind: 'summary' })
+    const stored = state.history.messages().at(-1)?.content.find(block => block.type === 'reasoning')
+    expect(stored).toMatchObject({ type: 'reasoning', text: 'Plan.', kind: 'summary' })
+  })
+
   it('separates provider reasoning, pre-tool commentary, and post-tool final text', async () => {
     const state = await setup([narratedToolRound(), textRound('The tool returned 1.')])
     const events: AgentEvent[] = []
@@ -358,7 +376,10 @@ describe('runTurn', () => {
     ])
     expect(events.find(event => event.type === 'assistant-reasoning')).toMatchObject({
       type: 'assistant-reasoning', text: 'I should inspect the source.', timing: 'before-tools', toolCallIds: ['c1'],
+      // The scripted provider never said which kind; nothing guesses one.
+      reasoningKind: 'unknown',
     })
+    expect(events.find(event => event.type === 'reasoning-delta')).toMatchObject({ reasoningKind: 'unknown' })
     expect(events.findIndex(event => event.type === 'assistant-text')).toBeLessThan(
       events.findIndex(event => event.type === 'tool-call'),
     )

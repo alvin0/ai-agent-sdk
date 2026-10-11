@@ -53,6 +53,7 @@ capability boundary, so the smaller import pulls in less:
 
 | Specifier | Tier | Contents |
 | --- | --- | --- |
+| `@alvin0/ai-agent-sdk-provider-openai/decisions` | Universal | Native OpenAI Decisions adapter/plugin; separate API-key transport |
 | `@alvin0/ai-agent-sdk-core/embedding` | Universal | The whole embedding contract: `EmbeddingAdapter`, request/result vocabulary, profile and `Space_Id`, purpose, embedding catalog, batch limits, `EMBEDDING_ERROR_CODES` + `EmbeddingError`, validation helpers |
 | `@alvin0/ai-agent-sdk-auth-node/codex` | Node | `codexNodeProviderPlugin()` + the Universal Codex surface |
 | `@alvin0/ai-agent-sdk-auth-node/copilot` | Node | `copilotNodeProviderPlugin()`, `fileCopilotCredentialStore()`, `resolveCopilotAuthPath()` + the Universal Copilot surface |

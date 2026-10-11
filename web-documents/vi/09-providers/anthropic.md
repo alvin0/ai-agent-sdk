@@ -198,7 +198,7 @@ const definition = {
   tools: [readFile],
 }
 
-const onOpenAi = runtime.agent({ ...definition, model: { provider: 'openai', id: 'gpt-5.4' } })
+const onOpenAi = runtime.agent({ ...definition, model: { provider: 'openai', id: 'gpt-6-luna' } })
 const onAnthropic = runtime.agent({ ...definition, model: { provider: 'anthropic', id: 'claude-sonnet-4-5' } })
 ```
 

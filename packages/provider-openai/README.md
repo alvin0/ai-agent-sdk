@@ -30,7 +30,7 @@ import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
 import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
 
 const registry = new ModelRegistry()
-registry.install(openAiPlugin({ apiKey: () => secretStore.get('openai') }))
+registry.install(openAiPlugin({ apiKey: apiKeyFromSecretStore })) // injected string or CredentialSource
 ```
 
 Use `openAiAdapter()` for manual route registration. Both APIs are Universal and
@@ -108,18 +108,14 @@ openAiPlugin({
 
 ## Default configuration precedence
 
-`contextWindow`, `maxTokens`, and `inputModalities` resolve top-to-bottom, first
-match wins: per-call `maxTokens` → **model** (`models[].contextWindow`,
-`models[].maxTokens`, `models[].inputModalities`) → **route**
-(`defaultContextWindow`/`defaultMaxTokens` on this plugin) → **runtime**
-(`createAgentRuntime({ defaults })`) → **SDK constant** (`200_000` context,
-`['text','image','document']` modalities; no default `maxTokens` — unset means
-the field is not sent at all, except Anthropic which requires one). An
-agent-level override (`runtime.agent({ contextWindow, inputModalities })`) is
-not implemented yet; only effort and per-call `maxTokens` are agent/call-scoped
-today. This package's adapter never guesses a vendor's real context window for
-an uncatalogued model id; declare it via `models: [{ id, contextWindow }]` when
-the SDK default doesn't match reality.
+`contextWindow`, `maxTokens`, and `inputModalities` resolve from explicit
+agent/call configuration to model declarations, route defaults, runtime defaults
+and SDK fallback policy. Agent `contextWindow` and `inputModalities` overrides
+are implemented and remain in effect across a per-call model switch. Inherited
+effort and `maxTokens` are dropped when switching models; explicit per-call
+`maxTokens` takes precedence. An omitted modality declaration means unknown,
+not text-only. Declare verified limits for custom routes rather than treating
+fallback budgets as a vendor's technical ceiling.
 
 ## Native Decisions API
 

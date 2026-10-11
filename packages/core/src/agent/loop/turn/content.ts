@@ -1,10 +1,11 @@
 import type { ModelFailure } from '../../../errors/index.ts'
-import type { ContentBlock } from '../../../message/index.ts'
+import type { ContentBlock, ImageBlock, ReasoningBlock } from '../../../message/index.ts'
 import { createMessage, type Message } from '../../../message/index.ts'
 import type { ToolCallId } from '../../../primitives/index.ts'
 import { History } from '../../history/history.ts'
+import type { HistoryEvent, SurfaceOp } from '../../history/types.ts'
 import { createSpanId, type TraceRef } from '../../trace/trace.ts'
-import type { AgentEvent, AgentMaintenanceEvent, AssistantContentTiming } from '../types.ts'
+import type { AgentEvent, AgentMaintenanceEvent, AssistantContentTiming, StreamedReasoningKind } from '../types.ts'
 import { type RunTurnOptions, type RoundResult } from './types.ts'
 import { now } from './common.ts'
 
@@ -54,6 +55,11 @@ export function maintenanceEmitter(
   }
 }
 
+/** The provider's label for a reasoning block; never guessed when it gave none. */
+function reasoningKindOf(block: ReasoningBlock): StreamedReasoningKind {
+  return block.kind ?? 'unknown'
+}
+
 export async function emitAssistantContent(
   round: RoundResult,
   emit: (event: AgentEvent) => Promise<void>,
@@ -71,6 +77,7 @@ export async function emitAssistantContent(
     } else if (block.type === 'reasoning' && block.text.length > 0) {
       await emit({
         type: 'assistant-reasoning', trace: round.trace, messageId: message.id, text: block.text,
+        reasoningKind: reasoningKindOf(block),
         timing: round.timing, toolCallIds, afterToolCallIds: round.afterToolCallIds,
       })
     } else if (block.type === 'native-tool-call') {
@@ -203,6 +210,63 @@ export function createAssistant(options: RunTurnOptions, content: readonly Conte
     ...replayState === undefined ? {} : { replayState },
   }
   return createMessage({ role: 'assistant', content, source })
+}
+
+/** Whether a reply shows the user an image it produced, directly or as a provider tool's result. */
+export function hasImageOutput(blocks: readonly ContentBlock[]): boolean {
+  return blocks.some(block => block.type === 'image'
+    || (block.type === 'native-tool-call' && block.content.some(content => content.type === 'image')))
+}
+
+type AssistantEntry = Extract<HistoryEvent, { kind: 'assistant' }>
+
+const isInlineImage = (block: ContentBlock | ImageBlock) => block.type === 'image' && block.source.kind === 'base64'
+
+/** Leaves one block's image bytes out; `omitted` counts what was left out. */
+function withoutImageBytes(block: ContentBlock, omitted: { count: number }): ContentBlock {
+  if (block.type === 'image' && isInlineImage(block)) {
+    omitted.count++
+    // Kept as narration, so the reply is never empty and a replay still tells
+    // the model an image stood here; `textOf` does not read commentary.
+    return { type: 'text', phase: 'commentary',
+      text: '[A generated image was here; it is not kept in the conversation history.]' }
+  }
+  if (block.type !== 'native-tool-call' || !block.content.some(isInlineImage)) return block
+  omitted.count += block.content.filter(isInlineImage).length
+  return { ...block, content: block.content.filter(content => !isInlineImage(content)) }
+}
+
+/**
+ * Records an assistant reply in the history.
+ *
+ * Generated images are the one part of a reply that can outgrow a history
+ * entry: each is megabytes of base64, and a reply may hold several, as image
+ * blocks or inside provider image calls. When the reply does not fit, the
+ * history keeps it without those bytes, and says how many it left out, rather
+ * than failing the turn after the images were paid for. The host has them
+ * already, on the `assistant-message` event, and stores them where it stores
+ * files; replay sends an image call without its result, as it does for a
+ * history the host saved without images.
+ */
+export function recordAssistant(history: History, entry: AssistantEntry, surfaceOp?: SurfaceOp): void {
+  try {
+    history.append(entry, surfaceOp)
+  } catch (error: unknown) {
+    const omitted = { count: 0 }
+    const content = entry.message.content.map(block => withoutImageBytes(block, omitted))
+    if (!(error instanceof RangeError) || omitted.count === 0) throw error
+    history.append({ ...entry, message: { ...entry.message, content },
+      omittedImages: (entry.omittedImages ?? 0) + omitted.count }, surfaceOp)
+  }
+}
+
+/** The turn's latest reply is an image with no text: an answer, not a silence. */
+export function answeredWithImage(history: Pick<History, 'entries'>): boolean {
+  const entries = history.entries()
+  const assistant = entries.findLast(entry => entry.event.kind === 'assistant')
+  const user = entries.findLast(entry => entry.event.kind === 'user' && entry.event.message.source.kind === 'user')
+  return assistant?.event.kind === 'assistant' && (user === undefined || assistant.seq > user.seq)
+    && (hasImageOutput(assistant.event.message.content) || (assistant.event.omittedImages ?? 0) > 0)
 }
 
 export function textOf(blocks: readonly ContentBlock[]): string {

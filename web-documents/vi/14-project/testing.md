@@ -47,6 +47,7 @@ không hợp lệ đúng là bị chặn.
 pnpm workspace:build && pnpm workspace:typecheck && pnpm build:cli
   && pnpm lint && pnpm exec tsc --noEmit
 pnpm check:boundary-fixtures
+pnpm check:docs && pnpm check:human
 pnpm check:supply-chain
 pnpm test
 pnpm test:packages
@@ -138,3 +139,5 @@ observability, và MCP.
 
 - [`@alvin0/ai-agent-sdk-testkit`](/vi/14-project/testkit)
 - [Đóng góp](/vi/14-project/contributing)
+
+Xem [nâng cấp lên 0.1.12](/vi/01-introduction/upgrading-to-0-1-12) cho release hiện tại và phạm vi bằng chứng local/hosted.

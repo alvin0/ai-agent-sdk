@@ -98,7 +98,8 @@ export function blockOf(step: OpenStep): ContentBlock {
       ...(step.signature === undefined ? {} : { signature: step.signature }),
       ...(step.summary.length === 0 ? {} : { summary: step.summary }),
     }
-    return { type: 'reasoning', text: step.text, providerState: state }
+    // The API returns thought summaries, never the thoughts themselves.
+    return { type: 'reasoning', text: step.text, kind: 'summary', providerState: state }
   }
   const argumentsText = step.arguments.length > 0
     ? step.arguments
@@ -144,7 +145,7 @@ function* reasoningDelta(step: OpenStep, delta: NonNullable<WireStreamEvent['del
     const text = textOf(content)
     step.summary.push(...content)
     step.text += text
-    if (text.length > 0) yield { type: 'reasoning-delta', index: step.index, text }
+    if (text.length > 0) yield { type: 'reasoning-delta', index: step.index, text, kind: 'summary' }
   }
 }
 

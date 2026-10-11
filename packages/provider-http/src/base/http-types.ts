@@ -1,8 +1,11 @@
 import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
+import { isNativeToolSchema } from '@alvin0/ai-agent-sdk-core'
 import type { ModelModality, ModelReasoningInfo, ResolvedModelInfo } from '@alvin0/ai-agent-sdk-core'
 import type { NativeToolName } from '@alvin0/ai-agent-sdk-core'
 import type { SseEvent } from '../stream/sse.ts'
-import { DEFAULT_MAX_SSE_EVENT_CHARS, DEFAULT_MAX_SSE_EVENTS } from '../stream/config.ts'
+import {
+  DEFAULT_MAX_SSE_EVENT_CHARS, DEFAULT_MAX_SSE_EVENTS, DEFAULT_MAX_SSE_IMAGE_EVENT_CHARS,
+} from '../stream/config.ts'
 import { type HttpTransportConnection } from '../transport/connection.ts'
 import { positiveInteger } from '../transport/limits.ts'
 import type { PreparedWireBody } from '../transport/session.ts'
@@ -198,16 +201,23 @@ export interface ResolvedSseLimits {
  * unusable bound is a configuration error, and configuration errors must not
  * arrive after a provider attempt has been opened and a request sent.
  * @param connection - the snapshot this call is bound to.
+ * @param options - the call; one that requests image generation gets the
+ *   image per-event default unless the connection sets its own bound.
  * @returns defaulted, validated event bounds.
  */
-export function resolveSseLimits(connection: HttpConnection): ResolvedSseLimits {
+export function resolveSseLimits(
+  connection: HttpConnection, options?: Pick<GenerateOptions, 'tools'>,
+): ResolvedSseLimits {
+  const defaultEventChars = options?.tools?.some(tool => isNativeToolSchema(tool) && tool.name === 'image-generation')
+    ? DEFAULT_MAX_SSE_IMAGE_EVENT_CHARS
+    : DEFAULT_MAX_SSE_EVENT_CHARS
   return Object.freeze({
     maxEvents: positiveInteger(
       connection.maxSseEvents ?? DEFAULT_MAX_SSE_EVENTS,
       'maxSseEvents',
     ),
     maxEventChars: positiveInteger(
-      connection.maxSseEventChars ?? DEFAULT_MAX_SSE_EVENT_CHARS,
+      connection.maxSseEventChars ?? defaultEventChars,
       'maxSseEventChars',
     ),
   })

@@ -61,7 +61,7 @@ const agent = runtime.agent({
   description: 'Reviews release candidates.',  // agent cards, team rosters
 
   // Model route
-  model: { provider: 'openai', id: 'gpt-5.4' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
   effort: 'medium',               // opaque provider value; sent only when set
   maxTokens: 16_384,              // checked against the hard limit before I/O
   contextWindow: 200_000,         // optional agent-owned override
@@ -115,7 +115,7 @@ retain the published 0.1.4 default. `off` suppresses progress commentary.
 ## Route resolution
 
 ```text
-model: { provider: 'openai', id: 'gpt-5.4' }  → exact route + exact model
+model: { provider: 'openai', id: 'gpt-6-luna' }  → exact route + exact model
 model: { provider: 'openai' }                  → route's configured default model
 model omitted                                  → runtime's selected or unique-default provider
 defineAgent() with provider/model omitted      → Codex gpt-5.6-luna; effort remains omitted
@@ -133,7 +133,7 @@ export const ada = defineAgent({
   description: 'Explains and reviews TypeScript code.',
   instructions: 'Be precise, inspect evidence before concluding, keep answers concise.',
   provider: 'codex',
-  model: 'gpt-5.6-luna',
+  model: 'gpt-6-luna',
   effort: 'medium',
   mode: 'basic',
   maxTurns: 16,

@@ -224,7 +224,7 @@ function functionTool(tool: ToolSchema): WireTool {
 function googleSearchTool(tool: NativeWebSearchTool): WireTool {
   if (tool.searchContextSize !== undefined || tool.allowedDomains !== undefined
     || tool.blockedDomains !== undefined || tool.userLocation !== undefined
-    || tool.maxUses !== undefined) {
+    || tool.maxUses !== undefined || tool.searchContentTypes?.includes('image') === true) {
     throw new ModelError(
       'Gemini Interactions web search does not support SDK search filters or limits',
       MODEL_ERROR_CODES.INVALID_REQUEST,

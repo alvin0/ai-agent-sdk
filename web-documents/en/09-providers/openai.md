@@ -34,7 +34,7 @@ const runtime = await createAgentRuntime({
 const agent = runtime.agent({
   id: 'assistant',
   instructions: 'Be concise.',
-  model: { provider: 'openai', id: 'gpt-5.4' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
 })
 ```
 
@@ -97,13 +97,13 @@ registry.registerAdapter(['openai'], openAiAdapter({ apiKey }))
 | Image input by `fileId` | ✓ |
 | Document (PDF) input by URL / base64 / `fileId` | ✓ |
 | `detail: 'original'` | ✓ |
-| Reasoning effort | ✓ — validated against the model's declared efforts |
+| Reasoning effort | ✓ — opaque pass-through; the provider validates support |
 | Replay state | ✓ |
 
 ```ts
 runtime.agent({
   id: 'researcher',
-  model: { provider: 'openai', id: 'gpt-5.6' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
   instructions: 'Gather evidence before answering.',
   effort: 'medium',
   nativeTools: [
@@ -151,7 +151,7 @@ const runtime = await createAgentRuntime({
   ],
 })
 
-runtime.agent({ id: 'eu-agent', model: { provider: 'openai-eu', id: 'gpt-5.4' }, instructions: '…' })
+runtime.agent({ id: 'eu-agent', model: { provider: 'openai-eu', id: 'gpt-6-luna' }, instructions: '…' })
 ```
 
 Explicit instance IDs and routes make two accounts in one provider family

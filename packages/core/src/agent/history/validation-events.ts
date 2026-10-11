@@ -35,6 +35,9 @@ function validateAssistantEvent(
     throw new TypeError(`${path}.interrupted must be true when present`)
   }
   if (event.usage !== undefined) validateUsage(event.usage, `${path}.usage`)
+  if (event.omittedImages !== undefined && (!Number.isSafeInteger(event.omittedImages) || event.omittedImages < 1)) {
+    throw new TypeError(`${path}.omittedImages must be a positive integer when present`)
+  }
 }
 
 function validateToolCallEvent(

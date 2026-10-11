@@ -14,7 +14,7 @@ for await (const event of runAgent({
   history,
   config: {
     provider: 'openai',
-    model: 'gpt-5.6',
+    model: 'gpt-6-luna',
     reasoningEffort: ReasoningEffortId('medium'),
   },
   nativeTools: [
@@ -33,7 +33,7 @@ On a definition or runtime agent it is the same field:
 runtime.agent({
   id: 'researcher',
   instructions: 'Gather evidence before answering.',
-  model: { provider: 'openai', id: 'gpt-5.6' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
   tools: [readProjectFile],                                     // host functions
   nativeTools: [{ type: 'native', name: 'web-search' }],        // provider-executed
 })
@@ -65,7 +65,6 @@ provider I/O:
 
 | Selection | Rejected with |
 | --- | --- |
-| Unsupported reasoning effort | `UNSUPPORTED_REASONING_EFFORT` |
 | Unsupported native tool | `UNSUPPORTED_NATIVE_TOOL` |
 | `maxTokens` above the hard ceiling | `OUTPUT_TOKEN_LIMIT_EXCEEDED` |
 
@@ -86,6 +85,18 @@ dropping them.
 
 Gemini Interactions accepts document input by base64 and by URI (a remote URL or
 a Files API uri) on the same terms.
+
+## Web search content types (0.1.12)
+
+```ts
+nativeTools: [{
+  type: 'native', name: 'web-search', searchContentTypes: ['text', 'image'],
+}]
+```
+
+Omission requests text search. Responses maps this to `search_content_types`;
+Codex accepts it. Anthropic Messages and Gemini Interactions reject image search
+with `INVALID_REQUEST` rather than silently returning only text.
 
 ## Image input
 
@@ -124,24 +135,22 @@ const message = createUserMessage({
 })
 ```
 
-### The model must declare the modality
+### Unknown and explicit modalities
 
-An omitted modality is a **negative capability claim**, so a model that does not
-list `document` gets the PDF replaced by a textual stand-in. This is easy to trip
-over on Codex, whose discovery reports only `text` and `image` even for models
-that do accept PDFs:
+Omitted `inputModalities` means unknown and permits the PDF. Projection happens
+only when a resolved model, route or agent declaration explicitly omits
+`document`. Override an incomplete discovery declaration when needed:
 
 ```ts
 codexNodeAdapter({
   authStore,
-  models: [{ id: 'gpt-5.6-luna', inputModalities: ['text', 'image', 'document'] }],
+  models: [{ id: 'gpt-6-luna', inputModalities: ['text', 'image', 'document'] }],
 })
 ```
 
-Gemini ships no built-in catalog, so declare the modality there as well. Use
-`documentPolicy: 'strict'` on an invocation to fail with
-`UNSUPPORTED_DOCUMENT_INPUT` instead of silently degrading the file — worth doing
-whenever the answer depends on the PDF actually arriving.
+Gemini needs no declaration merely to permit PDF input. Use
+`documentPolicy: 'strict'` to reject an explicit incompatibility with
+`UNSUPPORTED_DOCUMENT_INPUT` instead of projecting the document into text.
 
 ### `pages` and token cost
 
@@ -159,18 +168,28 @@ Generated images arrive twice, on purpose:
 2. **Authoritatively** in the final `native-tool-call.content`.
 
 ```ts
-for await (const event of agent.stream('Draw a system diagram.')) {
-  if (event.type === 'image-delta') {
-    renderPreview(event.data, event.mediaType, event.partialIndex)
-  }
+// Low-level AgentEvent stream; registry/history/config are supplied by the host.
+for await (const event of runAgent({
+  mode: 'basic', registry, history,
+  config: { provider: 'openai', model: 'gpt-6-luna' },
+  nativeTools: [{ type: 'native', name: 'image-generation', partialImages: 2 }],
+})) {
+  if (event.type === 'image-delta') renderPreview(event.data, event.mediaType, event.partialIndex)
+  if (event.type === 'assistant-message') storeFinalImages(event.message.content)
 }
-
-const response = await handle.result
-// response.report / the final assistant message carries the authoritative image.
 ```
 
-Render previews from `image-delta`; persist from the final message. `partialIndex`
-tells you which progressive frame you are on when `partialImages` is configured.
+A basic image-only reply is a valid answer, including in a budget-forced final
+round. Deep-mode completion still requires text. Persist final image bytes from
+the low-level `assistant-message` event: if inline images exceed history limits,
+the stored assistant entry omits them and records `omittedImages`. Direct images
+become commentary placeholders. Other oversized entries still fail.
+Responses replays generated images from `content`, with old `providerState.result`
+as a compatibility fallback; new state does not duplicate the base64 result.
+
+Image-generation requests default to a 12 MiB **character** SSE event limit.
+An explicit connection `maxSseEventChars` overrides it; `maxResponseBytes` still
+bounds the whole response. These transport limits do not remove history limits.
 
 ## Typed configuration carries through
 

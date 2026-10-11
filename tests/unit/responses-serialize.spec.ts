@@ -312,6 +312,29 @@ describe('serializeResponsesRequest', () => {
     }])
   })
 
+  it('asks web search for images only when told to', () => {
+    const body = serializeResponsesRequest(providerRequest({
+      messages: [createTextMessage('find a photo')],
+      tools: [{ type: 'native', name: 'web-search', searchContentTypes: ['text', 'image'] }],
+    }), dialect)
+    expect(body.tools).toEqual([{ type: 'web_search', search_content_types: ['text', 'image'] }])
+  })
+
+  it('replays a generated image from its content, and from a legacy item that still holds it', () => {
+    const replay = (block: object) => serializeResponsesRequest(providerRequest({
+      messages: [createAssistantMessage({ content: [block as never], source: { provider: 'openai', model: 'm' } })],
+    }), dialect).input
+    expect(replay({
+      type: 'native-tool-call', id: 'ig_1', name: 'image-generation', status: 'completed',
+      content: [{ type: 'image', source: { kind: 'base64', mediaType: 'image/png', data: 'IMG' } }],
+      providerState: { type: 'image_generation_call', id: 'ig_1', status: 'completed' },
+    })).toEqual([{ type: 'image_generation_call', id: 'ig_1', status: 'completed', result: 'IMG' }])
+    expect(replay({
+      type: 'native-tool-call', id: 'ig_1', name: 'image-generation', content: [],
+      providerState: { type: 'image_generation_call', id: 'ig_1', status: 'completed', result: 'OLD' },
+    })).toEqual([{ type: 'image_generation_call', id: 'ig_1', status: 'completed', result: 'OLD' }])
+  })
+
   it('replaces empty tool arguments with valid JSON', () => {
     const body = serializeResponsesRequest(providerRequest({
       messages: [createAssistantMessage({

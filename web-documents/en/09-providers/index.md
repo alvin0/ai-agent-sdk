@@ -90,7 +90,6 @@ input/output modalities, and explicit native-tool support.
 Before any provider I/O, the registry:
 
 - materializes model defaults;
-- rejects an unsupported reasoning effort (`UNSUPPORTED_REASONING_EFFORT`);
 - rejects an unsupported native tool (`UNSUPPORTED_NATIVE_TOOL`);
 - rejects an output selection above the model's hard ceiling
   (`OUTPUT_TOKEN_LIMIT_EXCEEDED`);
@@ -105,7 +104,7 @@ combined window.
 
 The SDK defaults to a standard-price operating context for verified model IDs on
 official endpoints. This is a working budget, not the model's technical maximum.
-Current built-in policies (reviewed 2026-09-13):
+Recorded exact-ID policy snapshot (reviewed 2026-09-13; not a current model recommendation):
 
 | Route/model | Default operating context | Known combined technical ceiling |
 | --- | ---: | ---: |
@@ -135,7 +134,7 @@ To deliberately opt into a larger context:
 ```ts
 openAiPlugin({
   apiKey,
-  models: [{ id: 'gpt-5.6-luna', contextWindow: 800_000 }],
+  models: [{ id: 'gpt-6-luna', contextWindow: 800_000 }],
 })
 ```
 
@@ -211,11 +210,12 @@ advertised window. Extended context can have a higher price. Research checked
 on 2026-09-13: [OpenAI's GPT-5.6 Luna API model page](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
 lists 1,050,000 context tokens and 128,000 maximum output tokens, but input above
 272,000 tokens costs 2x input and 1.5x output for the full request.
-For a standard-price configuration on this API route, use:
+The following shape illustrates the recorded configuration; verify limits and
+pricing for your selected endpoint/model before using these numbers:
 
 ```ts
 models: [{
-  id: 'gpt-5.6-luna',
+  id: configuredModelId, // Use limits verified for this exact endpoint/model.
   contextWindow: 272_000, // Operating budget, not the extended model maximum.
   maxTokens: 128_000,
   defaultMaxTokens: 32_000,
@@ -286,9 +286,10 @@ const models = await registry.listModels('codex')
 There is no default model. Provider lineups turn over faster than this package's
 release cadence, so any built-in default would eventually name a retired model.
 
-The one exception is `defineAgent()`: omitting `provider`, `model`, and `effort`
-on a *definition* selects Codex `gpt-5.6-luna` at `medium` effort, an explicitly
-reviewed and approved decision rather than an implicit fallback.
+The low-level `defineAgent()` authoring API retains a legacy Codex model default;
+omitted effort stays omitted. Explicitly set `provider` and `model` in project
+examples and live calls to `gpt-6-luna` or a newer chosen model. The SDK leaves
+consumer model selection configurable.
 
 ## Multiple accounts of the same provider
 

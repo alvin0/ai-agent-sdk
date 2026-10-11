@@ -5,6 +5,10 @@
       "collapsed": false,
       "items": [
         {
+          "text": "Upgrading to 0.1.12",
+          "link": "/en/01-introduction/upgrading-to-0-1-12"
+        },
+        {
           "text": "What is Agent SDK?",
           "link": "/en/01-introduction/"
         },
@@ -253,6 +257,10 @@
           "link": "/en/09-providers/openai"
         },
         {
+          "text": "Typed Decisions",
+          "link": "/en/09-providers/decisions"
+        },
+        {
           "text": "Anthropic",
           "link": "/en/09-providers/anthropic"
         },
@@ -444,6 +452,10 @@
       "text": "1. Giới thiệu",
       "collapsed": false,
       "items": [
+        {
+          "text": "Nâng cấp lên 0.1.12",
+          "link": "/vi/01-introduction/upgrading-to-0-1-12"
+        },
         {
           "text": "Agent SDK là gì?",
           "link": "/vi/01-introduction/"
@@ -691,6 +703,10 @@
         {
           "text": "OpenAI",
           "link": "/vi/09-providers/openai"
+        },
+        {
+          "text": "Typed Decisions",
+          "link": "/vi/09-providers/decisions"
         },
         {
           "text": "Anthropic",

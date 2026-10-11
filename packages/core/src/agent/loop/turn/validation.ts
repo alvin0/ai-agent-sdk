@@ -24,9 +24,9 @@ const CHUNK_VALIDATORS: Partial<Record<StreamChunk['type'], ChunkValidator>> = {
     validateText(value.text, value.phase, 'text delta must be a string', 'text phase is invalid')
   },
   'reasoning-delta': (chunk) => {
-    if (typeof (chunk as Extract<StreamChunk, { type: 'reasoning-delta' }>).text !== 'string') {
-      throw new TypeError('reasoning delta must be a string')
-    }
+    const value = chunk as Extract<StreamChunk, { type: 'reasoning-delta' }>
+    if (typeof value.text !== 'string') throw new TypeError('reasoning delta must be a string')
+    validateReasoningKind(value.kind, 'reasoning delta kind is invalid')
   },
   'image-delta': (chunk) => validateImageDelta(chunk as Extract<StreamChunk, { type: 'image-delta' }>),
   'tool-call-delta': (chunk) => validateToolCallDelta(chunk as Extract<StreamChunk, { type: 'tool-call-delta' }>),
@@ -61,6 +61,10 @@ function validateText(
   if (phase !== undefined && phase !== 'commentary' && phase !== 'final-answer') {
     throw new TypeError(phaseMessage)
   }
+}
+
+function validateReasoningKind(kind: unknown, message: string): void {
+  if (kind !== undefined && kind !== 'summary' && kind !== 'content') throw new TypeError(message)
 }
 
 function validateIndex(value: unknown, message: string): void {
@@ -162,6 +166,7 @@ const CONTENT_VALIDATORS: Record<string, ContentValidator> = {
   },
   reasoning: value => {
     if (typeof value.text !== 'string') throw new TypeError('reasoning block text must be a string')
+    validateReasoningKind(value.kind, 'reasoning block kind is invalid')
     return []
   },
   image: value => {

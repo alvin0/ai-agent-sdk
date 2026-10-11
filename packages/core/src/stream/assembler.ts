@@ -10,7 +10,7 @@
  * @module ai-agent-sdk/core/stream/assembler
  */
 
-import type { AssistantTextPhase, ContentBlock } from '../message/content.ts'
+import type { AssistantTextPhase, ContentBlock, ReasoningKind } from '../message/content.ts'
 import { createMessage, type Message, type MessageSource } from '../message/message.ts'
 import { ToolCallId } from '../primitives/brand.ts'
 import { assertNever } from '../primitives/never.ts'
@@ -20,11 +20,23 @@ interface PartialBlock {
   blockType: string
   text: string
   textPhase?: AssistantTextPhase
+  /** Label shared by every reasoning delta; `mixed` once two disagree or one has none. */
+  reasoningKind?: ReasoningKind | 'mixed'
+  reasoningSeen?: boolean
   toolCallId?: ToolCallId
   toolCallName?: string
   toolCallArguments: string
   /** Set by `block-end`  Eauthoritative, and freezes this partial against further deltas. */
   block?: ContentBlock
+}
+
+/**
+ * A block cut off before `block-end` keeps a label only when every delta
+ * carried the same one: raw reasoning mixed into a summary is not a summary.
+ */
+function mergeReasoningKind(partial: PartialBlock, kind: ReasoningKind | undefined): ReasoningKind | 'mixed' {
+  if (kind === undefined) return 'mixed'
+  return !partial.reasoningSeen || partial.reasoningKind === kind ? kind : 'mixed'
 }
 
 /**
@@ -100,6 +112,10 @@ export class BlockAssembler {
     if (partial.block !== undefined) return // closed by block-end; ignore stragglers
     partial.text += chunk.text
     if (chunk.type === 'text-delta' && chunk.phase !== undefined) partial.textPhase = chunk.phase
+    if (chunk.type === 'reasoning-delta') {
+      partial.reasoningKind = mergeReasoningKind(partial, chunk.kind)
+      partial.reasoningSeen = true
+    }
   }
 
   private appendToolCall(chunk: Extract<StreamChunk, { type: 'tool-call-delta' }>): void {
@@ -136,7 +152,13 @@ export class BlockAssembler {
         text: partial.text,
         ...partial.textPhase === undefined ? {} : { phase: partial.textPhase },
       }
-      case 'reasoning': return { type: 'reasoning', text: partial.text }
+      case 'reasoning': return {
+        type: 'reasoning',
+        text: partial.text,
+        ...partial.reasoningKind === undefined || partial.reasoningKind === 'mixed'
+          ? {}
+          : { kind: partial.reasoningKind },
+      }
       case 'tool-call': return {
         type: 'tool-call',
         // A synthesized id keeps the result correlatable even from a provider

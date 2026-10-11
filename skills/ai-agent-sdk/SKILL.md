@@ -18,7 +18,8 @@ Codex, GitHub Copilot, and Gemini Interactions.
    configure one explicitly or set the route's `defaultModel`. The lower-level
    `defineAgent()` authoring API defaults an omitted provider/model to Codex
    `gpt-5.6-luna`, but omitted effort stays omitted — the SDK never invents or
-   validates a reasoning level.
+   validates a reasoning level. Project examples and live calls must explicitly
+   select `gpt-6-luna` or a newer chosen model; do not rely on that legacy default.
 3. **Credentials are injected.** Provider packages are Universal and never read
    env vars or files. `envCredential()` from `@alvin0/ai-agent-sdk-auth-node` is
    the Node wrapper that does.
@@ -54,7 +55,7 @@ try {
   const agent = runtime.agent({
     id: 'calculator',
     instructions: 'Use the available tools and explain the result briefly.',
-    model: { provider: 'openai', id: 'gpt-5.4' },
+    model: { provider: 'openai', id: 'gpt-6-luna' },
     tools: [multiply],
   })
 
@@ -76,12 +77,13 @@ Load only the file the task needs. Each is self-contained.
 | --- | --- |
 | Pick packages, install profile, runtime tier, credentials | [references/packages.md](references/packages.md) |
 | `createAgentRuntime`, `runtime.agent`, `defineAgent`, sessions, hooks, close | [references/runtime-and-agents.md](references/runtime-and-agents.md) |
+| Upgrade to 0.1.12; reasoning labels, image search and history | [references/upgrading-to-0.1.12.md](references/upgrading-to-0.1.12.md) |
 | Upgrade an application from published 0.1.4 | [references/upgrading-from-0.1.4.md](references/upgrading-from-0.1.4.md) |
 | Upgrade from 0.1.6; pending steering, draft replacement, Stop | [references/upgrading-from-0.1.6.md](references/upgrading-from-0.1.6.md) |
 | Stream events, render a live UI, cancellation, `stopReason` | [references/streaming.md](references/streaming.md) |
 | `defineTool`, approvals, program grants, action fusion | [references/tools.md](references/tools.md) |
 | Force JSON output with a schema | [references/structured-output.md](references/structured-output.md) |
-| Typed choice/score/boolean decisions over Responses, Chat Completions, Messages or TypeSafe | [references/decision.md](references/decision.md) |
+| Typed choice/score/boolean decisions over native OpenAI Decisions, Responses, Chat Completions, Messages or TypeSafe | [references/decision.md](references/decision.md) |
 | Progressive-disclosure skills the model loads on demand | [references/skills.md](references/skills.md) |
 | Task memory, compaction, snapshots, resume | [references/memory.md](references/memory.md) |
 | Pack repeated observations, archive milestones, reduce exact log evidence | [references/context-optimization.md](references/context-optimization.md) |
@@ -151,8 +153,11 @@ option type and protocol dialect before copying a gateway configuration.
 
 The context optimizer, evidence reducer, action fusion, and experimental program
 APIs described here were introduced in 0.1.5 and are absent from npm 0.1.4.
-The workspace targets 0.1.8. Merging into `main` triggers guarded npm publication.
+The workspace targets 0.1.12. Merging into `main` triggers guarded npm publication.
 Check installed package typings when applying these APIs.
 
 For 0.1.8 exact-repeat recovery limits and terminal embedding provider facts, read
 [references/upgrading-from-0.1.7.md](references/upgrading-from-0.1.7.md).
+
+For 0.1.11 retry hooks and terminal recovery, and 0.1.12 image and reasoning
+contracts, read [references/upgrading-to-0.1.12.md](references/upgrading-to-0.1.12.md).

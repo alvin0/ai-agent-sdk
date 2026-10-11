@@ -110,7 +110,7 @@ and finish state.
 const assembler = new BlockAssembler()
 for await (const chunk of registry.stream(call)) assembler.push(chunk)
 
-const message = assembler.message({ kind: 'model', provider: 'openai', model: 'gpt-5.4' })
+const message = assembler.message({ kind: 'model', provider: 'openai', model: 'gpt-6-luna' })
 assembler.usage     // TokenUsage | undefined
 assembler.finish    // FinishReason
 ```
@@ -134,6 +134,18 @@ content without understanding either half. When assembly drops a block it drops
 the entry at the same position; an envelope whose length does not match the
 emitted block count is discarded whole, because a misaligned mapping is worse
 than none.
+
+## Reasoning source labels (0.1.12)
+
+`ReasoningBlock.kind` and raw `reasoning-delta` chunks' `kind` are optional
+`'summary' | 'content'`. Low-level and runtime `reasoning-delta` and
+`assistant-reasoning` events require `reasoningKind`, adding `'unknown'` for an
+absent provider label. Event builders and test doubles must supply that field.
+Responses distinguishes summary and raw text, Gemini thought summaries are
+`summary`, Chat Completions `reasoning_content` is `content`, and Anthropic
+thinking is `unknown`. Labels are never inferred. Mixed or interrupted blocks
+keep a label only when their deltas agree; an authoritative final block wins.
+Old histories with no `kind` remain valid. Keep reasoning separate from public text.
 
 ## Read next
 

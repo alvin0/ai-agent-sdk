@@ -152,6 +152,15 @@ describe('serializeGeminiInteractionsRequest', () => {
       messages: [createTextMessage('Search.')],
       tools: [{ type: 'native', name: 'web-search', allowedDomains: ['example.com'] }],
     }), dialect)).toThrow(/does not support SDK search filters or limits/)
+    // Image search is not guessed into a text search.
+    expect(() => serializeGeminiInteractionsRequest(providerRequest({
+      messages: [createTextMessage('Search.')],
+      tools: [{ type: 'native', name: 'web-search', searchContentTypes: ['text', 'image'] }],
+    }), dialect)).toThrow(/does not support SDK search filters or limits/)
+    expect(serializeGeminiInteractionsRequest(providerRequest({
+      messages: [createTextMessage('Search.')],
+      tools: [{ type: 'native', name: 'web-search', searchContentTypes: ['text'] }],
+    }), dialect).tools).toEqual([{ type: 'google_search', search_types: ['web_search'] }])
     expect(() => serializeGeminiInteractionsRequest(providerRequest({
       messages: [createTextMessage('Draw.')],
       tools: [{ type: 'native', name: 'image-generation' }],

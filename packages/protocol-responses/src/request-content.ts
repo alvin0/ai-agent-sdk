@@ -1,4 +1,6 @@
-import type { ContentBlock, DocumentBlock, ImageBlock, TextBlock } from '@alvin0/ai-agent-sdk-core'
+import type {
+  ContentBlock, DocumentBlock, ImageBlock, NativeToolCallBlock, TextBlock,
+} from '@alvin0/ai-agent-sdk-core'
 import type { WireContentPart, WireInputItem } from './wire.ts'
 import type { ResponsesReasoningState } from './serialize-types.ts'
 
@@ -82,7 +84,8 @@ export function toolResultOutput(blocks: readonly ContentBlock[]): string | Wire
     .filter((part): part is WireContentPart => part !== undefined)
 }
 
-export function nativeReplayItem(value: unknown): WireInputItem | undefined {
+export function nativeReplayItem(block: NativeToolCallBlock): WireInputItem | undefined {
+  const value = block.providerState
   if (typeof value !== 'object' || value === null) return undefined
   const item = value as Record<string, unknown>
   if (item.type === 'web_search_call') {
@@ -93,15 +96,22 @@ export function nativeReplayItem(value: unknown): WireInputItem | undefined {
       ...item.action === undefined ? {} : { action: structuredClone(item.action) },
     }
   }
-  if (item.type === 'image_generation_call') return imageReplayItem(item)
+  if (item.type === 'image_generation_call') return imageReplayItem(item, generatedImage(block))
   return undefined
 }
 
-function imageReplayItem(item: Record<string, unknown>): WireInputItem {
+/** The generated image, as base64; histories recorded before it moved there keep it in the item. */
+function generatedImage(block: NativeToolCallBlock): string | undefined {
+  const image = block.content.find(content => content.type === 'image' && content.source.kind === 'base64')
+  return image?.type === 'image' && image.source.kind === 'base64' ? image.source.data : undefined
+}
+
+function imageReplayItem(item: Record<string, unknown>, image: string | undefined): WireInputItem {
+  const result = image ?? item.result
   return {
     type: 'image_generation_call',
     ...typeof item.id === 'string' ? { id: item.id } : {},
     ...typeof item.status === 'string' ? { status: item.status } : {},
-    ...typeof item.result === 'string' || item.result === null ? { result: item.result } : {},
+    ...typeof result === 'string' || result === null ? { result } : {},
   }
 }

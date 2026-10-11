@@ -13,7 +13,7 @@ const runtime = await createAgentRuntime({ providers: [openAiPlugin({ apiKey })]
 const agent = runtime.agent({
   id: 'assistant',
   instructions: 'Be concise.',
-  model: { provider: 'openai', id: 'gpt-5.4' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
 })
 
 console.log((await agent.generate('Explain a Merkle tree in one sentence.')).text)
@@ -102,3 +102,5 @@ Everything else in this documentation is a variation on those four steps.
 - [Quick Start](/en/01-introduction/quick-start) — a working agent with one tool.
 
 For 0.1.8, see [upgrading from 0.1.7](/en/01-introduction/upgrading-from-0-1-7).
+
+For current API changes, read [upgrading to 0.1.12](/en/01-introduction/upgrading-to-0-1-12).

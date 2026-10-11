@@ -133,4 +133,18 @@ describe('BlockAssembler', () => {
     expect(Object.isFrozen(message.content)).toBe(true)
     expect(message.role).toBe('assistant')
   })
+
+  it('labels a cut-off reasoning block only when every delta agreed on its kind', () => {
+    // A block cut off before block-end is rebuilt from deltas; a summary
+    // label on raw reasoning would publish it.
+    const kinds = (deltas: Array<'summary' | 'content' | undefined>) => feed(deltas.map(kind => ({
+      type: 'reasoning-delta' as const, index: 0, text: 'x', ...kind === undefined ? {} : { kind },
+    }))).blocks()[0]
+    expect(kinds(['summary', 'summary'])).toEqual({ type: 'reasoning', text: 'xx', kind: 'summary' })
+    expect(kinds(['content'])).toEqual({ type: 'reasoning', text: 'x', kind: 'content' })
+    expect(kinds(['content', 'summary'])).toEqual({ type: 'reasoning', text: 'xx' })
+    expect(kinds(['summary', undefined])).toEqual({ type: 'reasoning', text: 'xx' })
+    expect(kinds([undefined, 'summary'])).toEqual({ type: 'reasoning', text: 'xx' })
+    expect(kinds([undefined])).toEqual({ type: 'reasoning', text: 'x' })
+  })
 })

@@ -2,6 +2,22 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## 0.1.12 - 2026-10-11
+
+### Added
+
+- Reasoning source labels. `ReasoningBlock.kind` and the `reasoning-delta` stream chunk's `kind` carry `'summary'` or `'content'` when the provider says which; `AgentEvent` and `RuntimeAgentRunEvent` `reasoning-delta` and `assistant-reasoning` carry `reasoningKind` (`'summary' | 'content' | 'unknown'`). The Responses protocol labels `reasoning_summary_text` as `summary` and `reasoning_text` as `content`; Gemini Interactions thought summaries are `summary`; Chat Completions `reasoning_content` is `content`. Anthropic Messages thinking stays unlabelled (`unknown`): nothing in the stream says whether it was summarized. A host deciding what to display can now tell a provider-written summary from raw reasoning instead of treating all reasoning alike. History validation accepts the new field and rejects any other value.
+  - **Never guessed.** A block keeps a label only when its whole text has one source. A Responses reasoning item that streamed both summary and raw text, and a block cut off before `block-end` whose deltas disagreed or were partly unlabelled, are left unlabelled (`unknown`). A done Responses item that carries a summary is `summary`, since the block's text is then that summary.
+  - **Required on events.** `reasoningKind` is required on the two events, so code that builds them itself (test doubles, wrappers) must supply it. Stored histories without `kind` restore unchanged.
+- Web search can return images. `NativeWebSearchTool.searchContentTypes` (`['text']` when unset, or `['text', 'image']`) maps to the Responses `search_content_types`, which Codex accepts. Anthropic Messages and Gemini Interactions reject a search that asks for images instead of silently searching text alone.
+
+### Fixed
+
+- Image generation no longer fails with `HTTP_SSE_LIMIT_EXCEEDED`. A finished image arrives base64-encoded in one SSE event, already past the 1 MiB per-event default for a low-quality 1024px PNG, so every image call through the HTTP providers failed. A call whose tools include `image-generation` now defaults to a 12 MiB per-event bound; a connection's own `maxSseEventChars` still wins, and `maxResponseBytes` still bounds the whole response. The bound stays below the history's default 16 MiB per-entry limit, so one image the transport accepts fits a history entry whole; a larger one fails at the transport with `HTTP_SSE_LIMIT_EXCEEDED`.
+- A reply whose generated images together outgrow a history entry no longer fails the turn with `TURN_RUNTIME_ERROR` after the images were paid for. Several images can each pass the transport and still exceed `maxEntryBytes` (or the history's `maxBytes`) together. The history then records the reply without the image bytes, both inside provider image calls and in `image` blocks (each replaced by a commentary note, so the reply is never empty), and the assistant entry's new optional `omittedImages` says how many were left out. The `assistant-message` event still carries every image, for the host to store; replay sends an image call without its result. A reply recorded that way still counts as an image answer. A reply that is too large for any other reason still fails as before.
+- A reply that is only a generated image is an answer. A basic turn whose final round produced an image and no text used to end in `EMPTY_FINAL_ANSWER`: terminal recovery and the empty-answer re-prompt both looked for text alone. An image the model generated (a `native-tool-call` image or an `image` block) after the person's last message now counts, including as the forced answer when a budget runs out (`forcedFinalAnswer: true`, with no recovery report after it); deep-mode completion still requires text.
+- A generated image is stored once. The Responses `native-tool-call` block used to hold the base64 image twice, in `content` and again in `providerState.result`; `providerState` now omits `result` and replay reads the image back from `content`. Histories recorded earlier still replay from `providerState`.
+
 ## 0.1.11 - 2026-10-10
 
 ### Added

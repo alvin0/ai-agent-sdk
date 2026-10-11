@@ -173,6 +173,29 @@ describe('provider-http SSE transport contract', () => {
     ).stream(request()))).rejects.toMatchObject({ code })
   })
 
+  it('lets a generated image through one event, and only when the call asks for one', async () => {
+    // A finished image arrives base64-encoded in a single event, past the
+    // 1 MiB text default; plain text calls keep that default.
+    const image = 'x'.repeat(2 * 1_048_576)
+    const respond = () => Promise.resolve(byteResponse([`data: ${image}\n\n`, 'data: finish\n\n']))
+    const imageRequest = { ...request(), tools: [{ type: 'native' as const, name: 'image-generation' as const }] }
+    await expect(drain(provider(respond).stream(imageRequest))).resolves.toHaveLength(2)
+    await expect(drain(provider(respond).stream(request())))
+      .rejects.toMatchObject({ code: HTTP_PROVIDER_ERROR_CODES.SSE_LIMIT_EXCEEDED })
+    // A host's own bound still wins.
+    await expect(drain(provider(respond, { maxSseEventChars: 1_048_576 }).stream(imageRequest)))
+      .rejects.toMatchObject({ code: HTTP_PROVIDER_ERROR_CODES.SSE_LIMIT_EXCEEDED })
+  })
+
+  it('refuses an image the agent history could not record, at the transport', async () => {
+    // 17 MiB of base64 is past the history's 16 MiB entry limit; it must fail
+    // here as a provider error, not after the round as a runtime error.
+    const respond = () => Promise.resolve(byteResponse([`data: ${'x'.repeat(17 * 1_048_576)}\n\n`, 'data: finish\n\n']))
+    const imageRequest = { ...request(), tools: [{ type: 'native' as const, name: 'image-generation' as const }] }
+    await expect(drain(provider(respond).stream(imageRequest)))
+      .rejects.toMatchObject({ code: HTTP_PROVIDER_ERROR_CODES.SSE_LIMIT_EXCEEDED })
+  })
+
   it('does not reconnect when the parser receives an SSE retry field', async () => {
     const fetch = vi.fn(() => Promise.resolve(byteResponse([
       'retry: 1\ndata: finish\n\n',

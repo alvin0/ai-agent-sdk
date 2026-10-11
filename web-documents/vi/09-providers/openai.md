@@ -34,7 +34,7 @@ const runtime = await createAgentRuntime({
 const agent = runtime.agent({
   id: 'assistant',
   instructions: 'Be concise.',
-  model: { provider: 'openai', id: 'gpt-5.4' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
 })
 ```
 
@@ -97,13 +97,13 @@ registry.registerAdapter(['openai'], openAiAdapter({ apiKey }))
 | Ảnh đầu vào qua `fileId` | ✓ |
 | Tài liệu (PDF) qua URL / base64 / `fileId` | ✓ |
 | `detail: 'original'` | ✓ |
-| Mức nỗ lực suy luận | ✓ — đối chiếu với các mức model khai báo |
+| Mức nỗ lực suy luận | ✓ — gửi nguyên giá trị; provider kiểm tra hỗ trợ |
 | Trạng thái phát lại | ✓ |
 
 ```ts
 runtime.agent({
   id: 'researcher',
-  model: { provider: 'openai', id: 'gpt-5.6' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
   instructions: 'Gather evidence before answering.',
   effort: 'medium',
   nativeTools: [
@@ -152,7 +152,7 @@ const runtime = await createAgentRuntime({
   ],
 })
 
-runtime.agent({ id: 'eu-agent', model: { provider: 'openai-eu', id: 'gpt-5.4' }, instructions: '…' })
+runtime.agent({ id: 'eu-agent', model: { provider: 'openai-eu', id: 'gpt-6-luna' }, instructions: '…' })
 ```
 
 ID và tuyến thực thể tường minh làm cho hai tài khoản trong cùng một họ provider

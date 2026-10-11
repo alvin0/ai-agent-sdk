@@ -26,7 +26,7 @@ const runtime = await createAgentRuntime({
 const agent = runtime.agent({
   id: 'assistant',
   instructions: 'Be concise.',
-  model: { provider: 'openai', id: 'gpt-5.4' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
 })
 
 console.log((await agent.generate('Giải thích cây Merkle trong một câu.')).text)
@@ -67,6 +67,6 @@ Xem [Getting Started](/vi/01-introduction/getting-started) để biết cách ch
 
 ## Trạng thái
 
-Phiên bản `0.1.9`, giấy phép MIT. Các package công khai dùng
+Phiên bản `0.1.12`, giấy phép MIT. Các package công khai dùng
 scope `@alvin0` — xem [Thông tin dự án](/vi/14-project/) và changelog của
 repository để biết chi tiết từng bản phát hành.

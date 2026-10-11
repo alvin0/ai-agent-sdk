@@ -124,7 +124,7 @@ liệu đầu vào sẽ bị chiếu thành text trừ khi bạn tự override e
 ```ts
 codexNodeAdapter({
   authStore,
-  models: [{ id: 'gpt-5.6-luna', inputModalities: ['text', 'image', 'document'] }],
+  models: [{ id: 'gpt-6-luna', inputModalities: ['text', 'image', 'document'] }],
 })
 ```
 

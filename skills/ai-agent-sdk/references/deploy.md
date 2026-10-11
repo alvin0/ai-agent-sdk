@@ -37,7 +37,7 @@ export default {
     const agent = runtime.agent({
       id: 'support',
       instructions: 'Help the customer. Look up orders before answering about them.',
-      model: { provider: 'openai', id: 'gpt-5.4' },
+      model: { provider: 'openai', id: 'gpt-6-luna' },
       tools: [lookupOrder],
       commentary: 'concise',
       maxTurns: 8,

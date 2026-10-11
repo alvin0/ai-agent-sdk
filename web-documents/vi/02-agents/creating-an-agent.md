@@ -10,7 +10,7 @@ const agent = runtime.agent({
   description: 'Reviews release candidates and reports concrete risks.',
 
   // Tuyến model
-  model: { provider: 'openai', id: 'gpt-5.4' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
   effort: 'medium',
   maxTokens: 16_384,
   outputFormat: { type: 'text' }, // hoặc JSON Schema có tên cho câu trả lời cuối
@@ -45,12 +45,12 @@ const agent = runtime.agent({
 | `description` | `string` | Dùng bởi `createAgentCardFromDefinition()` và danh bạ team. |
 | `model` | `{ provider, id? }` | Tuyến. `id` có thể bỏ trống khi provider đã có mặc định. |
 | `instructions` | `string` | **Bắt buộc** trong một định nghĩa. Xem [Agent Instructions](/vi/02-agents/agent-instructions). |
-| `effort` | `string` | Mức nỗ lực suy luận. Đối chiếu với các mức model khai báo. |
+| `effort` | `string` | Giá trị opaque gửi khi được đặt; provider kiểm tra hỗ trợ. |
 | `maxTokens` | `number` | Trần output. Đối chiếu trần cứng của model trước khi có I/O. |
 | `outputFormat` | `ModelOutputFormat` | Văn bản hoặc JSON Schema có tên cho câu trả lời cuối. |
 | `mode` | `'basic' \| 'deep' \| 'deep-human-in-loop'` | Chính sách thực thi. |
 | `commentary` | `'auto' \| 'concise' \| 'off'` | Tường thuật tiến độ. Mặc định `auto` để caller và model quyết định; chọn `concise` để yêu cầu cập nhật tiến độ ngắn. |
-| `maxTurns` | `number` | Số bước model. Mặc định 16. |
+| `maxTurns` | `number \| 'auto'` | Số bước model. Mặc định 16. |
 | `maxToolCalls` | `number` | Số tool được điều phối. Mặc định 64. |
 | `tools` | `ToolDefinition[]` | Hàm của host, do bộ lập lịch thực thi. |
 | `nativeTools` | `NativeToolSchema[]` | Nhà cung cấp thực thi. Bộ lập lịch không bao giờ chạy chúng. |
@@ -73,7 +73,7 @@ export const ada = defineAgent({
   description: 'Explains and reviews TypeScript code.',
   instructions: 'Be precise, inspect evidence before concluding, and keep answers concise.',
   provider: 'codex',
-  model: 'gpt-5.6-luna',
+  model: 'gpt-6-luna',
   effort: 'medium',
   mode: 'basic',
   maxTurns: 16,
@@ -82,18 +82,18 @@ export const ada = defineAgent({
 })
 ```
 
-Bỏ trống `provider`, `model`, và `effort` trong một định nghĩa sẽ chọn Codex
-`gpt-5.6-luna` ở mức `medium`. Đó là một mặc định đã được rà soát và phê duyệt
-tường minh, không phải phương án dự phòng ngầm — và nó **chỉ** áp dụng cho
-`defineAgent()`.
+API authoring tầng thấp vẫn giữ model Codex mặc định cũ; effort bỏ trống vẫn
+không có preference. Ví dụ và live call của project phải đặt `provider` và
+`model` tường minh, chọn `gpt-6-luna` hoặc model mới hơn. Effort chỉ được gửi
+khi có cấu hình; provider quyết định giá trị nào hợp lệ.
 
 ## Tuyến model được giải quyết thế nào
 
 ```text
-model: { provider: 'openai', id: 'gpt-5.4' }   → đúng tuyến + đúng model
+model: { provider: 'openai', id: 'gpt-6-luna' }   → đúng tuyến + đúng model
 model: { provider: 'openai' }                   → model mặc định của tuyến
 bỏ trống model                                  → provider đã chọn, hoặc provider mặc định duy nhất, của runtime
-defineAgent() không có provider/model           → Codex gpt-5.6-luna, effort medium
+defineAgent() không có provider/model           → Codex gpt-5.6-luna, effort bỏ trống
 ```
 
 Ngoài các trường hợp trên thì **không có model mặc định**. Danh mục model của nhà
@@ -131,7 +131,6 @@ bất khả thi **trước** mọi lời gọi mạng:
 
 | Lựa chọn | Bị từ chối với |
 | --- | --- |
-| Mức nỗ lực suy luận không hỗ trợ | `UNSUPPORTED_REASONING_EFFORT` |
 | Native tool không hỗ trợ | `UNSUPPORTED_NATIVE_TOOL` |
 | `maxTokens` vượt trần cứng | `OUTPUT_TOKEN_LIMIT_EXCEEDED` |
 | Tuyến provider không tồn tại | `NO_ADAPTER` |

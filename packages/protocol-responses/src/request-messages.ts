@@ -63,7 +63,7 @@ function appendControl(block: ContentBlock, state: MessageState): void {
       return
     case 'native-tool-call': {
       flushMessage(state)
-      const replay = nativeReplayItem(block.providerState)
+      const replay = nativeReplayItem(block)
       if (replay !== undefined) state.items.push(replay)
       return
     }

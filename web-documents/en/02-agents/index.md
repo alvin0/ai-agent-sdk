@@ -41,7 +41,7 @@ const runtime = await createAgentRuntime({ providers: [openAiPlugin({ apiKey })]
 const agent = runtime.agent({
   id: 'assistant',
   instructions: 'Be concise.',
-  model: { provider: 'openai', id: 'gpt-5.4' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
 })
 ```
 
@@ -52,7 +52,7 @@ export const assistant = defineAgent({
   id: 'assistant',
   instructions: 'Be concise.',
   provider: 'openai',
-  model: 'gpt-5.4',
+  model: 'gpt-6-luna',
 })
 
 const session = assistant.createSession({ registry })

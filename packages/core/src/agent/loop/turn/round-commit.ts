@@ -1,7 +1,7 @@
 import type { AgentEvent, TurnOutcome } from '../types.ts'
 import type { ModelRoundPhase, RunTurnOptions } from './types.ts'
 import type { modelRound } from './model-round.ts'
-import { emitAssistantContent, textOf } from './content.ts'
+import { emitAssistantContent, recordAssistant, textOf } from './content.ts'
 import { accountingUsageStop } from './usage-stop.ts'
 
 type Round = Awaited<ReturnType<typeof modelRound>>
@@ -25,7 +25,7 @@ export async function commitModelRound(ctx: {
   options: RunTurnOptions; emit: (event: AgentEvent) => Promise<void>; text: string
 }, round: Round): Promise<string> {
   if (round.message === undefined) return round.finish.kind === 'stop' ? '' : ctx.text
-  ctx.options.history.append({
+  recordAssistant(ctx.options.history, {
     kind: 'assistant', message: round.message,
     ...round.finish.kind === 'aborted' ? { interrupted: true as const } : {},
     ...round.usage === undefined ? {} : { usage: round.usage },

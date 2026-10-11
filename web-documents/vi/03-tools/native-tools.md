@@ -14,7 +14,7 @@ for await (const event of runAgent({
   history,
   config: {
     provider: 'openai',
-    model: 'gpt-5.6',
+    model: 'gpt-6-luna',
     reasoningEffort: ReasoningEffortId('medium'),
   },
   nativeTools: [
@@ -33,7 +33,7 @@ Trên một định nghĩa hoặc runtime agent, cũng là trường đó:
 runtime.agent({
   id: 'researcher',
   instructions: 'Gather evidence before answering.',
-  model: { provider: 'openai', id: 'gpt-5.6' },
+  model: { provider: 'openai', id: 'gpt-6-luna' },
   tools: [readProjectFile],                                     // hàm của host
   nativeTools: [{ type: 'native', name: 'web-search' }],        // nhà cung cấp thực thi
 })
@@ -65,7 +65,6 @@ khi có I/O tới nhà cung cấp:
 
 | Lựa chọn | Bị từ chối với |
 | --- | --- |
-| Mức nỗ lực suy luận không hỗ trợ | `UNSUPPORTED_REASONING_EFFORT` |
 | Native tool không hỗ trợ | `UNSUPPORTED_NATIVE_TOOL` |
 | `maxTokens` vượt trần cứng | `OUTPUT_TOKEN_LIMIT_EXCEEDED` |
 
@@ -86,6 +85,18 @@ qua.
 
 Gemini Interactions chấp nhận tài liệu đầu vào qua base64 và qua URI (URL từ xa
 hoặc uri của Files API) trên cùng điều kiện.
+
+## Loại nội dung web search (0.1.12)
+
+```ts
+nativeTools: [{
+  type: 'native', name: 'web-search', searchContentTypes: ['text', 'image'],
+}]
+```
+
+Bỏ trống tương đương tìm văn bản. Responses gửi `search_content_types`; Codex
+chấp nhận trường này. Anthropic Messages và Gemini Interactions báo
+`INVALID_REQUEST` nếu yêu cầu tìm ảnh, không âm thầm chỉ tìm văn bản.
 
 ## Ảnh đầu vào
 
@@ -124,24 +135,22 @@ const message = createUserMessage({
 })
 ```
 
-### Model phải khai báo modality
+### Modality chưa biết và khai báo tường minh
 
-Một modality bị bỏ trống được hiểu là **khai báo phủ định**, nên model không liệt
-kê `document` sẽ nhận PDF đã bị thay bằng một chuỗi văn bản đại diện. Chỗ này rất
-dễ sập với Codex, vì discovery của nó chỉ báo `text` và `image` ngay cả với model
-thực sự nhận được PDF:
+Bỏ trống `inputModalities` nghĩa là chưa biết và vẫn cho phép gửi PDF. Chỉ
+project PDF thành văn bản khi cấu hình model, route hoặc agent đã khai báo
+modality nhưng không có `document`. Có thể sửa khai báo discovery thiếu:
 
 ```ts
 codexNodeAdapter({
   authStore,
-  models: [{ id: 'gpt-5.6-luna', inputModalities: ['text', 'image', 'document'] }],
+  models: [{ id: 'gpt-6-luna', inputModalities: ['text', 'image', 'document'] }],
 })
 ```
 
-Gemini không ship catalog sẵn nên cũng phải khai ở đó. Dùng `documentPolicy:
-'strict'` trên một lần gọi để fail bằng `UNSUPPORTED_DOCUMENT_INPUT` thay vì âm
-thầm hạ cấp file — nên bật khi câu trả lời phụ thuộc vào việc PDF thật sự tới được
-model.
+Gemini không cần khai báo chỉ để cho phép PDF. Dùng `documentPolicy: 'strict'`
+để báo `UNSUPPORTED_DOCUMENT_INPUT` khi có khai báo không tương thích, thay vì
+project tài liệu thành văn bản.
 
 ### `pages` và chi phí token
 
@@ -159,18 +168,28 @@ metadata cục bộ — không adapter nào serialize nó.
 2. **Có thẩm quyền** trong `native-tool-call.content` cuối cùng.
 
 ```ts
-for await (const event of agent.stream('Vẽ sơ đồ hệ thống.')) {
-  if (event.type === 'image-delta') {
-    renderPreview(event.data, event.mediaType, event.partialIndex)
-  }
+// Low-level AgentEvent stream; registry/history/config are supplied by the host.
+for await (const event of runAgent({
+  mode: 'basic', registry, history,
+  config: { provider: 'openai', model: 'gpt-6-luna' },
+  nativeTools: [{ type: 'native', name: 'image-generation', partialImages: 2 }],
+})) {
+  if (event.type === 'image-delta') renderPreview(event.data, event.mediaType, event.partialIndex)
+  if (event.type === 'assistant-message') storeFinalImages(event.message.content)
 }
-
-const response = await handle.result
-// response.report / message assistant cuối cùng mang bản ảnh có thẩm quyền.
 ```
 
-Hãy vẽ bản xem trước từ `image-delta`; lưu trữ thì lấy từ message cuối cùng.
-`partialIndex` cho biết bạn đang ở khung thứ mấy khi có cấu hình `partialImages`.
+Trong basic mode, câu trả lời chỉ có ảnh vẫn hợp lệ, kể cả final round do hết
+budget. Deep mode vẫn cần văn bản để hoàn tất. Lưu bytes ảnh từ sự kiện tầng
+thấp `assistant-message`: nếu ảnh base64 vượt giới hạn history, bản ghi sẽ bỏ
+ảnh và giữ số lượng trong `omittedImages`; ảnh trực tiếp được thay bằng ghi chú
+commentary. Entry vẫn quá lớn vì nội dung khác tiếp tục báo lỗi.
+Responses replay ảnh từ `content`, có fallback cho `providerState.result` cũ;
+state mới không lưu thêm bản sao base64.
+
+Request image generation mặc định cho phép 12 MiB **ký tự** mỗi SSE event.
+`maxSseEventChars` do host đặt được ưu tiên; `maxResponseBytes` vẫn giới hạn toàn
+response. Giới hạn transport không thay thế giới hạn history.
 
 ## Cấu hình có kiểu được mang xuyên suốt
 

@@ -296,9 +296,9 @@ the endpoint, not an SDK embedding adapter: there is no
 
 ## Repository CI and release gate
 
-The current workspace release line is `0.1.8`. Every
+The current workspace release line is `0.1.12`. Every
 `packages/*/package.json`, including the private testkit, must carry the same
-version before release. There are 26 top-level package manifests: 25 publishable packages
+version before release. There are 28 top-level package manifests: 27 publishable packages
 and the private testkit. The Release workflow packs only non-private packages.
 
 For a local equivalent of the PR CI gates, run:
@@ -308,17 +308,20 @@ pnpm install --frozen-lockfile
 pnpm workspace:build
 pnpm workspace:typecheck
 pnpm build:cli
+pnpm test:lint
 pnpm lint
 pnpm exec tsc --noEmit
 pnpm check:boundary-fixtures
+pnpm check:docs
+pnpm check:human
 pnpm exec vitest run
 pnpm test:packages
 pnpm test:pack
 pnpm check:supply-chain
 ```
 
-Keep documentation and recorded protocol evidence separate from those three CI
-jobs and validate them when they changed:
+CI also runs documentation and human-coverage declaration checks. Validate the
+site and recorded protocol evidence separately when they changed:
 
 ```bash
 pnpm check:docs
@@ -336,3 +339,11 @@ successful packages. A tag must equal the core package version.
 Local success proves only the checkout. Do not report a release as complete
 until the hosted Release workflow succeeds and the expected package versions
 are observable on npm.
+
+
+CI runs on pushes to `main` and `mono-package` and on pull requests. Docs runs
+on `main` when site files or its workflow change; Sandbox has its own path-filtered
+workflow. The CI baseline is Node 22.18.0 and pnpm 11.25.0. With the repository's
+RTK wrapper, use `rtk proxy pnpm build` or `rtk proxy pnpm typecheck` when you need
+the actual script and its build side effects: a shorthand wrapper's typecheck
+result alone does not prove that `dist` was rebuilt before packing.
