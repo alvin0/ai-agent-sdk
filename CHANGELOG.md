@@ -4,6 +4,13 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Managed lead guidance now weighs worker context/startup/synthesis cost: do small or sequential
+  work directly, use one worker for a worthwhile side task or fresh-context check, and fan out only
+  for many independent items exceeding one context or requiring many sequential steps. Both spawn
+  tools remain available initially; host hooks, schemas, queue limits and settlement delivery are unchanged.
+
 ### Breaking
 
 - Aborted `spawn_agents` calls return worker addresses with `cancelled: true` instead of throwing
@@ -15,7 +22,7 @@ All notable changes to the AI Agent SDK are documented in this file.
 - Plain lean managed leads now expose `spawn_agent` and `spawn_agents` initially; after successful host/model spawning
   or queued batch admission,
   control tools remain visible for the team lifetime. Set `progressiveToolDisclosure: false` for
-  the exact previous eager schemas/descriptions and full strategy in the system prompt (including workers).
+  eager schemas and full strategy in the system prompt (including workers).
   Existing team members or a successful spawn in restored lead history also disclose controls.
   Legacy, collaboration, depth-limited leads
   and worker catalogs remain eager. The lazy lead keeps a compact stable prompt; its first model

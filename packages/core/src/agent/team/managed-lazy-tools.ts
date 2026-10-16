@@ -10,7 +10,10 @@ const CONTROLS = new Set(['close_agent', 'send_input', 'wait_agents', 'get_agent
 
 /** Appended once to the first model spawn result, never inserted into the reusable system prefix. */
 export const DISCLOSED_TEAM_GUIDANCE = [
-  'Plan the split before reading bulk inputs. Use spawn_agents for independent tasks; continue non-overlapping work.',
+  'Do remaining small work directly; use one worker for a worthwhile side task or fresh-context check.',
+  'Fan out only for many independent items that exceed one context or need many sequential steps. '
+  + 'Once justified, plan partitions before reading bulk inputs; continue non-overlapping work.',
+  'Worker context and synthesis cost tokens. Free slots and queue capacity are limits, not targets.',
   'Stay responsive to user updates. fresh needs a self-contained brief.',
   'Fork copies the completed history prefix before the in-flight spawn call.',
   'Write scopes schedule work, not filesystem access. send_input queues work; it returns acceptance only.',

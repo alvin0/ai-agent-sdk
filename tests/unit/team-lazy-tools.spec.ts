@@ -71,7 +71,7 @@ describe('progressive managed tool disclosure', () => {
       expect(adapter.leads[0]!.tools).toEqual(adapter.leads[1]!.tools)
       expect(adapter.leads[0]!.system).toBe(adapter.leads[1]!.system)
       expect(adapter.leads[0]!.system)
-        .toContain('Use the team proactively for parallel work; keep quick or sequential work local.')
+        .toContain('Do small or sequential work directly; workers add context and synthesis cost.')
       expect(team.lead.effectiveCatalog()?.get('wait_agents')).toBeUndefined()
       expect(team.lead.effectiveCatalog()?.executionMode('wait_agents', {})).toBe('exclusive')
     } finally { await team.dispose(); await team.team.dispose() }
@@ -120,7 +120,8 @@ describe('progressive managed tool disclosure', () => {
       const results = team.lead.history.messages().flatMap(message => message.content)
         .flatMap(block => block.type === 'tool-result' ? block.content : [])
         .filter(block => block.type === 'text').map(block => block.text)
-      expect(results.filter(text => text.includes('Plan the split before reading bulk inputs'))).toHaveLength(1)
+      expect(results.filter(text => text.includes('Once justified, plan partitions before reading bulk inputs')))
+        .toHaveLength(1)
       expect(names(adapter.leads[1]!)).toEqual(full)
     } finally { await team.dispose(); await team.team.dispose() }
   })
@@ -144,7 +145,8 @@ describe('progressive managed tool disclosure', () => {
         expect(request.system).toBe(adapter.leads[0]!.system)
       }
       expect(adapter.leads[1]!.tools?.[0]).toEqual(adapter.leads[0]!.tools?.[0])
-      expect(JSON.stringify(adapter.leads[1]!.messages)).toContain('Plan the split before reading bulk inputs')
+      expect(JSON.stringify(adapter.leads[1]!.messages))
+        .toContain('Once justified, plan partitions before reading bulk inputs')
       expect(JSON.stringify(adapter.leads.at(-1)!.messages)).toContain('worker-evidence')
       const results = adapter.leads.at(-1)!.messages.flatMap(message => message.content)
         .flatMap(block => block.type === 'tool-result' ? block.content : [])

@@ -11,10 +11,13 @@ import type { ManagedAgentDelegationMode, ManagedAgentRole, ManagedAgentSpawnReq
 
 /** Shared delegation strategy; host-selected mode and runtime details are appended below. */
 export const DELEGATION_STRATEGY = [
-  'Plan the split first; do not read bulk data yourself before delegating. '
+  'Delegation adds worker context, startup and synthesis cost. Do small or sequential tasks directly. '
+  + 'Use one worker when a bounded side task or fresh-context check justifies that cost.',
+  'Fan out only for many independent items that exceed one context or need many sequential steps. '
+  + 'Inspect scope first; once fan-out is justified, plan partitions before reading bulk inputs. '
   + 'Keep immediate critical-path blockers and tightly coupled work local.',
-  'Delegate bounded sidecar tasks that can run alongside your work. Start independent delegations together '
-  + 'in one batch when supported. Give each worker an objective, input locations, expected output, '
+  'Start worthwhile independent delegations together in one batch when supported. '
+  + 'Give each worker an objective, input locations, expected output, '
   + 'write scope, and verification.',
   'Use disjoint write sets, including your own. Do not redo delegated work; continue useful non-overlapping work.',
   'For fresh context, give a self-contained brief. For fork, state only new information; '
@@ -30,8 +33,7 @@ export function buildDelegationStrategy(mode: ManagedAgentDelegationMode = 'proa
   return [
     mode === 'explicit'
       ? 'Delegate only when the user or host instructions explicitly ask for agents, delegation, or parallel work.'
-      : 'Use your managed team proactively when parallel work will improve the result or save time. '
-        + 'Answer quick questions and do small or sequential tasks directly.',
+      : 'Default to doing the work directly; use the team when its benefit outweighs coordination cost.',
     DELEGATION_STRATEGY,
   ].join(' ')
 }
@@ -54,7 +56,8 @@ export function managedLeadInstructions(options: ManagedAgentTeamOptions): strin
       : strategy,
     MANAGED_DELEGATION_RUNTIME,
     ...atManagedDepthLimit(options) ? []
-      : ['Use spawn_agents for independent tasks; overflow queues FIFO within host limits.'],
+      : ['Use spawn_agent for one worthwhile task; spawn_agents for justified fan-out. '
+        + 'Overflow queues FIFO within host limits; capacity is a limit, not a target.'],
     options.autoLeadCoordination === false
       ? 'Use wait_agents when blocked on a worker result; the host controls later turns.'
       : 'When only waiting remains, end your turn instead of polling; managed coordination collects worker reports '
@@ -82,9 +85,9 @@ function spawnControlTool(host: ManagedControlsHost): ToolDefinition<any> {
   return defineTool({
     name: 'spawn_agent',
     description: [
-      'Delegate a bounded task that can run alongside your next local step; keep immediate blockers local.',
-      'Brief: objective, expected output, write scope, verification. Start independent workers in one message '
-      + 'with spawn_agents and disjoint write sets. Continue your own non-overlapping work; do not redo theirs.',
+      'Delegate one worthwhile side task or fresh-context check; do small or sequential tasks directly.',
+      'Brief: objective, expected output, write scope, verification. Use disjoint write sets. '
+      + 'Continue your own non-overlapping work; do not redo theirs.',
       'Returns a worker address and status, not a final report. Reports are injected automatically; '
       + 'use get_agent_result for retained pages or wait_agents when blocked. Synthesize the result before answering.',
     ].join(' '),

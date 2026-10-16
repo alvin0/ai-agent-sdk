@@ -11,8 +11,8 @@ Discovery is monotonic, including after all workers close, so retained reads and
 The system prompt stays byte-stable; the first model spawn result carries additional guidance once.
 Existing team members or a successful single/batch spawn result in restored lead history disclose
 the controls too. Batch results containing only setup failures do not qualify. This restores discovery only; hosts still own member/session rehydration and result storage.
-Set `progressiveToolDisclosure: false` to restore the exact previous eager schemas, descriptions and
-full system guidance for leads and workers. Legacy,
+Set `progressiveToolDisclosure: false` for eager schemas and full system guidance for leads and workers.
+Delegation cost guidance applies to both lazy and eager surfaces. Legacy,
 collaboration and depth-limited leads, and all worker catalogs, remain eager. Host APIs are unchanged.
 
 `createManagedAgentTeam` remains a collection of host hooks. It does not own a filesystem,
@@ -37,7 +37,14 @@ Import `managedAgentRolePresets` and `createManagedAgentTeam` from
 `explicit` changes model guidance, not host API availability or tool authorization. The host
 must enforce any required approval through its tools and policies.
 
-The lead keeps immediate blockers local, delegates bounded independent work together, assigns
+The lead defaults to doing small or sequential tasks directly: worker context, startup and synthesis
+add cost. One worker can justify that cost for a focused side task or fresh-context check. Fan-out
+is for many independent items whose combined work exceeds one context or needs many sequential steps.
+Inspect scope before choosing; after choosing fan-out, give workers input locations rather than
+reading all their inputs first. Free slots and queue capacity are limits, not targets to fill.
+Both spawn tools remain initially available, after application tools, so wide work can batch immediately.
+
+The lead keeps immediate blockers local, delegates worthwhile independent work together, assigns
 disjoint writes, continues its own work, and synthesizes worker reports. With automatic coordination
 enabled it can end its turn when only waiting remains. The coordination hook yields without polling and pushes compact runtime settlements. Managed `run()`
 joins workers and synthesis, including lost-wake recovery. `wait_agents` joins all selected workers and returns
@@ -148,8 +155,8 @@ older model names/schemas; this does not restore polling, duplicate reports or o
 
 ### Batch fan-out
 
-Plan the split before reading bulk inputs: give workers input locations and let each read its own
-partition. Start independent tasks in one call, reserving disjoint write scopes where needed:
+For justified fan-out, plan the split before reading bulk inputs: give workers input locations and let
+each read its own partition. Start independent tasks in one call, reserving disjoint write scopes where needed:
 
 ```ts
 spawn_agents({

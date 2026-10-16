@@ -54,8 +54,10 @@ describe('managed model surface size', () => {
     expect(total(after.fullWorker![1]!)).toBeLessThan(fixture.before.fullWorker![1]!.total * 0.95)
     expect(after.lean![0]!.system).toBe(after.lean![2]!.system)
     expect(after.lean![2]!.tools.slice(0, 2)).toEqual(after.lean![0]!.tools)
-    expect(after.legacy!.map(hash)).toEqual(fixture.combined.legacy!.map(view => view.sha256))
-    expect(after.eager!.map(hash)).toEqual(fixture.combined.eager!.map(view => view.sha256))
-    expect(after.eagerFullWorker!.map(hash)).toEqual(fixture.combined.eagerFullWorker!.map(view => view.sha256))
+    // Lead cost guidance intentionally changes on every surface. Workers retain
+    // the frozen integration contract; current lead text is pinned above.
+    for (const name of ['legacy', 'eager', 'eagerFullWorker']) {
+      expect(hash(after[name]![1]!)).toBe(fixture.combined[name]![1]!.sha256)
+    }
   })
 })

@@ -467,7 +467,8 @@ describe('what the app actually configures for a single agent', () => {
         for (const control of controls) expect(request.tools?.map(tool => tool.name)).not.toContain(control)
       }
       expect(leadTools.map(tool => tool.name)).not.toContain('followup_task')
-      expect(adapter.requests[0]!.system).toContain('Use the team proactively for parallel work; keep quick or sequential work local.')
+      expect(adapter.requests[0]!.system)
+        .toContain('Do small or sequential work directly; workers add context and synthesis cost.')
       expect(adapter.requests[0]!.system).not.toContain('Collaboration mode:')
       if (actor === 'worker') {
         const reviewer = await handles.managedTeam!.spawn({

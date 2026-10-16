@@ -14,12 +14,13 @@ const capableLead = defineAgent({ id: 'capable-lead', provider: 'test', model: '
   nativeTools: [{ type: 'native', name: 'web-search' }], skills: [leadSkill], skillIds: ['lead-skill'] })
 
 describe('managed delegation guidance', () => {
-  it('defaults to proactive with a short, concrete lead strategy', async () => {
+  it('defaults to proactive with a cost-aware lead strategy', async () => {
     const { adapter, managed } = setup()
     try {
       await managed.run('inspect')
       const system = String(adapter.requests[0]!.system)
-      expect(system.slice(system.indexOf('Use your managed team proactively'))).toMatchSnapshot()
+      expect(system.indexOf('Default to doing the work directly')).toBeGreaterThan(0)
+      expect(system.slice(system.indexOf('Default to doing the work directly'))).toMatchSnapshot()
       const tools = adapter.requests[0]!.tools ?? []
       expect(Object.fromEntries(tools.filter(tool =>
         ['spawn_agent', 'wait_agents', 'send_message', 'followup_task'].includes(tool.name))

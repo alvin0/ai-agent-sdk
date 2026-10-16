@@ -1,5 +1,5 @@
 /** Compact model controls; host requests and lifecycle views remain unchanged. */
-import { atManagedDepthLimit, filterToolsByDepth } from './managed-capabilities.ts'
+import { filterToolsByDepth } from './managed-capabilities.ts'
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
 import { buildDelegationStrategy, managedLeadInstructions, type ManagedControlsHost } from './managed-controls.ts'
 import { parseSpawnTool } from './managed-tool-input.ts'
@@ -18,17 +18,16 @@ export function leanLeadInstructions(options: ManagedControlsHost['options']): s
   if (progressiveTeamTools(options)) {
     return (options.delegationMode === 'explicit'
       ? 'Delegate only when the user or host explicitly asks. '
-      : 'Use the team proactively for parallel work; keep quick or sequential work local. ')
-      + 'Use spawn_agents for independent tasks or spawn_agent for one; '
-      + 'brief objective, inputs, output, disjoint writes and verification. '
-      + 'Do not redo delegated work. After spawning, controls appear and results are pushed automatically. '
+      : 'Do small or sequential work directly; workers add context and synthesis cost. ')
+      + 'Use spawn_agent for one worthwhile side task or fresh-context check; '
+      + 'spawn_agents only for many independent items that exceed one context or need many sequential steps. '
+      + 'Brief objective, inputs, output, disjoint writes and verification. Do not redo delegated work. '
+      + 'After spawning, controls appear and results are pushed. '
       + (options.autoLeadCoordination === false
         ? 'Use wait_agents when blocked; the host controls later turns.'
         : 'End your turn when only waiting remains; synthesize reports before the final answer.')
   }
-  return managedLeadInstructions(options) + (atManagedDepthLimit(options)
-    ? ' Use send_input for follow-up work. '
-    : ' Use spawn_agents for independent tasks, spawn_agent for one task, and send_input for follow-up work. ')
+  return managedLeadInstructions(options) + ' Use send_input for follow-up work. '
     + 'Close retained agents only when no longer needed.'
 }
 
@@ -38,11 +37,11 @@ export function leanControlTools(host: ManagedControlsHost): readonly ToolDefini
     name: 'spawn_agent',
     render: renderModelResult,
     description: eager
-      ? 'Delegate a bounded sidecar task with objective, output, write scope and verification. '
-        + 'Keep immediate blockers local; do not redo delegated work. '
+      ? 'Delegate one worthwhile side task or fresh-context check. Brief objective, output, writes and verification. '
+        + 'Keep blockers local; do not redo work. '
         + 'Returns a target; results are pushed automatically.'
-      : 'Start a parallel sidecar; returns target, not result. Results are pushed. '
-      + 'Keep immediate blockers local.',
+      : 'Delegate one worthwhile side task or fresh-context check; small tasks stay local. '
+      + 'Returns target; results pushed.',
     parameters: spawnParameters(host),
     // Accept earlier spellings for in-flight histories, without advertising them.
     parse: parseSpawnTool,

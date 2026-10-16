@@ -32,11 +32,10 @@ interface BatchToolHost {
 
 export function batchSpawnTool(host: BatchToolHost): ToolDefinition<any> {
   return defineTool({ name: 'spawn_agents', render: renderModelResult,
-    description: 'Plan the split; let workers read inputs. Brief tasks with objective, inputs, output, '
-      + 'disjoint writes and verification. Starts free slots; queues the rest FIFO without slots. '
-      + 'Overflow reports free slots and queued count. No dependencies or peer waits on queued tasks. '
-      + 'join=true returns results and coverage; otherwise results and final coverage are pushed. '
-      + 'omitted targets: use get_agent_result. In-call abort cancels queue; returns ids.',
+    description: 'Fan out only for many independent items that exceed one context or need many sequential steps. '
+      + 'Otherwise work directly or use spawn_agent. Brief objective, inputs, output, disjoint writes, verification. '
+      + 'Overflow queues FIFO. No dependencies or peer waits on queued tasks. '
+      + 'join=true returns results/coverage; otherwise pushed. In-call abort cancels queue; returns ids.',
     parameters: { type: 'object', properties: {
       tasks: { type: 'array', minItems: 1, maxItems: host.maxWorkers + host.maxQueued, items: {
         type: 'object', properties: {
