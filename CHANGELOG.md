@@ -86,6 +86,20 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Changed
 
+- Round 8 benchmark metrics consume schema-v1 `team.onEvent` timeline facts: accepted spawns,
+  attempts/refusals, resolved context, active-run concurrency, wasted wakes and finalized usage.
+  Per-member/conversation metrics, root-lead call input and source fields match the observability
+  contract; older SDKs retain inference fallbacks. Audit team events now live once at `teamEvents`
+  instead of `delegation.teamEvents`/`delegation.timelineEvents`. Analysis omits empty merge-gate
+  cohorts and writes files only with `--out <file>` (no default input-directory write). Benchmark
+  consumers must update audit/report paths; SDK host APIs and model-facing prompts/tools are unchanged.
+
+- Round 7 benchmark protocol V7 adds manifest-pinned `--team-options` passthrough, delegation
+  attempts/acceptance/rejections, observed context/concurrency and per-member usage, delegated versus
+  non-delegated quality reports, and per-task merge-gate delta/regression summaries. Older SDKs
+  ignore unknown knobs; SDK host APIs and default prompts/tools are unchanged. Earlier cohorts remain
+  readable by analysis but require rerunning with the same V7 harness for matched comparisons.
+
 - Round 6 benchmark protocol V6 adds SDK adapter retries (six attempts, provider retry-after up
   to 60 seconds), a process-wide model-call semaphore (default four), infrastructure classification
   and two fresh-workspace reruns, immutable attempt evidence, and manifest-checked `--resume`.

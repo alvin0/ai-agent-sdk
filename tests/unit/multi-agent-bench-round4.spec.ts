@@ -218,9 +218,9 @@ describe('Round 4 reading-volume calibration', () => {
         await writeFile(join(root, 'manifest.json'), JSON.stringify({ protocol: 'v4', label }))
         await writeFile(join(root, 'extraction.single.1.json'), JSON.stringify(run))
       }
-      const result = await compare(join(parent, 'a'), join(parent, 'b'))
+      const result = await compare(join(parent, 'a'), join(parent, 'b'), join(parent, 'comparison.json'))
       expect(result.rows.find(row => row.task === 'kind:volume')?.a.n).toBe(1)
-      expect(JSON.parse(await readFile(join(parent, 'b/comparison.json'), 'utf8')).rows).toHaveLength(3)
+      expect(JSON.parse(await readFile(join(parent, 'comparison.json'), 'utf8')).rows).toHaveLength(3)
     } finally { log.mockRestore(); await rm(parent, { recursive: true, force: true }) }
   })
 })
