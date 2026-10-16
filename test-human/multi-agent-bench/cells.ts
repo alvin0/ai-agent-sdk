@@ -1,6 +1,7 @@
 import { readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Job, Result, RunAttempt } from './execute.ts'
+import { effectiveTeamOptions } from './team-options.ts'
 import { maxRunAttempts } from './reliability.ts'
 import { checkCount, selectTasks } from './tasks.ts'
 
@@ -42,7 +43,9 @@ async function attemptRun(job: Job, run: RunJob): Promise<{ result: CellResult; 
   try { return await run(job) }
   catch (error) {
     const task = selectTasks(job.suite, job.seed).find(task => task.id === job.task)!
-    return { audit: null, result: { ...job, schemaVersion: 1, status: 'infra-failed', kind: task.kind,
+    return { audit: null, result: { ...job, teamOptions: job.teamOptions ?? {},
+      effectiveTeamOptions: effectiveTeamOptions(job.workerTimeoutMs ?? job.timeoutMs, job.teamOptions),
+      schemaVersion: 1, status: 'infra-failed', kind: task.kind,
       checks: Array.from({ length: checkCount(task) }, () => false),
       graderError: 'Child process unavailable; workspace grade unknown.',
       error: String(error), metrics: null, score: 0, pass: false, text: '', artifacts: {} } }

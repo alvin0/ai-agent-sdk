@@ -116,7 +116,8 @@ export async function compareBranches(args: string[], invoke: Command = command)
     }
     for (const [index, worktree] of worktrees.entries()) {
       const code = await invoke(process.execPath, [join(roots[index]!, 'test-human/multi-agent-bench/analyze.ts'),
-        join(config.out, worktrees[0]!.label), join(config.out, worktree.label)], roots[index]!)
+        join(config.out, worktrees[0]!.label), join(config.out, worktree.label),
+        '--out', join(config.out, `${worktree.label}.comparison.json`)], roots[index]!)
       failed ||= code !== 0
     }
     return failed ? 1 : 0
