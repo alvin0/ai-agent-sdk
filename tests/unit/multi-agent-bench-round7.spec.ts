@@ -10,7 +10,7 @@ import { budgetInstructions, execute, type Job } from '../../test-human/multi-ag
 import { FakeAdapter } from '../../test-human/multi-agent-bench/fake.ts'
 import { defaultLimits } from '../../test-human/multi-agent-bench/metrics.ts'
 import { DelegationCollector } from '../../test-human/multi-agent-bench/delegation.ts'
-import { compare, mergeGateDelta, summarize } from '../../test-human/multi-agent-bench/analyze.ts'
+import { compare, mergeGateDelta, parseAnalysisArgs, summarize } from '../../test-human/multi-agent-bench/analyze.ts'
 import { parseArgs } from '../../test-human/multi-agent-bench/run.ts'
 import { validateResumeTeamOptions } from '../../test-human/multi-agent-bench/team-options.ts'
 
@@ -24,7 +24,7 @@ describe('Round 7 team options and delegation evidence', () => {
   })
 
   it('passes unknown knobs and maxWorkers after defaults to an older SDK unchanged', async () => {
-    const knobs = { maxWorkers: 1, maxDepth: 2, maxQueued: 8, defaultContext: 'fork',
+    const knobs = { maxWorkers: 1, maxDepth: 2, maxQueued: 8, defaultSpawnContext: 'fork',
       progressiveToolDisclosure: false, team: { waitTimeoutMs: 1000, minWaitTimeoutMs: 1 } }
     const factory = vi.fn(createManagedAgentTeam)
     const { result } = await execute({ ...job, teamOptions: knobs }, undefined, { teamFactory: factory })
@@ -32,8 +32,8 @@ describe('Round 7 team options and delegation evidence', () => {
     expect(result).toMatchObject({ pass: true, teamOptions: knobs,
       effectiveTeamOptions: { ...knobs, maxWorkers: 1, workerTimeoutMs: 10000, workerTeamTools: 'full' },
       metrics: { spawnAttempts: 1, spawns: 1, spawnsAccepted: 1, spawnsRejected: 0,
-        delegated: true, maxConcurrentWorkers: 1, freshSpawns: 1, forkSpawns: 0 } })
-    // defaultContext is unknown on this SDK: record its requested value without claiming it took effect.
+        delegated: true, maxConcurrentWorkers: 1, freshSpawns: 0, forkSpawns: 1 } })
+    // Actual resolved context, rather than the requested knob alone, establishes the metric.
     expect(result.metrics.contextUnknownSpawns).toBe(0)
     expect(budgetInstructions({ ...job, teamOptions: { workerTimeoutMs: 6000 } }, defaultLimits))
       .toContain('6 seconds per worker')
@@ -103,24 +103,6 @@ describe('Round 7 team options and delegation evidence', () => {
     expect(collector.metrics(3)).toMatchObject({ maxConcurrentWorkers: 2, forkSpawns: 1, freshSpawns: 2 })
   })
 
-  it('feature-detects timeline evidence, deduplicates snapshots and tolerates unknown APIs', () => {
-    const collector = new DelegationCollector()
-    const events = [
-      { eventId: '1', type: 'spawn-rejected', data: { reason: 'maxDepth' } },
-      { eventId: '2', type: 'worker-spawned', data: { context: 'fork' } },
-      { eventId: '3', type: 'worker-started', data: { name: 'a' } },
-      { eventId: '4', type: 'worker-started', data: { name: 'b' } },
-      { eventId: '5', type: 'worker-settled', data: { name: 'a' } },
-    ]
-    events.forEach(event => collector.timelineEvent(event))
-    collector.captureTimeline({ timeline: () => ({ events }) })
-    collector.captureTimeline({ timeline: () => { throw new Error('unsupported') } })
-    collector.captureTimeline({ timeline: () => Promise.reject(new Error('async API')) })
-    collector.captureTimeline({}); collector.timelineEvent(null); collector.timelineEvent({ type: 'future' })
-    expect(collector.metrics(1)).toMatchObject({ spawnAttempts: 2, spawnsAccepted: 1, spawnsRejected: 1,
-      spawnRejectionReasons: { maxDepth: 1 }, forkSpawns: 1, maxConcurrentWorkers: 2 })
-  })
-
   it('counts batch attempts and preserves unknown accepted context', () => {
     const collector = new DelegationCollector()
     collector.dispatch('lead', { toolName: 'spawn_agents', callId: 'batch',
@@ -180,8 +162,17 @@ describe('Round 7 team options and delegation evidence', () => {
       await expect(exec(process.execPath, [script, '--resume', out,
         '--team-options', '{"maxWorkers":3}'])).rejects.toThrow('saved manifest')
       expect(await readFile(join(out, 'manifest.json'), 'utf8')).toBe(manifestText)
-      expect(JSON.parse(audit).delegation.teamEvents.length).toBeGreaterThan(0)
+      expect(JSON.parse(audit).teamEvents.length).toBeGreaterThan(0)
+      expect(JSON.parse(audit).delegation.teamEvents).toBeUndefined()
     } finally { await rm(parent, { recursive: true, force: true }) }
+  }, 60000)
+
+  it('parses explicit analysis destinations and rejects incomplete or unknown options', () => {
+    expect(parseAnalysisArgs(['a', 'b'])).toEqual({ dirA: resolve('a'), dirB: resolve('b'), out: undefined })
+    expect(parseAnalysisArgs(['a', 'b', '--out', 'report.json']).out).toBe(resolve('report.json'))
+    for (const args of [[], ['a'], ['a', 'b', '--out'], ['a', 'b', '--unknown', 'x']]) {
+      expect(() => parseAnalysisArgs(args)).toThrow('Usage: analyze.ts')
+    }
   })
 
   it('splits legacy delegation scores and flags losses greater than one run in analysis JSON', async () => {
@@ -194,7 +185,7 @@ describe('Round 7 team options and delegation evidence', () => {
       for (const dir of [a, b]) {
         await mkdir(dir)
         await writeFile(join(dir, 'manifest.json'), JSON.stringify({ protocol: 'test', reps: 3,
-          arms: ['team'], ids: ['sequential'], teamOptions: dir === a ? {} : { maxDepth: 2 } }))
+          arms: ['single', 'team'], ids: ['sequential'], teamOptions: dir === a ? {} : { maxDepth: 2 } }))
         for (let rep = 1; rep <= 3; rep++) {
           const metrics = { ...result.metrics, spawns: Number(rep === 3 || (dir === a && rep === 2)) }
           delete metrics.delegated // Older results only have spawns.
@@ -207,18 +198,32 @@ describe('Round 7 team options and delegation evidence', () => {
       const gateRow = { task: 'sequential', arm: 'team', deltaPercent: {}, a: summary([1, 1, 1]) }
       expect(mergeGateDelta({ ...gateRow, b: summary([0, 1, 1]) }).regressionMoreThanOneRun).toBe(false)
       expect(mergeGateDelta({ ...gateRow, b: summary([1, 1]) }).regressionMoreThanOneRun).toBeNull()
-      const comparison = await compare(a, b)
+      await assertReadOnlyAnalysis(a, b)
+      const out = join(parent, 'comparison.json')
+      const comparison = await compare(a, b, out)
       expect(comparison.comparable).toBe(true) // Team options are the intended A/B variable.
-      expect(comparison.rows.find(row => row.task === 'sequential')).toMatchObject({
+      expect(comparison.rows.find(row => row.task === 'sequential' && row.arm === 'team')).toMatchObject({
         a: { delegationRate: 2 / 3, delegated: { n: 2, score: { mean: 1 } }, nonDelegated: { n: 1 } },
         b: { delegationRate: 1 / 3, delegated: { n: 1, score: { mean: 1 } },
           nonDelegated: { n: 2, score: { mean: 0 } } } })
       expect(comparison.mergeGate[0]).toMatchObject({ scoreRunDelta: -2, passRunDelta: -2,
         regressionMoreThanOneRun: true })
       expect(log.mock.calls.some(call => String(call[0]).includes('REGRESSION'))).toBe(true)
-      expect(JSON.parse(await readFile(join(b, 'comparison.json'), 'utf8')).mergeGate).toEqual(comparison.mergeGate)
+      expect(JSON.parse(await readFile(out, 'utf8')).mergeGate).toEqual(comparison.mergeGate)
       expect(summarize([{ ...result, metrics: null }])).toMatchObject({ delegationRate: null,
         delegationUnknownRuns: 1 })
     } finally { log.mockRestore(); await rm(parent, { recursive: true, force: true }) }
   })
 })
+
+async function assertReadOnlyAnalysis(a: string, b: string) {
+  const originalInput = 'preserved input artifact'
+  await writeFile(join(b, 'comparison.json'), originalInput)
+  const noOutput = await compare(a, b)
+  expect(await readFile(join(b, 'comparison.json'), 'utf8')).toBe(originalInput)
+  expect(noOutput.mergeGate).toHaveLength(1)
+  expect(noOutput.mergeGate.every(row => row.arm === 'team')).toBe(true)
+  const run = JSON.parse(await readFile(join(b, 'sequential.team.3.json'), 'utf8'))
+  await writeFile(join(b, 'sequential.single.3.json'), JSON.stringify({ ...run, arm: 'single' }))
+  expect((await compare(a, b)).mergeGate).toEqual(noOutput.mergeGate)
+}

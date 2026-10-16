@@ -185,7 +185,7 @@ function dimensions(a: Awaited<ReturnType<typeof load>>, b: Awaited<ReturnType<t
 
 function manifestTeamOptions(manifest: Record<string, unknown>) { return manifest.teamOptions ?? {} }
 
-export async function compare(dirA: string, dirB: string) {
+export async function compare(dirA: string, dirB: string, out?: string) {
   const [a, b] = await Promise.all([load(dirA), load(dirB)])
   const comparable = ['protocol', 'model', 'provider', 'fixtureHash', 'harnessHash', 'concurrency', 'timeoutMs', 'reps',
     'suite', 'seed', 'tokenAccounting', 'perTaskTimeouts', 'perTaskOutputBudget', 'perTaskLimits',
@@ -205,7 +205,7 @@ export async function compare(dirA: string, dirB: string) {
   }
   const balanced = rows.every(row => row.a.n === row.b.n && row.a.n > 0)
   const insufficientCells = insufficient(rows, taskIds, Number(a.manifest.reps), Number(b.manifest.reps))
-  const mergeGate = rows.filter(row => taskIds.includes(row.task)).map(mergeGateDelta)
+  const mergeGate = rows.filter(row => taskIds.includes(row.task) && row.a.n > 0 && row.b.n > 0).map(mergeGateDelta)
   const summary = { mergeGate, insufficientCells, balanced, schemaVersion: 1, dirA, dirB, comparable,
     synthetic: a.manifest.synthetic || b.manifest.synthetic,
     labels: { a: a.manifest.label, b: b.manifest.label },
@@ -223,11 +223,23 @@ export async function compare(dirA: string, dirB: string) {
   if (rows.some(row => row.a.tokenLowerBoundRuns || row.b.tokenLowerBoundRuns)) {
     console.error('WARNING: token totals include reported lower bounds; cost deltas are not exact.')
   }
-  await writeFile(join(dirB, 'comparison.json'), JSON.stringify(summary, null, 2))
+  if (out !== undefined) await writeFile(out, JSON.stringify(summary, null, 2))
   console.log(JSON.stringify(summary))
   return summary
 }
+function validOutputArgs(rest: string[]) {
+  if (rest.length === 0) return true
+  return rest.length === 2 && rest[0] === '--out' && Boolean(rest[1]) && !rest[1]!.startsWith('--')
+}
+export function parseAnalysisArgs(args: string[]) {
+  const [dirA, dirB, ...rest] = args
+  if (!dirA || !dirB || dirA.startsWith('--') || dirB.startsWith('--')
+    || !validOutputArgs(rest)) {
+    throw new Error('Usage: analyze.ts <dirA> <dirB> [--out <file>]')
+  }
+  return { dirA: resolve(dirA), dirB: resolve(dirB), out: rest[1] === undefined ? undefined : resolve(rest[1]) }
+}
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (!process.argv[2] || !process.argv[3]) throw new Error('Usage: analyze.ts <dirA> <dirB>')
-  await compare(resolve(process.argv[2]), resolve(process.argv[3]))
+  const { dirA, dirB, out } = parseAnalysisArgs(process.argv.slice(2))
+  await compare(dirA, dirB, out)
 }

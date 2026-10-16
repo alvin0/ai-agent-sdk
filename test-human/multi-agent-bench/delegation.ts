@@ -1,12 +1,10 @@
+import type { BenchTeamEvent } from './team-events.ts'
+
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
 function memberName(member: unknown): string | undefined {
   if (typeof member === 'string') return member
   return object(member) && typeof member.name === 'string' ? member.name : undefined
-}
-function timelineEvents(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value
-  return object(value) && Array.isArray(value.events) ? value.events : []
 }
 function parsedArgs(value: unknown): unknown {
   if (typeof value !== 'string') return value
@@ -26,10 +24,8 @@ export interface DelegationMetrics {
   delegated: boolean
 }
 
-/** Attachment is the legacy acceptance contract; dispatch/errors cover SDKs without timelines. */
+/** Legacy estimates are used only when the SDK emits no schema-v1 timeline facts. */
 export class DelegationCollector {
-  readonly teamEvents: unknown[] = []
-  readonly timelineEvents: unknown[] = []
   private readonly active = new Set<string>()
   private readonly contexts = new Map<string, string>()
   private readonly accepted: (string | undefined)[] = []
@@ -68,7 +64,6 @@ export class DelegationCollector {
   }
   settled(name: string) { this.active.delete(name) }
   teamEvent(event: unknown) {
-    this.teamEvents.push(event)
     if (!object(event)) return
     const member = event.member
     const name = memberName(member)
@@ -79,74 +74,90 @@ export class DelegationCollector {
       this.settled(name)
     }
   }
-  timelineEvent(event: unknown) { this.timelineEvents.push(event) }
-  /** Optional public timeline snapshot. Absence, unknown shapes and future API errors are harmless. */
-  captureTimeline(team: unknown) {
-    if (!object(team) || !('timeline' in team)) return
-    try {
-      const value: unknown = typeof team.timeline === 'function' ? team.timeline() : team.timeline
-      // Async APIs are outside this snapshot contract; consume their rejection without failing the run.
-      if (value instanceof Promise) { void value.catch(() => {}); return }
-      this.timelineEvents.push(...timelineEvents(value))
-    } catch { /* This SDK revision has a different timeline API; retain legacy evidence. */ }
-  }
-  metrics(spawns: number): DelegationMetrics {
-    const timeline = this.timelineSummary()
-    const spawnsRejected = Math.max(this.rejections.size, timeline.reasons.length)
+  metrics(spawns: number, timeline: readonly BenchTeamEvent[] = []): DelegationMetrics & { spawns: number } {
+    if (timeline.length > 0) return timelineMetrics(timeline)
+    const spawnsRejected = this.rejections.size
     const reasonCounts = new Map<string, number>()
-    const reasons = timeline.reasons.length >= this.rejections.size ? timeline.reasons : [...this.rejections.values()]
+    const reasons = [...this.rejections.values()]
     for (const reason of reasons) reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1)
     const spawnRejectionReasons = Object.fromEntries(reasonCounts)
     const contexts = this.accepted
-    const forkSpawns = Math.min(spawns, Math.max(contexts.filter(c => c === 'fork').length, timeline.fork))
+    const forkSpawns = Math.min(spawns, contexts.filter(c => c === 'fork').length)
     const freshSpawns = Math.min(spawns - forkSpawns,
-      Math.max(contexts.filter(c => c === 'fresh').length, timeline.fresh))
-    const dispatched = [...this.attempts.values()].reduce((a, b) => a + b, 0)
-    return { spawnAttempts: Math.max(dispatched || spawns + spawnsRejected, spawns, timeline.attempts),
+      contexts.filter(c => c === 'fresh').length)
+    return { spawns, spawnAttempts: spawns + spawnsRejected,
     spawnsAccepted: spawns, spawnsRejected, spawnRejectionReasons, forkSpawns, freshSpawns,
     contextUnknownSpawns: Math.max(0, spawns - forkSpawns - freshSpawns),
-    maxConcurrentWorkers: Math.max(this.maxConcurrentWorkers, timeline.maxConcurrent), delegated: spawns > 0 }
-  }
-  private timelineSummary() {
-    const seen = new Set<string>(), summary = new TimelineSummary()
-    for (const event of this.timelineEvents) {
-      if (!object(event)) continue
-      const id = String(event.eventId ?? JSON.stringify(event))
-      if (seen.has(id)) continue
-      seen.add(id)
-      summary.add(event)
-    }
-    return summary
+    maxConcurrentWorkers: this.maxConcurrentWorkers, delegated: spawns > 0 }
   }
 }
 
-function timelineType(event: Record<string, unknown>) { return String(event.type ?? event.kind ?? '') }
+/** Restore per-team sequence order, preserving arrival slots between independent team streams. */
+function orderedTimeline(events: readonly BenchTeamEvent[]) {
+  const teams = new Map<string, BenchTeamEvent[]>()
+  for (const event of events) {
+    if (!teams.has(event.teamId)) teams.set(event.teamId, [])
+    teams.get(event.teamId)!.push(event)
+  }
+  for (const stream of teams.values()) stream.sort((a, b) => a.sequence! - b.sequence!)
+  const positions = new Map<string, number>()
+  return events.map(event => {
+    const index = positions.get(event.teamId) ?? 0
+    positions.set(event.teamId, index + 1)
+    return teams.get(event.teamId)![index]!
+  })
+}
+
+function timelineMetrics(events: readonly BenchTeamEvent[]): DelegationMetrics & { spawns: number } {
+  const summary = new TimelineSummary()
+  for (const event of orderedTimeline(events)) summary.add(event)
+  const { spawns, spawnsRejected, spawnAttempts, forkSpawns, freshSpawns,
+    spawnRejectionReasons, maxConcurrentWorkers } = summary
+  return { spawns, spawnsAccepted: spawns, spawnAttempts, spawnsRejected, spawnRejectionReasons,
+    forkSpawns, freshSpawns, contextUnknownSpawns: Math.max(0, spawnAttempts - forkSpawns - freshSpawns),
+    maxConcurrentWorkers, delegated: spawns > 0 }
+}
 
 class TimelineSummary {
-  attempts = 0
-  reasons: string[] = []
-  fork = 0
-  fresh = 0
-  maxConcurrent = 0
-  private readonly active = new Set<string>()
-  add(event: Record<string, unknown>) {
-    const data = object(event.data) ? event.data : event
-    const type = timelineType(event)
-    if (['spawn-attempt', 'spawn-requested'].includes(type)) this.attempts++
-    if (type === 'spawn-rejected') this.reasons.push(reasonText(data.reason ?? data.error ?? 'unknown'))
-    if (['spawn-accepted', 'worker-spawned'].includes(type)) this.context(data.context)
-    this.lifecycle(type, memberName(data.worker ?? data.name ?? data.member))
+  spawns = 0
+  spawnsRejected = 0
+  spawnAttempts = 0
+  forkSpawns = 0
+  freshSpawns = 0
+  maxConcurrentWorkers = 0
+  readonly spawnRejectionReasons: Record<string, number> = Object.create(null)
+  private readonly active = new Map<string, Set<string>>()
+
+  add(event: BenchTeamEvent) {
+    switch (event.kind) {
+      case 'spawn-requested':
+        this.spawnAttempts++
+        if (event.context === 'fork') this.forkSpawns++
+        if (event.context === 'fresh') this.freshSpawns++
+        break
+      case 'spawn-accepted': this.spawns++; break
+      case 'spawn-rejected': this.reject(event.reason ?? 'unknown'); break
+    }
+    this.lifecycle(event)
   }
-  private context(context: unknown) {
-    if (context === 'fork') this.fork++
-    if (context === 'fresh') this.fresh++
+  private reject(reason: string) {
+    this.spawnsRejected++
+    this.spawnRejectionReasons[reason] = (this.spawnRejectionReasons[reason] ?? 0) + 1
+    // Invalid/already-aborted admission has no preceding spawn-requested fact.
+    if (reason === 'invalid' || reason === 'aborted') this.spawnAttempts++
   }
-  private lifecycle(type: string, name: string | undefined) {
-    if (name === undefined || name === 'lead') return
-    if (['worker-started', 'member-run-start'].includes(type)) this.active.add(name)
-    if (['worker-settled', 'worker-completed', 'worker-failed', 'worker-closed', 'member-run-end',
-      'member-run-error', 'member-run-cancelled'].includes(type)) this.active.delete(name)
-    this.maxConcurrent = Math.max(this.maxConcurrent, this.active.size)
+  private lifecycle(event: BenchTeamEvent) {
+    if (event.member === 'lead') return
+    const key = JSON.stringify([event.teamId, event.member])
+    if (event.kind === 'member-started') {
+      if (!this.active.has(key)) this.active.set(key, new Set())
+      this.active.get(key)!.add(event.runId!)
+    }
+    if (event.kind === 'member-settled') {
+      this.active.get(key)?.delete(event.runId!)
+      if (this.active.get(key)?.size === 0) this.active.delete(key)
+    }
+    this.maxConcurrentWorkers = Math.max(this.maxConcurrentWorkers, this.active.size)
   }
 }
 

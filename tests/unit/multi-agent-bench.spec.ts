@@ -298,7 +298,8 @@ describe('autonomous multi-agent benchmark', () => {
         expect(run.args).toEqual([join(roots[index]!, 'test-human/multi-agent-bench/run.ts'),
           '--provider', 'fake', '--model', 'gpt-6-luna', '--reps', '1', '--concurrency', '2',
           '--codex-auth', join(parent, 'auth.json'), '--label', label, '--out', join(out, label)])
-        expect(calls[4 + index]!.args.slice(1)).toEqual([join(out, 'base'), join(out, label)])
+        expect(calls[4 + index]!.args.slice(1)).toEqual([join(out, 'base'), join(out, label),
+          '--out', join(out, `${label}.comparison.json`)])
       }
       await expect(compareBranches(args, async () => 0)).rejects.toThrow('EEXIST')
       expect(calls).toHaveLength(6)

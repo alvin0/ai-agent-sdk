@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { createCoreSpan, type Message, type ObservationEvent,
   type ModelFailure } from '../../packages/core/dist/index.js'
+import { isTimelineEvent, lifecycleMetadata, type BenchTeamEvent } from './team-events.ts'
 import { DelegationCollector, type DelegationMetrics } from './delegation.ts'
 import { retryWaitMetrics, isInfraFailure } from './reliability.ts'
 import type { AgentSessionOptions } from '../../packages/core/dist/agent.js'
@@ -11,6 +12,12 @@ export interface MemberUsage {
   calls: number; inputTokens: number; cachedInputTokens: number; cacheWriteTokens: number; outputTokens: number
 }
 export interface Metrics extends Partial<DelegationMetrics> {
+  teamMetricsSource?: 'timeline-v1' | 'inferred'
+  callMetricsSource?: 'timeline-v1' | 'model-events'
+  usageMetricsSource?: 'team-ledger' | 'model-events'
+  wastedWakes?: number
+  memberMetrics?: MemberMetrics[]
+  leadCallInputTokens?: (number | null)[]
   memberUsage?: { lead: MemberUsage; workers: MemberUsage; byMember: Record<string, MemberUsage> }
   inputTokens: number | null
   outputTokens: number | null
@@ -40,6 +47,7 @@ export interface Metrics extends Partial<DelegationMetrics> {
   retryScheduledWaitMs?: number
   errors: string[]
 }
+export interface MemberMetrics extends MemberUsage { member: string; conversationId?: string }
 const numeric = (value: unknown) => typeof value === 'number' ? value : 0
 /** SDK input, cache reads, cache writes and output are disjoint buckets. Writes cost full weight. */
 export function tokenCounts(usage: Record<string, unknown> | undefined) {
@@ -105,6 +113,9 @@ export function evidenceFingerprint(messages: readonly Message[]): string {
 }
 
 export class Collector {
+  rootTeamId: string | undefined
+  readonly teamEvents: BenchTeamEvent[] = []
+  private readonly teamSequences = new Map<string, Set<number>>()
   readonly delegation = new DelegationCollector()
   readonly events: { member: string; event: ObservationEvent }[] = []
   readonly requests: { member: string; evidence: string; repeated: boolean }[] = []
@@ -126,6 +137,27 @@ export class Collector {
   private leadRequested = false
   private tokens = 0
   constructor(limits: Partial<Limits> = {}) { this.limits = { ...defaultLimits, ...limits } }
+
+  /** Prefer SDK-owned facts when present; preserve historical evidence inference on older branches. */
+  teamEvent(event: unknown): void {
+    if (!object(event)) return
+    this.delegation.teamEvent(event)
+    if (event.type !== 'team-timeline') { this.lifecycleEvent(event); return }
+    if (!isTimelineEvent(event)) return
+    if (this.rootTeamId === undefined && (event.depth === undefined || event.depth === 0)) {
+      this.rootTeamId = event.teamId
+    }
+    let seen = this.teamSequences.get(event.teamId)
+    if (seen === undefined) this.teamSequences.set(event.teamId, seen = new Set())
+    if (seen.has(event.sequence)) return
+    seen.add(event.sequence)
+    this.teamEvents.push(event as unknown as BenchTeamEvent)
+  }
+
+  private lifecycleEvent(event: Record<string, unknown>): void {
+    const metadata = lifecycleMetadata(event, this.rootTeamId)
+    if (metadata) this.teamEvents.push(metadata)
+  }
 
   private hit(cap: keyof Collector['capHits']) {
     this.capHits[cap] = true
@@ -213,30 +245,83 @@ export class Collector {
     const ends = this.events.filter(({ event }) => event.name === 'sdk.model.call' && event.phase === 'end')
     const usageComplete = starts.length > 0 && starts.length === ends.length
       && ends.every(({ event }) => ['complete', 'not-applicable'].includes(String(event.data.coverage)))
-    const sum = (key: string) => ends.reduce((total, { event }) => {
-      const reported = event.data.reported as Record<string, unknown> | undefined
-      return total + numeric(reported?.[key])
-    }, 0)
-    const input = sum('inputTokens'), output = sum('outputTokens')
-    const cacheReadTokens = sum('cacheReadTokens'), cacheWriteTokens = sum('cacheWriteTokens')
-    const counts = ends.map(({ event }) => tokenCounts(event.data.reported as Record<string, unknown> | undefined))
+    const timeline = this.teamEvents.filter(event => event.type === 'team-timeline')
+    const calls = timeline.filter(event => event.kind === 'model-requested')
+    const settlements = timeline.filter(event => event.kind === 'member-settled' && event.usage !== undefined)
+    // A timeout may end before a run terminal arrives. Keep canonical partial evidence in that case.
+    const timelineCalls = calls.length > 0 && calls.length === starts.length
+    const timelineUsage = timelineCalls
+      && settlements.reduce((n, event) => n + numeric(event.usage?.coverage?.logicalCalls), 0) === calls.length
+    const reports = timelineUsage ? settlements.map(event => event.usage?.reported)
+      : ends.map(({ event }) => event.data.reported as Record<string, unknown> | undefined)
+    const preferredSum = (key: string) => reports.reduce((n, usage) => n + numeric(usage?.[key]), 0)
+    const input = preferredSum('inputTokens'), output = preferredSum('outputTokens')
+    const cacheReadTokens = preferredSum('cacheReadTokens'), cacheWriteTokens = preferredSum('cacheWriteTokens')
+    const counts = reports.map(tokenCounts)
     const reportedTokens = counts.reduce((total, count) => total + count.raw, 0)
     const reportedCostWeightedTokens = counts.reduce((total, count) => total + count.weighted, 0)
     const retryWait = retryWaitMetrics(this.retryWaits)
-    const memberUsage = aggregateMemberUsage(starts, ends)
-    return { ...this.delegation.metrics(this.spawns), memberUsage,
+    const delegation = this.delegation.metrics(this.spawns, timeline)
+    const memberMetrics = this.memberMetrics()
+    const memberUsage = aggregateMemberUsage(memberMetrics, item => this.isRootLead(item))
+    const complete = timelineUsage ? settlements.every(event => event.usage?.authoritative) : usageComplete
+    return { ...delegation, memberUsage, ...this.callMetrics(starts, ends, calls, timelineCalls),
+      teamMetricsSource: timeline.length > 0 ? 'timeline-v1' : 'inferred',
+      usageMetricsSource: timelineUsage ? 'team-ledger' : 'model-events',
       wallActiveMs: Math.max(0, wallMs - retryWait.union), modelRetries: this.modelRetries,
       retryWaitMs: retryWait.total, retryWallWaitMs: retryWait.union,
       retryScheduledWaitMs: this.retryScheduledWaitMs, inputTokens: input, outputTokens: output,
       cacheReadTokens, cacheWriteTokens, totalTokens: reportedTokens,
       uncachedInputTokens: input + cacheWriteTokens, cachedInputTokens: cacheReadTokens,
       costWeightedTokens: reportedCostWeightedTokens, reportedCostWeightedTokens,
-      reportedTokens, usageComplete, usageIncomplete: !usageComplete,
+      reportedTokens, usageComplete: complete, usageIncomplete: !complete,
       orphanWorkers: this.orphanWorkers, orphanWorkersAfterGrace: this.orphanWorkersAfterGrace,
-      leadModelCalls: starts.filter(s => s.member === 'lead').length,
-      totalModelCalls: starts.length, toolCalls: this.tools.length, capHits: { ...this.capHits }, spawns: this.spawns,
-      wastedLeadTurns: this.requests.filter(r => r.repeated).length, wallMs, errors: [...this.errors] }
+      toolCalls: this.tools.length, capHits: { ...this.capHits },
+      wastedLeadTurns: this.requests.filter(r => r.repeated).length,
+      wastedWakes: timeline.filter(event => event.kind === 'wasted-wake' && event.teamId === this.rootTeamId).length,
+      memberMetrics, wallMs, errors: [...this.errors] }
   }
+  private callMetrics(starts: Collector['events'], ends: Collector['events'],
+    calls: BenchTeamEvent[], timelineCalls: boolean) {
+    return {
+      callMetricsSource: timelineCalls ? 'timeline-v1' as const : 'model-events' as const,
+      leadModelCalls: timelineCalls ? calls.filter(event => event.teamId === this.rootTeamId
+        && this.isRootLead(event)).length : starts.filter(item => this.isRootLead(item)).length,
+      totalModelCalls: timelineCalls ? calls.length : starts.length,
+      leadCallInputTokens: starts.filter(item => this.isRootLead(item)).map(start => {
+        const end = ends.find(item => sameCall(start, item))
+        const usage = end?.event.data.reported as Record<string, unknown> | undefined
+        return usage === undefined ? null : numeric(usage.inputTokens) + numeric(usage.cacheReadTokens)
+          + numeric(usage.cacheWriteTokens)
+      }),
+    }
+  }
+  private isRootLead(item: { member: string; event?: ObservationEvent; conversationId?: string }): boolean {
+    const first = this.events.find(({ member, event }) => member === 'lead' && event.name === 'sdk.agent.run'
+      && event.phase === 'start') ?? this.events.find(({ member }) => member === 'lead')
+    const conversationId = item.event?.correlation?.conversationId ?? item.conversationId
+    return item.member === 'lead' && (conversationId === undefined
+      || conversationId === first?.event.correlation?.conversationId)
+  }
+
+  private memberMetrics(): MemberMetrics[] {
+    const members = new Map<string, MemberMetrics>()
+    for (const { member, event } of this.events) {
+      if (event.name !== 'sdk.model.call') continue
+      const conversationId = event.correlation?.conversationId
+      const key = JSON.stringify([member, conversationId])
+      let aggregate = members.get(key)
+      if (aggregate === undefined) {
+        aggregate = { member, ...conversationId === undefined ? {} : { conversationId },
+          calls: 0, inputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 0 }
+        members.set(key, aggregate)
+      }
+      if (event.phase === 'start') aggregate.calls++
+      if (event.phase === 'end') addUsage(aggregate, event.data.reported as Record<string, unknown> | undefined)
+    }
+    return [...members.values()]
+  }
+
 }
 
 export function errorMessage(error: unknown): string {
@@ -250,26 +335,29 @@ export function argsSummary(args: unknown): string {
     ?? String(args)).slice(0, 512)
 }
 
-function aggregateMemberUsage(starts: Collector['events'], ends: Collector['events']) {
+function aggregateMemberUsage(members: MemberMetrics[], isLead: (item: MemberMetrics) => boolean) {
   const empty = (): MemberUsage => ({ calls: 0, inputTokens: 0, cachedInputTokens: 0,
     cacheWriteTokens: 0, outputTokens: 0 })
-  const members = new Map<string, MemberUsage>([['lead', empty()]])
-  const memberUsage = (name: string) => {
-    if (!members.has(name)) members.set(name, empty())
-    return members.get(name)!
+  const lead = empty(), workers = empty(), byMember: Record<string, MemberUsage> = Object.create(null)
+  for (const member of members) {
+    const target = isLead(member) ? lead : workers
+    const named = byMember[member.member] ??= empty()
+    for (const key of Object.keys(target) as (keyof MemberUsage)[]) {
+      target[key] += member[key]
+      named[key] += member[key]
+    }
   }
-  for (const { member } of starts) memberUsage(member).calls++
-  for (const { member, event } of ends) {
-    const usage = event.data.reported as Record<string, unknown> | undefined
-    const target = memberUsage(member)
-    target.inputTokens += numeric(usage?.inputTokens)
-    target.cachedInputTokens += numeric(usage?.cacheReadTokens)
-    target.cacheWriteTokens += numeric(usage?.cacheWriteTokens)
-    target.outputTokens += numeric(usage?.outputTokens)
-  }
-  const workers = empty()
-  for (const [name, usage] of members) if (name !== 'lead') {
-    for (const key of Object.keys(workers) as (keyof MemberUsage)[]) workers[key] += usage[key]
-  }
-  return { lead: members.get('lead')!, workers, byMember: Object.fromEntries(members) }
+  return { lead, workers, byMember }
+}
+
+function sameCall(a: Collector['events'][number], b: Collector['events'][number]) {
+  return a.member === b.member && a.event.correlation?.modelCallId === b.event.correlation?.modelCallId
+    && a.event.correlation?.runId === b.event.correlation?.runId
+    && a.event.correlation?.conversationId === b.event.correlation?.conversationId
+}
+function addUsage(target: MemberUsage, usage: Record<string, unknown> | undefined) {
+  target.inputTokens += numeric(usage?.inputTokens)
+  target.cachedInputTokens += numeric(usage?.cacheReadTokens)
+  target.cacheWriteTokens += numeric(usage?.cacheWriteTokens)
+  target.outputTokens += numeric(usage?.outputTokens)
 }

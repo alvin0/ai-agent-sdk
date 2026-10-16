@@ -106,9 +106,8 @@ async function runAgent(job: Job, workspace: Workspace, collector: Collector,
   const knobs = effectiveTeamOptions(job.workerTimeoutMs ?? job.timeoutMs, job.teamOptions)
   const team = factory({ ...knobs, registry, lead: definition('lead'),
     // JSON knobs cannot replace the host's instrumentation or agent/session factories.
-    onTimelineEvent: (event: unknown) => collector.delegation.timelineEvent(event),
     team: { ...(knobs.team as object), onEvent: (event: agent.AgentTeamEvent) => {
-      collector.delegation.teamEvent(event)
+      collector.teamEvent(event)
       if (event.type === 'member-attached' && event.member.name !== 'lead') collector.spawns++
     } },
     leadSessionOptions: collector.options('lead'),
@@ -118,6 +117,7 @@ async function runAgent(job: Job, workspace: Workspace, collector: Collector,
     },
     workerSessionOptionsFactory: request => collector.options(request.name),
   } as ManagedAgentTeamOptions)
+  collector.rootTeamId = team.team.id
   try {
     const response = await team.run(workspace.task.prompt, { signal })
     collector.orphanWorkers = outstandingWorkers(team)
@@ -129,7 +129,6 @@ async function runAgent(job: Job, workspace: Workspace, collector: Collector,
     }
     return completion.status
   } finally {
-    collector.delegation.captureTimeline(team)
     await team.dispose(); await team.team.dispose()
   }
 }

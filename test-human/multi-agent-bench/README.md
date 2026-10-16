@@ -227,13 +227,15 @@ failure message. Duplicate SDK tool observation errors are suppressed from the e
 captured; original observations remain in audits for diagnosis. Other errors can appear at multiple layers.
 
 ```sh
-node test-human/multi-agent-bench/analyze.ts /tmp/ma-baseline /tmp/ma-candidate
+node test-human/multi-agent-bench/analyze.ts /tmp/ma-baseline /tmp/ma-candidate \
+  --out /tmp/ma-comparison.json
 ```
 
 The table shows per-task/per-arm, per-kind and `ALL` distributions/pass rates, and **B versus A delta %**
 for mean score, raw tokens, weighted tokens, lead calls, raw/active wall and wasted turns. Positive means an increase; lower cost
 is better. Zero-to-zero is 0%; nonzero from a zero baseline or unknown usage is `n/a`. JSON is
-written to `<dirB>/comparison.json` and includes mean/median statistics, cap hits, errors, timeouts, orphan counts, incomplete usage counts,
+printed to stdout; `--out <file>` additionally saves it to an explicit destination. Analysis does not
+write into either input directory by default. The report includes mean/median statistics, cap hits, errors, timeouts, orphan counts, incomplete usage counts,
 labels and configuration/sample mismatch warnings. Aggregates weight runs equally.
 
 The merge gate still needs matched **live N>=3** runs, quality at least baseline, plus quality up,
@@ -302,17 +304,17 @@ directory after source/protocol changes; contaminated V5 cohorts cannot be mixed
 primitives and malformed JSON are rejected. Unknown option names pass through unchanged so the
 same harness works on older SDK branches, which ignore unsupported knobs. A recorded option is
 not proof that a branch implements it; inspect its resolved context/metrics and public features.
-No branch-name switches or aliases silently translate options (for example `defaultContext` is
-not renamed to the older `defaultSpawnContext`).
+No branch-name switches or aliases silently translate options. The SDK context option is
+`defaultSpawnContext`; unknown option names are recorded without claiming they took effect.
 
 ```sh
 node test-human/multi-agent-bench/run.ts --provider fake --suite smoke --reps 1 \
-  --team-options '{"maxWorkers":2,"maxDepth":2,"defaultContext":"fork","maxQueued":8,"progressiveToolDisclosure":false}' \
+  --team-options '{"maxWorkers":2,"maxDepth":2,"defaultSpawnContext":"fork","maxQueued":8,"progressiveToolDisclosure":false}' \
   --out /tmp/ma-round7
 node test-human/multi-agent-bench/run.ts --resume /tmp/ma-round7
 # Optional assertion; object-key order is irrelevant, array order and values must match.
 node test-human/multi-agent-bench/run.ts --resume /tmp/ma-round7 \
-  --team-options '{"maxWorkers":2,"maxDepth":2,"defaultContext":"fork","maxQueued":8,"progressiveToolDisclosure":false}'
+  --team-options '{"maxWorkers":2,"maxDepth":2,"defaultSpawnContext":"fork","maxQueued":8,"progressiveToolDisclosure":false}'
 ```
 
 `manifest.teamOptions` stores the original object (default `{}`); `manifest.effectiveTeamOptions`
@@ -324,48 +326,67 @@ for experiment provenance but do not create a team. Resume always reuses the sav
 supplying a different object, including replacing a nonempty object with `{}`, fails before work.
 An omitted default and an explicitly supplied default are distinct saved configurations.
 
-Per-run metrics now include:
+## Team timeline metrics (Round 8)
 
-- `spawnAttempts`: admitted spawn requests, counting entries in `spawn_agents` batches; legacy
-  individual spawn dispatches count once. Recognized timeline requests supplement dispatch evidence.
-- `spawnsAccepted`: exactly the existing `spawns` attachment count, excluding the lead;
-  `delegated` is `spawnsAccepted > 0`. Attachment retains the legacy definition even when later setup fails.
-- `spawnsRejected` and `spawnRejectionReasons`: observed tool failures, explicit refusals in successful batch results, or recognized
-  timeline rejections. Reasons are exact observable strings, not inferred categories. Unknown future result
-  schemas may leave rejections unobserved; a dispatched request is not assumed rejected just because
-  a run was interrupted. A setup failure after attachment can have both attachment and error evidence.
-- `forkSpawns`, `freshSpawns`, `contextUnknownSpawns`: accepted attachments grouped by resolved
-  worker context (or recognized timeline evidence). Requested defaults do not establish actual context.
-- `maxConcurrentWorkers`: peak distinct active workers, excluding lead, finished workers and queued
-  attachments. Uses lifecycle events/session checkpoints through turn end; optional timelines can
-  supplement it. On older SDKs this is observed activity, excluding pre-model setup time.
-- `memberUsage: {lead, workers, byMember}`: each bucket has `calls`, `inputTokens`,
-  `cachedInputTokens`, `cacheWriteTokens`, `outputTokens`. Calls count logical SDK starts;
-  reported usage is summed at model-call end. Workers aggregate every non-lead session. SDK input
-  excludes cache reads/writes; cache writes are separate, so buckets are disjoint. Missing usage
-  remains a lower bound under the run's existing `usageIncomplete` flag.
+The host collects events through `team: { onEvent }`. Timeline facts have `type: 'team-timeline'`,
+`schemaVersion: 1`, `teamId`, per-team `sequence`, timestamps and a `kind` field. They are stored
+once at `audit.teamEvents`, deduplicated by `(teamId, sequence)`. Content-free `member-attached`,
+`member-run-*` and `message-accepted` metadata share that array; session objects, task text and
+response text are excluded from this metadata channel. Canonical model observations remain in
+`audit.events`. Sort facts by sequence within each team; observers may reenter.
 
-Audits retain `delegation.teamEvents` and `delegation.timelineEvents`. Optional `onTimelineEvent`
-and public `timeline()`/array snapshots are consumed when present; missing APIs, unknown shapes
-and unsupported timeline access do not fail a run. Recognized timeline types are `spawn-attempt`,
-`spawn-requested`, `spawn-rejected`, `spawn-accepted`, `worker-spawned`, `worker-started`,
-`worker-settled`, `worker-completed`, `worker-failed`, `worker-closed` and member-run lifecycle events.
-Callback/snapshot duplicates are deduplicated by event id (or exact event JSON). New SDK event
-schemas can be added without changing the production SDK. Partial batch refusals are recognized from `results`/`agents`/`workers` entries with
-`status: "rejected"` or `accepted: false`, and explicit `rejected` arrays. Unknown successful batch
-result schemas are not guessed; unfamiliar formats need timeline evidence or an adapter update.
+- `spawns` counts `spawn-accepted`: successful dispatch or a dependency hold. `spawnsAccepted` is
+  its alias and `delegated` is `spawns > 0`. An attachment before a setup failure is not acceptance.
+- `spawnAttempts` counts `spawn-requested` plus pre-admission `invalid`/`aborted` rejections, which
+  have no request fact. `spawnsRejected` counts `spawn-rejected` only; `spawn-failed` is a setup
+  failure projection, not another attempt. After spawn calls settle,
+  `spawns + spawnsRejected == spawnAttempts`. Pending requests at interruption may be unresolved.
+- `spawnRejectionReasons` groups the timeline's stable reason (capacity, duplicate, invalid,
+  aborted, setup). The audit retains `code`, `busy`, `preparing` and `limit` for each refusal.
+- `forkSpawns`/`freshSpawns` count resolved contexts on `spawn-requested`, including later refusals;
+  they can exceed accepted spawns. `contextUnknownSpawns` counts attempts lacking a resolved context.
+- `maxConcurrentWorkers` is peak distinct workers with active `member-started`/`member-settled`
+  ledger runs. Queued attachments, retained results and slot-release projections do not add activity.
+- `wastedLeadTurns` retains the evidence-fingerprint estimate on all SDKs. `wastedWakes` separately
+  counts root-team `wasted-wake` diagnostics from settlement/synthesis wakes with no new information.
+- `memberMetrics` aggregates logical calls and disjoint `inputTokens`, `cachedInputTokens`,
+  `cacheWriteTokens`, `outputTokens` per member **and conversation**, for single and team arms.
+  `memberUsage: {lead, workers, byMember}` retains aggregate totals for compatibility: root lead
+  versus all other conversations; `byMember` combines conversations with the same member name.
+  Reported token subtotals remain lower bounds when overall `usageIncomplete` is true.
+- `leadCallInputTokens` contains uncached + cache read + cache write input per root lead call;
+  missing usage is null. No-spawn single/team controls expose the team tool-surface cost directly.
+- `teamMetricsSource` is `timeline-v1` or `inferred`. `callMetricsSource` is `timeline-v1` only when
+  timeline model requests match the observed logical model-start count, otherwise `model-events`.
+  Lead calls additionally match the root team and root lead conversation. `usageMetricsSource` is
+  `team-ledger` only with matching finalized-run logical-call coverage, otherwise `model-events`.
+  Only `member-settled` contributes ledger usage; `worker-settled` is never added again.
+
+SDKs without schema-v1 timeline facts retain attachment acceptance, resolved worker-factory context,
+observed lifecycle/checkpoint concurrency and tool refusal estimates. Legacy rejection strings remain
+exact observed errors; unfamiliar successful batch result shapes are not guessed. Explicit refusals
+in `results`/`agents`/`workers` entries (`status: "rejected"` or `accepted: false`) and `rejected` arrays
+are recognized. Legacy attempts count observed acceptances plus refusals; interrupted/unobserved
+admissions cannot be reconstructed reliably. These are estimates, disclosed by the source fields;
+they never supplement or override a timeline count. Unsupported timeline schemas use the fallback.
+
+The observability branch's SDK contract is `packages/core/src/agent/team/team-timeline.ts` and
+`docs/team-observability.md`. Keep this branch's unified bench implementation when integrating it;
+its bench edits supersede the observability branch's bench edits. Copy identical harness bytes to
+both compared SDKs. Offline fixtures validate metric plumbing, not model-dependent cost or quality.
 
 Analysis adds a per-task/arm delegation rate and mean/median score with sample count for delegated
 and non-delegated team runs (collab is reported separately). Legacy results derive delegation
 from `spawns`; unknown evidence remains unknown. Infrastructure cells stay outside scored cohorts.
-`comparison.json` records both manifests' team options; they are intentionally allowed to differ
+Saved comparison JSON records both manifests' team options; they are intentionally allowed to differ
 for knob A/B experiments, while other comparability checks still apply.
 
 A compact merge-gate block and JSON `mergeGate` list give per-task/arm score, weighted token,
 lead-call and raw-wall deltas. `scoreRunDelta` is candidate minus baseline summed scores (one lost
 full score = one run equivalent); `passRunDelta` is the strict pass-count change. Either loss
-**greater than one** flags `REGRESSION`; exactly one does not. Unequal/empty samples yield unknown
-regression flags. The table is evidence for review, not an automatic merge decision: matched live
+**greater than one** flags `REGRESSION`; exactly one does not. Merge-gate rows with no usable runs
+on either side are omitted (including missing single-arm cohorts); coverage warnings and the full
+comparison rows remain. Unequal nonempty samples yield unknown regression flags. The table is evidence for review, not an automatic merge decision: matched live
 N>=3, complete cost evidence, quality parity, the improvement thresholds and review remain required.
 
 New runs use V7. Resume still recognizes V6 manifests for legacy parsing, but unchanged commit,
@@ -415,3 +436,6 @@ through; it never logs in or supplies credential contents. Use `--provider fake 
 offline rehearsal. All normal run options (including seed, selected tasks, caps and timeouts) pass
 through unchanged. Add `collab` to `--arms` when comparing collaboration branches; unsupported
 worktrees record it as skipped, so compare that arm only where both branches support it.
+
+The comparison driver passes an explicit `--out` for each analysis and saves
+`<out>/<label>.comparison.json` alongside the per-label run directories.
