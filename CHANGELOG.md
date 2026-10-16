@@ -86,6 +86,12 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Changed
 
+- Round 9 benchmark `forkSpawns`, `freshSpawns` and `contextUnknownSpawns` count accepted spawns
+  only on both timeline and older-SDK fallback paths. Rejected or pending requests no longer inflate
+  timeline context buckets; attempts, refusals, concurrency and per-member usage retain their semantics.
+  Historical timeline context counts may include refused requests; rerun with identical harness bytes
+  for comparisons. SDK host APIs and model-facing prompts/tools are unchanged.
+
 - Round 8 benchmark metrics consume schema-v1 `team.onEvent` timeline facts: accepted spawns,
   attempts/refusals, resolved context, active-run concurrency, wasted wakes and finalized usage.
   Per-member/conversation metrics, root-lead call input and source fields match the observability
