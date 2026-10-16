@@ -85,12 +85,12 @@ function reports(team: ManagedAgentTeam, result: string) {
 }
 
 describe('lean managed model surface', () => {
-  it('offers four lead verbs and one reporting verb with compact JSON results', async () => {
+  it('offers batch and single spawning with one reporting verb with compact JSON results', async () => {
     const { adapter, team } = fixture()
     try {
       await team.run('work')
       expect(adapter.requests[0]!.tools!.map(tool => tool.name)).toEqual([
-        'spawn_agent', 'close_agent', 'send_input', 'wait_agents', 'get_agent_result',
+        'spawn_agent', 'spawn_agents', 'close_agent', 'send_input', 'wait_agents', 'get_agent_result',
       ])
       expect(JSON.stringify(adapter.requests[0])).not.toMatch(/cancelRunning|list_agents|followup_task/)
       const spawn = await call(team, 'spawn_agent', { task: 'check it' })

@@ -118,8 +118,8 @@ export class AgentTeam implements TeamPort {
     return this.results.take(sender, this.results.select(this.members(), targets), maxBytes)
   }
   /** Register an active join against the same per-outcome delivery ledger as notices. */
-  captureResults(sender: string, targets: readonly string[]) {
-    return this.results.capture(sender, this.members(), targets)
+  captureResults(sender: string, targets: readonly string[], retained = true) {
+    return this.results.capture(sender, this.members(), targets, retained)
   }
   /** Retain a managed worker's address while releasing its concurrency reservation. */
   releaseSlot(name: string): void { this.roster.releaseSlot(name) }

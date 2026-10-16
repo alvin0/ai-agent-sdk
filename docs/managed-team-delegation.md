@@ -96,13 +96,13 @@ default; include the artifact and review criteria in its brief. Custom roles may
 Write scopes remain scheduling declarations. They do not restrict actual filesystem access:
 the host must enforce workspace authorization in its tools. Dependencies bind already registered
 producer instances and pass their results or failure status; closing/reusing an address does not
-rebind an existing dependent. Finished workers still occupy slots until closed.
+rebind an existing dependent. Finished workers release active slots and retain their addresses/results.
 
 ## Depth
 
 `depth` is the lead's host-supplied depth (default zero); `maxDepth` defaults to one. At or above
-the limit, managed spawning is rejected before worker setup and `spawn_agent` is hidden from the
-lead's application catalog. Workers at the limit also lose any host-supplied `spawn_agent` tool
+the limit, managed spawning is rejected before worker setup and `spawn_agent`/`spawn_agents` are hidden
+from the lead's application catalog. Workers at the limit also lose these host-supplied spawning tools
 without being told they previously had spawning capabilities. Lead synthesis and wait guidance remains
 at the limit. Worker overrides and roles cannot restore that tool.
 
@@ -116,18 +116,58 @@ enforce nesting constraints in those hooks as well.
 `buildDelegationStrategy(mode)` and `DELEGATION_STRATEGY` are exported from
 `@alvin0/ai-agent-sdk-core/agent`. The builder supplies the proactive/explicit prefix and shared
 strategy without scheduling claims. Append runtime facts appropriate to the host; this branch uses
-`MANAGED_DELEGATION_RUNTIME` (automatic report injection, retained results, slots held until closure).
+`MANAGED_DELEGATION_RUNTIME` (automatic report injection, retained results, automatic slot release).
 `filterToolsByDepth(tools, { depth, maxDepth }, child?)` accepts any named control list and removes
-`spawn_agent` at the depth limit while retaining wait/join/report tools.
+`spawn_agent` and `spawn_agents` at the depth limit while retaining wait/join/report tools.
 
 ## Model surface and result delivery
 
-The default lean lead tools are `spawn_agent`, `send_input`, `wait_agents`, `close_agent`,
+The default lean lead tools are `spawn_agent`, `spawn_agents`, `send_input`, `wait_agents`, `close_agent`,
 and `get_agent_result`. Spawn advertises task, context, optional role, writes and dependencies;
 name/specialty remain accepted for replayed histories and host requests. `send_input` returns acceptance,
 queues follow-up tasks, and optionally interrupts current work. Reporting workers have `send_input`;
 full workers also have wait and retained-result reads. Set `modelToolSurface: 'legacy'` to retain the
 older model names/schemas; this does not restore polling, duplicate reports or occupied finished slots.
+
+### Batch fan-out
+
+Plan the split before reading bulk inputs: give workers input locations and let each read its own
+partition. Start independent tasks in one call, reserving disjoint write scopes where needed:
+
+```ts
+spawn_agents({
+  tasks: [
+    { name: 'north', task: 'Extract totals from input/north. Return compact totals and evidence.' },
+    { name: 'south', task: 'Extract totals from input/south. Return compact totals and evidence.' },
+  ],
+  join: true,
+})
+```
+
+This model tool is available on both lean and legacy surfaces; host `spawn()` remains unchanged.
+Each item accepts `name?`, `task`, `context?: 'fresh' | 'fork'`, `role?` (host-declared), and `writes?`.
+It deliberately accepts independent work only; use `spawn_agent` for dependency chains. Admission
+validates the entire batch and reserves all active slots before concurrent setup. Overflow rejects
+with the requested count and remaining capacity; wait for slots and submit a smaller batch. This
+avoids a hidden queue that would silently serialize an advertised fan-out. Invalid roles, duplicate
+addresses and rejected write conflicts also start no workers. Host-controlled factory/session setup
+can still fail after admission; each failed item returns `{ target, status: 'failed', error }` while
+successful siblings continue. No automatic retry can duplicate a partially successful batch.
+
+Without `join` (default false), returns `{ workers: [{ target, status, error? }] }` after bounded setup;
+ordinary push delivery handles results. With `join: true`, also returns `results`, `timed_out` and
+optional `interrupted`. Results use the lean compact shape on both surfaces: `{ target, status,
+result }` for success, `{ target, status, partial_result, error }` for unsuccessful evidence, with
+structured fields when present. Capture begins before workers start and shares the push/join ledger,
+including workers that finish while siblings prepare. The existing host-bounded wait starts after
+setup and may return partial results; unfinished workers later report by push or another wait.
+Fresh batch collectors exclude archived results from earlier workers reusing the same address.
+The host hook `captureResults(sender, targets, retained = true)` keeps its existing default behavior;
+passing false selects only current members for fresh generation collection.
+Batch setup failures are in `workers`, separate from terminal `results`. Setup views describe admission
+time, so use terminal results to decide success. Invocation cancellation cancels owned workers;
+standalone tool cancellation stops setup/join only and does not cancel already started workers.
+Caller-aborted joins may have claimed evidence: use `get_agent_result` for repeatable recovery.
 
 Push notices and active joins claim the same outcome objects through `TeamResults.take`.
 A join captures publications before notices can claim them, joins all selected work, and returns all

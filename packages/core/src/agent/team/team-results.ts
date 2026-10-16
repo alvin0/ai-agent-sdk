@@ -28,10 +28,13 @@ export class TeamResults {
   private readonly collectors = new Set<(members: readonly AgentTeamMember[]) => void>()
 
   /** An active join claims evidence synchronously at publication, before automatic notices. */
-  capture(recipient: string, members: readonly AgentTeamMember[], targets: readonly string[]) {
+  capture(recipient: string, members: readonly AgentTeamMember[], targets: readonly string[], retained = true) {
     const captured: ReturnType<TeamResults['take']> = []
+    const budget = Math.max(256, Math.min(8192, Math.floor(46 * 1024 / Math.max(1, targets.length)) - 256))
     const collect = (current: readonly AgentTeamMember[]) => {
-      captured.push(...this.take(recipient, this.select(current, targets)))
+      const selected = retained ? this.select(current, targets)
+        : current.filter(member => targets.includes(member.name))
+      captured.push(...this.take(recipient, selected, budget))
     }
     collect(members)
     this.collectors.add(collect)
@@ -54,6 +57,13 @@ export class TeamResults {
     })
   }
   clear(): void { this.delivered.clear(); this.archived.clear(); this.collectors.clear() }
+}
+
+/** Shared compact result shape for lean waits and batch joins on either model surface. */
+export function modelResults(results: ReturnType<TeamResults['take']>) {
+  return results.map(({ worker, status, text, error, ...fields }) => ({ target: worker, status, ...fields,
+    ...(status === 'completed' ? { result: text } : { partial_result: text, error: error ?? status }),
+  }))
 }
 
 /** Bound serialized fields together, including JSON escaping overhead. */

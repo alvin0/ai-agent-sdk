@@ -172,7 +172,7 @@ describe('two agent-team concepts', () => {
 
     expect(response.text).toBe('Lead synthesized both worker results.')
     expect(adapter.maxActiveWorkers).toBe(2)
-    expect(adapter.requests[0]?.system).toContain('Plan the next local step before delegating')
+    expect(adapter.requests[0]?.system).toContain('Plan the split first; do not read bulk data yourself before delegating')
     const workerSystem = adapter.requests.find(request =>
       request.tools?.every(tool => tool.name !== 'spawn_agent'))?.system
     expect(workerSystem).toContain("You are managed worker 'worker_a'")

@@ -1,4 +1,4 @@
-/** Four compact model verbs; host requests and lifecycle views remain unchanged. */
+/** Compact model controls; host requests and lifecycle views remain unchanged. */
 import { filterToolsByDepth } from './managed-capabilities.ts'
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
 import { managedLeadInstructions, type ManagedControlsHost } from './managed-controls.ts'
@@ -13,7 +13,8 @@ export function renderModelResult(value: JsonValue | undefined): readonly Conten
 }
 
 export function leanLeadInstructions(options: ManagedControlsHost['options']): string {
-  return managedLeadInstructions(options) + ' Use spawn_agent for tasks and send_input for follow-up work. '
+  return managedLeadInstructions(options) + ' Use spawn_agents for independent tasks, spawn_agent for one task, '
+    + 'and send_input for follow-up work. '
     + 'Close retained agents only when no longer needed.'
 }
 

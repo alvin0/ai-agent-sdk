@@ -11,9 +11,11 @@ import type { ManagedAgentDelegationMode, ManagedAgentRole, ManagedAgentSpawnReq
 
 /** Shared delegation strategy; host-selected mode and runtime details are appended below. */
 export const DELEGATION_STRATEGY = [
-  'Plan the next local step before delegating. Keep immediate critical-path blockers and tightly coupled work local.',
+  'Plan the split first; do not read bulk data yourself before delegating. '
+  + 'Keep immediate critical-path blockers and tightly coupled work local.',
   'Delegate bounded sidecar tasks that can run alongside your work. Start independent delegations together '
-  + 'in one message. Give each worker an objective, expected output, write scope, and verification.',
+  + 'in one spawn_agents call. Give each worker an objective, input locations, expected output, '
+  + 'write scope, and verification.',
   'Use disjoint write sets, including your own. Do not redo delegated work; continue useful non-overlapping work.',
   'For fresh context, give a self-contained brief. For fork, state only new information; '
   + 'the worker sees completed conversation turns, not this in-flight turn.',
@@ -79,7 +81,7 @@ function spawnControlTool(host: ManagedControlsHost): ToolDefinition<any> {
     description: [
       'Delegate a bounded task that can run alongside your next local step; keep immediate blockers local.',
       'Brief: objective, expected output, write scope, verification. Start independent workers in one message '
-      + 'with disjoint write sets. Continue your own non-overlapping work; do not redo theirs.',
+      + 'with spawn_agents and disjoint write sets. Continue your own non-overlapping work; do not redo theirs.',
       'Returns a worker address and status, not a final report. Reports are injected automatically; '
       + 'use get_agent_result for retained pages or wait_agents when blocked. Synthesize the result before answering.',
     ].join(' '),

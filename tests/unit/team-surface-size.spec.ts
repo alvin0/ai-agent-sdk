@@ -35,6 +35,7 @@ async function capture(modelToolSurface: 'lean' | 'legacy') {
   await team.dispose()
   return views.map(view => ({ instructions: view.instructions.length,
     tools: JSON.stringify(view.tools).length,
+    batch: JSON.stringify(view.tools.filter(tool => tool.name === 'spawn_agents')).length - 2,
     total: view.instructions.length + JSON.stringify(view.tools).length }))
 }
 
@@ -46,11 +47,13 @@ describe('managed model surface size', () => {
       {
         "after": [
           {
-            "instructions": 1867,
-            "tools": 2639,
-            "total": 4506,
+            "batch": 1118,
+            "instructions": 1962,
+            "tools": 3758,
+            "total": 5720,
           },
           {
+            "batch": 0,
             "instructions": 1132,
             "tools": 371,
             "total": 1503,
@@ -58,11 +61,13 @@ describe('managed model surface size', () => {
         ],
         "before": [
           {
-            "instructions": 2202,
-            "tools": 4976,
-            "total": 7178,
+            "batch": 1118,
+            "instructions": 2257,
+            "tools": 6112,
+            "total": 8369,
           },
           {
+            "batch": 0,
             "instructions": 1384,
             "tools": 1255,
             "total": 2639,
@@ -70,7 +75,11 @@ describe('managed model surface size', () => {
         ],
       }
     `)
-    expect(after[0]!.total).toBeLessThan(before[0]!.total * 0.65)
+    // Both surfaces now include the same batch catalog. Preserve the lean reduction guard
+    // for their original controls, and record the full added overhead in the snapshot.
+    expect(after[0]!.total - after[0]!.batch).toBeLessThan((before[0]!.total - before[0]!.batch) * 0.65)
+    expect(after[0]!.total).toBeLessThan(before[0]!.total * 0.7)
+    expect(after[0]!.batch).toBeLessThanOrEqual(1200)
     expect(after[1]!.total).toBeLessThan(before[1]!.total * 0.6)
   })
 })

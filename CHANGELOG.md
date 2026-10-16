@@ -6,6 +6,8 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Breaking
 
+- Managed lead catalogs now reserve `spawn_agents` for batch fan-out on both tool surfaces.
+  Rename any host-provided tool using that name; host lifecycle APIs remain unchanged.
 - Managed teams default to the lean model surface: `spawn_agent`, `send_input`, `wait_agents`,
   `close_agent`, and explicit paged `get_agent_result`. Set `modelToolSurface: 'legacy'` to retain
   the earlier names/schemas (`list_agents`, `send_message`, `followup_task`, name-based close).
@@ -44,6 +46,13 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Added
 
+- Managed lead tool `spawn_agents({ tasks: [{ name?, task, context?, role?, writes? }], join? })`
+  starts independent workers concurrently in one call on lean and legacy surfaces. `join: true`
+  returns compact new results through the existing push/join delivery ledger; bounded waits may return
+  partial results on timeout or user steering. Overflow, invalid requests and conflicting write scopes
+  reject before setup; admitted setup failures are reported per worker. `maxWorkers` counts the whole
+  reserved batch. Host APIs and `spawn_agent` remain compatible. Delegation guidance now asks the lead
+  to plan the split before reading bulk inputs and start independent work in one batch.
 - Opt-in `collaboration: true`: revision-CAS task board, compact task discovery, owner/dependency checks,
   bounded peer wakes and automatic ready/blocked notices. The board remains local and in memory.
   Joins share managed settlement barriers; each join has a deadline, with pending/preparing work cancelled

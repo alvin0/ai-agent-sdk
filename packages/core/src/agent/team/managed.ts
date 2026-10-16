@@ -1,9 +1,9 @@
 /** Codex-style dynamic worker creation and delegation over AgentTeam. */
-
 import { awaitManagedWorker } from './managed-await.ts'
 import { ManagedModelSurface } from './managed-model-surface.ts'
 import { ManagedModelInput } from './managed-model-input.ts'
 import { leanControlTools, leanLeadInstructions } from './managed-model-tools.ts'
+import { batchSpawnTool } from './managed-batch-tool.ts'
 import { ManagedTeamCollaboration } from './managed-collaboration.ts'
 import { filterToolsByDepth } from './managed-capabilities.ts'
 import type { TeamPort } from './contracts.ts'
@@ -39,12 +39,7 @@ import { abortable, combineSignals } from './managed-cancellation.ts'
 import { managedTimeouts, managedRoles, managedControlPlane } from './managed-options.ts'
 export { completedHistoryPrefix } from './managed-support.ts'
 
-/**
- * A dynamic harness whose lead can create specialized workers with spawn_agent.
- *
- * Spawning starts independent work without blocking the lead. Dependencies refer
- * to the commissioned producer instance; closing its address cannot rebind them.
- */
+/** Dynamic worker harness. Dependencies retain producer identity across address closure. */
 export class ManagedAgentTeam {
   readonly team: AgentTeam
   readonly lead: AgentSession
@@ -92,10 +87,8 @@ export class ManagedAgentTeam {
     this.observerTimeoutMs = timeouts.observerTimeoutMs
     this.closeTimeoutMs = timeouts.closeTimeoutMs
     this.spawnTimeoutMs = timeouts.spawnTimeoutMs
-    this.maxDependencyReportBytes = positiveInteger(
-      options.maxDependencyReportBytes ?? 8 * 1024,
-      'maxDependencyReportBytes',
-    )
+    this.maxDependencyReportBytes = positiveInteger(options.maxDependencyReportBytes ?? 8 * 1024,
+      'maxDependencyReportBytes')
     if (this.maxDependencyReportBytes < 4) throw new TypeError('maxDependencyReportBytes must be at least 4')
     this.roles = managedRoles(options)
     this.team = managedControlPlane(options, this.maxWorkers)
@@ -314,9 +307,8 @@ export class ManagedAgentTeam {
     name: string,
     options: { readonly timeoutMs?: number; readonly signal?: AbortSignal } = {},
   ): Promise<ManagedAgentWorkerResult | undefined> {
-    const address = memberName(name)
-    const runtime = this.workerRuntimes.get(address)
-    if (runtime === undefined) throw new Error(`unknown managed worker '${address}'`)
+    const runtime = this.workerRuntimes.get(memberName(name))
+    if (runtime === undefined) throw new Error(`unknown managed worker '${name}'`)
     return awaitManagedWorker(runtime, options)
   }
 
@@ -332,7 +324,6 @@ export class ManagedAgentTeam {
     this.modelInput.cancel(address)
     runtime.closeTask ??= this.closeAndReport(runtime, reason)
     return runtime.closeTask
-
   }
 
   private closeAndReport(runtime: WorkerRuntime, reason: unknown): Promise<ManagedAgentWorkerStatus> {
@@ -366,8 +357,7 @@ export class ManagedAgentTeam {
     const address = memberName(name)
     const runtime = this.workerRuntimes.get(address)
     if (runtime === undefined) throw new Error(`unknown managed worker '${address}'`)
-    if (this.workerBusy(runtime)
-      || runtime.session.isRunning) {
+    if (this.workerBusy(runtime) || runtime.session.isRunning) {
       throw new Error(`cannot remove running managed worker '${address}'`)
     }
     this.collaboration?.closeMember(address)
@@ -377,7 +367,7 @@ export class ManagedAgentTeam {
 
   private controlTools(): readonly ToolDefinition<any>[] {
     const controls = this.options.modelToolSurface === 'legacy' ? managedControlTools : leanControlTools
-    return controls({
+    const tools = controls({
       options: this.options, spawnTimeoutMs: this.spawnTimeoutMs, workerTimeoutMs: this.workerTimeoutMs,
       roleSchema: () => managedRoleSchema(this.roles),
       spawn: async (request, signal) => {
@@ -391,8 +381,16 @@ export class ManagedAgentTeam {
       workerRuntime: name => this.workerRuntimes.get(name),
       closeWorker: name => this.closeWorker(name),
     })
+    const batch = batchSpawnTool({
+      spawning: this.spawning, team: this.team, leadName: this.leadName,
+      maxWorkers: this.maxWorkers, spawnTimeoutMs: this.spawnTimeoutMs,
+      wait: this.modelSurface.port.toolsFor(this.leadName).find(tool => tool.name === 'wait_agents')!,
+      waitTimeoutMs: this.team.toolsFor(this.leadName).find(tool => tool.name === 'wait_agents')!.timeoutMs!,
+      roleSchema: () => managedRoleSchema(this.roles),
+      owner: () => this.invocation?.workers, workers: this.workerRuntimes,
+    })
+    return filterToolsByDepth([...tools.slice(0, 1), batch, ...tools.slice(1)], this.options)
   }
-
 }
 
 export function createManagedAgentTeam(options: ManagedAgentTeamOptions): ManagedAgentTeam {
