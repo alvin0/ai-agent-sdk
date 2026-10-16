@@ -22,14 +22,18 @@ if(script !== undefined) {
   process.stdout.write(result);
 } else {
 const source='const sources='+JSON.stringify(files)+'; const modules=Object.create(null);'
-  +'function load(name){if(modules[name])return modules[name].exports;'
+  +'const broken=Object.create(null);'
+  +'function load(name){if(broken[name])throw Error("Broken module");'
+  +'if(modules[name])return modules[name].exports;'
   +'if(!Object.hasOwn(sources,name))throw Error("Unknown module");'
   +'throw Error("Module not initialized");}';
 vm.runInContext(source,context,{timeout:500});
 for(const [name,body] of Object.entries(files)) {
   const code='modules['+JSON.stringify(name)+']={exports:{}};'
     +'((module,exports)=>{'+body+'\\n})(modules['+JSON.stringify(name)+'],modules['+JSON.stringify(name)+'].exports)';
-  vm.runInContext(code,context,{timeout:500});
+  try { vm.runInContext(code,context,{timeout:500}); } catch {
+    vm.runInContext('broken['+JSON.stringify(name)+']=true',context,{timeout:500});
+  }
 }
 const results=checks.map(check=>{
   try{return vm.runInContext('Boolean('+check+')',context,{timeout:500})===true;}

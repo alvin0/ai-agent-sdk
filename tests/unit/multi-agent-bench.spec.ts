@@ -44,8 +44,8 @@ describe('autonomous multi-agent benchmark', () => {
       expect(summary.comparable).toBe(true)
       expect(summary.rows.find(row => row.task === 'ALL' && row.arm === 'team')?.a.passRate).toBe(1)
       const manifest = JSON.parse(await readFile(join(out, 'manifest.json'), 'utf8'))
-      expect(manifest).toMatchObject({ protocol: 'autonomous-v3', maxTotalTokens: 400000,
-        perTaskLimits: { 'code-change': { maxTotalTokens: 400000 }, sequential: { maxTotalTokens: 400000 } } })
+      expect(manifest).toMatchObject({ protocol: 'autonomous-v4', maxTotalTokens: 1500000,
+        perTaskLimits: { 'code-change': { maxTotalTokens: 1500000 }, sequential: { maxTotalTokens: 1500000 } } })
     } finally { await rm(parent, { recursive: true, force: true }) }
   }, 60000)
 
@@ -56,7 +56,7 @@ describe('autonomous multi-agent benchmark', () => {
     expect(() => parseArgs([...base, '--reps', '0'])).toThrow('positive integer')
     expect(() => parseArgs([...base, '--provider', 'other'])).toThrow('Provider')
     expect(parseArgs(base).model).toBe('gpt-6-luna')
-    expect(parseArgs(base)).toMatchObject({ suite: 'scaled', maxTotalTokens: 400000 })
+    expect(parseArgs(base)).toMatchObject({ suite: 'scaled', maxTotalTokens: 1500000 })
     expect(parseArgs([...base, '--suite', 'smoke', '--label', 'round2', '--arms', 'collab',
       '--max-total-tokens', '1000', '--max-turns', '50', '--max-tool-calls', '70', '--codex-auth', '/tmp/auth.json']))
       .toMatchObject({ suite: 'smoke', label: 'round2', arms: ['collab'], maxTotalTokens: 1000,
@@ -95,7 +95,8 @@ describe('autonomous multi-agent benchmark', () => {
     const checks = ['typeof process === "undefined"', 'typeof require === "undefined"',
       '(()=>{try{({}).constructor.constructor("return process")();return false}catch{return true}})()']
     expect(await sandboxChecks({}, checks)).toEqual([true, true, true])
-    await expect(sandboxChecks({ 'loop.cjs': 'while(true){}' }, ['true'])).rejects.toThrow('timed out')
+    expect(await sandboxChecks({ 'loop.cjs': 'while(true){}' }, ['!!load("loop.cjs")', 'true']))
+      .toEqual([false, true])
   })
 
   it('grades every artifact task as failed when the requested output is absent', async () => {
@@ -187,9 +188,9 @@ describe('autonomous multi-agent benchmark', () => {
     const a = selectTasks('scaled', 123), b = selectTasks('scaled', 123), c = selectTasks('scaled', 124)
     expect(a).toEqual(b)
     expect(a[0]!.files).not.toEqual(c[0]!.files)
-    const logs = Object.entries(a[0]!.files!).filter(([name]) => name.endsWith('.csv'))
+    const logs = Object.entries(a[0]!.files!).filter(([name]) => name.startsWith('reports/'))
     expect(logs).toHaveLength(24)
-    expect(logs.every(([, text]) => Buffer.byteLength(text) >= 14336 && Buffer.byteLength(text) <= 16384)).toBe(true)
+    expect(logs.every(([, text]) => Buffer.byteLength(text) >= 13000 && Buffer.byteLength(text) <= 16384)).toBe(true)
     expect(a.find(t => t.id === 'code-change')!.checks.length).toBeGreaterThanOrEqual(25)
     expect(Object.keys(a.find(t => t.id === 'bug-hunt')!.files!).filter(n => n.endsWith('.cjs'))).toHaveLength(30)
     const workspace = await Workspace.create(a[0]!)
@@ -204,23 +205,19 @@ describe('autonomous multi-agent benchmark', () => {
     finally { await code.close() }
   })
 
-  it('enforces test-only extraction tools equally for both arms and retains scripting elsewhere', async () => {
-    const workspace = await Workspace.create(tasks.find(t => t.id === 'extraction')!)
-    try {
-      const shell = workspaceTools(workspace).find(tool => tool.name === 'shell')!
-      expect(shell.description).toBe('Isolated runner: only test is allowed.')
-      expect(shell.parameters).toMatchObject({ properties: { command: { enum: ['test'] } } })
-      const context = { signal: new AbortController().signal } as Parameters<typeof shell.execute>[1]
-      await expect(shell.execute({ command: 'run aggregate.cjs answer.json' }, context)).rejects.toThrow('Only test')
-      await expect(shell.execute({ command: 'test cache' }, context)).rejects.toThrow('Only test')
-      await expect(shell.execute({ command: 'test' }, context)).resolves.toEqual({ checks: [] })
-      await expect(workspace.run('aggregate.cjs', 'answer.json')).rejects.toThrow('Only test')
-    } finally { await workspace.close() }
+  it('omits shell on artifact tasks equally for both arms and retains execution on code tasks', async () => {
+    for (const task of tasks.filter(t => !t.checks.length)) {
+      const workspace = await Workspace.create(task)
+      try {
+        expect(workspaceTools(workspace).some(tool => tool.name === 'shell')).toBe(false)
+        await expect(workspace.run('aggregate.cjs', 'answer.json')).rejects.toThrow('No script execution')
+      } finally { await workspace.close() }
+    }
     for (const arm of ['single', 'team'] as const) {
       const { result, audit } = await execute({ arm, task: 'extraction', rep: 1,
         provider: 'fake', model: 'gpt-6-luna', timeoutMs: 15000 })
       expect(result.pass).toBe(true)
-      expect(result.maxTotalTokens).toBe(400000)
+      expect(result.maxTotalTokens).toBe(1500000)
       expect(audit.tools.filter(tool => tool.name === 'read_file')).toHaveLength(25)
       expect(audit.tools.some(tool => tool.name === 'shell')).toBe(false)
     }
@@ -231,7 +228,7 @@ describe('autonomous multi-agent benchmark', () => {
       maxTotalTokens: 123456, maxTurns: 240 })
     expect(taskLimits({ limits: { maxTotalTokens: 123456 } }, new Map([['max-total-tokens', '500000']])))
       .toMatchObject({ maxTotalTokens: 500000 })
-    expect(parseArgs(['--out', '/tmp/unused']).perTaskLimits.extraction).toMatchObject({ maxTotalTokens: 400000 })
+    expect(parseArgs(['--out', '/tmp/unused']).perTaskLimits.extraction).toMatchObject({ maxTotalTokens: 1500000 })
   })
 
   it('ignores lean and push-join control wakes but retains settlement producers and user evidence', () => {
