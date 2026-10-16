@@ -1,0 +1,38 @@
+{
+  "arm": "team",
+  "task": "sequential",
+  "rep": 1,
+  "provider": "codex",
+  "model": "gpt-6-luna",
+  "timeoutMs": 180000,
+  "schemaVersion": 1,
+  "status": "failed",
+  "score": 0,
+  "pass": false,
+  "checks": [],
+  "metrics": {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "totalTokens": 0,
+    "reportedTokens": 0,
+    "usageComplete": true,
+    "leadModelCalls": 1,
+    "totalModelCalls": 1,
+    "spawns": 0,
+    "wastedLeadTurns": 0,
+    "wallMs": 25.172416,
+    "errors": [
+      "lead sdk.model.call: {\"status\":\"error\",\"durationMs\":3.948709000000008,\"finishReason\":\"error\",\"dispatchState\":\"not-sent\",\"coverage\":\"not-applicable\",\"reported\":{},\"attemptCount\":0}",
+      "lead: {\"message\":\"no Codex credentials at /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/.temp/wt/benchmark/.providers/.codex/auth.json; run `npm run provider:codex:login-device` to sign in\",\"code\":\"MISSING_CREDENTIAL\"}",
+      "Error: Lead incomplete: {\"kind\":\"error\",\"failure\":{\"message\":\"no Codex credentials at /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/.temp/wt/benchmark/.providers/.codex/auth.json; run `npm run provider:codex:login-device` to sign in\",\"code\":\"MISSING_CREDENTIAL\"}}"
+    ]
+  },
+  "text": "",
+  "artifacts": {
+    "input.json": "{\n  \"seed\": 17,\n  \"operations\": [\n    {\n      \"multiply\": 3,\n      \"add\": 5\n    },\n    {\n      \"multiply\": 7,\n      \"add\": 2\n    },\n    {\n      \"multiply\": 2,\n      \"add\": 11\n    },\n    {\n      \"multiply\": 5,\n      \"add\": 1\n    }\n  ],\n  \"modulus\": 97\n}"
+  },
+  "graderError": "Error: ENOENT: no such file or directory, open '/var/folders/v2/92yp3t4s7zb_smrp3c7smrxc0000gn/T/ma-bench-job-jAmUDe/ma-bench-6MXqOI/answer.json'",
+  "error": "Error: Lead incomplete: {\"kind\":\"error\",\"failure\":{\"message\":\"no Codex credentials at /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/.temp/wt/benchmark/.providers/.codex/auth.json; run `npm run provider:codex:login-device` to sign in\",\"code\":\"MISSING_CREDENTIAL\"}}"
+}

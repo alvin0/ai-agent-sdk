@@ -1,0 +1,1 @@
+Merge all team migration steps into plan.json: {steps:[{id,after,owners}]}. Union duplicate dependencies and owners; order topologically, breaking available-node ties lexicographically. Sort after and owners arrays lexicographically.

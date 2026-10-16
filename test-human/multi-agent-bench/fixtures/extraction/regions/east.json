@@ -1,0 +1,25 @@
+{
+  "region": "east",
+  "services": [
+    {
+      "id": "east-0",
+      "requests": 100,
+      "errors": 0
+    },
+    {
+      "id": "east-1",
+      "requests": 107,
+      "errors": 1
+    },
+    {
+      "id": "east-2",
+      "requests": 114,
+      "errors": 2
+    },
+    {
+      "id": "east-3",
+      "requests": 121,
+      "errors": 3
+    }
+  ]
+}

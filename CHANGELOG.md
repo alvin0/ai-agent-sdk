@@ -2,6 +2,14 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## Unreleased
+
+### Added
+
+- Autonomous multi-agent benchmark under `test-human/multi-agent-bench/`: six isolated fixture tasks,
+  single/team baselines, optional collaboration feature detection, SDK-wide usage metrics,
+  deterministic graders, offline CI coverage, and branch comparison reports. No host API changes.
+
 ## 0.1.12 - 2026-10-11
 
 ### Added
