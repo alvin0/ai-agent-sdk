@@ -37,6 +37,12 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Fixed
 
+- Accepted `spawn_agents` backlog survives the tool call returning and the lead turn ending,
+  including partial join timeouts and later tool deadlines. Call abort drains queued items only
+  while that call is in flight; invocation/team cancellation remains attached until settlement.
+  Partial joins push final coverage when the remaining work settles, and automatic `run()` waits
+  for queued waves and synthesis. Coverage notices are attributed to the team runtime.
+  Single-spawn capacity errors explain queued batch items' FIFO priority.
 - Replace periodic hold prompts with runtime-attributed push settlements and event-driven yield/join.
   Preserve lost-wake recovery across idle observers and cancelled flushes; bound synthesis-only retries
   to three without progress. Keep partial cancellation/timeout/failure evidence and structured results.
@@ -58,7 +64,8 @@ All notable changes to the AI Agent SDK are documented in this file.
   and shares a 48 KiB aggregate payload budget with warnings/errors and an `omitted` recovery list.
   Nonjoining batches push one compact final coverage account after all items settle. Call aborts
   return worker addresses and release unreturned join claims for push recovery; call/invocation/team
-  cancellation drains queued items exactly once. Host APIs and single spawning remain compatible.
+  cancellation drains queued items exactly once (call cancellation only while in flight).
+  Host APIs and single spawning remain compatible.
   Shared exported delegation strategy is tool-neutral; batch tool advice lives in managed instructions.
 - Opt-in `collaboration: true`: revision-CAS task board, compact task discovery, owner/dependency checks,
   bounded peer wakes and automatic ready/blocked notices. The board remains local and in memory.

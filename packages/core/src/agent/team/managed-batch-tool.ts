@@ -34,7 +34,7 @@ export function batchSpawnTool(host: BatchToolHost): ToolDefinition<any> {
       + 'disjoint writes and verification. Starts free slots; queues the rest FIFO without slots. '
       + 'Overflow reports free slots and queued count. No dependencies or peer waits on queued tasks. '
       + 'join=true returns results and coverage; otherwise results and final coverage are pushed. '
-      + 'omitted targets: use get_agent_result. Abort returns addresses; queued tasks cancel.',
+      + 'omitted targets: use get_agent_result. In-call abort cancels queue; returns ids.',
     parameters: { type: 'object', properties: {
       tasks: { type: 'array', minItems: 1, maxItems: host.maxWorkers + host.maxQueued, items: {
         type: 'object', properties: {
@@ -82,7 +82,7 @@ async function executeBatch(host: BatchToolHost, { tasks, ids, join }: ReturnTyp
   let capture: ReturnType<AgentTeam['captureResults']> | undefined
   const coverage = new ManagedBatchCoverage()
   const owner = host.owner()
-  const signal = combineSignals(ctx.signal, host.signal())
+  const { signal, detach } = batchCallSignal(ctx.signal, host.signal())
   let targets: readonly string[] = []
   try {
     const workers = await host.spawning.spawnBatch(tasks, signal, {
@@ -109,6 +109,9 @@ async function executeBatch(host: BatchToolHost, { tasks, ids, join }: ReturnTyp
           timedOut: boolean; interrupted?: boolean
         }
       signal.throwIfAborted()
+      if (coverage.view().pending.length > 0) {
+        host.notice(coverage.settled().then(() => coverage.view()))
+      }
       return asJson(batchPayload(workers, coverage.view(), modelResults(takeCaptured(capture)), {
         timed_out: waited.timedOut, ...waited.interrupted ? { interrupted: true } : {},
       }))
@@ -120,7 +123,21 @@ async function executeBatch(host: BatchToolHost, { tasks, ids, join }: ReturnTyp
       host.resume(targets)
       return asJson(batchPayload(workers, coverage.view(), [], { cancelled: true }))
     }
-  } finally { capture?.close() }
+  } finally {
+    detach()
+    capture?.close()
+  }
+}
+
+function batchCallSignal(caller: AbortSignal, lifetime: AbortSignal) {
+  // A tool/turn deadline owns only this call. Accepted queued work belongs to
+  // the invocation and team after return, including a partial join timeout.
+  const call = new AbortController()
+  const abortCall = () => call.abort(caller.reason)
+  caller.addEventListener('abort', abortCall, { once: true })
+  if (caller.aborted) abortCall()
+  return { signal: combineSignals(call.signal, lifetime),
+    detach: () => caller.removeEventListener('abort', abortCall) }
 }
 
 function reserveCoverage(coverage: ManagedBatchCoverage, names: readonly string[],

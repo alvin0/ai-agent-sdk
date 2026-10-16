@@ -245,13 +245,13 @@ export class ManagedWorkerSpawning {
   }
   private assertSpawnAvailable(resolved: ResolvedManagedAgentSpawnRequest, checkCapacity = true): void {
     if (checkCapacity && this.busy >= this.host.maxWorkers) {
-      throw new Error(`managed agent team reached its ${this.host.maxWorkers}-worker limit`)
+      throw new Error(`managed agent team reached its ${this.host.maxWorkers}-worker limit`
+        + (this.queue.size > 0 ? '; queued batch items are ahead of this spawn in FIFO order' : ''))
     }
     if (this.host.preparing.has(resolved.name) || this.host.workerRuntimes.has(resolved.name)
       || this.host.team.members().some(member => member.name === resolved.name)) {
       throw new Error(`managed worker '${resolved.name}' already exists`)
     }
-
   }
   private createSpawnSession(
     definition: DefinedAgent, resolved: ResolvedManagedAgentSpawnRequest,

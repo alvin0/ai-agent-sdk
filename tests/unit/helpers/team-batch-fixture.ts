@@ -18,6 +18,7 @@ class BatchAdapter extends ModelAdapter {
   spawn = true
   fail?: string
   textFor?: (name: string) => string
+  synthesize: (options: GenerateOptions) => string = () => 'synthesis'
 
   override resolveModel(provider: string, model: string): Promise<ResolvedModelInfo> {
     return Promise.resolve({ provider, id: model, name: model,
@@ -28,6 +29,7 @@ class BatchAdapter extends ModelAdapter {
     let text = 'synthesis'
     if (options.tools?.some(tool => tool.name === 'spawn_agent')) {
       this.leads.push(options)
+      text = this.synthesize(options)
       if (this.leads.length === 1 && this.spawn) {
         yield { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('batch'),
           name: 'spawn_agents', arguments: JSON.stringify({ tasks: tasks(), join: this.join }) } }

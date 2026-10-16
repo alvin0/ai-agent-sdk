@@ -172,12 +172,16 @@ The whole serialized response shares one 48 KiB byte budget, including diagnosti
 result or diagnostics did not fit; use `get_agent_result` for retained result pages. Captures begin before
 setup and exclude archived generations. The inner batch barrier claims no results. The existing
 `captureResults(sender, targets, retained = true)` host hook retains its default and adds `release()`
-for unreturned claims. Timeout or steering returns partial evidence and leaves other results for push.
+for unreturned claims. Timeout or steering returns partial evidence and leaves other results for push,
+with one final coverage notice when the rest of the batch settles. Final coverage notices come from
+the team runtime rather than a worker. Automatic `run()` waits for queued waves and final synthesis.
 
-Cancelling the call, its owning lead invocation, or the team drains queued reservations exactly once.
+Cancelling an in-flight call, its owning lead invocation, or the team drains queued reservations exactly once.
 Call cancellation returns addresses with `cancelled: true` even after partial setup; joining aborts
 release captured-but-unreturned outcomes and resume push delivery. Standalone call cancellation leaves
 already running workers alive; invocation cancellation and team disposal also close owned workers.
+Once the call returns (including timeout/steering of a join), queued work belongs only to the invocation
+and team. Later call/turn cancellation or tool deadlines cannot cancel it or prevent deferred setup.
 Returned worker statuses are setup snapshots; consult terminal results and coverage for completion.
 
 Push notices and active joins claim the same outcome objects through `TeamResults.take`.

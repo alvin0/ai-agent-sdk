@@ -49,19 +49,12 @@ export class ManagedSettlements {
   }
 
   /** A final batch account contains no result text and never reclaims worker outcomes. */
-  async batchCoverage(coverage: BatchCoverage): Promise<void> {
+  batchCoverage(coverage: BatchCoverage): void {
     if (this.host.signal.aborted) return
     const message = 'Managed batch settlement: ' + JSON.stringify({ coverage })
-    try {
-      await this.host.team.sendMessage(managedTeamNoticeRequest({
-        from: this.host.workers.keys().next().value ?? this.host.leadName,
-        target: this.host.leadName, message, delivery: 'quiet',
-        signal: this.host.signal,
-      }, 'managed-team-settlement'))
-    } catch {
-      this.host.lead().inject(createUserMessage({ source: { kind: 'app', producer: 'managed-team-settlement' },
-        content: [{ type: 'text', text: message }] }))
-    }
+    // Coverage is a team-owned account, not a message from an arbitrary worker.
+    this.host.lead().inject(createUserMessage({ source: { kind: 'app', producer: 'managed-team-settlement' },
+      content: [{ type: 'text', text: message }] }))
     this.deliveredRevision++
     const owner = [...this.host.workers.values()].find(runtime => runtime.leadDriven)
     if (owner !== undefined) this.wakeForReport(owner)

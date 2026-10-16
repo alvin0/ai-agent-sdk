@@ -54,14 +54,21 @@ describe('managed batch queue and review regressions', () => {
   })
 
   it.each([false, true])('drains queued items on call cancellation and returns addresses (join=%s)', async join => {
-    const { adapter, team } = fixture({ maxWorkers: 1, autoLeadCoordination: false })
+    const setup = gate()
+    const { adapter, team } = fixture({ maxWorkers: 2, autoLeadCoordination: false,
+      workerSessionOptionsFactory: async request => {
+        if (request.name === 'b') await setup.promise
+        return {}
+      },
+    })
     const controller = new AbortController()
     const starting = execute(team, 'spawn_agents', { tasks: tasks(), join }, controller.signal)
     await vi.waitFor(() => expect(adapter.workers.size).toBe(1))
     controller.abort(new Error('stop batch'))
     const result = await starting
     expect(result.workers.map((worker: { target: string }) => worker.target)).toEqual(['a', 'b', 'c'])
-    if (join) expect(result).toMatchObject({ cancelled: true, coverage: { pending: ['a'], deficit: ['b', 'c'] } })
+    expect(result).toMatchObject({ cancelled: true, coverage: { pending: ['a'], deficit: ['b', 'c'] } })
+    setup.resolve()
     adapter.finishes.get('a')!.resolve()
     await team.whenQuiet()
     expect(adapter.workers.size).toBe(1)
@@ -205,7 +212,7 @@ describe('managed batch queue and review regressions', () => {
     expect(adapter.workers.size).toBe(2)
   })
 
-  it('drains queued tasks after setup failure and preserves final failed/cancelled coverage exactly once', async () => {
+  it('ignores late call cancellation and preserves final failed/completed coverage exactly once (P3)', async () => {
     const { adapter, team } = fixture({ maxWorkers: 1, workerSessionOptionsFactory: request => {
       if (request.name === 'a') throw new Error('first setup failed')
       return {}
@@ -214,17 +221,20 @@ describe('managed batch queue and review regressions', () => {
     await execute(team, 'spawn_agents', { tasks: tasks(), join: false }, controller.signal)
     await vi.waitFor(() => expect(adapter.workers.has('b')).toBe(true))
     controller.abort(new Error('cancel remaining queue'))
+    controller.abort(new Error('repeated late abort'))
     adapter.finishes.get('b')!.resolve()
+    await vi.waitFor(() => expect(adapter.workers.has('c')).toBe(true))
+    adapter.finishes.get('c')!.resolve()
     await team.whenQuiet()
-    const messages = team.team.messages().flatMap(message => message.content)
+    const messages = team.lead.history.messages().flatMap(message => message.content)
       .filter(block => block.type === 'text' && block.text.startsWith('Managed batch settlement: '))
     expect(messages).toHaveLength(1)
     const text = messages[0]!
     if (text.type !== 'text') throw new Error('missing account')
     expect(JSON.parse(text.text.slice('Managed batch settlement: '.length))).toEqual({ coverage: {
-      completed: 1, failed: ['a'], pending: [], deficit: ['a', 'c'],
+      completed: 2, failed: ['a'], pending: [], deficit: ['a'],
     } })
-    expect(adapter.workers.has('c')).toBe(false)
+    expect(adapter.workers.has('c')).toBe(true)
   })
 
   it('reserves FIFO backlog capacity atomically across concurrent batches', async () => {
