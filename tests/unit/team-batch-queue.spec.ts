@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { DISCLOSED_TEAM_GUIDANCE } from '../../packages/core/src/agent/team/managed-lazy-tools.ts'
 import { defineAgent } from '../../packages/core/src/agent/index.ts'
 import { ModelRegistry } from '../../packages/core/src/index.ts'
 import { execute, fixture, gate, notices, tasks, tool } from './helpers/team-batch-fixture.ts'
@@ -163,13 +164,14 @@ describe('managed batch queue and review regressions', () => {
     expect(team.team.takeResults('lead', ['a'])).toMatchObject([{ text: 'archived prior evidence' }])
   })
 
-  it('bounds the entire escaped join payload, including all diagnostics, and lists omitted targets', () => {
+  it.each([undefined, DISCLOSED_TEAM_GUIDANCE])('bounds escaped payload with optional lazy guidance: %s', guidance => {
     const workers = Array.from({ length: 100 }, (_, index) => ({ target: `w${index}`, status: 'failed' as const,
       error: 'error'.repeat(500), warnings: ['warning'.repeat(1000)] }))
     const results = workers.map(worker => ({ target: worker.target, status: 'failed' as const,
       partial_result: '🧪\"'.repeat(2000), error: 'failed'.repeat(500) }))
-    const result = batchPayload(workers, { completed: 0, failed: [], pending: [], deficit: [] }, results)
+    const result = batchPayload(workers, { completed: 0, failed: [], pending: [], deficit: [] }, results, { guidance })
     expect(new TextEncoder().encode(JSON.stringify(result)).byteLength).toBeLessThanOrEqual(BATCH_PAYLOAD_BYTES)
+    expect(result.guidance).toBe(guidance)
     const workerTargets = new Set(workers.map(worker => worker.target))
     expect(result.omitted.length).toBeGreaterThan(0)
     expect(result.omitted.every(target => workerTargets.has(target))).toBe(true)

@@ -7,11 +7,15 @@ export const BATCH_PAYLOAD_BYTES = 48 * 1024
 const byteLength = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength
 
 export function batchPayload(workers: readonly BatchWorkerView[], coverage: BatchCoverage,
-  results = modelResults([]), flags: { timed_out?: boolean; interrupted?: boolean; cancelled?: boolean } = {},
+  results = modelResults([]),
+  { guidance, ...flags }: { timed_out?: boolean; interrupted?: boolean; cancelled?: boolean;
+    guidance?: string | undefined } = {},
 ) {
   const metadata = workers.map(({ target, status }) => ({ target, status }))
-  const payload: { workers: BatchWorkerView[]; coverage: BatchCoverage; results: typeof results; omitted: string[] } = {
-    workers: metadata, coverage, ...flags, results: [], omitted: workers.map(worker => worker.target),
+  const payload: { workers: BatchWorkerView[]; coverage: BatchCoverage; results: typeof results;
+    omitted: string[]; guidance?: string | undefined } = {
+    workers: metadata, coverage, ...flags, ...guidance === undefined ? {} : { guidance },
+    results: [], omitted: workers.map(worker => worker.target),
   }
   // Reserve every possible omission address up front. Account each field once, rather than
   // repeatedly serializing a potentially large payload while dropping evidence.
@@ -32,10 +36,12 @@ export function batchPayload(workers: readonly BatchWorkerView[], coverage: Batc
 }
 
 /** Mandatory addresses/coverage must themselves fit, before any worker starts. */
-export function assertBatchMetadataBudget(targets: readonly string[], ids: readonly string[]): void {
+export function assertBatchMetadataBudget(
+  targets: readonly string[], ids: readonly string[], guidance?: string,
+): void {
   const worst = { workers: targets.map(target => ({ target, status: 'cancelled' })),
     coverage: { completed: 0, failed: ids, pending: ids, deficit: ids },
-    results: [], omitted: targets, timed_out: false, interrupted: true, cancelled: true }
+    results: [], omitted: targets, guidance, timed_out: false, interrupted: true, cancelled: true }
   if (byteLength(worst) > BATCH_PAYLOAD_BYTES) {
     throw new TypeError('batch addresses and item ids exceed the 48 KiB payload budget; shorten ids or split the batch')
   }

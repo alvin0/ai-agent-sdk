@@ -459,9 +459,26 @@ describe('what the app actually configures for a single agent', () => {
     try {
       const events: AgentRunEvent[] = []
       for await (const event of handles.events) events.push(event as AgentRunEvent)
+      const leadTools = adapter.requests[0]!.tools!
+      expect(leadTools.map(tool => tool.name)).toContain('spawn_agent')
+      // Team-auto keeps the lazy default for work the lead can finish locally.
+      const controls = ['send_input', 'wait_agents', 'get_agent_result', 'close_agent']
+      for (const request of adapter.requests) {
+        for (const control of controls) expect(request.tools?.map(tool => tool.name)).not.toContain(control)
+      }
+      expect(leadTools.map(tool => tool.name)).not.toContain('followup_task')
+      expect(adapter.requests[0]!.system).toContain('Use the team proactively for parallel work; keep quick or sequential work local.')
+      expect(adapter.requests[0]!.system).not.toContain('Collaboration mode:')
       if (actor === 'worker') {
-        await handles.managedTeam!.spawn({ name: 'researcher', task: 'Review all 55 sources.' })
-        expect(await handles.managedTeam!.awaitWorker('researcher')).toMatchObject({
+        const reviewer = await handles.managedTeam!.spawn({
+          name: 'reviewer', role: 'reviewer', context: 'fork', task: 'Review all 55 sources.',
+        })
+        const disclosed = handles.managedTeam!.lead.effectiveCatalog()!.schemas()
+        expect(disclosed.map(tool => tool.name)).toEqual(expect.arrayContaining(controls))
+        const sending = disclosed.find(tool => tool.name === 'send_input')!
+        expect('parameters' in sending && sending.parameters.properties).not.toHaveProperty('interrupt')
+        expect(reviewer.context).toBe('fresh')
+        expect(await handles.managedTeam!.awaitWorker('reviewer')).toMatchObject({
           text: 'Final report: 55 sources checked.', succeeded: true,
         })
       }

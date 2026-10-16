@@ -66,6 +66,7 @@ export interface ManagedControlsHost {
   readonly options: ManagedAgentTeamOptions
   readonly spawnTimeoutMs: number
   readonly workerTimeoutMs: number
+  spawnGuidance(): string | undefined
   roleSchema(): Record<string, unknown>
   spawn(request: ManagedAgentSpawnRequest, signal?: AbortSignal): Promise<ManagedAgentWorker>
   workerBusy?(name: string): boolean

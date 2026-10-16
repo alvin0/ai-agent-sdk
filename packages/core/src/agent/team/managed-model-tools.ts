@@ -1,18 +1,31 @@
 /** Compact model controls; host requests and lifecycle views remain unchanged. */
 import { atManagedDepthLimit, filterToolsByDepth } from './managed-capabilities.ts'
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
-import { managedLeadInstructions, type ManagedControlsHost } from './managed-controls.ts'
+import { buildDelegationStrategy, managedLeadInstructions, type ManagedControlsHost } from './managed-controls.ts'
 import { parseSpawnTool } from './managed-tool-input.ts'
 import { asJson } from './managed-outcomes.ts'
 import { memberName, object } from './common.ts'
 import type { JsonValue } from '../../primitives/index.ts'
 import type { ContentBlock } from '../../message/index.ts'
+import { progressiveTeamTools } from './managed-lazy-tools.ts'
 
 export function renderModelResult(value: JsonValue | undefined): readonly ContentBlock[] {
   return [{ type: 'text', text: JSON.stringify(value ?? null) }]
 }
 
 export function leanLeadInstructions(options: ManagedControlsHost['options']): string {
+  buildDelegationStrategy(options.delegationMode) // Preserve mode validation for the short prompt too.
+  if (progressiveTeamTools(options)) {
+    return (options.delegationMode === 'explicit'
+      ? 'Delegate only when the user or host explicitly asks. '
+      : 'Use the team proactively for parallel work; keep quick or sequential work local. ')
+      + 'Use spawn_agents for independent tasks or spawn_agent for one; '
+      + 'brief objective, inputs, output, disjoint writes and verification. '
+      + 'Do not redo delegated work. After spawning, controls appear and results are pushed automatically. '
+      + (options.autoLeadCoordination === false
+        ? 'Use wait_agents when blocked; the host controls later turns.'
+        : 'End your turn when only waiting remains; synthesize reports before the final answer.')
+  }
   return managedLeadInstructions(options) + (atManagedDepthLimit(options)
     ? ' Use send_input for follow-up work. '
     : ' Use spawn_agents for independent tasks, spawn_agent for one task, and send_input for follow-up work. ')
@@ -20,28 +33,26 @@ export function leanLeadInstructions(options: ManagedControlsHost['options']): s
 }
 
 export function leanControlTools(host: ManagedControlsHost): readonly ToolDefinition<any>[] {
+  const eager = host.options.progressiveToolDisclosure === false
   return filterToolsByDepth([defineTool({
     name: 'spawn_agent',
     render: renderModelResult,
-    description: 'Delegate a bounded sidecar task with objective, output, write scope and verification. '
-      + 'Keep immediate blockers local; do not redo delegated work. '
-      + 'Returns a target; results are pushed automatically.',
-    parameters: { type: 'object', properties: {
-      task: { type: 'string', description: 'Task and requested output.' },
-      context: { type: 'string', enum: ['fresh', 'fork'],
-        description: 'fresh: only the task; include everything needed.'
-          + ' fork: inherits the completed conversation; state only what is new.' },
-      writes: { type: 'array', items: { type: 'string' },
-        description: 'Disjoint workspace write scope; omit for read-only.' },
-      dependsOn: { type: 'array', items: { type: 'string' }, description: 'Producer targets to join before starting.' },
-      ...host.roleSchema(),
-    }, required: ['task'], additionalProperties: false },
+    description: eager
+      ? 'Delegate a bounded sidecar task with objective, output, write scope and verification. '
+        + 'Keep immediate blockers local; do not redo delegated work. '
+        + 'Returns a target; results are pushed automatically.'
+      : 'Start a parallel sidecar; returns target, not result. Results are pushed. '
+      + 'Keep immediate blockers local.',
+    parameters: spawnParameters(host),
     // Accept earlier spellings for in-flight histories, without advertising them.
     parse: parseSpawnTool,
     execute: async (request, ctx) => {
       const worker = await host.spawn(request, ctx.signal)
+      // Append detailed strategy once as a tool result, preserving the short system prefix.
+      const guidance = host.spawnGuidance()
       const status = worker.status === 'pending' ? 'running' : worker.status
       return asJson({ target: worker.name, status: status === 'closed' ? 'failed' : status,
+        ...(guidance === undefined ? {} : { guidance }),
         ...worker.error === undefined ? {} : { error: worker.error } })
     },
     timeoutMs: host.spawnTimeoutMs,
@@ -73,4 +84,23 @@ export function leanControlTools(host: ManagedControlsHost): readonly ToolDefini
     },
     timeoutMs: host.workerTimeoutMs,
   })], host.options)
+}
+
+function spawnParameters(host: ManagedControlsHost): ToolDefinition['parameters'] {
+  const eager = host.options.progressiveToolDisclosure === false
+  return { type: 'object', properties: {
+      task: { type: 'string', description: eager
+        ? 'Task and requested output.' : 'Objective, output, scope, verification.' },
+      context: { type: 'string', enum: ['fresh', 'fork'],
+        description: eager ? 'fresh: only the task; include everything needed.'
+          + ' fork: inherits the completed conversation; state only what is new.'
+          : 'fresh: self-contained task. fork: copies completed turns, not this turn.' },
+      writes: { type: 'array', items: { type: 'string' },
+        description: eager ? 'Disjoint workspace write scope; omit for read-only.'
+          : 'Disjoint relative write scopes; omit for read-only. No permission grant.' },
+      dependsOn: { type: 'array', items: { type: 'string' },
+        description: eager ? 'Producer targets to join before starting.'
+          : 'Existing producer targets; start after settlement.' },
+      ...host.roleSchema(),
+    }, required: ['task'], additionalProperties: false }
 }

@@ -2,6 +2,7 @@
 import type { ManagedAgentSpawnRequest, ResolvedManagedAgentSpawnRequest,
   ManagedAgentWorker, WorkerRuntime } from './managed-types.ts'
 import { errorMessage } from './managed-outcomes.ts'
+import type { TeamSpawnRejection } from './team-timeline.ts'
 import { truncate } from './managed-report-text.ts'
 
 export interface BatchWorkerView {
@@ -23,6 +24,7 @@ interface BatchSpawnHost<T> {
   readonly maxQueued: number
   readonly busy: number
   readonly queued: number
+  rejected(request: ManagedAgentSpawnRequest, reason: TeamSpawnRejection, code: string): void
   resolve(request: ManagedAgentSpawnRequest, reserved: ReadonlySet<string>): ResolvedManagedAgentSpawnRequest
   check(request: ResolvedManagedAgentSpawnRequest): void
   prepare(request: ResolvedManagedAgentSpawnRequest, queued: boolean): T
@@ -37,26 +39,17 @@ export async function spawnManagedBatch<T>(requests: readonly ManagedAgentSpawnR
 ): Promise<readonly BatchWorkerView[]> {
   const free = Math.max(0, host.maxWorkers - host.busy)
   if (requests.length > free + host.maxQueued - host.queued) {
+    for (const request of requests) host.rejected(request, 'capacity', 'TEAM_BATCH_QUEUE_LIMIT')
     throw new Error(`spawn_agents queue overflow: ${free} free slots, ${host.queued} queued`
       + ` (maxWorkers=${host.maxWorkers}, maxQueued=${host.maxQueued}); requested ${requests.length}`)
   }
-  const reserved = new Set(requests.flatMap(request => request.name === undefined ? [] : [request.name]))
-  const resolved = requests.map(request => {
-    const item = host.resolve(request, reserved)
-    reserved.add(item.name)
-    return item
-  })
-  const names = new Set<string>()
-  for (const request of resolved) {
-    host.check(request)
-    if (names.has(request.name)) throw new Error(`duplicate batch worker '${request.name}'`)
-    names.add(request.name)
-  }
+  const resolved = resolveBatch(requests, host)
+  const names = resolved.map(request => request.name)
   const prepared = resolved.map((request, index) => host.prepare(request, index >= free))
   let admitted = false
   try {
-    const warnings = prepared.map(item => host.warnings(item))
-    callbacks.reserved([...names])
+    const warnings = validateReservations(requests, () => prepared.map(item => host.warnings(item)), host)
+    validateReservations(requests, () => callbacks.reserved(names), host)
     admitted = true
     return await Promise.all(prepared.map(async (item, index) => {
       if (index >= free) {
@@ -106,4 +99,36 @@ export async function startBatchWorker(name: string, callbacks: BatchSpawnCallba
     callbacks.settled(name, cancelled ? 'cancelled' : 'failed', false)
     return failedBatchWorker(name, error, cancelled)
   } finally { host.drain() }
+}
+
+function resolveBatch<T>(requests: readonly ManagedAgentSpawnRequest[], host: BatchSpawnHost<T>) {
+  let reason: TeamSpawnRejection = 'invalid'
+  try {
+    const reserved = new Set(requests.flatMap(request => request.name === undefined ? [] : [request.name]))
+    const resolved = requests.map(request => {
+      const item = host.resolve(request, reserved)
+      reserved.add(item.name)
+      return item
+    })
+    reason = 'duplicate'
+    const names = new Set<string>()
+    for (const request of resolved) {
+      host.check(request)
+      if (names.has(request.name)) throw new Error(`duplicate batch worker '${request.name}'`)
+      names.add(request.name)
+    }
+    return resolved
+  } catch (error) {
+    for (const request of requests) host.rejected(request, reason,
+      reason === 'duplicate' ? 'TEAM_WORKER_ALREADY_EXISTS' : 'TEAM_SPAWN_INVALID')
+    throw error
+  }
+}
+
+function validateReservations<T, R>(requests: readonly ManagedAgentSpawnRequest[],
+  validate: () => R, host: BatchSpawnHost<T>): R {
+  try { return validate() } catch (error) {
+    for (const request of requests) host.rejected(request, 'invalid', 'TEAM_SPAWN_INVALID')
+    throw error
+  }
 }

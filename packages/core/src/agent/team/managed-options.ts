@@ -1,3 +1,4 @@
+import { teamObservationContext } from './team-observation-internal.ts'
 import { timeoutValue } from '../../platform/config.ts'
 import { AgentTeam } from './team.ts'
 import type { ManagedAgentTeamOptions, ManagedAgentRole } from './managed-types.ts'
@@ -31,6 +32,7 @@ export function managedControlPlane(options: ManagedAgentTeamOptions, maxWorkers
   return options.team instanceof AgentTeam
     ? options.team
     : new AgentTeam({
+        ...teamObservationContext(options.leadSessionOptions?.observation),
         ...options.team,
         maxMembers: options.team?.maxMembers ?? maxWorkers + 1,
       })

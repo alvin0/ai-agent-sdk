@@ -1,85 +1,61 @@
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { createManagedAgentTeam, defineAgent } from '../../packages/core/src/agent/index.ts'
-import { ModelAdapter, ModelRegistry, ReasoningEffortId } from '../../packages/core/src/index.ts'
-import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '../../packages/core/src/index.ts'
+import { captureSingleSurface, captureSurface } from './team-surface-capture.ts'
+import { estimateTextTokens } from '../../packages/core/src/agent/tool/output-budget/token-budget.ts'
+import { DISCLOSED_TEAM_GUIDANCE } from '../../packages/core/src/agent/team/managed-lazy-tools.ts'
 
-class Capture extends ModelAdapter {
-  readonly requests: GenerateOptions[] = []
-  override resolveModel(provider: string, model: string): Promise<ResolvedModelInfo> {
-    const effort = ReasoningEffortId('medium')
-    return Promise.resolve({ provider, id: model, name: model,
-      reasoning: { efforts: [{ id: effort, name: effort }] } })
-  }
-  async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    this.requests.push(options)
-    yield { type: 'text-delta', index: 0, text: 'done' }
-    yield { type: 'block-end', index: 0, block: { type: 'text', text: 'done' } }
-    yield { type: 'finish', reason: { kind: 'stop' } }
-  }
+type Surfaces = Record<string, Awaited<ReturnType<typeof captureSurface>>>
+type FrozenView = { system: number; tools: number; total: number; estimatedTokens: number; sha256: string }
+// Preserve pre-lazy captures from 5b81eda; combined holds the merged eager/legacy contract.
+const fixture = JSON.parse(readFileSync(new URL('../fixtures/team-lazy-surfaces.json', import.meta.url), 'utf8')) as {
+  before: Record<string, FrozenView[]>
+  combined: Record<string, FrozenView[]>
 }
+const hash = (view: Surfaces[string][number]) => createHash('sha256').update(JSON.stringify(view)).digest('hex')
 
-async function capture(modelToolSurface: 'lean' | 'legacy') {
-  const adapter = new Capture()
-  const registry = new ModelRegistry()
-  registry.registerAdapter(['test'], adapter)
-  const team = createManagedAgentTeam({ registry, modelToolSurface, team: { id: 'surface-size' },
-    lead: defineAgent({ id: 'lead', provider: 'test', model: 'scripted', instructions: 'Solve the task.' }),
-  })
-  await team.run('work')
-  await team.spawn({ name: 'worker_1', task: 'work' })
-  await team.awaitWorker('worker_1')
-  const views = adapter.requests.slice(0, 2).map(request => ({
-    instructions: request.system ?? '', tools: request.tools ?? [],
-  }))
-  expect(views).toHaveLength(2)
-  await team.dispose()
-  return views.map(view => ({ instructions: view.instructions.length,
-    tools: JSON.stringify(view.tools).length,
-    batch: JSON.stringify(view.tools.filter(tool => tool.name === 'spawn_agents')).length - 2,
-    total: view.instructions.length + JSON.stringify(view.tools).length }))
+function surfaceSize(view: Surfaces[string][number]) {
+  const catalog = JSON.stringify(view.tools)
+  return { system: view.system.length, tools: catalog.length, total: view.system.length + catalog.length,
+    estimatedTokens: estimateTextTokens(view.system + catalog),
+    toolNames: view.tools.map(tool => tool.name), sha256: hash(view) }
 }
 
 describe('managed model surface size', () => {
-  it('reduces both lead and worker instructions plus serialized tool definitions', async () => {
-    const before = await capture('legacy')
-    const after = await capture('lean')
-    expect({ before, after }).toMatchInlineSnapshot(`
-      {
-        "after": [
-          {
-            "batch": 1195,
-            "instructions": 2046,
-            "tools": 3835,
-            "total": 5881,
-          },
-          {
-            "batch": 0,
-            "instructions": 1132,
-            "tools": 371,
-            "total": 1503,
-          },
-        ],
-        "before": [
-          {
-            "batch": 1195,
-            "instructions": 2341,
-            "tools": 6189,
-            "total": 8530,
-          },
-          {
-            "batch": 0,
-            "instructions": 1384,
-            "tools": 1255,
-            "total": 2639,
-          },
-        ],
-      }
-    `)
-    // Both surfaces now include the same batch catalog. Preserve the lean reduction guard
-    // for their original controls, and record the full added overhead in the snapshot.
-    expect(after[0]!.total - after[0]!.batch).toBeLessThan((before[0]!.total - before[0]!.batch) * 0.65)
-    expect(after[0]!.total).toBeLessThan(before[0]!.total * 0.7)
-    expect(after[0]!.batch).toBeLessThanOrEqual(1200)
-    expect(after[1]!.total).toBeLessThan(before[1]!.total * 0.6)
+  it('snapshots sizes, tool names and exact surface hashes', async () => {
+    const after: Surfaces = {
+      single: await captureSingleSurface(),
+      lean: await captureSurface(),
+      fullWorker: await captureSurface({ workerTeamTools: 'full' }),
+      eager: await captureSurface({ progressiveToolDisclosure: false }),
+      eagerFullWorker: await captureSurface({ progressiveToolDisclosure: false, workerTeamTools: 'full' }),
+      legacy: await captureSurface({ modelToolSurface: 'legacy' }),
+      collaboration: await captureSurface({ collaboration: true }),
+    }
+    const sizes = Object.fromEntries(Object.entries(after).map(([name, views]) => [name, views.map(surfaceSize)]))
+    expect({ after: sizes,
+      retainedGuidanceChars: DISCLOSED_TEAM_GUIDANCE.length,
+      retainedGuidanceEstimatedTokens: estimateTextTokens(DISCLOSED_TEAM_GUIDANCE),
+    }).toMatchSnapshot()
+    expect({ system: after.lean![0]!.system, guidance: DISCLOSED_TEAM_GUIDANCE })
+      .toMatchSnapshot('lead prompt and disclosed guidance')
+    const total = (view: Surfaces[string][number]) => view.system.length + JSON.stringify(view.tools).length
+    const batch = (view: Surfaces[string][number]) =>
+      JSON.stringify(view.tools.filter(tool => tool.name === 'spawn_agents')).length - 2
+    // The new initial batch verb has a separate 1,200-character budget. Keep lazy's
+    // original control-size guard and the branch's complete eager/legacy guard.
+    expect(total(after.lean![0]!) - batch(after.lean![0]!)).toBeLessThan(fixture.before.lean![0]!.total * 0.35)
+    expect(batch(after.lean![0]!)).toBeLessThanOrEqual(1200)
+    expect(total(after.eager![0]!)).toBeLessThan(total(after.legacy![0]!) * 0.7)
+    expect(total(after.eager![0]!) - batch(after.eager![0]!))
+      .toBeLessThan((total(after.legacy![0]!) - batch(after.legacy![0]!)) * 0.65)
+    expect(total(after.eager![1]!)).toBeLessThan(total(after.legacy![1]!) * 0.6)
+    expect(total(after.lean![1]!)).toBeLessThan(fixture.before.lean![1]!.total)
+    expect(total(after.fullWorker![1]!)).toBeLessThan(fixture.before.fullWorker![1]!.total * 0.95)
+    expect(after.lean![0]!.system).toBe(after.lean![2]!.system)
+    expect(after.lean![2]!.tools.slice(0, 2)).toEqual(after.lean![0]!.tools)
+    expect(after.legacy!.map(hash)).toEqual(fixture.combined.legacy!.map(view => view.sha256))
+    expect(after.eager!.map(hash)).toEqual(fixture.combined.eager!.map(view => view.sha256))
+    expect(after.eagerFullWorker!.map(hash)).toEqual(fixture.combined.eagerFullWorker!.map(view => view.sha256))
   })
 })

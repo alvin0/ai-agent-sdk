@@ -20,6 +20,8 @@ interface BatchToolHost {
   readonly maxQueued: number
   readonly spawnTimeoutMs: number
   readonly waitTimeoutMs: number
+  guidanceBudget(): string | undefined
+  spawnGuidance(): string | undefined
   roleSchema(): Record<string, unknown>
   readonly workers: ReadonlyMap<string, WorkerRuntime>
   owner(): Set<WorkerRuntime> | undefined
@@ -88,7 +90,7 @@ async function executeBatch(host: BatchToolHost, { tasks, ids, join }: ReturnTyp
     const workers = await host.spawning.spawnBatch(tasks, signal, {
       reserved: names => {
         targets = names
-        reserveCoverage(coverage, names, ids)
+        reserveCoverage(coverage, names, ids, host.guidanceBudget())
         if (join) capture = host.team.captureResults(host.leadName, names, false)
       },
       started: name => {
@@ -101,7 +103,9 @@ async function executeBatch(host: BatchToolHost, { tasks, ids, join }: ReturnTyp
     })
     if (!join) {
       host.notice(coverage.settled().then(() => coverage.view()))
-      return asJson(batchPayload(workers, coverage.view(), [], signal.aborted ? { cancelled: true } : {}))
+      return asJson(batchPayload(workers, coverage.view(), [], {
+        ...signal.aborted ? { cancelled: true } : {}, guidance: host.spawnGuidance(),
+      }))
     }
     try {
       const waited = await host.team.waitForBatch(host.leadName, targets,
@@ -114,6 +118,7 @@ async function executeBatch(host: BatchToolHost, { tasks, ids, join }: ReturnTyp
       }
       return asJson(batchPayload(workers, coverage.view(), modelResults(takeCaptured(capture)), {
         timed_out: waited.timedOut, ...waited.interrupted ? { interrupted: true } : {},
+        guidance: host.spawnGuidance(),
       }))
     } catch (error: unknown) {
       if (!signal.aborted) throw error
@@ -121,7 +126,7 @@ async function executeBatch(host: BatchToolHost, { tasks, ids, join }: ReturnTyp
       capture?.close()
       capture?.release()
       host.resume(targets)
-      return asJson(batchPayload(workers, coverage.view(), [], { cancelled: true }))
+      return asJson(batchPayload(workers, coverage.view(), [], { cancelled: true, guidance: host.spawnGuidance() }))
     }
   } finally {
     detach()
@@ -141,10 +146,10 @@ function batchCallSignal(caller: AbortSignal, lifetime: AbortSignal) {
 }
 
 function reserveCoverage(coverage: ManagedBatchCoverage, names: readonly string[],
-  ids: readonly (string | undefined)[]) {
+  ids: readonly (string | undefined)[], guidance?: string) {
   const itemIds = names.map((name, index) => ids[index] ?? name)
   if (new Set(itemIds).size !== itemIds.length) throw new TypeError('duplicate batch item_id')
-  assertBatchMetadataBudget(names, itemIds)
+  assertBatchMetadataBudget(names, itemIds, guidance)
   coverage.assign(names, ids)
 }
 

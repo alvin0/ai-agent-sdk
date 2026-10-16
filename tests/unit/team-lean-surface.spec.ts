@@ -86,7 +86,7 @@ function reports(team: ManagedAgentTeam, result: string) {
 
 describe('lean managed model surface', () => {
   it('offers batch and single spawning with one reporting verb with compact JSON results', async () => {
-    const { adapter, team } = fixture()
+    const { adapter, team } = fixture({ progressiveToolDisclosure: false })
     try {
       await team.run('work')
       expect(adapter.requests[0]!.tools!.map(tool => tool.name)).toEqual([

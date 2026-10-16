@@ -12,7 +12,25 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 - Managed lead catalogs now reserve `spawn_agents` for batch fan-out on both tool surfaces.
   Rename any host-provided tool using that name; host lifecycle APIs remain unchanged.
-- Managed teams default to the lean model surface: `spawn_agent`, `send_input`, `wait_agents`,
+- Plain lean managed leads now expose `spawn_agent` and `spawn_agents` initially; after successful host/model spawning
+  or queued batch admission,
+  control tools remain visible for the team lifetime. Set `progressiveToolDisclosure: false` for
+  the exact previous eager schemas/descriptions and full strategy in the system prompt (including workers).
+  Existing team members or a successful spawn in restored lead history also disclose controls.
+  Legacy, collaboration, depth-limited leads
+  and worker catalogs remain eager. The lazy lead keeps a compact stable prompt; its first model
+  spawn result appends detailed coordination guidance once. Default lean schema descriptions are shorter.
+- Rename the unreleased benchmark metric `spawnRejected` to `spawnsRejected`. Spawn rejection
+  reasons add `aborted` with code `TEAM_SPAWN_ABORTED` for pre-admission cancellation.
+
+- Remove unreleased public `AgentTeam.recordTimeline`/`observeSession` instrumentation methods;
+  runtime observation now uses internal helpers. Host consumers use `onEvent`/`subscribe` and typed
+  `snapshot(): TeamSnapshot`. Export `TeamSettlementUsage` used by `recordOutcome`.
+
+- `AgentTeamEvent` adds the `team-timeline` variant. Exhaustive event switches must handle it
+  (or retain a default case); existing event variants and callbacks remain supported.
+
+- Managed teams default to the lean model surface: `spawn_agent`, `spawn_agents`, `send_input`, `wait_agents`,
   `close_agent`, and explicit paged `get_agent_result`. Set `modelToolSurface: 'legacy'` to retain
   the earlier names/schemas (`list_agents`, `send_message`, `followup_task`, name-based close).
   Host lifecycle, remote delivery and worker-view methods remain available. Lean model tools address
@@ -43,6 +61,20 @@ All notable changes to the AI Agent SDK are documented in this file.
   Partial joins push final coverage when the remaining work settles, and automatic `run()` waits
   for queued waves and synthesis. Coverage notices are attributed to the team runtime.
   Single-spawn capacity errors explain queued batch items' FIFO priority.
+- Record `spawn-accepted` only after successful initial dispatch or dependency hold. A setup
+  failure emits rejection/failure without acceptance; timeline metrics preserve zero accepted spawns
+  and count pre-admission aborts as attempts, so settled attempts equal accepted plus rejected.
+
+- Team observability records all spawn rejection classes with capacity context, slot release/closure,
+  lead-return/final-join boundaries, activation sources/senders, and nested team ancestry. Include early
+  and inherited child-session model calls, prefer report-bearing settlements, preserve settlement wake
+  precedence, and skip unused timeline payload cloning. Consumers must sort facts by sequence per team.
+- Preserve benchmark accepted `spawns` and legacy `wastedLeadTurns`; add separate attempts/rejections,
+  wasted wakes, per-member usage and per-lead-call input tokens. Partial call timelines fall back to
+  observed starts; lead counts are scoped to the root team. Retain lifecycle metadata in audit JSON.
+- Pass committed collaboration tasks directly to observers and isolate post-commit observer errors.
+  Synthesis budget events use the guard's actual limit and only label real exhaustion.
+
 - Replace periodic hold prompts with runtime-attributed push settlements and event-driven yield/join.
   Preserve lost-wake recovery across idle observers and cancelled flushes; bound synthesis-only retries
   to three without progress. Keep partial cancellation/timeout/failure evidence and structured results.
@@ -67,6 +99,14 @@ All notable changes to the AI Agent SDK are documented in this file.
   cancellation drains queued items exactly once (call cancellation only while in flight).
   Host APIs and single spawning remain compatible.
   Shared exported delegation strategy is tool-neutral; batch tool advice lives in managed instructions.
+- Multi-agent host guide with 0.1.12 migration and troubleshooting, plus `pnpm sample:multi-agent`
+  for offline delegation and collaboration through a local fake adapter and real SDK tools.
+- Typed host team timeline through existing `AgentTeam` `onEvent`/`subscribe` hooks: spawn requests,
+  member starts/settlements with canonical usage, worker status, lead yields/wake reasons, notice
+  delivery, empty synthesis wakes, budget decisions and committed collaboration board operations.
+  Managed teams expose immutable `snapshot()` summaries of member status, timings and usage.
+  The benchmark prefers timeline facts and retains its older-SDK fallback. See `docs/team-observability.md`.
+
 - Opt-in `collaboration: true`: revision-CAS task board, compact task discovery, owner/dependency checks,
   bounded peer wakes and automatic ready/blocked notices. The board remains local and in memory.
   Joins share managed settlement barriers; each join has a deadline, with pending/preparing work cancelled
@@ -78,6 +118,12 @@ All notable changes to the AI Agent SDK are documented in this file.
   deterministic graders, offline CI coverage, and branch comparison reports. No host API changes.
 
 ### Changed
+
+- Round 9 benchmark `forkSpawns`, `freshSpawns` and `contextUnknownSpawns` count accepted spawns
+  only on both timeline and older-SDK fallback paths. Rejected or pending requests no longer inflate
+  timeline context buckets; attempts, refusals, concurrency and per-member usage retain their semantics.
+  Historical timeline context counts may include refused requests; rerun with identical harness bytes
+  for comparisons. SDK host APIs and model-facing prompts/tools are unchanged.
 
 - Round 8 benchmark metrics consume schema-v1 `team.onEvent` timeline facts: accepted spawns,
   attempts/refusals, resolved context, active-run concurrency, wasted wakes and finalized usage.
@@ -93,6 +139,9 @@ All notable changes to the AI Agent SDK are documented in this file.
   ignore unknown knobs; SDK host APIs and default prompts/tools are unchanged. Earlier cohorts remain
   readable by analysis but require rerunning with the same V7 harness for matched comparisons.
 
+- Chat-agents dynamic teams explicitly select lean proactive delegation, keep host-owned worker
+  capabilities and cancellation protection, and use fresh reviewer context. Tool labels and
+  lifecycle documentation match push results, synthesis joins and automatic slot release.
 - Round 6 benchmark protocol V6 adds SDK adapter retries (six attempts, provider retry-after up
   to 60 seconds), a process-wide model-call semaphore (default four), infrastructure classification
   and two fresh-workspace reruns, immutable attempt evidence, and manifest-checked `--resume`.

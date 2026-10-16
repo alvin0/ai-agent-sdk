@@ -5,8 +5,9 @@ import { execute, fixture, gate, notices, tasks } from './helpers/team-batch-fix
 import { managedWorkerTools } from '../../packages/core/src/agent/team/managed-capabilities.ts'
 
 describe('managed batch fan-out', () => {
-  it.each(['lean', 'legacy'] as const)('one %s model call starts N workers and joins once', async modelToolSurface => {
-    const { adapter, team } = fixture({ modelToolSurface })
+  it.each(['lean', 'legacy', 'eager'] as const)('one %s model call starts N workers and joins once', async surface => {
+    const { adapter, team } = fixture({ modelToolSurface: surface === 'eager' ? 'lean' : surface,
+      progressiveToolDisclosure: surface !== 'eager' })
     const running = team.run('Extract all independent inputs.')
     await vi.waitFor(() => expect(adapter.workers.size).toBe(3))
     expect(adapter.leads).toHaveLength(1)

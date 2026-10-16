@@ -165,6 +165,8 @@ export interface AgentSessionTeamPort {
   attach(session: AgentSession, options?: AgentSessionTeamAttachmentOptions): void
   toolsFor(sender: string, access?: 'full' | 'reporting'): readonly ToolDefinition<any>[]
   instructionsFor(name: string): string
+  /** Optional live projection, applied after runtime tools are composed. */
+  filterCatalog?(sender: string, catalog: ToolCatalog): ToolCatalog
 }
 
 export interface AgentSessionTeamAttachmentOptions {

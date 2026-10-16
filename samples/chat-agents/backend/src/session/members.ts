@@ -124,14 +124,9 @@ export async function* followWorkers(
   yield* flushWorkerEvents(queued, drainOutbox, { project, persist })
   if (reported) yield { t: 'progress', message: null }
 
-  // Release the settled workers' slots.
-  //
-  // The SDK keeps a finished worker addressable, and occupying one of
-  // `maxWorkers`, until something closes it — that is what makes `close_agent`
-  // worth calling. This app holds the harness for the whole conversation, so a
-  // lead that forgets to close would exhaust the cap after a few prompts and
-  // every later spawn would fail. Their answers are already in the lead's
-  // history and in the transcript, so nothing is lost by reclaiming the slot.
+  // Close settled workers after synthesis. Concurrency slots already released
+  // at settlement; this preserves the sample's lifecycle cleanup. Close removes
+  // the managed entry; explicit result pages can still read archived evidence.
   await closeSettledWorkers(live, controller)
 }
 
