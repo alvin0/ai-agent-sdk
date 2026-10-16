@@ -20,9 +20,10 @@ pnpm --filter @alvin0/ai-agent-sdk-core build        # the backend consumes buil
 pnpm --filter @chat-agents/web dev            # http://localhost:3000
 ```
 
-After SDK changes, rebuild core and restart the dev server. See
-[Team-auto research regressions](RESEARCH-REGRESSIONS.md) for completion behavior,
-budget handling, automated checks, and research/coding/analysis reproduction prompts.
+After SDK changes, rebuild core and restart the dev server. See the
+[multi-agent guide](../../docs/multi-agent.md) for completion behavior and budgets,
+and the [research regression tests](../../tests/unit/chat-agents-research-soak.spec.ts)
+for offline checks of the sample's research flow.
 
 Team and Team-auto use `maxTurns: 'auto'` for leads and workers, so a long task
 can continue past the former 32/48-step ceilings. Single-agent modes retain
@@ -147,9 +148,20 @@ account exposes it); a model that discloses nothing falls back to the generic
 
 | Mode | Shape |
 | --- | --- |
-| `basic` / `deep` / `deep-human-in-loop` | one agent, the bounded `runAgent` loop |
+| `basic` / `deep` / `deep-human-in-loop` | one `AgentSession` with the selected loop policy |
 | `team` | a declared roster: the selected preset leads and delegates to every preset marked **In team**, using the SDK's `list_agents` / `send_message` / `wait_agents` / `followup_task` tools |
-| `team-dynamic` | one lead that calls `spawn_agent` to start workers and keeps working while they run, reading their results as they report back. Workers are spawned with `defaultSpawnContext: 'fork'`, so each starts already knowing what the lead found out about the workspace instead of rediscovering it. Three roles are declared — `implementer`, `investigator`, `reviewer` — and the lead orders the plan with `dependsOn` and claims files with `writes`, so a reviewer waits for the code it reviews and two workers cannot be given the same file |
+| `team-dynamic` | one managed lead with the lean `spawn_agent`, `send_input`, `wait_agents`, `get_agent_result` and `close_agent` tools. Five roles are declared: `researcher`, `analyst`, `implementer`, `investigator`, `reviewer`. Workers default to forked completed history; reviewer forces fresh context. `dependsOn` orders producer work and `writes` declares disjoint scheduling scopes. |
+
+Dynamic mode explicitly selects `delegationMode: 'proactive'` and leaves collaboration
+off. The SDK guides the lead to keep sequential work local, delegate bounded independent
+work and synthesize automatically pushed results. The sample keeps its explicit worker
+template and shared approval/interceptor policy; automatic tool inheritance is for
+generated workers without explicit templates/factories/tools. Role instructions here
+guide behavior; the host tool/approval layer enforces access. Model cancellation of
+unfinished workers is disabled; the user's Stop control remains available.
+For board collaboration, guarded tool inheritance and 0.1.12 migration, see the
+[multi-agent guide](../../docs/multi-agent.md). To try both modes without providers,
+run the [offline example](../multi-agent-offline/README.md).
 
 Team runs use `defineAgent` + `AgentSession` rather than `runAgent`, because a
 team needs addressable sessions with their own history. Members report through
@@ -190,7 +202,7 @@ stream rather than dropped. `onWorkerEvent` is a stable indirection into the
 session for the same reason: the harness captures its callback once, so a
 per-run callback would still be delivering to a run that ended two prompts ago.
 
-Because the lead can answer before its workers do, the SSE stream stays open
+Because the lead can yield provisionally before its workers finish, the SSE stream stays open
 after the lead's `run-end` for as long as any worker is still running, with the
 status line naming them. Closing there would leave the reader with an answer and
 no sign of the agents still working behind it — they would only find out on their
@@ -206,22 +218,20 @@ conversation ending on a worker's own output. `ManagedAgentTeam.whenQuiet()`
 covers that gap: a worker settles only once its report has been delivered, so
 the wait resolves with the lead already woken.
 
-Settled workers are then closed. The SDK keeps a finished worker addressable —
-and occupying one of `maxWorkers` — until something closes it, which is what
-makes `close_agent` worth calling; but this app holds one harness for a whole
-conversation, so a lead that forgot would exhaust the cap after a few prompts and
-every later spawn would fail. Their answers are already in the lead's history and
-in the transcript, so reclaiming the slot costs nothing.
+Settled workers automatically release concurrency and roster slots while retaining
+their addresses and results. After synthesis, this sample closes settled workers
+to remove managed entries and detach their sessions. Explicit result pages can still
+read archived evidence. No periodic lead calls are needed while only waiting remains;
+the host's SSE heartbeat does not invoke the model.
 
 The run's live status — `Still running a command · 40s`, or the invitation to
 steer — sits at the END of the stream, where the next row will appear, the same
 place Claude Code and Codex put it. Under the composer it read as chrome about
 the input box rather than as the run's own last line.
 
-One caveat worth knowing: a `DefinedAgent` always sends a reasoning effort, and
-a provider that declares none (Gemini today) rejects any value. That is why the
-single-agent modes stay on `runAgent`, which accepts an omitted effort, and why
-team modes need a model that publishes efforts — Codex routes do.
+The sample validates the remembered reasoning effort against the resolved model
+before constructing any session, including team sessions. An unsupported effort
+does not reach the provider.
 
 **Agents, MCP, and skills.** An agent preset replaces the system prompt and may
 pin its own model, loop policy, and effort. Every enabled MCP server (stdio or

@@ -459,9 +459,21 @@ describe('what the app actually configures for a single agent', () => {
     try {
       const events: AgentRunEvent[] = []
       for await (const event of handles.events) events.push(event as AgentRunEvent)
+      const leadTools = adapter.requests[0]!.tools!
+      expect(leadTools.map(tool => tool.name)).toEqual(expect.arrayContaining([
+        'spawn_agent', 'send_input', 'wait_agents', 'get_agent_result', 'close_agent',
+      ]))
+      expect(leadTools.map(tool => tool.name)).not.toContain('followup_task')
+      const sending = leadTools.find(tool => tool.name === 'send_input')!
+      expect('parameters' in sending && sending.parameters.properties).not.toHaveProperty('interrupt')
+      expect(adapter.requests[0]!.system).toContain('Use your managed team proactively')
+      expect(adapter.requests[0]!.system).not.toContain('Collaboration mode:')
       if (actor === 'worker') {
-        await handles.managedTeam!.spawn({ name: 'researcher', task: 'Review all 55 sources.' })
-        expect(await handles.managedTeam!.awaitWorker('researcher')).toMatchObject({
+        const reviewer = await handles.managedTeam!.spawn({
+          name: 'reviewer', role: 'reviewer', context: 'fork', task: 'Review all 55 sources.',
+        })
+        expect(reviewer.context).toBe('fresh')
+        expect(await handles.managedTeam!.awaitWorker('reviewer')).toMatchObject({
           text: 'Final report: 55 sources checked.', succeeded: true,
         })
       }
