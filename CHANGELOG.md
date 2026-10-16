@@ -12,6 +12,12 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Changed
 
+- Round 7 benchmark protocol V7 adds manifest-pinned `--team-options` passthrough, delegation
+  attempts/acceptance/rejections, observed context/concurrency and per-member usage, delegated versus
+  non-delegated quality reports, and per-task merge-gate delta/regression summaries. Older SDKs
+  ignore unknown knobs; SDK host APIs and default prompts/tools are unchanged. Earlier cohorts remain
+  readable by analysis but require rerunning with the same V7 harness for matched comparisons.
+
 - Round 6 benchmark protocol V6 adds SDK adapter retries (six attempts, provider retry-after up
   to 60 seconds), a process-wide model-call semaphore (default four), infrastructure classification
   and two fresh-workspace reruns, immutable attempt evidence, and manifest-checked `--resume`.

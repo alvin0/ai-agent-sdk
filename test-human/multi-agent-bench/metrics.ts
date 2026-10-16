@@ -1,12 +1,17 @@
 import { createHash } from 'node:crypto'
 import { createCoreSpan, type Message, type ObservationEvent,
   type ModelFailure } from '../../packages/core/dist/index.js'
+import { DelegationCollector, type DelegationMetrics } from './delegation.ts'
 import { retryWaitMetrics, isInfraFailure } from './reliability.ts'
 import type { AgentSessionOptions } from '../../packages/core/dist/agent.js'
 
 export interface Limits { maxTotalTokens: number; maxTurns: number; maxToolCalls: number }
 export const defaultLimits: Limits = { maxTotalTokens: 1500000, maxTurns: 240, maxToolCalls: 320 }
-export interface Metrics {
+export interface MemberUsage {
+  calls: number; inputTokens: number; cachedInputTokens: number; cacheWriteTokens: number; outputTokens: number
+}
+export interface Metrics extends Partial<DelegationMetrics> {
+  memberUsage?: { lead: MemberUsage; workers: MemberUsage; byMember: Record<string, MemberUsage> }
   inputTokens: number | null
   outputTokens: number | null
   cacheReadTokens: number
@@ -100,6 +105,7 @@ export function evidenceFingerprint(messages: readonly Message[]): string {
 }
 
 export class Collector {
+  readonly delegation = new DelegationCollector()
   readonly events: { member: string; event: ObservationEvent }[] = []
   readonly requests: { member: string; evidence: string; repeated: boolean }[] = []
   readonly tools: { member: string; name: string }[] = []
@@ -132,6 +138,7 @@ export class Collector {
         try {
           const result = await next()
           if (result.isError) this.toolError(member, call, result.error.message)
+          else this.delegation.toolResult(member, call, result)
           return result
         } catch (error) {
           this.toolError(member, call, error)
@@ -139,21 +146,7 @@ export class Collector {
         }
       } }],
       runtimeLimits: { hookTimeoutMs: 120000 },
-      observation: { mode: 'operational', openSpan: createCoreSpan, capture: event => {
-        this.events.push({ member, event })
-        if (event.name === 'sdk.model.call' && event.phase === 'end') {
-          const usage = event.data.reported as Record<string, unknown> | undefined
-          this.tokens += tokenCounts(usage).weighted
-          if (this.tokens >= this.limits.maxTotalTokens) this.hit('tokens')
-        }
-        if (event.phase === 'end' && ['sdk.model.call', 'sdk.tool.call'].includes(event.name)
-          && ['error', 'aborted'].includes(String(event.data.status))
-          && !(event.name === 'sdk.tool.call'
-            && this.toolFailures.has(`${member}:${event.correlation.toolCallId}`))) {
-          this.errors.push(`${member} ${event.name}: ${JSON.stringify(event.data)}`)
-        }
-        return { eventId: event.eventId, status: 'accepted', durable: false, boundary: 'none' }
-      } },
+      observation: { mode: 'operational', openSpan: createCoreSpan, capture: event => this.observe(member, event) },
       hooks: {
         checkpoint: context => {
           this.controller.signal.throwIfAborted()
@@ -162,10 +155,12 @@ export class Collector {
               this.hit('toolCalls'); this.controller.signal.throwIfAborted()
             }
             this.tools.push({ member, name: context.call.toolName })
+            this.delegation.dispatch(member, { ...context.call, args: context.call.rawArguments })
           } else {
             if (this.requests.length >= this.limits.maxTurns) {
               this.hit('turns'); this.controller.signal.throwIfAborted()
             }
+            this.delegation.running(member)
             const facts = evidenceFacts(context.request.messages)
             const repeated = member === 'lead' && this.leadRequested && facts.every(fact => this.seenEvidence.has(fact))
             this.requests.push({ member, evidence: evidenceFingerprint(context.request.messages), repeated })
@@ -176,6 +171,7 @@ export class Collector {
           }
         },
         onTurnEnd: context => {
+          this.delegation.settled(member)
           if (member === 'lead') this.lastText = context.outcome.text
           if (context.outcome.reason.kind === 'error') {
             this.recordInfraFailure(context.outcome.reason.failure)
@@ -185,11 +181,30 @@ export class Collector {
       },
     }
   }
+  private observe(member: string, event: ObservationEvent) {
+        this.events.push({ member, event })
+        if (event.name === 'sdk.model.call' && event.phase === 'end') {
+          const usage = event.data.reported as Record<string, unknown> | undefined
+          this.tokens += tokenCounts(usage).weighted
+          if (this.tokens >= this.limits.maxTotalTokens) this.hit('tokens')
+        }
+        if (event.phase === 'end' && ['sdk.model.call', 'sdk.tool.call'].includes(event.name)
+          && ['error', 'aborted'].includes(String(event.data.status))
+          && !(event.name === 'sdk.tool.call'
+            && this.toolFailures.has(`${member}:${event.correlation.toolCallId}`))) {
+          if (event.name === 'sdk.tool.call') {
+            this.delegation.observationFailure(member, event.correlation.toolCallId, JSON.stringify(event.data))
+          }
+          this.errors.push(`${member} ${event.name}: ${JSON.stringify(event.data)}`)
+        }
+    return { eventId: event.eventId, status: 'accepted' as const, durable: false, boundary: 'none' as const }
+  }
   recordInfraFailure(failure: ModelFailure) {
     if (isInfraFailure(failure) && !this.infraFailures.some(existing =>
       JSON.stringify(existing) === JSON.stringify(failure))) this.infraFailures.push(failure)
   }
   toolError(member: string, call: { toolName: string; args: unknown; callId: string }, error: unknown) {
+    this.delegation.rejected(member, call, errorMessage(error))
     this.toolFailures.add(`${member}:${call.callId}`)
     this.errors.push(`${member} tool ${call.toolName} args=${argsSummary(call.args)}: ${errorMessage(error)}`)
   }
@@ -208,7 +223,9 @@ export class Collector {
     const reportedTokens = counts.reduce((total, count) => total + count.raw, 0)
     const reportedCostWeightedTokens = counts.reduce((total, count) => total + count.weighted, 0)
     const retryWait = retryWaitMetrics(this.retryWaits)
-    return { wallActiveMs: Math.max(0, wallMs - retryWait.union), modelRetries: this.modelRetries,
+    const memberUsage = aggregateMemberUsage(starts, ends)
+    return { ...this.delegation.metrics(this.spawns), memberUsage,
+      wallActiveMs: Math.max(0, wallMs - retryWait.union), modelRetries: this.modelRetries,
       retryWaitMs: retryWait.total, retryWallWaitMs: retryWait.union,
       retryScheduledWaitMs: this.retryScheduledWaitMs, inputTokens: input, outputTokens: output,
       cacheReadTokens, cacheWriteTokens, totalTokens: reportedTokens,
@@ -231,4 +248,28 @@ export function argsSummary(args: unknown): string {
   return (JSON.stringify(args, (_key, value: unknown) =>
     typeof value === 'string' && value.length > 160 ? `${value.slice(0, 160)}…[${value.length} chars]` : value)
     ?? String(args)).slice(0, 512)
+}
+
+function aggregateMemberUsage(starts: Collector['events'], ends: Collector['events']) {
+  const empty = (): MemberUsage => ({ calls: 0, inputTokens: 0, cachedInputTokens: 0,
+    cacheWriteTokens: 0, outputTokens: 0 })
+  const members = new Map<string, MemberUsage>([['lead', empty()]])
+  const memberUsage = (name: string) => {
+    if (!members.has(name)) members.set(name, empty())
+    return members.get(name)!
+  }
+  for (const { member } of starts) memberUsage(member).calls++
+  for (const { member, event } of ends) {
+    const usage = event.data.reported as Record<string, unknown> | undefined
+    const target = memberUsage(member)
+    target.inputTokens += numeric(usage?.inputTokens)
+    target.cachedInputTokens += numeric(usage?.cacheReadTokens)
+    target.cacheWriteTokens += numeric(usage?.cacheWriteTokens)
+    target.outputTokens += numeric(usage?.outputTokens)
+  }
+  const workers = empty()
+  for (const [name, usage] of members) if (name !== 'lead') {
+    for (const key of Object.keys(workers) as (keyof MemberUsage)[]) workers[key] += usage[key]
+  }
+  return { lead: members.get('lead')!, workers, byMember: Object.fromEntries(members) }
 }

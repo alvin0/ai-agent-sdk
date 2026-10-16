@@ -44,7 +44,7 @@ describe('autonomous multi-agent benchmark', () => {
       expect(summary.comparable).toBe(true)
       expect(summary.rows.find(row => row.task === 'ALL' && row.arm === 'team')?.a.passRate).toBe(1)
       const manifest = JSON.parse(await readFile(join(out, 'manifest.json'), 'utf8'))
-      expect(manifest).toMatchObject({ protocol: 'autonomous-v6', maxTotalTokens: 1500000,
+      expect(manifest).toMatchObject({ protocol: 'autonomous-v7', maxTotalTokens: 1500000,
         perTaskLimits: { 'code-change': { maxTotalTokens: 1500000 }, sequential: { maxTotalTokens: 1500000 } } })
     } finally { await rm(parent, { recursive: true, force: true }) }
   }, 60000)

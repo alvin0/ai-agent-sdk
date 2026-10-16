@@ -11,10 +11,12 @@ import { runCell } from './cells.ts'
 import { Semaphore, retryPolicy, maxRunAttempts } from './reliability.ts'
 import { taskTiming } from './timing.ts'
 import { defaultLimits, type Limits } from './metrics.ts'
+import { effectiveTeamOptions, parseTeamOptions, validateResumeTeamOptions } from './team-options.ts'
 
 function options(args: string[]) {
   const values = new Map<string, string>()
-  const allowed = ['resume', 'max-inflight-model-calls', 'arms', 'tasks', 'reps', 'provider', 'model', 'out',
+  const allowed = ['team-options', 'resume', 'max-inflight-model-calls', 'arms', 'tasks', 'reps', 'provider', 'model',
+    'out',
     'concurrency', 'timeout-ms',
     'worker-timeout-ms', 'volume-timeout-ms', 'volume-worker-timeout-ms', 'orphan-grace-ms',
     'max-total-tokens', 'max-turns', 'max-tool-calls', 'suite', 'seed', 'codex-auth', 'label']
@@ -74,8 +76,8 @@ function validateDestination(opts: Map<string, string>) {
   if (opts.has('out') === opts.has('resume')) {
     throw new Error('Use --out (new directory) or --resume (existing directory)')
   }
-  if (opts.has('resume') && [...opts.keys()].some(key => !['resume', 'codex-auth'].includes(key))) {
-    throw new Error('--resume uses the saved manifest; only --codex-auth may be overridden')
+  if (opts.has('resume') && [...opts.keys()].some(key => !['resume', 'codex-auth', 'team-options'].includes(key))) {
+    throw new Error('--resume uses the saved manifest; only --codex-auth may be overridden; --team-options must match')
   }
 }
 function destination(opts: Map<string, string>) {
@@ -94,6 +96,7 @@ export function parseArgs(args: string[]) {
     .filter(task => selected.ids.includes(task.id) && task.outputBudget).map(task => [task.id, task.outputBudget]))
   return { ...providerModel(opts), ...selected, perTaskLimits, perTaskTimeouts, perTaskOutputBudget,
     ...destination(opts),
+    ...(opts.has('team-options') ? { teamOptions: parseTeamOptions(opts.get('team-options')!) } : {}),
     maxInflightModelCalls: positive(opts.get('max-inflight-model-calls') ?? '4', 'max-inflight-model-calls'),
     reps: positive(opts.get('reps') ?? '3', 'reps'),
     concurrency: positive(opts.get('concurrency') ?? '1', 'concurrency'),
@@ -155,7 +158,10 @@ async function configuration(args: string[]) {
   const resume = config.resume
   const saved = resume ? JSON.parse(await readFile(join(config.out, 'manifest.json'), 'utf8')) : undefined
   if (saved) {
-    if (saved.protocol !== 'autonomous-v6') throw new Error('Resume requires a Round 6 manifest')
+    if (!['autonomous-v6', 'autonomous-v7'].includes(saved.protocol)) {
+      throw new Error('Resume requires a Round 6 or 7 manifest')
+    }
+    validateResumeTeamOptions(saved.teamOptions ?? {}, config.teamOptions)
     config = { ...saved, out: config.out, resume: true,
       ...('codexAuth' in config ? { codexAuth: config.codexAuth } : {}) }
     providerModel(new Map([['provider', config.provider], ['model', config.model]]))
@@ -183,7 +189,8 @@ export async function main(args = process.argv.slice(2)) {
       const order = (taskIndex + rep) % 2 ? [...arms].reverse() : arms
       return order.map(arm => ({ arm, task, rep: rep + 1,
         provider: config.provider, model: config.model, ...config.perTaskTimeouts[task]!,
-        suite: config.suite, seed: config.seed,
+        suite: config.suite, seed: config.seed, teamOptions: config.teamOptions ?? {},
+        effectiveTeamOptions: effectiveTeamOptions(config.perTaskTimeouts[task]!.workerTimeoutMs, config.teamOptions),
         ...config.perTaskLimits[task]!,
         ...('codexAuth' in config ? { codexAuth: config.codexAuth } : {}) }))
     }).flat())
@@ -195,10 +202,13 @@ export async function main(args = process.argv.slice(2)) {
     coreBundleHash: await treeHash(join(repoRoot, 'packages/core/dist')) }
   validateResume(saved, hashes, git(['rev-parse', 'HEAD']), { arms, collab })
   if (!resume) await writeFile(join(config.out, 'manifest.json'), JSON.stringify({ schemaVersion: 1, ...config, arms,
+    teamOptions: config.teamOptions ?? {},
+    effectiveTeamOptions: Object.fromEntries(config.ids.map(task => [task,
+      effectiveTeamOptions(config.perTaskTimeouts[task]!.workerTimeoutMs, config.teamOptions)])),
     skippedArms, collaborationDetected: collab, startedAt: new Date().toISOString(), node: process.version,
     commit: git(['rev-parse', 'HEAD']), dirty: git(['status', '--porcelain']),
     ...hashes, synthetic: config.provider === 'fake', retryPolicy, maxRunAttempts,
-    protocol: 'autonomous-v6', tokenAccounting: 'uncached+cacheWrite+output+0.1*cacheRead',
+    protocol: 'autonomous-v7', tokenAccounting: 'uncached+cacheWrite+output+0.1*cacheRead',
     repetitionsBelowMergeGate: config.reps < 3 }, null, 2))
   let next = 0, failures = 0
   const consume = async () => {

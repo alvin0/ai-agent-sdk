@@ -29,8 +29,22 @@ export function summarize(all: AnalysisRun[]) {
     allAttemptsRetryWaitMs: attempts.reduce((sum, attempt) => sum + (attempt.metrics?.retryWaitMs ?? 0), 0),
     ...summaryMetrics(runs) }
 }
+function delegationSummary(runs: AnalysisRun[]) {
+  const team = runs.filter(run => run.arm !== 'single')
+  const delegated = (run: AnalysisRun): boolean | undefined => run.metrics?.delegated
+    ?? (typeof run.metrics?.spawns === 'number' ? run.metrics.spawns > 0 : undefined)
+  const selected = (value: boolean) => team.filter(run => delegated(run) === value)
+  const score = (group: AnalysisRun[]) => ({ n: group.length, score: distribution(group.map(run => run.score)) })
+  const known = team.filter(run => delegated(run) !== undefined)
+  const rate = known.length === team.length ? mean(known.map(run => Number(delegated(run)))) : null
+  return { delegationRate: rate,
+    delegationUnknownRuns: team.length - known.length,
+    delegated: score(selected(true)), nonDelegated: score(selected(false)) }
+}
 function summaryMetrics(runs: AnalysisRun[]) {
-  return { n: runs.length, passRate: mean(runs.map(run => Number(run.pass))),
+  return { ...delegationSummary(runs), passedRuns: runs.filter(run => run.pass).length,
+    scoreSum: runs.reduce((sum, run) => sum + run.score, 0), n: runs.length,
+    passRate: mean(runs.map(run => Number(run.pass))),
     score: distribution(runs.map(run => run.score)),
     tokens: distribution(runs.map(run => run.metrics?.totalTokens ?? run.metrics?.reportedTokens ?? null)),
     tokenLowerBoundRuns: runs.filter(run => run.metrics && (incompleteUsage(run.metrics)
@@ -84,6 +98,7 @@ type ComparisonRow = { task: string; arm: string; a: Summary; b: Summary;
   deltaPercent: Record<string, number | null> }
 function printRows(rows: ComparisonRow[]) {
   console.log('task / arm | N A/B | pass A/B | score A/B | tokens mean/median A:B | lead calls A/B | '
+    + 'delegation rate A/B | delegated score A/B | non-delegated score A/B | '
     + 'weighted A/B | uncached A/B | cached A/B | output A/B | lower-bound runs raw/weighted A:B | '
     + 'infra runs/attempts A:B | retries A/B | retry wait ms A/B | active wall ms A/B | '
     + 'orphan runs/workers A:B | incomplete usage A/B | wall ms A/B | wasted A/B | '
@@ -95,6 +110,9 @@ function printRows(rows: ComparisonRow[]) {
       + `${format(row.a.tokens.mean)}/${format(row.a.tokens.median)}:`
       + `${format(row.b.tokens.mean)}/${format(row.b.tokens.median)} | `
       + `${format(row.a.leadCalls.mean)}/${format(row.b.leadCalls.mean)} | `
+      + `${format(row.a.delegationRate)}/${format(row.b.delegationRate)} | `
+      + `${format(row.a.delegated.score.mean)}/${format(row.b.delegated.score.mean)} | `
+      + `${format(row.a.nonDelegated.score.mean)}/${format(row.b.nonDelegated.score.mean)} | `
       + `${format(row.a.costWeightedTokens.mean)}/${format(row.b.costWeightedTokens.mean)} | `
       + `${format(row.a.uncachedInput.mean)}/${format(row.b.uncachedInput.mean)} | `
       + `${format(row.a.cachedInput.mean)}/${format(row.b.cachedInput.mean)} | `
@@ -111,6 +129,38 @@ function printRows(rows: ComparisonRow[]) {
       + `${format(row.a.wastedLeadTurns.mean)}/${format(row.b.wastedLeadTurns.mean)} | `
       + Object.values(row.deltaPercent).map(value =>
         value === null ? 'n/a' : `${value > 0 ? '+' : ''}${format(value)}%`).join('/'))
+  }
+}
+
+
+/** Equivalent lost full-score runs plus strict pass losses; unequal cohorts cannot establish this gate. */
+export function mergeGateDelta(row: ComparisonRow) {
+  const matched = row.a.n === row.b.n && row.a.n > 0
+  const scoreRunDelta = matched ? row.b.scoreSum - row.a.scoreSum : null
+  const passRunDelta = matched ? row.b.passedRuns - row.a.passedRuns : null
+  const scoreDelta = absoluteDelta(row.a.score.mean, row.b.score.mean)
+  return { task: row.task, arm: row.arm, nA: row.a.n, nB: row.b.n, scoreDelta,
+    deltaPercent: { score: row.deltaPercent.score ?? null,
+      weightedTokens: row.deltaPercent.costWeightedTokens ?? null,
+      leadCalls: row.deltaPercent.leadCalls ?? null, wall: row.deltaPercent.wallMs ?? null },
+    scoreRunDelta, passRunDelta,
+    regressionMoreThanOneRun: matched ? scoreRunDelta! < -1 - 1e-9 || passRunDelta! < -1 : null }
+}
+function absoluteDelta(a: number | null, b: number | null) {
+  return a === null || b === null ? null : b - a
+}
+function regressionLabel(value: boolean | null) {
+  if (value === null) return 'unknown'
+  return value ? 'REGRESSION' : 'no'
+}
+function printMergeGate(rows: ReturnType<typeof mergeGateDelta>[]) {
+  console.log('Merge-gate deltas (B vs A; live matched N>=3 and review still required)')
+  console.log('task / arm | score delta | delta % score/weighted/lead/wall | score/pass run delta | regression >1 run')
+  for (const row of rows) {
+    console.log(`${row.task} / ${row.arm} | ${format(row.scoreDelta)} | `
+      + Object.values(row.deltaPercent).map(value => value === null ? 'n/a' : `${format(value)}%`).join('/')
+      + ` | ${format(row.scoreRunDelta)}/${format(row.passRunDelta)} | `
+      + regressionLabel(row.regressionMoreThanOneRun))
   }
 }
 
@@ -133,6 +183,8 @@ function dimensions(a: Awaited<ReturnType<typeof load>>, b: Awaited<ReturnType<t
   return { arms, taskIds, ids }
 }
 
+function manifestTeamOptions(manifest: Record<string, unknown>) { return manifest.teamOptions ?? {} }
+
 export async function compare(dirA: string, dirB: string) {
   const [a, b] = await Promise.all([load(dirA), load(dirB)])
   const comparable = ['protocol', 'model', 'provider', 'fixtureHash', 'harnessHash', 'concurrency', 'timeoutMs', 'reps',
@@ -153,11 +205,14 @@ export async function compare(dirA: string, dirB: string) {
   }
   const balanced = rows.every(row => row.a.n === row.b.n && row.a.n > 0)
   const insufficientCells = insufficient(rows, taskIds, Number(a.manifest.reps), Number(b.manifest.reps))
-  const summary = { insufficientCells, balanced, schemaVersion: 1, dirA, dirB, comparable,
+  const mergeGate = rows.filter(row => taskIds.includes(row.task)).map(mergeGateDelta)
+  const summary = { mergeGate, insufficientCells, balanced, schemaVersion: 1, dirA, dirB, comparable,
     synthetic: a.manifest.synthetic || b.manifest.synthetic,
     labels: { a: a.manifest.label, b: b.manifest.label },
+    teamOptions: { a: manifestTeamOptions(a.manifest), b: manifestTeamOptions(b.manifest) },
     infrastructureErrors: { a: a.fatal, b: b.fatal }, rows }
   printRows(rows)
+  printMergeGate(mergeGate)
   if (!comparable || !balanced) console.error('WARNING: configuration/sample mismatch; not a paired comparison.')
   for (const cell of insufficientCells) {
     console.error(`WARNING: ${cell.side} ${cell.task}/${cell.arm} N=${cell.n} < requested reps=${cell.requested}`)

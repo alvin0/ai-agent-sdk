@@ -144,7 +144,7 @@ because one call lacks usage. They are lower bounds, never exact cost evidence. 
 without attributed buckets contributes at minimum cache weight. Analysis also supports older null
 metrics, uses reported lower bounds, counts incomplete runs, and reports raw/weighted/input/cache/
 output distributions alongside `kind:volume`, `kind:overhead` and `kind:control` rows.
-V5 manifests identify the changed protocol; all V1–V4 cohorts require rerunning for paired comparisons.
+V7 manifests identify the current protocol; earlier cohorts require rerunning for paired comparisons.
 
 If the lead finishes with running/pending workers (including follow-ups visible only in the team
 roster), or the SDK returns `completed:false` with reason `completed`, the harness records
@@ -203,7 +203,7 @@ conservative failed checklist. A hard process failure cannot prove a workspace g
 `graderError` marks that boundary explicitly. Legacy `*.fatal.json` remains readable by analysis. `manifest.json` records model/provider,
 label, suite, seed, all limits, commit/dirty state, Node version, fixture/harness/core-bundle hashes,
 skipped arms, resolved `perTaskLimits`, `perTaskTimeouts`, output planning budgets, and the
-`autonomous-v6` protocol. V1–V5 results require rerunning.
+`autonomous-v7` protocol. V1–V6 results require rerunning for matched comparisons.
 The effective limits are also present in every result/job. Task definitions may set `limits` in
 `tasks.ts`; explicit CLI caps override task values, which override the shared defaults.
 Harness hashes contain only relative bench paths and bytes; SDK bundle hashes are recorded separately.
@@ -289,10 +289,89 @@ Resume reuses the V6 manifest, skips cells with finished deterministic grades (i
 failures/caps/timeouts), and reruns missing or infra-failed cells with up to three fresh attempts
 per invocation. Attempt numbers continue from preserved history, including an archive saved before
 an interruption in canonical publication. Successful cells are never rerun to improve their score.
-Only `--codex-auth` may accompany `--resume`; all experiment settings come from the saved manifest.
+Only `--codex-auth` may override configuration with `--resume`; an optional `--team-options`
+assertion must structurally equal the saved JSON object. All experiment settings come from the saved manifest.
 Resume rejects changed commit, harness, fixtures, core bundle or collaboration support to avoid
 mixing cohorts. Do not use multiple runners against the same output directory. Use a new output
 directory after source/protocol changes; contaminated V5 cohorts cannot be mixed into V6 evidence.
+
+## Round 7: team knobs and delegation metrics
+
+`--team-options '<json object>'` shallow-merges JSON options after the bench defaults
+(`maxWorkers: 4`, task-specific `workerTimeoutMs`, `workerTeamTools: "full"`). Arrays, null,
+primitives and malformed JSON are rejected. Unknown option names pass through unchanged so the
+same harness works on older SDK branches, which ignore unsupported knobs. A recorded option is
+not proof that a branch implements it; inspect its resolved context/metrics and public features.
+No branch-name switches or aliases silently translate options (for example `defaultContext` is
+not renamed to the older `defaultSpawnContext`).
+
+```sh
+node test-human/multi-agent-bench/run.ts --provider fake --suite smoke --reps 1 \
+  --team-options '{"maxWorkers":2,"maxDepth":2,"defaultContext":"fork","maxQueued":8,"progressiveToolDisclosure":false}' \
+  --out /tmp/ma-round7
+node test-human/multi-agent-bench/run.ts --resume /tmp/ma-round7
+# Optional assertion; object-key order is irrelevant, array order and values must match.
+node test-human/multi-agent-bench/run.ts --resume /tmp/ma-round7 \
+  --team-options '{"maxWorkers":2,"maxDepth":2,"defaultContext":"fork","maxQueued":8,"progressiveToolDisclosure":false}'
+```
+
+`manifest.teamOptions` stores the original object (default `{}`); `manifest.effectiveTeamOptions`
+is keyed by task because worker deadlines differ. Each canonical/attempt result carries both
+`teamOptions` and `effectiveTeamOptions`, including fatal child results. These are the serializable
+team knobs: registry, lead/worker definitions and instrumentation callbacks remain host-owned.
+Nested `team` settings are retained alongside the event hook. Single runs record the same knobs
+for experiment provenance but do not create a team. Resume always reuses the saved options;
+supplying a different object, including replacing a nonempty object with `{}`, fails before work.
+An omitted default and an explicitly supplied default are distinct saved configurations.
+
+Per-run metrics now include:
+
+- `spawnAttempts`: admitted spawn requests, counting entries in `spawn_agents` batches; legacy
+  individual spawn dispatches count once. Recognized timeline requests supplement dispatch evidence.
+- `spawnsAccepted`: exactly the existing `spawns` attachment count, excluding the lead;
+  `delegated` is `spawnsAccepted > 0`. Attachment retains the legacy definition even when later setup fails.
+- `spawnsRejected` and `spawnRejectionReasons`: observed tool failures, explicit refusals in successful batch results, or recognized
+  timeline rejections. Reasons are exact observable strings, not inferred categories. Unknown future result
+  schemas may leave rejections unobserved; a dispatched request is not assumed rejected just because
+  a run was interrupted. A setup failure after attachment can have both attachment and error evidence.
+- `forkSpawns`, `freshSpawns`, `contextUnknownSpawns`: accepted attachments grouped by resolved
+  worker context (or recognized timeline evidence). Requested defaults do not establish actual context.
+- `maxConcurrentWorkers`: peak distinct active workers, excluding lead, finished workers and queued
+  attachments. Uses lifecycle events/session checkpoints through turn end; optional timelines can
+  supplement it. On older SDKs this is observed activity, excluding pre-model setup time.
+- `memberUsage: {lead, workers, byMember}`: each bucket has `calls`, `inputTokens`,
+  `cachedInputTokens`, `cacheWriteTokens`, `outputTokens`. Calls count logical SDK starts;
+  reported usage is summed at model-call end. Workers aggregate every non-lead session. SDK input
+  excludes cache reads/writes; cache writes are separate, so buckets are disjoint. Missing usage
+  remains a lower bound under the run's existing `usageIncomplete` flag.
+
+Audits retain `delegation.teamEvents` and `delegation.timelineEvents`. Optional `onTimelineEvent`
+and public `timeline()`/array snapshots are consumed when present; missing APIs, unknown shapes
+and unsupported timeline access do not fail a run. Recognized timeline types are `spawn-attempt`,
+`spawn-requested`, `spawn-rejected`, `spawn-accepted`, `worker-spawned`, `worker-started`,
+`worker-settled`, `worker-completed`, `worker-failed`, `worker-closed` and member-run lifecycle events.
+Callback/snapshot duplicates are deduplicated by event id (or exact event JSON). New SDK event
+schemas can be added without changing the production SDK. Partial batch refusals are recognized from `results`/`agents`/`workers` entries with
+`status: "rejected"` or `accepted: false`, and explicit `rejected` arrays. Unknown successful batch
+result schemas are not guessed; unfamiliar formats need timeline evidence or an adapter update.
+
+Analysis adds a per-task/arm delegation rate and mean/median score with sample count for delegated
+and non-delegated team runs (collab is reported separately). Legacy results derive delegation
+from `spawns`; unknown evidence remains unknown. Infrastructure cells stay outside scored cohorts.
+`comparison.json` records both manifests' team options; they are intentionally allowed to differ
+for knob A/B experiments, while other comparability checks still apply.
+
+A compact merge-gate block and JSON `mergeGate` list give per-task/arm score, weighted token,
+lead-call and raw-wall deltas. `scoreRunDelta` is candidate minus baseline summed scores (one lost
+full score = one run equivalent); `passRunDelta` is the strict pass-count change. Either loss
+**greater than one** flags `REGRESSION`; exactly one does not. Unequal/empty samples yield unknown
+regression flags. The table is evidence for review, not an automatic merge decision: matched live
+N>=3, complete cost evidence, quality parity, the improvement thresholds and review remain required.
+
+New runs use V7. Resume still recognizes V6 manifests for legacy parsing, but unchanged commit,
+source, fixture and bundle hashes are required; an older harness cohort cannot be resumed after
+copying this changed harness. Analyze can read older result schemas; matched comparisons need the
+same V7 harness on both branches. SDK host APIs and default model-facing prompts/tools are unchanged.
 
 ## Copy into another worktree
 
