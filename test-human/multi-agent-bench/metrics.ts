@@ -3,7 +3,7 @@ import { createCoreSpan, type Message, type ObservationEvent } from '../../packa
 import type { AgentSessionOptions } from '../../packages/core/dist/agent.js'
 
 export interface Limits { maxTotalTokens: number; maxTurns: number; maxToolCalls: number }
-export const defaultLimits: Limits = { maxTotalTokens: 80000, maxTurns: 240, maxToolCalls: 320 }
+export const defaultLimits: Limits = { maxTotalTokens: 400000, maxTurns: 240, maxToolCalls: 320 }
 export interface Metrics {
   inputTokens: number | null
   outputTokens: number | null
@@ -30,11 +30,15 @@ export function statusOnly(value: unknown): boolean {
     try { return statusOnly(JSON.parse(value)) } catch { /* text notice */ }
     const outstanding = '^Outstanding managed workers: [\\w, .-]+\\.'
       + '(?: Their current lifecycle status is available through list_agents; '
-      + 'wait_agents is bounded by its timeout\\.)?$'
+      + 'wait_agents is bounded by its timeout\\.'
+      + '| Their statuses and retained results are available through list_agents\\.'
+      + '| Read their results with wait_agents\\.)?$'
     return new RegExp(outstanding).test(value)
       || /^Worker '[\w-]+' (?:running|pending|completed|settled)\.?$/.test(value)
       || value === 'All outstanding managed workers have settled. '
         + 'Their statuses and retained results are available through list_agents.'
+      || value === 'All outstanding managed workers have settled. Read their results with wait_agents.'
+      || value === 'All workers settled — synthesize now.'
   }
   if (Array.isArray(value)) return value.every(item => object(item) && statusOnly(item))
   if (!object(value)) return false

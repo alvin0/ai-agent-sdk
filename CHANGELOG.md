@@ -12,6 +12,11 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Changed
 
+- Round 3 benchmark protocol V3 uses 24 one-page CSV extraction files with a test-only shell,
+  a 400k shared token default and recorded per-task overrides. Collaboration feature flags and
+  lean/push-join status notices are recognized. A copy/build/run comparison driver preserves
+  identical bench bytes across worktrees. V2 cohorts require rerunning for matched comparisons.
+
 - Multi-agent benchmark defaults to seeded scaled tasks; `--suite smoke` retains the original tiny
   fixtures. All arms share aggregate token/turn/tool caps, with explicit cap-hit metrics. V2 manifests
   include suite, seed, label and limits; V1 benchmark results require rerunning for matched comparisons.

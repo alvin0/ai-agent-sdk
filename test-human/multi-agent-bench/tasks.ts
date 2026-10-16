@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { Limits } from './metrics.ts'
 import { sandboxChecks } from './sandbox.ts'
 import { generateScaledTasks } from './generate.ts'
 
@@ -8,6 +9,7 @@ export const fixtureRoot = fileURLToPath(new URL('./fixtures/', import.meta.url)
 export interface Task {
   id: string
   category: string
+  limits?: Partial<Limits>
   prompt: string
   checks: string[]
   files?: Record<string, string>

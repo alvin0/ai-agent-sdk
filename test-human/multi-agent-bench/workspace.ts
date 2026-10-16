@@ -93,6 +93,7 @@ export class Workspace {
     return sandboxChecks(Object.fromEntries(sources), checks, signal)
   }
   async run(script: string, output: string, signal?: AbortSignal) {
+    if (this.task.id === 'extraction') throw new Error('Only test is allowed for extraction')
     const pages: Record<string, unknown[]> = {}
     for (const name of await this.files()) {
       const chunks: unknown[] = []
@@ -144,9 +145,14 @@ export function workspaceTools(workspace: Workspace): ToolDefinition<any>[] {
         })
       } }),
     defineTool<{ command: string }>({ name: 'shell',
-      description: 'Isolated runner: test [module], or run <script.cjs> <output.json>. '
+      description: workspace.task.id === 'extraction' ? 'Isolated runner: only test is allowed.'
+        : 'Isolated runner: test [module], or run <script.cjs> <output.json>. '
         + 'Scripts export run() returning JSON, using read_file(path,offset) pages and list_files().',
-      parameters: parameters({ command: string }, ['command']), execute: async (args, context) => {
+      parameters: parameters({ command: workspace.task.id === 'extraction'
+        ? { ...string, enum: ['test'] } : string }, ['command']), execute: async (args, context) => {
+        if (workspace.task.id === 'extraction' && args.command !== 'test') {
+          throw new Error('Only test is allowed for extraction')
+        }
         const match = /^test(?: ([a-z][\w-]*))?$/.exec(args.command)
         if (match) return { checks: await workspace.test(context.signal, match[1]) }
         const run = /^run ([\w./-]+\.cjs) ([\w./-]+\.json)$/.exec(args.command)

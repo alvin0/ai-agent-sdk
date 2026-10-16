@@ -16,11 +16,11 @@ function extraction(random: () => number): Task {
   const files: Record<string, string> = {}, expected: Record<string, unknown> = {}
   const totals: Record<string, number> = {}
   let requests = 0
-  for (let index = 0; index < 48; index++) {
+  for (let index = 0; index < 24; index++) {
     const name = `logs/part-${String(index).padStart(2, '0')}.csv`
     const latency: Record<string, number[]> = {}, errors: Record<string, number> = {}
     const lines = ['timestamp,service,latency_ms,error_code,trace']
-    const rowCount = 850 + Math.floor(random() * 180)
+    const rowCount = 420 + Math.floor(random() * 30)
     for (let row = 0; row < rowCount; row++) {
       const service = `svc-${Math.floor(random() * 4)}`, ms = 1 + Math.floor(random() * 1800)
       const code = random() < 0.78 ? 'OK' : ['E_RATE', 'E_TIMEOUT', 'E_PARSE'][Math.floor(random() * 3)]!
@@ -43,7 +43,7 @@ function extraction(random: () => number): Task {
     + '(the histogram across all files). No sampling or approximation.'
   return { id: 'extraction', category: 'parallel research at scale', checks: [], files,
     expected: { ...expected, globalRequests: requests, globalErrors: totals },
-    prompt: 'Read SPEC.md and all 48 logs/*.csv, paging each file. Write answer.json with one key per relative '
+    prompt: 'Read SPEC.md and all 24 logs/*.csv (one 16 KiB page each). Write answer.json with one key per relative '
       + 'filename mapping to {p95:{service:number},errors:{code:count}}, plus globalRequests and globalErrors. '
       + 'Exact aggregates required.' }
 }

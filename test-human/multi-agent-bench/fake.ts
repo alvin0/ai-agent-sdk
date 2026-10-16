@@ -9,8 +9,11 @@ const write = (path: string, content: unknown) => call('write_file', {
 })
 
 export function solution(task: Task): Call[] {
-  if (task.files && task.id === 'extraction') return [write('aggregate.cjs', extractionScript),
-    call('shell', { command: 'run aggregate.cjs answer.json' })]
+  if (task.files && task.id === 'extraction') return [
+    call('read_file', { path: 'SPEC.md' }),
+    ...Object.keys(task.files).filter(path => path.endsWith('.csv')).map(path => call('read_file', { path })),
+    write('answer.json', extractionAnswer(task.files)),
+  ]
   if (task.files) {
     const outputs = task.repairs ?? (task.id === 'review'
       ? { 'findings.json': JSON.stringify({ findings: task.reviewCases }) }
@@ -134,23 +137,23 @@ function workerAddress(options: GenerateOptions): string {
   throw new Error('Fake adapter could not discover spawned worker address')
 }
 
-// This offline fixture independently computes from paged workspace data, not the generator's answer.
-const extractionScript = `
-module.exports.run = () => {
-  const result = {}, globalErrors = {}; let globalRequests = 0;
-  for (const path of list_files().filter(path => path.endsWith('.csv'))) {
-    let text='', offset=0;
-    while(offset!==null){const page=read_file(path,offset);text+=page.content;offset=page.nextOffset;}
-    const latencies={},errors={};
-    for(const line of text.trim().split('\\n').slice(1)) {
-      const [,service,ms,code]=line.split(',');
-      (latencies[service]??=[]).push(Number(ms));
-      errors[code]=(errors[code]??0)+1;globalErrors[code]=(globalErrors[code]??0)+1;globalRequests++;
+// Independent host-side CSV calculation for the scripted adapter only. No live scripting tool is exposed.
+function extractionAnswer(files: Record<string, string>) {
+  const result: Record<string, unknown> = {}, globalErrors: Record<string, number> = {}
+  let globalRequests = 0
+  for (const [path, text] of Object.entries(files).filter(([path]) => path.endsWith('.csv'))) {
+    const latencies: Record<string, number[]> = {}, errors: Record<string, number> = {}
+    for (const line of text.trim().split('\n').slice(1)) {
+      const [, service, ms, code] = line.split(',') as [string, string, string, string, string]
+      ;(latencies[service] ??= []).push(Number(ms))
+      errors[code] = (errors[code] ?? 0) + 1
+      globalErrors[code] = (globalErrors[code] ?? 0) + 1
+      globalRequests++
     }
-    result[path]={p95:Object.fromEntries(Object.entries(latencies).map(([service,values])=>{
-      values.sort((a,b)=>a-b);return [service,values[Math.ceil(values.length*0.95)-1]];
-    })),errors};
+    result[path] = { p95: Object.fromEntries(Object.entries(latencies).map(([service, values]) => {
+      values.sort((a, b) => a - b)
+      return [service, values[Math.ceil(values.length * 0.95) - 1]]
+    })), errors }
   }
-  return {...result,globalRequests,globalErrors};
-};
-`
+  return { ...result, globalRequests, globalErrors }
+}

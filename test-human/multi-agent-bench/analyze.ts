@@ -53,8 +53,8 @@ export function percentDelta(a: number | null, b: number | null): number | null 
 export async function compare(dirA: string, dirB: string) {
   const [a, b] = await Promise.all([load(dirA), load(dirB)])
   const comparable = ['protocol', 'model', 'provider', 'fixtureHash', 'harnessHash', 'concurrency', 'timeoutMs', 'reps',
-    'suite', 'seed', 'maxTotalTokens', 'maxTurns', 'maxToolCalls']
-    .every(key => a.manifest[key] === b.manifest[key])
+    'suite', 'seed', 'perTaskLimits', 'maxTotalTokens', 'maxTurns', 'maxToolCalls']
+    .every(key => JSON.stringify(a.manifest[key]) === JSON.stringify(b.manifest[key]))
   const rows = []
   const arms = [...new Set([...a.runs, ...b.runs].map(run => run.arm))]
   const ids = [...new Set([...a.runs, ...b.runs].map(run => run.task)), 'ALL']

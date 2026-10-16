@@ -34,7 +34,8 @@ type TeamFactory = typeof agent.createManagedAgentTeam
 // Feature detection, never branch names. Additional collaboration APIs can be adapted here.
 export function collaborationFactory(exports: Record<string, unknown>): TeamFactory | undefined {
   const managed = exports.createManagedAgentTeam as TeamFactory | undefined
-  if (typeof exports.CollaborationTaskBoard === 'function' && managed) {
+  const features = exports.MANAGED_TEAM_FEATURES as { collaboration?: unknown } | undefined
+  if ((features?.collaboration === true || typeof exports.CollaborationTaskBoard === 'function') && managed) {
     return options => managed({ ...options, collaboration: true } as ManagedAgentTeamOptions)
   }
   const factory = exports.createCollaborativeAgentTeam ?? exports.createCollaborationAgentTeam
@@ -95,7 +96,7 @@ export async function execute(job: Job, parent?: string): Promise<{ result: Resu
   if (!task) throw new Error(`Unknown task: ${job.task}`)
   const workspace = await Workspace.create(task, parent)
   const limits = Object.fromEntries(Object.keys(defaultLimits).map(key =>
-    [key, job[key as keyof Limits] ?? defaultLimits[key as keyof Limits]]))
+    [key, job[key as keyof Limits] ?? task.limits?.[key as keyof Limits] ?? defaultLimits[key as keyof Limits]]))
   const collector = new Collector(limits), started = performance.now()
   const timeout = AbortSignal.timeout(job.timeoutMs)
   const signal = AbortSignal.any([timeout, collector.controller.signal])
@@ -111,7 +112,7 @@ export async function execute(job: Job, parent?: string): Promise<{ result: Resu
   try {
     const grade = await workspace.grade()
     const metrics = collector.metrics(wallMs)
-    const result: Result = { ...job, schemaVersion: 1, status, score: grade.score,
+    const result: Result = { ...job, ...collector.limits, schemaVersion: 1, status, score: grade.score,
       pass: grade.pass && status === 'completed',
       checks: grade.checks, metrics, text: collector.lastText,
       artifacts: Object.fromEntries(await Promise.all((await workspace.files()).map(async path =>

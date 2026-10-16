@@ -1,18 +1,19 @@
 import { execFile } from 'node:child_process'
-import { mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { describe, expect, it, vi } from 'vitest'
 import { createUserMessage, createAssistantMessage, createToolResultMessage, ToolCallId }
   from '../../packages/core/dist/index.js'
+import { compareBranches } from '../../test-human/multi-agent-bench/compare-branches.ts'
 import { compare, percentDelta } from '../../test-human/multi-agent-bench/analyze.ts'
 import { collaborationFactory, execute, type Result } from '../../test-human/multi-agent-bench/execute.ts'
 import { Collector, evidenceFingerprint } from '../../test-human/multi-agent-bench/metrics.ts'
-import { parseArgs } from '../../test-human/multi-agent-bench/run.ts'
+import { parseArgs, taskLimits, treeHash } from '../../test-human/multi-agent-bench/run.ts'
 import { tasks, selectTasks } from '../../test-human/multi-agent-bench/tasks.ts'
 import { discoverTool, requiredArguments } from '../../test-human/multi-agent-bench/fake.ts'
-import { sandboxChecks, Workspace } from '../../test-human/multi-agent-bench/workspace.ts'
+import { sandboxChecks, Workspace, workspaceTools } from '../../test-human/multi-agent-bench/workspace.ts'
 
 const exec = promisify(execFile)
 
@@ -42,6 +43,9 @@ describe('autonomous multi-agent benchmark', () => {
       const summary = await compare(out, out)
       expect(summary.comparable).toBe(true)
       expect(summary.rows.find(row => row.task === 'ALL' && row.arm === 'team')?.a.passRate).toBe(1)
+      const manifest = JSON.parse(await readFile(join(out, 'manifest.json'), 'utf8'))
+      expect(manifest).toMatchObject({ protocol: 'autonomous-v3', maxTotalTokens: 400000,
+        perTaskLimits: { 'code-change': { maxTotalTokens: 400000 }, sequential: { maxTotalTokens: 400000 } } })
     } finally { await rm(parent, { recursive: true, force: true }) }
   }, 60000)
 
@@ -52,7 +56,7 @@ describe('autonomous multi-agent benchmark', () => {
     expect(() => parseArgs([...base, '--reps', '0'])).toThrow('positive integer')
     expect(() => parseArgs([...base, '--provider', 'other'])).toThrow('Provider')
     expect(parseArgs(base).model).toBe('gpt-6-luna')
-    expect(parseArgs(base)).toMatchObject({ suite: 'scaled', maxTotalTokens: 80000 })
+    expect(parseArgs(base)).toMatchObject({ suite: 'scaled', maxTotalTokens: 400000 })
     expect(parseArgs([...base, '--suite', 'smoke', '--label', 'round2', '--arms', 'collab',
       '--max-total-tokens', '1000', '--max-turns', '50', '--max-tool-calls', '70', '--codex-auth', '/tmp/auth.json']))
       .toMatchObject({ suite: 'smoke', label: 'round2', arms: ['collab'], maxTotalTokens: 1000,
@@ -112,9 +116,11 @@ describe('autonomous multi-agent benchmark', () => {
 
   it('maps the collab-board public export to the managed collaboration option', () => {
     const createManagedAgentTeam = vi.fn(() => ({}))
-    const factory = collaborationFactory({ CollaborationTaskBoard: class {}, createManagedAgentTeam })!
+    const factory = collaborationFactory({ MANAGED_TEAM_FEATURES: { collaboration: true }, createManagedAgentTeam })!
     factory({} as Parameters<typeof factory>[0])
     expect(createManagedAgentTeam).toHaveBeenCalledWith({ collaboration: true })
+    expect(collaborationFactory({ MANAGED_TEAM_FEATURES: { collaboration: false }, createManagedAgentTeam }))
+      .toBeUndefined()
   })
 
   it('counts text and JSON managed worker reports as evidence but ignores pure coordination status', () => {
@@ -182,20 +188,136 @@ describe('autonomous multi-agent benchmark', () => {
     expect(a).toEqual(b)
     expect(a[0]!.files).not.toEqual(c[0]!.files)
     const logs = Object.entries(a[0]!.files!).filter(([name]) => name.endsWith('.csv'))
-    expect(logs).toHaveLength(48)
-    expect(logs.every(([, text]) => Buffer.byteLength(text) >= 20000 && Buffer.byteLength(text) <= 40960)).toBe(true)
+    expect(logs).toHaveLength(24)
+    expect(logs.every(([, text]) => Buffer.byteLength(text) >= 14336 && Buffer.byteLength(text) <= 16384)).toBe(true)
     expect(a.find(t => t.id === 'code-change')!.checks.length).toBeGreaterThanOrEqual(25)
     expect(Object.keys(a.find(t => t.id === 'bug-hunt')!.files!).filter(n => n.endsWith('.cjs'))).toHaveLength(30)
     const workspace = await Workspace.create(a[0]!)
     try {
-      const first = await workspace.page(logs[0]![0]), second = await workspace.page(logs[0]![0], first.nextOffset!)
-      expect(Buffer.byteLength(first.content)).toBe(16384)
-      expect(first.content + second.content).toBe(logs[0]![1])
+      const first = await workspace.page(logs[0]![0])
+      expect(first.nextOffset).toBeNull()
+      expect(first.content).toBe(logs[0]![1])
       await expect(workspace.page(logs[0]![0], 0, 16385)).rejects.toThrow('16384')
     } finally { await workspace.close() }
     const code = await Workspace.create(a.find(t => t.id === 'code-change')!)
     try { await expect(code.write('./src/interface.cjs', 'changed')).rejects.toThrow('Frozen') }
     finally { await code.close() }
+  })
+
+  it('enforces test-only extraction tools equally for both arms and retains scripting elsewhere', async () => {
+    const workspace = await Workspace.create(tasks.find(t => t.id === 'extraction')!)
+    try {
+      const shell = workspaceTools(workspace).find(tool => tool.name === 'shell')!
+      expect(shell.description).toBe('Isolated runner: only test is allowed.')
+      expect(shell.parameters).toMatchObject({ properties: { command: { enum: ['test'] } } })
+      const context = { signal: new AbortController().signal } as Parameters<typeof shell.execute>[1]
+      await expect(shell.execute({ command: 'run aggregate.cjs answer.json' }, context)).rejects.toThrow('Only test')
+      await expect(shell.execute({ command: 'test cache' }, context)).rejects.toThrow('Only test')
+      await expect(shell.execute({ command: 'test' }, context)).resolves.toEqual({ checks: [] })
+      await expect(workspace.run('aggregate.cjs', 'answer.json')).rejects.toThrow('Only test')
+    } finally { await workspace.close() }
+    for (const arm of ['single', 'team'] as const) {
+      const { result, audit } = await execute({ arm, task: 'extraction', rep: 1,
+        provider: 'fake', model: 'gpt-6-luna', timeoutMs: 15000 })
+      expect(result.pass).toBe(true)
+      expect(result.maxTotalTokens).toBe(400000)
+      expect(audit.tools.filter(tool => tool.name === 'read_file')).toHaveLength(25)
+      expect(audit.tools.some(tool => tool.name === 'shell')).toBe(false)
+    }
+  }, 30000)
+
+  it('applies task caps before explicit CLI overrides and records resolved per-task limits', () => {
+    expect(taskLimits({ limits: { maxTotalTokens: 123456 } }, new Map())).toMatchObject({
+      maxTotalTokens: 123456, maxTurns: 240 })
+    expect(taskLimits({ limits: { maxTotalTokens: 123456 } }, new Map([['max-total-tokens', '500000']])))
+      .toMatchObject({ maxTotalTokens: 500000 })
+    expect(parseArgs(['--out', '/tmp/unused']).perTaskLimits.extraction).toMatchObject({ maxTotalTokens: 400000 })
+  })
+
+  it('ignores lean and push-join control wakes but retains settlement producers and user evidence', () => {
+    const task = createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'Task' }] })
+    for (const text of [
+      'Outstanding managed workers: helper. Read their results with wait_agents.',
+      'Outstanding managed workers: helper. Their statuses and retained results are available through list_agents.',
+      'All outstanding managed workers have settled. Read their results with wait_agents.',
+      'All workers settled — synthesize now.',
+    ]) {
+      const notice = (producer: string) => createUserMessage({ source: { kind: 'app', producer },
+        content: [{ type: 'text', text }] })
+      expect(evidenceFingerprint([task, notice('managed-team')])).toBe(evidenceFingerprint([task]))
+      expect(evidenceFingerprint([task, notice('managed-team-settlement')])).not.toBe(evidenceFingerprint([task]))
+      expect(evidenceFingerprint([task, notice('unknown')])).not.toBe(evidenceFingerprint([task]))
+    }
+    const settlement = createUserMessage({ source: { kind: 'app', producer: 'managed-team-settlement' },
+      content: [{ type: 'text', text: '{"worker":"helper","report":{"text":"p95=42"}}' }] })
+    expect(evidenceFingerprint([task, settlement])).not.toBe(evidenceFingerprint([task]))
+  })
+
+  it('hashes bench bytes identically after copying without incorporating SDK files', async () => {
+    const { cp, mkdir } = await import('node:fs/promises')
+    const parent = await mkdtemp(join(tmpdir(), 'ma-hash-'))
+    try {
+      const source = resolve('test-human/multi-agent-bench'), copy = join(parent, 'test-human/multi-agent-bench')
+      await mkdir(join(parent, 'test-human'), { recursive: true })
+      await cp(source, copy, { recursive: true })
+      await mkdir(join(parent, 'packages/core/dist'), { recursive: true })
+      await writeFile(join(parent, 'packages/core/dist/index.js'), 'different SDK')
+      expect(await treeHash(copy)).toBe(await treeHash(source))
+      await writeFile(join(copy, 'README.md'), 'different harness')
+      expect(await treeHash(copy)).not.toBe(await treeHash(source))
+    } finally { await rm(parent, { recursive: true, force: true }) }
+  })
+
+  it('copies identical benches, builds each worktree, forwards options and compares against the first', async () => {
+    const { mkdir } = await import('node:fs/promises')
+    const parent = await realpath(await mkdtemp(join(tmpdir(), 'ma-driver-')))
+    const roots = [join(parent, 'baseline'), join(parent, 'candidate')]
+    const calls: { command: string; args: string[]; cwd: string }[] = []
+    const source = resolve('test-human/multi-agent-bench')
+    try {
+      for (const root of roots) {
+        await mkdir(join(root, 'node_modules'), { recursive: true })
+        await writeFile(join(root, '.git'), 'fixture marker')
+        await writeFile(join(root, 'package.json'), '{}')
+        await mkdir(join(root, 'test-human/multi-agent-bench'), { recursive: true })
+        await writeFile(join(root, 'test-human/multi-agent-bench/stale.txt'), 'must be replaced')
+      }
+      const out = join(parent, 'results')
+      const args = ['--worktree', 'base', roots[0]!, '--worktree', 'candidate', roots[1]!,
+        '--provider', 'fake', '--model', 'gpt-6-luna', '--reps', '1', '--concurrency', '2',
+        '--codex-auth', join(parent, 'auth.json'), '--out', out]
+      const status = await compareBranches(args, async (command, args, cwd) => {
+        calls.push({ command, args, cwd })
+        expect(await treeHash(join(cwd, 'test-human/multi-agent-bench'))).toBe(await treeHash(source))
+        // Simulate a failed run: comparison must still be attempted for both result sets.
+        return args[0]?.endsWith('run.ts') && cwd === roots[1] ? 1 : 0
+      })
+      expect(status).toBe(1)
+      expect(calls.map(c => c.args[0]?.split('/').at(-1)))
+        .toEqual(['workspace:build', 'run.ts', 'workspace:build', 'run.ts', 'analyze.ts', 'analyze.ts'])
+      for (const [index, label] of ['base', 'candidate'].entries()) {
+        const run = calls[index * 2 + 1]!
+        expect(run.cwd).toBe(roots[index])
+        expect(run.args).toEqual([join(roots[index]!, 'test-human/multi-agent-bench/run.ts'),
+          '--provider', 'fake', '--model', 'gpt-6-luna', '--reps', '1', '--concurrency', '2',
+          '--codex-auth', join(parent, 'auth.json'), '--label', label, '--out', join(out, label)])
+        expect(calls[4 + index]!.args.slice(1)).toEqual([join(out, 'base'), join(out, label)])
+      }
+      await expect(compareBranches(args, async () => 0)).rejects.toThrow('EEXIST')
+      expect(calls).toHaveLength(6)
+      await expect(compareBranches(['--worktree', 'a', roots[0]!, '--worktree', 'b', roots[0]!,
+        '--provider', 'fake', '--out', join(parent, 'invalid')])).rejects.toThrow('distinct')
+    } finally { await rm(parent, { recursive: true, force: true }) }
+  })
+
+  it('rejects unsupported live comparison models and missing explicit credentials before copying', async () => {
+    const args = ['--worktree', 'base', '/unused/base', '--worktree', 'candidate', '/unused/candidate',
+      '--out', '/unused/results']
+    await expect(compareBranches([...args, '--model', 'gpt-5.4'])).rejects.toThrow('no fallback')
+    vi.stubEnv('AI_AGENT_SDK_CODEX_AUTH', '')
+    try {
+      await expect(compareBranches(args)).rejects.toThrow('Supply --codex-auth or AI_AGENT_SDK_CODEX_AUTH')
+    } finally { vi.unstubAllEnvs() }
   })
 
   it('executes review counterexamples against original code and safely rejects malformed findings', async () => {
@@ -221,8 +343,9 @@ describe('autonomous multi-agent benchmark', () => {
   })
 
   it('runs authored calculations with paged data and no process or dynamic-code access', async () => {
-    const workspace = await Workspace.create(tasks.find(t => t.id === 'extraction')!)
+    const workspace = await Workspace.create(tasks.find(t => t.id === 'code-change')!)
     try {
+      await workspace.write('large.csv', 'x'.repeat(20000))
       await workspace.write('probe.cjs', `module.exports.run=()=>{
         const path=list_files().find(p=>p.endsWith('.csv'));
         const first=read_file(path),second=read_file(path,first.nextOffset);

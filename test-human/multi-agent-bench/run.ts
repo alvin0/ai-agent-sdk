@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { collabAvailable, repoRoot, type Arm, type Job, type Result } from './execute.ts'
 import { fixtureRoot, selectTasks, defaultSeed, type Suite } from './tasks.ts'
-import { defaultLimits } from './metrics.ts'
+import { defaultLimits, type Limits } from './metrics.ts'
 
 function options(args: string[]) {
   const values = new Map<string, string>()
@@ -55,10 +55,22 @@ function credentialPath(opts: Map<string, string>) {
   const path = opts.get('codex-auth') ?? process.env.AI_AGENT_SDK_CODEX_AUTH
   return path ? { codexAuth: resolve(path) } : {}
 }
+export function taskLimits(task: { limits?: Partial<Limits> }, opts: Map<string, string>): Limits {
+  const limits = { ...defaultLimits, ...task.limits }
+  for (const [flag, key] of [['max-total-tokens', 'maxTotalTokens'], ['max-turns', 'maxTurns'],
+    ['max-tool-calls', 'maxToolCalls']] as const) {
+    if (opts.has(flag)) limits[key] = positive(opts.get(flag)!, flag)
+  }
+  return limits
+}
+
 export function parseArgs(args: string[]) {
   const opts = options(args)
   if (!opts.get('out')) throw new Error('--out is required and must be a new directory')
-  return { ...providerModel(opts), ...selection(opts), out: resolve(opts.get('out')!),
+  const selected = selection(opts)
+  const perTaskLimits = Object.fromEntries(selectTasks(selected.suite, selected.seed)
+    .filter(task => selected.ids.includes(task.id)).map(task => [task.id, taskLimits(task, opts)]))
+  return { ...providerModel(opts), ...selected, perTaskLimits, out: resolve(opts.get('out')!),
     reps: positive(opts.get('reps') ?? '3', 'reps'),
     concurrency: positive(opts.get('concurrency') ?? '1', 'concurrency'),
     timeoutMs: positive(opts.get('timeout-ms') ?? '180000', 'timeout-ms'),
@@ -123,7 +135,7 @@ export async function main(args = process.argv.slice(2)) {
       return order.map(arm => ({ arm, task, rep: rep + 1,
         provider: config.provider, model: config.model, timeoutMs: config.timeoutMs,
         suite: config.suite, seed: config.seed,
-        maxTotalTokens: config.maxTotalTokens, maxTurns: config.maxTurns, maxToolCalls: config.maxToolCalls,
+        ...config.perTaskLimits[task]!,
         ...('codexAuth' in config ? { codexAuth: config.codexAuth } : {}) }))
     }).flat())
   await mkdir(dirname(config.out), { recursive: true })
@@ -134,7 +146,7 @@ export async function main(args = process.argv.slice(2)) {
     commit: git(['rev-parse', 'HEAD']), dirty: git(['status', '--porcelain']),
     fixtureHash: await treeHash(fixtureRoot), harnessHash: await treeHash(fileURLToPath(new URL('.', import.meta.url))),
     coreBundleHash: await treeHash(join(repoRoot, 'packages/core/dist')), synthetic: config.provider === 'fake',
-    protocol: 'autonomous-v2', repetitionsBelowMergeGate: config.reps < 3 }, null, 2))
+    protocol: 'autonomous-v3', repetitionsBelowMergeGate: config.reps < 3 }, null, 2))
   let next = 0, failures = 0
   const consume = async () => {
     while (next < jobs.length) {
