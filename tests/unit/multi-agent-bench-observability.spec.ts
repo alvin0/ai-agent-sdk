@@ -177,19 +177,22 @@ describe('benchmark team timeline adapter', () => {
   })
 
   it('retains content-free member-run and accepted-message audit metadata', () => {
+    const privateResponse = 'PRIVATE/bench-observability-response-7c92'
+    const privateTask = 'PRIVATE/bench-observability-message-4a61'
     const collector = new Collector()
     collector.rootTeamId = 't'
     collector.teamEvent({ type: 'member-run-start', member: 'w' })
     collector.teamEvent({ type: 'member-run-end', member: 'w', response: {
-      text: 'private response', report: { runId: 'r' }, outcome: { yielded: false },
+      text: privateResponse, report: { runId: 'r' }, outcome: { yielded: false },
     } })
     collector.teamEvent({ type: 'message-accepted', message: { id: 'm', teamId: 't', sender: 'lead',
-      target: 'w', delivery: 'wakeup', createdAt: 'now', content: ['private task'] } })
+      target: 'w', delivery: 'wakeup', createdAt: 'now', content: [privateTask] } })
     expect(collector.teamEvents).toMatchObject([
       { type: 'member-run-start', member: 'w' }, { type: 'member-run-end', member: 'w', runId: 'r', yielded: false },
       { type: 'message-accepted', message: { sender: 'lead', target: 'w', delivery: 'wakeup' } },
     ])
-    expect(JSON.stringify(collector.teamEvents)).not.toContain('private')
+    expect(JSON.stringify(collector.teamEvents)).not.toContain(privateResponse)
+    expect(JSON.stringify(collector.teamEvents)).not.toContain(privateTask)
   })
 
   it('exposes no-spawn lead costs in result JSON without reading audit observations', async () => {
