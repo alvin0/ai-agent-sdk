@@ -47,13 +47,13 @@ describe('managed model surface size', () => {
         "after": [
           {
             "instructions": 1867,
-            "tools": 2619,
-            "total": 4486,
+            "tools": 2639,
+            "total": 4506,
           },
           {
-            "instructions": 1105,
+            "instructions": 1132,
             "tools": 371,
-            "total": 1476,
+            "total": 1503,
           },
         ],
         "before": [

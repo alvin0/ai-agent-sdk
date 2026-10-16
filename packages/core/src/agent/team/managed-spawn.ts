@@ -265,7 +265,7 @@ export class ManagedWorkerSpawning {
     }
     return access === 'full'
       ? 'send_input queues worker tasks or sends context to the lead. Return your final answer to finish.'
-      : 'send_input sends context to peers or the lead. Return your final answer to finish.'
+      : 'send_input sends context to the lead (or to a peer only when instructed). Return your final answer to finish.'
   }
 
   private workerTeamToolAccess(restricted: boolean): false | 'reporting' | 'full' {

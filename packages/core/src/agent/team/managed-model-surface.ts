@@ -124,7 +124,7 @@ export class ManagedModelSurface {
     return defineTool({ name: 'wait_agents', budgetExempt: true,
       render: renderModelResult,
       description: 'Join all selected workers and return new results, excluding prior notices and waits.'
-        + ' Omit targets for all workers. Returns on a new result, timeout, or user interruption.',
+        + ' Omit targets for all workers. Returns when all selected workers settle, on timeout, or user interruption.',
       parameters: { type: 'object', properties: {
         targets: { type: 'array', items: { type: 'string' }, minItems: 1,
           description: 'Ids returned by spawn_agent.' },
