@@ -1,12 +1,12 @@
-/** Synchronous batch admission followed by concurrent, independently reported worker setup. */
+/** Atomic batch validation; slots and backlog are reserved before asynchronous setup. */
 import type { ManagedAgentSpawnRequest, ResolvedManagedAgentSpawnRequest,
-  ManagedAgentWorker } from './managed-types.ts'
+  ManagedAgentWorker, WorkerRuntime } from './managed-types.ts'
 import { errorMessage } from './managed-outcomes.ts'
 import { truncate } from './managed-report-text.ts'
 
 export interface BatchWorkerView {
   readonly target: string
-  readonly status: ManagedAgentWorker['status']
+  readonly status: ManagedAgentWorker['status'] | 'queued' | 'cancelled'
   readonly error?: string
   readonly warnings?: readonly string[]
 }
@@ -14,26 +14,31 @@ export interface BatchWorkerView {
 export interface BatchSpawnCallbacks {
   reserved(targets: readonly string[]): void
   started(name: string): void
+  queued(name: string): void
+  settled(name: string, status: 'completed' | 'failed' | 'cancelled', usable: boolean): void
 }
 
 interface BatchSpawnHost<T> {
   readonly maxWorkers: number
+  readonly maxQueued: number
   readonly busy: number
+  readonly queued: number
   resolve(request: ManagedAgentSpawnRequest, reserved: ReadonlySet<string>): ResolvedManagedAgentSpawnRequest
   check(request: ResolvedManagedAgentSpawnRequest): void
-  prepare(request: ResolvedManagedAgentSpawnRequest): T
+  prepare(request: ResolvedManagedAgentSpawnRequest, queued: boolean): T
   finish(prepared: T): void
   warnings(prepared: T): readonly string[]
-  start(prepared: T, warnings: readonly string[]): Promise<ManagedAgentWorker>
+  start(prepared: T, warnings: readonly string[]): Promise<BatchWorkerView>
+  enqueue(prepared: T, warnings: readonly string[]): void
 }
 
 export async function spawnManagedBatch<T>(requests: readonly ManagedAgentSpawnRequest[],
   callbacks: BatchSpawnCallbacks, host: BatchSpawnHost<T>,
 ): Promise<readonly BatchWorkerView[]> {
-  const available = host.maxWorkers - host.busy
-  if (requests.length > available) {
-    throw new Error(`spawn_agents requested ${requests.length} workers but only ${available} slots are available`
-      + ` (maxWorkers=${host.maxWorkers}); split into smaller batches after workers settle`)
+  const free = Math.max(0, host.maxWorkers - host.busy)
+  if (requests.length > free + host.maxQueued - host.queued) {
+    throw new Error(`spawn_agents queue overflow: ${free} free slots, ${host.queued} queued`
+      + ` (maxWorkers=${host.maxWorkers}, maxQueued=${host.maxQueued}); requested ${requests.length}`)
   }
   const reserved = new Set(requests.flatMap(request => request.name === undefined ? [] : [request.name]))
   const resolved = requests.map(request => {
@@ -47,22 +52,58 @@ export async function spawnManagedBatch<T>(requests: readonly ManagedAgentSpawnR
     if (names.has(request.name)) throw new Error(`duplicate batch worker '${request.name}'`)
     names.add(request.name)
   }
-  const prepared = resolved.map(request => host.prepare(request))
+  const prepared = resolved.map((request, index) => host.prepare(request, index >= free))
+  let admitted = false
   try {
-    // Include all sibling reservations in conflict checks before any worker starts.
     const warnings = prepared.map(item => host.warnings(item))
     callbacks.reserved([...names])
+    admitted = true
     return await Promise.all(prepared.map(async (item, index) => {
-      try {
-        const worker = await host.start(item, warnings[index]!)
-        return { target: worker.name, status: worker.status,
-          ...(worker.error === undefined ? {} : { error: truncate(worker.error, 1024) }),
-          ...(worker.warnings?.length ? { warnings: worker.warnings } : {}) }
-      } catch (error: unknown) {
-        return { target: resolved[index]!.name, status: 'failed' as const, error: truncate(errorMessage(error), 1024) }
+      if (index >= free) {
+        callbacks.queued(resolved[index]!.name)
+        host.enqueue(item, warnings[index]!)
+        return { target: resolved[index]!.name, status: 'queued' as const }
       }
+      return host.start(item, warnings[index]!)
     }))
   } finally {
-    for (const item of prepared) host.finish(item)
+    if (!admitted) for (const item of prepared) host.finish(item)
   }
+}
+
+export function failedBatchWorker(name: string, error: unknown, cancelled: boolean): BatchWorkerView {
+  return { target: name, status: cancelled ? 'cancelled' : 'failed',
+    error: truncate(errorMessage(error), 1024) }
+}
+
+export function batchWorkerView(worker: ManagedAgentWorker): BatchWorkerView {
+  return { target: worker.name, status: worker.status,
+    ...(worker.error === undefined ? {} : { error: truncate(worker.error, 1024) }),
+    ...(worker.warnings?.length
+      ? { warnings: worker.warnings.slice(0, 4).map(warning => truncate(warning, 256)) } : {}) }
+}
+
+export async function startBatchWorker(name: string, callbacks: BatchSpawnCallbacks, host: {
+  start(): Promise<ManagedAgentWorker>
+  worker(name: string): WorkerRuntime | undefined
+  cancelled(): boolean
+  drain(): void
+}): Promise<BatchWorkerView> {
+  try {
+    const worker = await host.start()
+    const runtime = host.worker(name)!
+    void runtime.settled.then(() => {
+      const completed = runtime.evidence.status === 'completed'
+      let status: 'completed' | 'cancelled' | 'failed' = 'failed'
+      if (completed) status = 'completed'
+      else if (runtime.controller.signal.aborted) status = 'cancelled'
+      callbacks.settled(name, status, completed
+        && (Boolean(runtime.evidence.result?.text.trim()) || runtime.evidence.result?.structured !== undefined))
+    })
+    return batchWorkerView(worker)
+  } catch (error: unknown) {
+    const cancelled = host.cancelled()
+    callbacks.settled(name, cancelled ? 'cancelled' : 'failed', false)
+    return failedBatchWorker(name, error, cancelled)
+  } finally { host.drain() }
 }

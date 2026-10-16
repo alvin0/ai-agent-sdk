@@ -47,10 +47,10 @@ describe('managed model surface size', () => {
       {
         "after": [
           {
-            "batch": 1118,
-            "instructions": 1962,
-            "tools": 3758,
-            "total": 5720,
+            "batch": 1199,
+            "instructions": 2046,
+            "tools": 3839,
+            "total": 5885,
           },
           {
             "batch": 0,
@@ -61,10 +61,10 @@ describe('managed model surface size', () => {
         ],
         "before": [
           {
-            "batch": 1118,
-            "instructions": 2257,
-            "tools": 6112,
-            "total": 8369,
+            "batch": 1199,
+            "instructions": 2341,
+            "tools": 6193,
+            "total": 8534,
           },
           {
             "batch": 0,

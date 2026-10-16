@@ -1,5 +1,7 @@
 /** Resolves, prepares, and dispatches newly commissioned managed workers. */
-import { spawnManagedBatch, type BatchSpawnCallbacks, type BatchWorkerView } from './managed-batch-spawn.ts'
+import { startBatchWorker, spawnManagedBatch,
+  type BatchSpawnCallbacks, type BatchWorkerView } from './managed-batch-spawn.ts'
+import { ManagedSpawnQueue } from './managed-spawn-queue.ts'
 import { createTextMessage } from '../../message/index.ts'
 import { cloneAgent, type DefinedAgent } from '../define/definition.ts'
 import type { AgentSession, AgentSessionOptions } from '../define/session.ts'
@@ -19,12 +21,8 @@ import type {
 import {
   spawnContext, memberName, nonEmpty, boundedString,
 } from './managed-validation.ts'
-import {
-  mergeTools,
-} from './managed-tool-input.ts'
-import {
-  completedHistoryPrefix,
-} from './managed-history.ts'
+import { mergeTools } from './managed-tool-input.ts'
+import { completedHistoryPrefix } from './managed-history.ts'
 import {
   abortable, combineSignals,
 } from './managed-cancellation.ts'
@@ -48,9 +46,11 @@ interface ManagedSpawnHost {
     readonly dependencies: readonly WorkerRuntime[]
     readonly settled: Promise<void>
     readonly controller: AbortController
+    queued: boolean
   }>
   readonly roles: ReadonlyMap<string, ManagedAgentRole>
   readonly maxWorkers: number
+  readonly maxQueued: number
   readonly maxTaskBytes: number
   readonly maxSpecialtyBytes: number
   readonly spawnTimeoutMs: number
@@ -60,7 +60,6 @@ interface ManagedSpawnHost {
   readonly scheduling: ManagedWorkerScheduling
   lead(): AgentSession
 }
-
 type ScopedSessionOptions = Awaited<ReturnType<NonNullable<ManagedAgentTeamOptions['workerSessionOptionsFactory']>>>
 type PreparedWorker = ManagedSpawnHost['preparing'] extends Map<string, infer T> ? T & { finish(): void } : never
 
@@ -73,8 +72,19 @@ function mergeWorkerSessionOptions(
 
 export class ManagedWorkerSpawning {
   private workerSequence = 0
+  private readonly queue: ManagedSpawnQueue<PreparedWorker>
 
-  constructor(private readonly host: ManagedSpawnHost) {}
+  /** Queue reservations are address/write claims, never worker slots. */
+  get busy(): number {
+    return [...this.host.preparing.values()].filter(item => !item.queued).length
+      + [...this.host.workerRuntimes.values()].filter(runtime => this.host.workerBusy(runtime)).length
+  }
+
+  drainQueue(): void { this.queue.drain() }
+
+  constructor(private readonly host: ManagedSpawnHost) {
+    this.queue = new ManagedSpawnQueue(host.signal, () => host.maxWorkers - this.busy)
+  }
 
   /** Create and start one worker without waiting for its result. */
   async spawn(
@@ -92,32 +102,40 @@ export class ManagedWorkerSpawning {
     callbacks: BatchSpawnCallbacks,
   ): Promise<readonly BatchWorkerView[]> {
     this.checkSpawnSignals(signal)
+    const start = (prepared: PreparedWorker, warnings: readonly string[]) => startBatchWorker(
+      prepared.request.name, callbacks, {
+        start: () => this.startPrepared(prepared, signal, warnings, callbacks.started),
+        worker: name => this.host.workerRuntimes.get(name),
+        cancelled: () => signal.aborted || this.host.signal.aborted || prepared.controller.signal.aborted,
+        drain: () => this.drainQueue(),
+      })
     return spawnManagedBatch(requests, callbacks, {
-      maxWorkers: this.host.maxWorkers,
-      busy: this.host.preparing.size
-        + [...this.host.workerRuntimes.values()].filter(runtime => this.host.workerBusy(runtime)).length,
+      maxWorkers: this.host.maxWorkers, maxQueued: this.host.maxQueued,
+      busy: this.busy, queued: this.queue.size,
       resolve: (request, reserved) => this.resolveSpawnRequest(request, reserved),
-      check: request => this.assertSpawnAvailable(request),
-      prepare: request => this.prepare(request), finish: prepared => this.finishPreparing(prepared),
+      check: request => this.assertSpawnAvailable(request, false),
+      prepare: (request, queued) => this.prepare(request, queued),
+      finish: prepared => this.finishPreparing(prepared),
       warnings: prepared => this.host.scheduling.checkWriteScopes(prepared.request, prepared.dependencies),
-      start: (prepared, warnings) => this.startPrepared(prepared, signal, warnings, callbacks.started),
+      start, enqueue: (prepared, warnings) => this.queue.enqueue(prepared, signal,
+        () => start(prepared, warnings), () => {
+          this.finishPreparing(prepared)
+          callbacks.settled(prepared.request.name, 'cancelled', false)
+        }),
     })
   }
-
-  private prepare(resolved: ResolvedManagedAgentSpawnRequest): PreparedWorker {
+  private prepare(resolved: ResolvedManagedAgentSpawnRequest, queued = false): PreparedWorker {
     const dependencies = resolved.dependsOn.map(name => this.host.workerRuntimes.get(name)!)
     let markPrepared!: () => void
-    const prepared = { request: resolved, dependencies, controller: new AbortController(),
+    const prepared = { request: resolved, dependencies, queued, controller: new AbortController(),
       settled: new Promise<void>(resolve => { markPrepared = resolve }), finish: () => markPrepared() }
     this.host.preparing.set(resolved.name, prepared)
     return prepared
   }
-
   private finishPreparing(prepared: PreparedWorker): void {
     if (this.host.preparing.get(prepared.request.name) === prepared) this.host.preparing.delete(prepared.request.name)
     prepared.finish()
   }
-
   private async startPrepared(prepared: PreparedWorker, signal?: AbortSignal,
     checkedWarnings?: readonly string[], started?: (name: string) => void,
   ): Promise<ManagedAgentWorker> {
@@ -159,15 +177,15 @@ export class ManagedWorkerSpawning {
       throw error
     } finally {
       this.finishPreparing(prepared)
+      this.drainQueue()
     }
   }
-
   private checkSpawnSignals(signal: AbortSignal | undefined): void {
     this.host.signal.throwIfAborted()
     signal?.throwIfAborted()
     if (atManagedDepthLimit(this.host.options)) throw new Error('managed agent delegation depth limit reached')
+    this.drainQueue() // Older backlog gets newly freed slots before another admission.
   }
-
   private captureSpawnObjective(
     definition: DefinedAgent, session: AgentSession, resolved: ResolvedManagedAgentSpawnRequest,
   ): void {
@@ -175,7 +193,6 @@ export class ManagedWorkerSpawning {
       session.memory.captureOriginalObjective(createTextMessage(resolved.task))
     }
   }
-
   private createSpawnRuntime(
     resolved: ResolvedManagedAgentSpawnRequest, session: AgentSession,
     input: { readonly dependencies: readonly WorkerRuntime[]; readonly warnings: readonly string[] },
@@ -205,7 +222,6 @@ export class ManagedWorkerSpawning {
     }
     return runtime
   }
-
   private resolveSpawnRequest(request: ManagedAgentSpawnRequest, reserved?: ReadonlySet<string>) {
     const resolved: ResolvedManagedAgentSpawnRequest = {
       name: memberName(request.name ?? this.nextWorkerName(reserved)),
@@ -223,15 +239,12 @@ export class ManagedWorkerSpawning {
     Object.freeze(resolved)
     return resolved
   }
-
   private resolveContext(request: ManagedAgentSpawnRequest) {
     return spawnContext(this.host.roles.get(request.role ?? '')?.context
       ?? request.context ?? this.host.options.defaultSpawnContext ?? 'fresh')
   }
-
-  private assertSpawnAvailable(resolved: ResolvedManagedAgentSpawnRequest): void {
-    if ([...this.host.workerRuntimes.values()].filter(runtime => this.host.workerBusy(runtime)).length
-      + this.host.preparing.size >= this.host.maxWorkers) {
+  private assertSpawnAvailable(resolved: ResolvedManagedAgentSpawnRequest, checkCapacity = true): void {
+    if (checkCapacity && this.busy >= this.host.maxWorkers) {
       throw new Error(`managed agent team reached its ${this.host.maxWorkers}-worker limit`)
     }
     if (this.host.preparing.has(resolved.name) || this.host.workerRuntimes.has(resolved.name)
@@ -240,7 +253,6 @@ export class ManagedWorkerSpawning {
     }
 
   }
-
   private createSpawnSession(
     definition: DefinedAgent, resolved: ResolvedManagedAgentSpawnRequest,
     dependencies: readonly WorkerRuntime[], scopedSessionOptions: ScopedSessionOptions | undefined,
@@ -270,7 +282,6 @@ export class ManagedWorkerSpawning {
       },
     })
   }
-
   private workerInstructions(resolved: ResolvedManagedAgentSpawnRequest,
     role: ManagedAgentRole | undefined, access: false | 'full' | 'reporting'): string {
     let instructions = managedWorkerInstructions(resolved.name, role)
@@ -280,7 +291,6 @@ export class ManagedWorkerSpawning {
     return [instructions, `Assigned write scope: ${scope}.`, ...access === false ? [] : [this.toolInstructions(access)]]
       .join(' ')
   }
-
   private toolInstructions(access: 'full' | 'reporting'): string {
     if (this.host.collaboration !== undefined) {
       return 'Publish shared findings on the task board; send_input wakes peers with bounded turn credits.'
@@ -292,25 +302,19 @@ export class ManagedWorkerSpawning {
       ? 'send_input queues worker tasks or sends context to the lead. Return your final answer to finish.'
       : 'send_input sends context to the lead (or to a peer only when instructed). Return your final answer to finish.'
   }
-
   private workerTeamToolAccess(restricted: boolean): false | 'reporting' | 'full' {
     const access = this.host.options.workerTeamTools ?? 'reporting'
     return restricted && access === 'full' ? 'reporting' : access
   }
-
   private holdSpawnForDependencies(runtime: WorkerRuntime, dependencies: readonly WorkerRuntime[]): boolean {
     const resolved = runtime.request
     if (dependencies.length > 0 && !this.host.scheduling.dependenciesSettled(dependencies, resolved.writes)) {
-      // Held, not started. The promise handed to the team is what makes the
-      // wait honest: without it `wait_agents` asks an idle session whether it
-      // is finished, is told yes, and the lead reads a worker that never ran
-      // as one that had nothing to report.
+      // Keep joins pending until dependency dispatch actually starts this worker.
       const held = new Promise<void>((resolve) => { runtime.start = resolve })
       this.host.team.markPending(resolved.name, held)
       for (const dependency of dependencies) {
         if (SETTLED_WORKER_STATUS.has(dependency.status) && this.host.scheduling.workerHasWork(dependency)) {
-          // A completed worker may be running a team-scheduled follow-up.
-          // Its original managed watcher has already finished.
+          // Team-scheduled follow-ups outlive the original watcher.
           void this.host.team.whenIdle(dependency.request.name)
             .then(() => this.host.scheduling.releaseDependents(dependency)).catch(() => {})
         }
@@ -319,7 +323,6 @@ export class ManagedWorkerSpawning {
     }
     return false
   }
-
   private async failSpawn(
     runtime: WorkerRuntime | undefined, resolved: ResolvedManagedAgentSpawnRequest, error: unknown,
   ): Promise<boolean> {
@@ -343,7 +346,6 @@ export class ManagedWorkerSpawning {
     }
     return false
   }
-
   private requireRole(name: unknown): string {
     const value = nonEmpty(name, 'worker role')
     if (this.host.roles.size === 0) {
@@ -370,7 +372,6 @@ export class ManagedWorkerSpawning {
       limits ?? {},
     )
   }
-
   private async workerDefinition(
     request: ResolvedManagedAgentSpawnRequest,
   ): Promise<DefinedAgent> {
@@ -389,7 +390,6 @@ export class ManagedWorkerSpawning {
       instructions: template.instructions + specialty,
     })
   }
-
   private nextWorkerName(reserved?: ReadonlySet<string>): string {
     while (true) {
       const candidate = `worker_${++this.workerSequence}`

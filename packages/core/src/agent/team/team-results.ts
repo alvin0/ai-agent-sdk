@@ -30,15 +30,32 @@ export class TeamResults {
   /** An active join claims evidence synchronously at publication, before automatic notices. */
   capture(recipient: string, members: readonly AgentTeamMember[], targets: readonly string[], retained = true) {
     const captured: ReturnType<TeamResults['take']> = []
+    const claims: { name: string; outcome: AgentMemberOutcome }[] = []
     const budget = Math.max(256, Math.min(8192, Math.floor(46 * 1024 / Math.max(1, targets.length)) - 256))
     const collect = (current: readonly AgentTeamMember[]) => {
       const selected = retained ? this.select(current, targets)
         : current.filter(member => targets.includes(member.name))
-      captured.push(...this.take(recipient, selected, budget))
+      const taken = this.take(recipient, selected, budget)
+      captured.push(...taken)
+      for (const result of taken) {
+        const member = selected.find(member => member.name === result.worker)!
+        claims.push({ name: member.name, outcome: member.outcome! })
+      }
     }
     collect(members)
     this.collectors.add(collect)
-    return { take: () => captured.splice(0), close: () => { this.collectors.delete(collect) } }
+    return {
+      take: () => { claims.length = 0; return captured.splice(0) },
+      release: () => {
+        const delivered = this.delivered.get(recipient)
+        for (const { name, outcome } of claims) {
+          if (delivered?.get(name) === outcome) delivered.delete(name)
+        }
+        claims.length = 0
+        captured.length = 0
+      },
+      close: () => { this.collectors.delete(collect) },
+    }
   }
 
   publish(members: readonly AgentTeamMember[]): void {

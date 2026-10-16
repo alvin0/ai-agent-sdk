@@ -113,7 +113,7 @@ enforce nesting constraints in those hooks as well.
 
 ## Reusing guidance on another tool surface
 
-`buildDelegationStrategy(mode)` and `DELEGATION_STRATEGY` are exported from
+`buildDelegationStrategy(mode)` and the tool-neutral `DELEGATION_STRATEGY` are exported from
 `@alvin0/ai-agent-sdk-core/agent`. The builder supplies the proactive/explicit prefix and shared
 strategy without scheduling claims. Append runtime facts appropriate to the host; this branch uses
 `MANAGED_DELEGATION_RUNTIME` (automatic report injection, retained results, automatic slot release).
@@ -145,29 +145,40 @@ spawn_agents({
 ```
 
 This model tool is available on both lean and legacy surfaces; host `spawn()` remains unchanged.
-Each item accepts `name?`, `task`, `context?: 'fresh' | 'fork'`, `role?` (host-declared), and `writes?`.
-It deliberately accepts independent work only; use `spawn_agent` for dependency chains. Admission
-validates the entire batch and reserves all active slots before concurrent setup. Overflow rejects
-with the requested count and remaining capacity; wait for slots and submit a smaller batch. This
-avoids a hidden queue that would silently serialize an advertised fan-out. Invalid roles, duplicate
-addresses and rejected write conflicts also start no workers. Host-controlled factory/session setup
-can still fail after admission; each failed item returns `{ target, status: 'failed', error }` while
-successful siblings continue. No automatic retry can duplicate a partially successful batch.
+Each item accepts `name?`, `item_id?`, `task`, `context?: 'fresh' | 'fork'`, `role?` (host-declared), and `writes?`.
+It accepts independent work only: dependency fields are rejected, and peers cannot wait on queued
+siblings. Use single spawning for registered dependency chains. Admission validates names, item ids,
+roles and write conflicts before setup. It reserves free worker slots plus backlog capacity atomically.
+`maxQueued` defaults to `2 * maxWorkers` (capped at 1024); set zero to disable the backlog. Queued items
+return `status: 'queued'`, hold no worker slot or session, and start FIFO as finished workers release slots.
+Overflow reports both free slots and the current queued count. Invalid requests start no workers;
+mandatory addresses and coverage ids must themselves fit the 48 KiB response budget.
+Host-controlled setup can still fail after admission; failed items return `{ target, status: 'failed', error }`
+while successful siblings continue. Recover only deficits rather than retrying successful items.
 
-Without `join` (default false), returns `{ workers: [{ target, status, error? }] }` after bounded setup;
-ordinary push delivery handles results. With `join: true`, also returns `results`, `timed_out` and
-optional `interrupted`. Results use the lean compact shape on both surfaces: `{ target, status,
-result }` for success, `{ target, status, partial_result, error }` for unsuccessful evidence, with
-structured fields when present. Capture begins before workers start and shares the push/join ledger,
-including workers that finish while siblings prepare. The existing host-bounded wait starts after
-setup and may return partial results; unfinished workers later report by push or another wait.
-Fresh batch collectors exclude archived results from earlier workers reusing the same address.
-The host hook `captureResults(sender, targets, retained = true)` keeps its existing default behavior;
-passing false selects only current members for fresh generation collection.
-Batch setup failures are in `workers`, separate from terminal `results`. Setup views describe admission
-time, so use terminal results to decide success. Invocation cancellation cancels owned workers;
-standalone tool cancellation stops setup/join only and does not cancel already started workers.
-Caller-aborted joins may have claimed evidence: use `get_agent_result` for repeatable recovery.
+Without `join` (default false), returns `workers` and initial `coverage` after bounded setup of the
+immediately started tasks. Ordinary push delivery handles results; one final compact batch settlement
+carries coverage after every item settles. With `join: true`, the same call waits across queued waves
+and returns compact `results`, `coverage`, `omitted`, `timed_out` and optional `interrupted`. No model
+calls are made to dispatch queued items or poll while joining. Coverage is
+`{ completed: n, failed: [ids], pending: [ids], deficit: [ids] }`; ids use `item_id` or the worker address.
+Completed counts usable successful results. Deficits include failures, cancellation, and completed work
+with neither nonblank text nor structured output. Coverage never duplicates result text.
+
+Results use the lean compact shape on both surfaces: `{ target, status, result }` for success,
+`{ target, status, partial_result, error }` for unsuccessful evidence, with structured fields when present.
+The whole serialized response shares one 48 KiB byte budget, including diagnostics and coverage;
+`workers[].warnings` is additionally limited to four 256-byte entries. `omitted` lists targets whose
+result or diagnostics did not fit; use `get_agent_result` for retained result pages. Captures begin before
+setup and exclude archived generations. The inner batch barrier claims no results. The existing
+`captureResults(sender, targets, retained = true)` host hook retains its default and adds `release()`
+for unreturned claims. Timeout or steering returns partial evidence and leaves other results for push.
+
+Cancelling the call, its owning lead invocation, or the team drains queued reservations exactly once.
+Call cancellation returns addresses with `cancelled: true` even after partial setup; joining aborts
+release captured-but-unreturned outcomes and resume push delivery. Standalone call cancellation leaves
+already running workers alive; invocation cancellation and team disposal also close owned workers.
+Returned worker statuses are setup snapshots; consult terminal results and coverage for completion.
 
 Push notices and active joins claim the same outcome objects through `TeamResults.take`.
 A join captures publications before notices can claim them, joins all selected work, and returns all

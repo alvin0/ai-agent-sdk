@@ -35,3 +35,12 @@ export function managedControlPlane(options: ManagedAgentTeamOptions, maxWorkers
         maxMembers: options.team?.maxMembers ?? maxWorkers + 1,
       })
 }
+
+/** Host queue capacity is bounded even when callers bypass TypeScript. */
+export function managedMaxQueued(options: ManagedAgentTeamOptions, maxWorkers: number): number {
+  const value = options.maxQueued ?? Math.min(1024, 2 * maxWorkers)
+  if (!Number.isSafeInteger(value) || value < 0 || value > 1024) {
+    throw new TypeError('maxQueued must be an integer between 0 and 1024')
+  }
+  return value
+}

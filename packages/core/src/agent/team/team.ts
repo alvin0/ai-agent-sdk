@@ -10,6 +10,8 @@ import type { AgentRunEvent } from '../mode/run-agent.ts'
 import { recordOutcome, markPending, observeAgentEvent } from './team-lifecycle.ts'
 import { beginWait as beginTeamWait } from './team-coordination.ts'
 import { dispatchRemote } from './team-remote.ts'
+import { executeTeamWait } from './team-wait-operation.ts'
+import type { ToolRunContext } from '../tool/definition.ts'
 import { TeamTools } from './team-tools.ts'
 import { type ToolDefinition } from '../tool/definition.ts'
 import type { ContentBlock } from '../../message/index.ts'
@@ -42,6 +44,7 @@ export class AgentTeam implements TeamPort {
   private readonly work: TeamWork
   private readonly waitEdges = new Map<string, Map<string, number>>()
   private readonly results = new TeamResults()
+  private readonly waitGuards = new Set<(sender: string, targets: readonly string[]) => void>()
   private readonly wakeGuards = new Set<(target: string) => void>()
   private readonly listeners = new Set<(event: AgentTeamEvent) => void>()
   private readonly teamTools: TeamTools
@@ -192,7 +195,29 @@ export class AgentTeam implements TeamPort {
   private requireLocalMember(value: string): LocalMemberRuntime {
     return this.roster.requireLocalMember(value)
   }
+  guardWait(guard: (sender: string, targets: readonly string[]) => void): () => void {
+    this.waitGuards.add(guard)
+    return () => { this.waitGuards.delete(guard) }
+  }
+
+  /** Managed independent batch barrier, including reserved addresses without sessions yet.
+   * Its outer collector owns results; this barrier must not claim archived or current evidence. */
+  waitForBatch(sender: string, targets: readonly string[],
+    whenIdle: (target: string, signal?: AbortSignal) => Promise<void>, ctx: ToolRunContext) {
+    return executeTeamWait({
+      waitTimeoutMs: this.waitTimeoutMs, minWaitTimeoutMs: this.minWaitTimeoutMs,
+      assertActive: () => this.assertActive(), members: () => this.members(),
+      retainedResult: target => this.results.retained(target),
+      takeResults: (sender, targets, maxBytes) => this.takeResults(sender, targets, maxBytes),
+      captureResults: sender => this.captureResults(sender, [], false),
+      sendMessage: request => this.sendMessage(request),
+      followup: (from, target, message, signal) => this.followup(from, target, message, signal),
+      beginWait: () => () => {}, whenIdle, member: name => this.roster.locals.get(name),
+    }, { name: sender, sender }, { targets }, ctx)
+  }
+
   beginWait(sender: string, targets: readonly string[]): () => void {
+    for (const guard of this.waitGuards) guard(sender, targets)
     return beginTeamWait(
       { waitEdges: this.waitEdges, requireAddress: name => this.requireAddress(name) }, sender, targets,
     )
@@ -218,6 +243,7 @@ export class AgentTeam implements TeamPort {
     this.results.clear()
     this.listeners.clear()
     this.wakeGuards.clear()
+    this.waitGuards.clear()
     this.onEvent = undefined
     this.onAgentEvent = undefined
   }

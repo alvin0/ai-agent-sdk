@@ -6,6 +6,10 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Breaking
 
+- Aborted `spawn_agents` calls return worker addresses with `cancelled: true` instead of throwing
+  after admission; inspect the flag and coverage before synthesizing. Standalone `wait_agents` keeps
+  its existing throwing cancellation behavior.
+
 - Managed lead catalogs now reserve `spawn_agents` for batch fan-out on both tool surfaces.
   Rename any host-provided tool using that name; host lifecycle APIs remain unchanged.
 - Managed teams default to the lean model surface: `spawn_agent`, `send_input`, `wait_agents`,
@@ -46,13 +50,16 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Added
 
-- Managed lead tool `spawn_agents({ tasks: [{ name?, task, context?, role?, writes? }], join? })`
-  starts independent workers concurrently in one call on lean and legacy surfaces. `join: true`
-  returns compact new results through the existing push/join delivery ledger; bounded waits may return
-  partial results on timeout or user steering. Overflow, invalid requests and conflicting write scopes
-  reject before setup; admitted setup failures are reported per worker. `maxWorkers` counts the whole
-  reserved batch. Host APIs and `spawn_agent` remain compatible. Delegation guidance now asks the lead
-  to plan the split before reading bulk inputs and start independent work in one batch.
+- Managed lead tool `spawn_agents({ tasks: [{ name?, item_id?, task, context?, role?, writes? }], join? })`
+  admits independent tasks into free slots plus a bounded FIFO backlog (`maxQueued`, default twice
+  `maxWorkers`, capped at 1024). Queued tasks hold no worker slot or session. Overflow reports free
+  slots and queued count; invalid requests fail before setup. Dependencies and peer waits on queued
+  siblings are disallowed. `join: true` waits across waves with no polling, returns per-item coverage,
+  and shares a 48 KiB aggregate payload budget with warnings/errors and an `omitted` recovery list.
+  Nonjoining batches push one compact final coverage account after all items settle. Call aborts
+  return worker addresses and release unreturned join claims for push recovery; call/invocation/team
+  cancellation drains queued items exactly once. Host APIs and single spawning remain compatible.
+  Shared exported delegation strategy is tool-neutral; batch tool advice lives in managed instructions.
 - Opt-in `collaboration: true`: revision-CAS task board, compact task discovery, owner/dependency checks,
   bounded peer wakes and automatic ready/blocked notices. The board remains local and in memory.
   Joins share managed settlement barriers; each join has a deadline, with pending/preparing work cancelled

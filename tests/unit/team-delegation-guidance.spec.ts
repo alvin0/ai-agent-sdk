@@ -157,8 +157,10 @@ describe('worker application tools and role narrowing', () => {
   })
 
   it('excludes lead-only, team/control, and user-input tools before inheritance at any depth', async () => {
-    const excluded = ['deploy', 'commit', 'spawn_agent', 'close_agent', 'list_agents', 'get_agent_result', 'send_message',
-      'followup_task', 'wait_agents', 'submit_result', 'request_user_input', 'request_user_input_async', 'ask_user']
+    const excluded = ['deploy', 'commit', 'spawn_agent', 'close_agent', 'list_agents',
+      'get_agent_result', 'send_message',
+      'followup_task', 'wait_agents', 'submit_result', 'request_user_input', 'request_user_input_async',
+      'ask_user']
     const tools = excluded.map(name => defineTool({ name, description: 'Lead only.',
       parameters: { type: 'object' }, execute: () => 'must not run' }))
     tools.push(defineTool({ name: 'custom_question', description: 'Ask person.', awaitsPerson: true,
@@ -339,6 +341,8 @@ describe('managed delegation depth guard', () => {
       try {
         await managed.run('work directly')
         expect(names(adapter.requests[0]!)).not.toContain('spawn_agent')
+        expect(names(adapter.requests[0]!)).not.toContain('spawn_agents')
+        expect(adapter.requests[0]!.system).not.toContain('spawn_agents')
         expect(adapter.requests[0]!.system).toContain('Do the work directly; do not spawn agents.')
         expect(adapter.requests[0]!.system).toContain('synthesize the caller-requested result')
         expect(adapter.requests[0]!.system).toContain('Do not present a final answer before needed reports arrive')

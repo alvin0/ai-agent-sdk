@@ -14,7 +14,7 @@ export const DELEGATION_STRATEGY = [
   'Plan the split first; do not read bulk data yourself before delegating. '
   + 'Keep immediate critical-path blockers and tightly coupled work local.',
   'Delegate bounded sidecar tasks that can run alongside your work. Start independent delegations together '
-  + 'in one spawn_agents call. Give each worker an objective, input locations, expected output, '
+  + 'in one batch when supported. Give each worker an objective, input locations, expected output, '
   + 'write scope, and verification.',
   'Use disjoint write sets, including your own. Do not redo delegated work; continue useful non-overlapping work.',
   'For fresh context, give a self-contained brief. For fork, state only new information; '
@@ -53,6 +53,8 @@ export function managedLeadInstructions(options: ManagedAgentTeamOptions): strin
         + 'do not busy-poll status or repeat short waits.'
       : strategy,
     MANAGED_DELEGATION_RUNTIME,
+    ...atManagedDepthLimit(options) ? []
+      : ['Use spawn_agents for independent tasks; overflow queues FIFO within host limits.'],
     options.autoLeadCoordination === false
       ? 'Use wait_agents when blocked on a worker result; the host controls later turns.'
       : 'When only waiting remains, end your turn instead of polling; managed coordination collects worker reports '
