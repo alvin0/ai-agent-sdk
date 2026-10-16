@@ -1,136 +1,145 @@
 # Autonomous multi-agent benchmark
 
-The host supplies a task, shared tools, an isolated fixture copy, and limits. The lead chooses
-whether/how to delegate through the branch's own managed team tools. The host never calls
-`spawn`, assigns subtasks, forces a reviewer, or synthesizes an answer. No SDK APIs change.
+The host supplies a task, identical workspace tools, and an isolated temporary workspace. Models
+choose whether/how to delegate through the built SDK's native managed-team tools. Production SDK
+hooks, prompts and APIs are unchanged. Fake runs exercise the protocol; they are not quality evidence.
 
-Requires Node >=24.9 (TypeScript stripping and permission support), pnpm, and locally built packages:
+Requires Node >=24.9 and locally built packages. Paths to SDK bundles, fixtures, worker scripts and
+Git metadata resolve from `import.meta.url`, so the CLI can run from any directory against this worktree.
 
 ```sh
-pnpm install --frozen-lockfile # only if dependencies are absent
+pnpm install --frozen-lockfile # only if node_modules is missing
 pnpm workspace:build
-node --experimental-strip-types test-human/multi-agent-bench/run.ts \
-  --arms single,team --tasks all --reps 3 --provider codex --model gpt-6-luna \
-  --out docs/evaluations/multi-agent-upgrade-2026-10/my-branch/
+node /absolute/worktree/test-human/multi-agent-bench/run.ts \
+  --provider codex --model gpt-6-luna --codex-auth /absolute/path/auth.json \
+  --suite scaled --seed 16102026 --arms single,team --reps 3 --label candidate \
+  --max-total-tokens 80000 --max-turns 240 --max-tool-calls 320 \
+  --out /tmp/ma-candidate
 ```
 
-The Codex Node wrapper uses `packages/provider-codex` with the same local authentication store
-as `test-human/multi-agent/live-worker.ts`. Set `AI_AGENT_SDK_CODEX_AUTH` to an existing SDK
-Codex auth file if needed (see `packages/auth-node` docs). No credentials are copied into fixtures.
-The default model is `gpt-6-luna`; `--model` accepts explicitly selected newer generations/tiers.
-Older models and unsupported providers fail validation; there is no model fallback. ZenMux is not
-implemented. `fake` is the only other provider and emits clearly marked synthetic usage.
+`--codex-auth` selects an explicit **revisioned CAS** `fileCodexCredentialStore` from auth-node,
+passed to provider-codex's adapter. Alternatively set `AI_AGENT_SDK_CODEX_AUTH=<absolute file>`.
+The flag takes precedence over the environment. Relative explicit paths resolve from the launch
+cwd; the default `.providers/.codex/auth.json` resolves from this script's repository root.
+Credentials never enter task workspaces or result files (the selected path is recorded).
+The default live model is `gpt-6-luna`; a newer generation/tier must be explicitly selected.
+Older models fail validation and there is no fallback. Optional ZenMux support is not implemented.
 
 ```sh
-# Bounded four-run live smoke, not merge-gate evidence
-node --experimental-strip-types test-human/multi-agent-bench/run.ts \
-  --tasks sequential,code-change --reps 1 --arms single,team --provider codex \
-  --model gpt-6-luna --out docs/evaluations/multi-agent-upgrade-2026-10/baseline-smoke/
+# Required offline protocol validation: six scaled tasks, two arms, two repetitions = 24 runs.
+node test-human/multi-agent-bench/run.ts --provider fake --suite scaled \
+  --arms single,team --reps 2 --concurrency 2 --label offline-round2 --out /tmp/ma-offline-round2
 
-# Full offline protocol exercise, no auth or network
-node --experimental-strip-types test-human/multi-agent-bench/run.ts \
-  --provider fake --tasks all --arms single,team --reps 3 --concurrency 3 --out /tmp/ma-offline/
+# Preserve the original six small fixtures for quick smoke checks.
+node test-human/multi-agent-bench/run.ts --provider fake --suite smoke \
+  --arms single,team --reps 1 --out /tmp/ma-smoke
+
+# Inspect generated fixtures independently; output directory must be new.
+node test-human/multi-agent-bench/generate-fixtures.ts 16102026 /tmp/ma-generated
 pnpm exec vitest run tests/unit/multi-agent-bench.spec.ts
 ```
 
-`--concurrency` defaults to 1; it bounds independent run processes, not worker concurrency within
-one team. `--timeout-ms` defaults to 180000 per run; a parent kill guard allows 15 seconds for
-SDK cancellation/disposal. All arms use the same medium reasoning effort, 40 model steps and 80
-tool calls per session, 80000 SDK tokens per session, and a shared wall deadline. Teams may have
-four workers; these are per-session ceilings, **not** a claim of equal aggregate token budgets.
-The benchmark measures that extra cost. Task/rep pairs run in alternating arm order to reduce
-ordering bias. Use the same concurrency/settings on both branches.
+Defaults: `--suite scaled`, seed `16102026`, three repetitions, one independent process at a time,
+180000 ms wall deadline, four workers maximum, medium effort, 80000 total tokens, 240 model
+requests and 320 tool dispatches **per run, shared across every session**. The same aggregate limits
+apply to single, team and collab. `--label` is saved in the manifest; it does not affect comparability.
+Task/rep pairs alternate arm order. Use matching settings and seeds on both branches.
 
-Output directories must be new. Parent directories are created. Nonzero exit means an SDK or
-infrastructure failure occurred; an incorrect graded answer remains a recorded completed run.
-Explicit `--arms collab` is skipped if unavailable. A detected collaboration arm is automatically
-added. Detection checks public exports `createCollaborativeAgentTeam`, `createCollaborationAgentTeam`,
-or `MANAGED_AGENT_TEAM_MODES` containing `collaboration` (managed factory receives that `mode`).
-These factories must implement the managed-team host contract. Extend `collaborationFactory` for
-any differently named public capability; no branch names or version strings control detection.
-This branch exports none, so it records collaboration as unavailable.
+Token usage is summed once per SDK `sdk.model.call` end across lead and workers. On reaching the
+aggregate cap, a shared signal aborts execution and stops admission to further requests/tools.
+Already running calls can overshoot because usage arrives at settlement; this is an observed usage
+cap, not a provider reservation guarantee. Missing usage stays unknown. Model/tool checkpoint
+admission enforces aggregate turn/tool limits even on SDK coordination tools exempt from session
+budgets. `metrics.capHits.{tokens,turns,toolCalls}` records which caps bound a run, and `status: cap-hit`
+is separate from timeout/failure. Cap hits count as unsuccessful runs even if an artifact already exists.
+Per-session step ceilings are above the shared admission ceilings, so they do not silently take over.
 
-## Tasks and grading
+Output directories must be new. A nonzero CLI exit indicates an SDK, cap, timeout or infrastructure
+failure; an incorrect artifact from a completed agent remains a completed, failed grade.
+`--arms collab` is supported explicitly and records a skipped arm when unavailable. Detection uses
+public exports, including `CollaborationTaskBoard` plus `createManagedAgentTeam` (mapped to
+`{ collaboration: true }`), collaborative factories, or `MANAGED_AGENT_TEAM_MODES`. Requested arms
+are respected; detection does not add an unrequested arm. This branch does not expose collaboration.
 
-| ID | Work | Deterministic checks |
+## Tasks
+
+`generate.ts` uses a seeded xorshift PRNG. Large data is generated at workspace creation; only the
+small smoke fixtures and generator code are committed. Graders, expected answers and repairs stay
+outside model-visible workspaces. Every run receives the same seed, regardless of arm/repetition.
+
+| ID | Default scaled task | Checks |
 | --- | --- | --- |
-| extraction | Extract 24 service records from six regional files | Exact totals and sorted complete IDs |
-| code-change | Implement independent name/price modules | Four executable examples including empty/zero cases |
-| bug-hunt | Diagnose TTL units and expiration boundary across a small repo | Before expiry, exact expiry, missing key |
-| sequential | Ordered modular state transition, negative control | Every intermediate value and final value |
-| review | Verify auth/redirect code against policy | Two valid counterexamples, no extra findings, original code intact |
-| shared-artifact | Reconcile three teams' migration fragments | Dependency/owner unions and deterministic topological order |
+| extraction | 48 CSV logs, each 20–40 KB, four services per file | Exact per-file nearest-rank p95 by service, error-code histograms including OK, global count/histogram |
+| code-change | Eight spec sections/modules with disjoint write sets and a frozen shared interface | 40 hidden executable edge cases plus interface integrity |
+| bug-hunt | 30 source files, four planted bugs in cache/ranges/billing/routing | 20 hidden checks plus healthy-module integrity; `shell test <module>` supported |
+| sequential | Original ordered modular transition negative control | Complete trace and final value |
+| review | 12 handlers, five violations across active-admin/exact-origin/bounded-count | Execute each proposed input against ORIGINAL sandboxed code, confirm policy rejection, reject extras, preserve source |
+| shared-artifact | Eight fragments with conflicting owners and dependencies, including stale cycles | Exact authoritative reconciliation and deterministic topological order |
 
-Each run gets a fresh copy of the in-repo fixtures (under 300 KB total). Graders and expected
-answers stay in the harness outside the writable copy. The sequential task deliberately has
-little independent work: unnecessary delegation should show extra tokens/time. Shared-artifact
-work can be solved alone or with peers; collaboration is available, never forced.
-Score is the fraction of independent checks passing. Pass requires every check plus a completed
-lead run. A recovered tool error can still pass; error events remain in the metrics.
+The review grader treats null, primitives, malformed findings and rejected counterexamples as failed
+checks. Editing the submitted source cannot validate an invented counterexample: execution uses
+host-held originals. A valid policy predicate alone cannot pass a finding.
 
-Both arms and every worker receive identical `read_file`, `write_file`, `list_files`,
-`search_files`, and `shell` tools. Team members additionally receive the SDK's coordination tools.
-File tools reject absolute paths, traversal, symlinks, files above 64 KiB, and more than 64 files.
-`shell` accepts only the literal command `test`: it executes the task's standalone CommonJS modules
-and host-owned assertions in a separate Node process. No arbitrary OS commands, package installs,
-imports, credentials, network APIs, or host functions are exposed to fixture code. The subprocess
-has an empty environment and Node permissions with no filesystem/child/addon/worker grants; its
-VM disables dynamic string/Wasm generation, with 500 ms evaluations and a 3-second kill limit.
-This deliberately narrow test sandbox supports these fixtures, not general untrusted repositories.
-Parent-owned temporary roots are removed even when a run child is killed.
+## Workspace tools and sandbox
 
-## Metrics
+Every session gets identical `read_file`, `write_file`, `list_files`, `search_files`, and `shell`.
+Team/collab sessions additionally get the SDK's coordination surface. Absolute paths, traversal,
+symlinks and writes to frozen paths (including normalized aliases) are rejected.
 
-Every session uses SDK observation and checkpoint hooks, including automatically resumed lead
-runs and model-created workers. `*.audit.json` preserves those events, tool names, evidence
-fingerprints, and terminal errors. `*.json` stores the result, checks, final text, and artifact
-snapshot before cleanup. `manifest.json` records commit/dirty status, model/settings, Node version,
-fixture/harness/core-bundle SHA-256 hashes, skipped arms, and synthetic/smoke flags.
+- `read_file({path,offset?,limit?})`: at most **16 KiB** per call, byte offset defaults to zero.
+  Returns `{content,nextOffset,totalBytes}`; continue until `nextOffset` is null. UTF-8 boundaries
+  are preserved. `limit` cannot exceed 16384.
+- `write_file`: up to 64 KiB, at most 128 workspace files. Creates parent directories.
+- `search_files`: literal matching, capped at 40 lines and 16 KiB; cannot produce numeric aggregates.
+- `shell`: `test` runs all hidden checks; `test <module>` selects one module's checks.
+  `run <script.cjs> <output.json>` runs an authored script whose `module.exports.run()` returns JSON,
+  then writes that JSON artifact. Inside it, `list_files()` and `read_file(path,offset)` expose only
+  workspace snapshots with the same 16 KiB paging; no model-visible full-file read shortcut.
+  This lets models compute exact numeric aggregates rather than doing thousands of calculations manually.
 
-- `inputTokens`: SDK uncached input summed over all logical calls, all sessions.
-- `outputTokens`, `cacheReadTokens`, `cacheWriteTokens`: SDK disjoint buckets, summed once per
-  `sdk.model.call` end. Provider retries are already included by SDK call accounting.
-- `totalTokens`: sum of those four buckets; reasoning is part of output, never added again.
-  Any incomplete/missing usage or unfinished call makes authoritative totals `null`. `reportedTokens`
-  retains the observed partial sum and `usageComplete` identifies completeness. No USD estimates.
-- `leadModelCalls`, `totalModelCalls`: `sdk.model.call` starts for the lead/all sessions.
-- `spawns`: worker `member-attached` events, not planned or guessed delegation counts.
-- `wastedLeadTurns`: lead model requests whose evidence fingerprint equals the preceding lead
-  request. The fingerprint deduplicates non-assistant message contents, removes identity fields,
-  and excludes `managed-team` application hold notices. This operational proxy detects empty
-  polling/continuation requests; it does not claim to classify private reasoning or all semantic
-  redundancy. Units are model requests, including requests inside one SDK turn.
-- `wallMs`: from workspace-ready execution start through team quiescence and disposal; excludes
-  process startup, fixture copying, artifact grading and output serialization.
-- `errors`: observed model/tool error or abort terminal events plus terminal/host failures (a
-  failure may appear at more than one layer); `status` separates completed, failed and timeout.
-  Hard child failures are `*.fatal.json` with unknown metrics, never invented zero usage.
+Execution occurs in a separate Node process with an empty environment and no filesystem, child,
+addon or worker permissions. A VM disables dynamic string/Wasm code generation; only serialized
+workspace data crosses the boundary, never host callbacks or credentials. Evaluations have bounded
+timeouts and a 3-second process kill guard. Script output is bounded at 64 KiB. This is a narrow
+fixture runner, not a container for arbitrary repositories. Parent-owned temp roots are cleaned
+up even if a run process is killed.
 
-Fake usage (100 input + 20 output per call) is adapter-scripted test data. It proves accounting
-and autonomous tool dispatch work end to end; it provides no model quality or performance evidence.
+The fake adapter discovers spawn/wait tools by offered names/descriptions and fills required schema
+fields only. It reads the returned worker address instead of assuming a name. Its fixed repairs,
+findings and 100 input/20 output usage are synthetic protocol data. Scaled extraction's fake script
+independently calculates from paged CSV inputs to cross-check the generator/runner/grader together.
 
-## Comparing branches
+## Results and comparison
 
-Build each branch locally, place this exact harness/fixtures on each branch, and run the same
-command with a distinct output label. Do not mix provider/model/settings, dirty SDK builds, fixture
-versions, or fake/live runs. Then:
+Each `*.json` contains grades, final text, metrics and a workspace snapshot. `*.audit.json` retains
+SDK observations, model-request evidence fingerprints and dispatches. Fatal process errors get
+`*.fatal.json` with unknown metrics and failed grades. `manifest.json` records model/provider,
+label, suite, seed, all limits, commit/dirty state, Node version, fixture/harness/core-bundle hashes,
+skipped arms and the `autonomous-v2` protocol. V1 results are not configuration-comparable.
+
+Tokens sum the SDK's disjoint input/output/cache-read/cache-write buckets; reasoning is already
+in output. Incomplete usage yields `totalTokens: null`, with `reportedTokens` preserving partial
+usage. `leadModelCalls`/`totalModelCalls` count SDK logical starts. `spawns` counts actual attachment
+events. `toolCalls` counts admitted dispatches, including coordination calls. `wallMs` includes
+execution, quiescence and disposal; it excludes fixture generation, grading and serialization.
+
+`wastedLeadTurns` counts lead requests with no newly observed non-assistant evidence. Worker text
+and JSON settlement REPORTS from `producer: managed-team` count. Pure recognized hold/status
+notices and status-only wait/list/join results do not. New non-status tool results count. Identity
+fields and repeated semantic contents are deduplicated; losing history entries does not create
+new evidence. Unknown notice formats conservatively count as evidence. This is an operational
+proxy, not a judgment about private reasoning. Error events may be reported at multiple layers.
 
 ```sh
-node --experimental-strip-types test-human/multi-agent-bench/analyze.ts \
-  docs/evaluations/multi-agent-upgrade-2026-10/integration/ \
-  docs/evaluations/multi-agent-upgrade-2026-10/candidate/
+node test-human/multi-agent-bench/analyze.ts /tmp/ma-baseline /tmp/ma-candidate
 ```
 
-The table compares each task/arm and the aggregate, with N, pass rates, mean score, token
-mean/median, lead calls and wall time. JSON printed to stdout and written to `<dirB>/comparison.json`
-adds mean/median total calls, spawns, wasted lead requests, errors and timeouts. Fatal runs count
-as failures in pass rates and make affected cost statistics unknown. Configuration/sample mismatches
-warn and mark the comparison unsuitable for paired conclusions. Aggregates weight runs equally;
-use identical task sets and repetitions. Retain per-task results to spot regressions.
+The table shows per-task/per-arm and `ALL` distributions/pass rates, and **B versus A delta %**
+for mean score, tokens, lead calls, wall and wasted turns. Positive means an increase; lower cost
+is better. Zero-to-zero is 0%; nonzero from a zero baseline or unknown usage is `n/a`. JSON is
+written to `<dirB>/comparison.json` and includes mean/median statistics, cap hits, errors, timeouts,
+labels and configuration/sample mismatch warnings. Aggregates weight runs equally.
 
-A direction needs **live N>=3** versus integration, team quality at least baseline, and one of:
-quality up, tokens down >=15%, lead calls down >=30%, or wall time down >=20%, with no task
-regressing by more than one run. Builds, typecheck/lint/unit gates and the plan's review gate also
-apply. A one-repetition smoke or synthetic run cannot establish that gate. The benchmark itself
-makes no claim that delegation helps: successful guidance/coordination should reduce wasted lead
-requests and improve fan-out tasks while keeping the sequential control at parity.
+The merge gate still needs matched **live N>=3** runs, quality at least baseline, plus quality up,
+tokens down >=15%, lead calls down >=30%, or wall down >=20%, and no task regressing by more than
+one run. The sequential control should stay at parity. Offline results establish no performance win.

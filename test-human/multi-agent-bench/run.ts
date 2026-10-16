@@ -4,12 +4,14 @@ import { resolve, join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
-import { collabAvailable, type Arm, type Job, type Result } from './execute.ts'
-import { fixtureRoot, tasks } from './tasks.ts'
+import { collabAvailable, repoRoot, type Arm, type Job, type Result } from './execute.ts'
+import { fixtureRoot, selectTasks, defaultSeed, type Suite } from './tasks.ts'
+import { defaultLimits } from './metrics.ts'
 
 function options(args: string[]) {
   const values = new Map<string, string>()
-  const allowed = ['arms', 'tasks', 'reps', 'provider', 'model', 'out', 'concurrency', 'timeout-ms']
+  const allowed = ['arms', 'tasks', 'reps', 'provider', 'model', 'out', 'concurrency', 'timeout-ms',
+    'max-total-tokens', 'max-turns', 'max-tool-calls', 'suite', 'seed', 'codex-auth', 'label']
   for (let i = 0; i < args.length; i += 2) {
     const key = args[i]?.replace(/^--/, ''), value = args[i + 1]
     if (!key || !allowed.includes(key) || !value || value.startsWith('--')) throw new Error('Invalid CLI arguments')
@@ -26,10 +28,14 @@ const positive = (value: string, name: string) => {
 function selection(opts: Map<string, string>) {
   const arms = [...new Set((opts.get('arms') ?? 'single,team').split(','))] as Arm[]
   if (arms.some(arm => !['single', 'team', 'collab'].includes(arm))) throw new Error('Unknown arm')
+  const suite = opts.get('suite') ?? 'scaled'
+  if (suite !== 'smoke' && suite !== 'scaled') throw new Error('Suite must be smoke or scaled')
+  const seed = positive(opts.get('seed') ?? String(defaultSeed), 'seed')
+  const tasks = selectTasks(suite, seed)
   const selected = opts.get('tasks') ?? 'all'
   const ids = selected === 'all' ? tasks.map(task => task.id) : [...new Set(selected.split(','))]
   if (ids.some(id => !tasks.some(task => task.id === id))) throw new Error('Unknown task')
-  return { arms, ids }
+  return { arms, ids, suite: suite as Suite, seed }
 }
 function approvedModel(model: string) {
   const version = /^gpt-(\d+)(?:\.(\d+))?(?:-([\w.-]+))?$/.exec(model)
@@ -45,13 +51,22 @@ function providerModel(opts: Map<string, string>) {
   if (provider === 'codex' && !approvedModel(model)) throw new Error('Model must be gpt-6-luna or newer; no fallback')
   return { provider: provider as Job['provider'], model }
 }
+function credentialPath(opts: Map<string, string>) {
+  const path = opts.get('codex-auth') ?? process.env.AI_AGENT_SDK_CODEX_AUTH
+  return path ? { codexAuth: resolve(path) } : {}
+}
 export function parseArgs(args: string[]) {
   const opts = options(args)
   if (!opts.get('out')) throw new Error('--out is required and must be a new directory')
   return { ...providerModel(opts), ...selection(opts), out: resolve(opts.get('out')!),
     reps: positive(opts.get('reps') ?? '3', 'reps'),
     concurrency: positive(opts.get('concurrency') ?? '1', 'concurrency'),
-    timeoutMs: positive(opts.get('timeout-ms') ?? '180000', 'timeout-ms') }
+    timeoutMs: positive(opts.get('timeout-ms') ?? '180000', 'timeout-ms'),
+    maxTotalTokens: positive(opts.get('max-total-tokens') ?? String(defaultLimits.maxTotalTokens), 'max-total-tokens'),
+    maxTurns: positive(opts.get('max-turns') ?? String(defaultLimits.maxTurns), 'max-turns'),
+    maxToolCalls: positive(opts.get('max-tool-calls') ?? String(defaultLimits.maxToolCalls), 'max-tool-calls'),
+    label: opts.get('label') ?? 'unlabelled',
+    ...credentialPath(opts) }
 }
 
 export async function treeHash(root: string): Promise<string> {
@@ -102,22 +117,24 @@ export async function main(args = process.argv.slice(2)) {
   const collab = collabAvailable()
   const skippedArms = !collab && config.arms.includes('collab') ? ['collab'] : []
   const arms = config.arms.filter(arm => arm !== 'collab' || collab)
-  if (collab && !arms.includes('collab')) arms.push('collab')
   const jobs: Job[] = config.ids.flatMap((task, taskIndex) =>
     Array.from({ length: config.reps }, (_, rep) => {
       const order = (taskIndex + rep) % 2 ? [...arms].reverse() : arms
       return order.map(arm => ({ arm, task, rep: rep + 1,
-        provider: config.provider, model: config.model, timeoutMs: config.timeoutMs }))
+        provider: config.provider, model: config.model, timeoutMs: config.timeoutMs,
+        suite: config.suite, seed: config.seed,
+        maxTotalTokens: config.maxTotalTokens, maxTurns: config.maxTurns, maxToolCalls: config.maxToolCalls,
+        ...('codexAuth' in config ? { codexAuth: config.codexAuth } : {}) }))
     }).flat())
   await mkdir(dirname(config.out), { recursive: true })
   await mkdir(config.out, { recursive: false })
-  const git = (args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim()
+  const git = (args: string[]) => execFileSync('git', args, { encoding: 'utf8', cwd: repoRoot }).trim()
   await writeFile(join(config.out, 'manifest.json'), JSON.stringify({ schemaVersion: 1, ...config, arms,
     skippedArms, collaborationDetected: collab, startedAt: new Date().toISOString(), node: process.version,
     commit: git(['rev-parse', 'HEAD']), dirty: git(['status', '--porcelain']),
     fixtureHash: await treeHash(fixtureRoot), harnessHash: await treeHash(fileURLToPath(new URL('.', import.meta.url))),
-    coreBundleHash: await treeHash(resolve('packages/core/dist')), synthetic: config.provider === 'fake',
-    protocol: 'autonomous-v1', repetitionsBelowMergeGate: config.reps < 3 }, null, 2))
+    coreBundleHash: await treeHash(join(repoRoot, 'packages/core/dist')), synthetic: config.provider === 'fake',
+    protocol: 'autonomous-v2', repetitionsBelowMergeGate: config.reps < 3 }, null, 2))
   let next = 0, failures = 0
   const consume = async () => {
     while (next < jobs.length) {

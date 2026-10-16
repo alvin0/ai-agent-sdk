@@ -27,6 +27,8 @@ export function summarize(runs: AnalysisRun[]) {
     spawns: distribution(runs.map(run => run.metrics?.spawns ?? null)),
     wastedLeadTurns: distribution(runs.map(run => run.metrics?.wastedLeadTurns ?? null)),
     errors: runs.reduce((sum, run) => sum + (run.metrics?.errors.length ?? 1), 0),
+    capHits: Object.fromEntries(['tokens', 'turns', 'toolCalls'].map(cap => [cap,
+      runs.filter(run => run.metrics?.capHits?.[cap as keyof Metrics['capHits']]).length])),
     timeouts: runs.filter(run => run.status === 'timeout').length }
 }
 
@@ -41,22 +43,35 @@ async function load(directory: string) {
 }
 const format = (number: number | null) => number === null ? 'unknown' : number.toFixed(2)
 
+/** Zero to zero is unchanged; an increase from zero has no finite percentage. */
+export function percentDelta(a: number | null, b: number | null): number | null {
+  if (a === null || b === null) return null
+  if (a === 0) return b === 0 ? 0 : null
+  return (b - a) / a * 100
+}
+
 export async function compare(dirA: string, dirB: string) {
   const [a, b] = await Promise.all([load(dirA), load(dirB)])
-  const comparable = ['protocol', 'model', 'provider', 'fixtureHash', 'harnessHash', 'concurrency', 'timeoutMs', 'reps']
+  const comparable = ['protocol', 'model', 'provider', 'fixtureHash', 'harnessHash', 'concurrency', 'timeoutMs', 'reps',
+    'suite', 'seed', 'maxTotalTokens', 'maxTurns', 'maxToolCalls']
     .every(key => a.manifest[key] === b.manifest[key])
   const rows = []
   const arms = [...new Set([...a.runs, ...b.runs].map(run => run.arm))]
   const ids = [...new Set([...a.runs, ...b.runs].map(run => run.task)), 'ALL']
   for (const task of ids) for (const arm of arms) {
     const select = (runs: AnalysisRun[]) => runs.filter(run => run.arm === arm && (task === 'ALL' || run.task === task))
-    rows.push({ task, arm, a: summarize(select(a.runs)), b: summarize(select(b.runs)) })
+    const baseline = summarize(select(a.runs)), candidate = summarize(select(b.runs))
+    const deltaPercent = Object.fromEntries((['score', 'tokens', 'leadCalls', 'wallMs', 'wastedLeadTurns'] as const)
+      .map(key => [key, percentDelta(baseline[key].mean, candidate[key].mean)]))
+    rows.push({ task, arm, a: baseline, b: candidate, deltaPercent })
   }
   const balanced = rows.every(row => row.a.n === row.b.n && row.a.n > 0)
   const summary = { balanced, schemaVersion: 1, dirA, dirB, comparable,
     synthetic: a.manifest.synthetic || b.manifest.synthetic,
+    labels: { a: a.manifest.label, b: b.manifest.label },
     infrastructureErrors: { a: a.fatal, b: b.fatal }, rows }
-  console.log('task / arm | N A/B | pass A/B | score A/B | tokens mean/median A:B | lead calls A/B | wall ms A/B')
+  console.log('task / arm | N A/B | pass A/B | score A/B | tokens mean/median A:B | lead calls A/B | '
+    + 'wall ms A/B | wasted A/B | delta % score/tokens/lead/wall/wasted (B vs A)')
   for (const row of rows) {
     console.log(`${row.task} / ${row.arm} | ${row.a.n}/${row.b.n} | `
       + `${format(row.a.passRate)}/${format(row.b.passRate)} | `
@@ -64,7 +79,10 @@ export async function compare(dirA: string, dirB: string) {
       + `${format(row.a.tokens.mean)}/${format(row.a.tokens.median)}:`
       + `${format(row.b.tokens.mean)}/${format(row.b.tokens.median)} | `
       + `${format(row.a.leadCalls.mean)}/${format(row.b.leadCalls.mean)} | `
-      + `${format(row.a.wallMs.mean)}/${format(row.b.wallMs.mean)}`)
+      + `${format(row.a.wallMs.mean)}/${format(row.b.wallMs.mean)} | `
+      + `${format(row.a.wastedLeadTurns.mean)}/${format(row.b.wastedLeadTurns.mean)} | `
+      + Object.values(row.deltaPercent).map(value =>
+        value === null ? 'n/a' : `${value > 0 ? '+' : ''}${format(value)}%`).join('/'))
   }
   if (!comparable || !balanced) console.error('WARNING: configuration/sample mismatch; not a paired comparison.')
   if (a.fatal.length || b.fatal.length) console.error('WARNING: infrastructure failures; sample is incomplete.')

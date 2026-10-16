@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { sandboxChecks } from './sandbox.ts'
+import { generateScaledTasks } from './generate.ts'
 
 export const fixtureRoot = fileURLToPath(new URL('./fixtures/', import.meta.url))
 export interface Task {
@@ -8,8 +10,14 @@ export interface Task {
   category: string
   prompt: string
   checks: string[]
+  files?: Record<string, string>
+  frozen?: string[]
+  expected?: unknown
+  repairs?: Record<string, string>
+  moduleChecks?: Record<string, string[]>
+  reviewCases?: { file: string; rule: string; example: unknown }[]
 }
-export const tasks: Task[] = [
+export const smokeTasks: Task[] = [
   {
     id: 'extraction', category: 'parallel research', checks: [],
     prompt: 'Read every regions/*.json. Write answer.json with {requests,errors,serviceIds}: total requests, '
@@ -79,10 +87,12 @@ async function sequential(root: string): Promise<boolean[]> {
 
 async function review(root: string): Promise<boolean[]> {
   const answer = await json(root, 'findings.json')
-  const findings = answer.findings as { file: string; rule: string; example: any }[]
+  const findings = (Array.isArray(answer?.findings) ? answer.findings : [])
+    .filter((f: unknown) => f !== null && typeof f === 'object') as { file: string; rule: string; example: any }[]
   const auth = findings.filter(f => f.file === 'src/auth.cjs' && f.rule === 'active-admin')
   const redirect = findings.filter(f => f.file === 'src/redirect.cjs' && f.rule === 'exact-origin')
-  const badUser = auth.some(({ example: u }) => (u.role === 'admin' || u.active === true)
+  const badUser = auth.some(({ example: u }) => u !== null && typeof u === 'object'
+    && (u.role === 'admin' || u.active === true)
     && !(u.role === 'admin' && u.active === true))
   const badUrl = redirect.some(({ example }) => {
     if (typeof example !== 'string' || !example.startsWith('https:')) return false
@@ -94,7 +104,14 @@ async function review(root: string): Promise<boolean[]> {
   const intact = await Promise.all(['auth', 'redirect', 'display'].map(async name =>
     (await readFile(join(root, `src/${name}.cjs`), 'utf8'))
       === (await readFile(join(fixtureRoot, 'review', `src/${name}.cjs`), 'utf8'))))
-  return [badUser, badUrl, findings.length === 2 && intact.every(Boolean)]
+  const files = Object.fromEntries(await Promise.all(['auth', 'redirect', 'display'].map(async name =>
+    [`src/${name}.cjs`, await readFile(join(fixtureRoot, 'review', `src/${name}.cjs`), 'utf8')])) )
+  const executable = await sandboxChecks(files, [
+    ...auth.map(f => `load("src/auth.cjs").allowed(${JSON.stringify(f.example)}) === true`),
+    ...redirect.map(f => `load("src/redirect.cjs").safe(${JSON.stringify(f.example)}) === true`),
+  ])
+  return [badUser && executable.slice(0, auth.length).some(Boolean),
+    badUrl && executable.slice(auth.length).some(Boolean), findings.length === 2 && intact.every(Boolean)]
 }
 
 async function shared(root: string): Promise<boolean[]> {
@@ -116,5 +133,56 @@ async function shared(root: string): Promise<boolean[]> {
 export async function artifactChecks(task: Task, root: string): Promise<boolean[]> {
   const graders: Record<string, (root: string) => Promise<boolean[]>> = { extraction, sequential, review,
     'shared-artifact': shared }
+  if (task.files && task.id !== 'sequential') return scaledArtifactChecks(task, root)
   return graders[task.id]!(root)
+}
+
+export type Suite = 'smoke' | 'scaled'
+export const defaultSeed = 16102026
+export const selectTasks = (suite: Suite = 'scaled', seed = defaultSeed): Task[] =>
+  suite === 'smoke' ? smokeTasks : generateScaledTasks(seed, smokeTasks.find(task => task.id === 'sequential')!)
+export const tasks = selectTasks()
+
+function violates(rule: string, example: unknown): boolean {
+  if (rule === 'active-admin') return !(example !== null && typeof example === 'object'
+    && (example as Record<string, unknown>).active === true && (example as Record<string, unknown>).role === 'admin')
+  if (rule === 'bounded-count') return !(typeof example === 'number' && Number.isInteger(example)
+    && example >= 0 && example <= 100)
+  return badOrigin(rule, example)
+}
+function badOrigin(rule: string, example: unknown): boolean {
+  if (rule !== 'exact-origin' || typeof example !== 'string') return false
+  try { const url = new URL(example)
+    return url.origin !== 'https://example.com' || !!url.username || !!url.password || /example\.com:\d/.test(example)
+  } catch { return true }
+}
+
+export async function scaledArtifactChecks(task: Task, root: string): Promise<boolean[]> {
+  if (task.id !== 'review') {
+    const answer = await json(root, task.id === 'shared-artifact' ? 'plan.json' : 'answer.json')
+    const expected = task.expected as Record<string, unknown>
+    // Object key order is irrelevant; array order and every scalar are exact.
+    const canonical = (value: unknown): string => JSON.stringify(value, (_, v: unknown) =>
+      v !== null && typeof v === 'object' && !Array.isArray(v)
+        ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v)
+    if (task.id === 'shared-artifact') {
+      const steps = (expected.steps as unknown[])
+      return steps.map((step, index) => canonical(answer?.steps?.[index]) === canonical(step))
+        .concat(answer?.steps?.length === steps.length)
+    }
+    return Object.entries(expected).map(([key, value]) => canonical(answer?.[key]) === canonical(value))
+  }
+  const answer = await json(root, 'findings.json')
+  const findings = (Array.isArray(answer?.findings) ? answer.findings : []) as unknown[]
+  const originals = Object.fromEntries(Object.entries(task.files!).filter(([name]) => name.endsWith('.cjs')))
+  const results = await Promise.all(task.reviewCases!.map(async expected => {
+    const matches = findings.filter((f): f is Record<string, unknown> => f !== null && typeof f === 'object'
+      && (f as Record<string, unknown>).file === expected.file && (f as Record<string, unknown>).rule === expected.rule)
+    if (matches.length !== 1 || !violates(expected.rule, matches[0]!.example)) return false
+    return (await sandboxChecks(originals,
+      [`load(${JSON.stringify(expected.file)}).accepts(${JSON.stringify(matches[0]!.example)}) === true`]))[0] === true
+  }))
+  const intact = await Promise.all(Object.entries(originals).map(async ([name, text]) =>
+    await readFile(join(root, name), 'utf8') === text))
+  return [...results, findings.length === task.reviewCases!.length, intact.every(Boolean)]
 }

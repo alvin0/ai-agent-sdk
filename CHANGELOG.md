@@ -10,6 +10,18 @@ All notable changes to the AI Agent SDK are documented in this file.
   single/team baselines, optional collaboration feature detection, SDK-wide usage metrics,
   deterministic graders, offline CI coverage, and branch comparison reports. No host API changes.
 
+### Changed
+
+- Multi-agent benchmark defaults to seeded scaled tasks; `--suite smoke` retains the original tiny
+  fixtures. All arms share aggregate token/turn/tool caps, with explicit cap-hit metrics. V2 manifests
+  include suite, seed, label and limits; V1 benchmark results require rerunning for matched comparisons.
+- Benchmark worker reports count as fresh lead evidence, collaboration-board exports map to
+  `collaboration: true`, fake coordination follows offered schemas, and Codex credentials use an
+  explicit revisioned file store. SDK bundles and Git metadata resolve from the harness repository.
+- Benchmark file reads now page at 16 KiB; the isolated runner supports module tests and bounded
+  JSON-producing scripts. Review grading executes counterexamples against original handlers.
+  No production SDK host API or model prompt changes.
+
 ## 0.1.12 - 2026-10-11
 
 ### Added
