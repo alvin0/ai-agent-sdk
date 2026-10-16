@@ -27,6 +27,12 @@ function calls(items: readonly { name: string; args: unknown }[]): StreamChunk[]
 
 function call(name: string, args: unknown): StreamChunk[] { return calls([{ name, args }]) }
 
+function deferred() {
+  let resolve!: () => void
+  const promise = new Promise<void>(done => { resolve = done })
+  return { promise, resolve }
+}
+
 /** Read the actual board response rather than assuming a claim's revision. */
 function taskRevision(options: GenerateOptions): number {
   const result = options.messages.flatMap(message => message.content)
@@ -45,31 +51,60 @@ export class OfflineTeamAdapter extends ModelAdapter {
   readonly requests: { actor: string; options: GenerateOptions }[] = []
   private readonly rounds = new Map<string, number>()
   private readonly mode: TeamMode
+  private readonly leadYield = deferred()
+  private readonly peerReady = deferred()
+  private readonly peerDelivered = deferred()
 
   constructor(mode: TeamMode) { super(); this.mode = mode }
+
+  /** The offline host releases evidence only after observing a real provisional yield. */
+  releaseWorkers(): void { this.leadYield.resolve() }
 
   async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     const actor = /You are managed worker '([^']+)'/.exec(options.system ?? '')?.[1] ?? 'lead'
     const round = (this.rounds.get(actor) ?? 0) + 1
     this.rounds.set(actor, round)
     this.requests.push({ actor, options })
-    for (const block of options.messages.flatMap(message => message.content)) {
-      if (block.type === 'tool-result' && block.isError) throw new Error('Offline tool call failed')
-    }
+    this.checkResults(options)
+    await this.coordinate(actor, round)
     const chunks = actor === 'lead' ? this.lead(round, options) : this.worker(actor, round, options)
     for (const chunk of chunks) {
-      if (chunk.type === 'block-end' && chunk.block.type === 'tool-call') {
-        const name = chunk.block.name
-        if (!options.tools?.some(tool => tool.name === name)) {
-          throw new Error(`Script requested an unavailable tool: ${name}`)
-        }
-      }
+      this.checkTool(chunk, options)
       if (chunk.type === 'finish') {
         // Synthetic counters demonstrate accounting, not measured model usage.
         yield { type: 'usage', usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } }
       }
       yield chunk
     }
+  }
+
+  private checkResults(options: GenerateOptions): void {
+    for (const block of options.messages.flatMap(message => message.content)) {
+      if (block.type === 'tool-result' && block.isError) throw new Error('Offline tool call failed')
+    }
+  }
+
+  private checkTool(chunk: StreamChunk, options: GenerateOptions): void {
+    if (chunk.type !== 'block-end' || chunk.block.type !== 'tool-call') return
+    const name = chunk.block.name
+    if (!options.tools?.some(tool => tool.name === name)) {
+      throw new Error(`Script requested an unavailable tool: ${name}`)
+    }
+  }
+
+  private async coordinate(actor: string, round: number): Promise<void> {
+    if (actor !== 'lead' && this.mode === 'delegation' && round === 2) {
+      await this.leadYield.promise
+    }
+    if (this.mode === 'collaboration') await this.coordinatePeers(actor, round)
+  }
+
+  private async coordinatePeers(actor: string, round: number): Promise<void> {
+    // Keep the recipient live until the one peer send is accepted. No sleeps or reply loop.
+    if (actor === 'worker_2') this.peerReady.resolve()
+    if (actor === 'worker_1' && round === 2) await this.peerReady.promise
+    if (actor === 'worker_1' && round === 3) this.peerDelivered.resolve()
+    if (actor === 'worker_2' && round === 2) await this.peerDelivered.promise
   }
 
   private lead(round: number, options: GenerateOptions): StreamChunk[] {
@@ -85,7 +120,9 @@ export class OfflineTeamAdapter extends ModelAdapter {
         context: 'fresh',
       },
     })))
-    if (step === 2) return call('wait_agents', {})
+    if (step === 2) return collaboration
+      ? call('wait_agents', {})
+      : answer('Waiting for worker reports.') // provisional text; automatic push resumes synthesis
     if (collaboration && step === 3) return call('task_list', { ids: Object.keys(NOTES) })
     const evidence = JSON.stringify(options.messages)
     if (!Object.values(NOTES).every(note => evidence.includes(note))) {
@@ -99,9 +136,14 @@ export class OfflineTeamAdapter extends ModelAdapter {
     if (round === 1) return call('read_note', { id })
     if (!JSON.stringify(options.messages).includes(NOTES[id])) throw new Error('Missing source evidence')
     if (this.mode === 'collaboration') {
-      if (round === 2) return call('task_list', { ids: [id] })
-      if (round === 3) return call('task_update', { id, expectedRevision: taskRevision(options), action: 'claim' })
-      if (round === 4) return call('task_update', {
+      if (actor === 'worker_1' && round === 2) return call('send_input', {
+        target: 'worker_2', message: `Latency check: ${NOTES.latency} `
+          + 'Verify errors independently; publish to your board task.',
+      })
+      const step = round - Number(actor === 'worker_1')
+      if (step === 2) return call('task_list', { ids: [id] })
+      if (step === 3) return call('task_update', { id, expectedRevision: taskRevision(options), action: 'claim' })
+      if (step === 4) return call('task_update', {
         id, expectedRevision: taskRevision(options), action: 'complete',
         notes: 'Verified against the local read_note source.', result: NOTES[id],
       })

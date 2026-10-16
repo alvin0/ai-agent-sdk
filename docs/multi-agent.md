@@ -86,7 +86,8 @@ export function makeTeam(
 //   console.log(response.text)
 // } finally {
 //   await team.dispose()
-//   await team.team.dispose() // dispose the underlying control plane if host-owned here
+//   // dispose() never disposes team.team; dispose it too unless it is shared with another owner.
+//   await team.team.dispose()
 // }
 ```
 
@@ -142,6 +143,9 @@ active worker follow-ups, joins and result reads, but does not grant nested spaw
 `false` removes worker team tools. `depth` / `maxDepth` bound SDK spawning; hosts that
 compose nested teams must pass the actual child depth and guard opaque delegation tools.
 
+Set the `team: { waitTimeoutMs }` option to cap how long one `wait_agents` call may
+wait. The model's `timeout_ms` can request a shorter wait within the host limits.
+
 Declare disjoint `writes` scopes, including the lead's own scope in your host workflow.
 They are scheduler declarations, not filesystem authorization or locks on arbitrary
 host tools. `dependsOn` references already registered producer instances. The dependent
@@ -168,13 +172,14 @@ Reopen completed dependents before reopening their prerequisite.
 For example: `task_create({ id: 'review', title: 'Review the API' })`, then
 `task_update({ id: 'review', expectedRevision: 1, action: 'claim' })`.
 Read the resulting revision before completing with `action: 'complete'` and a result.
+Hosts can read the shared board through `team.collaboration?.board.list()`.
 
 In collaboration, even reporting workers can use `send_input` to wake idle peers or
 steer busy peers. Each accepted peer message consumes a lifetime credit per unordered
 pair (including interrupts and messages to busy members). Send actionable evidence,
 avoid acknowledgement loops, and return a terminal report as well as board findings.
-Task readiness/blocked notices also have bounded per-member budgets. With worker team
-tools disabled, workers cannot use this board/message surface.
+Task notices are limited to at most one notice per member, task and kind over the
+team lifetime. With worker team tools disabled, workers cannot use this board/message surface.
 
 The lead joins all members before concluding. Idle members with unfinished board tasks
 do not establish success: explicitly resume work or report the blockers. State is local
@@ -194,7 +199,8 @@ host responsibilities. See the [board contract](../packages/core/src/agent/team/
    model waits still cost turns; do not busy-poll.
 5. `await team.run(...)` joins through synthesis and rejects synthesis failures.
    A raw `team.lead.stream(...)` result can be a provisional yield. Streaming hosts must
-   keep member events flowing through `team.onAgentEvent` / `onWorkerEvent` and await
+   configure the `team: { onAgentEvent }` option or `onWorkerEvent` to keep member events
+   flowing, and await
    `team.whenQuiet(signal)` before treating the conversation as settled. The chat sample
    implements this event-driven path; merely seeing a worker's last event is insufficient.
 
@@ -220,6 +226,7 @@ host must drive later lead turns. Deprecated `holdWaitMs` is accepted but ignore
 | `depth` / `maxDepth` | 0 / 1; host must supply nesting depth |
 | `maxTaskBytes` / `maxSpecialtyBytes` | 64 KiB / 8 KiB UTF-8 for spawn briefs |
 | `workerTimeoutMs` | 10 minutes of active work; excludes setup and dependency queue time |
+| `team: { waitTimeoutMs }` | 120 seconds; host cap for each `wait_agents` call's `timeout_ms` |
 | `spawnTimeoutMs` / `closeTimeoutMs` | 30 seconds each; bound setup and shutdown waits |
 | `observerTimeoutMs` | 1 second per worker event observer callback |
 | `maxDependencyReportBytes` | 8 KiB per producer; larger retained output is paged |
@@ -238,9 +245,11 @@ Finished workers retain addresses and evidence without occupying concurrency slo
 `closeWorker` stops work, removes its managed entry and detaches it when stopped;
 explicit result pages retain archived evidence. `removeWorker` also removes a settled
 managed entry. Long-lived hosts should plan cleanup and preserve any required evidence
-externally. Disposing a managed helper cancels its work; also dispose an underlying control
-plane when you own it. Cancellation cannot undo external side effects or forcibly stop
-a host callback that ignores its signal.
+externally. `dispose()` cancels the managed helper's work. `dispose()` never disposes
+`team.team`; dispose it too unless it is shared with another owner. This also applies
+when the helper creates the control plane because the `team` option is omitted.
+Cancellation cannot undo external side effects or forcibly stop a host callback that
+ignores its signal.
 
 ## Migrate from 0.1.12
 
@@ -249,7 +258,7 @@ The [Unreleased Breaking section](../CHANGELOG.md#breaking) is authoritative.
 | Earlier expectation | New behavior / migration |
 | --- | --- |
 | Model uses `list_agents`, `send_message`, `followup_task`, name-based close | Default is lean. Use returned `target`, `send_input`, `wait_agents({ timeout_ms })`, and `close_agent({ target })`. Set `modelToolSurface: 'legacy'` for old names/schemas. Remote peers stay host hooks. |
-| Host defines all delegation strategy; workers lack lead tools | Guidance defaults to proactive and generated workers inherit eligible tools. Set `delegationMode: 'explicit'` and `inheritLeadTools: false` for opt-outs; explicitly configure worker capabilities and guard references. |
+| Host defines all delegation strategy; workers lack lead tools | Guidance defaults to proactive and generated workers inherit eligible tools. Set `delegationMode: 'explicit'` and `inheritLeadTools: false` for opt-outs; `workerSessionOptions.tools: []` replaces application tools with an empty set. Explicitly configure worker capabilities and guard references. |
 | Discovery/waits repeat full outcomes; any-target wait finishes first | `list_agents` is status-only. Wait joins all selected targets and delivers only new evidence, shared with push notices. Use repeatable `get_agent_result` pages for recovery. |
 | Finished workers need closing to free concurrency | Slots release automatically; addresses remain. Lean close cancels unfinished work unless protected; legacy close still requires `cancelRunning: true`. Reactivation rechecks slot/write admission. |
 | Lead completion is final; managed runs may overlap | Managed `run()` joins synthesis and propagates its failures; concurrent calls reject. Raw lead streaming may yield provisionally. Preserve event consumption and wait for quiet. Invocation abort cancels owned work; standalone wait abort does not. |

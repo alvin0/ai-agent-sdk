@@ -33,9 +33,16 @@ export async function runOfflineTeam(mode: TeamMode) {
       ? { maxPeerTurnsPerPair: 2, joinTimeoutMs: 10_000, maxTasks: 4 }
       : false,
   })
+  let yieldedTurns = 0
   try {
     const response = await team.run('Use two workers to verify latency and errors, then summarize.', {
       signal: AbortSignal.timeout(20_000),
+      onEvent: event => {
+        if (event.type === 'turn-end' && event.outcome.yielded) {
+          yieldedTurns++
+          adapter.releaseWorkers()
+        }
+      },
     })
     if (!response.outcome.completed) throw new Error(`Lead did not complete: ${response.outcome.reason.kind}`)
     const workers = team.workers()
@@ -46,7 +53,8 @@ export async function runOfflineTeam(mode: TeamMode) {
     if (mode === 'collaboration' && (tasks.length !== 2 || tasks.some(task => task.status !== 'completed'))) {
       throw new Error('Both shared tasks must complete successfully')
     }
-    return { mode, text: response.text, workers, tasks, requests: adapter.requests }
+    return { mode, text: response.text, workers, tasks, requests: adapter.requests,
+      yieldedTurns, messages: team.team.messages() }
   } finally {
     await team.dispose()
     await team.team.dispose()

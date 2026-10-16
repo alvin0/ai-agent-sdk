@@ -12,5 +12,6 @@ for (const selected of ['delegation', 'collaboration'] as const) {
     workers: result.workers.map(worker => ({ name: worker.name, status: worker.status })),
     tasks: result.tasks.map(task => ({ id: task.id, owner: task.owner, status: task.status })),
     scriptedCalls: result.requests.length,
+    yieldedTurns: result.yieldedTurns,
   }, null, 2))
 }

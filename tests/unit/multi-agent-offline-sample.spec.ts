@@ -2,6 +2,32 @@ import { describe, expect, it, vi } from 'vitest'
 import { NOTES } from '../../samples/multi-agent-offline/adapter.ts'
 import { runOfflineTeam } from '../../samples/multi-agent-offline/team.ts'
 
+type OfflineResult = Awaited<ReturnType<typeof runOfflineTeam>>
+
+function expectPeerSend(result: OfflineResult): void {
+  const peerMessages = result.messages.filter(message =>
+    message.sender === 'worker_1' && message.target === 'worker_2')
+  expect(peerMessages).toHaveLength(1)
+  expect(peerMessages[0]).toMatchObject({ status: 'accepted', delivery: 'wakeup' })
+  const recipient = result.requests.filter(request => request.actor === 'worker_2').at(-1)!
+  expect(JSON.stringify(recipient.options.messages))
+    .toContain('Verify errors independently; publish to your board task.')
+  const leadBlocks = result.requests.filter(request => request.actor === 'lead')
+    .flatMap(request => request.options.messages.flatMap(message => message.content))
+  expect(leadBlocks.some(block => block.type === 'tool-call' && block.name === 'wait_agents')).toBe(true)
+}
+
+function expectPushOnly(result: OfflineResult): void {
+  expect(result.yieldedTurns).toBeGreaterThanOrEqual(1)
+  const lead = result.requests.filter(request => request.actor === 'lead')
+  const beforeYield = JSON.stringify(lead[1]!.options.messages)
+  for (const finding of Object.values(NOTES)) expect(beforeYield).not.toContain(finding)
+  const historyBlocks = lead.at(-1)!.options.messages.flatMap(message => message.content)
+  expect(historyBlocks.some(block => block.type === 'text' && block.text === 'Waiting for worker reports.'))
+    .toBe(true)
+  expect(historyBlocks.some(block => block.type === 'tool-call' && block.name === 'wait_agents')).toBe(false)
+}
+
 describe('offline managed-team sample', () => {
   it.each(['delegation', 'collaboration'] as const)('runs %s through real tools without network access', async mode => {
     const network = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network forbidden in offline sample'))
@@ -24,6 +50,7 @@ describe('offline managed-team sample', () => {
         expect(request.options.tools?.map(tool => tool.name)).not.toContain('spawn_agent')
       }
       if (mode === 'collaboration') {
+        expectPeerSend(result)
         expect(tools).toEqual(expect.arrayContaining(['task_create', 'task_list', 'task_update']))
         expect(result.tasks).toHaveLength(2)
         expect(new Set(result.tasks.map(task => task.owner)).size).toBe(2)
@@ -33,6 +60,7 @@ describe('offline managed-team sample', () => {
           expect(Object.values(NOTES)).toContain(task.result)
         }
       } else {
+        expectPushOnly(result)
         expect(tools).not.toContain('task_create')
         expect(result.tasks).toEqual([])
         // Ordinary joins/pushes deliver each worker finding once. Explicit board
