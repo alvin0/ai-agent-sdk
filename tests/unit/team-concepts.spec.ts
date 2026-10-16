@@ -140,7 +140,7 @@ describe('two agent-team concepts', () => {
     })
     await composed.run('lead', 'Coordinate the review.')
     expect(adapter.requests[0]?.tools?.map(tool => tool.name)).toEqual([
-      'list_agents', 'send_message', 'followup_task', 'wait_agents',
+      'list_agents', 'get_agent_result', 'send_message', 'followup_task', 'wait_agents',
     ])
     await expect(composed.run('missing', 'work')).rejects.toThrow(/unknown defined team member/)
   })
@@ -161,7 +161,7 @@ describe('two agent-team concepts', () => {
 
   it('lets a managed lead generate workers and divide independent work in parallel', async () => {
     const adapter = new DelegatingAdapter()
-    const harness = createManagedAgentTeam({
+    const harness = createManagedAgentTeam({ modelToolSurface: 'legacy',
       registry: registryWith(adapter),
       lead: agent('lead'),
       team: { id: 'managed-team' },
@@ -172,7 +172,7 @@ describe('two agent-team concepts', () => {
 
     expect(response.text).toBe('Lead synthesized both worker results.')
     expect(adapter.maxActiveWorkers).toBe(2)
-    expect(adapter.requests[0]?.system).toContain('Your task and coordination strategy are defined by the host instructions')
+    expect(adapter.requests[0]?.system).toContain('Plan the next local step before delegating')
     const workerSystem = adapter.requests.find(request =>
       request.tools?.every(tool => tool.name !== 'spawn_agent'))?.system
     expect(workerSystem).toContain("You are managed worker 'worker_a'")
@@ -183,7 +183,7 @@ describe('two agent-team concepts', () => {
 
     // A reader that declares a placeholder scope collides with every other
     // reader using the same stand-in, so the lead is told to declare nothing.
-    expect(adapter.requests[0]?.system).toContain('Omit it when no write scope is needed')
+    expect(workerSystem).toContain('If no write scope is assigned, do not edit files')
     expect(JSON.stringify(adapter.requests[0]?.tools))
       .toContain('Omit when no writes are declared')
     const workerTools = adapter.requests
@@ -215,25 +215,21 @@ describe('two agent-team concepts', () => {
     expect(harness.team.messages()[0]).toMatchObject({
       sender: 'lead', target: 'worker_a', delivery: 'quiet',
     })
-    expect(harness.team.messages().some(message =>
-      message.target === 'lead' && JSON.stringify(message.content).includes('Result for Analyze A')))
-      .toBe(true)
     const finalLeadRequest = adapter.requests.at(-1)
     const toolResults = finalLeadRequest?.messages.filter(message => message.source.kind === 'tool') ?? []
-    // The spawn result now names the worker without carrying its answer.
-    expect(JSON.stringify(toolResults)).toContain('worker_a')
-    // The answer reaches the lead as an attributed message instead. Only the
-    // first worker's is here: `wait_agents` returns as soon as ONE target
-    // settles, which is what keeps a coordinator in the loop rather than
-    // parked until the slowest one finishes.
-    expect(JSON.stringify(finalLeadRequest?.messages)).toContain('Result for Analyze A')
-    expect(JSON.stringify(finalLeadRequest?.messages)).toContain("Worker 'worker_a' finished")
-    await expect(harness.spawn({ task: 'One more task' })).rejects.toThrow(/2-worker limit/)
+    // The join returns both results directly; no duplicate push notice is needed.
+    expect(JSON.stringify(toolResults)).toContain('Result for Analyze A')
+    expect(JSON.stringify(toolResults)).toContain('Result for Analyze B')
+    expect(harness.team.messages().filter(message => message.target === 'lead')).toHaveLength(0)
+    // Finished records stay addressable but no longer consume worker slots.
+    await expect(harness.spawn({ task: 'One more task' })).resolves.toMatchObject({ status: 'running' })
+    await harness.dispose()
+
   })
 
   it('supports host-driven worker creation and lifecycle cleanup', async () => {
     const adapter = new TextAdapter()
-    const harness = createManagedAgentTeam({
+    const harness = createManagedAgentTeam({ modelToolSurface: 'legacy',
       registry: registryWith(adapter), lead: agent('lead'), maxWorkers: 1,
     })
 

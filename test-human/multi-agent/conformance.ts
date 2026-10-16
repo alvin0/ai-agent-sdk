@@ -47,7 +47,8 @@ function fixture(sdk: SDK, extra: Partial<Agent.ManagedAgentTeamOptions> = {}) {
       return { provider, id, name: id, reasoning: { efforts: [{ id: effort, name: 'medium' }] } }
     }
     override async *stream(options: Core.GenerateOptions): AsyncIterable<Core.StreamChunk> {
-      const name = /dynamically assigned worker '([^']+)'/.exec(options.system ?? '')?.[1] ?? 'lead'
+      const workerIdentity = /(?:You are managed|dynamically assigned) worker '([^']+)'/
+      const name = workerIdentity.exec(options.system ?? '')?.[1] ?? 'lead'
       const requests = this.requests.get(name) ?? []
       requests.push(options); this.requests.set(name, requests)
       this.gate(this.starts, name).release()
@@ -273,7 +274,7 @@ export async function runCase(sdk: SDK, id: CaseId): Promise<CaseResult> {
       let quiet = false
       const wait = f.managed.whenQuiet().then(() => { quiet = true })
       await checkpoint(); const returnedDuringSetup = quiet
-      prepared.release(); await setup; await wait
+      prepared.release(); await setup; await f.finish('preparing'); await wait
       passed = !returnedDuringSetup; observed = { returnedDuringSetup }
     } finally { prepared.release(); await f.cleanup() }
   } else if (id === 'close-coalesces-instance') {

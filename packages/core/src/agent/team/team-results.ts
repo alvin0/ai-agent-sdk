@@ -1,0 +1,75 @@
+/** Exactly-once compact delivery per recipient and outcome instance. */
+import type { AgentMemberOutcome, AgentTeamMember } from './types.ts'
+import { truncate } from './managed-report-text.ts'
+
+export function statusOnly(member: AgentTeamMember): Omit<AgentTeamMember, 'outcome'> {
+  const { outcome: _outcome, ...metadata } = member
+  return metadata
+}
+
+export class TeamResults {
+  private readonly delivered = new Map<string, Map<string, AgentMemberOutcome>>()
+
+  take(recipient: string, members: readonly AgentTeamMember[], maxBytes?: number) {
+    const budget = maxBytes ?? Math.max(256,
+      Math.min(8192, Math.floor(46 * 1024 / Math.max(1, members.length)) - 256))
+    let delivered = this.delivered.get(recipient)
+    if (delivered === undefined) this.delivered.set(recipient, delivered = new Map())
+    return members.flatMap(member => {
+      const outcome = member.outcome
+      if (outcome === undefined || member.status === 'pending' || member.status === 'running'
+        || delivered.get(member.name) === outcome) return []
+      delivered.set(member.name, outcome)
+      return [{ worker: member.name, status: outcome.status ?? outcome.kind,
+        ...compactOutcome(outcome, budget) }]
+    })
+  }
+
+  private readonly collectors = new Set<(members: readonly AgentTeamMember[]) => void>()
+
+  /** An active join claims evidence synchronously at publication, before automatic notices. */
+  capture(recipient: string, members: readonly AgentTeamMember[], targets: readonly string[]) {
+    const captured: ReturnType<TeamResults['take']> = []
+    const collect = (current: readonly AgentTeamMember[]) => {
+      captured.push(...this.take(recipient, this.select(current, targets)))
+    }
+    collect(members)
+    this.collectors.add(collect)
+    return { take: () => captured.splice(0), close: () => { this.collectors.delete(collect) } }
+  }
+
+  publish(members: readonly AgentTeamMember[]): void {
+    for (const collect of this.collectors) collect(members)
+  }
+
+  private readonly archived = new Map<string, AgentTeamMember>()
+
+  archive(member: AgentTeamMember): void { this.archived.set(member.name, { ...member, status: 'idle' }) }
+  forget(name: string): void { this.archived.delete(name) }
+  retained(name: string): AgentTeamMember | undefined { return this.archived.get(name) }
+  select(members: readonly AgentTeamMember[], targets: readonly string[]): readonly AgentTeamMember[] {
+    return targets.flatMap(name => {
+      const member = members.find(candidate => candidate.name === name) ?? this.archived.get(name)
+      return member === undefined ? [] : [member]
+    })
+  }
+  clear(): void { this.delivered.clear(); this.archived.clear(); this.collectors.clear() }
+}
+
+/** Bound serialized fields together, including JSON escaping overhead. */
+function compactOutcome(outcome: AgentMemberOutcome, maxBytes: number) {
+  let budget = Math.min(6144, Math.max(4, maxBytes - 32))
+  for (;;) {
+    const fields = { text: truncate(outcome.text ?? '', budget),
+      ...(outcome.kind === 'failed' ? { error: truncate(outcome.message, budget) } : {}),
+      ...(outcome.structured === undefined ? {} : compactStructured(outcome.structured, budget)) }
+    if (new TextEncoder().encode(JSON.stringify(fields)).byteLength <= maxBytes || budget <= 4) return fields
+    budget = Math.max(4, Math.floor(budget * 0.75))
+  }
+}
+
+function compactStructured(value: Exclude<AgentMemberOutcome['structured'], undefined>, maxBytes: number) {
+  const serialized = JSON.stringify(value)
+  return new TextEncoder().encode(serialized).byteLength <= maxBytes
+    ? { structured: value } : { structuredTruncated: true, structuredPreview: truncate(serialized, maxBytes) }
+}

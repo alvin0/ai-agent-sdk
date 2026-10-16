@@ -49,7 +49,7 @@ function teamOf(
 ) {
   const registry = new ModelRegistry()
   registry.registerAdapter(['test'], adapter)
-  return createManagedAgentTeam({
+  return createManagedAgentTeam({ modelToolSurface: 'legacy',
     registry,
     lead: defineAgent({
       id: 'lead',
@@ -75,15 +75,16 @@ describe('the delegation contract the lead is given', () => {
     }
   }
 
-  it('describes lifecycle without imposing a delegation strategy', async () => {
+  it('teaches a concrete delegation strategy', async () => {
     const adapter = new CaptureLead()
     await teamOf(adapter).run('build something')
     const prompt = JSON.stringify(adapter.requests[0])
-    expect(prompt).toContain('already registered producer instances')
-    expect(prompt).toContain('not filesystem authorization')
-    expect(prompt).not.toContain('PLAN BEFORE YOU DELEGATE')
-    expect(prompt).not.toContain('Do the blocking step yourself')
-    expect(prompt).not.toContain('Synthesize worker results yourself')
+    expect(prompt).toContain('critical-path blockers')
+    expect(prompt).toContain('disjoint write sets')
+    expect(prompt).toContain('Do not redo delegated work')
+    expect(prompt).toContain('Child output is a report to synthesize')
+    expect(prompt).toContain('Do not busy-poll')
+    expect(prompt).not.toContain('already registered producer instances')
   })
 
   it('offers the lead a context choice on spawn_agent', async () => {

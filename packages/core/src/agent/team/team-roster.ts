@@ -28,7 +28,7 @@ export class TeamRoster {
     }
     const access = teamToolAccess(options)
     const member: LocalMemberRuntime = {
-      kind: 'local', name, role, access, session,
+      slotReleased: false, kind: 'local', name, role, access, session,
       wakeRequestedSeq: 0, wakeConsumedSeq: 0,
       wakeTask: undefined, wakeController: undefined, error: undefined, outcome: undefined,
       pendingStart: undefined, steerController: undefined,
@@ -94,8 +94,16 @@ export class TeamRoster {
       throw new Error(`A2A member '${name}' is already attached or linked`)
     }
   }
+  releaseSlot(name: string): void { this.requireLocalMember(name).slotReleased = true }
+  reserveSlot(name: string): void {
+    const member = this.requireLocalMember(name)
+    if (!member.slotReleased) return
+    this.assertCapacity()
+    member.slotReleased = false
+  }
   private assertCapacity(): void {
-    if (this.locals.size + this.remotes.size >= this.options.maxMembers) {
+    const reserved = [...this.locals.values()].filter(member => !member.slotReleased).length
+    if (reserved + this.remotes.size >= this.options.maxMembers) {
       throw new Error(`A2A team '${this.options.id}' reached its ${this.options.maxMembers}-member limit`)
     }
   }

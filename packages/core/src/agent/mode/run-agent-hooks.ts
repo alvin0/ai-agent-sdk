@@ -79,7 +79,8 @@ export function deepHooks(
     onTurnEnd: async context => {
       const draftSeq = history.entries().length
       const outcome = keptAnswerOutcome(context.outcome, state)
-      await userHooks?.onTurnEnd?.(outcome === context.outcome ? context : { ...context, outcome })
+      const decision = await userHooks?.onTurnEnd?.(outcome === context.outcome ? context : { ...context, outcome })
+      if (decision?.kind === 'yield') return decision
       if (shouldNudgeOrphan(context, state)) {
         state.orphanMarkerNudged = true
         appendOrphanMarkerPrompt(history)
@@ -90,6 +91,7 @@ export function deepHooks(
       if (state.unverifiedAnswers >= UNVERIFIED_ANSWER_LIMIT) return
       recordDraft(context, state, draftSeq)
       appendSelfCheckPrompt(history, state)
+      return undefined
     },
   }
 }

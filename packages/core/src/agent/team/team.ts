@@ -1,3 +1,4 @@
+import { TeamResults } from './team-results.ts'
 import { sendTeamMessage } from './team-delivery.ts'
 import { teamInstructions } from './team-instructions.ts'
 import { TeamWork } from './team-work.ts'
@@ -40,6 +41,9 @@ export class AgentTeam implements TeamPort {
   private readonly mailbox: TeamMailbox
   private readonly work: TeamWork
   private readonly waitEdges = new Map<string, Map<string, number>>()
+  private readonly results = new TeamResults()
+  private readonly wakeGuards = new Set<(target: string) => void>()
+  private readonly listeners = new Set<(event: AgentTeamEvent) => void>()
   private readonly teamTools: TeamTools
   constructor(
     options: AgentTeamOptions = {},
@@ -74,6 +78,9 @@ export class AgentTeam implements TeamPort {
     this.teamTools = new TeamTools({
       waitTimeoutMs: this.waitTimeoutMs, minWaitTimeoutMs: this.minWaitTimeoutMs,
       assertActive: () => this.assertActive(), members: () => this.members(),
+      retainedResult: target => this.results.retained(target),
+      takeResults: (sender, targets, maxBytes) => this.takeResults(sender, targets, maxBytes),
+      captureResults: (sender, targets) => this.captureResults(sender, targets),
       sendMessage: request => this.sendMessage(request),
       followup: (from, target, message, signal) => this.followup(from, target, message, signal),
       beginWait: (from, targets) => this.beginWait(from, targets),
@@ -83,6 +90,7 @@ export class AgentTeam implements TeamPort {
   attach(session: TeamSessionPort, options: TeamMemberAttachmentOptions = {}): void {
     this.assertActive()
     this.roster.attach(session, options)
+    this.results.forget(options.name ?? session.definition.id)
   }
   linkAgent(options: LinkAgentOptions): () => void {
     this.assertActive()
@@ -90,14 +98,39 @@ export class AgentTeam implements TeamPort {
   }
   detach(name: string): void {
     this.assertActive()
+    const member = this.members().find(member => member.name === name)
     this.roster.detach(name)
+    if (member !== undefined) this.results.archive(member)
   }
   members(): readonly AgentTeamMember[] { return this.roster.members() }
+  /** Host admission hooks run before wake-up input is accepted. Throw to refuse work. */
+  guardWake(guard: (target: string) => void): () => void {
+    this.wakeGuards.add(guard)
+    return () => { this.wakeGuards.delete(guard) }
+  }
+  /** Subscribe to runtime lifecycle events without replacing host hooks. */
+  subscribe(listener: (event: AgentTeamEvent) => void): () => void {
+    this.listeners.add(listener)
+    return () => { this.listeners.delete(listener) }
+  }
+  /** Claim compact results; shares delivery state with wait_agents. */
+  takeResults(sender: string, targets: readonly string[], maxBytes?: number) {
+    return this.results.take(sender, this.results.select(this.members(), targets), maxBytes)
+  }
+  /** Register an active join against the same per-outcome delivery ledger as notices. */
+  captureResults(sender: string, targets: readonly string[]) {
+    return this.results.capture(sender, this.members(), targets)
+  }
+  /** Retain a managed worker's address while releasing its concurrency reservation. */
+  releaseSlot(name: string): void { this.roster.releaseSlot(name) }
   messages(): readonly AgentMessageRecord[] {
     return this.mailbox.messages()
   }
   async sendMessage(request: SendAgentMessageRequest): Promise<SendAgentMessageResult> {
     this.assertActive()
+    if (request.delivery === 'wakeup') {
+      for (const guard of this.wakeGuards) guard(request.target)
+    }
     return sendTeamMessage(request, {
       teamId: this.id, maxMessageBytes: this.maxMessageBytes, maxLinkedResultBytes: this.maxLinkedResultBytes,
       mailbox: this.mailbox,
@@ -128,6 +161,7 @@ export class AgentTeam implements TeamPort {
     controller?.abort(new Error('user input steered into the active turn'))
   }
   wake(name: string): void {
+    for (const guard of this.wakeGuards) guard(name)
     const member = this.requireLocalMember(name)
     this.scheduleWake(member, member.wakeRequestedSeq + 1)
   }
@@ -137,8 +171,11 @@ export class AgentTeam implements TeamPort {
   dispose(reason: unknown = new Error('A2A team disposed')): Promise<void> {
     return this.work.dispose(reason)
   }
-  toolsFor(sender: string, access: TeamToolAccess = 'full'): readonly ToolDefinition<any>[] {
-    return this.teamTools.toolsFor(sender, access)
+  toolsFor(
+    sender: string, access: TeamToolAccess = 'full', whenIdle = (target: string, signal?: AbortSignal) =>
+      this.whenIdle(target, signal),
+  ): readonly ToolDefinition<any>[] {
+    return this.teamTools.toolsFor(sender, access, whenIdle)
   }
   instructionsFor(name: string): string { return teamInstructions(this.id, this.roster, name) }
   private remoteDispatchHost() {
@@ -148,6 +185,7 @@ export class AgentTeam implements TeamPort {
   }
 
   private scheduleWake(member: LocalMemberRuntime, seq: number): void {
+    this.roster.reserveSlot(member.name)
     this.work.scheduleWake(member, seq)
   }
   get messageByteLimit(): number { return this.maxMessageBytes }
@@ -167,6 +205,7 @@ export class AgentTeam implements TeamPort {
 
   recordOutcome(name: string, outcome: AgentMemberOutcome): void {
     recordOutcome(this.requireLocalMember(name), outcome)
+    this.results.publish(this.members().map(member => member.name === name ? { ...member, status: 'idle' } : member))
   }
   markPending(name: string, until: Promise<void> | undefined): void {
     markPending(this.requireLocalMember(name), until)
@@ -176,10 +215,18 @@ export class AgentTeam implements TeamPort {
     this.emit({ type: 'team-disposed', teamId: this.id })
     this.mailbox.clear()
     this.waitEdges.clear()
+    this.results.clear()
+    this.listeners.clear()
+    this.wakeGuards.clear()
     this.onEvent = undefined
     this.onAgentEvent = undefined
   }
-  private emit(event: AgentTeamEvent): void { try { this.onEvent?.(event) } catch {} }
+  private emit(event: AgentTeamEvent): void {
+    if (event.type === 'member-run-end' || event.type === 'member-run-error'
+      || event.type === 'member-run-cancelled') this.results.publish(this.members())
+    try { this.onEvent?.(event) } catch {}
+    for (const listener of this.listeners) { try { listener(event) } catch {} }
+  }
   private async observeAgentEvent(member: string, event: AgentRunEvent): Promise<void> {
     return observeAgentEvent({
       roster: this.roster.locals, onAgentEvent: this.onAgentEvent, observerTimeoutMs: this.observerTimeoutMs,

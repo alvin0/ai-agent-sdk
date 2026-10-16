@@ -1,3 +1,4 @@
+import type { JsonValue } from '../../primitives/index.ts'
 import { timeoutValue } from '../../platform/config.ts'
 import type { TeamMemberAttachmentOptions, TeamToolAccess } from './contracts.ts'
 import type { AgentTeamOptions, AgentTeamMember } from './types.ts'
@@ -13,6 +14,7 @@ export function teamMemberView(member: AddressableMember): AgentTeamMember {
       deliveries: Object.freeze(['wakeup'] as const),
       ...(member.description === undefined ? {} : { description: member.description }),
       ...(member.error === undefined ? {} : { error: member.error }),
+      ...(member.outcome === undefined ? {} : { outcome: member.outcome }),
     })
   }
   return localView(member)
@@ -44,10 +46,18 @@ export function responseText(response: unknown): string {
   return typeof text === 'string' ? text : ''
 }
 
+/** Structured completion data supplied by a concrete local session, when present. */
+export function responseStructured(response: unknown): JsonValue | undefined {
+  if (response === null || typeof response !== 'object') return undefined
+  const value = response as { completion?: JsonValue; outcome?: { completion?: JsonValue } }
+  return value.outcome?.completion ?? value.completion
+}
+
 /** Session implementations may resolve an incomplete terminal response rather than reject. */
 export function responseFailure(response: unknown): string | undefined {
   if (response === null || typeof response !== 'object') return undefined
   const value = response as TeamResponse
+  if (value.outcome?.yielded === true || value.yielded === true) return undefined
   const reason = value.outcome?.reason ?? value.stopReason
   if (incompleteResponse(value, reason)) return failureMessage(value, reason)
   return undefined
@@ -55,7 +65,8 @@ export function responseFailure(response: unknown): string | undefined {
 
 interface TeamResponse {
   completed?: unknown
-  outcome?: { completed?: unknown; reason?: { kind?: unknown; failure?: { message?: unknown } } }
+  yielded?: unknown
+  outcome?: { yielded?: unknown; completed?: unknown; reason?: { kind?: unknown; failure?: { message?: unknown } } }
   stopReason?: { kind?: unknown }
 }
 
@@ -77,7 +88,7 @@ function remoteStatus(member: RemoteMemberRuntime): AgentTeamMember['status'] {
 function localStatus(member: LocalMemberRuntime): AgentTeamMember['status'] {
   if (member.error !== undefined) return 'failed'
   if (member.pendingStart !== undefined) return 'pending'
-  return member.session.isRunning || member.wakeTask !== undefined ? 'running' : 'idle'
+  return member.session.isRunning || member.wakeConsumedSeq < member.wakeRequestedSeq ? 'running' : 'idle'
 }
 
 export function teamToolAccess(options: TeamMemberAttachmentOptions): TeamToolAccess | false {
@@ -120,8 +131,9 @@ export function recordAnsweredWake(member: LocalMemberRuntime): void {
     const failure = responseFailure(outcome)
     member.error = failure
     member.outcome = failure === undefined
-      ? { kind: 'completed', text: outcome.text }
-      : { kind: 'failed', message: failure, ...(outcome.text === '' ? {} : { text: outcome.text }) }
+      ? { kind: 'completed', text: outcome.text, ...structuredFields(outcome) }
+      : { kind: 'failed', message: failure, ...structuredFields(outcome),
+        ...(outcome.text === '' ? {} : { text: outcome.text }) }
   }
 }
 
@@ -133,8 +145,8 @@ export function recordWakeResponse(member: LocalMemberRuntime, response: unknown
   const failure = responseFailure(response)
   member.error = failure
   member.outcome = failure === undefined
-    ? { kind: 'completed', text: responseText(response) }
-    : { kind: 'failed', message: failure,
+    ? { kind: 'completed', text: responseText(response), ...structuredFields(response) }
+    : { kind: 'failed', message: failure, ...structuredFields(response),
       ...(responseText(response) === '' ? {} : { text: responseText(response) }) }
   return failure
 }
@@ -156,9 +168,14 @@ export function waitToolSchema(waitTimeoutMs: number, minWaitTimeoutMs: number) 
               description:
                 `Give up after this long and report instead, default ${String(waitTimeoutMs)}.`
                 + ` Anything under ${String(minWaitTimeoutMs)} is raised to it: a wait too short to`
-                + ` finish anything costs a model round and returns the roster unchanged.`,
+                + ` finish anything costs a model round without new results.`,
             },
           },
           required: ['targets'], additionalProperties: false,
         }
+}
+
+function structuredFields(response: unknown) {
+  const structured = responseStructured(response)
+  return structured === undefined ? {} : { structured }
 }

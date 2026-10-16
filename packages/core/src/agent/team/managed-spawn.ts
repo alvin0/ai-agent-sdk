@@ -4,11 +4,13 @@ import { cloneAgent, type DefinedAgent } from '../define/definition.ts'
 import type { AgentSession, AgentSessionOptions } from '../define/session.ts'
 import { History } from '../history/index.ts'
 import type { ToolDefinition } from '../tool/definition.ts'
+import type { TeamPort } from './contracts.ts'
 import type { AgentTeam } from './team.ts'
 import type { ManagedWorkerExecution } from './managed-worker.ts'
 import type { ManagedWorkerScheduling } from './managed-scheduling.ts'
 import { managedDependencyReadTool } from './managed-dependency-tool.ts'
 import { managedWorkerView } from './managed-reports.ts'
+import { atManagedDepthLimit, managedWorkerTools, managedWorkerInstructions } from './managed-capabilities.ts'
 import type {
   ManagedAgentRole, ManagedAgentSpawnRequest, ResolvedManagedAgentSpawnRequest,
   ManagedAgentWorker, ManagedAgentTeamOptions, WorkerRuntime,
@@ -34,6 +36,9 @@ import {
 
 interface ManagedSpawnHost {
   readonly options: ManagedAgentTeamOptions
+  readonly sessionTeam: TeamPort
+  readonly collaboration?: TeamPort | undefined
+  readonly workerBusy: (runtime: WorkerRuntime) => boolean
   readonly team: AgentTeam
   readonly signal: AbortSignal
   readonly workerRuntimes: Map<string, WorkerRuntime>
@@ -41,6 +46,7 @@ interface ManagedSpawnHost {
     readonly request: ResolvedManagedAgentSpawnRequest
     readonly dependencies: readonly WorkerRuntime[]
     readonly settled: Promise<void>
+    readonly controller: AbortController
   }>
   readonly roles: ReadonlyMap<string, ManagedAgentRole>
   readonly maxWorkers: number
@@ -52,6 +58,15 @@ interface ManagedSpawnHost {
   readonly execution: ManagedWorkerExecution
   readonly scheduling: ManagedWorkerScheduling
   lead(): AgentSession
+}
+
+type ScopedSessionOptions = Awaited<ReturnType<NonNullable<ManagedAgentTeamOptions['workerSessionOptionsFactory']>>>
+
+function mergeWorkerSessionOptions(
+  base: ManagedAgentTeamOptions['workerSessionOptions'], scoped: ScopedSessionOptions | undefined,
+): NonNullable<ManagedAgentTeamOptions['workerSessionOptions']> {
+  // Omitted scoped values must not erase base tool restrictions or policy hooks.
+  return { ...base, ...Object.fromEntries(Object.entries(scoped ?? {}).filter(([, value]) => value !== undefined)) }
 }
 
 export class ManagedWorkerSpawning {
@@ -80,12 +95,14 @@ export class ManagedWorkerSpawning {
     this.assertSpawnAvailable(resolved)
 
     let markPrepared!: () => void
-    const prepared = new Promise<void>(resolve => { markPrepared = resolve })
-    this.host.preparing.set(resolved.name, { request: resolved, dependencies, settled: prepared })
+    const prepared = { request: resolved, dependencies, controller: new AbortController(),
+      settled: new Promise<void>(resolve => { markPrepared = resolve }) }
+    this.host.preparing.set(resolved.name, prepared)
     let runtime: WorkerRuntime | undefined
     try {
       const warnings = this.host.scheduling.checkWriteScopes(resolved, dependencies)
-      const operationSignal = combineSignals(signal, this.host.signal, AbortSignal.timeout(this.host.spawnTimeoutMs))
+      const operationSignal = combineSignals(signal, this.host.signal, prepared.controller.signal,
+        AbortSignal.timeout(this.host.spawnTimeoutMs))
       const definition = await abortable(this.workerDefinition(resolved), operationSignal)
       operationSignal.throwIfAborted()
       const scopedSessionOptions = this.host.options.workerSessionOptionsFactory === undefined
@@ -112,7 +129,7 @@ export class ManagedWorkerSpawning {
       await this.host.execution.startWorker(runtime, deliverySignal)
       return managedWorkerView(runtime)
     } catch (error: unknown) {
-      if (this.failSpawn(runtime, resolved, error)) await this.host.scheduling.releaseDependents(runtime!)
+      if (await this.failSpawn(runtime, resolved, error)) await this.host.scheduling.releaseDependents(runtime!)
       throw error
     } finally {
       this.host.preparing.delete(resolved.name)
@@ -123,6 +140,7 @@ export class ManagedWorkerSpawning {
   private checkSpawnSignals(signal: AbortSignal | undefined): void {
     this.host.signal.throwIfAborted()
     signal?.throwIfAborted()
+    if (atManagedDepthLimit(this.host.options)) throw new Error('managed agent delegation depth limit reached')
   }
 
   private captureSpawnObjective(
@@ -170,7 +188,7 @@ export class ManagedWorkerSpawning {
       ...(request.specialty === undefined
         ? {}
         : { specialty: boundedString(request.specialty, 'worker specialty', this.host.maxSpecialtyBytes) }),
-      context: spawnContext(request.context ?? this.host.options.defaultSpawnContext ?? 'fresh'),
+      context: this.resolveContext(request),
       ...(request.role === undefined ? {} : { role: this.requireRole(request.role) }),
       dependsOn: this.host.scheduling.resolveDependencies(request.dependsOn ?? []),
       writes: [...new Set((request.writes ?? []).map(normalizeWriteScope))],
@@ -181,8 +199,14 @@ export class ManagedWorkerSpawning {
     return resolved
   }
 
+  private resolveContext(request: ManagedAgentSpawnRequest) {
+    return spawnContext(this.host.roles.get(request.role ?? '')?.context
+      ?? request.context ?? this.host.options.defaultSpawnContext ?? 'fresh')
+  }
+
   private assertSpawnAvailable(resolved: ResolvedManagedAgentSpawnRequest): void {
-    if (this.host.workerRuntimes.size + this.host.preparing.size >= this.host.maxWorkers) {
+    if ([...this.host.workerRuntimes.values()].filter(runtime => this.host.workerBusy(runtime)).length
+      + this.host.preparing.size >= this.host.maxWorkers) {
       throw new Error(`managed agent team reached its ${this.host.maxWorkers}-worker limit`)
     }
     if (this.host.preparing.has(resolved.name) || this.host.workerRuntimes.has(resolved.name)
@@ -194,32 +218,59 @@ export class ManagedWorkerSpawning {
 
   private createSpawnSession(
     definition: DefinedAgent, resolved: ResolvedManagedAgentSpawnRequest,
-    dependencies: readonly WorkerRuntime[], scopedSessionOptions: ManagedAgentTeamOptions['workerSessionOptions'],
+    dependencies: readonly WorkerRuntime[], scopedSessionOptions: ScopedSessionOptions | undefined,
   ): AgentSession {
-    const sessionOptions = { ...this.host.options.workerSessionOptions, ...scopedSessionOptions }
-    const workerTeamTools = this.host.options.workerTeamTools ?? 'reporting'
-    return definition.createSession({
+    const sessionOptions = mergeWorkerSessionOptions(this.host.options.workerSessionOptions, scopedSessionOptions)
+    const role = this.host.roles.get(resolved.role ?? '')
+    const restricted = role?.tools !== undefined
+    const workerTeamTools = this.workerTeamToolAccess(restricted)
+    const worker = cloneAgent(definition, {
+      id: definition.id, tools: [],
+      ...(restricted ? { nativeTools: [], skills: [], skillIds: [] } : {}),
+    })
+    return worker.createSession({
       ...sessionOptions,
-      ...(dependencies.length === 0 ? {} : { tools: mergeTools(sessionOptions.tools,
-        [this.dependencyReadTool(dependencies)]) }),
+      ...(restricted ? { skills: [], experimentalPrograms: [] } : {}),
+      tools: mergeTools(managedWorkerTools(this.host.options, definition, sessionOptions, role),
+        dependencies.length === 0 ? [] : [this.dependencyReadTool(dependencies)]),
       ...(resolved.context === 'fork' ? { history: this.forkLeadHistory(sessionOptions.historyLimits) } : {}),
       registry: this.host.options.registry,
       team: {
-        team: this.host.team,
+        team: this.host.sessionTeam,
         name: resolved.name,
         role: 'peer',
         tools: workerTeamTools,
-        instructions: [
-          `You are managed worker '${resolved.name}'; lead: '${this.host.leadName}'.`,
-          'Return only the caller-requested result in the caller’s format; include explanation only when requested.',
-          'Your terminal result is delivered automatically.',
-          ...(workerTeamTools === false ? [] : [
-            'send_message is context, not a substitute result; it cannot target yourself.',
-          ]),
-        ].join(' '),
+        instructions: this.workerInstructions(resolved, role, workerTeamTools),
         ...(resolved.specialty === undefined ? {} : { description: resolved.specialty }),
       },
     })
+  }
+
+  private workerInstructions(resolved: ResolvedManagedAgentSpawnRequest,
+    role: ManagedAgentRole | undefined, access: false | 'full' | 'reporting'): string {
+    let instructions = managedWorkerInstructions(resolved.name, role)
+    if (this.host.collaboration !== undefined) instructions = instructions.replace(
+      'Keep inter-worker coordination in the parent.', 'Coordinate with peers through the board and bounded messages.')
+    const scope = resolved.writes.length === 0 ? 'none declared' : resolved.writes.join(', ')
+    return [instructions, `Assigned write scope: ${scope}.`, ...access === false ? [] : [this.toolInstructions(access)]]
+      .join(' ')
+  }
+
+  private toolInstructions(access: 'full' | 'reporting'): string {
+    if (this.host.collaboration !== undefined) {
+      return 'Publish shared findings on the task board; send_input wakes peers with bounded turn credits.'
+    }
+    if (this.host.options.modelToolSurface === 'legacy') {
+      return 'send_message is context, not a substitute result; it cannot target yourself.'
+    }
+    return access === 'full'
+      ? 'send_input queues worker tasks or sends context to the lead. Return your final answer to finish.'
+      : 'send_input sends context to the lead (or to a peer only when instructed). Return your final answer to finish.'
+  }
+
+  private workerTeamToolAccess(restricted: boolean): false | 'reporting' | 'full' {
+    const access = this.host.options.workerTeamTools ?? 'reporting'
+    return restricted && access === 'full' ? 'reporting' : access
   }
 
   private holdSpawnForDependencies(runtime: WorkerRuntime, dependencies: readonly WorkerRuntime[]): boolean {
@@ -244,18 +295,25 @@ export class ManagedWorkerSpawning {
     return false
   }
 
-  private failSpawn(
+  private async failSpawn(
     runtime: WorkerRuntime | undefined, resolved: ResolvedManagedAgentSpawnRequest, error: unknown,
-  ): boolean {
+  ): Promise<boolean> {
     if (runtime !== undefined && this.host.workerRuntimes.get(resolved.name) === runtime && !runtime.closing) {
       runtime.status = 'failed'
       runtime.error = errorMessage(error)
+      // Cancel queued wakes before releasing their hold: failed setup must not
+      // start the model, and waiters still need the held promise to settle.
+      const cancelled = this.host.team.cancel(resolved.name, error)
+      runtime.start?.()
       runtime.start = undefined
       runtime.dependencies = []
       try { this.host.team.markPending(resolved.name, undefined) } catch { /* team already disposed */ }
       runtime.markSettled()
-      this.host.workerRuntimes.delete(resolved.name)
-      try { this.host.team.detach(resolved.name) } catch { /* registration already removed */ }
+      try { await abortable(cancelled, AbortSignal.timeout(this.host.spawnTimeoutMs)) } catch { /* bounded cleanup */ }
+      if (this.host.workerRuntimes.get(resolved.name) === runtime) {
+        this.host.workerRuntimes.delete(resolved.name)
+        try { this.host.team.detach(resolved.name) } catch { /* registration already removed */ }
+      }
       return true
     }
     return false
@@ -300,19 +358,18 @@ export class ManagedWorkerSpawning {
     request: ResolvedManagedAgentSpawnRequest,
   ): Promise<DefinedAgent> {
     if (this.host.options.workerFactory !== undefined) return this.host.options.workerFactory(request)
-    const template = this.host.options.workerTemplate ?? this.host.options.lead
-    const role = request.role === undefined ? undefined : this.host.roles.get(request.role)
-    const roleText = role === undefined
-      ? ''
-      : ` You are the '${role.name}' worker. ${role.instructions ?? role.description}`
+    const template = this.host.options.workerTemplate ?? {
+      ...this.host.options.lead,
+      // Clear the source allowlist too, so explicit worker session skills remain usable.
+      ...(this.host.options.inheritLeadTools === false ? { nativeTools: [], skills: [], skillIds: undefined } : {}),
+    }
     const specialty = request.specialty === undefined
       ? ''
       : ` Your specialization is: ${request.specialty}.`
     return cloneAgent(template, {
       id: request.name,
       name: request.name,
-      instructions: `${template.instructions}\n\nYou are dynamically assigned worker '${request.name}'.`
-        + `${roleText}${specialty}`,
+      instructions: template.instructions + specialty,
     })
   }
 

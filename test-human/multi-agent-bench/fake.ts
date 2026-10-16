@@ -119,7 +119,7 @@ function addressInText(text: string): string | undefined {
   try {
     const result = JSON.parse(text) as Record<string, unknown>
     const worker = (result.worker ?? result) as Record<string, unknown>
-    const address = worker.name ?? worker.agent_id ?? worker.agentId ?? worker.id
+    const address = worker.target ?? worker.name ?? worker.agent_id ?? worker.agentId ?? worker.id
     return typeof address === 'string' ? address : undefined
   } catch { return undefined }
 }

@@ -8,7 +8,7 @@ import type { ToolDefinition } from '../tool/definition.ts'
  * How much of the team tool set one member may use.
  *
  * `full` is every verb. `reporting` withholds the two that BLOCK or DELEGATE —
- * `wait_agents` and `followup_task` — leaving `list_agents` and `send_message`.
+ * `wait_agents` and `followup_task` — leaving discovery, result reads and quiet messaging.
  *
  * The distinction exists because an agent created to carry out one bounded task
  * needs a stopping point, and the coordination verbs take it away: given them,

@@ -11,14 +11,5 @@ export const DEFAULT_SPAWN_SETUP_TIMEOUT_MS = 30_000
 /** Default bound on stopping one worker; see {@link ManagedAgentTeamOptions.closeTimeoutMs}. */
 export const DEFAULT_WORKER_CLOSE_TIMEOUT_MS = 30_000
 
-/**
- * Default bound on holding the lead's turn open for news from a worker; see
- * {@link ManagedAgentTeamOptions.holdWaitMs}.
- *
- * Long enough that a lead is not re-prompted about work that has visibly just
- * started, short enough that it keeps control of its own run: at the deadline
- * the turn comes back and the lead decides whether to wait again, close a
- * worker, or answer with what it has.
- */
+/** @deprecated Retained for compatibility; event-driven coordination ignores holdWaitMs. */
 export const DEFAULT_HOLD_WAIT_MS = 15_000
-

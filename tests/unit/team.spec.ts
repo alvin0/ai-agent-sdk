@@ -162,7 +162,7 @@ describe('local agent teams', () => {
     await lead.run('Tell the worker quietly.')
 
     expect(state.adapter.requests[0]?.tools?.map(tool => tool.name)).toEqual([
-      'list_agents', 'send_message', 'followup_task', 'wait_agents',
+      'list_agents', 'get_agent_result', 'send_message', 'followup_task', 'wait_agents',
     ])
     const workerEntry = worker.history.entries().at(-1)
     expect(workerEntry?.event.kind === 'user'
@@ -180,7 +180,7 @@ describe('local agent teams', () => {
     const team = new AgentTeam({ id: 'exempt-team' })
     const tools = team.toolsFor('lead')
     expect(tools.map(tool => tool.name)).toEqual([
-      'list_agents', 'send_message', 'followup_task', 'wait_agents',
+      'list_agents', 'get_agent_result', 'send_message', 'followup_task', 'wait_agents',
     ])
     expect(tools.every(tool => tool.budgetExempt === true)).toBe(true)
   })
@@ -246,7 +246,7 @@ describe('local agent teams', () => {
     // wait was satisfied or merely ran out of time.
     await expect(waiting).resolves.toMatchObject({
       agents: [expect.objectContaining({ name: 'worker', status: 'idle' })],
-      settled: 'worker',
+      settled: ['worker'],
       timedOut: false,
     })
     expect(events).toContain('worker:agent-start')
@@ -284,10 +284,10 @@ describe('local agent teams', () => {
       .rejects.toMatchObject({ code: 'TEAM_WAIT_CYCLE' })
     releaseIdle()
     await expect(aWaitsForB).resolves.toMatchObject({
-      agents: [expect.objectContaining({ name: 'b' })], settled: 'b', timedOut: false,
+      agents: [expect.objectContaining({ name: 'b' })], settled: ['b'], timedOut: false,
     })
     await expect(bWaitsForC).resolves.toMatchObject({
-      agents: [expect.objectContaining({ name: 'c' })], settled: 'c', timedOut: false,
+      agents: [expect.objectContaining({ name: 'c' })], settled: ['c'], timedOut: false,
     })
   })
 

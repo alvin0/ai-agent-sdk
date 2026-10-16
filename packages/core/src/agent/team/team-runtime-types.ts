@@ -2,6 +2,7 @@ import type { TeamSessionPort, TeamToolAccess } from './contracts.ts'
 import type { AgentMemberOutcome, LinkAgentOptions } from './types.ts'
 
 export interface LocalMemberRuntime {
+  slotReleased: boolean
   readonly kind: 'local'
   readonly name: string
   readonly description?: string
@@ -36,6 +37,7 @@ export interface LocalMemberRuntime {
 }
 
 export interface RemoteMemberRuntime {
+  outcome?: AgentMemberOutcome
   readonly kind: 'remote'
   readonly name: string
   readonly description?: string

@@ -113,6 +113,7 @@ function basicCompletionEligible(terminal: TurnOutcome, history: Pick<History, '
 export function isAgentCompletionEligible(
   mode: AgentMode, terminal: TurnOutcome, state: DeepState, history?: Pick<History, 'entries'>,
 ): boolean {
+  if (terminal.yielded === true) return false
   if (mode === 'basic') return basicCompletionEligible(terminal, history)
   return state.completion !== undefined && !state.userAborted
     && (terminal.reason.kind === 'completed'

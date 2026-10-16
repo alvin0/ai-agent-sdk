@@ -1,3 +1,5 @@
+import type { JsonValue } from '../../primitives/index.ts'
+import type { ManagedTeamCollaborationOptions } from './collaboration-types.ts'
 import type { ModelRegistry } from '../../runtime/index.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
 import type { DefinedAgent } from '../define/definition.ts'
@@ -8,11 +10,18 @@ import type { AgentTeam } from './team.ts'
 import type { AgentTeamOptions } from './types.ts'
 
 type DetachedSessionOptions = Omit<AgentSessionOptions, 'registry' | 'team' | 'tools'>
+type WorkerSessionOptions = DetachedSessionOptions & { readonly tools?: ToolCatalog | readonly ToolDefinition<any>[] }
+type ScopedWorkerSessionOptions = {
+  readonly [Key in keyof WorkerSessionOptions]: WorkerSessionOptions[Key] | undefined
+}
 
 /** `fresh` starts from the task; `fork` copies the lead's completed conversation. */
 export type ManagedAgentSpawnContext = 'fresh' | 'fork'
 
-/** Optional host-defined worker roles; the SDK supplies no domain-specific roles. */
+/** How freely the lead should delegate. This is guidance, not an authorization boundary. */
+export type ManagedAgentDelegationMode = 'explicit' | 'proactive'
+
+/** Optional host-defined worker roles, including opt-in SDK presets. */
 export interface ManagedAgentRole {
   /** Referred to by `spawn_agent`; the enum the lead chooses from. */
   readonly name: string
@@ -22,6 +31,11 @@ export interface ManagedAgentRole {
   readonly whenToUse?: string
   /** Added to the worker's own instructions; defaults to `description`. */
   readonly instructions?: string
+  /** Host-tool names to retain from the worker's available tools. Never grants new tools.
+   * A restricted role also disables native tools, skills and program grants, and caps team tools at reporting. */
+  readonly tools?: readonly string[]
+  /** Force a context mode, e.g. fresh for an independent review. */
+  readonly context?: ManagedAgentSpawnContext
 }
 
 /** What to do about two workers that would write the same files at once. */
@@ -58,16 +72,14 @@ export interface ManagedAgentWorkerResult {
   readonly agentId: string
   readonly conversationId: string
   readonly text: string
+  readonly structured?: JsonValue
   readonly succeeded: boolean
 }
 
 /**
  * Where a generated worker is in its life.
  *
- * `completed` and `failed` are final but NOT gone: a finished worker stays
- * addressable and keeps occupying a `maxWorkers` slot until it is closed, so
- * a lead that spawns without closing runs out of workers rather than silently
- * accumulating them.
+ * Finished workers remain addressable, but automatically release concurrency slots.
  */
 export type ManagedAgentWorkerStatus =
   | 'pending' | 'running' | 'completed' | 'failed' | 'closed'
@@ -99,6 +111,26 @@ export interface ManagedAgentTeamOptions {
   readonly leadDescription?: string
   readonly team?: AgentTeam | AgentTeamOptions
   readonly maxWorkers?: number
+  /** Lean model tools by default; legacy preserves earlier tool names and schemas. */
+  readonly modelToolSurface?: 'lean' | 'legacy'
+  /** Bounded accepted model follow-ups. Defaults to 64. */
+  readonly maxPendingInputs?: number
+  /** Opt-in shared task board and bounded peer wakes. */
+  readonly collaboration?: boolean | ManagedTeamCollaborationOptions
+  /** Defaults to proactive. Explicit delegates only when the user or host instructions ask for delegation. */
+  readonly delegationMode?: ManagedAgentDelegationMode
+  /** Host-supplied nesting depth of this lead, starting at zero. Defaults to zero. */
+  readonly depth?: number
+  /** Maximum delegation depth. Defaults to one (lead plus workers); zero disables spawning.
+   * Hosts composing nested teams must pass the child depth. Opaque host tools remain host-owned. */
+  readonly maxDepth?: number
+  /** Inherit application tools only for generated workers without explicit tools/template/factory. Default true.
+   * False also clears cloned lead nativeTools, skills and skillIds; explicit worker grants remain available.
+   * Guarded lead tools require the exact same interceptors and approval broker in worker session options. */
+  readonly inheritLeadTools?: boolean
+  /** Host tool names that must not be inherited (e.g. deploy, commit). Team/control and user-input tools
+   * are always excluded from inheritance, including tools marked awaitsPerson. Default empty. */
+  readonly leadOnlyTools?: readonly string[]
   /**
    * Automatically hold/continue the lead for pending work and wake it for reports.
    * Defaults to true for this convenience helper. Set false for host-driven turns;
@@ -162,15 +194,7 @@ export interface ManagedAgentTeamOptions {
    * cancellation must not be able to hold the harness at its cap forever.
    */
   readonly closeTimeoutMs?: number
-  /**
-   * How long the lead's turn is held open waiting for a worker to report,
-   * before the lead is asked again. Defaults to {@link DEFAULT_HOLD_WAIT_MS}.
-   *
-   * Zero-length would be a spin: the lead answers, is told its workers are
-   * still running, answers again, and burns its budget before any result
-   * arrives. Codex blocks the parent inside its `wait_agent` tool for the same
-   * reason.
-   */
+  /** @deprecated Accepted for compatibility; event-driven joins do not poll. */
   readonly holdWaitMs?: number
   /** Allow model-invoked close_agent to cancel unfinished work (default true).
    * Host closeWorker, disposal and user cancellation are always available. */
@@ -191,13 +215,15 @@ export interface ManagedAgentTeamOptions {
   ) => DefinedAgent | Promise<DefinedAgent>
   readonly leadSessionOptions?: DetachedSessionOptions & {
     readonly tools?: ToolCatalog | readonly ToolDefinition<any>[] }
-  readonly workerSessionOptions?: DetachedSessionOptions & {
-    readonly tools?: ToolCatalog | readonly ToolDefinition<any>[] }
-  /** Per-worker runtime dependencies for least-privilege tools and workspace policy. */
+  /** Generated workers inherit eligible lead definition and session host tools by default.
+   * Supplying tools replaces that application toolset (including definition tools); [] opts out.
+   * Templates/factories use only their own tools when no override is supplied. Team tools are configured separately. */
+  readonly workerSessionOptions?: WorkerSessionOptions
+  /** Per-worker runtime dependencies for least-privilege tools and workspace policy.
+   * Only defined values override workerSessionOptions; undefined preserves the base option. */
   readonly workerSessionOptionsFactory?: (
     request: ResolvedManagedAgentSpawnRequest,
-  ) => (DetachedSessionOptions & { readonly tools?: ToolCatalog | readonly ToolDefinition<any>[] })
-    | Promise<DetachedSessionOptions & { readonly tools?: ToolCatalog | readonly ToolDefinition<any>[] }>
+  ) => ScopedWorkerSessionOptions | Promise<ScopedWorkerSessionOptions>
   /** Observe every generated worker's model, tool, trace, and compaction events. */
   readonly onWorkerEvent?: (
     worker: string,
@@ -260,7 +286,9 @@ export interface WorkerRuntime {
    */
   start: (() => void) | undefined
   /** Resolves {@link settled}; called exactly once, whatever ended the worker. */
-  readonly markSettled: () => void
+  markSettled: () => void
+  /** A redirected held task retains its producer identity until replacement settles. */
+  inputOwnsSettlement?: boolean
   warnings: readonly string[]
   result: ManagedAgentWorkerResult | undefined
   error: string | undefined

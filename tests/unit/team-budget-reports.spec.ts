@@ -59,7 +59,7 @@ describe('research, coding and analysis reports at execution limits', () => {
     const adapter = new ReportAdapter()
     const registry = new ModelRegistry()
     registry.registerAdapter(['test'], adapter)
-    const team = createManagedAgentTeam({
+    const team = createManagedAgentTeam({ modelToolSurface: 'legacy',
       registry,
       lead: defineAgent({ id: 'lead', provider: 'test', model: 'reports', mode: 'basic', effort,
         instructions: 'Synthesize worker reports, preserving limitations.',
@@ -92,7 +92,7 @@ describe('research, coding and analysis reports at execution limits', () => {
       expect(final.text).toContain('Synthesis:')
       const request = adapter.requests.at(-1)!
       for (const evidence of Object.values(scenarios)) expect(JSON.stringify(request.messages)).toContain(evidence)
-      expect(JSON.stringify(request.messages)).toContain('Partial findings (not a completed task)')
+      expect(JSON.stringify(request.messages)).toContain('partial evidence, not completed work')
       const analysis = adapter.requests.filter(r => r.system?.includes('CASE:analysis'))
       expect(analysis).toHaveLength(3)
       expect(JSON.stringify(analysis[0]?.messages)).toContain(scenarios.coding)
