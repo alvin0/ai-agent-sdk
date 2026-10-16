@@ -49,7 +49,7 @@ function migrationOperation(random: () => number, index: number) {
   const payload = index % 2 ? '{id:input.id,value:input.value}' : '{record:input.id,amount:input.value}'
   const request = `{route:${encode(route)},body:${payload},timeoutMs:${seconds * 1000},`
     + `retry:${encode(write && keyed ? 'idempotent' : retry)}${keyed ? `,idempotencyKey:${encode(key)}` : ''}}`
-  const comment = `\n/**\n${contractNote(random, symbol)}`
+  const comment = `\n/**\n`
     + ` * Current contract: ${write ? 'WRITE' : 'READ'}, timeout ${seconds} seconds, `
     + `key ${encode(key)}, return response.${field}.\n */\n`
   return { symbol, comment,
@@ -62,7 +62,7 @@ function migrationOperation(random: () => number, index: number) {
 export function migrationFile(random: () => number, file: string) {
   let before = '', after = ''
   const checks: string[] = []
-  for (let index = 0; index < 24; index++) {
+  for (let index = 0; index < 8; index++) {
     const op = migrationOperation(random, index)
     before += op.comment + op.before; after += op.comment + op.after
     for (const input of [{ id: 'alpha', value: 7 }, { id: 'beta', value: -3 }]) {
@@ -77,4 +77,11 @@ export function migrationFile(random: () => number, file: string) {
     }
   }
   return { before, after, checks }
+}
+
+/** Minimal call replacements; preserve contracts and unchanged export declarations. */
+export function migrationEdits(before: string, after: string) {
+  const calls = (source: string) => source.match(/client\.(?:send|request)\([^\n]+(?=\.(?:body|status);)/g) ?? []
+  const old = calls(before), updated = calls(after)
+  return old.map((text, index) => ({ old: text, new: updated[index]! }))
 }

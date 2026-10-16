@@ -78,6 +78,28 @@ export class Workspace {
     await writeFile(path, content)
     return { written: name }
   }
+  private editTail: Promise<unknown> = Promise.resolve()
+  async edit(name: string, edits: { old: string; new: string }[]) {
+    // Serialize edit batches so concurrent workers cannot lose another batch's changes.
+    const apply = async () => {
+      if (!Array.isArray(edits) || edits.length === 0) throw new Error('Expected at least one edit')
+      let content = await this.readAll(name)
+      for (const edit of edits) {
+        if (typeof edit.old !== 'string' || !edit.old || typeof edit.new !== 'string') {
+          throw new Error('Each edit requires a nonempty old string and a new string')
+        }
+        const index = content.indexOf(edit.old)
+        if (index < 0 || content.indexOf(edit.old, index + 1) >= 0) {
+          throw new Error('Each old string must match exactly once; no edits were written')
+        }
+        content = content.slice(0, index) + edit.new + content.slice(index + edit.old.length)
+      }
+      return this.write(name, content)
+    }
+    const pending = this.editTail.then(apply)
+    this.editTail = pending.catch(() => undefined)
+    return pending
+  }
   async grade(signal?: AbortSignal) {
     const count = checkCount(this.task)
     let checks: boolean[], error: string | undefined
@@ -143,6 +165,13 @@ export function workspaceTools(workspace: Workspace): ToolDefinition<any>[] {
       description: 'Write a UTF-8 workspace file (64 KiB max). Parent directories are created.',
       parameters: parameters({ path: string, content: string }, ['path', 'content']),
       execute: args => workspace.write(args.path, args.content) }),
+    defineTool<{ path: string; edits: { old: string; new: string }[] }>({ name: 'edit_file',
+      description: 'Apply exact old-to-new string replacements to a UTF-8 file, in order. '
+        + 'Batch multiple edits per call. Each nonempty old string must match exactly once; '
+        + 'otherwise the entire batch fails without writing. Existing write limits apply.',
+      parameters: parameters({ path: string, edits: { type: 'array', minItems: 1,
+        items: parameters({ old: { type: 'string', minLength: 1 }, new: string }, ['old', 'new']) } },
+      ['path', 'edits']), execute: args => workspace.edit(args.path, args.edits) }),
     defineTool({ name: 'list_files', description: 'List workspace files recursively.',
       parameters: parameters({}, []), execute: () => workspace.files() }),
     defineTool<{ query: string }>({ name: 'search_files', 

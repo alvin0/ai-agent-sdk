@@ -56,6 +56,19 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Changed
 
+- Round 6 benchmark protocol V6 adds SDK adapter retries (six attempts, provider retry-after up
+  to 60 seconds), a process-wide model-call semaphore (default four), infrastructure classification
+  and two fresh-workspace reruns, immutable attempt evidence, and manifest-checked `--resume`.
+  Analysis excludes infra-failed cells, warns on insufficient repetitions, and reports retry counts,
+  actual wait and raw/active wall time. V1–V5 cohorts require rerunning; SDK host APIs are unchanged.
+
+- Round 5 benchmark protocol V5 calibrates against live Round 4 failures: exact batched `edit_file`
+  for all arms/tasks, eight-operation migration files, configurable 1200-second volume job/worker
+  budgets, explicit shared-budget prompts, and 72 incident reports with later corrections.
+  Early team completion records graded `completed-orphans` with bounded settlement grace and worker
+  counts; partial usage retains numeric reported totals flagged `usageIncomplete`. Tool errors include
+  names, bounded arguments and real messages. V1–V4 cohorts require rerunning; SDK host APIs are unchanged.
+
 - Round 4 benchmark protocol V4 replaces unsolvable numeric extraction with 24 incident-reading
   reports, adds 60-file module audits and 40-file API migrations, and separates volume, overhead
   and control aggregates. Fixed grading checklists preserve partial credit after cap/error/timeout;
