@@ -339,10 +339,16 @@ worktrees record it as skipped, so compare that arm only where both branches sup
 
 ## Team timeline metrics
 
-`metrics.ts` consumes schema-v1 `team-timeline` events through the existing team `onEvent` hook.
-It prefers SDK spawn attempts, logical model calls, wasted synthesis wakes and complete run-ledger
-usage; older SDKs keep the existing inference fallback. Result metrics identify their sources with
-`teamMetricsSource` and `usageMetricsSource`. A timeout retains per-model partial usage when run
-terminals do not cover every call. Aggregate caps still enforce canonical events immediately.
-See [the team event contract](../../docs/team-observability.md) for exact diagnostic meanings and
-comparison limits. Copy the same harness to both branches before a live comparison.
+The collector retains schema-v1 timeline facts and content-free message/member-run metadata in audit
+JSON. `spawns` still means accepted attachments; `spawnAttempts` and `spawnRejected` expose refusals.
+`wastedLeadTurns` remains the legacy evidence metric; `wastedWakes` is a separate runtime diagnostic.
+Calls use the timeline only when its count equals canonical model starts; lead calls match the root
+team id/conversation. `teamMetricsSource`, `callMetricsSource` and `usageMetricsSource` disclose fallbacks.
+
+Result `metrics.memberMetrics` aggregates calls/input/cache/output per member/conversation for every
+arm. `metrics.leadCallInputTokens` retains total input buckets per root lead call (null for missing usage),
+including no-spawn runs. Compare matched single/team negative controls to quantify F10's team surface tax.
+F1 is exposed by spawn-rejected reason/code plus busy/preparing/limit; F4 by lead-returned/team-joined,
+member-started activation source/sender, member-run/message metadata, and existing orphan counters.
+Sort timeline facts by sequence within each team. See [the event contract](../../docs/team-observability.md).
+Copy identical harness bytes to both branches; live comparisons remain reviewer-owned.

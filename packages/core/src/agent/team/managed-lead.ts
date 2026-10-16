@@ -12,7 +12,9 @@ interface ManagedLeadHost {
 /** Bound empty synthesis retries; actual worker progress restores the budget. */
 export class ManagedSynthesisGuard {
   private wakes = 0
-  constructor(private revision: number) {}
+  constructor(private revision: number, readonly limit = 3) {}
+  get used(): number { return this.wakes }
+  get exhausted(): boolean { return this.wakes >= this.limit }
 
   observe(revision: number, outstanding: number): void {
     if (outstanding > 0 || revision !== this.revision) this.wakes = 0
@@ -20,8 +22,8 @@ export class ManagedSynthesisGuard {
   }
 
   wake(): void {
-    if (this.wakes >= 3) {
-      throw new Error('Lead synthesis stalled: yielded after 3 synthesis wakes without new worker reports')
+    if (this.exhausted) {
+      throw new Error(`Lead synthesis stalled: yielded after ${this.limit} synthesis wakes without new worker reports`)
     }
     this.wakes++
   }

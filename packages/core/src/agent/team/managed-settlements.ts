@@ -1,4 +1,5 @@
 /** Compact settlement delivery and lifecycle accounting for retained follow-ups. */
+import { recordTeamTimeline } from './team-observation-internal.ts'
 import { createUserMessage } from '../../message/index.ts'
 import type { AgentResponse, AgentSession } from '../define/session.ts'
 import { managedTeamNoticeRequest } from '../history/input-work.ts'
@@ -117,7 +118,7 @@ export class ManagedSettlements {
       this.host.lead().inject(createUserMessage({ source: { kind: 'app', producer: 'managed-team-settlement' },
         content: [{ type: 'text', text: message }] }))
     }
-    this.host.team.recordTimeline({ kind: 'notice-delivered', member: this.host.leadName,
+    recordTeamTimeline(this.host.team, { kind: 'notice-delivered', member: this.host.leadName,
       workers: results.map(result => result.worker), delivery })
     this.deliveredRevision++
     if (this.hasPending) this.deferReports()

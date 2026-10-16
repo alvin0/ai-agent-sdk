@@ -9,7 +9,8 @@ interface BoardHost {
   readonly signal: AbortSignal
   assertMember(name: string): void
   changed(before: CollaborationBoardSnapshot, after: CollaborationBoardSnapshot, actor: string,
-    operation: Extract<TeamTimelineData, { kind: 'board-operation' }>['operation']): void
+    change: { operation: Extract<TeamTimelineData, { kind: 'board-operation' }>['operation'];
+      task: CollaborationTask }): void
 }
 
 /** Team-owned task state. Mutations, dependency checks and revision checks share one queue. */
@@ -69,7 +70,8 @@ export class CollaborationTaskBoard {
       operation.throwIfAborted()
       this.host.assertMember(actor)
       this.state = after
-      this.host.changed(before, after, actor, action)
+      try { this.host.changed(before, after, actor, { operation: action, task }) }
+      catch { /* committed mutation is authoritative */ }
       return deepCloneFreeze({ ...task, ready: taskReady(task, tasks) })
     })
     this.tail = pending.catch(() => {})

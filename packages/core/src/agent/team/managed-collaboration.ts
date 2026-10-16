@@ -1,3 +1,4 @@
+import { recordTeamTimeline } from './team-observation-internal.ts'
 import { AgentSdkError } from '../../errors/index.ts'
 import type { AgentResponse } from '../define/session.ts'
 import { defineTool, type ToolDefinition, type ToolRunContext } from '../tool/definition.ts'
@@ -53,9 +54,8 @@ export class ManagedTeamCollaboration implements TeamPort {
     this.joinTimeoutMs = positiveInteger(options.joinTimeoutMs ?? host.workerTimeoutMs, 'collaboration.joinTimeoutMs')
     this.notifications = new CollaborationNotifications(host.team, host.lead, this.sessions, () => { this.epoch++ })
     this.board = new CollaborationTaskBoard(options, { lead: host.lead, signal: host.signal,
-      assertMember: name => this.assertMember(name), changed: (before, after, actor, operation) => {
-        const task = after.tasks.find(task => before.tasks.find(old => old.id === task.id)?.revision !== task.revision)!
-        host.team.recordTimeline({ kind: 'board-operation', member: actor, taskId: task.id,
+      assertMember: name => this.assertMember(name), changed: (before, after, actor, { operation, task }) => {
+        recordTeamTimeline(host.team, { kind: 'board-operation', member: actor, taskId: task.id,
           operation, revision: task.revision, status: task.status })
         if (actor !== host.lead) this.epoch++
         this.notifications.changed(before, after)
@@ -149,12 +149,12 @@ export class ManagedTeamCollaboration implements TeamPort {
     const key = JSON.stringify([sender, target].sort())
     const used = this.pairs.get(key) ?? 0
     if (used >= this.maxPeerTurnsPerPair) {
-      this.host.team.recordTimeline({ kind: 'budget', member: sender, budget: 'peer-turns',
+      recordTeamTimeline(this.host.team, { kind: 'budget', member: sender, budget: 'peer-turns',
         action: 'exhausted', used, limit: this.maxPeerTurnsPerPair })
       throw new AgentSdkError('peer turn limit reached; publish findings on the task board', 'TEAM_PEER_TURN_LIMIT')
     }
     this.pairs.set(key, used + 1)
-    this.host.team.recordTimeline({ kind: 'budget', member: sender, budget: 'peer-turns',
+    recordTeamTimeline(this.host.team, { kind: 'budget', member: sender, budget: 'peer-turns',
       action: 'consumed', used: used + 1, limit: this.maxPeerTurnsPerPair })
     this.epoch++
   }
@@ -193,7 +193,7 @@ export class ManagedTeamCollaboration implements TeamPort {
       await this.host.cancelMembers(error, deadline.aborted)
       if (combineSignals(signal, this.host.signal).aborted) return
       if (!deadline.aborted) throw error
-      this.host.team.recordTimeline({ kind: 'budget', member: this.host.lead,
+      recordTeamTimeline(this.host.team, { kind: 'budget', member: this.host.lead,
         budget: 'collaboration-join', action: 'exhausted', limit: this.joinTimeoutMs })
       this.host.injectLead('Collaboration join deadline expired. '
         + 'Active members, including pending workers, were cancelled; '

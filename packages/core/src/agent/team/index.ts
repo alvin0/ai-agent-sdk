@@ -56,4 +56,7 @@ export type { ManagedTeamCollaborationOptions, CollaborationTask, CollaborationT
   CollaborationBoardSnapshot, CreateCollaborationTask, UpdateCollaborationTask } from './collaboration-types.ts'
 
 export type { TeamTimelineData, TeamTimelineEvent, TeamWakeReason, TeamSettlementStatus,
+  TeamActivation, TeamSpawnRejection,
   TeamMemberSnapshot, TeamSnapshot } from './team-timeline.ts'
+
+export type { TeamSettlementUsage } from './team-observation.ts'

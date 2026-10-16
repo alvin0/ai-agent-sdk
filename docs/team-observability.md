@@ -18,21 +18,28 @@ const summary = managed.snapshot() // also managed.team.snapshot()
 
 ## Timeline contract (schemaVersion 1)
 
-Every fact has a team id, per-instance sequence, ISO timestamp and elapsed monotonic milliseconds.
+Every fact has a team id, depth (root is zero), optional parentTeamId, per-instance sequence, ISO timestamp
+and elapsed monotonic milliseconds. Nested managed teams infer ancestry from the inherited observation
+port; hosts can supply parentTeamId/depth explicitly through AgentTeamOptions. Forward each nested team
+onEvent channel to the collector as well as its canonical observation port.
 Sequence applies to timeline facts only; pair it with team id. A reentrant observer can publish a later
-fact before another subscriber receives the earlier one; sort by sequence when presenting a timeline.
+fact before another subscriber receives the earlier one; **consumers must sort by sequence** within each team when presenting a timeline.
 Persist events in the host when history is needed. The SDK stores summary state, not an event array.
 Callbacks have the existing synchronous best-effort semantics; thrown observer errors are isolated.
 These facts do not imply durable delivery or observation-exporter acknowledgement.
 
 | kind | Meaning |
 | --- | --- |
-| `spawn-requested` | Validated, resolved address/context before slot admission/setup. Counts attempts, including refusals. Task content is excluded. |
-| `spawn-failed` | Asynchronous setup failed after admission. Slot refusals instead emit `budget`. |
-| `member-started` | A session ledger started a run. For a worker this is actual dispatch, after dependency holds. Includes run id. |
+| `spawn-requested` | Validated, resolved address/context before slot admission/setup; invalid requests emit only spawn-rejected. Task content is excluded. |
+| `spawn-accepted` | Session attached, matching the legacy benchmark accepted-spawn boundary. Later setup can still fail. |
+| `spawn-rejected` | One fact per refused/failed attempt: member, reason (capacity/duplicate/invalid/setup), stable code, busy, preparing, limit. Invalid requests use their bounded name or `<unresolved>`. |
+| `slot-released` / `member-closed` | Reservation released once, or address detached. Retained results remain separately readable. |
+| `spawn-failed` | Setup failure projection, with reason=setup/code; linked to the same spawn-rejected, not another attempt. |
+| `member-started` | A session ledger started a run. For a worker this is actual dispatch, after dependency holds. Includes run/conversation ids and activation source/sender. Quiet initial admission, later follow-up, peer message and explicit wake causes remain distinguishable. |
 | `model-requested` | A logical SDK model call started, including compaction. Physical provider retries remain canonical observation events. |
 | `member-settled` | A run ledger finalized. Includes run id, operation status, duration and canonical `RunUsageReport`. This is the usage accounting event. |
-| `worker-settled` | Managed runtime result status: completed, failed, timeout or cancelled. Includes the owning run's usage when known. Do not sum this with `member-settled`. |
+| `worker-settled` | Managed runtime result status: completed, failed, timeout or cancelled. Includes the owning run's usage when known. A later report-bearing fact may upgrade an earlier report-free settlement; prefer the report-bearing fact per member/run. Do not sum this with `member-settled`. |
+| `lead-returned` / `team-joined` | Initial raw lead session returned (possibly a provisional yield), or the managed final join completed, with busy/preparing counts. With auto coordination disabled only lead-returned is emitted. |
 | `lead-yielded` | Turn yielded for workers, capacity, or an explicit host-hook decision. |
 | `lead-woken` | Lead wake admitted with settlement, synthesis, steering, message or host reason. Scheduler coalescing can avoid a model call. |
 | `notice-delivered` | A claimed settlement batch entered lead history via mailbox or fallback injection. Lists worker addresses only. |
@@ -61,22 +68,36 @@ for history across reuse. `managed.dispose()` stops managed work; `managed.team.
 underlying team summaries. These are in-memory hooks, not durable state or access-control decisions.
 
 Managed lead and generated worker sessions compose their existing observation ports automatically,
-including host/model follow-ups. The host's capture/checkpoint receipts, audit mode, span methods,
-interceptors and policy hooks remain in force. `AgentTeam.observeSession(name, options)` provides the
-same opt-in composition for host-created sessions; attach that session with the same name. Uninstrumented
-or remote sessions expose roster metadata but no fabricated model usage.
+including host/model follow-ups, early calls before attachment, and inherited child conversations.
+Nested team wrappers attribute each observation to the closest team, preventing duplicate logical calls. The host's capture/checkpoint receipts, audit mode, span methods,
+interceptors and policy hooks remain in force. Recording/session composition are internal runtime helpers,
+not public AgentTeam methods. Uninstrumented host-created or remote sessions expose roster metadata
+but no fabricated model usage. Event construction/deep cloning is skipped without subscribers; snapshots
+continue to update and sequence numbers can have gaps after subscribing later.
 
 ## Benchmark
 
-The benchmark collector's structural `teamEvent(unknown)` adapter recognizes schema version 1 and
-deduplicates `(teamId, sequence)`. It prefers runtime spawn attempts, logical calls and wasted-wake facts.
-It prefers finalized run usage only when all observed model starts are covered; otherwise it preserves
-canonical per-model partial evidence. Limits still use the existing canonical observation/checkpoint
-path, so waiting for a terminal summary never delays admission enforcement.
+The benchmark collector recognizes schema version 1 and deduplicates `(teamId, sequence)`.
+It retains content-free `message-accepted` (sender/target/delivery/id) and `member-run-*` metadata
+alongside timeline facts for tracing activations after a lead return. Response/task text is excluded
+from this metadata channel; canonical model observations remain in the audit.
 
-`metrics.teamMetricsSource` identifies `timeline-v1` versus `inferred`;
-`metrics.usageMetricsSource` identifies `team-ledger` versus `model-events`. Older SDKs retain the
-original attachment/evidence-fingerprint fallback. The fallback's repeated-evidence count has a wider
-meaning than runtime wasted wakes; inspect the source labels when comparing them. Copy identical harness
-bytes to both benchmark branches. Offline fixtures validate plumbing; live quality/cost comparisons
+- `spawns` retains the legacy accepted/attached-session meaning. `spawnAttempts` counts resolved
+  requests plus invalid rejections; `spawnRejected` counts one rejection per attempt. An attached
+  session whose subsequent setup fails counts as accepted and rejected, matching legacy spawns.
+- `wastedLeadTurns` retains the evidence-fingerprint definition on every branch. `wastedWakes`
+  separately counts runtime settlement/synthesis wakes with no new team information.
+- Timeline call counts are used only when they equal observed model starts. Lead calls additionally
+  match the root team id and root lead conversation. Usage also requires finalized run coverage;
+  partial timelines fall back to canonical model observations.
+- `memberMetrics` contains per-member/conversation calls, uncached input, cached input, cache writes
+  and output from canonical observations. `leadCallInputTokens` contains each root lead call's total
+  input buckets (uncached + cache read + cache write); null means missing usage. These fields live in
+  result metrics JSON for single and team arms, including no-spawn runs, so F10 can be compared directly.
+  Per-member token aggregates are reported subtotals; inspect overall coverage flags.
+
+`teamMetricsSource` identifies timeline availability, `callMetricsSource` identifies the call-count
+source, and `usageMetricsSource` identifies finalized team ledgers versus model observations.
+Older SDKs retain attachment/evidence fallbacks. Copy identical harness bytes to compared branches.
+Offline fixtures validate plumbing, not model-dependent surface costs or quality. Live comparisons
 remain reviewer-owned under the plan's N>=3 contract and model policy.

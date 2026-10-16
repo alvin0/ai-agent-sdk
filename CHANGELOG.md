@@ -6,6 +6,10 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Breaking
 
+- Remove unreleased public `AgentTeam.recordTimeline`/`observeSession` instrumentation methods;
+  runtime observation now uses internal helpers. Host consumers use `onEvent`/`subscribe` and typed
+  `snapshot(): TeamSnapshot`. Export `TeamSettlementUsage` used by `recordOutcome`.
+
 - `AgentTeamEvent` adds the `team-timeline` variant. Exhaustive event switches must handle it
   (or retain a default case); existing event variants and callbacks remain supported.
 
@@ -33,6 +37,16 @@ All notable changes to the AI Agent SDK are documented in this file.
   its synthesis wake without disposing the reusable team. Standalone wait cancellation stops only waiting.
 
 ### Fixed
+
+- Team observability records all spawn rejection classes with capacity context, slot release/closure,
+  lead-return/final-join boundaries, activation sources/senders, and nested team ancestry. Include early
+  and inherited child-session model calls, prefer report-bearing settlements, preserve settlement wake
+  precedence, and skip unused timeline payload cloning. Consumers must sort facts by sequence per team.
+- Preserve benchmark accepted `spawns` and legacy `wastedLeadTurns`; add separate attempts/rejections,
+  wasted wakes, per-member usage and per-lead-call input tokens. Partial call timelines fall back to
+  observed starts; lead counts are scoped to the root team. Retain lifecycle metadata in audit JSON.
+- Pass committed collaboration tasks directly to observers and isolate post-commit observer errors.
+  Synthesis budget events use the guard's actual limit and only label real exhaustion.
 
 - Replace periodic hold prompts with runtime-attributed push settlements and event-driven yield/join.
   Preserve lost-wake recovery across idle observers and cancelled flushes; bound synthesis-only retries

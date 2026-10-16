@@ -1,5 +1,6 @@
-import { TeamObservation, type TeamObservedSessionOptions, type TeamSettlementUsage } from './team-observation.ts'
-import type { TeamTimelineData, TeamWakeReason } from './team-timeline.ts'
+import { TeamObservation, type TeamSettlementUsage } from './team-observation.ts'
+import { registerTeamObservation } from './team-observation-internal.ts'
+import type { TeamSnapshot, TeamWakeReason } from './team-timeline.ts'
 import { TeamResults } from './team-results.ts'
 import { sendTeamMessage } from './team-delivery.ts'
 import { teamInstructions } from './team-instructions.ts'
@@ -68,7 +69,9 @@ export class AgentTeam implements TeamPort {
     this.observerTimeoutMs = timeouts.observerTimeoutMs
     this.waitTimeoutMs = timeouts.waitTimeoutMs
     this.minWaitTimeoutMs = timeouts.minWaitTimeoutMs
-    this.observation = new TeamObservation(this.id, event => this.emit(event))
+    this.observation = new TeamObservation(this.id, event => this.emit(event),
+      () => this.onEvent !== undefined || this.listeners.size > 0, options)
+    registerTeamObservation(this, this.observation)
     this.onEvent = options.onEvent
     this.onAgentEvent = options.onAgentEvent
     this.roster = new TeamRoster({ id: this.id, maxMembers, maxMetadataBytes, emit: event => this.emit(event) })
@@ -105,15 +108,10 @@ export class AgentTeam implements TeamPort {
     const member = this.members().find(member => member.name === name)
     this.roster.detach(name)
     if (member !== undefined) this.results.archive(member)
+    this.observation.record({ kind: 'member-closed', member: name })
   }
   /** Detached metadata summary; no prompt, message or worker result content. */
-  snapshot() { return this.observation.snapshot(this.members()) }
-  /** Publish typed runtime facts on the existing team channel. */
-  recordTimeline(data: TeamTimelineData): void { this.observation.record(data) }
-  /** Compose ledger observation with host receipts and policy hooks. */
-  observeSession<T extends TeamObservedSessionOptions>(name: string, options: T): T {
-    return this.observation.sessionOptions(name, options)
-  }
+  snapshot(): TeamSnapshot { return this.observation.snapshot(this.members()) }
   members(): readonly AgentTeamMember[] { return this.roster.members() }
   /** Host admission hooks run before wake-up input is accepted. Throw to refuse work. */
   guardWake(guard: (target: string) => void): () => void {
@@ -134,7 +132,9 @@ export class AgentTeam implements TeamPort {
     return this.results.capture(sender, this.members(), targets)
   }
   /** Retain a managed worker's address while releasing its concurrency reservation. */
-  releaseSlot(name: string): void { this.roster.releaseSlot(name) }
+  releaseSlot(name: string): void {
+    if (this.roster.releaseSlot(name)) this.observation.record({ kind: 'slot-released', member: name })
+  }
   messages(): readonly AgentMessageRecord[] {
     return this.mailbox.messages()
   }
@@ -242,7 +242,10 @@ export class AgentTeam implements TeamPort {
     if (event.type === 'member-attached' || event.type === 'member-linked') this.observation.attach(event.member)
     if (event.type === 'message-accepted') {
       this.observation.input(event.message.target)
-      if (event.message.delivery === 'wakeup') this.observation.wake(event.message.target, 'message')
+      this.observation.accepted(event.message.target, event.message.sender)
+      if (event.message.delivery === 'wakeup') {
+        this.observation.wake(event.message.target, 'message', event.message.sender)
+      }
     }
   }
   private publishSettlement(event: AgentTeamEvent): void {

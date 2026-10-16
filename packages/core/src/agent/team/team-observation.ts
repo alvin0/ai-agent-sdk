@@ -6,8 +6,9 @@ import type { RunUsageReport } from '../accounting/report.ts'
 import { deepCloneFreeze } from './common.ts'
 import type { AgentTeamMember, AgentMemberOutcome } from './types.ts'
 import type { TeamMemberSnapshot, TeamSnapshot, TeamTimelineData, TeamTimelineEvent,
-  TeamWakeReason, TeamSettlementStatus } from './team-timeline.ts'
+  TeamWakeReason, TeamSettlementStatus, TeamActivation } from './team-timeline.ts'
 
+/** @internal Session instrumentation is runtime-owned. */
 export interface TeamObservedSessionOptions {
   readonly observation?: ObservationPort
   readonly hooks?: TurnHooks
@@ -17,8 +18,11 @@ export interface TeamSettlementUsage {
   readonly usage: RunUsageReport
 }
 
-type MemberState = { view: TeamMemberSnapshot; runId?: string; lastUsage?: RunUsageReport | undefined
-  hasSettlement?: true; settledRunId?: string | undefined }
+type MemberState = { provisional?: true; view: TeamMemberSnapshot; runId?: string
+  lastUsage?: RunUsageReport | undefined
+  hasSettlement?: true; settlementReported?: boolean; settledRunId?: string | undefined }
+
+const eventOwners = new WeakMap<ObservationEvent, TeamObservation>()
 
 export class TeamObservation {
   private sequence = 0
@@ -27,15 +31,27 @@ export class TeamObservation {
   private readonly active = new Set<string>()
   private information = 0
   private lastLeadInformation: number | undefined
+  private readonly activations = new Map<string, TeamActivation>()
+  private readonly seen = new WeakSet<ObservationEvent>()
   private pendingWake: { member: string; reason: TeamWakeReason } | undefined
 
-  constructor(private readonly teamId: string, private readonly emit: (event: TeamTimelineEvent) => void) {}
+  constructor(private readonly teamId: string, private readonly emit: (event: TeamTimelineEvent) => void,
+    private readonly listening = () => true,
+    private readonly ancestry: { readonly parentTeamId?: string; readonly depth?: number } = {}) {}
+
+  get childContext() { return { parentTeamId: this.teamId, depth: (this.ancestry.depth ?? 0) + 1 } }
+  private get envelope() {
+    return { teamId: this.teamId, depth: this.ancestry.depth ?? 0,
+      ...this.ancestry.parentTeamId === undefined ? {} : { parentTeamId: this.ancestry.parentTeamId } }
+  }
 
   record(data: TeamTimelineData): void {
     if (data.kind === 'spawn-failed') this.failedSpawn(data.member)
     if (data.kind === 'notice-delivered' || data.kind === 'board-operation') this.information++
+    const sequence = ++this.sequence
+    if (!this.listening()) return
     this.emit(deepCloneFreeze({ ...data, type: 'team-timeline', schemaVersion: 1,
-      teamId: this.teamId, sequence: ++this.sequence, occurredAt: new Date().toISOString(),
+      ...this.envelope, sequence, occurredAt: new Date().toISOString(),
       elapsedMs: Math.max(0, performance.now() - this.origin) }))
   }
 
@@ -45,7 +61,14 @@ export class TeamObservation {
   }
 
   attach(member: AgentTeamMember): void {
-    const previous = this.states.get(member.name)?.runId
+    const existing = this.states.get(member.name)
+    if (existing !== undefined && (existing.provisional || existing.view.conversationId === member.conversationId)) {
+      existing.view = { ...existing.view, agentId: member.agentId, role: member.role, attached: true,
+        ...member.conversationId === undefined ? {} : { conversationId: member.conversationId } }
+      delete existing.provisional
+      return
+    }
+    const previous = existing?.runId
     if (previous !== undefined) this.active.delete(previous)
     this.states.set(member.name, { view: { name: member.name, agentId: member.agentId,
       ...member.conversationId === undefined ? {} : { conversationId: member.conversationId },
@@ -57,9 +80,17 @@ export class TeamObservation {
     if (this.states.get(member)?.view.role === 'lead') this.information++
   }
 
-  wake(member: string, reason: TeamWakeReason): void {
+  accepted(member: string, sender: string): void {
+    const source = (this.states.get(member)?.view.runs ?? 0) === 0 ? 'initial' : 'follow-up'
+    if (this.activations.get(member)?.source !== 'settlement') this.activations.set(member, { source, sender })
+  }
+
+  wake(member: string, reason: TeamWakeReason, sender?: string): void {
+    if (this.activations.get(member)?.source !== 'settlement') {
+      this.activations.set(member, { source: reason, ...sender === undefined ? {} : { sender } })
+    }
     if (this.states.get(member)?.view.role !== 'lead') return
-    this.pendingWake = { member, reason }
+    if (this.pendingWake?.reason !== 'settlement') this.pendingWake = { member, reason }
     this.record({ kind: 'lead-woken', member, reason })
   }
 
@@ -76,7 +107,9 @@ export class TeamObservation {
   private workerSettlement(member: string, status: TeamSettlementStatus, state: MemberState,
     report?: TeamSettlementUsage): void {
     const evidence = settlementUsage(state, report)
-    if (state.hasSettlement && state.settledRunId === evidence.runId) return
+    if (state.hasSettlement && state.settledRunId === evidence.runId
+      && (state.settlementReported || report === undefined)) return
+    state.settlementReported = report !== undefined
     state.hasSettlement = true
     state.settledRunId = evidence.runId
     this.record({ kind: 'worker-settled', member, status,
@@ -84,7 +117,7 @@ export class TeamObservation {
   }
 
   snapshot(members: readonly AgentTeamMember[]): TeamSnapshot {
-    return deepCloneFreeze({ schemaVersion: 1, teamId: this.teamId, sequence: this.sequence,
+    return deepCloneFreeze({ schemaVersion: 1, ...this.envelope, sequence: this.sequence,
       occurredAt: new Date().toISOString(), elapsedMs: Math.max(0, performance.now() - this.origin),
       members: [...this.states.values()].map(state => {
         const current = members.find(member => member.name === state.view.name)
@@ -95,7 +128,7 @@ export class TeamObservation {
       }) })
   }
 
-  clear(): void { this.states.clear(); this.active.clear(); this.pendingWake = undefined }
+  clear(): void { this.states.clear(); this.active.clear(); this.pendingWake = undefined; this.activations.clear() }
 
   sessionOptions<T extends TeamObservedSessionOptions>(member: string, options: T): T {
     const port = options.observation ?? NOOP_OBSERVATION_PORT
@@ -114,16 +147,31 @@ export class TeamObservation {
   }
 
   private observe(member: string, event: ObservationEvent): void {
-    const state = this.states.get(member)
-    if (state === undefined || !sameConversation(state, event)) return
+    const owner = eventOwners.get(event)
+    if (this.seen.has(event)) return
+    if (owner !== undefined && owner !== this) return
+    eventOwners.set(event, this)
+    this.seen.add(event)
+    const state = this.ensureState(member, event)
     const runId = event.correlation.runId
     if (event.name === 'sdk.agent.run') this.runEvent(member, state, event)
     if (event.name === 'sdk.model.call' && event.phase === 'start') {
       state.view = { ...state.view, modelCalls: state.view.modelCalls + 1 }
-      if (state.view.role === 'lead') this.leadRequest(member)
-      this.record({ kind: 'model-requested', member, runId })
+      if (state.view.role === 'lead' && sameConversation(state, event)) this.leadRequest(member)
+      this.record({ kind: 'model-requested', member, runId, ...conversation(event) })
     }
-    if (event.name === 'sdk.tool.call' && event.phase === 'end') this.input(member)
+    if (isToolEnd(event)) this.input(member)
+  }
+
+  private ensureState(member: string, event: ObservationEvent): MemberState {
+    let state = this.states.get(member)
+    if (state === undefined) {
+      this.attach({ name: member, agentId: member, kind: 'local', role: 'peer', status: 'idle', deliveries: [],
+        ...event.correlation.conversationId === undefined ? {} : { conversationId: event.correlation.conversationId } })
+      state = this.states.get(member)!
+      state.provisional = true
+    }
+    return state
   }
 
   private leadRequest(member: string): void {
@@ -140,16 +188,18 @@ export class TeamObservation {
     const runId = event.correlation.runId
     if (event.phase === 'start') {
       this.active.add(runId)
-      state.runId = runId
-      state.lastUsage = undefined
+      if (sameConversation(state, event)) { state.runId = runId; state.lastUsage = undefined }
       state.view = { ...state.view, status: 'running', startedAt: event.occurredAt,
         runs: state.view.runs + 1, activeRuns: state.view.activeRuns + 1 }
-      this.record({ kind: 'member-started', member, runId })
+      const activation = this.activations.get(member) ?? { source: state.view.runs === 1 ? 'initial' : 'follow-up' }
+      this.activations.delete(member)
+      this.record({ kind: 'member-started', member, runId, activation,
+        ...event.correlation.conversationId === undefined ? {} : { conversationId: event.correlation.conversationId } })
     } else if (event.phase === 'end' && this.active.delete(runId)) {
       const usage = event.data.usage as unknown as RunUsageReport
       const status = event.data.status as 'success' | 'error' | 'aborted' | 'rejected' | 'unknown'
       const durationMs = typeof event.data.durationMs === 'number' ? event.data.durationMs : 0
-      state.lastUsage = usage
+      if (sameConversation(state, event)) state.lastUsage = usage
       state.view = { ...state.view, settledAt: event.occurredAt,
         status: settledStatus(state.view.status, status),
         durationMs: state.view.durationMs + durationMs, activeRuns: Math.max(0, state.view.activeRuns - 1),
@@ -196,4 +246,12 @@ function snapshotStatus(status: string): TeamMemberSnapshot['status'] {
   if (status === 'success') return 'idle'
   if (status === 'aborted') return 'cancelled'
   return status === 'unknown' ? 'unknown' : 'failed'
+}
+
+function conversation(event: ObservationEvent): { conversationId?: string } {
+  return event.correlation.conversationId === undefined ? {} : { conversationId: event.correlation.conversationId }
+}
+
+function isToolEnd(event: ObservationEvent): boolean {
+  return event.name === 'sdk.tool.call' && event.phase === 'end'
 }

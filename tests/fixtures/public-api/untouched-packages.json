@@ -380,7 +380,7 @@
           "withRetry",
           "withoutRunReport"
         ],
-        "declarationSha256": "3217fcb8d191d14d887ea191a15eaa129708d56cb1415daf261935987e234ec5"
+        "declarationSha256": "022580067aa1a23892990ad6f65c8edd1d799c80d33113d41b3c59eb40538c79"
       },
       "./agent": {
         "exports": [
@@ -574,12 +574,15 @@
           "SurfaceOp",
           "TOOL_ERROR_CODES",
           "TOOL_REGISTRY_ERROR_CODES",
+          "TeamActivation",
           "TeamMemberAttachmentOptions",
           "TeamMemberSnapshot",
           "TeamPort",
           "TeamSessionPort",
           "TeamSettlementStatus",
+          "TeamSettlementUsage",
           "TeamSnapshot",
+          "TeamSpawnRejection",
           "TeamTimelineData",
           "TeamTimelineEvent",
           "TeamToolAccess",
@@ -699,7 +702,7 @@
           "validateSkillSource",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "849294cdeb98b6996bac0c7102eebb8efb53c6d1611763db43fdf093083232a7"
+        "declarationSha256": "91e67a69af104c169205797d7e6d5da233dcddd61e177a0502616ac1d5d3770f"
       },
       "./memory": {
         "exports": [

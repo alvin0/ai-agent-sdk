@@ -1,4 +1,6 @@
 /** Codex-style dynamic worker creation and delegation over AgentTeam. */
+import type { TeamSnapshot } from './team-timeline.ts'
+import { observeTeamSession, recordTeamTimeline } from './team-observation-internal.ts'
 
 import { awaitManagedWorker } from './managed-await.ts'
 import { ManagedModelSurface } from './managed-model-surface.ts'
@@ -79,7 +81,6 @@ export class ManagedAgentTeam {
   private joining = false
   private invocation: { signal: AbortSignal | undefined; workers: Set<WorkerRuntime> } | undefined
   private readonly roles: Map<string, ManagedAgentRole>
-
   constructor(options: ManagedAgentTeamOptions) {
     this.options = options
     this.maxWorkers = positiveInteger(options.maxWorkers ?? 7, 'maxWorkers')
@@ -118,7 +119,7 @@ export class ManagedAgentTeam {
           || [...this.workerRuntimes.values()].some(runtime => this.workerBusy(runtime))),
       deferReports: () => this.settlements.deferReports(),
       flushReports: () => this.settlements.flushReports(),
-      yielded: reason => this.team.recordTimeline({ kind: 'lead-yielded', member: this.leadName, reason }),
+      yielded: reason => recordTeamTimeline(this.team, { kind: 'lead-yielded', member: this.leadName, reason }),
     })
     this.execution = new ManagedWorkerExecution({
       options, team: this.team, signal: this.lifecycle.signal, workerRuntimes: this.workerRuntimes,
@@ -217,7 +218,7 @@ export class ManagedAgentTeam {
   }
 
   private createLeadSession(options: ManagedAgentTeamOptions): AgentSession {
-    return options.lead.createSession(this.team.observeSession(this.leadName, {
+    return options.lead.createSession(observeTeamSession(this.team, this.leadName, {
       ...options.leadSessionOptions,
       runtimeLimits: { ...options.leadSessionOptions?.runtimeLimits,
         finalizeSteps: options.leadSessionOptions?.runtimeLimits?.finalizeSteps ?? 0 },
@@ -258,9 +259,11 @@ export class ManagedAgentTeam {
       const execute = () => this.lead.run(input, invocation)
       const response = this.collaboration === undefined ? await execute()
         : await this.collaboration.runLead(execute, combineSignals(invocation.signal, this.lifecycle.signal))
+      this.finalBoundary('lead-returned')
       if (!this.joining) return response
       await this.whenQuiet(combineSignals(invocation.signal, this.lifecycle.signal))
       this.settlements.throwLeadFailure()
+      this.finalBoundary('team-joined')
       return this.settlements.latestResponse ?? response
     } finally {
       this.joining = false
@@ -273,6 +276,12 @@ export class ManagedAgentTeam {
     }
   }
 
+  private finalBoundary(kind: 'lead-returned' | 'team-joined'): void {
+    recordTeamTimeline(this.team, { kind, member: this.leadName,
+      busy: [...this.workerRuntimes.values()].filter(runtime => this.workerBusy(runtime)).length,
+      preparing: this.preparing.size })
+  }
+
   steer(text: string): boolean {
     this.lifecycle.signal.throwIfAborted()
     this.lead.inject(text)
@@ -283,11 +292,9 @@ export class ManagedAgentTeam {
     }
     return true
   }
-
   spawn(request: ManagedAgentSpawnRequest, signal?: AbortSignal): Promise<ManagedAgentWorker> {
     return this.spawning.spawn(request, signal)
   }
-
   async whenQuiet(signal?: AbortSignal): Promise<void> {
     return joinManagedTeam({
       settlements: this.settlements, team: this.team, leadName: this.leadName, lead: () => this.lead,
@@ -298,17 +305,14 @@ export class ManagedAgentTeam {
       joinCollaboration: signal => this.collaboration?.onLeadEnd(true, signal),
     }, signal)
   }
-
   private needsSynthesis(): boolean {
     return this.options.autoLeadCoordination !== false && this.lead.lastOutcome()?.yielded === true
   }
-
   /** Team metadata and completed-run usage, including retained/closed members. */
-  snapshot() { return this.team.snapshot() }
+  snapshot(): TeamSnapshot { return this.team.snapshot() }
   workers(): readonly ManagedAgentWorker[] {
     return Object.freeze([...this.workerRuntimes.values()].map(runtime => managedWorkerView(runtime)))
   }
-
   async awaitWorker(
     name: string,
     options: { readonly timeoutMs?: number; readonly signal?: AbortSignal } = {},
@@ -318,7 +322,6 @@ export class ManagedAgentTeam {
     if (runtime === undefined) throw new Error(`unknown managed worker '${address}'`)
     return awaitManagedWorker(runtime, options)
   }
-
   async closeWorker(
     name: string,
     reason: unknown = new Error('managed worker closed'),
@@ -331,9 +334,7 @@ export class ManagedAgentTeam {
     this.modelInput.cancel(address)
     runtime.closeTask ??= this.closeAndReport(runtime, reason)
     return runtime.closeTask
-
   }
-
   private closeAndReport(runtime: WorkerRuntime, reason: unknown): Promise<ManagedAgentWorkerStatus> {
     const task = closeManagedWorker(runtime, reason, {
       team: this.team, scheduling: this.scheduling, closeTimeoutMs: this.closeTimeoutMs,
@@ -346,7 +347,6 @@ export class ManagedAgentTeam {
     this.closingWorkers.add(task)
     return task
   }
-
   dispose(reason: unknown = new Error('managed agent team disposed')): Promise<void> {
     if (this.disposeTask !== undefined) return this.disposeTask
     this.lifecycle.abort(reason)
@@ -360,7 +360,6 @@ export class ManagedAgentTeam {
     ]).then(() => undefined)
     return this.disposeTask
   }
-
   removeWorker(name: string): void {
     const address = memberName(name)
     const runtime = this.workerRuntimes.get(address)
@@ -372,7 +371,6 @@ export class ManagedAgentTeam {
     this.team.detach(address)
     this.workerRuntimes.delete(address)
   }
-
   private controlTools(): readonly ToolDefinition<any>[] {
     const controls = this.options.modelToolSurface === 'legacy' ? managedControlTools : leanControlTools
     return controls({

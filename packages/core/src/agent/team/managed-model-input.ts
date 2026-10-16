@@ -1,4 +1,5 @@
 /** Serializes model follow-ups and binds reports to their own run responses. */
+import { recordTeamTimeline } from './team-observation-internal.ts'
 import { asJson, failureOf, recordEvidence } from './managed-outcomes.ts'
 import type { AgentMemberOutcome } from './types.ts'
 import type { AgentResponse } from '../define/session.ts'
@@ -53,7 +54,7 @@ export class ManagedModelInput {
   enqueue(from: string, target: string, message: string, interrupt: boolean): void {
     this.host.signal.throwIfAborted()
     if (this.pendingInputs >= this.host.maxPendingInputs) {
-      this.host.team.recordTimeline({ kind: 'budget', member: from, budget: 'pending-inputs',
+      recordTeamTimeline(this.host.team, { kind: 'budget', member: from, budget: 'pending-inputs',
         action: 'exhausted', used: this.pendingInputs, limit: this.host.maxPendingInputs })
       throw new Error('Wait for a worker result before sending more tasks.')
     }

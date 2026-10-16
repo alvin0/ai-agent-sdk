@@ -1,6 +1,8 @@
+import { createCoreSpan as internalSpan, type ObservationEvent as InternalEvent } from '../../packages/core/src/observation/index.ts'
+import { TeamObservation } from '../../packages/core/src/agent/team/team-observation.ts'
 import { describe, expect, it, vi } from 'vitest'
 import { createCoreSpan, ModelRegistry } from '@alvin0/ai-agent-sdk-core'
-import type { GenerateOptions, ObservationEvent, StreamChunk } from '@alvin0/ai-agent-sdk-core'
+import type { GenerateOptions, StreamChunk } from '@alvin0/ai-agent-sdk-core'
 import type { AgentTeamEvent, TeamTimelineEvent } from '@alvin0/ai-agent-sdk-core/agent'
 import { create, deferred, GatedTeam, tool } from './team-push-join.fixture.ts'
 
@@ -114,6 +116,8 @@ describe('host team timeline and snapshots', () => {
       runs: 3, modelCalls: 3, activeRuns: 0, usage: { reported: { totalTokens: 36 }, authoritative: true },
     })
     expect(timeline(events).filter(event => event.kind === 'member-settled')).toHaveLength(3)
+    expect(timeline(events).filter(event => event.kind === 'member-started' && event.member === 'w').at(-1))
+      .toMatchObject({ activation: { source: 'follow-up', sender: 'lead' } })
   })
 
   it('keeps timeout status and missing usage explicit', async () => {
@@ -154,21 +158,21 @@ describe('host team timeline and snapshots', () => {
   })
 
   it('preserves audit capture/checkpoint return values and absent checkpoint policy', async () => {
-    const team = create(new GatedTeam(), { autoLeadCoordination: false })
+    const observation = new TeamObservation('test', () => {})
     const receipt = { eventId: 'test', status: 'accepted' as const, durable: true,
       boundary: 'local-durable' as const }
-    const capture = vi.fn((_event: ObservationEvent) => receipt)
-    const checkpoint = vi.fn(async (_event: ObservationEvent) => receipt)
-    const options = team.team.observeSession('lead', { registry: new ModelRegistry(), observation: {
-      mode: 'audit', openSpan: createCoreSpan, capture, checkpoint,
+    const capture = vi.fn((_event: InternalEvent) => receipt)
+    const checkpoint = vi.fn(async (_event: InternalEvent) => receipt)
+    const options = observation.sessionOptions('lead', { registry: new ModelRegistry(), observation: {
+      mode: 'audit', openSpan: internalSpan, capture, checkpoint,
     } })
     const event = { name: 'sdk.log', correlation: { runId: 'test' } } as never
     expect(options.observation.capture(event)).toBe(receipt)
     expect(await options.observation.checkpoint!(event)).toBe(receipt)
     expect(capture).toHaveBeenCalledTimes(1)
     expect(checkpoint).toHaveBeenCalledTimes(1)
-    const without = team.team.observeSession('lead', { registry: new ModelRegistry(), observation: {
-      mode: 'audit', openSpan: createCoreSpan, capture,
+    const without = observation.sessionOptions('lead', { registry: new ModelRegistry(), observation: {
+      mode: 'audit', openSpan: internalSpan, capture,
     } })
     expect(without.observation).not.toHaveProperty('checkpoint')
   })

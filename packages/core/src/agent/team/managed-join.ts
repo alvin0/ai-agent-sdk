@@ -1,4 +1,5 @@
 /** Push-driven join and bounded synthesis, shared by managed model surfaces. */
+import { recordTeamTimeline } from './team-observation-internal.ts'
 import { createUserMessage } from '../../message/index.ts'
 import type { AgentSession } from '../define/session.ts'
 import type { AgentTeam } from './team.ts'
@@ -49,8 +50,8 @@ export async function joinManagedTeam(host: JoinHost, signal?: AbortSignal): Pro
 
 function wakeForSynthesis(host: JoinHost, synthesis: ManagedSynthesisGuard): void {
   try { synthesis.wake() } catch (error) {
-    host.team.recordTimeline({ kind: 'budget', member: host.leadName, budget: 'synthesis',
-      action: 'exhausted', used: 3, limit: 3 })
+    if (synthesis.exhausted) recordTeamTimeline(host.team, { kind: 'budget', member: host.leadName, budget: 'synthesis',
+      action: 'exhausted', used: synthesis.used, limit: synthesis.limit })
     throw error
   }
   // A yield is provisional even when its last worker settled between the

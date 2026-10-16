@@ -106,6 +106,7 @@ async function runAgent(job: Job, workspace: Workspace, collector: Collector,
     workerSessionOptionsFactory: request => collector.options(request.name),
     workerTimeoutMs: job.workerTimeoutMs ?? job.timeoutMs, workerTeamTools: 'full',
   })
+  collector.rootTeamId = team.team.id
   try {
     const response = await team.run(workspace.task.prompt, { signal })
     collector.orphanWorkers = outstandingWorkers(team)

@@ -6,15 +6,29 @@ import type { OperationStatus } from '../../observation/event.ts'
 export type TeamWakeReason = 'settlement' | 'synthesis' | 'steering' | 'message' | 'host'
 export type TeamSettlementStatus = 'completed' | 'failed' | 'timeout' | 'cancelled'
 
+export interface TeamActivation {
+  readonly source: TeamWakeReason | 'initial' | 'follow-up'
+  readonly sender?: string
+}
+export type TeamSpawnRejection = 'capacity' | 'duplicate' | 'invalid' | 'setup'
+
 export type TeamTimelineData =
   | { readonly kind: 'spawn-requested'; readonly member: string; readonly context: 'fresh' | 'fork' }
-  | { readonly kind: 'spawn-failed'; readonly member: string }
-  | { readonly kind: 'member-started'; readonly member: string; readonly runId: string }
+  | { readonly kind: 'spawn-accepted'; readonly member: string }
+  | { readonly kind: 'spawn-rejected'; readonly member: string; readonly reason: TeamSpawnRejection;
+      readonly code: string; readonly busy: number; readonly preparing: number; readonly limit: number }
+  | { readonly kind: 'spawn-failed'; readonly member: string; readonly reason: 'setup'; readonly code: string }
+  | { readonly kind: 'slot-released' | 'member-closed'; readonly member: string }
+  | { readonly kind: 'lead-returned' | 'team-joined'; readonly member: string;
+      readonly busy: number; readonly preparing: number }
+  | { readonly kind: 'member-started'; readonly member: string; readonly runId: string;
+      readonly conversationId?: string; readonly activation: TeamActivation }
   | { readonly kind: 'member-settled'; readonly member: string; readonly runId: string;
       readonly status: OperationStatus; readonly durationMs: number; readonly usage: RunUsageReport }
   | { readonly kind: 'worker-settled'; readonly member: string; readonly status: TeamSettlementStatus;
       readonly runId?: string; readonly usage?: RunUsageReport }
-  | { readonly kind: 'model-requested'; readonly member: string; readonly runId: string }
+  | { readonly kind: 'model-requested'; readonly member: string; readonly runId: string;
+      readonly conversationId?: string }
   | { readonly kind: 'lead-yielded'; readonly member: string; readonly reason: 'host' | 'workers' | 'capacity' }
   | { readonly kind: 'lead-woken'; readonly member: string; readonly reason: TeamWakeReason }
   | { readonly kind: 'wasted-wake'; readonly member: string; readonly reason: 'no-new-team-information' }
@@ -32,7 +46,9 @@ export type TeamTimelineEvent = TeamTimelineData & {
   readonly type: 'team-timeline'
   readonly schemaVersion: 1
   readonly teamId: string
-  /** Monotonic within this team instance, including reentrant observers. */
+  readonly parentTeamId?: string
+  readonly depth: number
+  /** Monotonic within this team instance. Consumers must sort by sequence; observers may reenter. */
   readonly sequence: number
   readonly occurredAt: string
   readonly elapsedMs: number
@@ -59,6 +75,8 @@ export interface TeamMemberSnapshot {
 export interface TeamSnapshot {
   readonly schemaVersion: 1
   readonly teamId: string
+  readonly parentTeamId?: string
+  readonly depth: number
   readonly sequence: number
   readonly occurredAt: string
   readonly elapsedMs: number

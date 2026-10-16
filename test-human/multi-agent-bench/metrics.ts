@@ -8,6 +8,7 @@ export interface Limits { maxTotalTokens: number; maxTurns: number; maxToolCalls
 export const defaultLimits: Limits = { maxTotalTokens: 1500000, maxTurns: 240, maxToolCalls: 320 }
 export interface Metrics {
   teamMetricsSource?: 'timeline-v1' | 'inferred'
+  callMetricsSource?: 'timeline-v1' | 'model-events'
   usageMetricsSource?: 'team-ledger' | 'model-events'
   inputTokens: number | null
   outputTokens: number | null
@@ -28,6 +29,12 @@ export interface Metrics {
   toolCalls: number
   capHits: { tokens: boolean; turns: boolean; toolCalls: boolean }
   spawns: number
+  spawnAttempts?: number
+  spawnRejected?: number
+  wastedWakes?: number
+  memberMetrics?: MemberMetrics[]
+  /** Total reported input buckets per root lead call; null when usage is absent. */
+  leadCallInputTokens?: (number | null)[]
   wastedLeadTurns: number
   wallMs: number
   wallActiveMs?: number
@@ -36,6 +43,15 @@ export interface Metrics {
   retryWallWaitMs?: number
   retryScheduledWaitMs?: number
   errors: string[]
+}
+export interface MemberMetrics {
+  member: string
+  conversationId?: string
+  calls: number
+  inputTokens: number
+  cachedInputTokens: number
+  cacheWriteTokens: number
+  outputTokens: number
 }
 const numeric = (value: unknown) => typeof value === 'number' ? value : 0
 /** SDK input, cache reads, cache writes and output are disjoint buckets. Writes cost full weight. */
@@ -103,12 +119,18 @@ export function evidenceFingerprint(messages: readonly Message[]): string {
 
 /** Structural adapter: this harness also runs against SDK branches without timeline types. */
 export interface BenchTeamEvent {
-  type: 'team-timeline'; schemaVersion: 1; teamId: string; sequence: number; kind: string; member: string
+  type: string; schemaVersion?: 1; teamId: string; sequence?: number; kind?: string; member: string
+  parentTeamId?: string
+  depth?: number
+  conversationId?: string
+  reason?: string
+  message?: { id: string; sender: string; target: string; delivery: string; createdAt: string }
   runId?: string
   usage?: { reported: Record<string, unknown>; authoritative: boolean; coverage: { logicalCalls: number } }
 }
 
 export class Collector {
+  rootTeamId: string | undefined
   readonly teamEvents: BenchTeamEvent[] = []
   private readonly teamSequences = new Map<string, Set<number>>()
   readonly events: { member: string; event: ObservationEvent }[] = []
@@ -134,14 +156,36 @@ export class Collector {
 
   /** Prefer SDK-owned facts when present; preserve historical evidence inference on older branches. */
   teamEvent(event: unknown): void {
-    if (!object(event) || event.type !== 'team-timeline' || event.schemaVersion !== 1
-      || typeof event.teamId !== 'string' || typeof event.sequence !== 'number'
+    if (!object(event)) return
+    if (event.type !== 'team-timeline') { this.lifecycleEvent(event); return }
+    if (event.schemaVersion !== 1 || typeof event.teamId !== 'string' || typeof event.sequence !== 'number'
       || typeof event.kind !== 'string' || typeof event.member !== 'string') return
+    if (this.rootTeamId === undefined && (event.depth === undefined || event.depth === 0)) {
+      this.rootTeamId = event.teamId
+    }
     let seen = this.teamSequences.get(event.teamId)
     if (seen === undefined) this.teamSequences.set(event.teamId, seen = new Set())
     if (seen.has(event.sequence)) return
     seen.add(event.sequence)
     this.teamEvents.push(event as unknown as BenchTeamEvent)
+  }
+
+  private lifecycleEvent(event: Record<string, unknown>): void {
+    if (event.type === 'message-accepted' && object(event.message)) {
+      const { id, teamId, sender, target, delivery, createdAt } = event.message
+      if ([id, teamId, sender, target, delivery, createdAt].every(value => typeof value === 'string')) {
+        this.teamEvents.push({ type: 'message-accepted', teamId, member: target,
+          message: { id, sender, target, delivery, createdAt } } as BenchTeamEvent)
+      }
+    } else if (typeof event.type === 'string' && event.type.startsWith('member-run-')
+      && typeof event.member === 'string') {
+      const response = object(event.response) ? event.response : undefined
+      const report = object(response?.report) ? response.report : undefined
+      const outcome = object(response?.outcome) ? response.outcome : undefined
+      this.teamEvents.push({ type: event.type, teamId: this.rootTeamId ?? '', member: event.member,
+        ...typeof report?.runId === 'string' ? { runId: report.runId } : {},
+        ...typeof outcome?.yielded === 'boolean' ? { yielded: outcome.yielded } : {} })
+    }
   }
 
   private hit(cap: keyof Collector['capHits']) {
@@ -225,11 +269,12 @@ export class Collector {
       const reported = event.data.reported as Record<string, unknown> | undefined
       return total + numeric(reported?.[key])
     }, 0)
-    const timeline = this.teamEvents
+    const timeline = this.teamEvents.filter(event => event.type === 'team-timeline')
     const calls = timeline.filter(event => event.kind === 'model-requested')
     const settlements = timeline.filter(event => event.kind === 'member-settled' && event.usage !== undefined)
     // A timeout may end before a run terminal arrives. Keep canonical partial evidence in that case.
-    const timelineUsage = calls.length > 0 && (starts.length === 0 || calls.length === starts.length)
+    const timelineCalls = calls.length > 0 && calls.length === starts.length
+    const timelineUsage = timelineCalls
       && settlements.reduce((n, event) => n + numeric(event.usage?.coverage?.logicalCalls), 0) === calls.length
     const preferredSum = (key: string) => timelineUsage
       ? settlements.reduce((n, event) => n + numeric(event.usage?.reported[key]), 0) : sum(key)
@@ -240,7 +285,7 @@ export class Collector {
     const reportedTokens = counts.reduce((total, count) => total + count.raw, 0)
     const reportedCostWeightedTokens = counts.reduce((total, count) => total + count.weighted, 0)
     const retryWait = retryWaitMetrics(this.retryWaits)
-    return { teamMetricsSource: timeline.length > 0 ? 'timeline-v1' : 'inferred',
+    return { callMetricsSource: timelineCalls ? 'timeline-v1' : 'model-events', teamMetricsSource: timeline.length > 0 ? 'timeline-v1' : 'inferred',
       usageMetricsSource: timelineUsage ? 'team-ledger' : 'model-events', wallActiveMs: Math.max(0, wallMs - retryWait.union), modelRetries: this.modelRetries,
       retryWaitMs: retryWait.total, retryWallWaitMs: retryWait.union,
       retryScheduledWaitMs: this.retryScheduledWaitMs, inputTokens: input, outputTokens: output,
@@ -250,14 +295,56 @@ export class Collector {
       reportedTokens, usageComplete: timelineUsage ? settlements.every(event => event.usage?.authoritative) : usageComplete,
       usageIncomplete: timelineUsage ? settlements.some(event => !event.usage?.authoritative) : !usageComplete,
       orphanWorkers: this.orphanWorkers, orphanWorkersAfterGrace: this.orphanWorkersAfterGrace,
-      leadModelCalls: timeline.length > 0 ? calls.filter(event => event.member === 'lead').length
-        : starts.filter(s => s.member === 'lead').length,
-      totalModelCalls: timeline.length > 0 ? calls.length : starts.length,
+      leadModelCalls: timelineCalls ? calls.filter(event => event.member === 'lead'
+        && event.teamId === this.rootTeamId && this.isRootLead(event)).length
+        : starts.filter(item => this.isRootLead(item)).length,
+      totalModelCalls: timelineCalls ? calls.length : starts.length,
       toolCalls: this.tools.length, capHits: { ...this.capHits },
-      spawns: timeline.length > 0 ? timeline.filter(event => event.kind === 'spawn-requested').length : this.spawns,
-      wastedLeadTurns: timeline.length > 0 ? timeline.filter(event => event.kind === 'wasted-wake').length
-        : this.requests.filter(r => r.repeated).length, wallMs, errors: [...this.errors] }
+      spawns: timeline.filter(event => event.kind === 'spawn-accepted').length || this.spawns,
+      spawnAttempts: timeline.length > 0 ? timeline.filter(event => event.kind === 'spawn-requested'
+        || event.kind === 'spawn-rejected' && event.reason === 'invalid').length : this.spawns,
+      spawnRejected: timeline.filter(event => event.kind === 'spawn-rejected').length,
+      wastedLeadTurns: this.requests.filter(r => r.repeated).length,
+      wastedWakes: timeline.filter(event => event.kind === 'wasted-wake' && event.teamId === this.rootTeamId).length,
+      memberMetrics: this.memberMetrics(), leadCallInputTokens: starts.filter(item => this.isRootLead(item)).map(start => {
+        const end = ends.find(item => item.event.correlation?.modelCallId === start.event.correlation?.modelCallId
+          && item.event.correlation?.runId === start.event.correlation?.runId)
+        const usage = end?.event.data.reported as Record<string, unknown> | undefined
+        return usage === undefined ? null : numeric(usage.inputTokens) + numeric(usage.cacheReadTokens)
+          + numeric(usage.cacheWriteTokens)
+      }), wallMs, errors: [...this.errors] }
   }
+  private isRootLead(item: { member: string; event?: ObservationEvent; conversationId?: string }): boolean {
+    const first = this.events.find(({ member, event }) => member === 'lead' && event.name === 'sdk.agent.run'
+      && event.phase === 'start') ?? this.events.find(({ member }) => member === 'lead')
+    const conversationId = item.event?.correlation?.conversationId ?? item.conversationId
+    return item.member === 'lead' && (conversationId === undefined
+      || conversationId === first?.event.correlation?.conversationId)
+  }
+
+  private memberMetrics(): MemberMetrics[] {
+    const members = new Map<string, MemberMetrics>()
+    for (const { member, event } of this.events) {
+      if (event.name !== 'sdk.model.call') continue
+      const conversationId = event.correlation?.conversationId
+      const key = JSON.stringify([member, conversationId])
+      let aggregate = members.get(key)
+      if (aggregate === undefined) {
+        aggregate = { member, ...conversationId === undefined ? {} : { conversationId },
+          calls: 0, inputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 0 }
+        members.set(key, aggregate)
+      }
+      if (event.phase === 'start') aggregate.calls++
+      if (event.phase !== 'end') continue
+      const usage = event.data.reported as Record<string, unknown> | undefined
+      aggregate.inputTokens += numeric(usage?.inputTokens)
+      aggregate.cachedInputTokens += numeric(usage?.cacheReadTokens)
+      aggregate.cacheWriteTokens += numeric(usage?.cacheWriteTokens)
+      aggregate.outputTokens += numeric(usage?.outputTokens)
+    }
+    return [...members.values()]
+  }
+
 }
 
 export function errorMessage(error: unknown): string {
