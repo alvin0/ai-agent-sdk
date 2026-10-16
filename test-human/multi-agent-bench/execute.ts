@@ -1,7 +1,9 @@
 import { fileURLToPath } from 'node:url'
 import * as agent from '../../packages/core/dist/agent.js'
-import { ModelRegistry, ReasoningEffortId } from '../../packages/core/dist/index.js'
+import { ModelRegistry, ReasoningEffortId, normalizeModelFailure,
+  type ModelAdapter } from '../../packages/core/dist/index.js'
 import type { ManagedAgentTeamOptions } from '../../packages/core/dist/agent.js'
+import { reliableAdapter, type Acquire } from './reliability.ts'
 import { settleCompletion, outstandingWorkers } from './completion.ts'
 import { FakeAdapter } from './fake.ts'
 import { Collector, defaultLimits, errorMessage, type Limits, type Metrics } from './metrics.ts'
@@ -18,7 +20,7 @@ export interface Job extends Partial<Limits> {
 export interface Result extends Job {
   kind: Task['kind']
   schemaVersion: 1
-  status: 'completed' | 'completed-orphans' | 'failed' | 'timeout' | 'skipped' | 'cap-hit'
+  status: 'completed' | 'completed-orphans' | 'failed' | 'timeout' | 'skipped' | 'cap-hit' | 'infra-failed'
   score: number
   pass: boolean
   precision?: number
@@ -29,6 +31,15 @@ export interface Result extends Job {
   artifacts: Record<string, string>
   graderError?: string
   error?: string
+  infraFailures?: Collector['infraFailures']
+  attempts?: RunAttempt[]
+}
+export interface RunAttempt {
+  attempt: number; status: string; file: string; metrics: Metrics | null; error?: string
+}
+export interface ExecutionOptions {
+  adapterFactory?: (job: Job, task: Task) => ModelAdapter | Promise<ModelAdapter>
+  acquire?: Acquire
 }
 export const instructions = 'Complete the task using workspace evidence and the available tools. '
   + 'Write the requested artifacts, verify your work, then give a concise completion report. '
@@ -69,9 +80,9 @@ async function adapter(job: Job, task: Task) {
     requestTimeoutMs: 90000, streamIdleTimeoutMs: 45000 })
 }
 
-async function runAgent(job: Job, workspace: Workspace, collector: Collector, signal: AbortSignal) {
-  const registry = new ModelRegistry()
-  registry.registerAdapter([job.provider], await adapter(job, workspace.task))
+async function runAgent(job: Job, workspace: Workspace, collector: Collector,
+  runtime: { signal: AbortSignal; registry: ModelRegistry }) {
+  const { signal, registry } = runtime
   const tools = workspaceTools(workspace)
   const definition = (name: string) => agent.defineAgent({ id: name, provider: job.provider, model: job.model,
     effort: ReasoningEffortId('medium'), mode: 'basic',
@@ -107,7 +118,8 @@ async function runAgent(job: Job, workspace: Workspace, collector: Collector, si
   } finally { await team.dispose(); await team.team.dispose() }
 }
 
-export async function execute(job: Job, parent?: string): Promise<{ result: Result; audit: Collector }> {
+export async function execute(job: Job, parent?: string, options: ExecutionOptions = {}):
+Promise<{ result: Result; audit: Collector }> {
   job = resolvedJob(job)
   const task = selectTasks(job.suite, job.seed).find(task => task.id === job.task)
   if (!task) throw new Error(`Unknown task: ${job.task}`)
@@ -118,13 +130,18 @@ export async function execute(job: Job, parent?: string): Promise<{ result: Resu
   const timeout = AbortSignal.timeout(job.timeoutMs)
   const signal = AbortSignal.any([timeout, collector.controller.signal])
   let status: Result['status'] = 'completed', error: string | undefined
-  try { status = await runAgent(job, workspace, collector, signal) } catch (caught) {
+  try {
+    const registry = new ModelRegistry()
+    registry.registerAdapter([job.provider], reliableAdapter(
+      await (options.adapterFactory ?? adapter)(job, workspace.task), collector, options.acquire))
+    status = await runAgent(job, workspace, collector, { signal, registry })
+  } catch (caught) {
+    recordCaughtFailure(caught, collector)
     status = timeout.aborted ? 'timeout' : 'failed'
-    if (collector.controller.signal.aborted) status = 'cap-hit'
     error = caught instanceof Error ? `${caught.name}: ${caught.message}` : String(caught)
     collector.errors.push(error)
   }
-  if (collector.controller.signal.aborted) status = 'cap-hit'
+  status = finalStatus(status, collector)
   const wallMs = performance.now() - started
   try {
     const grade = await workspace.grade()
@@ -133,12 +150,21 @@ export async function execute(job: Job, parent?: string): Promise<{ result: Resu
       status, score: grade.score,
       pass: grade.pass && ['completed', 'completed-orphans'].includes(status),
       ...quality(grade),
-      checks: grade.checks, metrics, text: collector.lastText,
+      checks: grade.checks, metrics, infraFailures: collector.infraFailures, text: collector.lastText,
       artifacts: Object.fromEntries(await Promise.all((await workspace.files()).map(async path =>
         [path, await workspace.readAll(path)] as const))),
       ...('error' in grade ? { graderError: grade.error } : {}), ...(error ? { error } : {}) }
     return { result, audit: collector }
   } finally { await workspace.close() }
+}
+
+function recordCaughtFailure(error: unknown, collector: Collector) {
+  const failure = normalizeModelFailure(error)
+  collector.recordInfraFailure(failure)
+}
+function finalStatus(status: Result['status'], collector: Collector): Result['status'] {
+  if (collector.controller.signal.aborted) return 'cap-hit'
+  return collector.infraFailures.length ? 'infra-failed' : status
 }
 
 function quality(grade: { precision?: number; recall?: number }): Partial<Result> {

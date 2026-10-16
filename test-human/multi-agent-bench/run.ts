@@ -5,13 +5,17 @@ import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { collabAvailable, repoRoot, type Arm, type Job, type Result } from './execute.ts'
-import { fixtureRoot, selectTasks, defaultSeed, checkCount, type Suite } from './tasks.ts'
+import { fixtureRoot, selectTasks, defaultSeed, type Suite } from './tasks.ts'
+import { attachPermits, isPermitMessage } from './inflight.ts'
+import { runCell } from './cells.ts'
+import { Semaphore, retryPolicy, maxRunAttempts } from './reliability.ts'
 import { taskTiming } from './timing.ts'
 import { defaultLimits, type Limits } from './metrics.ts'
 
 function options(args: string[]) {
   const values = new Map<string, string>()
-  const allowed = ['arms', 'tasks', 'reps', 'provider', 'model', 'out', 'concurrency', 'timeout-ms',
+  const allowed = ['resume', 'max-inflight-model-calls', 'arms', 'tasks', 'reps', 'provider', 'model', 'out',
+    'concurrency', 'timeout-ms',
     'worker-timeout-ms', 'volume-timeout-ms', 'volume-worker-timeout-ms', 'orphan-grace-ms',
     'max-total-tokens', 'max-turns', 'max-tool-calls', 'suite', 'seed', 'codex-auth', 'label']
   for (let i = 0; i < args.length; i += 2) {
@@ -66,9 +70,21 @@ export function taskLimits(task: { limits?: Partial<Limits> }, opts: Map<string,
   return limits
 }
 
+function validateDestination(opts: Map<string, string>) {
+  if (opts.has('out') === opts.has('resume')) {
+    throw new Error('Use --out (new directory) or --resume (existing directory)')
+  }
+  if (opts.has('resume') && [...opts.keys()].some(key => !['resume', 'codex-auth'].includes(key))) {
+    throw new Error('--resume uses the saved manifest; only --codex-auth may be overridden')
+  }
+}
+function destination(opts: Map<string, string>) {
+  return { out: resolve((opts.get('out') ?? opts.get('resume'))!), resume: opts.has('resume') }
+}
+
 export function parseArgs(args: string[]) {
   const opts = options(args)
-  if (!opts.get('out')) throw new Error('--out is required and must be a new directory')
+  validateDestination(opts)
   const selected = selection(opts)
   const perTaskLimits = Object.fromEntries(selectTasks(selected.suite, selected.seed)
     .filter(task => selected.ids.includes(task.id)).map(task => [task.id, taskLimits(task, opts)]))
@@ -77,7 +93,8 @@ export function parseArgs(args: string[]) {
   const perTaskOutputBudget = Object.fromEntries(selectTasks(selected.suite, selected.seed)
     .filter(task => selected.ids.includes(task.id) && task.outputBudget).map(task => [task.id, task.outputBudget]))
   return { ...providerModel(opts), ...selected, perTaskLimits, perTaskTimeouts, perTaskOutputBudget,
-    out: resolve(opts.get('out')!),
+    ...destination(opts),
+    maxInflightModelCalls: positive(opts.get('max-inflight-model-calls') ?? '4', 'max-inflight-model-calls'),
     reps: positive(opts.get('reps') ?? '3', 'reps'),
     concurrency: positive(opts.get('concurrency') ?? '1', 'concurrency'),
     timeoutMs: positive(opts.get('timeout-ms') ?? '180000', 'timeout-ms'),
@@ -102,21 +119,23 @@ export async function treeHash(root: string): Promise<string> {
   return hash.digest('hex')
 }
 
-async function runChild(job: Job): Promise<{ result: Result; audit: unknown }> {
+async function runChild(job: Job, semaphore: Semaphore): Promise<{ result: Result; audit: unknown }> {
   const parent = await mkdtemp(join(tmpdir(), 'ma-bench-job-'))
-  try { return await childResult(job, parent) }
+  try { return await childResult(job, parent, semaphore) }
   finally { await rm(parent, { recursive: true, force: true }) }
 }
-function childResult(job: Job, parent: string): Promise<{ result: Result; audit: unknown }> {
+function childResult(job: Job, parent: string, semaphore: Semaphore): Promise<{ result: Result; audit: unknown }> {
   return new Promise((accept, reject) => {
     const child = fork(fileURLToPath(new URL('./worker.ts', import.meta.url)), [], {
       env: { ...process.env, MA_BENCH_TEMP: parent },
       execArgv: ['--experimental-strip-types'], stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
     })
+    attachPermits(child, semaphore)
     let stderr = '', settled = false
     child.stderr?.on('data', chunk => { stderr += String(chunk).slice(0, 16000 - stderr.length) })
     const timer = setTimeout(() => { child.kill('SIGKILL') }, job.timeoutMs + 15000)
-    child.once('message', (message: { result?: Result; audit?: unknown; fatal?: string }) => {
+    child.on('message', (message: { result?: Result; audit?: unknown; fatal?: string }) => {
+      if (isPermitMessage(message)) return
       if (!message.result) { reject(new Error(message.fatal ?? 'Worker returned no result')); return }
       settled = true
       clearTimeout(timer)
@@ -131,8 +150,31 @@ function childResult(job: Job, parent: string): Promise<{ result: Result; audit:
   })
 }
 
+async function configuration(args: string[]) {
+  let config = parseArgs(args)
+  const resume = config.resume
+  const saved = resume ? JSON.parse(await readFile(join(config.out, 'manifest.json'), 'utf8')) : undefined
+  if (saved) {
+    if (saved.protocol !== 'autonomous-v6') throw new Error('Resume requires a Round 6 manifest')
+    config = { ...saved, out: config.out, resume: true,
+      ...('codexAuth' in config ? { codexAuth: config.codexAuth } : {}) }
+    providerModel(new Map([['provider', config.provider], ['model', config.model]]))
+  }
+  return { config, resume, saved }
+}
+function validateResume(saved: Record<string, unknown> | undefined, hashes: Record<string, string>,
+  commit: string, features: { arms: Arm[]; collab: boolean }) {
+  if (!saved) return
+  if (Object.entries(hashes).some(([key, value]) => saved[key] !== value)
+    || saved.commit !== commit || JSON.stringify(saved.arms) !== JSON.stringify(features.arms)
+    || saved.collaborationDetected !== features.collab) {
+    throw new Error('Resume source/core/fixtures or collaboration support differs from the saved manifest')
+  }
+}
+
 export async function main(args = process.argv.slice(2)) {
-  const config = parseArgs(args)
+  const { config, resume, saved } = await configuration(args)
+  const semaphore = new Semaphore(config.maxInflightModelCalls)
   const collab = collabAvailable()
   const skippedArms = !collab && config.arms.includes('collab') ? ['collab'] : []
   const arms = config.arms.filter(arm => arm !== 'collab' || collab)
@@ -146,36 +188,28 @@ export async function main(args = process.argv.slice(2)) {
         ...('codexAuth' in config ? { codexAuth: config.codexAuth } : {}) }))
     }).flat())
   await mkdir(dirname(config.out), { recursive: true })
-  await mkdir(config.out, { recursive: false })
+  if (!resume) await mkdir(config.out, { recursive: false })
   const git = (args: string[]) => execFileSync('git', args, { encoding: 'utf8', cwd: repoRoot }).trim()
-  await writeFile(join(config.out, 'manifest.json'), JSON.stringify({ schemaVersion: 1, ...config, arms,
+  const hashes = { fixtureHash: await treeHash(fixtureRoot),
+    harnessHash: await treeHash(fileURLToPath(new URL('.', import.meta.url))),
+    coreBundleHash: await treeHash(join(repoRoot, 'packages/core/dist')) }
+  validateResume(saved, hashes, git(['rev-parse', 'HEAD']), { arms, collab })
+  if (!resume) await writeFile(join(config.out, 'manifest.json'), JSON.stringify({ schemaVersion: 1, ...config, arms,
     skippedArms, collaborationDetected: collab, startedAt: new Date().toISOString(), node: process.version,
     commit: git(['rev-parse', 'HEAD']), dirty: git(['status', '--porcelain']),
-    fixtureHash: await treeHash(fixtureRoot), harnessHash: await treeHash(fileURLToPath(new URL('.', import.meta.url))),
-    coreBundleHash: await treeHash(join(repoRoot, 'packages/core/dist')), synthetic: config.provider === 'fake',
-    protocol: 'autonomous-v5', tokenAccounting: 'uncached+cacheWrite+output+0.1*cacheRead',
+    ...hashes, synthetic: config.provider === 'fake', retryPolicy, maxRunAttempts,
+    protocol: 'autonomous-v6', tokenAccounting: 'uncached+cacheWrite+output+0.1*cacheRead',
     repetitionsBelowMergeGate: config.reps < 3 }, null, 2))
   let next = 0, failures = 0
   const consume = async () => {
     while (next < jobs.length) {
       const job = jobs[next++]!
       const id = `${job.task}.${job.arm}.${job.rep}`
-      try {
-        const { result, audit } = await runChild(job)
-        await writeFile(join(config.out, `${id}.json`), JSON.stringify(result, null, 2))
-        await writeFile(join(config.out, `${id}.audit.json`), JSON.stringify(audit, null, 2))
-        console.log(`${id}: ${result.status} score=${result.score} raw=${result.metrics.totalTokens} `
-          + `weighted=${result.metrics.costWeightedTokens}`)
-        if (!['completed', 'completed-orphans'].includes(result.status)) failures++
-      } catch (error) {
-        failures++
-        const task = selectTasks(job.suite, job.seed).find(task => task.id === job.task)!
-        await writeFile(join(config.out, `${id}.fatal.json`), JSON.stringify({ ...job, status: 'infrastructure-error',
-          kind: task.kind, checks: Array.from({ length: checkCount(task) }, () => false),
-          graderError: 'Child process unavailable; workspace grade unknown, conservative failed checklist.',
-          error: String(error), metrics: null, score: 0, pass: false }, null, 2))
-        console.error(`${id}: ${String(error)}`)
-      }
+      const { result, skipped } = await runCell(job, config.out, job => runChild(job, semaphore), resume)
+      console.log(`${id}: ${skipped ? 'resumed/skipped ' : ''}${result.status} score=${result.score} `
+        + `raw=${result.metrics?.totalTokens} weighted=${result.metrics?.costWeightedTokens} `
+        + `attempts=${result.attempts?.length ?? 1}`)
+      if (!['completed', 'completed-orphans'].includes(result.status)) failures++
     }
   }
   await Promise.all(Array.from({ length: Math.min(config.concurrency, jobs.length) }, consume))

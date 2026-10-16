@@ -26,9 +26,9 @@ The default live model is `gpt-6-luna`; a newer generation/tier must be explicit
 Older models fail validation and there is no fallback. Optional ZenMux support is not implemented.
 
 ```sh
-# Round 5 offline protocol validation: eight scaled tasks, two arms, one repetition = 16 runs.
+# Round 6 offline protocol validation: eight scaled tasks, two arms, one repetition = 16 runs.
 node test-human/multi-agent-bench/run.ts --provider fake --suite scaled \
-  --arms single,team --reps 1 --concurrency 2 --label offline-round5 --out /tmp/ma-offline-round5
+  --arms single,team --reps 1 --concurrency 2 --label offline-round6 --out /tmp/ma-offline-round6
 
 # Preserve the original six small fixtures for quick smoke checks.
 node test-human/multi-agent-bench/run.ts --provider fake --suite smoke \
@@ -195,13 +195,15 @@ separate field, executable-audit and migration tests (including perfect and half
 
 ## Results and comparison
 
-Each `*.json` contains grades, final text, metrics and a workspace snapshot. `*.audit.json` retains
-SDK observations, model-request evidence fingerprints and dispatches. Fatal process errors get
-`*.fatal.json` with unknown metrics and a conservative full failed checklist. A hard process failure
-cannot prove a workspace grade; its `graderError` marks that boundary explicitly. `manifest.json` records model/provider,
+Canonical `<task>.<arm>.<rep>.json` files contain grades, final text, metrics, attempt summaries and a
+workspace snapshot. Matching `*.audit.json` retains SDK observations, model-request evidence
+fingerprints and dispatches. Every attempt is preserved in `*.attempt-N.json` and
+`*.attempt-N.audit.json`. Fatal child errors produce `infra-failed` with unknown metrics and a
+conservative failed checklist. A hard process failure cannot prove a workspace grade; its
+`graderError` marks that boundary explicitly. Legacy `*.fatal.json` remains readable by analysis. `manifest.json` records model/provider,
 label, suite, seed, all limits, commit/dirty state, Node version, fixture/harness/core-bundle hashes,
 skipped arms, resolved `perTaskLimits`, `perTaskTimeouts`, output planning budgets, and the
-`autonomous-v5` protocol. V1–V4 results require rerunning.
+`autonomous-v6` protocol. V1–V5 results require rerunning.
 The effective limits are also present in every result/job. Task definitions may set `limits` in
 `tasks.ts`; explicit CLI caps override task values, which override the shared defaults.
 Harness hashes contain only relative bench paths and bytes; SDK bundle hashes are recorded separately.
@@ -229,7 +231,7 @@ node test-human/multi-agent-bench/analyze.ts /tmp/ma-baseline /tmp/ma-candidate
 ```
 
 The table shows per-task/per-arm, per-kind and `ALL` distributions/pass rates, and **B versus A delta %**
-for mean score, raw tokens, weighted tokens, lead calls, wall and wasted turns. Positive means an increase; lower cost
+for mean score, raw tokens, weighted tokens, lead calls, raw/active wall and wasted turns. Positive means an increase; lower cost
 is better. Zero-to-zero is 0%; nonzero from a zero baseline or unknown usage is `n/a`. JSON is
 written to `<dirB>/comparison.json` and includes mean/median statistics, cap hits, errors, timeouts, orphan counts, incomplete usage counts,
 labels and configuration/sample mismatch warnings. Aggregates weight runs equally.
@@ -237,6 +239,60 @@ labels and configuration/sample mismatch warnings. Aggregates weight runs equall
 The merge gate still needs matched **live N>=3** runs, quality at least baseline, plus quality up,
 tokens down >=15%, lead calls down >=30%, or wall down >=20%, and no task regressing by more than
 one run. The sequential control should stay at parity. Offline results establish no performance win.
+
+## Round 6: retry, infrastructure recovery and resume
+
+All arms and sessions use the SDK's `withRetry` adapter decorator: at most six provider attempts
+(first call plus five retries), starting at 1s exponential backoff with 20% jitter, up to 60s.
+`providerRetryAfterMs` takes precedence; a hint over 60s ends the call rather than retrying early.
+Retryable SDK failure codes are `RATE_LIMIT`, `SERVER`, `TIMEOUT`, `TRANSPORT` and `STREAM_CLOSED`.
+SDK streaming safety applies: content already emitted is never replayed. Authentication is not
+retried within a call. Exhausted rate-limit/server/network/auth failures (including any worker)
+contaminate the run as `infra-failed`; they are distinct from failed model work, token/tool/turn
+cap hits and ordinary job timeouts. A deadline reached during provider backoff retains that infra
+classification. Unknown errors are not guessed to be provider failures from their text.
+
+The runner retries infrastructure failures twice, using a fresh child and workspace each time.
+All three attempts remain available even when the last one succeeds. Fatal child failures also
+receive these bounded reruns. Canonical cell metrics describe the final attempt; attempt summaries
+and archives preserve earlier tokens, waits, errors and grades. Analysis excludes terminal infra
+cells from score/pass/token/latency means, reports `infraFailedRuns` and `infraFailedAttempts`
+(including recovered runs), and warns for every cell with usable N below the requested reps.
+`allAttemptsRetries` and `allAttemptsRetryWaitMs` include discarded infra attempts. Missing metrics
+remain unknown; no provider cost is inferred for a crashed child.
+
+`--max-inflight-model-calls <n>` (default **4**) bounds actual generation attempts across every
+forked job, lead and worker of one runner. The parent grants FIFO permits over IPC; streams release
+permits on success/error/cancellation, before retry backoff. Child exit releases held/queued
+permits. `--concurrency` still controls job count. Independent runner processes do not share this
+limit: launching 11 runners can still overload an account. Run one appropriately configured runner
+for an account-wide cohort. The manifest records `maxInflightModelCalls`, `retryPolicy` and
+`maxRunAttempts`, and analysis requires matching values for comparable cohorts.
+
+New metrics: `modelRetries` counts scheduled retries; `retryScheduledWaitMs` sums requested delays;
+`retryWaitMs` sums actual elapsed backoff across all calls, including truncated waits at abort.
+`retryWallWaitMs` is the union of those intervals, and
+`wallActiveMs = max(0, wallMs - retryWallWaitMs)`. Concurrent worker waits are subtracted once.
+This is a defined backoff-adjusted wall metric, not CPU time: another worker may still be doing work
+during a backoff interval. Semaphore queue wait stays in active wall. Raw `wallMs` and all job/worker
+time caps continue to include all waiting. Model-call metrics remain SDK logical calls; retries are
+separate metrics. Task prompts, tools, budgets and models are unchanged from Round 5.
+
+```sh
+# Offline example; reviewer supplies credentials for live cohorts.
+node test-human/multi-agent-bench/run.ts --provider fake --suite scaled --reps 3 \
+  --concurrency 4 --max-inflight-model-calls 4 --out /tmp/ma-round6
+node test-human/multi-agent-bench/run.ts --resume /tmp/ma-round6
+```
+
+Resume reuses the V6 manifest, skips cells with finished deterministic grades (including model
+failures/caps/timeouts), and reruns missing or infra-failed cells with up to three fresh attempts
+per invocation. Attempt numbers continue from preserved history, including an archive saved before
+an interruption in canonical publication. Successful cells are never rerun to improve their score.
+Only `--codex-auth` may accompany `--resume`; all experiment settings come from the saved manifest.
+Resume rejects changed commit, harness, fixtures, core bundle or collaboration support to avoid
+mixing cohorts. Do not use multiple runners against the same output directory. Use a new output
+directory after source/protocol changes; contaminated V5 cohorts cannot be mixed into V6 evidence.
 
 ## Copy into another worktree
 

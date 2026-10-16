@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto'
-import { createCoreSpan, type Message, type ObservationEvent } from '../../packages/core/dist/index.js'
+import { createCoreSpan, type Message, type ObservationEvent,
+  type ModelFailure } from '../../packages/core/dist/index.js'
+import { retryWaitMetrics, isInfraFailure } from './reliability.ts'
 import type { AgentSessionOptions } from '../../packages/core/dist/agent.js'
 
 export interface Limits { maxTotalTokens: number; maxTurns: number; maxToolCalls: number }
@@ -26,6 +28,11 @@ export interface Metrics {
   spawns: number
   wastedLeadTurns: number
   wallMs: number
+  wallActiveMs?: number
+  modelRetries?: number
+  retryWaitMs?: number
+  retryWallWaitMs?: number
+  retryScheduledWaitMs?: number
   errors: string[]
 }
 const numeric = (value: unknown) => typeof value === 'number' ? value : 0
@@ -100,6 +107,10 @@ export class Collector {
   readonly controller = new AbortController()
   readonly limits: Limits
   readonly capHits = { tokens: false, turns: false, toolCalls: false }
+  readonly infraFailures: ModelFailure[] = []
+  readonly retryWaits: [number, number][] = []
+  modelRetries = 0
+  retryScheduledWaitMs = 0
   lastText = ''
   spawns = 0
   orphanWorkers = 0
@@ -167,11 +178,16 @@ export class Collector {
         onTurnEnd: context => {
           if (member === 'lead') this.lastText = context.outcome.text
           if (context.outcome.reason.kind === 'error') {
+            this.recordInfraFailure(context.outcome.reason.failure)
             this.errors.push(`${member}: ${JSON.stringify(context.outcome.reason.failure)}`)
           }
         },
       },
     }
+  }
+  recordInfraFailure(failure: ModelFailure) {
+    if (isInfraFailure(failure) && !this.infraFailures.some(existing =>
+      JSON.stringify(existing) === JSON.stringify(failure))) this.infraFailures.push(failure)
   }
   toolError(member: string, call: { toolName: string; args: unknown; callId: string }, error: unknown) {
     this.toolFailures.add(`${member}:${call.callId}`)
@@ -191,7 +207,10 @@ export class Collector {
     const counts = ends.map(({ event }) => tokenCounts(event.data.reported as Record<string, unknown> | undefined))
     const reportedTokens = counts.reduce((total, count) => total + count.raw, 0)
     const reportedCostWeightedTokens = counts.reduce((total, count) => total + count.weighted, 0)
-    return { inputTokens: input, outputTokens: output,
+    const retryWait = retryWaitMetrics(this.retryWaits)
+    return { wallActiveMs: Math.max(0, wallMs - retryWait.union), modelRetries: this.modelRetries,
+      retryWaitMs: retryWait.total, retryWallWaitMs: retryWait.union,
+      retryScheduledWaitMs: this.retryScheduledWaitMs, inputTokens: input, outputTokens: output,
       cacheReadTokens, cacheWriteTokens, totalTokens: reportedTokens,
       uncachedInputTokens: input + cacheWriteTokens, cachedInputTokens: cacheReadTokens,
       costWeightedTokens: reportedCostWeightedTokens, reportedCostWeightedTokens,
