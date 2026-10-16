@@ -116,6 +116,7 @@ export interface SendAgentMessageResult {
 }
 
 export type AgentTeamEvent =
+  | import('./team-timeline.ts').TeamTimelineEvent
   | { readonly type: 'member-attached'; readonly member: AgentTeamMember }
   | { readonly type: 'member-linked'; readonly member: AgentTeamMember }
   | { readonly type: 'message-accepted'; readonly message: AgentMessageRecord }

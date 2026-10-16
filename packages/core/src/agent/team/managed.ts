@@ -9,9 +9,7 @@ import { filterToolsByDepth } from './managed-capabilities.ts'
 import type { TeamPort } from './contracts.ts'
 import { ManagedSettlements } from './managed-settlements.ts'
 import { createUserMessage } from '../../message/index.ts'
-import {
-  type AgentInput, type AgentInvocationOptions, type AgentResponse, type AgentSession,
-} from '../define/session.ts'
+import type { AgentInput, AgentInvocationOptions, AgentResponse, AgentSession } from '../define/session.ts'
 import type { ToolDefinition } from '../tool/definition.ts'
 import { AgentTeam } from './team.ts'
 import { managedLeadInstructions, managedControlTools, managedRoleSchema } from './managed-controls.ts'
@@ -93,9 +91,7 @@ export class ManagedAgentTeam {
     this.closeTimeoutMs = timeouts.closeTimeoutMs
     this.spawnTimeoutMs = timeouts.spawnTimeoutMs
     this.maxDependencyReportBytes = positiveInteger(
-      options.maxDependencyReportBytes ?? 8 * 1024,
-      'maxDependencyReportBytes',
-    )
+      options.maxDependencyReportBytes ?? 8 * 1024, 'maxDependencyReportBytes')
     if (this.maxDependencyReportBytes < 4) throw new TypeError('maxDependencyReportBytes must be at least 4')
     this.roles = managedRoles(options)
     this.team = managedControlPlane(options, this.maxWorkers)
@@ -122,6 +118,7 @@ export class ManagedAgentTeam {
           || [...this.workerRuntimes.values()].some(runtime => this.workerBusy(runtime))),
       deferReports: () => this.settlements.deferReports(),
       flushReports: () => this.settlements.flushReports(),
+      yielded: reason => this.team.recordTimeline({ kind: 'lead-yielded', member: this.leadName, reason }),
     })
     this.execution = new ManagedWorkerExecution({
       options, team: this.team, signal: this.lifecycle.signal, workerRuntimes: this.workerRuntimes,
@@ -220,7 +217,7 @@ export class ManagedAgentTeam {
   }
 
   private createLeadSession(options: ManagedAgentTeamOptions): AgentSession {
-    return options.lead.createSession({
+    return options.lead.createSession(this.team.observeSession(this.leadName, {
       ...options.leadSessionOptions,
       runtimeLimits: { ...options.leadSessionOptions?.runtimeLimits,
         finalizeSteps: options.leadSessionOptions?.runtimeLimits?.finalizeSteps ?? 0 },
@@ -235,7 +232,7 @@ export class ManagedAgentTeam {
           ? managedLeadInstructions(options) : leanLeadInstructions(options),
         ...(options.leadDescription === undefined ? {} : { description: options.leadDescription }),
       },
-    })
+    }))
   }
 
   private admitFollowup(target: string): void {
@@ -282,7 +279,7 @@ export class ManagedAgentTeam {
     this.settlements.resumeReports()
     try { this.team.notifySteer(this.leadName) } catch { /* team disposed */ }
     if (!this.lead.isRunning) {
-      try { this.team.wake(this.leadName) } catch { /* team disposed */ }
+      try { this.team.wake(this.leadName, 'steering') } catch { /* team disposed */ }
     }
     return true
   }
@@ -306,6 +303,8 @@ export class ManagedAgentTeam {
     return this.options.autoLeadCoordination !== false && this.lead.lastOutcome()?.yielded === true
   }
 
+  /** Team metadata and completed-run usage, including retained/closed members. */
+  snapshot() { return this.team.snapshot() }
   workers(): readonly ManagedAgentWorker[] {
     return Object.freeze([...this.workerRuntimes.values()].map(runtime => managedWorkerView(runtime)))
   }
@@ -366,8 +365,7 @@ export class ManagedAgentTeam {
     const address = memberName(name)
     const runtime = this.workerRuntimes.get(address)
     if (runtime === undefined) throw new Error(`unknown managed worker '${address}'`)
-    if (this.workerBusy(runtime)
-      || runtime.session.isRunning) {
+    if (this.workerBusy(runtime) || runtime.session.isRunning) {
       throw new Error(`cannot remove running managed worker '${address}'`)
     }
     this.collaboration?.closeMember(address)

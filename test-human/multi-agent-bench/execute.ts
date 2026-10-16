@@ -98,6 +98,7 @@ async function runAgent(job: Job, workspace: Workspace, collector: Collector,
   if (!factory) throw new Error('Collaboration feature unavailable')
   const team = factory({ registry, lead: definition('lead'), maxWorkers: 4,
     team: { onEvent: event => {
+      collector.teamEvent(event)
       if (event.type === 'member-attached' && event.member.name !== 'lead') collector.spawns++
     } },
     leadSessionOptions: collector.options('lead'),

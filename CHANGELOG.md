@@ -6,6 +6,9 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Breaking
 
+- `AgentTeamEvent` adds the `team-timeline` variant. Exhaustive event switches must handle it
+  (or retain a default case); existing event variants and callbacks remain supported.
+
 - Managed teams default to the lean model surface: `spawn_agent`, `send_input`, `wait_agents`,
   `close_agent`, and explicit paged `get_agent_result`. Set `modelToolSurface: 'legacy'` to retain
   the earlier names/schemas (`list_agents`, `send_message`, `followup_task`, name-based close).
@@ -43,6 +46,12 @@ All notable changes to the AI Agent SDK are documented in this file.
 - Offline benchmark fake adapters recognize lean spawn `target` results as well as legacy addresses.
 
 ### Added
+
+- Typed host team timeline through existing `AgentTeam` `onEvent`/`subscribe` hooks: spawn requests,
+  member starts/settlements with canonical usage, worker status, lead yields/wake reasons, notice
+  delivery, empty synthesis wakes, budget decisions and committed collaboration board operations.
+  Managed teams expose immutable `snapshot()` summaries of member status, timings and usage.
+  The benchmark prefers timeline facts and retains its older-SDK fallback. See `docs/team-observability.md`.
 
 - Opt-in `collaboration: true`: revision-CAS task board, compact task discovery, owner/dependency checks,
   bounded peer wakes and automatic ready/blocked notices. The board remains local and in memory.

@@ -54,3 +54,6 @@ export { managedAgentRolePresets } from './managed-roles.ts'
 export type { ManagedAgentDelegationMode } from './managed-types.ts'
 export type { ManagedTeamCollaborationOptions, CollaborationTask, CollaborationTaskView,
   CollaborationBoardSnapshot, CreateCollaborationTask, UpdateCollaborationTask } from './collaboration-types.ts'
+
+export type { TeamTimelineData, TeamTimelineEvent, TeamWakeReason, TeamSettlementStatus,
+  TeamMemberSnapshot, TeamSnapshot } from './team-timeline.ts'

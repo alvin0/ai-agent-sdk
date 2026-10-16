@@ -7,6 +7,8 @@ import type { AgentSessionOptions } from '../../packages/core/dist/agent.js'
 export interface Limits { maxTotalTokens: number; maxTurns: number; maxToolCalls: number }
 export const defaultLimits: Limits = { maxTotalTokens: 1500000, maxTurns: 240, maxToolCalls: 320 }
 export interface Metrics {
+  teamMetricsSource?: 'timeline-v1' | 'inferred'
+  usageMetricsSource?: 'team-ledger' | 'model-events'
   inputTokens: number | null
   outputTokens: number | null
   cacheReadTokens: number
@@ -99,7 +101,16 @@ export function evidenceFingerprint(messages: readonly Message[]): string {
   return createHash('sha256').update(JSON.stringify([...new Set(evidenceFacts(messages))].sort())).digest('hex')
 }
 
+/** Structural adapter: this harness also runs against SDK branches without timeline types. */
+export interface BenchTeamEvent {
+  type: 'team-timeline'; schemaVersion: 1; teamId: string; sequence: number; kind: string; member: string
+  runId?: string
+  usage?: { reported: Record<string, unknown>; authoritative: boolean; coverage: { logicalCalls: number } }
+}
+
 export class Collector {
+  readonly teamEvents: BenchTeamEvent[] = []
+  private readonly teamSequences = new Map<string, Set<number>>()
   readonly events: { member: string; event: ObservationEvent }[] = []
   readonly requests: { member: string; evidence: string; repeated: boolean }[] = []
   readonly tools: { member: string; name: string }[] = []
@@ -120,6 +131,18 @@ export class Collector {
   private leadRequested = false
   private tokens = 0
   constructor(limits: Partial<Limits> = {}) { this.limits = { ...defaultLimits, ...limits } }
+
+  /** Prefer SDK-owned facts when present; preserve historical evidence inference on older branches. */
+  teamEvent(event: unknown): void {
+    if (!object(event) || event.type !== 'team-timeline' || event.schemaVersion !== 1
+      || typeof event.teamId !== 'string' || typeof event.sequence !== 'number'
+      || typeof event.kind !== 'string' || typeof event.member !== 'string') return
+    let seen = this.teamSequences.get(event.teamId)
+    if (seen === undefined) this.teamSequences.set(event.teamId, seen = new Set())
+    if (seen.has(event.sequence)) return
+    seen.add(event.sequence)
+    this.teamEvents.push(event as unknown as BenchTeamEvent)
+  }
 
   private hit(cap: keyof Collector['capHits']) {
     this.capHits[cap] = true
@@ -202,23 +225,38 @@ export class Collector {
       const reported = event.data.reported as Record<string, unknown> | undefined
       return total + numeric(reported?.[key])
     }, 0)
-    const input = sum('inputTokens'), output = sum('outputTokens')
-    const cacheReadTokens = sum('cacheReadTokens'), cacheWriteTokens = sum('cacheWriteTokens')
-    const counts = ends.map(({ event }) => tokenCounts(event.data.reported as Record<string, unknown> | undefined))
+    const timeline = this.teamEvents
+    const calls = timeline.filter(event => event.kind === 'model-requested')
+    const settlements = timeline.filter(event => event.kind === 'member-settled' && event.usage !== undefined)
+    // A timeout may end before a run terminal arrives. Keep canonical partial evidence in that case.
+    const timelineUsage = calls.length > 0 && (starts.length === 0 || calls.length === starts.length)
+      && settlements.reduce((n, event) => n + numeric(event.usage?.coverage?.logicalCalls), 0) === calls.length
+    const preferredSum = (key: string) => timelineUsage
+      ? settlements.reduce((n, event) => n + numeric(event.usage?.reported[key]), 0) : sum(key)
+    const input = preferredSum('inputTokens'), output = preferredSum('outputTokens')
+    const cacheReadTokens = preferredSum('cacheReadTokens'), cacheWriteTokens = preferredSum('cacheWriteTokens')
+    const counts = timelineUsage ? settlements.map(event => tokenCounts(event.usage?.reported))
+      : ends.map(({ event }) => tokenCounts(event.data.reported as Record<string, unknown> | undefined))
     const reportedTokens = counts.reduce((total, count) => total + count.raw, 0)
     const reportedCostWeightedTokens = counts.reduce((total, count) => total + count.weighted, 0)
     const retryWait = retryWaitMetrics(this.retryWaits)
-    return { wallActiveMs: Math.max(0, wallMs - retryWait.union), modelRetries: this.modelRetries,
+    return { teamMetricsSource: timeline.length > 0 ? 'timeline-v1' : 'inferred',
+      usageMetricsSource: timelineUsage ? 'team-ledger' : 'model-events', wallActiveMs: Math.max(0, wallMs - retryWait.union), modelRetries: this.modelRetries,
       retryWaitMs: retryWait.total, retryWallWaitMs: retryWait.union,
       retryScheduledWaitMs: this.retryScheduledWaitMs, inputTokens: input, outputTokens: output,
       cacheReadTokens, cacheWriteTokens, totalTokens: reportedTokens,
       uncachedInputTokens: input + cacheWriteTokens, cachedInputTokens: cacheReadTokens,
       costWeightedTokens: reportedCostWeightedTokens, reportedCostWeightedTokens,
-      reportedTokens, usageComplete, usageIncomplete: !usageComplete,
+      reportedTokens, usageComplete: timelineUsage ? settlements.every(event => event.usage?.authoritative) : usageComplete,
+      usageIncomplete: timelineUsage ? settlements.some(event => !event.usage?.authoritative) : !usageComplete,
       orphanWorkers: this.orphanWorkers, orphanWorkersAfterGrace: this.orphanWorkersAfterGrace,
-      leadModelCalls: starts.filter(s => s.member === 'lead').length,
-      totalModelCalls: starts.length, toolCalls: this.tools.length, capHits: { ...this.capHits }, spawns: this.spawns,
-      wastedLeadTurns: this.requests.filter(r => r.repeated).length, wallMs, errors: [...this.errors] }
+      leadModelCalls: timeline.length > 0 ? calls.filter(event => event.member === 'lead').length
+        : starts.filter(s => s.member === 'lead').length,
+      totalModelCalls: timeline.length > 0 ? calls.length : starts.length,
+      toolCalls: this.tools.length, capHits: { ...this.capHits },
+      spawns: timeline.length > 0 ? timeline.filter(event => event.kind === 'spawn-requested').length : this.spawns,
+      wastedLeadTurns: timeline.length > 0 ? timeline.filter(event => event.kind === 'wasted-wake').length
+        : this.requests.filter(r => r.repeated).length, wallMs, errors: [...this.errors] }
   }
 }
 

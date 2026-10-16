@@ -1,3 +1,4 @@
+import type { TeamTimelineData } from './team-timeline.ts'
 import { abortable, byteLength, combineSignals, deepCloneFreeze, positiveInteger } from './common.ts'
 import { assertTaskGraph, newTask, taskError, taskId, taskReady, updateTask } from './collaboration-task-state.ts'
 import type { CollaborationBoardSnapshot, CollaborationTask, CollaborationTaskView,
@@ -7,7 +8,8 @@ interface BoardHost {
   readonly lead: string
   readonly signal: AbortSignal
   assertMember(name: string): void
-  changed(before: CollaborationBoardSnapshot, after: CollaborationBoardSnapshot, actor: string): void
+  changed(before: CollaborationBoardSnapshot, after: CollaborationBoardSnapshot, actor: string,
+    operation: Extract<TeamTimelineData, { kind: 'board-operation' }>['operation']): void
 }
 
 /** Team-owned task state. Mutations, dependency checks and revision checks share one queue. */
@@ -38,7 +40,7 @@ export class CollaborationTaskBoard {
       const task = newTask(captured)
       if (tasks.has(task.id)) taskError(`task '${task.id}' already exists`, 'TEAM_TASK_ALREADY_EXISTS')
       return task
-    }, signal)
+    }, 'create', signal)
   }
 
   update(actor: string, input: UpdateCollaborationTask, signal?: AbortSignal): Promise<CollaborationTaskView> {
@@ -47,10 +49,11 @@ export class CollaborationTaskBoard {
       const task = tasks.get(taskId(captured.id))
       if (task === undefined) taskError(`unknown task '${captured.id}'`, 'TEAM_TASK_NOT_FOUND')
       return updateTask(task, captured, { actor, lead: this.host.lead }, tasks)
-    }, signal)
+    }, captured.action, signal)
   }
 
   private transact(actor: string, mutation: (tasks: Map<string, CollaborationTask>) => CollaborationTask,
+    action: Extract<TeamTimelineData, { kind: 'board-operation' }>['operation'],
     signal?: AbortSignal): Promise<CollaborationTaskView> {
     const operation = combineSignals(this.host.signal, signal)
     const pending = this.tail.then(() => {
@@ -66,7 +69,7 @@ export class CollaborationTaskBoard {
       operation.throwIfAborted()
       this.host.assertMember(actor)
       this.state = after
-      this.host.changed(before, after, actor)
+      this.host.changed(before, after, actor, action)
       return deepCloneFreeze({ ...task, ready: taskReady(task, tasks) })
     })
     this.tail = pending.catch(() => {})

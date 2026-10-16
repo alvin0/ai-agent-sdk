@@ -336,3 +336,13 @@ through; it never logs in or supplies credential contents. Use `--provider fake 
 offline rehearsal. All normal run options (including seed, selected tasks, caps and timeouts) pass
 through unchanged. Add `collab` to `--arms` when comparing collaboration branches; unsupported
 worktrees record it as skipped, so compare that arm only where both branches support it.
+
+## Team timeline metrics
+
+`metrics.ts` consumes schema-v1 `team-timeline` events through the existing team `onEvent` hook.
+It prefers SDK spawn attempts, logical model calls, wasted synthesis wakes and complete run-ledger
+usage; older SDKs keep the existing inference fallback. Result metrics identify their sources with
+`teamMetricsSource` and `usageMetricsSource`. A timeout retains per-model partial usage when run
+terminals do not cover every call. Aggregate caps still enforce canonical events immediately.
+See [the team event contract](../../docs/team-observability.md) for exact diagnostic meanings and
+comparison limits. Copy the same harness to both branches before a live comparison.

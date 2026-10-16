@@ -205,8 +205,11 @@ export class ManagedWorkerSpawning {
   }
 
   private assertSpawnAvailable(resolved: ResolvedManagedAgentSpawnRequest): void {
+    this.host.team.recordTimeline({ kind: 'spawn-requested', member: resolved.name, context: resolved.context })
     if ([...this.host.workerRuntimes.values()].filter(runtime => this.host.workerBusy(runtime)).length
       + this.host.preparing.size >= this.host.maxWorkers) {
+      this.host.team.recordTimeline({ kind: 'budget', member: this.host.leadName,
+        budget: 'workers', action: 'exhausted', limit: this.host.maxWorkers })
       throw new Error(`managed agent team reached its ${this.host.maxWorkers}-worker limit`)
     }
     if (this.host.preparing.has(resolved.name) || this.host.workerRuntimes.has(resolved.name)
@@ -228,7 +231,7 @@ export class ManagedWorkerSpawning {
       id: definition.id, tools: [],
       ...(restricted ? { nativeTools: [], skills: [], skillIds: [] } : {}),
     })
-    return worker.createSession({
+    return worker.createSession(this.host.team.observeSession(resolved.name, {
       ...sessionOptions,
       ...(restricted ? { skills: [], experimentalPrograms: [] } : {}),
       tools: mergeTools(managedWorkerTools(this.host.options, definition, sessionOptions, role),
@@ -243,7 +246,7 @@ export class ManagedWorkerSpawning {
         instructions: this.workerInstructions(resolved, role, workerTeamTools),
         ...(resolved.specialty === undefined ? {} : { description: resolved.specialty }),
       },
-    })
+    }))
   }
 
   private workerInstructions(resolved: ResolvedManagedAgentSpawnRequest,
@@ -298,6 +301,7 @@ export class ManagedWorkerSpawning {
   private async failSpawn(
     runtime: WorkerRuntime | undefined, resolved: ResolvedManagedAgentSpawnRequest, error: unknown,
   ): Promise<boolean> {
+    this.host.team.recordTimeline({ kind: 'spawn-failed', member: resolved.name })
     if (runtime !== undefined && this.host.workerRuntimes.get(resolved.name) === runtime && !runtime.closing) {
       runtime.status = 'failed'
       runtime.error = errorMessage(error)

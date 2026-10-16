@@ -5,6 +5,7 @@ interface ManagedLeadHost {
   flushReports(): Promise<boolean>
   deferReports(): void
   onLeadEnd?(canContinue: boolean): Promise<void> | undefined
+  yielded(reason: 'host' | 'workers' | 'capacity'): void
   shouldYield(): boolean
 }
 
@@ -38,18 +39,23 @@ export class ManagedLeadCoordination {
       },
       onTurnEnd: async context => {
         const decision = await host?.onTurnEnd?.(context)
-        if (decision?.kind === 'yield') { this.host.deferReports(); return decision }
+        if (decision?.kind === 'yield') {
+          this.host.deferReports(); this.host.yielded('host'); return decision
+        }
         await this.host.onLeadEnd?.(context.canContinue)
         // A spent turn may seal appended input with a terminal fallback. Deliver
         // after it goes idle so that fallback cannot consume the synthesis wake.
         if (!context.canContinue) {
           this.host.deferReports()
-          return this.host.shouldYield() ? { kind: 'yield' as const } : undefined
+          if (!this.host.shouldYield()) return undefined
+          this.host.yielded('capacity')
+          return { kind: 'yield' as const }
         }
         // With no new information, simply yield. No timer and no polling prompt.
         const delivered = await this.host.flushReports()
         if (!delivered && this.host.shouldYield()) {
           this.host.deferReports()
+          this.host.yielded('workers')
           return { kind: 'yield' as const }
         }
         return undefined

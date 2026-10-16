@@ -42,12 +42,20 @@ export async function joinManagedTeam(host: JoinHost, signal?: AbortSignal): Pro
       .some(runtime => host.workerBusy(runtime))
     if (!busy && !host.settlements.hasPending) {
       if (!host.needsSynthesis()) return
-      synthesis.wake()
-      // A yield is provisional even when its last worker settled between the
-      // hook and agent-end. Ensure there is input for the scheduler to read.
-      host.lead().inject(createUserMessage({ source: { kind: 'app', producer: 'managed-team' },
-        content: [{ type: 'text', text: 'All workers settled — synthesize now.' }] }))
-      host.team.wake(host.leadName)
+      wakeForSynthesis(host, synthesis)
     }
   }
+}
+
+function wakeForSynthesis(host: JoinHost, synthesis: ManagedSynthesisGuard): void {
+  try { synthesis.wake() } catch (error) {
+    host.team.recordTimeline({ kind: 'budget', member: host.leadName, budget: 'synthesis',
+      action: 'exhausted', used: 3, limit: 3 })
+    throw error
+  }
+  // A yield is provisional even when its last worker settled between the
+  // hook and agent-end. Ensure there is input for the scheduler to read.
+  host.lead().inject(createUserMessage({ source: { kind: 'app', producer: 'managed-team' },
+    content: [{ type: 'text', text: 'All workers settled — synthesize now.' }] }))
+  host.team.wake(host.leadName, 'synthesis')
 }

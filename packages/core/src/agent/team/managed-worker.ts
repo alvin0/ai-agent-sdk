@@ -173,7 +173,7 @@ export class ManagedWorkerExecution {
       recordEvidence(runtime)
       this.host.team.recordOutcome(name, { kind: 'failed', message: failure,
         status: workerFailureStatus(runtime, response.outcome.reason.kind === 'aborted'),
-        ...(runtime.result === undefined ? {} : { text: runtime.result.text }) })
+        ...(runtime.result === undefined ? {} : { text: runtime.result.text }) }, response.report)
     } else {
       runtime.status = 'completed'
       runtime.result = Object.freeze({
@@ -186,7 +186,8 @@ export class ManagedWorkerExecution {
       })
       recordEvidence(runtime)
       this.host.team.recordOutcome(name, { kind: 'completed', text: response.text,
-        ...(runtime.result.structured === undefined ? {} : { structured: runtime.result.structured }) })
+        ...(runtime.result.structured === undefined ? {} : { structured: runtime.result.structured }) },
+      response.report)
     }
   }
 
