@@ -5,6 +5,7 @@ import { observeTeamSession, recordTeamTimeline } from './team-observation-inter
 import { awaitManagedWorker } from './managed-await.ts'
 import { ManagedModelSurface } from './managed-model-surface.ts'
 import { ManagedModelInput } from './managed-model-input.ts'
+import { hasSuccessfulTeamSpawn, ManagedLazyTools } from './managed-lazy-tools.ts'
 import { leanControlTools, leanLeadInstructions } from './managed-model-tools.ts'
 import { ManagedTeamCollaboration } from './managed-collaboration.ts'
 import { filterToolsByDepth } from './managed-capabilities.ts'
@@ -52,6 +53,7 @@ export class ManagedAgentTeam {
   readonly collaboration: ManagedTeamCollaboration | undefined
   private readonly modelInput: ManagedModelInput
   private readonly modelSurface: ManagedModelSurface
+  private readonly lazyTools = new ManagedLazyTools()
   private readonly sessionTeam: TeamPort
   private readonly options: ManagedAgentTeamOptions
   private readonly maxWorkers: number
@@ -140,11 +142,9 @@ export class ManagedAgentTeam {
     this.lead = this.createLeadSession(options)
     this.unguardWake = this.team.guardWake(target => this.admitFollowup(target))
   }
-
   private basePort(): TeamPort {
     return this.options.modelToolSurface === 'legacy' ? this.team : this.modelSurface.port
   }
-
   private createModelInput(): ManagedModelInput {
     const options = this.options
     return new ManagedModelInput({
@@ -157,16 +157,17 @@ export class ManagedAgentTeam {
       admit: runtime => this.admitFollowup(runtime.request.name),
     })
   }
-
   private createModelSurface(options: ManagedAgentTeamOptions): ManagedModelSurface {
     return new ManagedModelSurface({ team: this.team, options, input: this.modelInput,
+      filterCatalog: (sender, catalog) => sender === this.leadName ? this.lazyTools.filter(catalog, options, () =>
+        this.team.members().some(member => member.name !== this.leadName)
+          || hasSuccessfulTeamSpawn(this.lead.history.entries())) : catalog,
       worker: name => this.workerRuntimes.get(name),
       ...(options.collaboration ? { peerSend: (sender: string, target: string, message: string,
         delivery: { signal: AbortSignal; interrupt: boolean }) =>
         this.collaboration!.sendInput(sender, target, message, delivery) } : {}),
     })
   }
-
   private createCollaboration(options: ManagedAgentTeamOptions): ManagedTeamCollaboration | undefined {
     const basePort = this.basePort()
     return !options.collaboration ? undefined
@@ -182,12 +183,10 @@ export class ManagedAgentTeam {
           content: [{ type: 'text', text }] })),
       })
   }
-
   private workerBusy(runtime: WorkerRuntime): boolean {
     return !runtime.settledComplete || this.scheduling.workerHasWork(runtime)
       || this.modelInput.outstanding().some(job => job.name === runtime.request.name)
   }
-
   private async joinMembers(signal?: AbortSignal): Promise<void> {
     const outstanding = [...this.workerRuntimes.values()].filter(runtime => this.workerBusy(runtime))
     await abortable(Promise.all([
@@ -292,8 +291,11 @@ export class ManagedAgentTeam {
     }
     return true
   }
-  spawn(request: ManagedAgentSpawnRequest, signal?: AbortSignal): Promise<ManagedAgentWorker> {
-    return this.spawning.spawn(request, signal)
+
+  async spawn(request: ManagedAgentSpawnRequest, signal?: AbortSignal): Promise<ManagedAgentWorker> {
+    const worker = await this.spawning.spawn(request, signal)
+    this.lazyTools.disclose()
+    return worker
   }
   async whenQuiet(signal?: AbortSignal): Promise<void> {
     return joinManagedTeam({
@@ -388,7 +390,6 @@ export class ManagedAgentTeam {
       closeWorker: name => this.closeWorker(name),
     })
   }
-
 }
 
 export function createManagedAgentTeam(options: ManagedAgentTeamOptions): ManagedAgentTeam {

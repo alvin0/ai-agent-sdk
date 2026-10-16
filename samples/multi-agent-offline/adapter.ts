@@ -109,6 +109,20 @@ export class OfflineTeamAdapter extends ModelAdapter {
 
   private lead(round: number, options: GenerateOptions): StreamChunk[] {
     const collaboration = this.mode === 'collaboration'
+    // Plain delegation starts with spawn_agent only. Require the remaining
+    // controls once real spawn call/result pairs establish successful setup.
+    const blocks = options.messages.flatMap(message => message.content)
+    const spawns = new Set(blocks.flatMap(block =>
+      block.type === 'tool-call' && block.name === 'spawn_agent' ? [block.id] : []))
+    const spawned = blocks.some(block => block.type === 'tool-result'
+      && !block.isError && spawns.has(block.toolCallId))
+    if (collaboration || spawned) {
+      for (const name of ['send_input', 'wait_agents', 'close_agent', 'get_agent_result']) {
+        if (!options.tools?.some(tool => tool.name === name)) {
+          throw new Error(`Missing disclosed team control: ${name}`)
+        }
+      }
+    }
     if (collaboration && round === 1) return calls(Object.keys(NOTES).map(id => ({
       name: 'task_create', args: { id, title: `Check ${id} evidence for the cache rollout.` },
     })))

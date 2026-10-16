@@ -6,6 +6,13 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Breaking
 
+- Plain lean managed leads now expose only `spawn_agent` until their first successful host/model spawn;
+  control tools then remain visible for the team lifetime. Set `progressiveToolDisclosure: false` for
+  the exact previous eager schemas/descriptions and full strategy in the system prompt (including workers).
+  Existing team members or a successful spawn in restored lead history also disclose controls.
+  Legacy, collaboration, depth-limited leads
+  and worker catalogs remain eager. The lazy lead keeps a compact stable prompt; its first model
+  spawn result appends detailed coordination guidance once. Default lean schema descriptions are shorter.
 - Rename the unreleased benchmark metric `spawnRejected` to `spawnsRejected`. Spawn rejection
   reasons add `aborted` with code `TEAM_SPAWN_ABORTED` for pre-admission cancellation.
 

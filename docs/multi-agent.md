@@ -129,6 +129,18 @@ precedence over the spawn/default context.
 These are the default **managed lean** tools; host lifecycle APIs keep their existing
 names and richer worker views. Use the exact returned `target` for later model calls.
 
+Plain lean leads initially receive application tools and `spawn_agent` only. After the
+first successful host or model spawn, `send_input`, `wait_agents`, `get_agent_result`
+and `close_agent` become visible and stay visible for the team lifetime. A rejected
+spawn does not disclose controls. Existing team members or successful spawn call/result
+pairs in restored lead history also reveal them; hosts still own session rehydration.
+The short lead system prompt stays stable; the first successful model spawn result
+adds detailed coordination guidance once, including for parallel spawns.
+
+Set `progressiveToolDisclosure: false` to restore the previous eager schemas,
+descriptions and full system guidance. Collaboration, legacy, depth-limited leads and
+worker catalogs remain eager. At the depth limit, spawning is unavailable.
+
 | Tool | Model arguments and behavior |
 | --- | --- |
 | `spawn_agent` | `{ task, context?, role?, writes?, dependsOn? }`; returns `{ target, status }`, not the result. `role` is offered only when the host declares roles. |
@@ -258,6 +270,7 @@ The [Unreleased Breaking section](../CHANGELOG.md#breaking) is authoritative.
 | Earlier expectation | New behavior / migration |
 | --- | --- |
 | Model uses `list_agents`, `send_message`, `followup_task`, name-based close | Default is lean. Use returned `target`, `send_input`, `wait_agents({ timeout_ms })`, and `close_agent({ target })`. Set `modelToolSurface: 'legacy'` for old names/schemas. Remote peers stay host hooks. |
+| Adapter expects every managed control on the first request | Plain lean leads disclose controls after successful spawning. Inspect each request's offered tools; use `progressiveToolDisclosure: false` if the host requires eager discovery. Collaboration and workers remain eager. |
 | Host defines all delegation strategy; workers lack lead tools | Guidance defaults to proactive and generated workers inherit eligible tools. Set `delegationMode: 'explicit'` and `inheritLeadTools: false` for opt-outs; `workerSessionOptions.tools: []` replaces application tools with an empty set. Explicitly configure worker capabilities and guard references. |
 | Discovery/waits repeat full outcomes; any-target wait finishes first | `list_agents` is status-only. Wait joins all selected targets and delivers only new evidence, shared with push notices. Use repeatable `get_agent_result` pages for recovery. |
 | Finished workers need closing to free concurrency | Slots release automatically; addresses remain. Lean close cancels unfinished work unless protected; legacy close still requires `cancelRunning: true`. Reactivation rechecks slot/write admission. |

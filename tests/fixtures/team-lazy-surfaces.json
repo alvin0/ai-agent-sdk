@@ -1,0 +1,96 @@
+{
+  "before": {
+    "lean": [
+      {
+        "system": 1867,
+        "tools": 2639,
+        "total": 4506,
+        "estimatedTokens": 1127,
+        "sha256": "5e325d44b4f8ff2041bd7f83b7cc4404d9265674b421c11ef75c12e5e79d7547"
+      },
+      {
+        "system": 1132,
+        "tools": 371,
+        "total": 1503,
+        "estimatedTokens": 376,
+        "sha256": "8e748d1f71b9e93cfdee0ed985dc1b5033b07b6c27d9447032ac57ad4962d4d4"
+      },
+      {
+        "system": 1867,
+        "tools": 2639,
+        "total": 4506,
+        "estimatedTokens": 1127,
+        "sha256": "5e325d44b4f8ff2041bd7f83b7cc4404d9265674b421c11ef75c12e5e79d7547"
+      }
+    ],
+    "fullWorker": [
+      {
+        "system": 1867,
+        "tools": 2639,
+        "total": 4506,
+        "estimatedTokens": 1127,
+        "sha256": "5e325d44b4f8ff2041bd7f83b7cc4404d9265674b421c11ef75c12e5e79d7547"
+      },
+      {
+        "system": 1119,
+        "tools": 1570,
+        "total": 2689,
+        "estimatedTokens": 673,
+        "sha256": "9897452488fbbc5af7abe92b2b5b7ab8e05dab91f45d9ac62c85adea850bdaab"
+      },
+      {
+        "system": 1867,
+        "tools": 2639,
+        "total": 4506,
+        "estimatedTokens": 1127,
+        "sha256": "5e325d44b4f8ff2041bd7f83b7cc4404d9265674b421c11ef75c12e5e79d7547"
+      }
+    ],
+    "legacy": [
+      {
+        "system": 2202,
+        "tools": 4976,
+        "total": 7178,
+        "estimatedTokens": 1795,
+        "sha256": "e6b10742b452891a1e8eab2c8afd56b73cec99b40511e03b3908c1b9c0156393"
+      },
+      {
+        "system": 1384,
+        "tools": 1255,
+        "total": 2639,
+        "estimatedTokens": 660,
+        "sha256": "b8cc070826d8f07c5cb86a2e3f36debd69a387ff554b96bfd32e74c67eebe4fd"
+      },
+      {
+        "system": 2202,
+        "tools": 4976,
+        "total": 7178,
+        "estimatedTokens": 1795,
+        "sha256": "e6b10742b452891a1e8eab2c8afd56b73cec99b40511e03b3908c1b9c0156393"
+      }
+    ],
+    "collaboration": [
+      {
+        "system": 2735,
+        "tools": 4671,
+        "total": 7406,
+        "estimatedTokens": 1852,
+        "sha256": "467c728cdd370fe505cdc57bfe9a37266825b42d1b81c1127196859c01fbd2b1"
+      },
+      {
+        "system": 1979,
+        "tools": 2394,
+        "total": 4373,
+        "estimatedTokens": 1094,
+        "sha256": "3578ebe3eaf6340188dd595d4b998f5a81b0b4b779826f60b539b78fc20fb10e"
+      },
+      {
+        "system": 2735,
+        "tools": 4671,
+        "total": 7406,
+        "estimatedTokens": 1852,
+        "sha256": "467c728cdd370fe505cdc57bfe9a37266825b42d1b81c1127196859c01fbd2b1"
+      }
+    ]
+  }
+}

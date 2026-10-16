@@ -150,11 +150,17 @@ account exposes it); a model that discloses nothing falls back to the generic
 | --- | --- |
 | `basic` / `deep` / `deep-human-in-loop` | one `AgentSession` with the selected loop policy |
 | `team` | a declared roster: the selected preset leads and delegates to every preset marked **In team**, using the SDK's `list_agents` / `send_message` / `wait_agents` / `followup_task` tools |
-| `team-dynamic` | one managed lead with the lean `spawn_agent`, `send_input`, `wait_agents`, `get_agent_result` and `close_agent` tools. Five roles are declared: `researcher`, `analyst`, `implementer`, `investigator`, `reviewer`. Workers default to forked completed history; reviewer forces fresh context. `dependsOn` orders producer work and `writes` declares disjoint scheduling scopes. |
+| `team-dynamic` | one managed lead initially offered `spawn_agent`; `send_input`, `wait_agents`, `get_agent_result` and `close_agent` appear after a successful spawn. Five roles are declared: `researcher`, `analyst`, `implementer`, `investigator`, `reviewer`. Workers default to forked completed history; reviewer forces fresh context. `dependsOn` orders producer work and `writes` declares disjoint scheduling scopes. |
 
 Dynamic mode explicitly selects `delegationMode: 'proactive'` and leaves collaboration
 off. The SDK guides the lead to keep sequential work local, delegate bounded independent
-work and synthesize automatically pushed results. The sample keeps its explicit worker
+work and synthesize automatically pushed results. Team-auto keeps progressive tool
+disclosure enabled: local work pays only for the compact lead guidance and spawn schema;
+the first successful model spawn adds detailed coordination guidance once. Controls stay
+visible thereafter, including after host spawns; rejected spawns do not disclose them.
+Worker catalogs remain eager. Hosts needing the previous eager surface can configure
+`progressiveToolDisclosure: false` when creating the managed team.
+The sample keeps its explicit worker
 template and shared approval/interceptor policy; automatic tool inheritance is for
 generated workers without explicit templates/factories/tools. Role instructions here
 guide behavior; the host tool/approval layer enforces access. Model cancellation of

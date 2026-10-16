@@ -5,6 +5,7 @@ import type { ManagedModelInput } from './managed-model-input.ts'
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
 import { asJson, memberName, nonEmpty, object, parseWaitTool } from './common.ts'
 import { renderModelResult } from './managed-model-tools.ts'
+import type { ToolCatalog } from '../tool/registry.ts'
 
 interface SurfaceHost {
   readonly team: AgentTeam
@@ -13,6 +14,7 @@ interface SurfaceHost {
   peerSend?(sender: string, target: string, message: string,
     options: { signal: AbortSignal; interrupt: boolean }): Promise<unknown>
   worker(name: string): WorkerRuntime | undefined
+  filterCatalog(sender: string, catalog: ToolCatalog): ToolCatalog
 }
 
 /** A session-facing adapter, leaving AgentTeam's public tools and host hooks intact. */
@@ -32,6 +34,7 @@ export class ManagedModelSurface {
       },
       toolsFor: (sender, access) => this.toolsFor(sender, access),
       instructionsFor: name => this.instructionsFor(name),
+      filterCatalog: (sender, catalog) => this.host.filterCatalog(sender, catalog),
     }
   }
 
@@ -52,7 +55,9 @@ export class ManagedModelSurface {
 
   private resultTool(sender: string, access: TeamToolAccess): ToolDefinition<any> {
     const tool = this.host.team.toolsFor(sender, access).find(tool => tool.name === 'get_agent_result')!
-    return { ...tool, execute: async (args, ctx) => {
+    return { ...tool, description: this.host.options.progressiveToolDisclosure === false ? tool.description
+      : 'Read retained output again (6 KiB default, 16 KiB max). '
+        + 'Continue page.nextOffset with the same field.', execute: async (args, ctx) => {
       const expected = this.managedIds.get(args.target)
       const current = this.host.team.members().find(member => member.name === args.target)
       if (expected === undefined || (current !== undefined && current.conversationId !== expected)) {
@@ -64,18 +69,24 @@ export class ManagedModelSurface {
 
   private sendTool(sender: string, full: boolean): ToolDefinition<any> {
     const canInterrupt = this.host.options.allowModelWorkerCancellation !== false
+    const eager = this.host.options.progressiveToolDisclosure === false
+    const reporting = eager
+      ? 'Send context to another agent, other than yourself. Return your final answer to finish your task.'
+      : 'Send context to another agent. Finish with your final answer.'
     return defineTool({ name: 'send_input', budgetExempt: true,
       render: renderModelResult,
       description: full
-        ? 'Queue a worker task; send context to the lead. Use wait_agents for new results.'
+        ? (eager ? 'Queue a worker task; send context to the lead. Use wait_agents for new results.'
+          : 'Queue worker work or send lead context. Returns acceptance, not result.')
           + (canInterrupt ? ' Set interrupt=true to stop current work and redirect it.'
             : ' Unfinished work is protected by the host.')
-        : 'Send context to another agent, other than yourself. Return your final answer to finish your task.',
+        : reporting,
       parameters: { type: 'object', properties: {
         target: { type: 'string', description: 'Id returned by spawn_agent, or the lead id for context.' },
         message: { type: 'string' },
         ...full && canInterrupt ? { interrupt: { type: 'boolean',
-          description: 'Stop current work first. Defaults to false.' } } : {},
+          description: eager ? 'Stop current work first. Defaults to false.'
+            : 'Stop current work first; default false.' } } : {},
       }, required: ['target', 'message'], additionalProperties: false },
       parse: raw => {
         const input = object(raw, 'send_input arguments')
@@ -121,14 +132,18 @@ export class ManagedModelSurface {
   }
 
   private waitTool(sender: string): ToolDefinition<any> {
+    const eager = this.host.options.progressiveToolDisclosure === false
     return defineTool({ name: 'wait_agents', budgetExempt: true,
       render: renderModelResult,
-      description: 'Join all selected workers and return new results, excluding prior notices and waits.'
-        + ' Omit targets for all workers. Returns when all selected workers settle, on timeout, or user interruption.',
+      description: eager ? 'Join all selected workers and return new results, excluding prior notices and waits.'
+        + ' Omit targets for all workers. Returns when all selected workers settle, on timeout, or user interruption.'
+        : 'Join selected workers (default all); return only new results. '
+        + 'Stops on settlement, timeout or user interruption.',
       parameters: { type: 'object', properties: {
         targets: { type: 'array', items: { type: 'string' }, minItems: 1,
           description: 'Ids returned by spawn_agent.' },
-        timeout_ms: { type: 'number', description: 'Maximum wait in milliseconds; bounded by host limits.' },
+        timeout_ms: { type: 'number', description: eager
+          ? 'Maximum wait in milliseconds; bounded by host limits.' : 'Milliseconds, capped by host.' },
       }, additionalProperties: false },
       parse: raw => {
         const input = object(raw, 'wait_agents arguments')
