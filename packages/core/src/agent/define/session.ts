@@ -266,7 +266,10 @@ export class AgentSession {
     })
   }
   effectiveCatalog(): ToolCatalog | undefined {
-    return this.activeRuntimeCatalog ?? this.catalog
+    const catalog = this.activeRuntimeCatalog ?? this.catalog
+    const team = this.options.team
+    return catalog === undefined || team?.team.filterCatalog === undefined ? catalog
+      : team.team.filterCatalog(team.name ?? this.definition.id, catalog)
   }
   combinedHooks(accounting?: RunAccountingPort): TurnHooks | undefined {
     return combinedSessionHooks(this, accounting)

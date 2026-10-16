@@ -3,6 +3,7 @@
 import type { UserMessage } from '../../message/index.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
 import type { ToolDefinition } from '../tool/definition.ts'
+import type { ToolCatalog } from '../tool/registry.ts'
 
 /**
  * How much of the team tool set one member may use.
@@ -58,4 +59,6 @@ export interface TeamPort {
   attach(session: TeamSessionPort, options?: TeamMemberAttachmentOptions): void
   toolsFor(sender: string, access?: TeamToolAccess): readonly ToolDefinition<any>[]
   instructionsFor(name: string): string
+  /** Optional live projection; must apply the same visibility to schemas and dispatch. */
+  filterCatalog?(sender: string, catalog: ToolCatalog): ToolCatalog
 }

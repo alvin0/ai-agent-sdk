@@ -1,45 +1,62 @@
-/** Four compact model verbs; host requests and lifecycle views remain unchanged. */
+/** Compact model verbs; host requests and lifecycle views remain unchanged. */
 import { filterToolsByDepth } from './managed-capabilities.ts'
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
-import { managedLeadInstructions, type ManagedControlsHost } from './managed-controls.ts'
+import { buildDelegationStrategy, managedLeadInstructions, type ManagedControlsHost } from './managed-controls.ts'
 import { parseSpawnTool } from './managed-tool-input.ts'
 import { asJson } from './managed-outcomes.ts'
 import { memberName, object } from './common.ts'
 import type { JsonValue } from '../../primitives/index.ts'
 import type { ContentBlock } from '../../message/index.ts'
+import { DISCLOSED_TEAM_GUIDANCE, progressiveTeamTools } from './managed-lazy-tools.ts'
 
 export function renderModelResult(value: JsonValue | undefined): readonly ContentBlock[] {
   return [{ type: 'text', text: JSON.stringify(value ?? null) }]
 }
 
 export function leanLeadInstructions(options: ManagedControlsHost['options']): string {
+  buildDelegationStrategy(options.delegationMode) // Preserve mode validation for the short prompt too.
+  if (progressiveTeamTools(options)) {
+    return (options.delegationMode === 'explicit'
+      ? 'Delegate only when the user or host explicitly asks. '
+      : 'Keep quick/sequential work local; delegate useful parallel sidecars. ')
+      + 'spawn_agent briefs need objective, output, disjoint write scope and verification; do not redo their work. '
+      + 'After spawning, controls appear and results are pushed automatically. '
+      + (options.autoLeadCoordination === false
+        ? 'Use wait_agents when blocked; the host controls later turns.'
+        : 'End your turn when only waiting remains; synthesize reports before the final answer.')
+  }
   return managedLeadInstructions(options) + ' Use spawn_agent for tasks and send_input for follow-up work. '
     + 'Close retained agents only when no longer needed.'
 }
 
 export function leanControlTools(host: ManagedControlsHost): readonly ToolDefinition<any>[] {
+  let guidanceSent = false
   return filterToolsByDepth([defineTool({
     name: 'spawn_agent',
     render: renderModelResult,
-    description: 'Delegate a bounded sidecar task with objective, output, write scope and verification. '
-      + 'Keep immediate blockers local; do not redo delegated work. '
-      + 'Returns a target; results are pushed automatically.',
+    description: 'Start a parallel sidecar; returns target, not result. Results are pushed. '
+      + 'Keep immediate blockers local.',
     parameters: { type: 'object', properties: {
-      task: { type: 'string', description: 'Task and requested output.' },
+      task: { type: 'string', description: 'Objective, output, scope, verification.' },
       context: { type: 'string', enum: ['fresh', 'fork'],
-        description: 'fresh: only the task; include everything needed.'
-          + ' fork: inherits the completed conversation; state only what is new.' },
+        description: 'fresh: self-contained task. fork: copies completed turns, not this turn.' },
       writes: { type: 'array', items: { type: 'string' },
-        description: 'Disjoint workspace write scope; omit for read-only.' },
-      dependsOn: { type: 'array', items: { type: 'string' }, description: 'Producer targets to join before starting.' },
+        description: 'Disjoint relative write scopes; omit for read-only. No permission grant.' },
+      dependsOn: { type: 'array', items: { type: 'string' },
+        description: 'Existing producer targets; start after settlement.' },
       ...host.roleSchema(),
     }, required: ['task'], additionalProperties: false },
     // Accept earlier spellings for in-flight histories, without advertising them.
     parse: parseSpawnTool,
     execute: async (request, ctx) => {
       const worker = await host.spawn(request, ctx.signal)
+      // Append detailed strategy once as a tool result, preserving the short system prefix.
+      const guidance = progressiveTeamTools(host.options) && !guidanceSent
+        ? DISCLOSED_TEAM_GUIDANCE : undefined
+      guidanceSent = true
       const status = worker.status === 'pending' ? 'running' : worker.status
       return asJson({ target: worker.name, status: status === 'closed' ? 'failed' : status,
+        ...(guidance === undefined ? {} : { guidance }),
         ...worker.error === undefined ? {} : { error: worker.error } })
     },
     timeoutMs: host.spawnTimeoutMs,
@@ -51,7 +68,7 @@ export function leanControlTools(host: ManagedControlsHost): readonly ToolDefini
       ? 'Close a finished worker. Unfinished work is protected by the host.'
       : 'Close a worker. This cancels unfinished work.',
     parameters: { type: 'object', properties: {
-      target: { type: 'string', description: 'Id returned by spawn_agent.' } },
+      target: { type: 'string' } },
       required: ['target'], additionalProperties: false },
     parse: raw => {
       const input = object(raw, 'close_agent arguments')

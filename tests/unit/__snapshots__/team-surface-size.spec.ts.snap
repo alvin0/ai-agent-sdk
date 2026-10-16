@@ -1,0 +1,200 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`managed model surface size > snapshots exact catalogs, prompts and per-call character/token estimates 1`] = `
+{
+  "after": {
+    "collaboration": [
+      {
+        "estimatedTokens": 1730,
+        "system": 2735,
+        "tools": 4185,
+        "total": 6920,
+      },
+      {
+        "estimatedTokens": 1067,
+        "system": 1979,
+        "tools": 2286,
+        "total": 4265,
+      },
+      {
+        "estimatedTokens": 1730,
+        "system": 2735,
+        "tools": 4185,
+        "total": 6920,
+      },
+    ],
+    "eager": [
+      {
+        "estimatedTokens": 1005,
+        "system": 1867,
+        "tools": 2153,
+        "total": 4020,
+      },
+      {
+        "estimatedTokens": 349,
+        "system": 1132,
+        "tools": 263,
+        "total": 1395,
+      },
+      {
+        "estimatedTokens": 1005,
+        "system": 1867,
+        "tools": 2153,
+        "total": 4020,
+      },
+    ],
+    "fullWorker": [
+      {
+        "estimatedTokens": 347,
+        "system": 660,
+        "tools": 725,
+        "total": 1385,
+      },
+      {
+        "estimatedTokens": 585,
+        "system": 1119,
+        "tools": 1220,
+        "total": 2339,
+      },
+      {
+        "estimatedTokens": 704,
+        "system": 660,
+        "tools": 2153,
+        "total": 2813,
+      },
+    ],
+    "lean": [
+      {
+        "estimatedTokens": 347,
+        "system": 660,
+        "tools": 725,
+        "total": 1385,
+      },
+      {
+        "estimatedTokens": 349,
+        "system": 1132,
+        "tools": 263,
+        "total": 1395,
+      },
+      {
+        "estimatedTokens": 704,
+        "system": 660,
+        "tools": 2153,
+        "total": 2813,
+      },
+    ],
+    "legacy": [
+      {
+        "estimatedTokens": 1795,
+        "system": 2202,
+        "tools": 4976,
+        "total": 7178,
+      },
+      {
+        "estimatedTokens": 660,
+        "system": 1384,
+        "tools": 1255,
+        "total": 2639,
+      },
+      {
+        "estimatedTokens": 1795,
+        "system": 2202,
+        "tools": 4976,
+        "total": 7178,
+      },
+    ],
+    "single": [
+      {
+        "estimatedTokens": 60,
+        "system": 238,
+        "tools": 2,
+        "total": 240,
+      },
+    ],
+  },
+  "before": {
+    "collaboration": [
+      {
+        "estimatedTokens": 1852,
+        "system": 2735,
+        "tools": 4671,
+        "total": 7406,
+      },
+      {
+        "estimatedTokens": 1094,
+        "system": 1979,
+        "tools": 2394,
+        "total": 4373,
+      },
+      {
+        "estimatedTokens": 1852,
+        "system": 2735,
+        "tools": 4671,
+        "total": 7406,
+      },
+    ],
+    "fullWorker": [
+      {
+        "estimatedTokens": 1127,
+        "system": 1867,
+        "tools": 2639,
+        "total": 4506,
+      },
+      {
+        "estimatedTokens": 673,
+        "system": 1119,
+        "tools": 1570,
+        "total": 2689,
+      },
+      {
+        "estimatedTokens": 1127,
+        "system": 1867,
+        "tools": 2639,
+        "total": 4506,
+      },
+    ],
+    "lean": [
+      {
+        "estimatedTokens": 1127,
+        "system": 1867,
+        "tools": 2639,
+        "total": 4506,
+      },
+      {
+        "estimatedTokens": 376,
+        "system": 1132,
+        "tools": 371,
+        "total": 1503,
+      },
+      {
+        "estimatedTokens": 1127,
+        "system": 1867,
+        "tools": 2639,
+        "total": 4506,
+      },
+    ],
+    "legacy": [
+      {
+        "estimatedTokens": 1795,
+        "system": 2202,
+        "tools": 4976,
+        "total": 7178,
+      },
+      {
+        "estimatedTokens": 660,
+        "system": 1384,
+        "tools": 1255,
+        "total": 2639,
+      },
+      {
+        "estimatedTokens": 1795,
+        "system": 2202,
+        "tools": 4976,
+        "total": 7178,
+      },
+    ],
+  },
+  "retainedGuidanceChars": 702,
+  "retainedGuidanceEstimatedTokens": 176,
+}
+`;
