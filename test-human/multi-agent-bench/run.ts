@@ -6,11 +6,13 @@ import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { collabAvailable, repoRoot, type Arm, type Job, type Result } from './execute.ts'
 import { fixtureRoot, selectTasks, defaultSeed, checkCount, type Suite } from './tasks.ts'
+import { taskTiming } from './timing.ts'
 import { defaultLimits, type Limits } from './metrics.ts'
 
 function options(args: string[]) {
   const values = new Map<string, string>()
   const allowed = ['arms', 'tasks', 'reps', 'provider', 'model', 'out', 'concurrency', 'timeout-ms',
+    'worker-timeout-ms', 'volume-timeout-ms', 'volume-worker-timeout-ms', 'orphan-grace-ms',
     'max-total-tokens', 'max-turns', 'max-tool-calls', 'suite', 'seed', 'codex-auth', 'label']
   for (let i = 0; i < args.length; i += 2) {
     const key = args[i]?.replace(/^--/, ''), value = args[i + 1]
@@ -70,7 +72,12 @@ export function parseArgs(args: string[]) {
   const selected = selection(opts)
   const perTaskLimits = Object.fromEntries(selectTasks(selected.suite, selected.seed)
     .filter(task => selected.ids.includes(task.id)).map(task => [task.id, taskLimits(task, opts)]))
-  return { ...providerModel(opts), ...selected, perTaskLimits, out: resolve(opts.get('out')!),
+  const perTaskTimeouts = Object.fromEntries(selectTasks(selected.suite, selected.seed)
+    .filter(task => selected.ids.includes(task.id)).map(task => [task.id, taskTiming(task, opts)]))
+  const perTaskOutputBudget = Object.fromEntries(selectTasks(selected.suite, selected.seed)
+    .filter(task => selected.ids.includes(task.id) && task.outputBudget).map(task => [task.id, task.outputBudget]))
+  return { ...providerModel(opts), ...selected, perTaskLimits, perTaskTimeouts, perTaskOutputBudget,
+    out: resolve(opts.get('out')!),
     reps: positive(opts.get('reps') ?? '3', 'reps'),
     concurrency: positive(opts.get('concurrency') ?? '1', 'concurrency'),
     timeoutMs: positive(opts.get('timeout-ms') ?? '180000', 'timeout-ms'),
@@ -133,7 +140,7 @@ export async function main(args = process.argv.slice(2)) {
     Array.from({ length: config.reps }, (_, rep) => {
       const order = (taskIndex + rep) % 2 ? [...arms].reverse() : arms
       return order.map(arm => ({ arm, task, rep: rep + 1,
-        provider: config.provider, model: config.model, timeoutMs: config.timeoutMs,
+        provider: config.provider, model: config.model, ...config.perTaskTimeouts[task]!,
         suite: config.suite, seed: config.seed,
         ...config.perTaskLimits[task]!,
         ...('codexAuth' in config ? { codexAuth: config.codexAuth } : {}) }))
@@ -146,7 +153,7 @@ export async function main(args = process.argv.slice(2)) {
     commit: git(['rev-parse', 'HEAD']), dirty: git(['status', '--porcelain']),
     fixtureHash: await treeHash(fixtureRoot), harnessHash: await treeHash(fileURLToPath(new URL('.', import.meta.url))),
     coreBundleHash: await treeHash(join(repoRoot, 'packages/core/dist')), synthetic: config.provider === 'fake',
-    protocol: 'autonomous-v4', tokenAccounting: 'uncached+cacheWrite+output+0.1*cacheRead',
+    protocol: 'autonomous-v5', tokenAccounting: 'uncached+cacheWrite+output+0.1*cacheRead',
     repetitionsBelowMergeGate: config.reps < 3 }, null, 2))
   let next = 0, failures = 0
   const consume = async () => {
@@ -159,7 +166,7 @@ export async function main(args = process.argv.slice(2)) {
         await writeFile(join(config.out, `${id}.audit.json`), JSON.stringify(audit, null, 2))
         console.log(`${id}: ${result.status} score=${result.score} raw=${result.metrics.totalTokens} `
           + `weighted=${result.metrics.costWeightedTokens}`)
-        if (result.status !== 'completed') failures++
+        if (!['completed', 'completed-orphans'].includes(result.status)) failures++
       } catch (error) {
         failures++
         const task = selectTasks(job.suite, job.seed).find(task => task.id === job.task)!

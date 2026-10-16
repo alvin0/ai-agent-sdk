@@ -16,6 +16,9 @@ export interface Metrics {
   reportedCostWeightedTokens: number
   reportedTokens: number
   usageComplete: boolean
+  usageIncomplete: boolean
+  orphanWorkers: number
+  orphanWorkersAfterGrace: number
   leadModelCalls: number
   totalModelCalls: number
   toolCalls: number
@@ -99,6 +102,9 @@ export class Collector {
   readonly capHits = { tokens: false, turns: false, toolCalls: false }
   lastText = ''
   spawns = 0
+  orphanWorkers = 0
+  orphanWorkersAfterGrace = 0
+  private readonly toolFailures = new Set<string>()
   private readonly seenEvidence = new Set<string>()
   private leadRequested = false
   private tokens = 0
@@ -111,6 +117,16 @@ export class Collector {
   options(member: string): Partial<AgentSessionOptions> {
     return {
       compaction: false,
+      interceptors: [{ name: 'benchmark-tool-errors', around: async (call, next) => {
+        try {
+          const result = await next()
+          if (result.isError) this.toolError(member, call, result.error.message)
+          return result
+        } catch (error) {
+          this.toolError(member, call, error)
+          throw error
+        }
+      } }],
       runtimeLimits: { hookTimeoutMs: 120000 },
       observation: { mode: 'operational', openSpan: createCoreSpan, capture: event => {
         this.events.push({ member, event })
@@ -120,7 +136,9 @@ export class Collector {
           if (this.tokens >= this.limits.maxTotalTokens) this.hit('tokens')
         }
         if (event.phase === 'end' && ['sdk.model.call', 'sdk.tool.call'].includes(event.name)
-          && ['error', 'aborted'].includes(String(event.data.status))) {
+          && ['error', 'aborted'].includes(String(event.data.status))
+          && !(event.name === 'sdk.tool.call'
+            && this.toolFailures.has(`${member}:${event.correlation.toolCallId}`))) {
           this.errors.push(`${member} ${event.name}: ${JSON.stringify(event.data)}`)
         }
         return { eventId: event.eventId, status: 'accepted', durable: false, boundary: 'none' }
@@ -155,6 +173,10 @@ export class Collector {
       },
     }
   }
+  toolError(member: string, call: { toolName: string; args: unknown; callId: string }, error: unknown) {
+    this.toolFailures.add(`${member}:${call.callId}`)
+    this.errors.push(`${member} tool ${call.toolName} args=${argsSummary(call.args)}: ${errorMessage(error)}`)
+  }
   metrics(wallMs: number): Metrics {
     const starts = this.events.filter(({ event }) => event.name === 'sdk.model.call' && event.phase === 'start')
     const ends = this.events.filter(({ event }) => event.name === 'sdk.model.call' && event.phase === 'end')
@@ -169,12 +191,25 @@ export class Collector {
     const counts = ends.map(({ event }) => tokenCounts(event.data.reported as Record<string, unknown> | undefined))
     const reportedTokens = counts.reduce((total, count) => total + count.raw, 0)
     const reportedCostWeightedTokens = counts.reduce((total, count) => total + count.weighted, 0)
-    return { inputTokens: usageComplete ? input : null, outputTokens: usageComplete ? output : null,
-      cacheReadTokens, cacheWriteTokens, totalTokens: usageComplete ? reportedTokens : null,
+    return { inputTokens: input, outputTokens: output,
+      cacheReadTokens, cacheWriteTokens, totalTokens: reportedTokens,
       uncachedInputTokens: input + cacheWriteTokens, cachedInputTokens: cacheReadTokens,
-      costWeightedTokens: usageComplete ? reportedCostWeightedTokens : null, reportedCostWeightedTokens,
-      reportedTokens, usageComplete, leadModelCalls: starts.filter(s => s.member === 'lead').length,
+      costWeightedTokens: reportedCostWeightedTokens, reportedCostWeightedTokens,
+      reportedTokens, usageComplete, usageIncomplete: !usageComplete,
+      orphanWorkers: this.orphanWorkers, orphanWorkersAfterGrace: this.orphanWorkersAfterGrace,
+      leadModelCalls: starts.filter(s => s.member === 'lead').length,
       totalModelCalls: starts.length, toolCalls: this.tools.length, capHits: { ...this.capHits }, spawns: this.spawns,
       wastedLeadTurns: this.requests.filter(r => r.repeated).length, wallMs, errors: [...this.errors] }
   }
+}
+
+export function errorMessage(error: unknown): string {
+  if (error instanceof Error) return `${error.name}: ${error.message}`
+  if (object(error) && typeof error.message === 'string') return error.message
+  return typeof error === 'string' ? error : JSON.stringify(error) ?? String(error)
+}
+export function argsSummary(args: unknown): string {
+  return (JSON.stringify(args, (_key, value: unknown) =>
+    typeof value === 'string' && value.length > 160 ? `${value.slice(0, 160)}…[${value.length} chars]` : value)
+    ?? String(args)).slice(0, 512)
 }

@@ -2,8 +2,9 @@ import { fileURLToPath } from 'node:url'
 import * as agent from '../../packages/core/dist/agent.js'
 import { ModelRegistry, ReasoningEffortId } from '../../packages/core/dist/index.js'
 import type { ManagedAgentTeamOptions } from '../../packages/core/dist/agent.js'
+import { settleCompletion, outstandingWorkers } from './completion.ts'
 import { FakeAdapter } from './fake.ts'
-import { Collector, defaultLimits, type Limits, type Metrics } from './metrics.ts'
+import { Collector, defaultLimits, errorMessage, type Limits, type Metrics } from './metrics.ts'
 import { selectTasks, type Task, type Suite } from './tasks.ts'
 import { Workspace, workspaceTools } from './workspace.ts'
 
@@ -11,13 +12,13 @@ export const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 
 export type Arm = 'single' | 'team' | 'collab'
 export interface Job extends Partial<Limits> {
-  suite?: Suite; seed?: number; codexAuth?: string
+  suite?: Suite; seed?: number; codexAuth?: string; workerTimeoutMs?: number; orphanGraceMs?: number
   arm: Arm; task: string; rep: number; provider: 'fake' | 'codex'; model: string; timeoutMs: number
 }
 export interface Result extends Job {
   kind: Task['kind']
   schemaVersion: 1
-  status: 'completed' | 'failed' | 'timeout' | 'skipped' | 'cap-hit'
+  status: 'completed' | 'completed-orphans' | 'failed' | 'timeout' | 'skipped' | 'cap-hit'
   score: number
   pass: boolean
   precision?: number
@@ -31,7 +32,16 @@ export interface Result extends Job {
 }
 export const instructions = 'Complete the task using workspace evidence and the available tools. '
   + 'Write the requested artifacts, verify your work, then give a concise completion report. '
-  + 'Choose your own approach and whether to use any available coordination tools.'
+  + 'Choose your own approach and whether to use any available coordination tools. '
+  + 'Keep going until every file/document is covered; do not stop early.'
+
+export function budgetInstructions(job: Job, limits: Limits): string {
+  return `${instructions} Budget: ${job.timeoutMs / 1000} seconds job time; `
+    + `${(job.workerTimeoutMs ?? job.timeoutMs) / 1000} seconds per worker; `
+    + `${limits.maxTotalTokens} aggregate cost-weighted tokens (uncached input + cache writes + output `
+    + `+ 0.1 * cache reads); ${limits.maxTurns} model calls; ${limits.maxToolCalls} tool calls. `
+    + 'Token, model-call and tool-call limits are shared across all sessions; time caps include waiting.'
+}
 
 type TeamFactory = typeof agent.createManagedAgentTeam
 // Feature detection, never branch names. Additional collaboration APIs can be adapted here.
@@ -66,12 +76,12 @@ async function runAgent(job: Job, workspace: Workspace, collector: Collector, si
   const definition = (name: string) => agent.defineAgent({ id: name, provider: job.provider, model: job.model,
     effort: ReasoningEffortId('medium'), mode: 'basic',
     maxTurns: collector.limits.maxTurns + 1, maxToolCalls: collector.limits.maxToolCalls + 1,
-    instructions: `${instructions} Bench session: ${name}`, tools })
+    instructions: `${budgetInstructions(job, collector.limits)} Bench session: ${name}`, tools })
   if (job.arm === 'single') {
     const session = definition('lead').createSession({ ...collector.options('lead'), registry })
     const response = await session.run(workspace.task.prompt, { signal })
     if (!response.outcome.completed) throw new Error(`Lead incomplete: ${JSON.stringify(response.outcome.reason)}`)
-    return
+    return 'completed' as const
   }
   const factory = job.arm === 'collab' ? collaborationFactory(agent) : agent.createManagedAgentTeam
   if (!factory) throw new Error('Collaboration feature unavailable')
@@ -82,19 +92,23 @@ async function runAgent(job: Job, workspace: Workspace, collector: Collector, si
     leadSessionOptions: collector.options('lead'),
     workerFactory: request => definition(request.name),
     workerSessionOptionsFactory: request => collector.options(request.name),
-    workerTimeoutMs: job.timeoutMs, workerTeamTools: 'full',
+    workerTimeoutMs: job.workerTimeoutMs ?? job.timeoutMs, workerTeamTools: 'full',
   })
   try {
     const response = await team.run(workspace.task.prompt, { signal })
-    await team.whenQuiet(signal)
-    if (!response.outcome.completed) throw new Error(`Lead incomplete: ${JSON.stringify(response.outcome.reason)}`)
+    collector.orphanWorkers = outstandingWorkers(team)
+    const completion = await settleCompletion(team, response.outcome, signal, job.orphanGraceMs ?? 30000)
+    collector.orphanWorkers = completion.orphanWorkers
+    collector.orphanWorkersAfterGrace = completion.orphanWorkersAfterGrace
     for (const worker of team.workers()) {
-      if (worker.error) collector.errors.push(`${worker.name}: ${worker.error}`)
+      if (worker.error) collector.errors.push(`${worker.name}: ${errorMessage(worker.error)}`)
     }
+    return completion.status
   } finally { await team.dispose(); await team.team.dispose() }
 }
 
 export async function execute(job: Job, parent?: string): Promise<{ result: Result; audit: Collector }> {
+  job = resolvedJob(job)
   const task = selectTasks(job.suite, job.seed).find(task => task.id === job.task)
   if (!task) throw new Error(`Unknown task: ${job.task}`)
   const workspace = await Workspace.create(task, parent)
@@ -104,7 +118,7 @@ export async function execute(job: Job, parent?: string): Promise<{ result: Resu
   const timeout = AbortSignal.timeout(job.timeoutMs)
   const signal = AbortSignal.any([timeout, collector.controller.signal])
   let status: Result['status'] = 'completed', error: string | undefined
-  try { await runAgent(job, workspace, collector, signal) } catch (caught) {
+  try { status = await runAgent(job, workspace, collector, signal) } catch (caught) {
     status = timeout.aborted ? 'timeout' : 'failed'
     if (collector.controller.signal.aborted) status = 'cap-hit'
     error = caught instanceof Error ? `${caught.name}: ${caught.message}` : String(caught)
@@ -115,8 +129,9 @@ export async function execute(job: Job, parent?: string): Promise<{ result: Resu
   try {
     const grade = await workspace.grade()
     const metrics = collector.metrics(wallMs)
-    const result: Result = { ...job, ...collector.limits, schemaVersion: 1, kind: task.kind, status, score: grade.score,
-      pass: grade.pass && status === 'completed',
+    const result: Result = { ...job, ...collector.limits, schemaVersion: 1, kind: task.kind,
+      status, score: grade.score,
+      pass: grade.pass && ['completed', 'completed-orphans'].includes(status),
       ...quality(grade),
       checks: grade.checks, metrics, text: collector.lastText,
       artifacts: Object.fromEntries(await Promise.all((await workspace.files()).map(async path =>
@@ -128,4 +143,8 @@ export async function execute(job: Job, parent?: string): Promise<{ result: Resu
 
 function quality(grade: { precision?: number; recall?: number }): Partial<Result> {
   return grade.precision === undefined ? {} : { precision: grade.precision, recall: grade.recall! }
+}
+
+function resolvedJob(job: Job): Job {
+  return { ...job, workerTimeoutMs: job.workerTimeoutMs ?? job.timeoutMs, orphanGraceMs: job.orphanGraceMs ?? 30000 }
 }

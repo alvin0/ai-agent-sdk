@@ -13,6 +13,7 @@ const median = (values: number[]) => {
   if (!sorted.length) return null
   return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
 }
+const incompleteUsage = (metrics: Metrics) => metrics.usageIncomplete || metrics.usageComplete === false
 const distribution = (values: (number | null)[]) => {
   if (values.some(value => value === null)) return { mean: null, median: null }
   return { mean: mean(values as number[]), median: median(values as number[]) }
@@ -22,10 +23,12 @@ export function summarize(runs: AnalysisRun[]) {
   return { n: runs.length, passRate: mean(runs.map(run => Number(run.pass))),
     score: distribution(runs.map(run => run.score)),
     tokens: distribution(runs.map(run => run.metrics?.totalTokens ?? run.metrics?.reportedTokens ?? null)),
-    tokenLowerBoundRuns: runs.filter(run => run.metrics && run.metrics.totalTokens === null).length,
+    tokenLowerBoundRuns: runs.filter(run => run.metrics && (incompleteUsage(run.metrics)
+      || run.metrics.totalTokens === null)).length,
     costWeightedTokens: distribution(runs.map(run => run.metrics?.costWeightedTokens
       ?? run.metrics?.reportedCostWeightedTokens ?? null)),
-    weightedLowerBoundRuns: runs.filter(run => run.metrics && run.metrics.costWeightedTokens === null).length,
+    weightedLowerBoundRuns: runs.filter(run => run.metrics && (incompleteUsage(run.metrics)
+      || run.metrics.costWeightedTokens === null)).length,
     uncachedInput: distribution(runs.map(run => run.metrics?.uncachedInputTokens ?? null)),
     cachedInput: distribution(runs.map(run => run.metrics?.cachedInputTokens ?? null)),
     output: distribution(runs.map(run => run.metrics?.outputTokens ?? null)),
@@ -37,6 +40,10 @@ export function summarize(runs: AnalysisRun[]) {
     errors: runs.reduce((sum, run) => sum + (run.metrics?.errors.length ?? 1), 0),
     capHits: Object.fromEntries(['tokens', 'turns', 'toolCalls'].map(cap => [cap,
       runs.filter(run => run.metrics?.capHits?.[cap as keyof Metrics['capHits']]).length])),
+    usageIncompleteRuns: runs.filter(run => run.metrics && incompleteUsage(run.metrics)).length,
+    completedOrphanRuns: runs.filter(run => run.status === 'completed-orphans').length,
+    orphanWorkers: runs.reduce((sum, run) => sum + (run.metrics?.orphanWorkers ?? 0), 0),
+    orphanWorkersAfterGrace: runs.reduce((sum, run) => sum + (run.metrics?.orphanWorkersAfterGrace ?? 0), 0),
     timeouts: runs.filter(run => run.status === 'timeout').length }
 }
 
@@ -61,7 +68,8 @@ export function percentDelta(a: number | null, b: number | null): number | null 
 export async function compare(dirA: string, dirB: string) {
   const [a, b] = await Promise.all([load(dirA), load(dirB)])
   const comparable = ['protocol', 'model', 'provider', 'fixtureHash', 'harnessHash', 'concurrency', 'timeoutMs', 'reps',
-    'suite', 'seed', 'tokenAccounting', 'perTaskLimits', 'maxTotalTokens', 'maxTurns', 'maxToolCalls']
+    'suite', 'seed', 'tokenAccounting', 'perTaskTimeouts', 'perTaskOutputBudget', 'perTaskLimits',
+    'maxTotalTokens', 'maxTurns', 'maxToolCalls']
     .every(key => JSON.stringify(a.manifest[key]) === JSON.stringify(b.manifest[key]))
   const rows = []
   const arms = [...new Set([...a.runs, ...b.runs].map(run => run.arm))]
@@ -84,7 +92,8 @@ export async function compare(dirA: string, dirB: string) {
     infrastructureErrors: { a: a.fatal, b: b.fatal }, rows }
   console.log('task / arm | N A/B | pass A/B | score A/B | tokens mean/median A:B | lead calls A/B | '
     + 'weighted A/B | uncached A/B | cached A/B | output A/B | lower-bound runs raw/weighted A:B | '
-    + 'wall ms A/B | wasted A/B | delta % score/raw/weighted/lead/wall/wasted (B vs A)')
+    + 'orphan runs/workers A:B | incomplete usage A/B | wall ms A/B | wasted A/B | '
+    + 'delta % score/raw/weighted/lead/wall/wasted (B vs A)')
   for (const row of rows) {
     console.log(`${row.task} / ${row.arm} | ${row.a.n}/${row.b.n} | `
       + `${format(row.a.passRate)}/${format(row.b.passRate)} | `
@@ -98,6 +107,8 @@ export async function compare(dirA: string, dirB: string) {
       + `${format(row.a.output.mean)}/${format(row.b.output.mean)} | `
       + `${row.a.tokenLowerBoundRuns}/${row.a.weightedLowerBoundRuns}:`
       + `${row.b.tokenLowerBoundRuns}/${row.b.weightedLowerBoundRuns} | `
+      + `${row.a.completedOrphanRuns}/${row.a.orphanWorkers}:${row.b.completedOrphanRuns}/${row.b.orphanWorkers} | `
+      + `${row.a.usageIncompleteRuns}/${row.b.usageIncompleteRuns} | `
       + `${format(row.a.wallMs.mean)}/${format(row.b.wallMs.mean)} | `
       + `${format(row.a.wastedLeadTurns.mean)}/${format(row.b.wastedLeadTurns.mean)} | `
       + Object.values(row.deltaPercent).map(value =>

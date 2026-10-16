@@ -44,7 +44,7 @@ describe('autonomous multi-agent benchmark', () => {
       expect(summary.comparable).toBe(true)
       expect(summary.rows.find(row => row.task === 'ALL' && row.arm === 'team')?.a.passRate).toBe(1)
       const manifest = JSON.parse(await readFile(join(out, 'manifest.json'), 'utf8'))
-      expect(manifest).toMatchObject({ protocol: 'autonomous-v4', maxTotalTokens: 1500000,
+      expect(manifest).toMatchObject({ protocol: 'autonomous-v5', maxTotalTokens: 1500000,
         perTaskLimits: { 'code-change': { maxTotalTokens: 1500000 }, sequential: { maxTotalTokens: 1500000 } } })
     } finally { await rm(parent, { recursive: true, force: true }) }
   }, 60000)
@@ -78,7 +78,7 @@ describe('autonomous multi-agent benchmark', () => {
       content: [{ type: 'text', text: 'New worker result' }] })
     expect(evidenceFingerprint([message, news]))
       .not.toBe(evidenceFingerprint([message]))
-    expect(new Collector().metrics(0).totalTokens).toBeNull()
+    expect(new Collector().metrics(0)).toMatchObject({ totalTokens: 0, usageIncomplete: true })
   })
 
   it('rejects traversal and symlinks and fails unmodified code with deterministic graders', async () => {
@@ -189,7 +189,7 @@ describe('autonomous multi-agent benchmark', () => {
     expect(a).toEqual(b)
     expect(a[0]!.files).not.toEqual(c[0]!.files)
     const logs = Object.entries(a[0]!.files!).filter(([name]) => name.startsWith('reports/'))
-    expect(logs).toHaveLength(24)
+    expect(logs).toHaveLength(72)
     expect(logs.every(([, text]) => Buffer.byteLength(text) >= 13000 && Buffer.byteLength(text) <= 16384)).toBe(true)
     expect(a.find(t => t.id === 'code-change')!.checks.length).toBeGreaterThanOrEqual(25)
     expect(Object.keys(a.find(t => t.id === 'bug-hunt')!.files!).filter(n => n.endsWith('.cjs'))).toHaveLength(30)
@@ -218,7 +218,7 @@ describe('autonomous multi-agent benchmark', () => {
         provider: 'fake', model: 'gpt-6-luna', timeoutMs: 15000 })
       expect(result.pass).toBe(true)
       expect(result.maxTotalTokens).toBe(1500000)
-      expect(audit.tools.filter(tool => tool.name === 'read_file')).toHaveLength(25)
+      expect(audit.tools.filter(tool => tool.name === 'read_file')).toHaveLength(73)
       expect(audit.tools.some(tool => tool.name === 'shell')).toBe(false)
     }
   }, 30000)

@@ -1,5 +1,6 @@
 import { ModelAdapter, ReasoningEffortId, ToolCallId } from '../../packages/core/dist/index.js'
 import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '../../packages/core/dist/index.js'
+import { migrationEdits } from './volume-code.ts'
 import type { Task } from './tasks.ts'
 
 type Call = { name: string; args: object }
@@ -14,7 +15,8 @@ export function solution(task: Task): Call[] {
       ? { 'findings.json': JSON.stringify({ findings: task.reviewCases ?? task.auditFindings }) }
       : { [task.id === 'shared-artifact' ? 'plan.json' : 'answer.json']: JSON.stringify(task.expected) })
     return [call('list_files', {}), ...volumeReads(task),
-      ...Object.entries(outputs).map(([path, content]) => write(path, content)),
+      ...Object.entries(outputs).map(([path, content]) => task.id === 'migration'
+        ? call('edit_file', { path, edits: migrationEdits(task.files![path]!, content) }) : write(path, content)),
       ...(task.checks.length ? [call('shell', { command: 'test' })] : [])]
   }
   const solutions: Record<string, Call[]> = {
@@ -140,3 +142,4 @@ function volumeReads(task: Task): Call[] {
     Array.from({ length: Math.ceil(Buffer.byteLength(text) / 16384) }, (_, page) =>
       call('read_file', { path, offset: page * 16384 })))
 }
+
