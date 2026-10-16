@@ -3,6 +3,7 @@ import * as agent from '../../packages/core/dist/agent.js'
 import { ModelRegistry, ReasoningEffortId, normalizeModelFailure,
   type ModelAdapter } from '../../packages/core/dist/index.js'
 import type { ManagedAgentTeamOptions } from '../../packages/core/dist/agent.js'
+import { effectiveTeamOptions, type TeamOptions } from './team-options.ts'
 import { reliableAdapter, type Acquire } from './reliability.ts'
 import { settleCompletion, outstandingWorkers } from './completion.ts'
 import { FakeAdapter } from './fake.ts'
@@ -14,6 +15,8 @@ export const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 
 export type Arm = 'single' | 'team' | 'collab'
 export interface Job extends Partial<Limits> {
+  teamOptions?: TeamOptions
+  effectiveTeamOptions?: TeamOptions
   suite?: Suite; seed?: number; codexAuth?: string; workerTimeoutMs?: number; orphanGraceMs?: number
   arm: Arm; task: string; rep: number; provider: 'fake' | 'codex'; model: string; timeoutMs: number
 }
@@ -40,6 +43,7 @@ export interface RunAttempt {
 export interface ExecutionOptions {
   adapterFactory?: (job: Job, task: Task) => ModelAdapter | Promise<ModelAdapter>
   acquire?: Acquire
+  teamFactory?: TeamFactory
 }
 export const instructions = 'Complete the task using workspace evidence and the available tools. '
   + 'Write the requested artifacts, verify your work, then give a concise completion report. '
@@ -47,8 +51,10 @@ export const instructions = 'Complete the task using workspace evidence and the 
   + 'Keep going until every file/document is covered; do not stop early.'
 
 export function budgetInstructions(job: Job, limits: Limits): string {
+  const configured = effectiveTeamOptions(job.workerTimeoutMs ?? job.timeoutMs, job.teamOptions).workerTimeoutMs
+  const workerTimeoutMs = typeof configured === 'number' ? configured : job.workerTimeoutMs ?? job.timeoutMs
   return `${instructions} Budget: ${job.timeoutMs / 1000} seconds job time; `
-    + `${(job.workerTimeoutMs ?? job.timeoutMs) / 1000} seconds per worker; `
+    + `${workerTimeoutMs / 1000} seconds per worker; `
     + `${limits.maxTotalTokens} aggregate cost-weighted tokens (uncached input + cache writes + output `
     + `+ 0.1 * cache reads); ${limits.maxTurns} model calls; ${limits.maxToolCalls} tool calls. `
     + 'Token, model-call and tool-call limits are shared across all sessions; time caps include waiting.'
@@ -81,7 +87,7 @@ async function adapter(job: Job, task: Task) {
 }
 
 async function runAgent(job: Job, workspace: Workspace, collector: Collector,
-  runtime: { signal: AbortSignal; registry: ModelRegistry }) {
+  runtime: { signal: AbortSignal; registry: ModelRegistry; teamFactory?: TeamFactory | undefined }) {
   const { signal, registry } = runtime
   const tools = workspaceTools(workspace)
   const definition = (name: string) => agent.defineAgent({ id: name, provider: job.provider, model: job.model,
@@ -94,17 +100,24 @@ async function runAgent(job: Job, workspace: Workspace, collector: Collector,
     if (!response.outcome.completed) throw new Error(`Lead incomplete: ${JSON.stringify(response.outcome.reason)}`)
     return 'completed' as const
   }
-  const factory = job.arm === 'collab' ? collaborationFactory(agent) : agent.createManagedAgentTeam
+  const factory = runtime.teamFactory
+    ?? (job.arm === 'collab' ? collaborationFactory(agent) : agent.createManagedAgentTeam)
   if (!factory) throw new Error('Collaboration feature unavailable')
-  const team = factory({ registry, lead: definition('lead'), maxWorkers: 4,
-    team: { onEvent: event => {
+  const knobs = effectiveTeamOptions(job.workerTimeoutMs ?? job.timeoutMs, job.teamOptions)
+  const team = factory({ ...knobs, registry, lead: definition('lead'),
+    // JSON knobs cannot replace the host's instrumentation or agent/session factories.
+    team: { ...(knobs.team as object), onEvent: (event: agent.AgentTeamEvent) => {
+      collector.teamEvent(event)
       if (event.type === 'member-attached' && event.member.name !== 'lead') collector.spawns++
     } },
     leadSessionOptions: collector.options('lead'),
-    workerFactory: request => definition(request.name),
+    workerFactory: request => {
+      collector.delegation.resolved(request.name, request.context)
+      return definition(request.name)
+    },
     workerSessionOptionsFactory: request => collector.options(request.name),
-    workerTimeoutMs: job.workerTimeoutMs ?? job.timeoutMs, workerTeamTools: 'full',
-  })
+  } as ManagedAgentTeamOptions)
+  collector.rootTeamId = team.team.id
   try {
     const response = await team.run(workspace.task.prompt, { signal })
     collector.orphanWorkers = outstandingWorkers(team)
@@ -115,7 +128,9 @@ async function runAgent(job: Job, workspace: Workspace, collector: Collector,
       if (worker.error) collector.errors.push(`${worker.name}: ${errorMessage(worker.error)}`)
     }
     return completion.status
-  } finally { await team.dispose(); await team.team.dispose() }
+  } finally {
+    await team.dispose(); await team.team.dispose()
+  }
 }
 
 export async function execute(job: Job, parent?: string, options: ExecutionOptions = {}):
@@ -134,7 +149,7 @@ Promise<{ result: Result; audit: Collector }> {
     const registry = new ModelRegistry()
     registry.registerAdapter([job.provider], reliableAdapter(
       await (options.adapterFactory ?? adapter)(job, workspace.task), collector, options.acquire))
-    status = await runAgent(job, workspace, collector, { signal, registry })
+    status = await runAgent(job, workspace, collector, { signal, registry, teamFactory: options.teamFactory })
   } catch (caught) {
     recordCaughtFailure(caught, collector)
     status = timeout.aborted ? 'timeout' : 'failed'
@@ -172,5 +187,7 @@ function quality(grade: { precision?: number; recall?: number }): Partial<Result
 }
 
 function resolvedJob(job: Job): Job {
-  return { ...job, workerTimeoutMs: job.workerTimeoutMs ?? job.timeoutMs, orphanGraceMs: job.orphanGraceMs ?? 30000 }
+  return { ...job, teamOptions: job.teamOptions ?? {},
+    effectiveTeamOptions: effectiveTeamOptions(job.workerTimeoutMs ?? job.timeoutMs, job.teamOptions),
+    workerTimeoutMs: job.workerTimeoutMs ?? job.timeoutMs, orphanGraceMs: job.orphanGraceMs ?? 30000 }
 }
