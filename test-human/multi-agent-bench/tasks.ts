@@ -13,6 +13,7 @@ export interface Task {
   category: string
   auditFindings?: { file: string; symbol: string; rule: string }[]
   limits?: Partial<Limits>
+  outputBudget?: { estimatedTokens: number; tokensPerSecond: number; maxTimeFraction: number; estimate: string }
   prompt: string
   checks: string[]
   files?: Record<string, string>

@@ -26,9 +26,9 @@ The default live model is `gpt-6-luna`; a newer generation/tier must be explicit
 Older models fail validation and there is no fallback. Optional ZenMux support is not implemented.
 
 ```sh
-# Round 4 offline protocol validation: eight scaled tasks, two arms, one repetition = 16 runs.
+# Round 6 offline protocol validation: eight scaled tasks, two arms, one repetition = 16 runs.
 node test-human/multi-agent-bench/run.ts --provider fake --suite scaled \
-  --arms single,team --reps 1 --concurrency 2 --label offline-round4 --out /tmp/ma-offline-round4
+  --arms single,team --reps 1 --concurrency 2 --label offline-round6 --out /tmp/ma-offline-round6
 
 # Preserve the original six small fixtures for quick smoke checks.
 node test-human/multi-agent-bench/run.ts --provider fake --suite smoke \
@@ -40,7 +40,7 @@ pnpm exec vitest run tests/unit/multi-agent-bench.spec.ts
 ```
 
 Defaults: `--suite scaled`, seed `16102026`, three repetitions, one independent process at a time,
-180000 ms wall deadline, four workers maximum, medium effort, 1500000 cost-weighted tokens, 240 model
+1200000 ms job and worker deadlines for volume tasks, 180000 ms for other tasks, four workers maximum, medium effort, 1500000 cost-weighted tokens, 240 model
 requests and 320 tool dispatches **per run, shared across every session**. The same aggregate limits
 apply to single, team and collab. `--label` is saved in the manifest; it does not affect comparability.
 Task/rep pairs alternate arm order. Use matching settings and seeds on both branches.
@@ -48,13 +48,14 @@ Task/rep pairs alternate arm order. Use matching settings and seeds on both bran
 Token usage is summed once per SDK `sdk.model.call` end across lead and workers. On reaching the
 aggregate cap, a shared signal aborts execution and stops admission to further requests/tools.
 Already running calls can overshoot because usage arrives at settlement; this is an observed usage
-cap, not a provider reservation guarantee. Missing usage stays unknown; analysis reports observed lower bounds with explicit flags. Model/tool checkpoint
+cap, not a provider reservation guarantee. Missing usage is flagged; reported totals remain numerical
+lower bounds. Model/tool checkpoint
 admission enforces aggregate turn/tool limits even on SDK coordination tools exempt from session
 budgets. `metrics.capHits.{tokens,turns,toolCalls}` records which caps bound a run, and `status: cap-hit`
 is separate from timeout/failure. Cap hits count as unsuccessful runs even if an artifact already exists.
 Per-session step ceilings are above the shared admission ceilings, so they do not silently take over.
 
-Output directories must be new. A nonzero CLI exit indicates an SDK, cap, timeout or infrastructure
+Output directories must be new. A nonzero CLI exit indicates an execution, cap, timeout or infrastructure
 failure; an incorrect artifact from a completed agent remains a completed, failed grade.
 `--arms collab` is supported explicitly and records a skipped arm when unavailable. Detection uses
 public exports: `MANAGED_TEAM_FEATURES.collaboration === true` plus `createManagedAgentTeam` maps to
@@ -69,9 +70,9 @@ outside model-visible workspaces. Every run receives the same seed, regardless o
 
 | ID / kind | Default scaled task | Checks |
 | --- | --- | --- |
-| extraction / volume | 24 incident reports, ~2.2k words each (~3k estimated tokens); closure facts, distractors and cross-references | 144 independent exact field checks: rootCause, service, customerImpact, owningTeam, ticket, inferred severity |
+| extraction / volume | 72 incident reports, ~1.1 MB; later correction notices, distributed severity inputs, distractors and cross-references | 432 independent exact field checks: rootCause, service, customerImpact, owningTeam, ticket, inferred severity |
 | multi-module-audit / volume | Six modules × ten source files, 24 operations per file; three policy rules and exempt cases | 180 findings; fixed 360 recall/precision-adjusted checks; explicit precision and recall |
-| migration / volume | Five packages × eight files, 24 operations per file; request API, retry/key decisions, unit conversion and return contracts | 1920 hidden behavioral checks, two inputs per operation, independently selectable per package |
+| migration / volume | Five packages × eight files, eight operations per file; request API, retry/key decisions, unit conversion and return contracts | 640 hidden behavioral checks, two inputs per operation, independently selectable per package |
 | code-change / overhead | Eight spec sections/modules with disjoint write sets and a frozen shared interface | 40 hidden executable edge cases plus interface integrity |
 | bug-hunt / overhead | 30 source files, four planted bugs in cache/ranges/billing/routing | 20 hidden checks plus healthy-module integrity; `shell test <module>` supported |
 | sequential / control | Original ordered modular transition negative control | Complete trace and final value |
@@ -82,15 +83,32 @@ The review grader treats null, primitives, malformed findings and rejected count
 checks. Editing the submitted source cannot validate an invented counterexample: execution uses
 host-held originals. A valid policy predicate alone cannot pass a finding.
 
-## Round 4 calibration and scoring
+## Round 5 calibration and scoring
 
-The audit and migration corpora each contain over 75k words. With compaction disabled, even a
-batch that reads the entire corpus must resend that context to produce edits/artifacts and to
-finish after tool results: the conservative two-context word proxy exceeds 150k cumulative input.
-Normal bounded reads and forty migration writes require more turns. These are sizing proxies,
-not measured provider tokens. Reviewer live runs must verify actual input, completion and quality.
-Search remains available; efficient evidence selection is legitimate and may reduce that workload.
-No prompt mandates spawning or gives the lead host-side partitioning hints beyond the task layout.
+Live Round 4 evidence showed migration was infeasible with whole-file writes and a 180-second cap;
+extraction was too easy; the audit team had incomplete module coverage. Round 5 keeps all 40
+migration files but drops contract padding and uses eight operations per file. `edit_file` batches
+exact replacements without re-emitting unchanged code. The generated default seed has 320 edits,
+640 behavioral checks, and 78,033 UTF-8 bytes of minimal edit arguments. At a conservative planning
+proxy of three bytes per token this is 26,011 output tokens, or 27.1% of a 1200-second allowance
+at an **assumed, unmeasured 80 output tokens/second**. The manifest records `perTaskOutputBudget`;
+this is a sizing assumption requiring live throughput calibration, not a performance measurement.
+Lowering the timeout can invalidate the allowance. No runtime grader rewards a particular edit strategy.
+
+Volume task job and worker deadlines default to 1200 seconds; others retain 180 seconds.
+`--timeout-ms` overrides all jobs; `--volume-timeout-ms` then overrides volume jobs only.
+`--worker-timeout-ms` overrides all workers (otherwise they inherit their job deadline);
+`--volume-worker-timeout-ms` then overrides volume workers only. `--orphan-grace-ms` defaults to
+30000. Resolved values are recorded in manifest `perTaskTimeouts` and individual results. Grace is
+inside the job deadline. Both arms and every worker see the same task budget and persistence
+instruction: “Keep going until every file/document is covered; do not stop early.” The prompt states
+job/worker time, aggregate weighted tokens, model calls and tool calls explicitly.
+
+Extraction now has 72 independent reports with approved later corrections superseding earlier
+cause, boundary and action-register fields. Separate customer, integrity and mitigation corrections
+may supersede earlier severity inputs; uncorrected inputs remain authoritative. Cross-references
+never transfer facts. Audits retain their precision-adjusted grading and volume; search remains a
+legitimate evidence-selection strategy. No prompt mandates spawning or gives host partition hints.
 
 Extraction uses exact scalar fields; no p95 arithmetic, histograms, global counts or zero-code keys
 remain. Unknown/absent document fields fail individually. Extra summary keys, including zeros,
@@ -98,7 +116,7 @@ are ignored. Inferred categories and severity follow the explicit SPEC rules, no
 
 Every grader has a fixed checklist. Missing/malformed artifacts and execution failures retain the
 full denominator. Cap/error/timeout runs still grade the workspace; `score` is passed checks / all
-checks while `pass` additionally requires completed execution. Frozen-file integrity remains a
+checks while `pass` additionally requires completed or completed-orphans execution. Frozen-file integrity remains a
 check in the existing code tasks. Sandbox module initialization failures affect checks loading that
 module without suppressing healthy modules' checks.
 
@@ -119,17 +137,28 @@ reads, and `outputTokens` includes the SDK output bucket. Raw `totalTokens` incl
 The 1.5M aggregate `maxTotalTokens`/`--max-total-tokens` cap now uses this cost-weighted value;
 per-task limits and explicit CLI overrides retain their precedence. This is a token weight, not USD.
 
-Incomplete usage keeps exact totals null and retains `reportedTokens` and
-`reportedCostWeightedTokens`. If only a raw total is reported without attributed buckets, its
-unattributed portion contributes at minimum cache weight to the weighted lower bound. Analysis
-uses reported totals when exact totals are null, counts lower-bound runs explicitly, reports raw,
-weighted, uncached, cached and output distributions, and adds `kind:volume`, `kind:overhead`, and
-`kind:control` rows alongside task and ALL rows. Null output stays unknown. V4 manifests identify
-both protocol and accounting convention; V3 results require rerunning for paired comparisons.
+When any call is aborted, missing or partial, `usageIncomplete: true` (`usageComplete: false`)
+flags the entire run. `inputTokens`, `outputTokens`, `totalTokens` and `costWeightedTokens` retain
+reported sums, as do `reportedTokens` and `reportedCostWeightedTokens`; none become null merely
+because one call lacks usage. They are lower bounds, never exact cost evidence. Raw-only usage
+without attributed buckets contributes at minimum cache weight. Analysis also supports older null
+metrics, uses reported lower bounds, counts incomplete runs, and reports raw/weighted/input/cache/
+output distributions alongside `kind:volume`, `kind:overhead` and `kind:control` rows.
+V5 manifests identify the changed protocol; all V1–V4 cohorts require rerunning for paired comparisons.
+
+If the lead finishes with running/pending workers (including follow-ups visible only in the team
+roster), or the SDK returns `completed:false` with reason `completed`, the harness records
+`completed-orphans`. It waits up to the grace deadline for quiescence, then disposes remaining work
+and grades the resulting artifacts normally. `orphanWorkers` counts distinct workers outstanding
+at lead return; `orphanWorkersAfterGrace` counts those still outstanding at the grace boundary.
+A zero initial count with `completed:false`/reason `completed` remains flagged as an SDK inconsistency.
+Grace expiry is a finding, not a harness error; job timeout, budget cap and real errors retain their
+failure status. Analysis reports orphan runs and worker counts, including runs whose artifacts pass.
+A `completed-orphans` run alone does not make the CLI exit nonzero. It is not proof of lead synthesis.
 
 ## Workspace tools and sandbox
 
-Every session in an arm gets the same task-specific tools: `read_file`, `write_file`, `list_files`,
+Every session in an arm gets the same task-specific tools: `read_file`, `write_file`, `edit_file`, `list_files`,
 `search_files`, plus `shell` only when the task has executable checks.
 Team/collab sessions additionally get the SDK's coordination surface. Absolute paths, traversal,
 symlinks and writes to frozen paths (including normalized aliases) are rejected.
@@ -138,6 +167,10 @@ symlinks and writes to frozen paths (including normalized aliases) are rejected.
   Returns `{content,nextOffset,totalBytes}`; continue until `nextOffset` is null. UTF-8 boundaries
   are preserved. `limit` cannot exceed 16384.
 - `write_file`: up to 64 KiB, at most 128 workspace files. Creates parent directories.
+- `edit_file({path,edits:[{old,new},...]})`: exact sequential replacements in an existing file.
+  Each nonempty `old` must occur exactly once at its step; zero or multiple matches fail the entire
+  batch without writing. Edit batches are serialized to preserve concurrent independent edits.
+  Existing 64 KiB, path and frozen-file limits apply. Available on every task to both arms/workers.
 - `search_files`: literal matching, capped at 40 lines and 16 KiB; cannot produce numeric aggregates.
 - Artifact tasks (extraction, audit, review, shared-artifact, sequential): no `shell` tool.
   Their artifacts are graded by the host; no empty `test` result is offered.
@@ -157,25 +190,27 @@ up even if a run process is killed.
 The fake adapter discovers spawn/wait tools by offered names/descriptions and fills required schema
 fields only. It reads the returned worker address instead of assuming a name. Its fixed repairs,
 findings and 100 input/20 output usage are synthetic protocol data. It reads every volume page
-through the SDK, then writes host-scripted expectations/repairs. Generator/grader correctness has
+through the SDK, then writes host-scripted expectations/repairs (migration uses batched exact edits). Generator/grader correctness has
 separate field, executable-audit and migration tests (including perfect and half answers). This scripted adapter behavior is not a live-model capability measurement.
 
 ## Results and comparison
 
-Each `*.json` contains grades, final text, metrics and a workspace snapshot. `*.audit.json` retains
-SDK observations, model-request evidence fingerprints and dispatches. Fatal process errors get
-`*.fatal.json` with unknown metrics and a conservative full failed checklist. A hard process failure
-cannot prove a workspace grade; its `graderError` marks that boundary explicitly. `manifest.json` records model/provider,
+Canonical `<task>.<arm>.<rep>.json` files contain grades, final text, metrics, attempt summaries and a
+workspace snapshot. Matching `*.audit.json` retains SDK observations, model-request evidence
+fingerprints and dispatches. Every attempt is preserved in `*.attempt-N.json` and
+`*.attempt-N.audit.json`. Fatal child errors produce `infra-failed` with unknown metrics and a
+conservative failed checklist. A hard process failure cannot prove a workspace grade; its
+`graderError` marks that boundary explicitly. Legacy `*.fatal.json` remains readable by analysis. `manifest.json` records model/provider,
 label, suite, seed, all limits, commit/dirty state, Node version, fixture/harness/core-bundle hashes,
-skipped arms, resolved `perTaskLimits`, and the `autonomous-v4` protocol. V1/V2/V3 results require rerunning.
+skipped arms, resolved `perTaskLimits`, `perTaskTimeouts`, output planning budgets, and the
+`autonomous-v6` protocol. V1–V5 results require rerunning.
 The effective limits are also present in every result/job. Task definitions may set `limits` in
 `tasks.ts`; explicit CLI caps override task values, which override the shared defaults.
 Harness hashes contain only relative bench paths and bytes; SDK bundle hashes are recorded separately.
 Keep output directories outside `test-human/multi-agent-bench/` so results do not enter its hash.
 
 Tokens sum the SDK's disjoint input/output/cache-read/cache-write buckets; reasoning is already
-in output. Incomplete usage yields `totalTokens: null`, with `reportedTokens` preserving partial
-usage. Lower-bound usage cannot establish a precise token-cost win. `leadModelCalls`/`totalModelCalls` count SDK logical starts. `spawns` counts actual attachment
+in output. Incomplete usage preserves reported numeric totals with `usageIncomplete: true`. Lower-bound usage cannot establish a precise token-cost win. `leadModelCalls`/`totalModelCalls` count SDK logical starts. `spawns` counts actual attachment
 events. `toolCalls` counts admitted dispatches, including coordination calls. `wallMs` includes
 execution, quiescence and disposal; it excludes fixture generation, grading and serialization.
 
@@ -186,21 +221,78 @@ notices (including lean `Read their results with wait_agents.` and the managed-t
 Settlement-producer messages remain evidence even when their text resembles a control wake. New non-status tool results count. Identity
 fields and repeated semantic contents are deduplicated; losing history entries does not create
 new evidence. Unknown notice formats conservatively count as evidence. This is an operational
-proxy, not a judgment about private reasoning. Error events may be reported at multiple layers.
+proxy, not a judgment about private reasoning. A session tool interceptor records member, tool name,
+a bounded argument summary (512 characters; individual strings truncated to 160), and the real
+failure message. Duplicate SDK tool observation errors are suppressed from the error summary once
+captured; original observations remain in audits for diagnosis. Other errors can appear at multiple layers.
 
 ```sh
 node test-human/multi-agent-bench/analyze.ts /tmp/ma-baseline /tmp/ma-candidate
 ```
 
 The table shows per-task/per-arm, per-kind and `ALL` distributions/pass rates, and **B versus A delta %**
-for mean score, raw tokens, weighted tokens, lead calls, wall and wasted turns. Positive means an increase; lower cost
+for mean score, raw tokens, weighted tokens, lead calls, raw/active wall and wasted turns. Positive means an increase; lower cost
 is better. Zero-to-zero is 0%; nonzero from a zero baseline or unknown usage is `n/a`. JSON is
-written to `<dirB>/comparison.json` and includes mean/median statistics, cap hits, errors, timeouts,
+written to `<dirB>/comparison.json` and includes mean/median statistics, cap hits, errors, timeouts, orphan counts, incomplete usage counts,
 labels and configuration/sample mismatch warnings. Aggregates weight runs equally.
 
 The merge gate still needs matched **live N>=3** runs, quality at least baseline, plus quality up,
 tokens down >=15%, lead calls down >=30%, or wall down >=20%, and no task regressing by more than
 one run. The sequential control should stay at parity. Offline results establish no performance win.
+
+## Round 6: retry, infrastructure recovery and resume
+
+All arms and sessions use the SDK's `withRetry` adapter decorator: at most six provider attempts
+(first call plus five retries), starting at 1s exponential backoff with 20% jitter, up to 60s.
+`providerRetryAfterMs` takes precedence; a hint over 60s ends the call rather than retrying early.
+Retryable SDK failure codes are `RATE_LIMIT`, `SERVER`, `TIMEOUT`, `TRANSPORT` and `STREAM_CLOSED`.
+SDK streaming safety applies: content already emitted is never replayed. Authentication is not
+retried within a call. Exhausted rate-limit/server/network/auth failures (including any worker)
+contaminate the run as `infra-failed`; they are distinct from failed model work, token/tool/turn
+cap hits and ordinary job timeouts. A deadline reached during provider backoff retains that infra
+classification. Unknown errors are not guessed to be provider failures from their text.
+
+The runner retries infrastructure failures twice, using a fresh child and workspace each time.
+All three attempts remain available even when the last one succeeds. Fatal child failures also
+receive these bounded reruns. Canonical cell metrics describe the final attempt; attempt summaries
+and archives preserve earlier tokens, waits, errors and grades. Analysis excludes terminal infra
+cells from score/pass/token/latency means, reports `infraFailedRuns` and `infraFailedAttempts`
+(including recovered runs), and warns for every cell with usable N below the requested reps.
+`allAttemptsRetries` and `allAttemptsRetryWaitMs` include discarded infra attempts. Missing metrics
+remain unknown; no provider cost is inferred for a crashed child.
+
+`--max-inflight-model-calls <n>` (default **4**) bounds actual generation attempts across every
+forked job, lead and worker of one runner. The parent grants FIFO permits over IPC; streams release
+permits on success/error/cancellation, before retry backoff. Child exit releases held/queued
+permits. `--concurrency` still controls job count. Independent runner processes do not share this
+limit: launching 11 runners can still overload an account. Run one appropriately configured runner
+for an account-wide cohort. The manifest records `maxInflightModelCalls`, `retryPolicy` and
+`maxRunAttempts`, and analysis requires matching values for comparable cohorts.
+
+New metrics: `modelRetries` counts scheduled retries; `retryScheduledWaitMs` sums requested delays;
+`retryWaitMs` sums actual elapsed backoff across all calls, including truncated waits at abort.
+`retryWallWaitMs` is the union of those intervals, and
+`wallActiveMs = max(0, wallMs - retryWallWaitMs)`. Concurrent worker waits are subtracted once.
+This is a defined backoff-adjusted wall metric, not CPU time: another worker may still be doing work
+during a backoff interval. Semaphore queue wait stays in active wall. Raw `wallMs` and all job/worker
+time caps continue to include all waiting. Model-call metrics remain SDK logical calls; retries are
+separate metrics. Task prompts, tools, budgets and models are unchanged from Round 5.
+
+```sh
+# Offline example; reviewer supplies credentials for live cohorts.
+node test-human/multi-agent-bench/run.ts --provider fake --suite scaled --reps 3 \
+  --concurrency 4 --max-inflight-model-calls 4 --out /tmp/ma-round6
+node test-human/multi-agent-bench/run.ts --resume /tmp/ma-round6
+```
+
+Resume reuses the V6 manifest, skips cells with finished deterministic grades (including model
+failures/caps/timeouts), and reruns missing or infra-failed cells with up to three fresh attempts
+per invocation. Attempt numbers continue from preserved history, including an archive saved before
+an interruption in canonical publication. Successful cells are never rerun to improve their score.
+Only `--codex-auth` may accompany `--resume`; all experiment settings come from the saved manifest.
+Resume rejects changed commit, harness, fixtures, core bundle or collaboration support to avoid
+mixing cohorts. Do not use multiple runners against the same output directory. Use a new output
+directory after source/protocol changes; contaminated V5 cohorts cannot be mixed into V6 evidence.
 
 ## Copy into another worktree
 
@@ -218,7 +310,7 @@ rsync -a --delete "$src/test-human/multi-agent-bench/" "$dst/test-human/multi-ag
 node "$dst/test-human/multi-agent-bench/run.ts" \
   --provider codex --model gpt-6-luna --codex-auth /absolute/path/auth.json \
   --suite scaled --arms single,team --reps 3 --concurrency 1 --label candidate \
-  --out /tmp/ma-candidate-round4
+  --out /tmp/ma-candidate-round5
 ```
 
 For multiple branches, the driver takes repeated `--worktree <label> <directory>` arguments; the
@@ -235,7 +327,7 @@ node "$src/test-human/multi-agent-bench/compare-branches.ts" \
   --worktree candidate /absolute/path/to/candidate-worktree \
   --provider codex --model gpt-6-luna --codex-auth /absolute/path/auth.json \
   --suite scaled --arms single,team --reps 3 --concurrency 1 \
-  --out /tmp/ma-round4-comparison
+  --out /tmp/ma-round5-comparison
 ```
 
 Instead of `--codex-auth`, export `AI_AGENT_SDK_CODEX_AUTH=/absolute/path/auth.json`. The driver
