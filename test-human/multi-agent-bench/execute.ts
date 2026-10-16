@@ -15,10 +15,13 @@ export interface Job extends Partial<Limits> {
   arm: Arm; task: string; rep: number; provider: 'fake' | 'codex'; model: string; timeoutMs: number
 }
 export interface Result extends Job {
+  kind: Task['kind']
   schemaVersion: 1
   status: 'completed' | 'failed' | 'timeout' | 'skipped' | 'cap-hit'
   score: number
   pass: boolean
+  precision?: number
+  recall?: number
   checks: boolean[]
   metrics: Metrics
   text: string
@@ -112,12 +115,17 @@ export async function execute(job: Job, parent?: string): Promise<{ result: Resu
   try {
     const grade = await workspace.grade()
     const metrics = collector.metrics(wallMs)
-    const result: Result = { ...job, ...collector.limits, schemaVersion: 1, status, score: grade.score,
+    const result: Result = { ...job, ...collector.limits, schemaVersion: 1, kind: task.kind, status, score: grade.score,
       pass: grade.pass && status === 'completed',
+      ...quality(grade),
       checks: grade.checks, metrics, text: collector.lastText,
       artifacts: Object.fromEntries(await Promise.all((await workspace.files()).map(async path =>
         [path, await workspace.readAll(path)] as const))),
       ...('error' in grade ? { graderError: grade.error } : {}), ...(error ? { error } : {}) }
     return { result, audit: collector }
   } finally { await workspace.close() }
+}
+
+function quality(grade: { precision?: number; recall?: number }): Partial<Result> {
+  return grade.precision === undefined ? {} : { precision: grade.precision, recall: grade.recall! }
 }

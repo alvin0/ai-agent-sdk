@@ -4,11 +4,14 @@ import { fileURLToPath } from 'node:url'
 import type { Limits } from './metrics.ts'
 import { sandboxChecks } from './sandbox.ts'
 import { generateScaledTasks } from './generate.ts'
+import { extractionChecks, auditChecks } from './volume-grade.ts'
 
 export const fixtureRoot = fileURLToPath(new URL('./fixtures/', import.meta.url))
 export interface Task {
   id: string
+  kind: 'volume' | 'overhead' | 'control'
   category: string
+  auditFindings?: { file: string; symbol: string; rule: string }[]
   limits?: Partial<Limits>
   prompt: string
   checks: string[]
@@ -21,12 +24,12 @@ export interface Task {
 }
 export const smokeTasks: Task[] = [
   {
-    id: 'extraction', category: 'parallel research', checks: [],
+    id: 'extraction', kind: 'volume', category: 'parallel research', checks: [],
     prompt: 'Read every regions/*.json. Write answer.json with {requests,errors,serviceIds}: total requests, '
       + 'total errors, and all service ids sorted lexicographically. Use only the source data.',
   },
   {
-    id: 'code-change', category: 'disjoint code changes',
+    id: 'code-change', kind: 'overhead', category: 'disjoint code changes',
     prompt: 'Implement both functions in src/ according to SPEC.md. Verify with shell test.',
     checks: [
       'load("src/names.cjs").normalize("  Hello   WORLD ") === "hello-world"',
@@ -36,7 +39,7 @@ export const smokeTasks: Task[] = [
     ],
   },
   {
-    id: 'bug-hunt', category: 'independent hypotheses',
+    id: 'bug-hunt', kind: 'overhead', category: 'independent hypotheses',
     prompt: 'Find and fix cache expiration bugs across this repo. Preserve its public API. Verify with shell test.',
     checks: [
       '(()=>{const c=load("src/cache.cjs").createCache(); c.put("a",4,2,100);return c.get("a",2099)===4})()',
@@ -45,25 +48,27 @@ export const smokeTasks: Task[] = [
     ],
   },
   {
-    id: 'sequential', category: 'tightly coupled negative control', checks: [],
+    id: 'sequential', kind: 'control', category: 'tightly coupled negative control', checks: [],
     prompt: 'Read input.json. Starting at seed, apply each operation in order: '
       + 'next=(previous*multiply+add)%modulus. Write answer.json {trace:[each next],final:last next}.',
   },
   {
-    id: 'review', category: 'fresh context verification', checks: [],
+    id: 'review', kind: 'overhead', category: 'fresh context verification', checks: [],
     prompt: 'Review src/ against POLICY.md. Do not change source. Write findings.json '
       + '{findings:[{file,rule,example}]}. rule must be active-admin or exact-origin. '
       + 'Each example contains a JSON input that the current function wrongly accepts: '
       + 'a user object for auth, a URL string for redirect. Report only proven violations.',
   },
   {
-    id: 'shared-artifact', category: 'collaboration on shared artifact', checks: [],
+    id: 'shared-artifact', kind: 'overhead', category: 'collaboration on shared artifact', checks: [],
     prompt: 'Reconcile the team migration fragments in teams/ into one plan.json following SPEC.md. '
       + 'Resolve cross-team dependencies and duplicate ownership into a consistent runnable plan.',
   },
 ]
 
-const json = async (root: string, file: string): Promise<any> => JSON.parse(await readFile(join(root, file), 'utf8'))
+const json = async (root: string, file: string): Promise<any> => {
+  try { return JSON.parse(await readFile(join(root, file), 'utf8')) ?? {} } catch { return {} }
+}
 const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right)
 
 async function extraction(root: string): Promise<boolean[]> {
@@ -160,6 +165,8 @@ function badOrigin(rule: string, example: unknown): boolean {
 }
 
 export async function scaledArtifactChecks(task: Task, root: string): Promise<boolean[]> {
+  if (task.id === 'multi-module-audit') return auditChecks(task, await json(root, 'findings.json')).checks
+  if (task.id === 'extraction') return extractionChecks(task, await json(root, 'answer.json'))
   if (task.id !== 'review') {
     const answer = await json(root, task.id === 'shared-artifact' ? 'plan.json' : 'answer.json')
     const expected = task.expected as Record<string, unknown>
@@ -187,4 +194,18 @@ export async function scaledArtifactChecks(task: Task, root: string): Promise<bo
   const intact = await Promise.all(Object.entries(originals).map(async ([name, text]) =>
     await readFile(join(root, name), 'utf8') === text))
   return [...results, findings.length === task.reviewCases!.length, intact.every(Boolean)]
+}
+
+/** Fixed denominator, including when an artifact is absent or execution was interrupted. */
+export function checkCount(task: Task): number {
+  let count = task.checks.length
+  if (!count) count = artifactCount(task)
+  return count + (task.frozen?.length ?? 0)
+}
+function artifactCount(task: Task): number {
+  if (!task.files) return ({ extraction: 3, sequential: 2, review: 3, 'shared-artifact': 7 })[task.id] ?? 0
+  if (task.id === 'extraction') return Object.keys(task.expected as object).length * 6
+  if (task.id === 'multi-module-audit') return task.auditFindings!.length * 2
+  if (task.id === 'review') return task.reviewCases!.length + 2
+  return (task.expected as { steps: unknown[] }).steps.length + 1
 }

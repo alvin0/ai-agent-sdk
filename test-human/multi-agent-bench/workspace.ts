@@ -2,8 +2,9 @@ import { cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile }
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { defineTool, type ToolDefinition } from '../../packages/core/dist/index.js'
-import { artifactChecks, fixtureRoot, type Task } from './tasks.ts'
+import { artifactChecks, checkCount, fixtureRoot, type Task } from './tasks.ts'
 
+import { auditChecks } from './volume-grade.ts'
 import { sandboxChecks, sandboxScript } from './sandbox.ts'
 export { sandboxChecks } from './sandbox.ts'
 
@@ -78,12 +79,27 @@ export class Workspace {
     return { written: name }
   }
   async grade(signal?: AbortSignal) {
-    try {
-      const checks = this.task.checks.length ? await this.test(signal) : await artifactChecks(this.task, this.root)
-      if (this.task.frozen?.length) checks.push(...await Promise.all(this.task.frozen.map(async name =>
-        await this.readAll(name) === this.task.files?.[name])))
-      return { score: checks.filter(Boolean).length / checks.length, pass: checks.every(Boolean), checks }
-    } catch (error) { return { score: 0, pass: false, checks: [], error: String(error) } }
+    const count = checkCount(this.task)
+    let checks: boolean[], error: string | undefined
+    try { checks = this.task.checks.length ? await this.test(signal) : await artifactChecks(this.task, this.root) }
+    catch (caught) {
+      checks = Array.from({ length: count - (this.task.frozen?.length ?? 0) }, () => false)
+      error = String(caught)
+    }
+    for (const name of this.task.frozen ?? []) {
+      checks.push(await this.readAll(name).then(text => text === this.task.files?.[name], () => false))
+    }
+    if (checks.length !== count) throw new Error(`Grader denominator mismatch: ${checks.length}/${count}`)
+    return { ...await this.auditQuality(), score: checks.filter(Boolean).length / count,
+      pass: count > 0 && checks.every(Boolean), checks, ...(error ? { error } : {}) }
+  }
+  private async auditQuality(): Promise<{ precision?: number; recall?: number }> {
+    if (!this.task.auditFindings) return {}
+    const answer = await this.readAll('findings.json').then(text => {
+      try { return JSON.parse(text) as unknown } catch { return {} }
+    }, () => ({}))
+    const { precision, recall } = auditChecks(this.task, answer)
+    return { precision, recall }
   }
   async test(signal?: AbortSignal, module?: string) {
     const names = (await this.files()).filter(name => name.endsWith('.cjs'))
@@ -93,7 +109,9 @@ export class Workspace {
     return sandboxChecks(Object.fromEntries(sources), checks, signal)
   }
   async run(script: string, output: string, signal?: AbortSignal) {
-    if (this.task.id === 'extraction') throw new Error('Only test is allowed for extraction')
+    if (!this.task.checks.length || this.task.kind === 'volume') {
+      throw new Error('No script execution for reading-volume or artifact tasks')
+    }
     const pages: Record<string, unknown[]> = {}
     for (const name of await this.files()) {
       const chunks: unknown[] = []
@@ -145,19 +163,16 @@ export function workspaceTools(workspace: Workspace): ToolDefinition<any>[] {
         })
       } }),
     defineTool<{ command: string }>({ name: 'shell',
-      description: workspace.task.id === 'extraction' ? 'Isolated runner: only test is allowed.'
+      description: workspace.task.kind === 'volume' ? 'Isolated runner: test [package] only.'
         : 'Isolated runner: test [module], or run <script.cjs> <output.json>. '
         + 'Scripts export run() returning JSON, using read_file(path,offset) pages and list_files().',
-      parameters: parameters({ command: workspace.task.id === 'extraction'
-        ? { ...string, enum: ['test'] } : string }, ['command']), execute: async (args, context) => {
-        if (workspace.task.id === 'extraction' && args.command !== 'test') {
-          throw new Error('Only test is allowed for extraction')
-        }
+      parameters: parameters({ command: string }, ['command']), execute: async (args, context) => {
         const match = /^test(?: ([a-z][\w-]*))?$/.exec(args.command)
         if (match) return { checks: await workspace.test(context.signal, match[1]) }
+        if (workspace.task.kind === 'volume') throw new Error('Only test [package] is allowed')
         const run = /^run ([\w./-]+\.cjs) ([\w./-]+\.json)$/.exec(args.command)
         if (!run) throw new Error('Only test or run <script.cjs> <output.json> is allowed')
         return workspace.run(run[1]!, run[2]!, context.signal)
       } }),
-  ]
+  ].filter(tool => tool.name !== 'shell' || workspace.task.checks.length > 0)
 }

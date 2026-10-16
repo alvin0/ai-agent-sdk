@@ -56,6 +56,13 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Changed
 
+- Round 4 benchmark protocol V4 replaces unsolvable numeric extraction with 24 incident-reading
+  reports, adds 60-file module audits and 40-file API migrations, and separates volume, overhead
+  and control aggregates. Fixed grading checklists preserve partial credit after cap/error/timeout;
+  cached input costs 0.1 token under the default 1.5M aggregate weighted cap. Analysis retains raw
+  and weighted metrics plus flagged reported lower bounds. Artifact tasks omit the empty shell;
+  migration exposes tests only. V3 cohorts must be rerun for comparisons; SDK host APIs are unchanged.
+
 - Round 3 benchmark protocol V3 uses 24 one-page CSV extraction files with a test-only shell,
   a 400k shared token default and recorded per-task overrides. Collaboration feature flags and
   lean/push-join status notices are recognized. A copy/build/run comparison driver preserves

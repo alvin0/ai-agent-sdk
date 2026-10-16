@@ -3,13 +3,17 @@ import { createCoreSpan, type Message, type ObservationEvent } from '../../packa
 import type { AgentSessionOptions } from '../../packages/core/dist/agent.js'
 
 export interface Limits { maxTotalTokens: number; maxTurns: number; maxToolCalls: number }
-export const defaultLimits: Limits = { maxTotalTokens: 400000, maxTurns: 240, maxToolCalls: 320 }
+export const defaultLimits: Limits = { maxTotalTokens: 1500000, maxTurns: 240, maxToolCalls: 320 }
 export interface Metrics {
   inputTokens: number | null
   outputTokens: number | null
   cacheReadTokens: number
   cacheWriteTokens: number
   totalTokens: number | null
+  uncachedInputTokens: number
+  cachedInputTokens: number
+  costWeightedTokens: number | null
+  reportedCostWeightedTokens: number
   reportedTokens: number
   usageComplete: boolean
   leadModelCalls: number
@@ -22,6 +26,16 @@ export interface Metrics {
   errors: string[]
 }
 const numeric = (value: unknown) => typeof value === 'number' ? value : 0
+/** SDK input, cache reads, cache writes and output are disjoint buckets. Writes cost full weight. */
+export function tokenCounts(usage: Record<string, unknown> | undefined) {
+  const input = numeric(usage?.inputTokens), output = numeric(usage?.outputTokens)
+  const cached = numeric(usage?.cacheReadTokens), written = numeric(usage?.cacheWriteTokens)
+  const buckets = input + cached + written + output
+  const raw = Math.max(numeric(usage?.totalTokens), buckets)
+  // Unattributed reported tokens might all be cached: only their minimum weight is a safe lower bound.
+  const weighted = input + written + output + cached * 0.1 + (raw - buckets) * 0.1
+  return { raw, weighted, uncached: input + written, cached }
+}
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object'
 
 // Be conservative: unknown notices are evidence. Only recognized status-only shapes are ignored.
@@ -102,8 +116,7 @@ export class Collector {
         this.events.push({ member, event })
         if (event.name === 'sdk.model.call' && event.phase === 'end') {
           const usage = event.data.reported as Record<string, unknown> | undefined
-          this.tokens += ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens']
-            .reduce((sum, key) => sum + numeric(usage?.[key]), 0)
+          this.tokens += tokenCounts(usage).weighted
           if (this.tokens >= this.limits.maxTotalTokens) this.hit('tokens')
         }
         if (event.phase === 'end' && ['sdk.model.call', 'sdk.tool.call'].includes(event.name)
@@ -153,9 +166,13 @@ export class Collector {
     }, 0)
     const input = sum('inputTokens'), output = sum('outputTokens')
     const cacheReadTokens = sum('cacheReadTokens'), cacheWriteTokens = sum('cacheWriteTokens')
-    const reportedTokens = input + output + cacheReadTokens + cacheWriteTokens
+    const counts = ends.map(({ event }) => tokenCounts(event.data.reported as Record<string, unknown> | undefined))
+    const reportedTokens = counts.reduce((total, count) => total + count.raw, 0)
+    const reportedCostWeightedTokens = counts.reduce((total, count) => total + count.weighted, 0)
     return { inputTokens: usageComplete ? input : null, outputTokens: usageComplete ? output : null,
       cacheReadTokens, cacheWriteTokens, totalTokens: usageComplete ? reportedTokens : null,
+      uncachedInputTokens: input + cacheWriteTokens, cachedInputTokens: cacheReadTokens,
+      costWeightedTokens: usageComplete ? reportedCostWeightedTokens : null, reportedCostWeightedTokens,
       reportedTokens, usageComplete, leadModelCalls: starts.filter(s => s.member === 'lead').length,
       totalModelCalls: starts.length, toolCalls: this.tools.length, capHits: { ...this.capHits }, spawns: this.spawns,
       wastedLeadTurns: this.requests.filter(r => r.repeated).length, wallMs, errors: [...this.errors] }

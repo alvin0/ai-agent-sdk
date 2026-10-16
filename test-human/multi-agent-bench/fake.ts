@@ -9,16 +9,12 @@ const write = (path: string, content: unknown) => call('write_file', {
 })
 
 export function solution(task: Task): Call[] {
-  if (task.files && task.id === 'extraction') return [
-    call('read_file', { path: 'SPEC.md' }),
-    ...Object.keys(task.files).filter(path => path.endsWith('.csv')).map(path => call('read_file', { path })),
-    write('answer.json', extractionAnswer(task.files)),
-  ]
   if (task.files) {
-    const outputs = task.repairs ?? (task.id === 'review'
-      ? { 'findings.json': JSON.stringify({ findings: task.reviewCases }) }
+    const outputs = task.repairs ?? (task.id === 'review' || task.id === 'multi-module-audit'
+      ? { 'findings.json': JSON.stringify({ findings: task.reviewCases ?? task.auditFindings }) }
       : { [task.id === 'shared-artifact' ? 'plan.json' : 'answer.json']: JSON.stringify(task.expected) })
-    return [call('list_files', {}), ...Object.entries(outputs).map(([path, content]) => write(path, content)),
+    return [call('list_files', {}), ...volumeReads(task),
+      ...Object.entries(outputs).map(([path, content]) => write(path, content)),
       ...(task.checks.length ? [call('shell', { command: 'test' })] : [])]
   }
   const solutions: Record<string, Call[]> = {
@@ -137,23 +133,10 @@ function workerAddress(options: GenerateOptions): string {
   throw new Error('Fake adapter could not discover spawned worker address')
 }
 
-// Independent host-side CSV calculation for the scripted adapter only. No live scripting tool is exposed.
-function extractionAnswer(files: Record<string, string>) {
-  const result: Record<string, unknown> = {}, globalErrors: Record<string, number> = {}
-  let globalRequests = 0
-  for (const [path, text] of Object.entries(files).filter(([path]) => path.endsWith('.csv'))) {
-    const latencies: Record<string, number[]> = {}, errors: Record<string, number> = {}
-    for (const line of text.trim().split('\n').slice(1)) {
-      const [, service, ms, code] = line.split(',') as [string, string, string, string, string]
-      ;(latencies[service] ??= []).push(Number(ms))
-      errors[code] = (errors[code] ?? 0) + 1
-      globalErrors[code] = (globalErrors[code] ?? 0) + 1
-      globalRequests++
-    }
-    result[path] = { p95: Object.fromEntries(Object.entries(latencies).map(([service, values]) => {
-      values.sort((a, b) => a - b)
-      return [service, values[Math.ceil(values.length * 0.95) - 1]]
-    })), errors }
-  }
-  return { ...result, globalRequests, globalErrors }
+// Scripted mode deliberately reads every volume page; answers remain host fixtures, not quality evidence.
+function volumeReads(task: Task): Call[] {
+  if (task.kind !== 'volume') return []
+  return Object.entries(task.files ?? {}).flatMap(([path, text]) =>
+    Array.from({ length: Math.ceil(Buffer.byteLength(text) / 16384) }, (_, page) =>
+      call('read_file', { path, offset: page * 16384 })))
 }

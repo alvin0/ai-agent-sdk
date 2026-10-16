@@ -1,5 +1,6 @@
 /** Deterministic runtime fixtures. Answers/repairs remain host-side, never in the task workspace. */
 import type { Task } from './tasks.ts'
+import { incidentExtraction, moduleAudit, migration } from './volume.ts'
 
 export function seededRandom(seed: number) {
   let state = seed >>> 0 || 1
@@ -12,41 +13,6 @@ const encode = (value: unknown) => JSON.stringify(value)
 const assertResult = (name: string, input: unknown, output: unknown) =>
   `JSON.stringify(load(${encode(`src/${name}.cjs`)}).run(${encode(input)})) === ${encode(encode(output))}`
 
-function extraction(random: () => number): Task {
-  const files: Record<string, string> = {}, expected: Record<string, unknown> = {}
-  const totals: Record<string, number> = {}
-  let requests = 0
-  for (let index = 0; index < 24; index++) {
-    const name = `logs/part-${String(index).padStart(2, '0')}.csv`
-    const latency: Record<string, number[]> = {}, errors: Record<string, number> = {}
-    const lines = ['timestamp,service,latency_ms,error_code,trace']
-    const rowCount = 420 + Math.floor(random() * 30)
-    for (let row = 0; row < rowCount; row++) {
-      const service = `svc-${Math.floor(random() * 4)}`, ms = 1 + Math.floor(random() * 1800)
-      const code = random() < 0.78 ? 'OK' : ['E_RATE', 'E_TIMEOUT', 'E_PARSE'][Math.floor(random() * 3)]!
-      ;(latency[service] ??= []).push(ms)
-      errors[code] = (errors[code] ?? 0) + 1
-      totals[code] = (totals[code] ?? 0) + 1
-      const trace = Math.floor(random() * 0xffffffff).toString(16).padStart(8, '0')
-      lines.push(`${1700000000 + row},${service},${ms},${code},${trace}`)
-      requests++
-    }
-    files[name] = lines.join('\n') + '\n'
-    expected[name] = { p95: Object.fromEntries(Object.entries(latency).sort().map(([service, values]) => {
-      values.sort((a, b) => a - b)
-      return [service, values[Math.ceil(values.length * 0.95) - 1]]
-    })), errors }
-  }
-  files['SPEC.md'] = 'CSV headers define each field. All rows count, including OK. p95 is nearest rank: '
-    + 'sorted[ceil(n*0.95)-1]. For each file, compute p95 latency per service and an error_code histogram '
-    + '(including OK). Preserve full relative filenames as keys. Also compute globalRequests and globalErrors '
-    + '(the histogram across all files). No sampling or approximation.'
-  return { id: 'extraction', category: 'parallel research at scale', checks: [], files,
-    expected: { ...expected, globalRequests: requests, globalErrors: totals },
-    prompt: 'Read SPEC.md and all 24 logs/*.csv (one 16 KiB page each). Write answer.json with one key per relative '
-      + 'filename mapping to {p95:{service:number},errors:{code:count}}, plus globalRequests and globalErrors. '
-      + 'Exact aggregates required.' }
-}
 
 function codeChange(): Task {
   const definitions: { name: string; spec: string; source: string; cases: unknown[] }[] = [
@@ -94,7 +60,7 @@ function codeChange(): Task {
   files['SPEC.md'] = 'Implement all eight spec/*.md sections. Each module has a disjoint write set. '
     + 'src/interface.cjs is frozen. Export run(input) in each module. No imports. Run shell test or shell test '
     + '<module>. Hidden checks include edge cases.'
-  return { id: 'code-change', category: 'eight independent modules', files, repairs,
+  return { id: 'code-change', kind: 'overhead', category: 'eight independent modules', files, repairs,
     frozen: ['src/interface.cjs'], moduleChecks, checks: Object.values(moduleChecks).flat(),
     prompt: 'Implement all eight modules in src/ following SPEC.md and each spec/*.md. Preserve the frozen '
       + 'shared interface. Verify with shell test.' }
@@ -135,7 +101,7 @@ function bugHunt(): Task {
       { active: 1, role: 'admin' }, { active: true, role: 'admin' }]
       .map(u => `load("src/routing.cjs").allowed(${encode(u)}) === ${u.active === true && u.role === 'admin'}`),
   }
-  return { id: 'bug-hunt', category: 'four independent subsystems', files, repairs, moduleChecks,
+  return { id: 'bug-hunt', kind: 'overhead', category: 'four independent subsystems', files, repairs, moduleChecks,
     frozen: Object.keys(files).filter(name => name.includes('helper-')), checks: Object.values(moduleChecks).flat(),
     prompt: 'Find and fix the four independent bugs in this 30-source-file repo using README.md contracts. '
       + 'Preserve public APIs and healthy modules. Verify with shell test <module> and shell test.' }
@@ -172,7 +138,7 @@ function review(): Task {
     + 'https://example.com, no credentials or explicit ports. bounded-count: integer from 0 through 100 '
     + 'inclusive. Report a violation only with a JSON input the ORIGINAL function accepts but its rule rejects. '
     + 'Preserve source.'
-  return { id: 'review', category: 'executable counterexample review', files, reviewCases, checks: [],
+  return { id: 'review', kind: 'overhead', category: 'executable counterexample review', files, reviewCases, checks: [],
     prompt: 'Review all 12 src/ handlers against POLICY.md. Do not change source. Write findings.json '
       + '{findings:[{file,rule,example}]}. Include all proven violations with concrete JSON inputs accepted by '
       + 'the original handler but forbidden by its policy. No false positives.' }
@@ -200,12 +166,15 @@ function shared(): Task {
     const p = patches.filter(p => p.id === id).sort((a, b) => b.priority - a.priority)[0]!
     return { id, owner: p.owner, after: p.after }
   })
-  return { id: 'shared-artifact', category: 'eight conflicting fragments', checks: [], files, expected: { steps },
+  return { id: 'shared-artifact', kind: 'overhead', category: 'eight conflicting fragments',
+    checks: [], files, expected: { steps },
     prompt: 'Reconcile all eight migration fragments in teams/ following SPEC.md. Resolve conflicting owners '
       + 'and dependencies, including stale cyclic constraints. Write one consistent plan.json.' }
 }
 
 export function generateScaledTasks(seed: number, sequential: Task): Task[] {
-  return [extraction(seededRandom(seed)), codeChange(), bugHunt(), sequential, review(), shared()]
+  const random = seededRandom(seed)
+  return [incidentExtraction(random), moduleAudit(random), migration(random),
+    codeChange(), bugHunt(), sequential, review(), shared()]
 }
 
