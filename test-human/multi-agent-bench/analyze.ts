@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url'
 import type { Result } from './execute.ts'
 import type { Metrics } from './metrics.ts'
 
-type AnalysisRun = Pick<Result, 'task' | 'arm' | 'score' | 'pass'> & { status: string; metrics: Metrics | null }
+type AnalysisRun = Pick<Result, 'task' | 'arm' | 'score' | 'pass'>
+  & { status: string; kind?: Result['kind']; metrics: Metrics | null }
 
 const mean = (values: number[]) => values.length ? values.reduce((a, b) => a + b, 0) / values.length : null
 const median = (values: number[]) => {
@@ -20,7 +21,14 @@ const distribution = (values: (number | null)[]) => {
 export function summarize(runs: AnalysisRun[]) {
   return { n: runs.length, passRate: mean(runs.map(run => Number(run.pass))),
     score: distribution(runs.map(run => run.score)),
-    tokens: distribution(runs.map(run => run.metrics?.totalTokens ?? null)),
+    tokens: distribution(runs.map(run => run.metrics?.totalTokens ?? run.metrics?.reportedTokens ?? null)),
+    tokenLowerBoundRuns: runs.filter(run => run.metrics && run.metrics.totalTokens === null).length,
+    costWeightedTokens: distribution(runs.map(run => run.metrics?.costWeightedTokens
+      ?? run.metrics?.reportedCostWeightedTokens ?? null)),
+    weightedLowerBoundRuns: runs.filter(run => run.metrics && run.metrics.costWeightedTokens === null).length,
+    uncachedInput: distribution(runs.map(run => run.metrics?.uncachedInputTokens ?? null)),
+    cachedInput: distribution(runs.map(run => run.metrics?.cachedInputTokens ?? null)),
+    output: distribution(runs.map(run => run.metrics?.outputTokens ?? null)),
     leadCalls: distribution(runs.map(run => run.metrics?.leadModelCalls ?? null)),
     totalCalls: distribution(runs.map(run => run.metrics?.totalModelCalls ?? null)),
     wallMs: distribution(runs.map(run => run.metrics?.wallMs ?? null)),
@@ -53,15 +61,19 @@ export function percentDelta(a: number | null, b: number | null): number | null 
 export async function compare(dirA: string, dirB: string) {
   const [a, b] = await Promise.all([load(dirA), load(dirB)])
   const comparable = ['protocol', 'model', 'provider', 'fixtureHash', 'harnessHash', 'concurrency', 'timeoutMs', 'reps',
-    'suite', 'seed', 'perTaskLimits', 'maxTotalTokens', 'maxTurns', 'maxToolCalls']
+    'suite', 'seed', 'tokenAccounting', 'perTaskLimits', 'maxTotalTokens', 'maxTurns', 'maxToolCalls']
     .every(key => JSON.stringify(a.manifest[key]) === JSON.stringify(b.manifest[key]))
   const rows = []
   const arms = [...new Set([...a.runs, ...b.runs].map(run => run.arm))]
-  const ids = [...new Set([...a.runs, ...b.runs].map(run => run.task)), 'ALL']
+  const kinds = [...new Set([...a.runs, ...b.runs].flatMap(run => run.kind ? [run.kind] : []))]
+  const ids = [...new Set([...a.runs, ...b.runs].map(run => run.task)),
+    ...kinds.map(kind => `kind:${kind}`), 'ALL']
   for (const task of ids) for (const arm of arms) {
-    const select = (runs: AnalysisRun[]) => runs.filter(run => run.arm === arm && (task === 'ALL' || run.task === task))
+    const select = (runs: AnalysisRun[]) => runs.filter(run => run.arm === arm
+      && (task === 'ALL' || run.task === task || `kind:${run.kind}` === task))
     const baseline = summarize(select(a.runs)), candidate = summarize(select(b.runs))
-    const deltaPercent = Object.fromEntries((['score', 'tokens', 'leadCalls', 'wallMs', 'wastedLeadTurns'] as const)
+    const deltaKeys = ['score', 'tokens', 'costWeightedTokens', 'leadCalls', 'wallMs', 'wastedLeadTurns'] as const
+    const deltaPercent = Object.fromEntries(deltaKeys
       .map(key => [key, percentDelta(baseline[key].mean, candidate[key].mean)]))
     rows.push({ task, arm, a: baseline, b: candidate, deltaPercent })
   }
@@ -71,7 +83,8 @@ export async function compare(dirA: string, dirB: string) {
     labels: { a: a.manifest.label, b: b.manifest.label },
     infrastructureErrors: { a: a.fatal, b: b.fatal }, rows }
   console.log('task / arm | N A/B | pass A/B | score A/B | tokens mean/median A:B | lead calls A/B | '
-    + 'wall ms A/B | wasted A/B | delta % score/tokens/lead/wall/wasted (B vs A)')
+    + 'weighted A/B | uncached A/B | cached A/B | output A/B | lower-bound runs raw/weighted A:B | '
+    + 'wall ms A/B | wasted A/B | delta % score/raw/weighted/lead/wall/wasted (B vs A)')
   for (const row of rows) {
     console.log(`${row.task} / ${row.arm} | ${row.a.n}/${row.b.n} | `
       + `${format(row.a.passRate)}/${format(row.b.passRate)} | `
@@ -79,6 +92,12 @@ export async function compare(dirA: string, dirB: string) {
       + `${format(row.a.tokens.mean)}/${format(row.a.tokens.median)}:`
       + `${format(row.b.tokens.mean)}/${format(row.b.tokens.median)} | `
       + `${format(row.a.leadCalls.mean)}/${format(row.b.leadCalls.mean)} | `
+      + `${format(row.a.costWeightedTokens.mean)}/${format(row.b.costWeightedTokens.mean)} | `
+      + `${format(row.a.uncachedInput.mean)}/${format(row.b.uncachedInput.mean)} | `
+      + `${format(row.a.cachedInput.mean)}/${format(row.b.cachedInput.mean)} | `
+      + `${format(row.a.output.mean)}/${format(row.b.output.mean)} | `
+      + `${row.a.tokenLowerBoundRuns}/${row.a.weightedLowerBoundRuns}:`
+      + `${row.b.tokenLowerBoundRuns}/${row.b.weightedLowerBoundRuns} | `
       + `${format(row.a.wallMs.mean)}/${format(row.b.wallMs.mean)} | `
       + `${format(row.a.wastedLeadTurns.mean)}/${format(row.b.wastedLeadTurns.mean)} | `
       + Object.values(row.deltaPercent).map(value =>
@@ -86,6 +105,9 @@ export async function compare(dirA: string, dirB: string) {
   }
   if (!comparable || !balanced) console.error('WARNING: configuration/sample mismatch; not a paired comparison.')
   if (a.fatal.length || b.fatal.length) console.error('WARNING: infrastructure failures; sample is incomplete.')
+  if (rows.some(row => row.a.tokenLowerBoundRuns || row.b.tokenLowerBoundRuns)) {
+    console.error('WARNING: token totals include reported lower bounds; cost deltas are not exact.')
+  }
   await writeFile(join(dirB, 'comparison.json'), JSON.stringify(summary, null, 2))
   console.log(JSON.stringify(summary))
   return summary

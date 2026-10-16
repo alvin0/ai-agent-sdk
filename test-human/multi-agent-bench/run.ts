@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { collabAvailable, repoRoot, type Arm, type Job, type Result } from './execute.ts'
-import { fixtureRoot, selectTasks, defaultSeed, type Suite } from './tasks.ts'
+import { fixtureRoot, selectTasks, defaultSeed, checkCount, type Suite } from './tasks.ts'
 import { defaultLimits, type Limits } from './metrics.ts'
 
 function options(args: string[]) {
@@ -146,7 +146,8 @@ export async function main(args = process.argv.slice(2)) {
     commit: git(['rev-parse', 'HEAD']), dirty: git(['status', '--porcelain']),
     fixtureHash: await treeHash(fixtureRoot), harnessHash: await treeHash(fileURLToPath(new URL('.', import.meta.url))),
     coreBundleHash: await treeHash(join(repoRoot, 'packages/core/dist')), synthetic: config.provider === 'fake',
-    protocol: 'autonomous-v3', repetitionsBelowMergeGate: config.reps < 3 }, null, 2))
+    protocol: 'autonomous-v4', tokenAccounting: 'uncached+cacheWrite+output+0.1*cacheRead',
+    repetitionsBelowMergeGate: config.reps < 3 }, null, 2))
   let next = 0, failures = 0
   const consume = async () => {
     while (next < jobs.length) {
@@ -156,11 +157,15 @@ export async function main(args = process.argv.slice(2)) {
         const { result, audit } = await runChild(job)
         await writeFile(join(config.out, `${id}.json`), JSON.stringify(result, null, 2))
         await writeFile(join(config.out, `${id}.audit.json`), JSON.stringify(audit, null, 2))
-        console.log(`${id}: ${result.status} score=${result.score} tokens=${result.metrics.totalTokens}`)
+        console.log(`${id}: ${result.status} score=${result.score} raw=${result.metrics.totalTokens} `
+          + `weighted=${result.metrics.costWeightedTokens}`)
         if (result.status !== 'completed') failures++
       } catch (error) {
         failures++
+        const task = selectTasks(job.suite, job.seed).find(task => task.id === job.task)!
         await writeFile(join(config.out, `${id}.fatal.json`), JSON.stringify({ ...job, status: 'infrastructure-error',
+          kind: task.kind, checks: Array.from({ length: checkCount(task) }, () => false),
+          graderError: 'Child process unavailable; workspace grade unknown, conservative failed checklist.',
           error: String(error), metrics: null, score: 0, pass: false }, null, 2))
         console.error(`${id}: ${String(error)}`)
       }
