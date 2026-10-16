@@ -468,7 +468,7 @@ describe('what the app actually configures for a single agent', () => {
       }
       expect(leadTools.map(tool => tool.name)).not.toContain('followup_task')
       expect(adapter.requests[0]!.system)
-        .toContain('Do small or sequential work directly; workers add context and synthesis cost.')
+        .toContain('Do small or sequential work directly; weigh context and synthesis cost.')
       expect(adapter.requests[0]!.system).not.toContain('Collaboration mode:')
       if (actor === 'worker') {
         const reviewer = await handles.managedTeam!.spawn({

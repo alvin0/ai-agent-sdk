@@ -39,9 +39,11 @@ must enforce any required approval through its tools and policies.
 
 The lead defaults to doing small or sequential tasks directly: worker context, startup and synthesis
 add cost. One worker can justify that cost for a focused side task or fresh-context check. Fan-out
-is for many independent items whose combined work exceeds one context or needs many sequential steps.
+is for many independent items when accuracy or time benefits justify the coordination cost.
 Inspect scope before choosing; after choosing fan-out, give workers input locations rather than
-reading all their inputs first. Free slots and queue capacity are limits, not targets to fill.
+reading all their inputs first. Size chunks so each worker can handle its items carefully: accuracy
+degrades as item count per worker grows. Prefer more, smaller chunks within host slot and queue limits.
+Free slots and queue capacity are limits, not targets to fill.
 Both spawn tools remain initially available, after application tools, so wide work can batch immediately.
 
 The lead keeps immediate blockers local, delegates worthwhile independent work together, assigns

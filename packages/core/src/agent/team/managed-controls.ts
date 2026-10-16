@@ -13,12 +13,13 @@ import type { ManagedAgentDelegationMode, ManagedAgentRole, ManagedAgentSpawnReq
 export const DELEGATION_STRATEGY = [
   'Delegation adds worker context, startup and synthesis cost. Do small or sequential tasks directly. '
   + 'Use one worker when a bounded side task or fresh-context check justifies that cost.',
-  'Fan out only for many independent items that exceed one context or need many sequential steps. '
+  'Fan out for many independent items when accuracy or time benefits justify cost. '
   + 'Inspect scope first; once fan-out is justified, plan partitions before reading bulk inputs. '
+  + 'Size chunks carefully: accuracy degrades as items per worker grow; '
+  + 'prefer more, smaller chunks within slot and queue limits. '
   + 'Keep immediate critical-path blockers and tightly coupled work local.',
-  'Start worthwhile independent delegations together in one batch when supported. '
-  + 'Give each worker an objective, input locations, expected output, '
-  + 'write scope, and verification.',
+  'Batch worthwhile independent work. '
+  + 'Worker brief: objective, inputs, output, write scope, verification.',
   'Use disjoint write sets, including your own. Do not redo delegated work; continue useful non-overlapping work.',
   'For fresh context, give a self-contained brief. For fork, state only new information; '
   + 'the worker sees completed conversation turns, not this in-flight turn.',

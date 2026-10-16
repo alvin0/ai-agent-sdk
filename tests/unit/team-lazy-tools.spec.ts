@@ -71,7 +71,7 @@ describe('progressive managed tool disclosure', () => {
       expect(adapter.leads[0]!.tools).toEqual(adapter.leads[1]!.tools)
       expect(adapter.leads[0]!.system).toBe(adapter.leads[1]!.system)
       expect(adapter.leads[0]!.system)
-        .toContain('Do small or sequential work directly; workers add context and synthesis cost.')
+        .toContain('Do small or sequential work directly; weigh context and synthesis cost.')
       expect(team.lead.effectiveCatalog()?.get('wait_agents')).toBeUndefined()
       expect(team.lead.effectiveCatalog()?.executionMode('wait_agents', {})).toBe('exclusive')
     } finally { await team.dispose(); await team.team.dispose() }

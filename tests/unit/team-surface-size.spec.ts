@@ -12,7 +12,16 @@ const fixture = JSON.parse(readFileSync(new URL('../fixtures/team-lazy-surfaces.
   before: Record<string, FrozenView[]>
   combined: Record<string, FrozenView[]>
 }
-const hash = (view: Surfaces[string][number]) => createHash('sha256').update(JSON.stringify(view)).digest('hex')
+const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
+// Frozen r4 lead catalogs, including spawn_agent/spawn_agents schemas and descriptions.
+// System text may change; snapshot updates must not silently change tool JSON.
+const leadToolHashes = {
+  leanInitial: 'ba91447ebfafa208b43b7f50586132c80174005c2570a5ab9d1bde514d1e41a4',
+  leanDisclosed: 'c30e44408de10684f279670ad47cb09c23a5f4a4f6ae4b56f9184e9bf68f56f0',
+  eager: '28aa1b2b0e6340f3b0bc5673322ab29cbccd7c6a2ef720b8a5fada4e5fa91ed4',
+  legacy: '62a1a7a2a0ca561d78381f871532728cab1a1bf00033fb118b4d4088a931f48b',
+  collaboration: '056a0973d4df25d3af88fef329769e455c0f1be531b13114f4fcfae6a5ac1db7',
+}
 
 function surfaceSize(view: Surfaces[string][number]) {
   const catalog = JSON.stringify(view.tools)
@@ -54,8 +63,16 @@ describe('managed model surface size', () => {
     expect(total(after.fullWorker![1]!)).toBeLessThan(fixture.before.fullWorker![1]!.total * 0.95)
     expect(after.lean![0]!.system).toBe(after.lean![2]!.system)
     expect(after.lean![2]!.tools.slice(0, 2)).toEqual(after.lean![0]!.tools)
-    // Lead cost guidance intentionally changes on every surface. Workers retain
-    // the frozen integration contract; current lead text is pinned above.
+    for (const name of ['lean', 'fullWorker']) {
+      expect(hash(after[name]![0]!.tools)).toBe(leadToolHashes.leanInitial)
+      expect(hash(after[name]![2]!.tools)).toBe(leadToolHashes.leanDisclosed)
+    }
+    for (const name of ['eager', 'eagerFullWorker', 'legacy', 'collaboration'] as const) {
+      const expected = leadToolHashes[name === 'eagerFullWorker' ? 'eager' : name]
+      expect(hash(after[name]![0]!.tools)).toBe(expected)
+      expect(hash(after[name]![2]!.tools)).toBe(expected)
+    }
+    // Workers retain the frozen integration contract; only lead system text may differ.
     for (const name of ['legacy', 'eager', 'eagerFullWorker']) {
       expect(hash(after[name]![1]!)).toBe(fixture.combined[name]![1]!.sha256)
     }

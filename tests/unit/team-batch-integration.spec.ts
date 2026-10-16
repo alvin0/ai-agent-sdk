@@ -77,7 +77,7 @@ describe('batch spawning with lazy disclosure and timeline observation', () => {
   it('accounts aborted queued items without releasing slots they never owned', async () => {
     const { team, collector, events } = observed({ maxWorkers: 1, autoLeadCoordination: false })
     const result = await execute(team, 'spawn_agents', { tasks: tasks() })
-    expect(result.guidance).toContain('Fan out only for many independent items')
+    expect(result.guidance).toContain('Fan out for many independent items when accuracy or time benefits justify')
     await team.dispose()
     expect(collector.metrics(0)).toMatchObject({ spawns: 1, spawnAttempts: 3, spawnsRejected: 2 })
     expect(events().filter(event => event.kind === 'spawn-requested').map(event => event.member)).toEqual(['a'])

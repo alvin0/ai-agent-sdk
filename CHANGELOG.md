@@ -7,8 +7,9 @@ All notable changes to the AI Agent SDK are documented in this file.
 ### Changed
 
 - Managed lead guidance now weighs worker context/startup/synthesis cost: do small or sequential
-  work directly, use one worker for a worthwhile side task or fresh-context check, and fan out only
-  for many independent items exceeding one context or requiring many sequential steps. Both spawn
+  work directly, use one worker for a worthwhile side task or fresh-context check, and fan out for
+  many independent items when accuracy or time benefits justify the cost. Once justified, prefer
+  more, smaller chunks for careful work within host slot/queue limits. Both spawn
   tools remain available initially; host hooks, schemas, queue limits and settlement delivery are unchanged.
 
 ### Breaking

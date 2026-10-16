@@ -4,7 +4,8 @@ import { DISCLOSED_TEAM_GUIDANCE } from '../../packages/core/src/agent/team/mana
 import { captureSurface } from './team-surface-capture.ts'
 import { names, setup } from '../helpers/managed-team.ts'
 
-const threshold = 'many independent items that exceed one context or need many sequential steps'
+const threshold = 'many independent items when accuracy or time benefits justify'
+const toolThreshold = 'many independent items that exceed one context or need many sequential steps'
 
 describe('delegation cost guidance', () => {
   it.each([
@@ -15,13 +16,16 @@ describe('delegation cost guidance', () => {
     expect(lead!.system).toContain('synthesis cost')
     expect(lead!.system).toContain('fresh-context check')
     expect(lead!.system).toContain(threshold)
+    expect(lead!.system).toContain('accuracy degrades as items per worker grow')
+    expect(lead!.system).toContain('more, smaller chunks')
+    expect(lead!.system).not.toContain('Use spawn_agents for independent tasks')
     expect(lead!.system).not.toContain('Use the team proactively')
     expect(lead!.system).not.toContain('do not read bulk data yourself before delegating')
     const single = lead!.tools.find(tool => tool.name === 'spawn_agent')!
     const batch = lead!.tools.find(tool => tool.name === 'spawn_agents')!
     if (!('parameters' in single) || !('parameters' in batch)) throw new Error('Expected function tools')
     expect(single.description).toContain('one worthwhile side task or fresh-context check')
-    expect(batch.description).toContain(threshold)
+    expect(batch.description).toContain(toolThreshold)
     expect(batch.description).toContain('Otherwise work directly or use spawn_agent')
     expect(batch.description).toContain('No dependencies or peer waits on queued tasks')
     // Keep single-item replay/host compatibility: strategy is guidance, not admission policy.
@@ -45,12 +49,18 @@ describe('delegation cost guidance', () => {
   it('does not turn a first delegation or spare capacity into a request for more workers', () => {
     expect(DISCLOSED_TEAM_GUIDANCE).toContain('Do remaining small work directly')
     expect(DISCLOSED_TEAM_GUIDANCE).toContain(threshold)
+    expect(DISCLOSED_TEAM_GUIDANCE).toContain('accuracy degrades as items per worker grow')
+    expect(DISCLOSED_TEAM_GUIDANCE).toContain('more, smaller chunks within slot and queue limits')
+    expect(DISCLOSED_TEAM_GUIDANCE).toContain('Worker context and synthesis consume tokens.')
+    expect(DISCLOSED_TEAM_GUIDANCE).not.toContain('Use spawn_agents for independent tasks')
+    expect(DISCLOSED_TEAM_GUIDANCE).not.toContain('Use the team proactively')
     expect(DISCLOSED_TEAM_GUIDANCE).toContain('limits, not targets')
     expect(DISCLOSED_TEAM_GUIDANCE).toContain('Once justified, plan partitions before reading bulk inputs')
     expect(DISCLOSED_TEAM_GUIDANCE).toContain('returns only new results')
     expect(DISCLOSED_TEAM_GUIDANCE).toContain('Do not poll or repeat short waits')
     for (const mode of ['explicit', 'proactive'] as const) {
       expect(buildDelegationStrategy(mode)).toContain(threshold)
+      expect(buildDelegationStrategy(mode)).toContain('more, smaller chunks within slot and queue limits')
       expect(buildDelegationStrategy(mode)).toContain('startup and synthesis cost')
     }
     expect(buildDelegationStrategy('explicit'))

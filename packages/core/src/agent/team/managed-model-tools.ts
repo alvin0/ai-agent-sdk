@@ -18,14 +18,15 @@ export function leanLeadInstructions(options: ManagedControlsHost['options']): s
   if (progressiveTeamTools(options)) {
     return (options.delegationMode === 'explicit'
       ? 'Delegate only when the user or host explicitly asks. '
-      : 'Do small or sequential work directly; workers add context and synthesis cost. ')
-      + 'Use spawn_agent for one worthwhile side task or fresh-context check; '
-      + 'spawn_agents only for many independent items that exceed one context or need many sequential steps. '
-      + 'Brief objective, inputs, output, disjoint writes and verification. Do not redo delegated work. '
-      + 'After spawning, controls appear and results are pushed. '
+      : 'Do small or sequential work directly; weigh context and synthesis cost. ')
+      + 'Use spawn_agent for one side task or fresh-context check; '
+      + 'spawn_agents for many independent items when accuracy or time benefits justify cost. '
+      + 'Prefer more, smaller chunks; accuracy degrades as items per worker grow. '
+      + 'Respect slot/queue limits, not targets. Brief objective, inputs, output, disjoint writes, verification. '
+      + 'Do not redo work. Spawning reveals controls; results pushed. '
       + (options.autoLeadCoordination === false
         ? 'Use wait_agents when blocked; the host controls later turns.'
-        : 'End your turn when only waiting remains; synthesize reports before the final answer.')
+        : 'End your turn if only waiting; synthesize before replying.')
   }
   return managedLeadInstructions(options) + ' Use send_input for follow-up work. '
     + 'Close retained agents only when no longer needed.'
