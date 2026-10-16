@@ -94,7 +94,12 @@ export class TeamRoster {
       throw new Error(`A2A member '${name}' is already attached or linked`)
     }
   }
-  releaseSlot(name: string): void { this.requireLocalMember(name).slotReleased = true }
+  releaseSlot(name: string): boolean {
+    const member = this.requireLocalMember(name)
+    if (member.slotReleased) return false
+    member.slotReleased = true
+    return true
+  }
   reserveSlot(name: string): void {
     const member = this.requireLocalMember(name)
     if (!member.slotReleased) return

@@ -60,7 +60,7 @@ failure; an incorrect artifact from a completed agent remains a completed, faile
 `--arms collab` is supported explicitly and records a skipped arm when unavailable. Detection uses
 public exports: `MANAGED_TEAM_FEATURES.collaboration === true` plus `createManagedAgentTeam` maps to
 `{ collaboration: true }`. Legacy class/factory/mode detection also remains supported. Requested arms
-are respected; detection does not add an unrequested arm. The combined managed-team implementation exposes this flag.
+are respected; detection does not add an unrequested arm. This branch does not expose collaboration.
 
 ## Tasks
 
