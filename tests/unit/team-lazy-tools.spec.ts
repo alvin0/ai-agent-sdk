@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createManagedAgentTeam, defineAgent, defineSkill, defineTool } from '../../packages/core/src/agent/index.ts'
+import { AgentTeam, createManagedAgentTeam, defineAgent, defineSkill, defineTool, History } from '../../packages/core/src/agent/index.ts'
 import { ToolRegistry } from '../../packages/core/src/agent/tool/registry.ts'
 import { CombinedToolCatalog } from '../../packages/core/src/agent/mode/support/control-catalog.ts'
 import type { ManagedAgentTeamOptions } from '../../packages/core/src/agent/index.ts'
@@ -67,6 +67,7 @@ describe('progressive managed tool disclosure', () => {
       expect(names(adapter.leads[0]!)).toEqual(['read_file', 'spawn_agent'])
       expect(adapter.leads[0]!.tools).toEqual(adapter.leads[1]!.tools)
       expect(adapter.leads[0]!.system).toBe(adapter.leads[1]!.system)
+      expect(adapter.leads[0]!.system).toContain('Use the team proactively for parallel work; keep quick or sequential work local.')
       expect(team.lead.effectiveCatalog()?.get('wait_agents')).toBeUndefined()
       expect(team.lead.effectiveCatalog()?.executionMode('wait_agents', {})).toBe('exclusive')
     } finally { await team.dispose(); await team.team.dispose() }
@@ -80,6 +81,7 @@ describe('progressive managed tool disclosure', () => {
       expect(adapter.leads[0]!.system).toContain('Delegate only when the user or host explicitly asks.')
       expect(adapter.leads[0]!.system).toContain('the host controls later turns')
       expect(adapter.leads[0]!.system).not.toContain('End your turn')
+      expect(adapter.leads[0]!.system).not.toContain('Use the team proactively')
     } finally { await team.dispose(); await team.team.dispose() }
   })
 
@@ -191,6 +193,52 @@ describe('progressive managed tool disclosure', () => {
     } finally { await team.dispose(); await team.team.dispose() }
   })
 
+  it.each(['before', 'after'] as const)('discloses for existing members attached %s catalog creation', async when => {
+    const adapter = new Script()
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['test'], adapter)
+    const controlPlane = new AgentTeam({ id: 'restored-members' })
+    const existing = defineAgent({ id: 'existing', provider: 'test', model: 'scripted',
+      instructions: 'Return evidence.' }).createSession({ registry })
+    if (when === 'before') controlPlane.attach(existing, { role: 'peer' })
+    const team = setup(adapter, { team: controlPlane })
+    try {
+      const catalog = team.lead.effectiveCatalog()!
+      if (when === 'after') {
+        expect(catalog.names()).toEqual(['spawn_agent'])
+        controlPlane.attach(existing, { role: 'peer' })
+      }
+      expect(catalog.names()).toEqual(full)
+      expect(catalog.schemas().map(tool => tool.name)).toEqual(full)
+      expect(catalog.get('wait_agents')).toBeDefined()
+      expect(catalog.has('wait_agents')).toBe(true)
+      expect(catalog.executionMode('wait_agents', {})).toBe('parallel')
+      await team.run('continue')
+      expect(names(adapter.leads[0]!)).toEqual(full)
+      controlPlane.detach('existing')
+      expect(catalog.names()).toEqual(full)
+    } finally { await team.dispose(); await controlPlane.dispose() }
+  })
+
+  it.each([true, false])('restores disclosure only for successful spawn history: %s', async success => {
+    const adapter = new Script([() => call('spawn_agent', success
+      ? { task: 'work' } : { task: 'work', role: 'undeclared' })])
+    const original = setup(adapter, { autoLeadCoordination: false })
+    let history: History
+    try {
+      await original.run('delegate')
+      history = History.fromSnapshot(original.lead.history.snapshot())
+    } finally { await original.dispose(); await original.team.dispose() }
+    const resumedAdapter = new Script()
+    const resumed = setup(resumedAdapter, { leadSessionOptions: { history }, autoLeadCoordination: false })
+    try {
+      expect(resumed.workers()).toHaveLength(0)
+      await resumed.run('continue')
+      expect(names(resumedAdapter.leads[0]!)).toEqual(success ? full : ['spawn_agent'])
+      expect(resumed.lead.effectiveCatalog()?.has('close_agent')).toBe(success)
+    } finally { await resumed.dispose(); await resumed.team.dispose() }
+  })
+
   it.each([
     { progressiveToolDisclosure: false }, { collaboration: true }, { modelToolSurface: 'legacy' as const },
     { maxDepth: 0 },
@@ -205,18 +253,23 @@ describe('progressive managed tool disclosure', () => {
   })
 })
 
-it('keeps dynamic catalogs live through mode composition and rejects late reserved collisions', () => {
+it('validates mode collisions at composition without throwing during active-run catalog reads', () => {
   const base = new ToolRegistry()
   const tool = (name: string) => defineTool({ name, description: 'Test.',
     parameters: { type: 'object' }, execute: () => 'ok', isConcurrencySafe: () => true })
-  const combined = new CombinedToolCatalog(base, [tool('submit_result')])
+  const control = tool('submit_result')
+  const combined = new CombinedToolCatalog(base, [control])
+  expect(() => new CombinedToolCatalog(base, [control, control])).toThrow('reserved')
   base.register(tool('new_tool'))
   expect(combined.names()).toEqual(['new_tool', 'submit_result'])
   expect(combined.schemas().map(tool => tool.name)).toEqual(combined.names())
   expect(combined.get('new_tool')).toBeDefined()
   expect(combined.executionMode('new_tool', {})).toBe('parallel')
   base.register(tool('submit_result'))
-  expect(() => combined.get('submit_result')).toThrow('reserved')
-  expect(() => combined.names()).toThrow('reserved')
-  expect(() => combined.schemas()).toThrow('reserved')
+  expect(combined.get('submit_result')).toBe(control)
+  expect(combined.has('submit_result')).toBe(true)
+  expect(combined.names()).toEqual(['new_tool', 'submit_result'])
+  expect(combined.schemas().map(tool => tool.name)).toEqual(combined.names())
+  expect(combined.executionMode('submit_result', {})).toBe('parallel')
+  expect(() => new CombinedToolCatalog(base, [control])).toThrow('tool name "submit_result" is reserved')
 })

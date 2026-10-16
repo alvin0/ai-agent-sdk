@@ -15,26 +15,21 @@ export class CombinedToolCatalog implements ToolCatalog {
     }
     this.definitions = definitions
   }
-  private assertNoCollision(): void {
-    for (const name of this.definitions.keys()) {
-      if (this.base?.has(name)) throw new Error(`tool name "${name}" is reserved by the selected agent mode`)
-    }
-  }
   get(name: string): ToolDefinition | undefined {
-    this.assertNoCollision()
+    // Validate when composing a run, never while reading its live catalog. Mode
+    // controls keep ownership if the base changes mid-run; the next composition
+    // rejects that collision before any model request. Keep enumeration consistent.
     return this.definitions.get(name) ?? this.base?.get(name)
   }
   has(name: string): boolean { return this.get(name) !== undefined }
   names(): readonly string[] {
-    this.assertNoCollision()
-    return [...this.base?.names() ?? [], ...this.definitions.keys()]
+    return [...(this.base?.names() ?? []).filter(name => !this.definitions.has(name)), ...this.definitions.keys()]
   }
   schemas() {
-    this.assertNoCollision()
     const additions = [...this.definitions.values()].map(({ name, description, parameters }) => ({
       name, description, parameters: structuredClone(parameters),
     }))
-    return [...this.base?.schemas() ?? [], ...additions]
+    return [...(this.base?.schemas() ?? []).filter(tool => !this.definitions.has(tool.name)), ...additions]
   }
   executionMode(name: string, args: unknown): ToolExecutionMode {
     const definition = this.get(name)

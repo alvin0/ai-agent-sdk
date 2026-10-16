@@ -8,9 +8,11 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 - Plain lean managed leads now expose only `spawn_agent` until their first successful host/model spawn;
   control tools then remain visible for the team lifetime. Set `progressiveToolDisclosure: false` for
-  eager discovery and full strategy in the system prompt. Legacy, collaboration, depth-limited leads
+  the exact previous eager schemas/descriptions and full strategy in the system prompt (including workers).
+  Existing team members or a successful spawn in restored lead history also disclose controls.
+  Legacy, collaboration, depth-limited leads
   and worker catalogs remain eager. The lazy lead keeps a compact stable prompt; its first model
-  spawn result appends detailed coordination guidance once. Lean schema descriptions are shorter.
+  spawn result appends detailed coordination guidance once. Default lean schema descriptions are shorter.
 - Managed teams default to the lean model surface: `spawn_agent`, `send_input`, `wait_agents`,
   `close_agent`, and explicit paged `get_agent_result`. Set `modelToolSurface: 'legacy'` to retain
   the earlier names/schemas (`list_agents`, `send_message`, `followup_task`, name-based close).

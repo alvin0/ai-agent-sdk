@@ -114,7 +114,9 @@ export interface ManagedAgentTeamOptions {
   /** Lean model tools by default; legacy preserves earlier tool names and schemas. */
   readonly modelToolSurface?: 'lean' | 'legacy'
   /** Plain lean leads expose only spawn_agent until a successful spawn. Default true.
-   * False keeps all controls visible. Legacy and collaboration always expose their full catalog. */
+   * False restores the previous eager schemas/descriptions and full lead guidance.
+   * Existing members or successful spawn history also reveal controls.
+   * Legacy and collaboration always expose their full catalog. */
   readonly progressiveToolDisclosure?: boolean
   /** Bounded accepted model follow-ups. Defaults to 64. */
   readonly maxPendingInputs?: number

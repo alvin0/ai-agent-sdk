@@ -1,9 +1,8 @@
 /** Codex-style dynamic worker creation and delegation over AgentTeam. */
-
 import { awaitManagedWorker } from './managed-await.ts'
 import { ManagedModelSurface } from './managed-model-surface.ts'
 import { ManagedModelInput } from './managed-model-input.ts'
-import { ManagedLazyTools } from './managed-lazy-tools.ts'
+import { hasSuccessfulTeamSpawn, ManagedLazyTools } from './managed-lazy-tools.ts'
 import { leanControlTools, leanLeadInstructions } from './managed-model-tools.ts'
 import { ManagedTeamCollaboration } from './managed-collaboration.ts'
 import { filterToolsByDepth } from './managed-capabilities.ts'
@@ -161,7 +160,9 @@ export class ManagedAgentTeam {
   }
   private createModelSurface(options: ManagedAgentTeamOptions): ManagedModelSurface {
     return new ManagedModelSurface({ team: this.team, options, input: this.modelInput,
-      filterCatalog: (sender, catalog) => sender === this.leadName ? this.lazyTools.filter(catalog, options) : catalog,
+      filterCatalog: (sender, catalog) => sender === this.leadName ? this.lazyTools.filter(catalog, options, () =>
+        this.team.members().some(member => member.name !== this.leadName)
+          || hasSuccessfulTeamSpawn(this.lead.history.entries())) : catalog,
       worker: name => this.workerRuntimes.get(name),
       ...(options.collaboration ? { peerSend: (sender: string, target: string, message: string,
         delivery: { signal: AbortSignal; interrupt: boolean }) =>
@@ -183,12 +184,10 @@ export class ManagedAgentTeam {
           content: [{ type: 'text', text }] })),
       })
   }
-
   private workerBusy(runtime: WorkerRuntime): boolean {
     return !runtime.settledComplete || this.scheduling.workerHasWork(runtime)
       || this.modelInput.outstanding().some(job => job.name === runtime.request.name)
   }
-
   private async joinMembers(signal?: AbortSignal): Promise<void> {
     const outstanding = [...this.workerRuntimes.values()].filter(runtime => this.workerBusy(runtime))
     await abortable(Promise.all([

@@ -18,7 +18,7 @@ export function leanLeadInstructions(options: ManagedControlsHost['options']): s
   if (progressiveTeamTools(options)) {
     return (options.delegationMode === 'explicit'
       ? 'Delegate only when the user or host explicitly asks. '
-      : 'Keep quick/sequential work local; delegate useful parallel sidecars. ')
+      : 'Use the team proactively for parallel work; keep quick or sequential work local. ')
       + 'spawn_agent briefs need objective, output, disjoint write scope and verification; do not redo their work. '
       + 'After spawning, controls appear and results are pushed automatically. '
       + (options.autoLeadCoordination === false
@@ -31,21 +31,17 @@ export function leanLeadInstructions(options: ManagedControlsHost['options']): s
 
 export function leanControlTools(host: ManagedControlsHost): readonly ToolDefinition<any>[] {
   let guidanceSent = false
+  const eager = host.options.progressiveToolDisclosure === false
   return filterToolsByDepth([defineTool({
     name: 'spawn_agent',
     render: renderModelResult,
-    description: 'Start a parallel sidecar; returns target, not result. Results are pushed. '
+    description: eager
+      ? 'Delegate a bounded sidecar task with objective, output, write scope and verification. '
+        + 'Keep immediate blockers local; do not redo delegated work. '
+        + 'Returns a target; results are pushed automatically.'
+      : 'Start a parallel sidecar; returns target, not result. Results are pushed. '
       + 'Keep immediate blockers local.',
-    parameters: { type: 'object', properties: {
-      task: { type: 'string', description: 'Objective, output, scope, verification.' },
-      context: { type: 'string', enum: ['fresh', 'fork'],
-        description: 'fresh: self-contained task. fork: copies completed turns, not this turn.' },
-      writes: { type: 'array', items: { type: 'string' },
-        description: 'Disjoint relative write scopes; omit for read-only. No permission grant.' },
-      dependsOn: { type: 'array', items: { type: 'string' },
-        description: 'Existing producer targets; start after settlement.' },
-      ...host.roleSchema(),
-    }, required: ['task'], additionalProperties: false },
+    parameters: spawnParameters(host),
     // Accept earlier spellings for in-flight histories, without advertising them.
     parse: parseSpawnTool,
     execute: async (request, ctx) => {
@@ -68,7 +64,7 @@ export function leanControlTools(host: ManagedControlsHost): readonly ToolDefini
       ? 'Close a finished worker. Unfinished work is protected by the host.'
       : 'Close a worker. This cancels unfinished work.',
     parameters: { type: 'object', properties: {
-      target: { type: 'string' } },
+      target: { type: 'string', description: 'Id returned by spawn_agent.' } },
       required: ['target'], additionalProperties: false },
     parse: raw => {
       const input = object(raw, 'close_agent arguments')
@@ -88,4 +84,23 @@ export function leanControlTools(host: ManagedControlsHost): readonly ToolDefini
     },
     timeoutMs: host.workerTimeoutMs,
   })], host.options)
+}
+
+function spawnParameters(host: ManagedControlsHost): ToolDefinition['parameters'] {
+  const eager = host.options.progressiveToolDisclosure === false
+  return { type: 'object', properties: {
+      task: { type: 'string', description: eager
+        ? 'Task and requested output.' : 'Objective, output, scope, verification.' },
+      context: { type: 'string', enum: ['fresh', 'fork'],
+        description: eager ? 'fresh: only the task; include everything needed.'
+          + ' fork: inherits the completed conversation; state only what is new.'
+          : 'fresh: self-contained task. fork: copies completed turns, not this turn.' },
+      writes: { type: 'array', items: { type: 'string' },
+        description: eager ? 'Disjoint workspace write scope; omit for read-only.'
+          : 'Disjoint relative write scopes; omit for read-only. No permission grant.' },
+      dependsOn: { type: 'array', items: { type: 'string' },
+        description: eager ? 'Producer targets to join before starting.'
+          : 'Existing producer targets; start after settlement.' },
+      ...host.roleSchema(),
+    }, required: ['task'], additionalProperties: false }
 }

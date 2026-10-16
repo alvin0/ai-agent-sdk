@@ -5,7 +5,10 @@ visible initially; `close_agent`, `send_input`, `wait_agents`, and `get_agent_re
 the first successful host or model spawn. Failed setup does not reveal controls. Discovery is
 monotonic, including after all workers close, so retained reads and follow-up work stay available.
 The system prompt stays byte-stable; the first model spawn result carries additional guidance once.
-Set `progressiveToolDisclosure: false` to keep eager discovery and full system guidance. Legacy,
+Existing team members or a successful `spawn_agent` result in restored lead history disclose the
+controls too. This restores discovery only; hosts still own member/session rehydration and result storage.
+Set `progressiveToolDisclosure: false` to restore the exact previous eager schemas, descriptions and
+full system guidance for leads and workers. Legacy,
 collaboration and depth-limited leads, and all worker catalogs, remain eager. Host APIs are unchanged.
 
 `createManagedAgentTeam` remains a collection of host hooks. It does not own a filesystem,
