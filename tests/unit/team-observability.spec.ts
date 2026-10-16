@@ -22,7 +22,10 @@ class UsageTeam extends GatedTeam {
 
 describe('host team timeline and snapshots', () => {
   it('reports real lifecycle boundaries with no periodic calls and immutable content-free metadata', async () => {
+    const privateTask = 'PRIVATE/team-observability-lead-task-6b21'
+    const privateFinding = 'PRIVATE/team-observability-worker-finding-9e2c'
     const adapter = new UsageTeam()
+    adapter.workerText = privateFinding
     const events: AgentTeamEvent[] = []
     const subscribed: AgentTeamEvent[] = []
     const team = create(adapter, { team: { onEvent: event => {
@@ -30,7 +33,7 @@ describe('host team timeline and snapshots', () => {
       if (event.type === 'team-timeline') throw new Error('observer failed')
     } } })
     const unsubscribe = team.team.subscribe(event => subscribed.push(event))
-    const running = team.run('Research this private task')
+    const running = team.run(privateTask)
     await vi.waitFor(() => expect(timeline(events).some(event => event.kind === 'lead-yielded')).toBe(true))
     const calls = adapter.leadRequests.length
     expect(team.snapshot().members.find(member => member.name === 'w')).toMatchObject({ status: 'running', runs: 1 })
@@ -53,8 +56,8 @@ describe('host team timeline and snapshots', () => {
     })
     expect(Object.isFrozen(snapshot.members)).toBe(true)
     expect(Object.isFrozen(snapshot.members[0]?.usage?.reported)).toBe(true)
-    expect(JSON.stringify(facts)).not.toContain('Research this private task')
-    expect(JSON.stringify(facts)).not.toContain('finding')
+    expect(JSON.stringify(facts)).not.toContain(privateTask)
+    expect(JSON.stringify(facts)).not.toContain(privateFinding)
     expect(Object.isFrozen(facts[0])).toBe(true)
     unsubscribe()
   })
@@ -206,6 +209,9 @@ describe('host team timeline and snapshots', () => {
   })
 
   it('records committed board operations and peer/worker budget exhaustion', async () => {
+    const privateTitle = 'PRIVATE/team-observability-board-title-8d43'
+    const privateNotes = 'PRIVATE/team-observability-board-notes-3f17'
+    const privateResult = 'PRIVATE/team-observability-board-result-5a69'
     const events: AgentTeamEvent[] = []
     const adapter = new GatedTeam()
     const team = create(adapter, { autoLeadCoordination: false, maxWorkers: 1,
@@ -213,10 +219,10 @@ describe('host team timeline and snapshots', () => {
     await team.spawn({ name: 'w', task: 'task' })
     await expect(team.spawn({ name: 'other', task: 'overflow' })).rejects.toThrow('limit')
     const board = team.collaboration!.board
-    await board.create('lead', { id: 't', title: 'private task title', notes: 'private notes' })
+    await board.create('lead', { id: 't', title: privateTitle, notes: privateNotes })
     await board.update('w', { id: 't', expectedRevision: 1, action: 'claim' })
     await expect(board.update('w', { id: 't', expectedRevision: 1, action: 'complete' })).rejects.toThrow()
-    await board.update('w', { id: 't', expectedRevision: 2, action: 'complete', result: 'private result' })
+    await board.update('w', { id: 't', expectedRevision: 2, action: 'complete', result: privateResult })
     await team.collaboration!.send('lead', 'w', 'context')
     await expect(team.collaboration!.send('lead', 'w', 'again')).rejects.toThrow('peer turn limit')
     expect(timeline(events).filter(event => event.kind === 'board-operation').map(event => event.operation))
@@ -226,7 +232,9 @@ describe('host team timeline and snapshots', () => {
       expect.objectContaining({ budget: 'peer-turns', action: 'consumed', used: 1 }),
       expect.objectContaining({ budget: 'peer-turns', action: 'exhausted', limit: 1 }),
     ]))
-    expect(JSON.stringify(timeline(events))).not.toContain('private')
+    expect(JSON.stringify(timeline(events))).not.toContain(privateTitle)
+    expect(JSON.stringify(timeline(events))).not.toContain(privateNotes)
+    expect(JSON.stringify(timeline(events))).not.toContain(privateResult)
     adapter.gates.get('w')!.resolve()
     await team.whenQuiet()
   })
