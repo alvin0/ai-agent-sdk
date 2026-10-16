@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { ManagedAgentTeamOptions } from '@alvin0/ai-agent-sdk-core/agent'
 import { Collector } from '../../test-human/multi-agent-bench/metrics.ts'
-import { create, GatedTeam } from './team-push-join.fixture.ts'
+import { create, deferred, GatedTeam } from './team-push-join.fixture.ts'
 
-function observedTeam(adapter = new GatedTeam()) {
+function observedTeam(adapter = new GatedTeam(), options: Partial<ManagedAgentTeamOptions> = {}) {
   const collector = new Collector()
-  const team = create(adapter, { autoLeadCoordination: false, team: { onEvent: event => {
+  const team = create(adapter, { autoLeadCoordination: false, ...options, team: { onEvent: event => {
     collector.teamEvent(event)
     if (event.type === 'member-attached' && event.member.name !== 'lead') collector.spawns++
   } } })
@@ -19,8 +20,8 @@ function expectAccounting(collector: Collector, spawns: number, spawnsRejected: 
 }
 
 describe('spawn admission accounting review fixes', () => {
-  it('counts a post-attachment delivery failure only as rejected, then accepts a successful retry', async () => {
-    const { team, collector, adapter } = observedTeam()
+  it.each(['legacy', 'lean'] as const)('counts a %s delivery failure only as rejected, then accepts a successful retry', async modelToolSurface => {
+    const { team, collector, adapter } = observedTeam(new GatedTeam(), { modelToolSurface })
     const delivery = vi.spyOn(team.team, 'sendMessage').mockRejectedValueOnce(new Error('delivery failed'))
     await expect(team.spawn({ name: 'w', task: 'task' })).rejects.toThrow('delivery failed')
     // Attachment fallback must not turn zero successful timeline admissions into a spawn.
@@ -39,6 +40,31 @@ describe('spawn admission accounting review fixes', () => {
     expect(collector.teamEvents.indexOf(accepted)).toBeGreaterThan(collector.teamEvents.indexOf(delivered))
     adapter.gates.get('w')!.resolve()
     await team.awaitWorker('w')
+  })
+
+  it('records a lazy model spawn once before the disclosed synthesis request', async () => {
+    const preparing = deferred()
+    const { team, collector, adapter } = observedTeam(new GatedTeam(), {
+      modelToolSurface: 'lean', autoLeadCoordination: true,
+      workerSessionOptionsFactory: async () => { await preparing.promise; return {} },
+    })
+    const running = team.run('Research')
+    await vi.waitFor(() => expect(collector.teamEvents.some(event => event.kind === 'spawn-requested')).toBe(true))
+    expect(adapter.leadRequests[0]!.tools?.map(tool => tool.name)).toEqual(['spawn_agent'])
+    expect(team.lead.effectiveCatalog()!.has('wait_agents')).toBe(false)
+    expect(collector.teamEvents.some(event => event.kind === 'spawn-accepted')).toBe(false)
+    preparing.resolve()
+    await vi.waitFor(() => expect(team.lead.lastOutcome()?.yielded).toBe(true))
+    expectAccounting(collector, 1, 0)
+    expect(collector.teamEvents.filter(event => event.kind === 'spawn-requested')).toHaveLength(1)
+    expect(collector.teamEvents.filter(event => event.kind === 'spawn-accepted')).toHaveLength(1)
+    expect(adapter.leadRequests[1]!.tools?.map(tool => tool.name)).toEqual(expect.arrayContaining([
+      'spawn_agent', 'send_input', 'wait_agents', 'close_agent', 'get_agent_result',
+    ]))
+    adapter.gates.get('w')!.resolve()
+    expect((await running).text).toBe('synthesis')
+    expectAccounting(collector, 1, 0)
+    expect(collector.teamEvents.filter(event => event.kind === 'spawn-accepted')).toHaveLength(1)
   })
 
   it('accepts a successfully held dependency without waiting for the worker to start', async () => {

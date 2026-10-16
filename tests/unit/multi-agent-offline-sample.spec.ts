@@ -39,9 +39,17 @@ describe('offline managed-team sample', () => {
       expect(result.workers.every(worker => worker.status === 'completed' && worker.result?.succeeded)).toBe(true)
       const lead = result.requests.filter(request => request.actor === 'lead')
       const tools = lead[0]!.options.tools!.map(tool => tool.name)
-      expect(tools).toEqual(expect.arrayContaining([
-        'spawn_agent', 'send_input', 'wait_agents', 'close_agent', 'get_agent_result',
-      ]))
+      expect(tools).toContain('spawn_agent')
+      const controls = ['send_input', 'wait_agents', 'close_agent', 'get_agent_result']
+      if (mode === 'delegation') {
+        expect(tools).toEqual(['read_note', 'spawn_agent'])
+        for (const control of controls) expect(tools).not.toContain(control)
+      }
+      // Delegation's second request follows two successful spawn results;
+      // collaboration exposes controls eagerly, including before spawning.
+      for (const request of lead.slice(mode === 'delegation' ? 1 : 0)) {
+        expect(request.options.tools?.map(tool => tool.name)).toEqual(expect.arrayContaining(controls))
+      }
       for (const legacy of ['list_agents', 'followup_task', 'send_message']) expect(tools).not.toContain(legacy)
       const workers = result.requests.filter(request => request.actor !== 'lead')
       expect(new Set(workers.map(request => request.actor)).size).toBe(2)

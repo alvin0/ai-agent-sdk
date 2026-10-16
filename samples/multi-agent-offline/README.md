@@ -15,6 +15,12 @@ The sample imports the workspace core package. It needs no separate installation
 
 Both runs inspect two local cache rollout measurements with a host `read_note` tool:
 
+- Plain delegation starts with `read_note` and `spawn_agent`. After a successful
+  spawn, the lead also receives `send_input`, `wait_agents`, `get_agent_result` and
+  `close_agent`; the first successful model spawn result includes detailed guidance
+  once. The fake adapter requires those controls only after successful spawn responses.
+  Collaboration and worker catalogs remain eager. Hosts that need the previous eager
+  surface can set `progressiveToolDisclosure: false`.
 - Delegation: the lead calls `spawn_agent` twice; generated workers inherit `read_note`,
   and the lead yields with provisional text without calling `wait_agents`. Workers
   return findings through automatic push delivery, which resumes lead synthesis.
