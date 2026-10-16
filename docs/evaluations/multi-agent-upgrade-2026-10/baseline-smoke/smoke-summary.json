@@ -1,0 +1,45 @@
+{
+  "scope": "One live smoke attempt, two tasks, both arms, one repetition; blocked before provider dispatch",
+  "provider": "codex",
+  "model": "gpt-6-luna",
+  "runs": 4,
+  "passed": 0,
+  "allFailedBeforeDispatch": true,
+  "errorCode": "MISSING_CREDENTIAL",
+  "noFallback": true,
+  "mergeGateEvidence": false,
+  "results": [
+    {
+      "task": "code-change",
+      "arm": "single",
+      "status": "failed",
+      "score": 0.5,
+      "pass": false,
+      "error": "Error: Lead incomplete: {\"kind\":\"error\",\"failure\":{\"message\":\"no Codex credentials at /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/.temp/wt/benchmark/.providers/.codex/auth.json; run `npm run provider:codex:login-device` to sign in\",\"code\":\"MISSING_CREDENTIAL\"}}"
+    },
+    {
+      "task": "code-change",
+      "arm": "team",
+      "status": "failed",
+      "score": 0.5,
+      "pass": false,
+      "error": "Error: Lead incomplete: {\"kind\":\"error\",\"failure\":{\"message\":\"no Codex credentials at /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/.temp/wt/benchmark/.providers/.codex/auth.json; run `npm run provider:codex:login-device` to sign in\",\"code\":\"MISSING_CREDENTIAL\"}}"
+    },
+    {
+      "task": "sequential",
+      "arm": "single",
+      "status": "failed",
+      "score": 0,
+      "pass": false,
+      "error": "Error: Lead incomplete: {\"kind\":\"error\",\"failure\":{\"message\":\"no Codex credentials at /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/.temp/wt/benchmark/.providers/.codex/auth.json; run `npm run provider:codex:login-device` to sign in\",\"code\":\"MISSING_CREDENTIAL\"}}"
+    },
+    {
+      "task": "sequential",
+      "arm": "team",
+      "status": "failed",
+      "score": 0,
+      "pass": false,
+      "error": "Error: Lead incomplete: {\"kind\":\"error\",\"failure\":{\"message\":\"no Codex credentials at /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/.temp/wt/benchmark/.providers/.codex/auth.json; run `npm run provider:codex:login-device` to sign in\",\"code\":\"MISSING_CREDENTIAL\"}}"
+    }
+  ]
+}

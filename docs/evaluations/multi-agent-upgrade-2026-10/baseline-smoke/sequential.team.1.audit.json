@@ -1,0 +1,761 @@
+{
+  "events": [
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "9cf725993fe707673295b701d82e47ab",
+        "sequence": 1,
+        "name": "sdk.agent.run",
+        "phase": "start",
+        "occurredAt": "2026-10-16T12:37:54.679Z",
+        "monotonicMs": 1.5092089999999985,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "4f6398026c47a399",
+          "parentSpanId": null,
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e",
+          "conversationId": "758a41ab-3d52-4890-88d3-6e8f9b8c746a",
+          "sessionId": "758a41ab-3d52-4890-88d3-6e8f9b8c746a"
+        },
+        "data": {
+          "agentId": "lead",
+          "mode": "basic",
+          "maxTurns": 40
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "a46b0b5fcb14ee654f3f4acc55aa5e9b",
+        "sequence": 2,
+        "name": "sdk.skill.operation",
+        "phase": "start",
+        "occurredAt": "2026-10-16T12:37:54.680Z",
+        "monotonicMs": 2.6736669999999947,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "520b81a67adf3cde",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "action": "discover-and-restore"
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "f49691bad55969c3c685c0079bb58270",
+        "sequence": 3,
+        "name": "sdk.skill.operation",
+        "phase": "end",
+        "occurredAt": "2026-10-16T12:37:54.680Z",
+        "monotonicMs": 2.977249999999998,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "520b81a67adf3cde",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "status": "success",
+          "durationMs": 0.49370799999999804
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "0456721d5ffd76a0c6253f64c7cdc241",
+        "sequence": 4,
+        "name": "sdk.memory.operation",
+        "phase": "start",
+        "occurredAt": "2026-10-16T12:37:54.681Z",
+        "monotonicMs": 3.139375000000001,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "a97c4c9b1d108e8a",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "action": "capture-objective"
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "ca1fcb0eabb294c85b4ce2d6771d0fb1",
+        "sequence": 5,
+        "name": "sdk.memory.operation",
+        "phase": "end",
+        "occurredAt": "2026-10-16T12:37:54.681Z",
+        "monotonicMs": 3.2966670000000136,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "a97c4c9b1d108e8a",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "status": "success",
+          "durationMs": 0.17891700000001265
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "524db67b80b11a6d92c48ffb207a8d47",
+        "sequence": 6,
+        "name": "sdk.agent.turn",
+        "phase": "start",
+        "occurredAt": "2026-10-16T12:37:54.682Z",
+        "monotonicMs": 4.56604200000001,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "f0d46c9157590f03",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "turn": 1,
+          "model": "gpt-6-luna"
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "10c50e640f8bd13acb392e1288582c1a",
+        "sequence": 7,
+        "name": "sdk.hook.call",
+        "phase": "start",
+        "occurredAt": "2026-10-16T12:37:54.683Z",
+        "monotonicMs": 5.265250000000009,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "3a5f34e66ea73331",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "name": "beforeStep"
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "e54b34ee815099e84f7075db7a65fcf1",
+        "sequence": 8,
+        "name": "sdk.memory.operation",
+        "phase": "start",
+        "occurredAt": "2026-10-16T12:37:54.683Z",
+        "monotonicMs": 5.437542000000008,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "95b6bec49a01e868",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "action": "render"
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "f53139066f2d635c5c4ab29408897d75",
+        "sequence": 9,
+        "name": "sdk.memory.operation",
+        "phase": "end",
+        "occurredAt": "2026-10-16T12:37:54.683Z",
+        "monotonicMs": 5.499249999999989,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "95b6bec49a01e868",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "status": "success",
+          "durationMs": 0.0812090000000012
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "716f0ea3d675f2b5c14aaa40a51f7b2a",
+        "sequence": 10,
+        "name": "sdk.hook.call",
+        "phase": "end",
+        "occurredAt": "2026-10-16T12:37:54.683Z",
+        "monotonicMs": 5.620666999999997,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "3a5f34e66ea73331",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "status": "success",
+          "durationMs": 0.3666249999999991
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "5c4ac54575984515571d48e88fc729a1",
+        "sequence": 11,
+        "name": "sdk.hook.call",
+        "phase": "start",
+        "occurredAt": "2026-10-16T12:37:54.683Z",
+        "monotonicMs": 5.901542000000006,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "d56c1230810c4802",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "name": "checkpoint"
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "0f5985278d4a02e24ca0301d2dfb70c0",
+        "sequence": 12,
+        "name": "sdk.hook.call",
+        "phase": "end",
+        "occurredAt": "2026-10-16T12:37:54.684Z",
+        "monotonicMs": 6.536833999999999,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "d56c1230810c4802",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "status": "success",
+          "durationMs": 0.6472090000000037
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "6dfca0e8e254b4adc66f5fece54b27a4",
+        "sequence": 13,
+        "name": "sdk.model.call",
+        "phase": "start",
+        "occurredAt": "2026-10-16T12:37:54.685Z",
+        "monotonicMs": 7.800749999999994,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "d7040d936741f811",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e",
+          "conversationId": "758a41ab-3d52-4890-88d3-6e8f9b8c746a",
+          "modelCallId": "252b13d30f36e368f431de41bdf6319b",
+          "sessionId": "758a41ab-3d52-4890-88d3-6e8f9b8c746a"
+        },
+        "data": {
+          "provider": "codex",
+          "model": "gpt-6-luna",
+          "operation": "stream"
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "4c6a6e5385ace58577a4ef06e44eb0ba",
+        "sequence": 14,
+        "name": "sdk.credential.operation",
+        "phase": "start",
+        "occurredAt": "2026-10-16T12:37:54.687Z",
+        "monotonicMs": 9.372125000000011,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "e0077e9bc68ad620",
+          "parentSpanId": "d7040d936741f811",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "provider": "codex",
+          "operation": "resolve"
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "c603ea21cfd9acab2fef204f8f75e61d",
+        "sequence": 15,
+        "name": "sdk.credential.operation",
+        "phase": "end",
+        "occurredAt": "2026-10-16T12:37:54.688Z",
+        "monotonicMs": 11.009667000000007,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "e0077e9bc68ad620",
+          "parentSpanId": "d7040d936741f811",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "provider": "codex",
+          "operation": "resolve",
+          "status": "error",
+          "error": {
+            "type": "Error",
+            "message": "credential operation failed",
+            "code": "MISSING_CREDENTIAL"
+          }
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "58d772fb6199a2e106dca2aebcbc6a14",
+        "sequence": 16,
+        "name": "sdk.model.call",
+        "phase": "end",
+        "occurredAt": "2026-10-16T12:37:54.689Z",
+        "monotonicMs": 11.433958999999987,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "d7040d936741f811",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e",
+          "conversationId": "758a41ab-3d52-4890-88d3-6e8f9b8c746a",
+          "modelCallId": "252b13d30f36e368f431de41bdf6319b",
+          "sessionId": "758a41ab-3d52-4890-88d3-6e8f9b8c746a"
+        },
+        "data": {
+          "status": "error",
+          "durationMs": 3.948709000000008,
+          "finishReason": "error",
+          "dispatchState": "not-sent",
+          "coverage": "not-applicable",
+          "reported": {},
+          "attemptCount": 0
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "9946c60956ed60d0a661d595712a355b",
+        "sequence": 17,
+        "name": "sdk.hook.call",
+        "phase": "start",
+        "occurredAt": "2026-10-16T12:37:54.690Z",
+        "monotonicMs": 12.370000000000005,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "6edcec33783c8cd1",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "name": "onRequestError"
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "71d07764d2bd113557275bda6e575686",
+        "sequence": 18,
+        "name": "sdk.hook.call",
+        "phase": "end",
+        "occurredAt": "2026-10-16T12:37:54.690Z",
+        "monotonicMs": 12.435000000000002,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "6edcec33783c8cd1",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "status": "success",
+          "durationMs": 0.08954099999999698
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "43988a659b51c67505d3a80f38c2fb07",
+        "sequence": 19,
+        "name": "sdk.hook.call",
+        "phase": "start",
+        "occurredAt": "2026-10-16T12:37:54.690Z",
+        "monotonicMs": 12.699041999999992,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "e79501e5370f3cbc",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "name": "onTurnEnd"
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "a9ea26993c8e290c6e2ee33f12a4a84e",
+        "sequence": 20,
+        "name": "sdk.hook.call",
+        "phase": "end",
+        "occurredAt": "2026-10-16T12:37:54.690Z",
+        "monotonicMs": 12.776959000000005,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "e79501e5370f3cbc",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "status": "success",
+          "durationMs": 0.09162500000002183
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "5519ec0ff55e2ff85e5d7cb62bdcd293",
+        "sequence": 21,
+        "name": "sdk.agent.turn",
+        "phase": "end",
+        "occurredAt": "2026-10-16T12:37:54.690Z",
+        "monotonicMs": 12.893249999999995,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "f0d46c9157590f03",
+          "parentSpanId": "4f6398026c47a399",
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e"
+        },
+        "data": {
+          "reason": "error",
+          "steps": 1,
+          "toolCalls": 0,
+          "status": "error",
+          "durationMs": 8.345583000000005
+        }
+      }
+    },
+    {
+      "member": "lead",
+      "event": {
+        "schemaVersion": 1,
+        "eventId": "8c765844260f786a8d38be83abf53121",
+        "sequence": 22,
+        "name": "sdk.agent.run",
+        "phase": "end",
+        "occurredAt": "2026-10-16T12:37:54.691Z",
+        "monotonicMs": 13.436292000000009,
+        "priority": "critical",
+        "resource": {
+          "sdkName": "ai-agent-sdk",
+          "sdkVersion": "0.1.12",
+          "runtime": "unknown"
+        },
+        "correlation": {
+          "traceId": "908d868ba9b7767efe5ecedf70eef7ad",
+          "spanId": "4f6398026c47a399",
+          "parentSpanId": null,
+          "runId": "4d88f62e943d662e14e7efd45bfb5d8e",
+          "conversationId": "758a41ab-3d52-4890-88d3-6e8f9b8c746a",
+          "sessionId": "758a41ab-3d52-4890-88d3-6e8f9b8c746a"
+        },
+        "data": {
+          "status": "error",
+          "durationMs": 12.591915999999998,
+          "completed": false,
+          "usage": {
+            "reported": {},
+            "coverage": {
+              "logicalCalls": 1,
+              "attempts": 0,
+              "complete": 0,
+              "partial": 0,
+              "estimated": 0,
+              "missing": 0,
+              "notApplicable": 1,
+              "possiblyBilledAttemptsWithoutUsage": 0
+            },
+            "authoritative": true
+          },
+          "operationCounts": {
+            "turn": {
+              "total": 1,
+              "success": 0,
+              "error": 1,
+              "aborted": 0,
+              "rejected": 0,
+              "unknown": 0
+            },
+            "model-call": {
+              "total": 1,
+              "success": 0,
+              "error": 1,
+              "aborted": 0,
+              "rejected": 0,
+              "unknown": 0
+            },
+            "provider-attempt": {
+              "total": 0,
+              "success": 0,
+              "error": 0,
+              "aborted": 0,
+              "rejected": 0,
+              "unknown": 0
+            },
+            "tool": {
+              "total": 0,
+              "success": 0,
+              "error": 0,
+              "aborted": 0,
+              "rejected": 0,
+              "unknown": 0
+            },
+            "compaction": {
+              "total": 0,
+              "success": 0,
+              "error": 0,
+              "aborted": 0,
+              "rejected": 0,
+              "unknown": 0
+            },
+            "hook": {
+              "total": 4,
+              "success": 4,
+              "error": 0,
+              "aborted": 0,
+              "rejected": 0,
+              "unknown": 0
+            },
+            "user-input": {
+              "total": 0,
+              "success": 0,
+              "error": 0,
+              "aborted": 0,
+              "rejected": 0,
+              "unknown": 0
+            },
+            "skill": {
+              "total": 1,
+              "success": 1,
+              "error": 0,
+              "aborted": 0,
+              "rejected": 0,
+              "unknown": 0
+            },
+            "memory": {
+              "total": 2,
+              "success": 2,
+              "error": 0,
+              "aborted": 0,
+              "rejected": 0,
+              "unknown": 0
+            },
+            "credential": {
+              "total": 0,
+              "success": 0,
+              "error": 0,
+              "aborted": 0,
+              "rejected": 0,
+              "unknown": 0
+            },
+            "integration": {
+              "total": 0,
+              "success": 0,
+              "error": 0,
+              "aborted": 0,
+              "rejected": 0,
+              "unknown": 0
+            }
+          },
+          "errorCount": 1
+        }
+      }
+    }
+  ],
+  "requests": [
+    {
+      "member": "lead",
+      "evidence": "0019f0fb77a9a08d31dd0ebc3ae888644e127b83e9a22640d59c9fe2a9053dbc",
+      "repeated": false
+    }
+  ],
+  "tools": [],
+  "errors": [
+    "lead sdk.model.call: {\"status\":\"error\",\"durationMs\":3.948709000000008,\"finishReason\":\"error\",\"dispatchState\":\"not-sent\",\"coverage\":\"not-applicable\",\"reported\":{},\"attemptCount\":0}",
+    "lead: {\"message\":\"no Codex credentials at /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/.temp/wt/benchmark/.providers/.codex/auth.json; run `npm run provider:codex:login-device` to sign in\",\"code\":\"MISSING_CREDENTIAL\"}",
+    "Error: Lead incomplete: {\"kind\":\"error\",\"failure\":{\"message\":\"no Codex credentials at /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/.temp/wt/benchmark/.providers/.codex/auth.json; run `npm run provider:codex:login-device` to sign in\",\"code\":\"MISSING_CREDENTIAL\"}}"
+  ],
+  "lastText": "",
+  "spawns": 0,
+  "previousEvidence": "0019f0fb77a9a08d31dd0ebc3ae888644e127b83e9a22640d59c9fe2a9053dbc"
+}

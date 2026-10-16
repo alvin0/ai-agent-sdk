@@ -1,0 +1,25 @@
+{
+  "region": "edge",
+  "services": [
+    {
+      "id": "edge-0",
+      "requests": 600,
+      "errors": 0
+    },
+    {
+      "id": "edge-1",
+      "requests": 607,
+      "errors": 1
+    },
+    {
+      "id": "edge-2",
+      "requests": 614,
+      "errors": 2
+    },
+    {
+      "id": "edge-3",
+      "requests": 621,
+      "errors": 3
+    }
+  ]
+}

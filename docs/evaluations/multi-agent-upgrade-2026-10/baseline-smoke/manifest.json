@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "provider": "codex",
+  "model": "gpt-6-luna",
+  "arms": [
+    "single",
+    "team"
+  ],
+  "ids": [
+    "sequential",
+    "code-change"
+  ],
+  "out": "/Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/.temp/wt/benchmark/docs/evaluations/multi-agent-upgrade-2026-10/baseline-smoke",
+  "reps": 1,
+  "concurrency": 1,
+  "timeoutMs": 180000,
+  "skippedArms": [],
+  "collaborationDetected": false,
+  "startedAt": "2026-10-16T12:37:53.885Z",
+  "node": "v24.9.0",
+  "commit": "976d0479289346007fc5ad467a90388ef9e05f45",
+  "dirty": "M CHANGELOG.md\n?? test-human/multi-agent-bench/\n?? tests/unit/multi-agent-bench.spec.ts",
+  "fixtureHash": "e14f69c667f61bf73bda9bb1f81fd9ba413d9950b4a50114b644a6b20429c2fb",
+  "harnessHash": "2e6b429fc5077c84dd08b2b63d06470878ad05bedfc8360a60b9cc3b0ae8d8b9",
+  "coreBundleHash": "c743e5a62de2d790b7b9c8f5fc5136b6fd92ddd3b53e61b0ef3ce03e034e226d",
+  "synthetic": false,
+  "protocol": "autonomous-v1",
+  "repetitionsBelowMergeGate": true
+}

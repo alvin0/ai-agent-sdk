@@ -1,0 +1,25 @@
+{
+  "region": "north",
+  "services": [
+    {
+      "id": "north-0",
+      "requests": 300,
+      "errors": 2
+    },
+    {
+      "id": "north-1",
+      "requests": 307,
+      "errors": 3
+    },
+    {
+      "id": "north-2",
+      "requests": 314,
+      "errors": 4
+    },
+    {
+      "id": "north-3",
+      "requests": 321,
+      "errors": 0
+    }
+  ]
+}

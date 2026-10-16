@@ -1,0 +1,22 @@
+{
+  "seed": 17,
+  "operations": [
+    {
+      "multiply": 3,
+      "add": 5
+    },
+    {
+      "multiply": 7,
+      "add": 2
+    },
+    {
+      "multiply": 2,
+      "add": 11
+    },
+    {
+      "multiply": 5,
+      "add": 1
+    }
+  ],
+  "modulus": 97
+}
