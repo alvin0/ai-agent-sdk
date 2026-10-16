@@ -111,6 +111,8 @@ export interface ManagedAgentTeamOptions {
   readonly leadDescription?: string
   readonly team?: AgentTeam | AgentTeamOptions
   readonly maxWorkers?: number
+  /** FIFO batch backlog; queued items hold no worker slot. Defaults to 2 * maxWorkers; zero disables it. */
+  readonly maxQueued?: number
   /** Lean model tools by default; legacy preserves earlier tool names and schemas. */
   readonly modelToolSurface?: 'lean' | 'legacy'
   /** Plain lean leads expose only spawn_agent until a successful spawn. Default true.

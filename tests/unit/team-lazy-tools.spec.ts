@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { AgentTeam, createManagedAgentTeam, defineAgent, defineSkill, defineTool, History } from '../../packages/core/src/agent/index.ts'
+import { AgentTeam, createManagedAgentTeam, defineAgent, defineSkill, defineTool, History }
+  from '../../packages/core/src/agent/index.ts'
 import { ToolRegistry } from '../../packages/core/src/agent/tool/registry.ts'
 import { CombinedToolCatalog } from '../../packages/core/src/agent/mode/support/control-catalog.ts'
 import type { ManagedAgentTeamOptions } from '../../packages/core/src/agent/index.ts'
 import { ModelAdapter, ModelRegistry, ReasoningEffortId, ToolCallId } from '../../packages/core/src/index.ts'
 import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '../../packages/core/src/index.ts'
 
-const full = ['spawn_agent', 'close_agent', 'send_input', 'wait_agents', 'get_agent_result']
+const initial = ['spawn_agent', 'spawn_agents']
+const full = [...initial, 'close_agent', 'send_input', 'wait_agents', 'get_agent_result']
 const names = (request: GenerateOptions) => request.tools?.map(tool => tool.name) ?? []
 const answer = (text: string): StreamChunk[] => [
   { type: 'text-delta', index: 0, text },
@@ -40,7 +42,8 @@ class Script extends ModelAdapter {
       else if (names(request).includes('submit_result')) {
         const submitted = request.messages.some(message => message.role === 'assistant'
           && message.content.some(block => block.type === 'tool-call' && block.name === 'submit_result'))
-        yield* submitted ? answer('final') : call('submit_result', { summary: 'Verified.', evidence: ['worker checked'] })
+        yield* submitted ? answer('final')
+          : call('submit_result', { summary: 'Verified.', evidence: ['worker checked'] })
       } else yield* answer('final')
     }
   }
@@ -64,10 +67,11 @@ describe('progressive managed tool disclosure', () => {
     try {
       await team.run('first')
       await team.run('second')
-      expect(names(adapter.leads[0]!)).toEqual(['read_file', 'spawn_agent'])
+      expect(names(adapter.leads[0]!)).toEqual(['read_file', ...initial])
       expect(adapter.leads[0]!.tools).toEqual(adapter.leads[1]!.tools)
       expect(adapter.leads[0]!.system).toBe(adapter.leads[1]!.system)
-      expect(adapter.leads[0]!.system).toContain('Use the team proactively for parallel work; keep quick or sequential work local.')
+      expect(adapter.leads[0]!.system)
+        .toContain('Do small or sequential work directly; weigh context and synthesis cost.')
       expect(team.lead.effectiveCatalog()?.get('wait_agents')).toBeUndefined()
       expect(team.lead.effectiveCatalog()?.executionMode('wait_agents', {})).toBe('exclusive')
     } finally { await team.dispose(); await team.team.dispose() }
@@ -99,13 +103,13 @@ describe('progressive managed tool disclosure', () => {
       await team.awaitWorker(worker.name)
       await team.run('after')
       expect(adapter.leads.at(-1)!.tools!.slice(0, initial.length)).toEqual(initial)
-      expect(names(adapter.leads.at(-1)!).slice(initial.length)).toEqual(full.slice(1))
+      expect(names(adapter.leads.at(-1)!).slice(initial.length)).toEqual(full.slice(2))
     } finally { await team.dispose(); await team.team.dispose() }
   })
 
-  it('appends detailed guidance only once across parallel spawns', async () => {
+  it.each(['spawn_agent', 'spawn_agents'])('appends guidance once across mixed parallel %s calls', async first => {
     const adapter = new Script([
-      () => [...call('spawn_agent', { task: 'first' }).slice(0, 1),
+      () => [...call(first, first === 'spawn_agent' ? { task: 'first' } : { tasks: [{ task: 'first' }] }).slice(0, 1),
         ...call('spawn_agent', { task: 'second' }, 1).slice(0, 1),
         { type: 'finish', reason: { kind: 'tool-calls' } }],
     ])
@@ -116,7 +120,8 @@ describe('progressive managed tool disclosure', () => {
       const results = team.lead.history.messages().flatMap(message => message.content)
         .flatMap(block => block.type === 'tool-result' ? block.content : [])
         .filter(block => block.type === 'text').map(block => block.text)
-      expect(results.filter(text => text.includes('Plan the next local step'))).toHaveLength(1)
+      expect(results.filter(text => text.includes('Once justified, plan partitions before reading bulk inputs')))
+        .toHaveLength(1)
       expect(names(adapter.leads[1]!)).toEqual(full)
     } finally { await team.dispose(); await team.team.dispose() }
   })
@@ -134,13 +139,14 @@ describe('progressive managed tool disclosure', () => {
         mode, maxTurns: 16, compaction: false }) })
     try {
       await team.run('work')
-      expect(names(adapter.leads[0]!).filter(name => full.includes(name))).toEqual(['spawn_agent'])
+      expect(names(adapter.leads[0]!).filter(name => full.includes(name))).toEqual(initial)
       for (const request of adapter.leads.slice(1)) {
         expect(names(request).filter(name => full.includes(name))).toEqual(full)
         expect(request.system).toBe(adapter.leads[0]!.system)
       }
       expect(adapter.leads[1]!.tools?.[0]).toEqual(adapter.leads[0]!.tools?.[0])
-      expect(JSON.stringify(adapter.leads[1]!.messages)).toContain('Plan the next local step')
+      expect(JSON.stringify(adapter.leads[1]!.messages))
+        .toContain('Once justified, plan partitions before reading bulk inputs')
       expect(JSON.stringify(adapter.leads.at(-1)!.messages)).toContain('worker-evidence')
       const results = adapter.leads.at(-1)!.messages.flatMap(message => message.content)
         .flatMap(block => block.type === 'tool-result' ? block.content : [])
@@ -162,7 +168,7 @@ describe('progressive managed tool disclosure', () => {
     const team = setup(adapter, { autoLeadCoordination: false })
     try {
       await team.run('work')
-      expect(adapter.leads.slice(0, 2).map(names)).toEqual([['spawn_agent'], ['spawn_agent']])
+      expect(adapter.leads.slice(0, 2).map(names)).toEqual([initial, initial])
       expect(names(adapter.leads[2]!)).toEqual(full)
       expect(team.workers()).toHaveLength(1)
     } finally { await team.dispose(); await team.team.dispose() }
@@ -187,7 +193,7 @@ describe('progressive managed tool disclosure', () => {
       const worker = await team.spawn({ task: 'work' })
       await team.awaitWorker(worker.name)
       await team.run('after')
-      expect(names(adapter.leads[0]!)).toEqual(['spawn_agent'])
+      expect(names(adapter.leads[0]!)).toEqual(initial)
       expect(names(adapter.leads.at(-1)!)).toEqual(full)
       expect(names(adapter.workers[0]!)).toEqual(['send_input', 'wait_agents', 'get_agent_result'])
     } finally { await team.dispose(); await team.team.dispose() }
@@ -205,7 +211,7 @@ describe('progressive managed tool disclosure', () => {
     try {
       const catalog = team.lead.effectiveCatalog()!
       if (when === 'after') {
-        expect(catalog.names()).toEqual(['spawn_agent'])
+        expect(catalog.names()).toEqual(initial)
         controlPlane.attach(existing, { role: 'peer' })
       }
       expect(catalog.names()).toEqual(full)
@@ -220,10 +226,13 @@ describe('progressive managed tool disclosure', () => {
     } finally { await team.dispose(); await controlPlane.dispose() }
   })
 
-  it.each([true, false])('restores disclosure only for successful spawn history: %s', async success => {
-    const adapter = new Script([() => call('spawn_agent', success
-      ? { task: 'work' } : { task: 'work', role: 'undeclared' })])
-    const original = setup(adapter, { autoLeadCoordination: false })
+  it.each([
+    ['spawn_agent', true], ['spawn_agent', false], ['spawn_agents', true], ['spawn_agents', false],
+  ] as const)('restores disclosure for %s only after successful setup: %s', async (name, success) => {
+    const adapter = new Script([() => call(name, name === 'spawn_agent'
+      ? { task: 'work' } : { tasks: [{ task: 'work' }] })])
+    const original = setup(adapter, { autoLeadCoordination: false,
+      ...success ? {} : { workerFactory: () => { throw new Error('setup refused') } } })
     let history: History
     try {
       await original.run('delegate')
@@ -234,7 +243,7 @@ describe('progressive managed tool disclosure', () => {
     try {
       expect(resumed.workers()).toHaveLength(0)
       await resumed.run('continue')
-      expect(names(resumedAdapter.leads[0]!)).toEqual(success ? full : ['spawn_agent'])
+      expect(names(resumedAdapter.leads[0]!)).toEqual(success ? full : initial)
       expect(resumed.lead.effectiveCatalog()?.has('close_agent')).toBe(success)
     } finally { await resumed.dispose(); await resumed.team.dispose() }
   })

@@ -3,13 +3,19 @@ import type { ToolCatalog } from '../tool/registry.ts'
 import { executionModeOf } from '../tool/definition.ts'
 import type { ManagedAgentTeamOptions } from './managed-types.ts'
 import { atManagedDepthLimit } from './managed-capabilities.ts'
+import type { JsonObject, JsonValue } from '../../primitives/index.ts'
 import type { HistoryEntry } from '../history/index.ts'
 
 const CONTROLS = new Set(['close_agent', 'send_input', 'wait_agents', 'get_agent_result'])
 
 /** Appended once to the first model spawn result, never inserted into the reusable system prefix. */
 export const DISCLOSED_TEAM_GUIDANCE = [
-  'Plan the next local step before delegating. Start independent spawns together; continue non-overlapping work.',
+  'Do remaining small work directly; use one worker for a worthwhile side task or fresh-context check.',
+  'Fan out for many independent items when accuracy or time benefits justify the coordination cost. '
+  + 'Once justified, plan partitions before reading bulk inputs; continue non-overlapping work. '
+  + 'Size chunks for careful work: accuracy degrades as items per worker grow. '
+  + 'Prefer more, smaller chunks within slot and queue limits.',
+  'Worker context and synthesis consume tokens. Free slots and queue capacity are limits, not targets.',
   'Stay responsive to user updates. fresh needs a self-contained brief.',
   'Fork copies the completed history prefix before the in-flight spawn call.',
   'Write scopes schedule work, not filesystem access. send_input queues work; it returns acceptance only.',
@@ -26,19 +32,42 @@ export function progressiveTeamTools(options: ManagedAgentTeamOptions): boolean 
 
 /** Runtime history events, rather than user text, establish a successful delegation. */
 export function hasSuccessfulTeamSpawn(entries: readonly HistoryEntry[]): boolean {
-  const spawns = new Set<string>()
+  const spawns = new Map<string, string>()
   for (const { event } of entries) {
-    if (event.kind === 'tool-call' && event.name === 'spawn_agent') spawns.add(event.callId)
-    if (event.kind === 'tool-result' && spawns.has(event.callId) && !event.result.isError) return true
+    if (event.kind === 'tool-call' && (event.name === 'spawn_agent' || event.name === 'spawn_agents')) {
+      spawns.set(event.callId, event.name)
+    }
+    if (event.kind !== 'tool-result' || !spawns.has(event.callId) || event.result.isError) continue
+    if (spawns.get(event.callId) === 'spawn_agent') return true
+    if (successfulBatch(event.result.value)) return true
   }
   return false
 }
 
+function successfulBatch(value: JsonValue | undefined): boolean {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const workers = (value as JsonObject).workers
+  return Array.isArray(workers) && workers.some(worker => worker !== null && typeof worker === 'object'
+    && ['queued', 'running', 'completed'].includes(String((worker as JsonObject).status)))
+}
+
 export class ManagedLazyTools {
   private disclosed = false
+  private guidanceSent = false
 
   /** Called for both host and model spawns. Failed setup leaves the initial catalog intact. */
   disclose(): void { this.disclosed = true }
+
+  guidanceBudget(options: ManagedAgentTeamOptions): string | undefined {
+    return progressiveTeamTools(options) && !this.guidanceSent ? DISCLOSED_TEAM_GUIDANCE : undefined
+  }
+
+  takeGuidance(options: ManagedAgentTeamOptions): string | undefined {
+    if (!this.disclosed) return undefined
+    const guidance = this.guidanceBudget(options)
+    this.guidanceSent = true
+    return guidance
+  }
 
   filter(catalog: ToolCatalog, options: ManagedAgentTeamOptions, hasPriorTeam: () => boolean): ToolCatalog {
     if (!progressiveTeamTools(options)) return catalog

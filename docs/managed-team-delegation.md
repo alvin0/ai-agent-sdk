@@ -4,15 +4,15 @@ For an end-to-end setup, model tool reference, collaboration, 0.1.12 migration a
 troubleshooting, start with the [multi-agent guide](multi-agent.md) and its
 [offline example](../samples/multi-agent-offline/README.md).
 
-Plain lean leads use progressive discovery by default: application tools and `spawn_agent` are
+Plain lean leads use progressive discovery by default: application tools, `spawn_agent` and `spawn_agents` are
 visible initially; `close_agent`, `send_input`, `wait_agents`, and `get_agent_result` appear after
-the first successful host or model spawn. Failed setup does not reveal controls. Discovery is
-monotonic, including after all workers close, so retained reads and follow-up work stay available.
+the first successful host/model spawn or admitted queued batch. Failed setup does not reveal controls.
+Discovery is monotonic, including after all workers close, so retained reads and follow-up work stay available.
 The system prompt stays byte-stable; the first model spawn result carries additional guidance once.
-Existing team members or a successful `spawn_agent` result in restored lead history disclose the
-controls too. This restores discovery only; hosts still own member/session rehydration and result storage.
-Set `progressiveToolDisclosure: false` to restore the exact previous eager schemas, descriptions and
-full system guidance for leads and workers. Legacy,
+Existing team members or a successful single/batch spawn result in restored lead history disclose
+the controls too. Batch results containing only setup failures do not qualify. This restores discovery only; hosts still own member/session rehydration and result storage.
+Set `progressiveToolDisclosure: false` for eager schemas and full system guidance for leads and workers.
+Delegation cost guidance applies to both lazy and eager surfaces. Legacy,
 collaboration and depth-limited leads, and all worker catalogs, remain eager. Host APIs are unchanged.
 
 `createManagedAgentTeam` remains a collection of host hooks. It does not own a filesystem,
@@ -37,7 +37,16 @@ Import `managedAgentRolePresets` and `createManagedAgentTeam` from
 `explicit` changes model guidance, not host API availability or tool authorization. The host
 must enforce any required approval through its tools and policies.
 
-The lead keeps immediate blockers local, delegates bounded independent work together, assigns
+The lead defaults to doing small or sequential tasks directly: worker context, startup and synthesis
+add cost. One worker can justify that cost for a focused side task or fresh-context check. Fan-out
+is for many independent items when accuracy or time benefits justify the coordination cost.
+Inspect scope before choosing; after choosing fan-out, give workers input locations rather than
+reading all their inputs first. Size chunks so each worker can handle its items carefully: accuracy
+degrades as item count per worker grows. Prefer more, smaller chunks within host slot and queue limits.
+Free slots and queue capacity are limits, not targets to fill.
+Both spawn tools remain initially available, after application tools, so wide work can batch immediately.
+
+The lead keeps immediate blockers local, delegates worthwhile independent work together, assigns
 disjoint writes, continues its own work, and synthesizes worker reports. With automatic coordination
 enabled it can end its turn when only waiting remains. The coordination hook yields without polling and pushes compact runtime settlements. Managed `run()`
 joins workers and synthesis, including lost-wake recovery. `wait_agents` joins all selected workers and returns
@@ -117,8 +126,8 @@ while their addresses and results remain available until explicit cleanup.
 ## Depth
 
 `depth` is the lead's host-supplied depth (default zero); `maxDepth` defaults to one. At or above
-the limit, managed spawning is rejected before worker setup and `spawn_agent` is hidden from the
-lead's application catalog. Workers at the limit also lose any host-supplied `spawn_agent` tool
+the limit, managed spawning is rejected before worker setup and `spawn_agent`/`spawn_agents` are hidden
+from the lead's application catalog. Workers at the limit also lose these host-supplied spawning tools
 without being told they previously had spawning capabilities. Lead synthesis and wait guidance remains
 at the limit. Worker overrides and roles cannot restore that tool.
 
@@ -129,22 +138,77 @@ enforce nesting constraints in those hooks as well.
 
 ## Reusing guidance on another tool surface
 
-`buildDelegationStrategy(mode)` and `DELEGATION_STRATEGY` are exported from
+`buildDelegationStrategy(mode)` and the tool-neutral `DELEGATION_STRATEGY` are exported from
 `@alvin0/ai-agent-sdk-core/agent`. The builder supplies the proactive/explicit prefix and shared
 strategy without scheduling claims. Append runtime facts appropriate to the host; this branch uses
 `MANAGED_DELEGATION_RUNTIME` (automatic report injection, new-result joins, retained result pages
 and automatic release of finished slots).
 `filterToolsByDepth(tools, { depth, maxDepth }, child?)` accepts any named control list and removes
-`spawn_agent` at the depth limit while retaining wait/join/report tools.
+`spawn_agent` and `spawn_agents` at the depth limit while retaining wait/join/report tools.
 
 ## Model surface and result delivery
 
-The default lean lead tools are `spawn_agent`, `send_input`, `wait_agents`, `close_agent`,
+The default lean lead tools are `spawn_agent`, `spawn_agents`, `send_input`, `wait_agents`, `close_agent`,
 and `get_agent_result`. Spawn advertises task, context, optional role, writes and dependencies;
 name/specialty remain accepted for replayed histories and host requests. `send_input` returns acceptance,
 queues follow-up tasks, and optionally interrupts current work. Reporting workers have `send_input`;
 full workers also have wait and retained-result reads. Set `modelToolSurface: 'legacy'` to retain the
 older model names/schemas; this does not restore polling, duplicate reports or occupied finished slots.
+
+### Batch fan-out
+
+For justified fan-out, plan the split before reading bulk inputs: give workers input locations and let
+each read its own partition. Start independent tasks in one call, reserving disjoint write scopes where needed:
+
+```ts
+spawn_agents({
+  tasks: [
+    { name: 'north', task: 'Extract totals from input/north. Return compact totals and evidence.' },
+    { name: 'south', task: 'Extract totals from input/south. Return compact totals and evidence.' },
+  ],
+  join: true,
+})
+```
+
+This model tool is available on both lean and legacy surfaces; host `spawn()` remains unchanged.
+Each item accepts `name?`, `item_id?`, `task`, `context?: 'fresh' | 'fork'`, `role?` (host-declared), and `writes?`.
+It accepts independent work only: dependency fields are rejected, and peers cannot wait on queued
+siblings. Use single spawning for registered dependency chains. Admission validates names, item ids,
+roles and write conflicts before setup. It reserves free worker slots plus backlog capacity atomically.
+`maxQueued` defaults to `2 * maxWorkers` (capped at 1024); set zero to disable the backlog. Queued items
+return `status: 'queued'`, hold no worker slot or session, and start FIFO as finished workers release slots.
+Overflow reports both free slots and the current queued count. Invalid requests start no workers;
+mandatory addresses and coverage ids must themselves fit the 48 KiB response budget.
+Host-controlled setup can still fail after admission; failed items return `{ target, status: 'failed', error }`
+while successful siblings continue. Recover only deficits rather than retrying successful items.
+
+Without `join` (default false), returns `workers` and initial `coverage` after bounded setup of the
+immediately started tasks. Ordinary push delivery handles results; one final compact batch settlement
+carries coverage after every item settles. With `join: true`, the same call waits across queued waves
+and returns compact `results`, `coverage`, `omitted`, `timed_out` and optional `interrupted`. No model
+calls are made to dispatch queued items or poll while joining. Coverage is
+`{ completed: n, failed: [ids], pending: [ids], deficit: [ids] }`; ids use `item_id` or the worker address.
+Completed counts usable successful results. Deficits include failures, cancellation, and completed work
+with neither nonblank text nor structured output. Coverage never duplicates result text.
+
+Results use the lean compact shape on both surfaces: `{ target, status, result }` for success,
+`{ target, status, partial_result, error }` for unsuccessful evidence, with structured fields when present.
+The whole serialized response shares one 48 KiB byte budget, including diagnostics and coverage;
+`workers[].warnings` is additionally limited to four 256-byte entries. `omitted` lists targets whose
+result or diagnostics did not fit; use `get_agent_result` for retained result pages. Captures begin before
+setup and exclude archived generations. The inner batch barrier claims no results. The existing
+`captureResults(sender, targets, retained = true)` host hook retains its default and adds `release()`
+for unreturned claims. Timeout or steering returns partial evidence and leaves other results for push,
+with one final coverage notice when the rest of the batch settles. Final coverage notices come from
+the team runtime rather than a worker. Automatic `run()` waits for queued waves and final synthesis.
+
+Cancelling an in-flight call, its owning lead invocation, or the team drains queued reservations exactly once.
+Call cancellation returns addresses with `cancelled: true` even after partial setup; joining aborts
+release captured-but-unreturned outcomes and resume push delivery. Standalone call cancellation leaves
+already running workers alive; invocation cancellation and team disposal also close owned workers.
+Once the call returns (including timeout/steering of a join), queued work belongs only to the invocation
+and team. Later call/turn cancellation or tool deadlines cannot cancel it or prevent deferred setup.
+Returned worker statuses are setup snapshots; consult terminal results and coverage for completion.
 
 Push notices and active joins claim the same outcome objects through `TeamResults.take`.
 A join captures publications before notices can claim them, joins all selected work, and returns all

@@ -18,7 +18,8 @@ describe('collaboration review regressions', () => {
     const team = managed(adapter)
     await team.run('Work locally')
     expect(adapter.rounds.get('lead')).toBe(3) // Two tool rounds and one answer, no synthetic join round.
-    expect(adapter.requests[0]?.options.system).toContain('Plan the next local step before delegating')
+    expect(adapter.requests[0]?.options.system)
+      .toContain('Inspect scope first; once fan-out is justified, plan partitions before reading bulk inputs')
     expect(adapter.requests[0]?.options.system).toContain('Collaboration mode:')
     const plain = new CollaborationAdapter()
     await managed(plain).run('Answer directly')

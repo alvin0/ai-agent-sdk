@@ -1,11 +1,14 @@
 /** Resolves, prepares, and dispatches newly commissioned managed workers. */
+import { startBatchWorker, spawnManagedBatch,
+  type BatchSpawnCallbacks, type BatchWorkerView } from './managed-batch-spawn.ts'
+import { ManagedSpawnQueue } from './managed-spawn-queue.ts'
 import { observeTeamSession, recordTeamTimeline } from './team-observation-internal.ts'
 import { createTextMessage } from '../../message/index.ts'
 import { cloneAgent, type DefinedAgent } from '../define/definition.ts'
-import type { AgentSession, AgentSessionOptions } from '../define/session.ts'
-import { History } from '../history/index.ts'
+import { forkWorkerHistory, mergeWorkerSessionOptions, workerDefinition } from './managed-worker-session.ts'
+import type { AgentSession } from '../define/session.ts'
 import type { ToolDefinition } from '../tool/definition.ts'
-import type { TeamSpawnRejection } from './team-timeline.ts'
+import { ManagedSpawnObservation } from './managed-spawn-observation.ts'
 import type { TeamPort } from './contracts.ts'
 import type { AgentTeam } from './team.ts'
 import type { ManagedWorkerExecution } from './managed-worker.ts'
@@ -20,12 +23,7 @@ import type {
 import {
   spawnContext, memberName, nonEmpty, boundedString,
 } from './managed-validation.ts'
-import {
-  mergeTools,
-} from './managed-tool-input.ts'
-import {
-  completedHistoryPrefix,
-} from './managed-history.ts'
+import { mergeTools } from './managed-tool-input.ts'
 import {
   abortable, combineSignals,
 } from './managed-cancellation.ts'
@@ -49,9 +47,11 @@ interface ManagedSpawnHost {
     readonly dependencies: readonly WorkerRuntime[]
     readonly settled: Promise<void>
     readonly controller: AbortController
+    queued: boolean
   }>
   readonly roles: ReadonlyMap<string, ManagedAgentRole>
   readonly maxWorkers: number
+  readonly maxQueued: number
   readonly maxTaskBytes: number
   readonly maxSpecialtyBytes: number
   readonly spawnTimeoutMs: number
@@ -59,42 +59,104 @@ interface ManagedSpawnHost {
   readonly leadName: string
   readonly execution: ManagedWorkerExecution
   readonly scheduling: ManagedWorkerScheduling
+  accepted(): void
   lead(): AgentSession
 }
-
 type ScopedSessionOptions = Awaited<ReturnType<NonNullable<ManagedAgentTeamOptions['workerSessionOptionsFactory']>>>
-
-function mergeWorkerSessionOptions(
-  base: ManagedAgentTeamOptions['workerSessionOptions'], scoped: ScopedSessionOptions | undefined,
-): NonNullable<ManagedAgentTeamOptions['workerSessionOptions']> {
-  // Omitted scoped values must not erase base tool restrictions or policy hooks.
-  return { ...base, ...Object.fromEntries(Object.entries(scoped ?? {}).filter(([, value]) => value !== undefined)) }
-}
+type PreparedWorker = ManagedSpawnHost['preparing'] extends Map<string, infer T> ? T & { finish(): void } : never
 
 export class ManagedWorkerSpawning {
   private workerSequence = 0
+  private readonly observation: ManagedSpawnObservation
+  private readonly queue: ManagedSpawnQueue<PreparedWorker>
 
-  constructor(private readonly host: ManagedSpawnHost) {}
+  /** Queue reservations are address/write claims, never worker slots. */
+  get busy(): number {
+    return [...this.host.preparing.values()].filter(item => !item.queued).length
+      + [...this.host.workerRuntimes.values()].filter(runtime => this.host.workerBusy(runtime)).length
+  }
 
-  /** Create and dispatch without awaiting the result; signal cancels setup. */
+  drainQueue(): void { this.queue.drain() }
+
+  constructor(private readonly host: ManagedSpawnHost) {
+    this.queue = new ManagedSpawnQueue(host.signal, () => host.maxWorkers - this.busy)
+    this.observation = new ManagedSpawnObservation(host.team, host.leadName, () => ({
+      busy: [...host.workerRuntimes.values()].filter(runtime => host.workerBusy(runtime)).length,
+      preparing: [...host.preparing.values()].filter(item => !item.queued).length, limit: host.maxWorkers,
+    }))
+  }
+
+  /** Create and start one worker without waiting for its result. */
   async spawn(
     request: ManagedAgentSpawnRequest,
     signal?: AbortSignal,
   ): Promise<ManagedAgentWorker> {
     const resolved = this.resolveChecked(request, signal)
-    const dependencies = resolved.dependsOn.map(name => this.host.workerRuntimes.get(name)!)
     this.assertSpawnAvailable(resolved)
+    return this.startPrepared(this.prepare(resolved), signal)
+  }
 
+  /** Reserve the complete fan-out before starting asynchronous setup. */
+  spawnBatch(requests: readonly ManagedAgentSpawnRequest[], signal: AbortSignal,
+    callbacks: BatchSpawnCallbacks,
+  ): Promise<readonly BatchWorkerView[]> {
+    this.observation.checkBatch(requests, () => this.checkSpawnSignals(signal),
+      () => signal.aborted || this.host.signal.aborted)
+    const start = (prepared: PreparedWorker, warnings: readonly string[]) => startBatchWorker(
+      prepared.request.name, callbacks, {
+        start: () => this.startPrepared(prepared, signal, warnings, callbacks.started),
+        worker: name => this.host.workerRuntimes.get(name),
+        cancelled: () => signal.aborted || this.host.signal.aborted || prepared.controller.signal.aborted,
+        drain: () => this.drainQueue(),
+      })
+    return spawnManagedBatch(requests, callbacks, {
+      maxWorkers: this.host.maxWorkers, maxQueued: this.host.maxQueued,
+      busy: this.busy, queued: this.queue.size,
+      resolve: (request, reserved) => this.resolveSpawnRequest(request, reserved),
+      check: request => this.assertSpawnAvailable(request, false),
+      prepare: (request, queued) => this.prepare(request, queued),
+      finish: prepared => this.finishPreparing(prepared),
+      warnings: prepared => this.host.scheduling.checkWriteScopes(prepared.request, prepared.dependencies),
+      rejected: (request, reason, code) => this.observation.rejectBatch(request, reason, code,
+        () => this.resolveContext(request)),
+      start, enqueue: (prepared, warnings) => {
+        this.host.accepted()
+        this.queue.enqueue(prepared, signal,
+          () => start(prepared, warnings), () => {
+            this.finishPreparing(prepared)
+            this.observation.reject(prepared.request.name, 'aborted', 'TEAM_SPAWN_ABORTED')
+            callbacks.settled(prepared.request.name, 'cancelled', false)
+          })
+      },
+    })
+  }
+  private prepare(resolved: ResolvedManagedAgentSpawnRequest, queued = false): PreparedWorker {
+    const dependencies = resolved.dependsOn.map(name => this.host.workerRuntimes.get(name)!)
     let markPrepared!: () => void
-    const prepared = { request: resolved, dependencies, controller: new AbortController(),
-      settled: new Promise<void>(resolve => { markPrepared = resolve }) }
+    const prepared = { request: resolved, dependencies, queued, controller: new AbortController(),
+      settled: new Promise<void>(resolve => { markPrepared = resolve }), finish: () => markPrepared() }
     this.host.preparing.set(resolved.name, prepared)
+    return prepared
+  }
+  private finishPreparing(prepared: PreparedWorker): void {
+    if (this.host.preparing.get(prepared.request.name) === prepared) {
+      this.host.preparing.delete(prepared.request.name)
+      if (!prepared.queued) recordTeamTimeline(this.host.team, { kind: 'slot-released', member: prepared.request.name })
+    }
+    prepared.finish()
+  }
+  private async startPrepared(prepared: PreparedWorker, signal?: AbortSignal,
+    checkedWarnings?: readonly string[], started?: (name: string) => void,
+  ): Promise<ManagedAgentWorker> {
+    const { request: resolved, dependencies } = prepared
+    if (checkedWarnings !== undefined) this.observation.requested(resolved)
     let runtime: WorkerRuntime | undefined
     try {
-      const warnings = this.host.scheduling.checkWriteScopes(resolved, dependencies)
+      const warnings = checkedWarnings ?? this.host.scheduling.checkWriteScopes(resolved, dependencies)
       const operationSignal = combineSignals(signal, this.host.signal, prepared.controller.signal,
         AbortSignal.timeout(this.host.spawnTimeoutMs))
-      const definition = await abortable(this.workerDefinition(resolved), operationSignal)
+      operationSignal.throwIfAborted()
+      const definition = await abortable(workerDefinition(this.host.options, resolved), operationSignal)
       operationSignal.throwIfAborted()
       const scopedSessionOptions = this.host.options.workerSessionOptionsFactory === undefined
         ? undefined
@@ -104,6 +166,7 @@ export class ManagedWorkerSpawning {
       runtime = this.createSpawnRuntime(resolved, session, { dependencies, warnings })
       this.host.workerRuntimes.set(resolved.name, runtime)
       this.host.preparing.delete(resolved.name)
+      started?.(resolved.name)
 
       const deliverySignal = combineSignals(operationSignal, runtime.controller.signal)
       await abortable(this.host.team.sendMessage({
@@ -120,37 +183,29 @@ export class ManagedWorkerSpawning {
         await this.host.execution.startWorker(runtime, deliverySignal)
       }
       recordTeamTimeline(this.host.team, { kind: 'spawn-accepted', member: resolved.name })
+      this.host.accepted()
       return managedWorkerView(runtime)
     } catch (error: unknown) {
       if (await this.failSpawn(runtime, resolved, error)) await this.host.scheduling.releaseDependents(runtime!)
       throw error
     } finally {
-      this.releasePreparation(resolved.name, markPrepared)
+      this.finishPreparing(prepared)
+      this.drainQueue()
     }
-  }
-
-  private releasePreparation(member: string, markPrepared: () => void): void {
-    if (this.host.preparing.delete(member)) recordTeamTimeline(this.host.team, { kind: 'slot-released', member })
-    markPrepared()
   }
 
   private resolveChecked(request: ManagedAgentSpawnRequest, signal?: AbortSignal): ResolvedManagedAgentSpawnRequest {
-    try {
+    return this.observation.resolve(request, () => {
       this.checkSpawnSignals(signal)
       return this.resolveSpawnRequest(request)
-    } catch (error) {
-      const aborted = this.host.signal.aborted || signal?.aborted === true
-      this.rejectSpawn(typeof request?.name === 'string' ? request.name.slice(0, 128) : '<unresolved>',
-        aborted ? 'aborted' : 'invalid', aborted ? 'TEAM_SPAWN_ABORTED' : 'TEAM_SPAWN_INVALID')
-      throw error
-    }
+    }, () => this.host.signal.aborted || signal?.aborted === true)
   }
   private checkSpawnSignals(signal: AbortSignal | undefined): void {
     this.host.signal.throwIfAborted()
     signal?.throwIfAborted()
     if (atManagedDepthLimit(this.host.options)) throw new Error('managed agent delegation depth limit reached')
+    this.drainQueue() // Older backlog gets newly freed slots before another admission.
   }
-
   private captureSpawnObjective(
     definition: DefinedAgent, session: AgentSession, resolved: ResolvedManagedAgentSpawnRequest,
   ): void {
@@ -158,7 +213,6 @@ export class ManagedWorkerSpawning {
       session.memory.captureOriginalObjective(createTextMessage(resolved.task))
     }
   }
-
   private createSpawnRuntime(
     resolved: ResolvedManagedAgentSpawnRequest, session: AgentSession,
     input: { readonly dependencies: readonly WorkerRuntime[]; readonly warnings: readonly string[] },
@@ -188,10 +242,9 @@ export class ManagedWorkerSpawning {
     }
     return runtime
   }
-
-  private resolveSpawnRequest(request: ManagedAgentSpawnRequest): ResolvedManagedAgentSpawnRequest {
+  private resolveSpawnRequest(request: ManagedAgentSpawnRequest, reserved?: ReadonlySet<string>) {
     const resolved: ResolvedManagedAgentSpawnRequest = {
-      name: memberName(request.name ?? this.nextWorkerName()),
+      name: memberName(request.name ?? this.nextWorkerName(reserved)),
       task: boundedString(request.task, 'worker task', this.host.maxTaskBytes),
       ...(request.specialty === undefined
         ? {}
@@ -206,34 +259,23 @@ export class ManagedWorkerSpawning {
     Object.freeze(resolved)
     return resolved
   }
-
   private resolveContext(request: ManagedAgentSpawnRequest) {
     return spawnContext(this.host.roles.get(request.role ?? '')?.context
       ?? request.context ?? this.host.options.defaultSpawnContext ?? 'fresh')
   }
-
-  private assertSpawnAvailable(resolved: ResolvedManagedAgentSpawnRequest): void {
-    recordTeamTimeline(this.host.team, { kind: 'spawn-requested', member: resolved.name, context: resolved.context })
+  private assertSpawnAvailable(resolved: ResolvedManagedAgentSpawnRequest, checkCapacity = true): void {
+    if (checkCapacity) this.observation.requested(resolved)
     if (this.host.preparing.has(resolved.name) || this.host.workerRuntimes.has(resolved.name)
       || this.host.team.members().some(member => member.name === resolved.name)) {
-      this.rejectSpawn(resolved.name, 'duplicate', 'TEAM_WORKER_ALREADY_EXISTS')
+      if (checkCapacity) this.observation.reject(resolved.name, 'duplicate', 'TEAM_WORKER_ALREADY_EXISTS')
       throw new Error(`managed worker '${resolved.name}' already exists`)
     }
-    if ([...this.host.workerRuntimes.values()].filter(runtime => this.host.workerBusy(runtime)).length
-      + this.host.preparing.size >= this.host.maxWorkers) {
-      recordTeamTimeline(this.host.team, { kind: 'budget', member: this.host.leadName,
-        budget: 'workers', action: 'exhausted', limit: this.host.maxWorkers })
-      this.rejectSpawn(resolved.name, 'capacity', 'TEAM_WORKER_LIMIT')
-      throw new Error(`managed agent team reached its ${this.host.maxWorkers}-worker limit`)
+    if (checkCapacity && this.busy >= this.host.maxWorkers) {
+      this.observation.capacity(resolved.name)
+      throw new Error(`managed agent team reached its ${this.host.maxWorkers}-worker limit`
+        + (this.queue.size > 0 ? '; queued batch items are ahead of this spawn in FIFO order' : ''))
     }
   }
-
-  private rejectSpawn(member: string, reason: TeamSpawnRejection, code: string): void {
-    recordTeamTimeline(this.host.team, { kind: 'spawn-rejected', member, reason, code,
-      busy: [...this.host.workerRuntimes.values()].filter(runtime => this.host.workerBusy(runtime)).length,
-      preparing: this.host.preparing.size, limit: this.host.maxWorkers })
-  }
-
   private createSpawnSession(
     definition: DefinedAgent, resolved: ResolvedManagedAgentSpawnRequest,
     dependencies: readonly WorkerRuntime[], scopedSessionOptions: ScopedSessionOptions | undefined,
@@ -251,7 +293,8 @@ export class ManagedWorkerSpawning {
       ...(restricted ? { skills: [], experimentalPrograms: [] } : {}),
       tools: mergeTools(managedWorkerTools(this.host.options, definition, sessionOptions, role),
         dependencies.length === 0 ? [] : [this.dependencyReadTool(dependencies)]),
-      ...(resolved.context === 'fork' ? { history: this.forkLeadHistory(sessionOptions.historyLimits) } : {}),
+      ...(resolved.context === 'fork'
+        ? { history: forkWorkerHistory(this.host.lead(), sessionOptions.historyLimits) } : {}),
       registry: this.host.options.registry,
       team: {
         team: this.host.sessionTeam,
@@ -263,7 +306,6 @@ export class ManagedWorkerSpawning {
       },
     }))
   }
-
   private workerInstructions(resolved: ResolvedManagedAgentSpawnRequest,
     role: ManagedAgentRole | undefined, access: false | 'full' | 'reporting'): string {
     let instructions = managedWorkerInstructions(resolved.name, role)
@@ -273,7 +315,6 @@ export class ManagedWorkerSpawning {
     return [instructions, `Assigned write scope: ${scope}.`, ...access === false ? [] : [this.toolInstructions(access)]]
       .join(' ')
   }
-
   private toolInstructions(access: 'full' | 'reporting'): string {
     if (this.host.collaboration !== undefined) {
       return 'Publish shared findings on the task board; send_input wakes peers with bounded turn credits.'
@@ -285,25 +326,19 @@ export class ManagedWorkerSpawning {
       ? 'send_input queues worker tasks or sends context to the lead. Return your final answer to finish.'
       : 'send_input sends context to the lead (or to a peer only when instructed). Return your final answer to finish.'
   }
-
   private workerTeamToolAccess(restricted: boolean): false | 'reporting' | 'full' {
     const access = this.host.options.workerTeamTools ?? 'reporting'
     return restricted && access === 'full' ? 'reporting' : access
   }
-
   private holdSpawnForDependencies(runtime: WorkerRuntime, dependencies: readonly WorkerRuntime[]): boolean {
     const resolved = runtime.request
     if (dependencies.length > 0 && !this.host.scheduling.dependenciesSettled(dependencies, resolved.writes)) {
-      // Held, not started. The promise handed to the team is what makes the
-      // wait honest: without it `wait_agents` asks an idle session whether it
-      // is finished, is told yes, and the lead reads a worker that never ran
-      // as one that had nothing to report.
+      // Keep joins pending until dependency dispatch actually starts this worker.
       const held = new Promise<void>((resolve) => { runtime.start = resolve })
       this.host.team.markPending(resolved.name, held)
       for (const dependency of dependencies) {
         if (SETTLED_WORKER_STATUS.has(dependency.status) && this.host.scheduling.workerHasWork(dependency)) {
-          // A completed worker may be running a team-scheduled follow-up.
-          // Its original managed watcher has already finished.
+          // Team-scheduled follow-ups outlive the original watcher.
           void this.host.team.whenIdle(dependency.request.name)
             .then(() => this.host.scheduling.releaseDependents(dependency)).catch(() => {})
         }
@@ -312,13 +347,10 @@ export class ManagedWorkerSpawning {
     }
     return false
   }
-
   private async failSpawn(
     runtime: WorkerRuntime | undefined, resolved: ResolvedManagedAgentSpawnRequest, error: unknown,
   ): Promise<boolean> {
-    this.rejectSpawn(resolved.name, 'setup', 'TEAM_SPAWN_SETUP_FAILED')
-    recordTeamTimeline(this.host.team, { kind: 'spawn-failed', member: resolved.name,
-      reason: 'setup', code: 'TEAM_SPAWN_SETUP_FAILED' })
+    this.observation.failed(resolved.name)
     if (runtime !== undefined && this.host.workerRuntimes.get(resolved.name) === runtime && !runtime.closing) {
       runtime.status = 'failed'
       runtime.error = errorMessage(error)
@@ -339,8 +371,6 @@ export class ManagedWorkerSpawning {
     }
     return false
   }
-
-  /** Resolve a declared role name, or say which ones exist. */
   private requireRole(name: unknown): string {
     const value = nonEmpty(name, 'worker role')
     if (this.host.roles.size === 0) {
@@ -359,38 +389,10 @@ export class ManagedWorkerSpawning {
     return managedDependencyReadTool(dependencies, this.host.maxDependencyReportBytes)
   }
 
-  /** Fork the completed lead conversation using the worker's configured history limits. */
-  private forkLeadHistory(limits: AgentSessionOptions['historyLimits']): History {
-    const entries = completedHistoryPrefix(this.host.lead().snapshot().history)
-    return History.fromSnapshot(
-      { version: 1, entries },
-      limits ?? {},
-    )
-  }
-
-  private async workerDefinition(
-    request: ResolvedManagedAgentSpawnRequest,
-  ): Promise<DefinedAgent> {
-    if (this.host.options.workerFactory !== undefined) return this.host.options.workerFactory(request)
-    const template = this.host.options.workerTemplate ?? {
-      ...this.host.options.lead,
-      // Clear the source allowlist too, so explicit worker session skills remain usable.
-      ...(this.host.options.inheritLeadTools === false ? { nativeTools: [], skills: [], skillIds: undefined } : {}),
-    }
-    const specialty = request.specialty === undefined
-      ? ''
-      : ` Your specialization is: ${request.specialty}.`
-    return cloneAgent(template, {
-      id: request.name,
-      name: request.name,
-      instructions: template.instructions + specialty,
-    })
-  }
-
-  private nextWorkerName(): string {
+  private nextWorkerName(reserved?: ReadonlySet<string>): string {
     while (true) {
       const candidate = `worker_${++this.workerSequence}`
-      if (!this.host.preparing.has(candidate) && !this.host.workerRuntimes.has(candidate)
+      if (!reserved?.has(candidate) && !this.host.preparing.has(candidate) && !this.host.workerRuntimes.has(candidate)
         && !this.host.team.members().some(member => member.name === candidate)) return candidate
     }
   }

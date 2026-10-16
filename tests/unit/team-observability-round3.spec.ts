@@ -50,7 +50,7 @@ describe('spawn admission accounting review fixes', () => {
     })
     const running = team.run('Research')
     await vi.waitFor(() => expect(collector.teamEvents.some(event => event.kind === 'spawn-requested')).toBe(true))
-    expect(adapter.leadRequests[0]!.tools?.map(tool => tool.name)).toEqual(['spawn_agent'])
+    expect(adapter.leadRequests[0]!.tools?.map(tool => tool.name)).toEqual(['spawn_agent', 'spawn_agents'])
     expect(team.lead.effectiveCatalog()!.has('wait_agents')).toBe(false)
     expect(collector.teamEvents.some(event => event.kind === 'spawn-accepted')).toBe(false)
     preparing.resolve()

@@ -4,11 +4,26 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Managed lead guidance now weighs worker context/startup/synthesis cost: do small or sequential
+  work directly, use one worker for a worthwhile side task or fresh-context check, and fan out for
+  many independent items when accuracy or time benefits justify the cost. Once justified, prefer
+  more, smaller chunks for careful work within host slot/queue limits. Both spawn
+  tools remain available initially; host hooks, schemas, queue limits and settlement delivery are unchanged.
+
 ### Breaking
 
-- Plain lean managed leads now expose only `spawn_agent` until their first successful host/model spawn;
-  control tools then remain visible for the team lifetime. Set `progressiveToolDisclosure: false` for
-  the exact previous eager schemas/descriptions and full strategy in the system prompt (including workers).
+- Aborted `spawn_agents` calls return worker addresses with `cancelled: true` instead of throwing
+  after admission; inspect the flag and coverage before synthesizing. Standalone `wait_agents` keeps
+  its existing throwing cancellation behavior.
+
+- Managed lead catalogs now reserve `spawn_agents` for batch fan-out on both tool surfaces.
+  Rename any host-provided tool using that name; host lifecycle APIs remain unchanged.
+- Plain lean managed leads now expose `spawn_agent` and `spawn_agents` initially; after successful host/model spawning
+  or queued batch admission,
+  control tools remain visible for the team lifetime. Set `progressiveToolDisclosure: false` for
+  eager schemas and full strategy in the system prompt (including workers).
   Existing team members or a successful spawn in restored lead history also disclose controls.
   Legacy, collaboration, depth-limited leads
   and worker catalogs remain eager. The lazy lead keeps a compact stable prompt; its first model
@@ -23,7 +38,7 @@ All notable changes to the AI Agent SDK are documented in this file.
 - `AgentTeamEvent` adds the `team-timeline` variant. Exhaustive event switches must handle it
   (or retain a default case); existing event variants and callbacks remain supported.
 
-- Managed teams default to the lean model surface: `spawn_agent`, `send_input`, `wait_agents`,
+- Managed teams default to the lean model surface: `spawn_agent`, `spawn_agents`, `send_input`, `wait_agents`,
   `close_agent`, and explicit paged `get_agent_result`. Set `modelToolSurface: 'legacy'` to retain
   the earlier names/schemas (`list_agents`, `send_message`, `followup_task`, name-based close).
   Host lifecycle, remote delivery and worker-view methods remain available. Lean model tools address
@@ -48,6 +63,12 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Fixed
 
+- Accepted `spawn_agents` backlog survives the tool call returning and the lead turn ending,
+  including partial join timeouts and later tool deadlines. Call abort drains queued items only
+  while that call is in flight; invocation/team cancellation remains attached until settlement.
+  Partial joins push final coverage when the remaining work settles, and automatic `run()` waits
+  for queued waves and synthesis. Coverage notices are attributed to the team runtime.
+  Single-spawn capacity errors explain queued batch items' FIFO priority.
 - Record `spawn-accepted` only after successful initial dispatch or dependency hold. A setup
   failure emits rejection/failure without acceptance; timeline metrics preserve zero accepted spawns
   and count pre-admission aborts as attempts, so settled attempts equal accepted plus rejected.
@@ -75,6 +96,17 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Added
 
+- Managed lead tool `spawn_agents({ tasks: [{ name?, item_id?, task, context?, role?, writes? }], join? })`
+  admits independent tasks into free slots plus a bounded FIFO backlog (`maxQueued`, default twice
+  `maxWorkers`, capped at 1024). Queued tasks hold no worker slot or session. Overflow reports free
+  slots and queued count; invalid requests fail before setup. Dependencies and peer waits on queued
+  siblings are disallowed. `join: true` waits across waves with no polling, returns per-item coverage,
+  and shares a 48 KiB aggregate payload budget with warnings/errors and an `omitted` recovery list.
+  Nonjoining batches push one compact final coverage account after all items settle. Call aborts
+  return worker addresses and release unreturned join claims for push recovery; call/invocation/team
+  cancellation drains queued items exactly once (call cancellation only while in flight).
+  Host APIs and single spawning remain compatible.
+  Shared exported delegation strategy is tool-neutral; batch tool advice lives in managed instructions.
 - Multi-agent host guide with 0.1.12 migration and troubleshooting, plus `pnpm sample:multi-agent`
   for offline delegation and collaboration through a local fake adapter and real SDK tools.
 - Typed host team timeline through existing `AgentTeam` `onEvent`/`subscribe` hooks: spawn requests,

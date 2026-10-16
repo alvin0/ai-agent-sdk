@@ -129,13 +129,13 @@ precedence over the spawn/default context.
 These are the default **managed lean** tools; host lifecycle APIs keep their existing
 names and richer worker views. Use the exact returned `target` for later model calls.
 
-Plain lean leads initially receive application tools and `spawn_agent` only. After the
-first successful host or model spawn, `send_input`, `wait_agents`, `get_agent_result`
+Plain lean leads initially receive application tools, `spawn_agent` and `spawn_agents`. After the
+first successful host/model spawn or admitted queued batch, `send_input`, `wait_agents`, `get_agent_result`
 and `close_agent` become visible and stay visible for the team lifetime. A rejected
 spawn does not disclose controls. Existing team members or successful spawn call/result
 pairs in restored lead history also reveal them; hosts still own session rehydration.
 The short lead system prompt stays stable; the first successful model spawn result
-adds detailed coordination guidance once, including for parallel spawns.
+adds detailed coordination guidance once, including across mixed single/batch parallel spawns.
 
 Set `progressiveToolDisclosure: false` to restore the previous eager schemas,
 descriptions and full system guidance. Collaboration, legacy, depth-limited leads and
@@ -143,6 +143,7 @@ worker catalogs remain eager. At the depth limit, spawning is unavailable.
 
 | Tool | Model arguments and behavior |
 | --- | --- |
+| `spawn_agents` | Independent `tasks: [{ name?, item_id?, task, context?, role?, writes? }]`, optional `join`. Starts free slots and queues the rest FIFO within `maxQueued`. Returns per-item coverage and optional new results; remaining waves continue after the tool returns. See [batch lifecycle](managed-team-delegation.md#model-surface-and-result-delivery). |
 | `spawn_agent` | `{ task, context?, role?, writes?, dependsOn? }`; returns `{ target, status }`, not the result. `role` is offered only when the host declares roles. |
 | `send_input` | `{ target, message, interrupt? }`; lead/full worker queues follow-up work for a worker, or sends context to the lead. Returns acceptance, not completion. `interrupt: true` redirects current work when host policy allows it. |
 | `wait_agents` | `{ targets?, timeout_ms? }`; omit targets to join all managed workers. Joins all selected work and returns new results plus `timed_out` / optional `interrupted`. |

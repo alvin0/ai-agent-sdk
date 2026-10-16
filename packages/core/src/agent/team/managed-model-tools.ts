@@ -1,4 +1,4 @@
-/** Compact model verbs; host requests and lifecycle views remain unchanged. */
+/** Compact model controls; host requests and lifecycle views remain unchanged. */
 import { filterToolsByDepth } from './managed-capabilities.ts'
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
 import { buildDelegationStrategy, managedLeadInstructions, type ManagedControlsHost } from './managed-controls.ts'
@@ -7,7 +7,7 @@ import { asJson } from './managed-outcomes.ts'
 import { memberName, object } from './common.ts'
 import type { JsonValue } from '../../primitives/index.ts'
 import type { ContentBlock } from '../../message/index.ts'
-import { DISCLOSED_TEAM_GUIDANCE, progressiveTeamTools } from './managed-lazy-tools.ts'
+import { progressiveTeamTools } from './managed-lazy-tools.ts'
 
 export function renderModelResult(value: JsonValue | undefined): readonly ContentBlock[] {
   return [{ type: 'text', text: JSON.stringify(value ?? null) }]
@@ -18,38 +18,38 @@ export function leanLeadInstructions(options: ManagedControlsHost['options']): s
   if (progressiveTeamTools(options)) {
     return (options.delegationMode === 'explicit'
       ? 'Delegate only when the user or host explicitly asks. '
-      : 'Use the team proactively for parallel work; keep quick or sequential work local. ')
-      + 'spawn_agent briefs need objective, output, disjoint write scope and verification; do not redo their work. '
-      + 'After spawning, controls appear and results are pushed automatically. '
+      : 'Do small or sequential work directly; weigh context and synthesis cost. ')
+      + 'Use spawn_agent for one side task or fresh-context check; '
+      + 'spawn_agents for many independent items when accuracy or time benefits justify cost. '
+      + 'Prefer more, smaller chunks; accuracy degrades as items per worker grow. '
+      + 'Respect slot/queue limits, not targets. Brief objective, inputs, output, disjoint writes, verification. '
+      + 'Do not redo work. Spawning reveals controls; results pushed. '
       + (options.autoLeadCoordination === false
         ? 'Use wait_agents when blocked; the host controls later turns.'
-        : 'End your turn when only waiting remains; synthesize reports before the final answer.')
+        : 'End your turn if only waiting; synthesize before replying.')
   }
-  return managedLeadInstructions(options) + ' Use spawn_agent for tasks and send_input for follow-up work. '
+  return managedLeadInstructions(options) + ' Use send_input for follow-up work. '
     + 'Close retained agents only when no longer needed.'
 }
 
 export function leanControlTools(host: ManagedControlsHost): readonly ToolDefinition<any>[] {
-  let guidanceSent = false
   const eager = host.options.progressiveToolDisclosure === false
   return filterToolsByDepth([defineTool({
     name: 'spawn_agent',
     render: renderModelResult,
     description: eager
-      ? 'Delegate a bounded sidecar task with objective, output, write scope and verification. '
-        + 'Keep immediate blockers local; do not redo delegated work. '
+      ? 'Delegate one worthwhile side task or fresh-context check. Brief objective, output, writes and verification. '
+        + 'Keep blockers local; do not redo work. '
         + 'Returns a target; results are pushed automatically.'
-      : 'Start a parallel sidecar; returns target, not result. Results are pushed. '
-      + 'Keep immediate blockers local.',
+      : 'Delegate one worthwhile side task or fresh-context check; small tasks stay local. '
+      + 'Returns target; results pushed.',
     parameters: spawnParameters(host),
     // Accept earlier spellings for in-flight histories, without advertising them.
     parse: parseSpawnTool,
     execute: async (request, ctx) => {
       const worker = await host.spawn(request, ctx.signal)
       // Append detailed strategy once as a tool result, preserving the short system prefix.
-      const guidance = progressiveTeamTools(host.options) && !guidanceSent
-        ? DISCLOSED_TEAM_GUIDANCE : undefined
-      guidanceSent = true
+      const guidance = host.spawnGuidance()
       const status = worker.status === 'pending' ? 'running' : worker.status
       return asJson({ target: worker.name, status: status === 'closed' ? 'failed' : status,
         ...(guidance === undefined ? {} : { guidance }),

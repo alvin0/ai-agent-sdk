@@ -14,12 +14,13 @@ const capableLead = defineAgent({ id: 'capable-lead', provider: 'test', model: '
   nativeTools: [{ type: 'native', name: 'web-search' }], skills: [leadSkill], skillIds: ['lead-skill'] })
 
 describe('managed delegation guidance', () => {
-  it('defaults to proactive with a short, concrete lead strategy', async () => {
+  it('defaults to proactive with a cost-aware lead strategy', async () => {
     const { adapter, managed } = setup()
     try {
       await managed.run('inspect')
       const system = String(adapter.requests[0]!.system)
-      expect(system.slice(system.indexOf('Use your managed team proactively'))).toMatchSnapshot()
+      expect(system.indexOf('Default to doing the work directly')).toBeGreaterThan(0)
+      expect(system.slice(system.indexOf('Default to doing the work directly'))).toMatchSnapshot()
       const tools = adapter.requests[0]!.tools ?? []
       expect(Object.fromEntries(tools.filter(tool =>
         ['spawn_agent', 'wait_agents', 'send_message', 'followup_task'].includes(tool.name))
@@ -157,8 +158,10 @@ describe('worker application tools and role narrowing', () => {
   })
 
   it('excludes lead-only, team/control, and user-input tools before inheritance at any depth', async () => {
-    const excluded = ['deploy', 'commit', 'spawn_agent', 'close_agent', 'list_agents', 'get_agent_result', 'send_message',
-      'followup_task', 'wait_agents', 'submit_result', 'request_user_input', 'request_user_input_async', 'ask_user']
+    const excluded = ['deploy', 'commit', 'spawn_agent', 'close_agent', 'list_agents',
+      'get_agent_result', 'send_message',
+      'followup_task', 'wait_agents', 'submit_result', 'request_user_input', 'request_user_input_async',
+      'ask_user']
     const tools = excluded.map(name => defineTool({ name, description: 'Lead only.',
       parameters: { type: 'object' }, execute: () => 'must not run' }))
     tools.push(defineTool({ name: 'custom_question', description: 'Ask person.', awaitsPerson: true,
@@ -339,6 +342,8 @@ describe('managed delegation depth guard', () => {
       try {
         await managed.run('work directly')
         expect(names(adapter.requests[0]!)).not.toContain('spawn_agent')
+        expect(names(adapter.requests[0]!)).not.toContain('spawn_agents')
+        expect(adapter.requests[0]!.system).not.toContain('spawn_agents')
         expect(adapter.requests[0]!.system).toContain('Do the work directly; do not spawn agents.')
         expect(adapter.requests[0]!.system).toContain('synthesize the caller-requested result')
         expect(adapter.requests[0]!.system).toContain('Do not present a final answer before needed reports arrive')

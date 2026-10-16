@@ -5,6 +5,7 @@ import type { ManagedModelInput } from './managed-model-input.ts'
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
 import { asJson, memberName, nonEmpty, object, parseWaitTool } from './common.ts'
 import { renderModelResult } from './managed-model-tools.ts'
+import { modelResults, type TeamResults } from './team-results.ts'
 import type { ToolCatalog } from '../tool/registry.ts'
 
 interface SurfaceHost {
@@ -168,13 +169,10 @@ export class ManagedModelSurface {
         const tool = this.host.team.toolsFor(sender, 'full', (target, signal) =>
           this.waitWorker(target, signal)).find(tool => tool.name === 'wait_agents')!
         const view = await tool.execute!(args, ctx) as unknown as {
-          results: { worker: string; status: string; text: string; error?: string }[]
+          results: ReturnType<TeamResults['take']>
           timedOut: boolean; interrupted?: boolean
         }
-        return asJson({ results: view.results.map(({ worker, status, text, error, ...fields }) => ({
-          target: worker, status, ...fields,
-          ...(status === 'completed' ? { result: text } : { partial_result: text, error: error ?? status }),
-        })), timed_out: view.timedOut,
+        return asJson({ results: modelResults(view.results), timed_out: view.timedOut,
           ...view.interrupted ? { interrupted: true } : {} })
       },
       isConcurrencySafe: () => true,

@@ -3,7 +3,7 @@
 Managed teams emit `TeamTimelineEvent` as the `type: 'team-timeline'` variant on the existing
 `AgentTeamEvent` channel. Use `team: { onEvent }` at construction or `managed.team.subscribe()`.
 Existing lifecycle events remain supported. Exhaustive switches need the new variant.
-No additional bus, model tool, model prompt or delivery cursor is installed.
+Observability installs no additional bus, model tool, model prompt or delivery cursor.
 
 ```ts
 const managed = createManagedAgentTeam({
@@ -46,6 +46,14 @@ These facts do not imply durable delivery or observation-exporter acknowledgemen
 | `wasted-wake` | The first logical model request after a settlement/synthesis wake has no new team information since the previous lead request. |
 | `budget` | Turn-budget exhaustion, worker/pending-input admission refusal, synthesis retry exhaustion, collaboration join deadline or peer credit consumption/refusal. |
 | `board-operation` | Successful CAS mutation, with actor, task id, operation, revision and status. Failed/stale mutations emit no success fact. Notes/results/titles are excluded. |
+
+Batch spawning uses these same facts for each item. Successful queued items emit `spawn-requested`
+when their setup actually starts, then `spawn-accepted` after dispatch. Atomic overflow/duplicate
+refusals emit paired request/rejection facts for each item; invalid input and pre-dispatch queue
+cancellation emit rejection only. Queue reservations are excluded from `preparing` capacity counts
+and emit no slot release when cancelled, because they never held a slot. A final batch coverage
+account emits `notice-delivered` with `delivery: 'injection'` and an empty `workers` list; it advances
+team information without claiming or repeating any worker result.
 
 A wasted wake is a runtime diagnostic, not a semantic judgement of the model's work. Team information
 advances for delivered lead messages/notices, steering, completed lead tool operations and board changes.

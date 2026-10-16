@@ -11,9 +11,15 @@ import type { ManagedAgentDelegationMode, ManagedAgentRole, ManagedAgentSpawnReq
 
 /** Shared delegation strategy; host-selected mode and runtime details are appended below. */
 export const DELEGATION_STRATEGY = [
-  'Plan the next local step before delegating. Keep immediate critical-path blockers and tightly coupled work local.',
-  'Delegate bounded sidecar tasks that can run alongside your work. Start independent delegations together '
-  + 'in one message. Give each worker an objective, expected output, write scope, and verification.',
+  'Delegation adds worker context, startup and synthesis cost. Do small or sequential tasks directly. '
+  + 'Use one worker when a bounded side task or fresh-context check justifies that cost.',
+  'Fan out for many independent items when accuracy or time benefits justify cost. '
+  + 'Inspect scope first; once fan-out is justified, plan partitions before reading bulk inputs. '
+  + 'Size chunks carefully: accuracy degrades as items per worker grow; '
+  + 'prefer more, smaller chunks within slot and queue limits. '
+  + 'Keep immediate critical-path blockers and tightly coupled work local.',
+  'Batch worthwhile independent work. '
+  + 'Worker brief: objective, inputs, output, write scope, verification.',
   'Use disjoint write sets, including your own. Do not redo delegated work; continue useful non-overlapping work.',
   'For fresh context, give a self-contained brief. For fork, state only new information; '
   + 'the worker sees completed conversation turns, not this in-flight turn.',
@@ -28,8 +34,7 @@ export function buildDelegationStrategy(mode: ManagedAgentDelegationMode = 'proa
   return [
     mode === 'explicit'
       ? 'Delegate only when the user or host instructions explicitly ask for agents, delegation, or parallel work.'
-      : 'Use your managed team proactively when parallel work will improve the result or save time. '
-        + 'Answer quick questions and do small or sequential tasks directly.',
+      : 'Default to doing the work directly; use the team when its benefit outweighs coordination cost.',
     DELEGATION_STRATEGY,
   ].join(' ')
 }
@@ -51,6 +56,9 @@ export function managedLeadInstructions(options: ManagedAgentTeamOptions): strin
         + 'do not busy-poll status or repeat short waits.'
       : strategy,
     MANAGED_DELEGATION_RUNTIME,
+    ...atManagedDepthLimit(options) ? []
+      : ['Use spawn_agent for one worthwhile task; spawn_agents for justified fan-out. '
+        + 'Overflow queues FIFO within host limits; capacity is a limit, not a target.'],
     options.autoLeadCoordination === false
       ? 'Use wait_agents when blocked on a worker result; the host controls later turns.'
       : 'When only waiting remains, end your turn instead of polling; managed coordination collects worker reports '
@@ -62,6 +70,7 @@ export interface ManagedControlsHost {
   readonly options: ManagedAgentTeamOptions
   readonly spawnTimeoutMs: number
   readonly workerTimeoutMs: number
+  spawnGuidance(): string | undefined
   roleSchema(): Record<string, unknown>
   spawn(request: ManagedAgentSpawnRequest, signal?: AbortSignal): Promise<ManagedAgentWorker>
   workerBusy?(name: string): boolean
@@ -77,9 +86,9 @@ function spawnControlTool(host: ManagedControlsHost): ToolDefinition<any> {
   return defineTool({
     name: 'spawn_agent',
     description: [
-      'Delegate a bounded task that can run alongside your next local step; keep immediate blockers local.',
-      'Brief: objective, expected output, write scope, verification. Start independent workers in one message '
-      + 'with disjoint write sets. Continue your own non-overlapping work; do not redo theirs.',
+      'Delegate one worthwhile side task or fresh-context check; do small or sequential tasks directly.',
+      'Brief: objective, expected output, write scope, verification. Use disjoint write sets. '
+      + 'Continue your own non-overlapping work; do not redo theirs.',
       'Returns a worker address and status, not a final report. Reports are injected automatically; '
       + 'use get_agent_result for retained pages or wait_agents when blocked. Synthesize the result before answering.',
     ].join(' '),

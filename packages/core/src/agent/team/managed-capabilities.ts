@@ -26,7 +26,8 @@ export function atManagedDepthLimit(options: DepthOptions, child = false): boole
 export function filterToolsByDepth<T extends { readonly name: string }>(
   tools: readonly T[], options: DepthOptions, child = false,
 ): readonly T[] {
-  return atManagedDepthLimit(options, child) ? tools.filter(tool => tool.name !== 'spawn_agent') : tools
+  return atManagedDepthLimit(options, child)
+    ? tools.filter(tool => tool.name !== 'spawn_agent' && tool.name !== 'spawn_agents') : tools
 }
 
 export function toolDefinitions(
@@ -65,7 +66,7 @@ function defaultWorkerTools(
   if (options.inheritLeadTools === false) return []
   const excluded = new Set<string>([
     ...Object.values(TEAM_TOOL_NAMES), ...Object.values(AGENT_CONTROL_TOOLS),
-    'spawn_agent', 'close_agent', 'send_input', 'wait_agents', 'get_agent_result',
+    'spawn_agent', 'spawn_agents', 'close_agent', 'send_input', 'wait_agents', 'get_agent_result',
     'request_user_input_async', 'ask_user', ...options.leadOnlyTools ?? [],
   ])
   const inherited = [...options.lead.tools, ...toolDefinitions(options.leadSessionOptions?.tools)]

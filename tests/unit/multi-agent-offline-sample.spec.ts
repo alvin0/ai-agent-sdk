@@ -42,7 +42,7 @@ describe('offline managed-team sample', () => {
       expect(tools).toContain('spawn_agent')
       const controls = ['send_input', 'wait_agents', 'close_agent', 'get_agent_result']
       if (mode === 'delegation') {
-        expect(tools).toEqual(['read_note', 'spawn_agent'])
+        expect(tools).toEqual(['read_note', 'spawn_agent', 'spawn_agents'])
         for (const control of controls) expect(tools).not.toContain(control)
       }
       // Delegation's second request follows two successful spawn results;

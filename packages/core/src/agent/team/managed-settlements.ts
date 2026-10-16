@@ -1,4 +1,5 @@
 /** Compact settlement delivery and lifecycle accounting for retained follow-ups. */
+import type { BatchCoverage } from './managed-batch-coverage.ts'
 import { recordTeamTimeline } from './team-observation-internal.ts'
 import { createUserMessage } from '../../message/index.ts'
 import type { AgentResponse, AgentSession } from '../define/session.ts'
@@ -22,6 +23,7 @@ interface SettlementHost {
 }
 
 export class ManagedSettlements {
+  private readonly batchNotices = new Set<Promise<void>>()
   private readonly pendingReports = new Set<WorkerRuntime>()
   private readonly unsubscribe: () => void
   private deferredFlush: Promise<void> | undefined
@@ -31,6 +33,34 @@ export class ManagedSettlements {
 
   constructor(private readonly host: SettlementHost) {
     this.unsubscribe = host.team.subscribe(event => this.onTeamEvent(event))
+  }
+
+  resumeCaptured(targets: readonly string[]): void {
+    for (const target of targets) {
+      const runtime = this.host.workers.get(target)
+      if (runtime !== undefined) this.pendingReports.add(runtime)
+    }
+    this.resumeReports()
+  }
+
+  trackBatch(coverage: Promise<BatchCoverage>): void {
+    const notice = coverage.then(value => this.batchCoverage(value))
+      .finally(() => { this.batchNotices.delete(notice) })
+    this.batchNotices.add(notice)
+  }
+
+  /** A final batch account contains no result text and never reclaims worker outcomes. */
+  batchCoverage(coverage: BatchCoverage): void {
+    if (this.host.signal.aborted) return
+    const message = 'Managed batch settlement: ' + JSON.stringify({ coverage })
+    // Coverage is a team-owned account, not a message from an arbitrary worker.
+    this.host.lead().inject(createUserMessage({ source: { kind: 'app', producer: 'managed-team-settlement' },
+      content: [{ type: 'text', text: message }] }))
+    recordTeamTimeline(this.host.team, { kind: 'notice-delivered', member: this.host.leadName,
+      workers: [], delivery: 'injection' })
+    this.deliveredRevision++
+    const owner = [...this.host.workers.values()].find(runtime => runtime.leadDriven)
+    if (owner !== undefined) this.wakeForReport(owner)
   }
 
   pending(runtime: WorkerRuntime): void { this.pendingReports.add(runtime) }
@@ -67,6 +97,7 @@ export class ManagedSettlements {
   }
 
   async whenFlushed(signal?: AbortSignal): Promise<void> {
+    await abortable(Promise.all([...this.batchNotices]), signal)
     do { await abortable(this.deferredFlush ?? Promise.resolve(), signal) }
     while (this.deferredFlush !== undefined)
   }
