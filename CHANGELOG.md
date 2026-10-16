@@ -44,6 +44,8 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Added
 
+- Multi-agent host guide with 0.1.12 migration and troubleshooting, plus `pnpm sample:multi-agent`
+  for offline delegation and collaboration through a local fake adapter and real SDK tools.
 - Opt-in `collaboration: true`: revision-CAS task board, compact task discovery, owner/dependency checks,
   bounded peer wakes and automatic ready/blocked notices. The board remains local and in memory.
   Joins share managed settlement barriers; each join has a deadline, with pending/preparing work cancelled
@@ -76,6 +78,9 @@ All notable changes to the AI Agent SDK are documented in this file.
   ignore unknown knobs; SDK host APIs and default prompts/tools are unchanged. Earlier cohorts remain
   readable by analysis but require rerunning with the same V7 harness for matched comparisons.
 
+- Chat-agents dynamic teams explicitly select lean proactive delegation, keep host-owned worker
+  capabilities and cancellation protection, and use fresh reviewer context. Tool labels and
+  lifecycle documentation match push results, synthesis joins and automatic slot release.
 - Round 6 benchmark protocol V6 adds SDK adapter retries (six attempts, provider retry-after up
   to 60 seconds), a process-wide model-call semaphore (default four), infrastructure classification
   and two fresh-workspace reruns, immutable attempt evidence, and manifest-checked `--resume`.
