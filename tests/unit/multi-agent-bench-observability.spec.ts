@@ -150,7 +150,7 @@ describe('benchmark team timeline adapter', () => {
     for (const index of [0, 1, 2, 3, 4, 5, 6, 7, 9, 8, 10, 11, 12, 13, 1]) collector.teamEvent(facts[index])
     expect(collector.metrics(0)).toMatchObject({ teamMetricsSource: 'timeline-v1',
       spawns: 2, spawnsAccepted: 2, spawnsRejected: 1, spawnAttempts: 3,
-      spawnRejectionReasons: { setup: 1 }, forkSpawns: 2, freshSpawns: 1,
+      spawnRejectionReasons: { setup: 1 }, forkSpawns: 1, freshSpawns: 1, contextUnknownSpawns: 0,
       maxConcurrentWorkers: 2, delegated: true })
     const audit = JSON.parse(JSON.stringify(collector))
     expect(audit.teamEvents).toHaveLength(facts.length)

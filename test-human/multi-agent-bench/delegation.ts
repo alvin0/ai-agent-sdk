@@ -114,7 +114,7 @@ function timelineMetrics(events: readonly BenchTeamEvent[]): DelegationMetrics &
   const { spawns, spawnsRejected, spawnAttempts, forkSpawns, freshSpawns,
     spawnRejectionReasons, maxConcurrentWorkers } = summary
   return { spawns, spawnsAccepted: spawns, spawnAttempts, spawnsRejected, spawnRejectionReasons,
-    forkSpawns, freshSpawns, contextUnknownSpawns: Math.max(0, spawnAttempts - forkSpawns - freshSpawns),
+    forkSpawns, freshSpawns, contextUnknownSpawns: Math.max(0, spawns - forkSpawns - freshSpawns),
     maxConcurrentWorkers, delegated: spawns > 0 }
 }
 
@@ -127,18 +127,39 @@ class TimelineSummary {
   maxConcurrentWorkers = 0
   readonly spawnRejectionReasons: Record<string, number> = Object.create(null)
   private readonly active = new Map<string, Set<string>>()
+  private readonly pendingContexts = new Map<string, (string | undefined)[]>()
 
   add(event: BenchTeamEvent) {
+    const key = JSON.stringify([event.teamId, event.member])
     switch (event.kind) {
       case 'spawn-requested':
         this.spawnAttempts++
-        if (event.context === 'fork') this.forkSpawns++
-        if (event.context === 'fresh') this.freshSpawns++
+        this.requestContext(key, event.context)
         break
-      case 'spawn-accepted': this.spawns++; break
-      case 'spawn-rejected': this.reject(event.reason ?? 'unknown'); break
+      case 'spawn-accepted':
+        this.spawns++
+        this.acceptContext(this.pendingContexts.get(key)?.shift())
+        break
+      case 'spawn-rejected':
+        this.reject(event.reason ?? 'unknown')
+        this.rejectContext(key, event.reason)
+        break
     }
+    if (this.pendingContexts.get(key)?.length === 0) this.pendingContexts.delete(key)
     this.lifecycle(event)
+  }
+  private requestContext(key: string, context: string | undefined) {
+    if (!this.pendingContexts.has(key)) this.pendingContexts.set(key, [])
+    this.pendingContexts.get(key)!.push(context)
+  }
+  private rejectContext(key: string, reason: string | undefined) {
+    // Invalid/aborted requests never reached spawn-requested. Other refusals end the
+    // newest request; a duplicate must leave an earlier same-name preparation intact.
+    if (reason !== 'invalid' && reason !== 'aborted') this.pendingContexts.get(key)?.pop()
+  }
+  private acceptContext(context: string | undefined) {
+    if (context === 'fork') this.forkSpawns++
+    if (context === 'fresh') this.freshSpawns++
   }
   private reject(reason: string) {
     this.spawnsRejected++
