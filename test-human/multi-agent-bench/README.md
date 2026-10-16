@@ -340,7 +340,10 @@ worktrees record it as skipped, so compare that arm only where both branches sup
 ## Team timeline metrics
 
 The collector retains schema-v1 timeline facts and content-free message/member-run metadata in audit
-JSON. `spawns` still means accepted attachments; `spawnAttempts` and `spawnRejected` expose refusals.
+JSON. `spawns` counts successful dispatches or dependency holds; `spawnAttempts` and `spawnsRejected`
+expose all attempts and refusals, including pre-admission aborts. After spawn calls settle,
+`spawns + spawnsRejected == spawnAttempts`; attachment followed by setup failure is rejected only.
+Older SDKs without timeline facts retain the attachment fallback.
 `wastedLeadTurns` remains the legacy evidence metric; `wastedWakes` is a separate runtime diagnostic.
 Calls use the timeline only when its count equals canonical model starts; lead calls match the root
 team id/conversation. `teamMetricsSource`, `callMetricsSource` and `usageMetricsSource` disclose fallbacks.

@@ -101,7 +101,6 @@ export class ManagedWorkerSpawning {
         : await abortable(Promise.resolve(this.host.options.workerSessionOptionsFactory(resolved)), operationSignal)
       operationSignal.throwIfAborted()
       const session = this.createSpawnSession(definition, resolved, dependencies, scopedSessionOptions)
-      recordTeamTimeline(this.host.team, { kind: 'spawn-accepted', member: resolved.name })
       runtime = this.createSpawnRuntime(resolved, session, { dependencies, warnings })
       this.host.workerRuntimes.set(resolved.name, runtime)
       this.host.preparing.delete(resolved.name)
@@ -117,8 +116,10 @@ export class ManagedWorkerSpawning {
       deliverySignal.throwIfAborted()
       this.captureSpawnObjective(definition, session, resolved)
 
-      if (this.holdSpawnForDependencies(runtime, dependencies)) return managedWorkerView(runtime)
-      await this.host.execution.startWorker(runtime, deliverySignal)
+      if (!this.holdSpawnForDependencies(runtime, dependencies)) {
+        await this.host.execution.startWorker(runtime, deliverySignal)
+      }
+      recordTeamTimeline(this.host.team, { kind: 'spawn-accepted', member: resolved.name })
       return managedWorkerView(runtime)
     } catch (error: unknown) {
       if (await this.failSpawn(runtime, resolved, error)) await this.host.scheduling.releaseDependents(runtime!)
@@ -138,8 +139,9 @@ export class ManagedWorkerSpawning {
       this.checkSpawnSignals(signal)
       return this.resolveSpawnRequest(request)
     } catch (error) {
+      const aborted = this.host.signal.aborted || signal?.aborted === true
       this.rejectSpawn(typeof request?.name === 'string' ? request.name.slice(0, 128) : '<unresolved>',
-        'invalid', 'TEAM_SPAWN_INVALID')
+        aborted ? 'aborted' : 'invalid', aborted ? 'TEAM_SPAWN_ABORTED' : 'TEAM_SPAWN_INVALID')
       throw error
     }
   }

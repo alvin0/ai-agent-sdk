@@ -30,9 +30,9 @@ These facts do not imply durable delivery or observation-exporter acknowledgemen
 
 | kind | Meaning |
 | --- | --- |
-| `spawn-requested` | Validated, resolved address/context before slot admission/setup; invalid requests emit only spawn-rejected. Task content is excluded. |
-| `spawn-accepted` | Session attached, matching the legacy benchmark accepted-spawn boundary. Later setup can still fail. |
-| `spawn-rejected` | One fact per refused/failed attempt: member, reason (capacity/duplicate/invalid/setup), stable code, busy, preparing, limit. Invalid requests use their bounded name or `<unresolved>`. |
+| `spawn-requested` | Validated, resolved address/context before slot admission/setup; invalid or already-aborted requests emit only spawn-rejected. Task content is excluded. |
+| `spawn-accepted` | Initial task delivered and worker dispatched, or successfully held for dependencies. Setup failures before this boundary are rejected only. |
+| `spawn-rejected` | One fact per refused/failed attempt: member, reason (capacity/duplicate/invalid/aborted/setup), stable code, busy, preparing, limit. Unresolved requests use their bounded name or `<unresolved>`. Pre-admission aborts use TEAM_SPAWN_ABORTED. |
 | `slot-released` / `member-closed` | Reservation released once, or address detached. Retained results remain separately readable. |
 | `spawn-failed` | Setup failure projection, with reason=setup/code; linked to the same spawn-rejected, not another attempt. |
 | `member-started` | A session ledger started a run. For a worker this is actual dispatch, after dependency holds. Includes run/conversation ids and activation source/sender. Quiet initial admission, later follow-up, peer message and explicit wake causes remain distinguishable. |
@@ -82,9 +82,10 @@ It retains content-free `message-accepted` (sender/target/delivery/id) and `memb
 alongside timeline facts for tracing activations after a lead return. Response/task text is excluded
 from this metadata channel; canonical model observations remain in the audit.
 
-- `spawns` retains the legacy accepted/attached-session meaning. `spawnAttempts` counts resolved
-  requests plus invalid rejections; `spawnRejected` counts one rejection per attempt. An attached
-  session whose subsequent setup fails counts as accepted and rejected, matching legacy spawns.
+- `spawns` counts successful dispatches or dependency holds. `spawnAttempts` counts resolved
+  requests plus invalid/aborted pre-admission rejections; `spawnsRejected` counts one rejection per
+  attempt. After all spawn calls settle, `spawns + spawnsRejected == spawnAttempts`. Attachment alone
+  does not count as acceptance; older SDKs without timeline facts retain the attachment fallback.
 - `wastedLeadTurns` retains the evidence-fingerprint definition on every branch. `wastedWakes`
   separately counts runtime settlement/synthesis wakes with no new team information.
 - Timeline call counts are used only when they equal observed model starts. Lead calls additionally

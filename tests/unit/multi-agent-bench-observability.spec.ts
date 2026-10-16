@@ -28,7 +28,7 @@ describe('benchmark team timeline adapter', () => {
     collector.teamEvent(event(2, 'spawn-requested', { member: 'w' }))
     collector.teamEvent(event(3, 'model-requested'))
     collector.teamEvent(event(4, 'model-requested', { member: 'w' }))
-    expect(collector.metrics(0)).toMatchObject({ spawns: 1, spawnAttempts: 1, spawnRejected: 0, wastedLeadTurns: 1, wastedWakes: 0,
+    expect(collector.metrics(0)).toMatchObject({ spawns: 1, spawnAttempts: 1, spawnsRejected: 0, wastedLeadTurns: 1, wastedWakes: 0,
       leadModelCalls: 1, totalModelCalls: 2 })
     collector.teamEvent(event(5, 'wasted-wake'))
     expect(collector.metrics(0)).toMatchObject({ wastedLeadTurns: 1, wastedWakes: 1 })
@@ -63,7 +63,7 @@ describe('benchmark team timeline adapter', () => {
     expect(audit.teamEvents.some(event => event.type === 'message-accepted' && event.message?.sender === 'lead')).toBe(true)
     expect(audit.teamEvents.some(event => event.kind === 'member-started')).toBe(true)
     expect(audit.teamEvents.some(event => event.kind === 'team-joined')).toBe(true)
-    expect(result.metrics).toMatchObject({ spawns: 1, wastedLeadTurns: 0, usageComplete: true,
+    expect(result.metrics).toMatchObject({ spawns: 1, spawnAttempts: 1, spawnsRejected: 0, wastedLeadTurns: 0, usageComplete: true,
       teamMetricsSource: 'timeline-v1', usageMetricsSource: 'team-ledger' })
     expect(result.metrics.totalTokens).toBe(result.metrics.totalModelCalls * 120)
   })
@@ -94,7 +94,8 @@ describe('benchmark team timeline adapter', () => {
     collector.teamEvent(event(7, 'spawn-rejected', { member: 'over', reason: 'capacity' }))
     collector.teamEvent(event(8, 'spawn-requested', { member: 'setup' }))
     collector.teamEvent(event(9, 'spawn-rejected', { member: 'setup', reason: 'setup' }))
-    expect(collector.metrics(0)).toMatchObject({ spawns: 1, spawnAttempts: 5, spawnRejected: 4 })
+    collector.teamEvent(event(10, 'spawn-rejected', { member: 'cancelled', reason: 'aborted' }))
+    expect(collector.metrics(0)).toMatchObject({ spawns: 1, spawnAttempts: 6, spawnsRejected: 5 })
   })
 
   it('retains content-free member-run and accepted-message audit metadata', () => {

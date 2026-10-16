@@ -10,7 +10,7 @@ export interface TeamActivation {
   readonly source: TeamWakeReason | 'initial' | 'follow-up'
   readonly sender?: string
 }
-export type TeamSpawnRejection = 'capacity' | 'duplicate' | 'invalid' | 'setup'
+export type TeamSpawnRejection = 'capacity' | 'duplicate' | 'invalid' | 'aborted' | 'setup'
 
 export type TeamTimelineData =
   | { readonly kind: 'spawn-requested'; readonly member: string; readonly context: 'fresh' | 'fork' }

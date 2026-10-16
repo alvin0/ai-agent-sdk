@@ -6,6 +6,9 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Breaking
 
+- Rename the unreleased benchmark metric `spawnRejected` to `spawnsRejected`. Spawn rejection
+  reasons add `aborted` with code `TEAM_SPAWN_ABORTED` for pre-admission cancellation.
+
 - Remove unreleased public `AgentTeam.recordTimeline`/`observeSession` instrumentation methods;
   runtime observation now uses internal helpers. Host consumers use `onEvent`/`subscribe` and typed
   `snapshot(): TeamSnapshot`. Export `TeamSettlementUsage` used by `recordOutcome`.
@@ -37,6 +40,10 @@ All notable changes to the AI Agent SDK are documented in this file.
   its synthesis wake without disposing the reusable team. Standalone wait cancellation stops only waiting.
 
 ### Fixed
+
+- Record `spawn-accepted` only after successful initial dispatch or dependency hold. A setup
+  failure emits rejection/failure without acceptance; timeline metrics preserve zero accepted spawns
+  and count pre-admission aborts as attempts, so settled attempts equal accepted plus rejected.
 
 - Team observability records all spawn rejection classes with capacity context, slot release/closure,
   lead-return/final-join boundaries, activation sources/senders, and nested team ancestry. Include early

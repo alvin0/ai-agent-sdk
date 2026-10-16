@@ -30,7 +30,7 @@ export interface Metrics {
   capHits: { tokens: boolean; turns: boolean; toolCalls: boolean }
   spawns: number
   spawnAttempts?: number
-  spawnRejected?: number
+  spawnsRejected?: number
   wastedWakes?: number
   memberMetrics?: MemberMetrics[]
   /** Total reported input buckets per root lead call; null when usage is absent. */
@@ -300,10 +300,10 @@ export class Collector {
         : starts.filter(item => this.isRootLead(item)).length,
       totalModelCalls: timelineCalls ? calls.length : starts.length,
       toolCalls: this.tools.length, capHits: { ...this.capHits },
-      spawns: timeline.filter(event => event.kind === 'spawn-accepted').length || this.spawns,
+      spawns: timeline.length > 0 ? timeline.filter(event => event.kind === 'spawn-accepted').length : this.spawns,
       spawnAttempts: timeline.length > 0 ? timeline.filter(event => event.kind === 'spawn-requested'
-        || event.kind === 'spawn-rejected' && event.reason === 'invalid').length : this.spawns,
-      spawnRejected: timeline.filter(event => event.kind === 'spawn-rejected').length,
+        || event.kind === 'spawn-rejected' && (event.reason === 'invalid' || event.reason === 'aborted')).length : this.spawns,
+      spawnsRejected: timeline.filter(event => event.kind === 'spawn-rejected').length,
       wastedLeadTurns: this.requests.filter(r => r.repeated).length,
       wastedWakes: timeline.filter(event => event.kind === 'wasted-wake' && event.teamId === this.rootTeamId).length,
       memberMetrics: this.memberMetrics(), leadCallInputTokens: starts.filter(item => this.isRootLead(item)).map(start => {
