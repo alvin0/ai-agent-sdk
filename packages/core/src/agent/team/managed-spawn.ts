@@ -1,9 +1,11 @@
 /** Resolves, prepares, and dispatches newly commissioned managed workers. */
+import { observeTeamSession, recordTeamTimeline } from './team-observation-internal.ts'
 import { createTextMessage } from '../../message/index.ts'
 import { cloneAgent, type DefinedAgent } from '../define/definition.ts'
 import type { AgentSession, AgentSessionOptions } from '../define/session.ts'
 import { History } from '../history/index.ts'
 import type { ToolDefinition } from '../tool/definition.ts'
+import type { TeamSpawnRejection } from './team-timeline.ts'
 import type { TeamPort } from './contracts.ts'
 import type { AgentTeam } from './team.ts'
 import type { ManagedWorkerExecution } from './managed-worker.ts'
@@ -74,23 +76,12 @@ export class ManagedWorkerSpawning {
 
   constructor(private readonly host: ManagedSpawnHost) {}
 
-  /** Host-side equivalent of the model's spawn_agent tool. */
-  /**
-   * Create a worker and start it, WITHOUT waiting for it.
-   *
-   * Returns as soon as the worker is running. Use {@link awaitWorker} for its
-   * result, {@link workers} for its status, or let the worker's completion
-   * notification reach the lead on its own.
-   * @param request - Task, and optionally a name and a specialty.
-   * @param signal - Cancels the setup, not the worker's run.
-   * @returns The worker, in its `running` state.
-   */
+  /** Create and dispatch without awaiting the result; signal cancels setup. */
   async spawn(
     request: ManagedAgentSpawnRequest,
     signal?: AbortSignal,
   ): Promise<ManagedAgentWorker> {
-    this.checkSpawnSignals(signal)
-    const resolved = this.resolveSpawnRequest(request)
+    const resolved = this.resolveChecked(request, signal)
     const dependencies = resolved.dependsOn.map(name => this.host.workerRuntimes.get(name)!)
     this.assertSpawnAvailable(resolved)
 
@@ -125,18 +116,35 @@ export class ManagedWorkerSpawning {
       deliverySignal.throwIfAborted()
       this.captureSpawnObjective(definition, session, resolved)
 
-      if (this.holdSpawnForDependencies(runtime, dependencies)) return managedWorkerView(runtime)
-      await this.host.execution.startWorker(runtime, deliverySignal)
+      if (!this.holdSpawnForDependencies(runtime, dependencies)) {
+        await this.host.execution.startWorker(runtime, deliverySignal)
+      }
+      recordTeamTimeline(this.host.team, { kind: 'spawn-accepted', member: resolved.name })
       return managedWorkerView(runtime)
     } catch (error: unknown) {
       if (await this.failSpawn(runtime, resolved, error)) await this.host.scheduling.releaseDependents(runtime!)
       throw error
     } finally {
-      this.host.preparing.delete(resolved.name)
-      markPrepared()
+      this.releasePreparation(resolved.name, markPrepared)
     }
   }
 
+  private releasePreparation(member: string, markPrepared: () => void): void {
+    if (this.host.preparing.delete(member)) recordTeamTimeline(this.host.team, { kind: 'slot-released', member })
+    markPrepared()
+  }
+
+  private resolveChecked(request: ManagedAgentSpawnRequest, signal?: AbortSignal): ResolvedManagedAgentSpawnRequest {
+    try {
+      this.checkSpawnSignals(signal)
+      return this.resolveSpawnRequest(request)
+    } catch (error) {
+      const aborted = this.host.signal.aborted || signal?.aborted === true
+      this.rejectSpawn(typeof request?.name === 'string' ? request.name.slice(0, 128) : '<unresolved>',
+        aborted ? 'aborted' : 'invalid', aborted ? 'TEAM_SPAWN_ABORTED' : 'TEAM_SPAWN_INVALID')
+      throw error
+    }
+  }
   private checkSpawnSignals(signal: AbortSignal | undefined): void {
     this.host.signal.throwIfAborted()
     signal?.throwIfAborted()
@@ -205,15 +213,25 @@ export class ManagedWorkerSpawning {
   }
 
   private assertSpawnAvailable(resolved: ResolvedManagedAgentSpawnRequest): void {
-    if ([...this.host.workerRuntimes.values()].filter(runtime => this.host.workerBusy(runtime)).length
-      + this.host.preparing.size >= this.host.maxWorkers) {
-      throw new Error(`managed agent team reached its ${this.host.maxWorkers}-worker limit`)
-    }
+    recordTeamTimeline(this.host.team, { kind: 'spawn-requested', member: resolved.name, context: resolved.context })
     if (this.host.preparing.has(resolved.name) || this.host.workerRuntimes.has(resolved.name)
       || this.host.team.members().some(member => member.name === resolved.name)) {
+      this.rejectSpawn(resolved.name, 'duplicate', 'TEAM_WORKER_ALREADY_EXISTS')
       throw new Error(`managed worker '${resolved.name}' already exists`)
     }
+    if ([...this.host.workerRuntimes.values()].filter(runtime => this.host.workerBusy(runtime)).length
+      + this.host.preparing.size >= this.host.maxWorkers) {
+      recordTeamTimeline(this.host.team, { kind: 'budget', member: this.host.leadName,
+        budget: 'workers', action: 'exhausted', limit: this.host.maxWorkers })
+      this.rejectSpawn(resolved.name, 'capacity', 'TEAM_WORKER_LIMIT')
+      throw new Error(`managed agent team reached its ${this.host.maxWorkers}-worker limit`)
+    }
+  }
 
+  private rejectSpawn(member: string, reason: TeamSpawnRejection, code: string): void {
+    recordTeamTimeline(this.host.team, { kind: 'spawn-rejected', member, reason, code,
+      busy: [...this.host.workerRuntimes.values()].filter(runtime => this.host.workerBusy(runtime)).length,
+      preparing: this.host.preparing.size, limit: this.host.maxWorkers })
   }
 
   private createSpawnSession(
@@ -228,7 +246,7 @@ export class ManagedWorkerSpawning {
       id: definition.id, tools: [],
       ...(restricted ? { nativeTools: [], skills: [], skillIds: [] } : {}),
     })
-    return worker.createSession({
+    return worker.createSession(observeTeamSession(this.host.team, resolved.name, {
       ...sessionOptions,
       ...(restricted ? { skills: [], experimentalPrograms: [] } : {}),
       tools: mergeTools(managedWorkerTools(this.host.options, definition, sessionOptions, role),
@@ -243,7 +261,7 @@ export class ManagedWorkerSpawning {
         instructions: this.workerInstructions(resolved, role, workerTeamTools),
         ...(resolved.specialty === undefined ? {} : { description: resolved.specialty }),
       },
-    })
+    }))
   }
 
   private workerInstructions(resolved: ResolvedManagedAgentSpawnRequest,
@@ -298,6 +316,9 @@ export class ManagedWorkerSpawning {
   private async failSpawn(
     runtime: WorkerRuntime | undefined, resolved: ResolvedManagedAgentSpawnRequest, error: unknown,
   ): Promise<boolean> {
+    this.rejectSpawn(resolved.name, 'setup', 'TEAM_SPAWN_SETUP_FAILED')
+    recordTeamTimeline(this.host.team, { kind: 'spawn-failed', member: resolved.name,
+      reason: 'setup', code: 'TEAM_SPAWN_SETUP_FAILED' })
     if (runtime !== undefined && this.host.workerRuntimes.get(resolved.name) === runtime && !runtime.closing) {
       runtime.status = 'failed'
       runtime.error = errorMessage(error)
@@ -338,14 +359,7 @@ export class ManagedWorkerSpawning {
     return managedDependencyReadTool(dependencies, this.host.maxDependencyReportBytes)
   }
 
-  /**
-   * Build the history a `fork` worker starts from.
-   *
-   * Limits come from the WORKER's session options, not the lead's: this is the
-   * worker's own history from here on, and it is the worker's configured
-   * ceiling that has to hold it.
-   * @returns The lead's completed conversation as a fresh history.
-   */
+  /** Fork the completed lead conversation using the worker's configured history limits. */
   private forkLeadHistory(limits: AgentSessionOptions['historyLimits']): History {
     const entries = completedHistoryPrefix(this.host.lead().snapshot().history)
     return History.fromSnapshot(

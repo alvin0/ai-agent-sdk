@@ -60,7 +60,7 @@ failure; an incorrect artifact from a completed agent remains a completed, faile
 `--arms collab` is supported explicitly and records a skipped arm when unavailable. Detection uses
 public exports: `MANAGED_TEAM_FEATURES.collaboration === true` plus `createManagedAgentTeam` maps to
 `{ collaboration: true }`. Legacy class/factory/mode detection also remains supported. Requested arms
-are respected; detection does not add an unrequested arm. The combined managed-team implementation exposes this flag.
+are respected; detection does not add an unrequested arm. This branch does not expose collaboration.
 
 ## Tasks
 
@@ -343,8 +343,10 @@ response text are excluded from this metadata channel. Canonical model observati
   `spawns + spawnsRejected == spawnAttempts`. Pending requests at interruption may be unresolved.
 - `spawnRejectionReasons` groups the timeline's stable reason (capacity, duplicate, invalid,
   aborted, setup). The audit retains `code`, `busy`, `preparing` and `limit` for each refusal.
-- `forkSpawns`/`freshSpawns` count resolved contexts on `spawn-requested`, including later refusals;
-  they can exceed accepted spawns. `contextUnknownSpawns` counts attempts lacking a resolved context.
+- `forkSpawns`/`freshSpawns` count accepted spawns only, matching each `spawn-accepted` to the
+  resolved context on its `spawn-requested` within the same team/member. Rejected or pending requests
+  do not count. `contextUnknownSpawns` counts accepted spawns lacking a resolved context, so
+  `forkSpawns + freshSpawns + contextUnknownSpawns == spawnsAccepted` on both SDK paths.
 - `maxConcurrentWorkers` is peak distinct workers with active `member-started`/`member-settled`
   ledger runs. Queued attachments, retained results and slot-release projections do not add activity.
 - `wastedLeadTurns` retains the evidence-fingerprint estimate on all SDKs. `wastedWakes` separately

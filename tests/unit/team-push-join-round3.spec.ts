@@ -16,7 +16,7 @@ function settlementHarness(count: number) {
   const settlements = new ManagedSettlements({ signal: new AbortController().signal,
     invocationSignal: () => invocation, workers, lead: () => lead, leadName: 'lead',
     options: {}, joining: () => true,
-    team: { subscribe: () => () => {}, wake, messageByteLimit: 65536,
+    team: { recordTimeline: vi.fn(), subscribe: () => () => {}, wake, messageByteLimit: 65536,
       takeResults: (_recipient: string, names: string[]) => names.map(worker => ({ worker, text: 'finding' })),
       sendMessage: async (request: { message: string }) => { messages.push(request.message) },
     },

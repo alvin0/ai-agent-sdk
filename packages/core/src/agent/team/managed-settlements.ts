@@ -1,4 +1,5 @@
 /** Compact settlement delivery and lifecycle accounting for retained follow-ups. */
+import { recordTeamTimeline } from './team-observation-internal.ts'
 import { createUserMessage } from '../../message/index.ts'
 import type { AgentResponse, AgentSession } from '../define/session.ts'
 import { managedTeamNoticeRequest } from '../history/input-work.ts'
@@ -86,7 +87,7 @@ export class ManagedSettlements {
     if (this.host.invocationSignal()?.aborted === true) return
     if (this.host.lead().isRunning || this.host.options.autoLeadCoordination === false) return
     if (!runtime.leadDriven && !this.host.joining()) return
-    try { this.host.team.wake(this.host.leadName) } catch { /* disposed */ }
+    try { this.host.team.wake(this.host.leadName, 'settlement') } catch { /* disposed */ }
   }
 
   /** One batch notice, claiming the same outcome instances as wait_agents. */
@@ -105,16 +106,20 @@ export class ManagedSettlements {
       + JSON.stringify(results)
       + '\nNon-completed status text is partial evidence, not completed work. '
       + this.remaining(pending) + ' get_agent_result retrieves capped pages of retained output.'
+    let delivery: 'mailbox' | 'injection' = 'mailbox'
     try {
       await this.host.team.sendMessage(managedTeamNoticeRequest({
         from: pending[0]!.request.name, target: this.host.leadName, message, delivery: 'quiet',
         signal: this.host.signal,
       }, 'managed-team-settlement'))
     } catch {
+      delivery = 'injection'
       // A mailbox cap must not lose the synthesis owed to the caller.
       this.host.lead().inject(createUserMessage({ source: { kind: 'app', producer: 'managed-team-settlement' },
         content: [{ type: 'text', text: message }] }))
     }
+    recordTeamTimeline(this.host.team, { kind: 'notice-delivered', member: this.host.leadName,
+      workers: results.map(result => result.worker), delivery })
     this.deliveredRevision++
     if (this.hasPending) this.deferReports()
     return true

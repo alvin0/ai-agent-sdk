@@ -1,3 +1,6 @@
+import { TeamObservation, type TeamSettlementUsage } from './team-observation.ts'
+import { registerTeamObservation } from './team-observation-internal.ts'
+import type { TeamSnapshot, TeamWakeReason } from './team-timeline.ts'
 import { TeamResults } from './team-results.ts'
 import { sendTeamMessage } from './team-delivery.ts'
 import { teamInstructions } from './team-instructions.ts'
@@ -26,6 +29,7 @@ import {
   DEFAULT_WAIT_TIMEOUT_MS,
 } from './common.ts'
 export class AgentTeam implements TeamPort {
+  private readonly observation: TeamObservation
   readonly id: string
   private readonly maxMessageBytes: number
   private readonly maxLinkedResultBytes: number
@@ -65,6 +69,9 @@ export class AgentTeam implements TeamPort {
     this.observerTimeoutMs = timeouts.observerTimeoutMs
     this.waitTimeoutMs = timeouts.waitTimeoutMs
     this.minWaitTimeoutMs = timeouts.minWaitTimeoutMs
+    this.observation = new TeamObservation(this.id, event => this.emit(event),
+      () => this.onEvent !== undefined || this.listeners.size > 0, options)
+    registerTeamObservation(this, this.observation)
     this.onEvent = options.onEvent
     this.onAgentEvent = options.onAgentEvent
     this.roster = new TeamRoster({ id: this.id, maxMembers, maxMetadataBytes, emit: event => this.emit(event) })
@@ -101,7 +108,10 @@ export class AgentTeam implements TeamPort {
     const member = this.members().find(member => member.name === name)
     this.roster.detach(name)
     if (member !== undefined) this.results.archive(member)
+    this.observation.record({ kind: 'member-closed', member: name })
   }
+  /** Detached metadata summary; no prompt, message or worker result content. */
+  snapshot(): TeamSnapshot { return this.observation.snapshot(this.members()) }
   members(): readonly AgentTeamMember[] { return this.roster.members() }
   /** Host admission hooks run before wake-up input is accepted. Throw to refuse work. */
   guardWake(guard: (target: string) => void): () => void {
@@ -122,7 +132,9 @@ export class AgentTeam implements TeamPort {
     return this.results.capture(sender, this.members(), targets)
   }
   /** Retain a managed worker's address while releasing its concurrency reservation. */
-  releaseSlot(name: string): void { this.roster.releaseSlot(name) }
+  releaseSlot(name: string): void {
+    if (this.roster.releaseSlot(name)) this.observation.record({ kind: 'slot-released', member: name })
+  }
   messages(): readonly AgentMessageRecord[] {
     return this.mailbox.messages()
   }
@@ -156,13 +168,15 @@ export class AgentTeam implements TeamPort {
   }
   notifySteer(name: string): void {
     const member = this.requireLocalMember(name)
+    this.observation.input(name)
     const controller = member.steerController
     member.steerController = undefined
     controller?.abort(new Error('user input steered into the active turn'))
   }
-  wake(name: string): void {
+  wake(name: string, reason: TeamWakeReason = 'host'): void {
     for (const guard of this.wakeGuards) guard(name)
     const member = this.requireLocalMember(name)
+    this.observation.wake(name, reason)
     this.scheduleWake(member, member.wakeRequestedSeq + 1)
   }
   async cancel(name: string, reason: unknown = new Error('A2A member work cancelled')): Promise<void> {
@@ -203,9 +217,11 @@ export class AgentTeam implements TeamPort {
 
   private assertActive(): void { this.work.assertActive() }
 
-  recordOutcome(name: string, outcome: AgentMemberOutcome): void {
+  recordOutcome(name: string, outcome: AgentMemberOutcome,
+    report?: TeamSettlementUsage): void {
     recordOutcome(this.requireLocalMember(name), outcome)
     this.results.publish(this.members().map(member => member.name === name ? { ...member, status: 'idle' } : member))
+    this.observation.outcome(name, outcome, report)
   }
   markPending(name: string, until: Promise<void> | undefined): void {
     markPending(this.requireLocalMember(name), until)
@@ -218,12 +234,34 @@ export class AgentTeam implements TeamPort {
     this.results.clear()
     this.listeners.clear()
     this.wakeGuards.clear()
+    this.observation.clear()
     this.onEvent = undefined
     this.onAgentEvent = undefined
   }
-  private emit(event: AgentTeamEvent): void {
+  private observeLifecycle(event: AgentTeamEvent): void {
+    if (event.type === 'member-attached' || event.type === 'member-linked') this.observation.attach(event.member)
+    if (event.type === 'message-accepted') {
+      this.observation.input(event.message.target)
+      this.observation.accepted(event.message.target, event.message.sender)
+      if (event.message.delivery === 'wakeup') {
+        this.observation.wake(event.message.target, 'message', event.message.sender)
+      }
+    }
+  }
+  private publishSettlement(event: AgentTeamEvent): void {
     if (event.type === 'member-run-end' || event.type === 'member-run-error'
-      || event.type === 'member-run-cancelled') this.results.publish(this.members())
+      || event.type === 'member-run-cancelled') {
+      const outcome: AgentMemberOutcome | undefined = event.type === 'member-run-cancelled'
+        ? { kind: 'failed', status: 'cancelled', message: 'Member run cancelled' }
+        : this.members().find(member => member.name === event.member)?.outcome
+      this.results.publish(this.members())
+      if (outcome !== undefined) this.observation.outcome(event.member, outcome,
+        'response' in event ? (event.response as { report?: TeamSettlementUsage } | undefined)?.report : undefined)
+    }
+  }
+  private emit(event: AgentTeamEvent): void {
+    this.observeLifecycle(event)
+    this.publishSettlement(event)
     try { this.onEvent?.(event) } catch {}
     for (const listener of this.listeners) { try { listener(event) } catch {} }
   }

@@ -150,7 +150,7 @@ describe('benchmark team timeline adapter', () => {
     for (const index of [0, 1, 2, 3, 4, 5, 6, 7, 9, 8, 10, 11, 12, 13, 1]) collector.teamEvent(facts[index])
     expect(collector.metrics(0)).toMatchObject({ teamMetricsSource: 'timeline-v1',
       spawns: 2, spawnsAccepted: 2, spawnsRejected: 1, spawnAttempts: 3,
-      spawnRejectionReasons: { setup: 1 }, forkSpawns: 2, freshSpawns: 1,
+      spawnRejectionReasons: { setup: 1 }, forkSpawns: 1, freshSpawns: 1, contextUnknownSpawns: 0,
       maxConcurrentWorkers: 2, delegated: true })
     const audit = JSON.parse(JSON.stringify(collector))
     expect(audit.teamEvents).toHaveLength(facts.length)
@@ -177,19 +177,22 @@ describe('benchmark team timeline adapter', () => {
   })
 
   it('retains content-free member-run and accepted-message audit metadata', () => {
+    const privateResponse = 'PRIVATE/bench-observability-response-7c92'
+    const privateTask = 'PRIVATE/bench-observability-message-4a61'
     const collector = new Collector()
     collector.rootTeamId = 't'
     collector.teamEvent({ type: 'member-run-start', member: 'w' })
     collector.teamEvent({ type: 'member-run-end', member: 'w', response: {
-      text: 'private response', report: { runId: 'r' }, outcome: { yielded: false },
+      text: privateResponse, report: { runId: 'r' }, outcome: { yielded: false },
     } })
     collector.teamEvent({ type: 'message-accepted', message: { id: 'm', teamId: 't', sender: 'lead',
-      target: 'w', delivery: 'wakeup', createdAt: 'now', content: ['private task'] } })
+      target: 'w', delivery: 'wakeup', createdAt: 'now', content: [privateTask] } })
     expect(collector.teamEvents).toMatchObject([
       { type: 'member-run-start', member: 'w' }, { type: 'member-run-end', member: 'w', runId: 'r', yielded: false },
       { type: 'message-accepted', message: { sender: 'lead', target: 'w', delivery: 'wakeup' } },
     ])
-    expect(JSON.stringify(collector.teamEvents)).not.toContain('private')
+    expect(JSON.stringify(collector.teamEvents)).not.toContain(privateResponse)
+    expect(JSON.stringify(collector.teamEvents)).not.toContain(privateTask)
   })
 
   it('exposes no-spawn lead costs in result JSON without reading audit observations', async () => {

@@ -1,5 +1,9 @@
 # Managed-team delegation
 
+For an end-to-end setup, model tool reference, collaboration, 0.1.12 migration and
+troubleshooting, start with the [multi-agent guide](multi-agent.md) and its
+[offline example](../samples/multi-agent-offline/README.md).
+
 Plain lean leads use progressive discovery by default: application tools and `spawn_agent` are
 visible initially; `close_agent`, `send_input`, `wait_agents`, and `get_agent_result` appear after
 the first successful host or model spawn. Failed setup does not reveal controls. Discovery is
@@ -107,7 +111,8 @@ default; include the artifact and review criteria in its brief. Custom roles may
 Write scopes remain scheduling declarations. They do not restrict actual filesystem access:
 the host must enforce workspace authorization in its tools. Dependencies bind already registered
 producer instances and pass their results or failure status; closing/reusing an address does not
-rebind an existing dependent. Finished workers still occupy slots until closed.
+rebind an existing dependent. Finished workers release concurrency and roster slots automatically,
+while their addresses and results remain available until explicit cleanup.
 
 ## Depth
 
@@ -127,7 +132,8 @@ enforce nesting constraints in those hooks as well.
 `buildDelegationStrategy(mode)` and `DELEGATION_STRATEGY` are exported from
 `@alvin0/ai-agent-sdk-core/agent`. The builder supplies the proactive/explicit prefix and shared
 strategy without scheduling claims. Append runtime facts appropriate to the host; this branch uses
-`MANAGED_DELEGATION_RUNTIME` (automatic report injection, retained results, slots held until closure).
+`MANAGED_DELEGATION_RUNTIME` (automatic report injection, new-result joins, retained result pages
+and automatic release of finished slots).
 `filterToolsByDepth(tools, { depth, maxDepth }, child?)` accepts any named control list and removes
 `spawn_agent` at the depth limit while retaining wait/join/report tools.
 

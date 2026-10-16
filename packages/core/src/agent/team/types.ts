@@ -1,5 +1,6 @@
 /** Public identities, delivery values, and event records for local and remote A2A. */
 
+import type { TeamTimelineEvent } from './team-timeline.ts'
 import type { ContentBlock } from '../../message/index.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
 import type { SdkLogger } from '../../logging/types.ts'
@@ -116,6 +117,7 @@ export interface SendAgentMessageResult {
 }
 
 export type AgentTeamEvent =
+  | TeamTimelineEvent
   | { readonly type: 'member-attached'; readonly member: AgentTeamMember }
   | { readonly type: 'member-linked'; readonly member: AgentTeamMember }
   | { readonly type: 'message-accepted'; readonly message: AgentMessageRecord }
@@ -126,6 +128,9 @@ export type AgentTeamEvent =
   | { readonly type: 'team-disposed'; readonly teamId: string }
 
 export interface AgentTeamOptions {
+  /** Host-supplied ancestry for nested teams; managed sessions infer it from inherited observation. */
+  readonly parentTeamId?: string
+  readonly depth?: number
   readonly id?: string
   readonly maxMembers?: number
   /** Maximum number of accepted messages retained for audit. Defaults to 10,000. */

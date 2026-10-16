@@ -89,6 +89,7 @@ const WORKER_ROLES = [
       + ' a reviewer started over an empty workspace can only invent a checklist',
     instructions: 'Review what exists. Report concrete findings with file and line'
       + ' references, and do not modify any file.',
+    context: 'fresh',
   },
 ] as const
 
@@ -468,6 +469,9 @@ export async function startRun(
     const report = context.onWorkerEvent ?? onMemberEvent
     const managed = context.managedTeam ?? createManagedAgentTeam({
       registry: context.registry,
+      modelToolSurface: 'lean',
+      delegationMode: 'proactive',
+      collaboration: false,
       allowModelWorkerCancellation: false,
       lead: definitionFor(
         context.agent,
@@ -478,6 +482,9 @@ export async function startRun(
         instructions,
       ),
       leadName: 'lead',
+      // An explicit host grant: preserve this sample's worker loop, skills and
+      // approval policy. Automatic lead-tool inheritance applies to generated
+      // workers only when no template/factory or explicit tools are supplied.
       workerTemplate: definitionFor(context.agent, context, { id: 'worker' }, tools, skills, instructions),
       leadSessionOptions,
       workerSessionOptions: sessionOptions,
