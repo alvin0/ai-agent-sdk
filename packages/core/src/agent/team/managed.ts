@@ -1,26 +1,29 @@
 /** Codex-style dynamic worker creation and delegation over AgentTeam. */
 
-import { timeoutValue } from '../../platform/config.ts'
+import { awaitManagedWorker } from './managed-await.ts'
+import { ManagedModelSurface } from './managed-model-surface.ts'
+import { ManagedModelInput } from './managed-model-input.ts'
+import { leanControlTools, leanLeadInstructions } from './managed-model-tools.ts'
+import { ManagedTeamCollaboration } from './managed-collaboration.ts'
+import { filterToolsByDepth } from './managed-capabilities.ts'
+import type { TeamPort } from './contracts.ts'
+import { ManagedSettlements } from './managed-settlements.ts'
+import { createUserMessage } from '../../message/index.ts'
 import {
-  type AgentInput,
-  type AgentInvocationOptions,
-  type AgentResponse,
-  type AgentSession,
+  type AgentInput, type AgentInvocationOptions, type AgentResponse, type AgentSession,
 } from '../define/session.ts'
-import { managedTeamNoticeRequest } from '../history/input-work.ts'
 import type { ToolDefinition } from '../tool/definition.ts'
 import { AgentTeam } from './team.ts'
-import { DEFAULT_WAIT_TIMEOUT_MS } from './common.ts'
-import { LEAD_INSTRUCTIONS, managedControlTools, managedRoleSchema } from './managed-controls.ts'
+import { managedLeadInstructions, managedControlTools, managedRoleSchema } from './managed-controls.ts'
 import { managedWorkerView } from './managed-reports.ts'
 import { ManagedWorkerSpawning } from './managed-spawn.ts'
 import { ManagedWorkerExecution } from './managed-worker.ts'
 import { closeManagedWorker } from './managed-close.ts'
 import { ManagedWorkerScheduling } from './managed-scheduling.ts'
+import { joinManagedTeam } from './managed-join.ts'
 import { ManagedLeadCoordination } from './managed-lead.ts'
-export {
-  DEFAULT_HOLD_WAIT_MS, DEFAULT_SPAWN_SETUP_TIMEOUT_MS, DEFAULT_WORKER_CLOSE_TIMEOUT_MS,
-} from './managed-config.ts'
+export { DEFAULT_HOLD_WAIT_MS, DEFAULT_SPAWN_SETUP_TIMEOUT_MS,
+  DEFAULT_WORKER_CLOSE_TIMEOUT_MS } from './managed-config.ts'
 import type {
   ManagedAgentRole, ManagedAgentSpawnRequest, ResolvedManagedAgentSpawnRequest, ManagedAgentWorkerResult,
   ManagedAgentWorkerStatus, ManagedAgentWorker, ManagedAgentTeamOptions, WorkerRuntime,
@@ -30,21 +33,10 @@ export type {
   ManagedAgentSpawnRequest, ResolvedManagedAgentSpawnRequest,
   ManagedAgentWorkerResult, ManagedAgentWorkerStatus, ManagedAgentWorker, ManagedAgentTeamOptions,
 } from './managed-types.ts'
-import {
-  memberName, positiveInteger,
-} from './managed-validation.ts'
-import {
-  mergeTools,
-} from './managed-tool-input.ts'
-import {
-  abortable, combineSignals,
-} from './managed-cancellation.ts'
-import {
-  truncate,
-} from './managed-report-text.ts'
-import {
-  managedTimeouts, managedRoles, managedControlPlane,
-} from './managed-options.ts'
+import { memberName, positiveInteger } from './managed-validation.ts'
+import { mergeTools } from './managed-tool-input.ts'
+import { abortable, combineSignals } from './managed-cancellation.ts'
+import { managedTimeouts, managedRoles, managedControlPlane } from './managed-options.ts'
 export { completedHistoryPrefix } from './managed-support.ts'
 
 /**
@@ -57,6 +49,10 @@ export class ManagedAgentTeam {
   readonly team: AgentTeam
   readonly lead: AgentSession
   readonly leadName: string
+  readonly collaboration: ManagedTeamCollaboration | undefined
+  private readonly modelInput: ManagedModelInput
+  private readonly modelSurface: ManagedModelSurface
+  private readonly sessionTeam: TeamPort
   private readonly options: ManagedAgentTeamOptions
   private readonly maxWorkers: number
   private readonly maxTaskBytes: number
@@ -74,10 +70,16 @@ export class ManagedAgentTeam {
     readonly request: ResolvedManagedAgentSpawnRequest
     readonly dependencies: readonly WorkerRuntime[]
     readonly settled: Promise<void>
+    readonly controller: AbortController
   }>()
   private readonly lifecycle = new AbortController()
+  private readonly closingWorkers = new Set<Promise<ManagedAgentWorkerStatus>>()
   private disposeTask: Promise<void> | undefined
   private readonly maxDependencyReportBytes: number
+  private readonly unguardWake: () => void
+  private readonly settlements: ManagedSettlements
+  private joining = false
+  private invocation: { signal: AbortSignal | undefined; workers: Set<WorkerRuntime> } | undefined
   private readonly roles: Map<string, ManagedAgentRole>
 
   constructor(options: ManagedAgentTeamOptions) {
@@ -98,77 +100,186 @@ export class ManagedAgentTeam {
     this.roles = managedRoles(options)
     this.team = managedControlPlane(options, this.maxWorkers)
     this.leadName = memberName(options.leadName ?? options.lead.id)
+    this.modelInput = this.createModelInput()
+    this.modelSurface = this.createModelSurface(options)
+    this.collaboration = this.createCollaboration(options)
+    this.sessionTeam = this.collaboration ?? this.basePort()
     this.scheduling = new ManagedWorkerScheduling({
       options, team: this.team, signal: this.lifecycle.signal, workers: this.workerRuntimes,
       preparing: () => this.preparing.values(), startWorker: runtime => this.execution.startWorker(runtime),
+      hasInputs: runtime => this.modelInput.outstanding().some(job => job.name === runtime.request.name),
+    })
+    this.settlements = new ManagedSettlements({
+      options, team: this.team, leadName: this.leadName, signal: this.lifecycle.signal,
+      workers: this.workerRuntimes, lead: () => this.lead, joining: () => this.joining,
+      invocationSignal: () => this.invocation?.signal,
+      releaseDependents: runtime => this.scheduling.releaseDependents(runtime),
     })
     this.leadCoordination = new ManagedLeadCoordination({
-      options, team: this.team, leadName: this.leadName,
-      holdWaitMs: timeouts.holdWaitMs, signal: this.lifecycle.signal,
-      workers: () => this.workerRuntimes.values(), lead: () => this.lead,
+      onLeadEnd: (canContinue: boolean) => this.collaboration?.onLeadEnd(canContinue, this.invocation?.signal),
+      shouldYield: () => options.autoLeadCoordination !== false && !this.lead.hasUnansweredInput()
+        && (this.preparing.size > 0 || this.modelInput.outstanding().length > 0
+          || [...this.workerRuntimes.values()].some(runtime => this.workerBusy(runtime))),
+      deferReports: () => this.settlements.deferReports(),
+      flushReports: () => this.settlements.flushReports(),
     })
     this.execution = new ManagedWorkerExecution({
       options, team: this.team, signal: this.lifecycle.signal, workerRuntimes: this.workerRuntimes,
       leadName: this.leadName, workerTimeoutMs: this.workerTimeoutMs, observerTimeoutMs: this.observerTimeoutMs,
       spawnTimeoutMs: this.spawnTimeoutMs, maxDependencyReportBytes: this.maxDependencyReportBytes,
-      notifyLead: (runtime, summary) => this.notifyLead(runtime, summary),
+      notifyLead: runtime => this.settlements.notify(runtime),
       releaseDependents: runtime => this.scheduling.releaseDependents(runtime),
     })
     this.spawning = new ManagedWorkerSpawning({
       options, team: this.team, signal: this.lifecycle.signal, workerRuntimes: this.workerRuntimes,
+      sessionTeam: this.sessionTeam, collaboration: this.collaboration,
+      workerBusy: runtime => this.workerBusy(runtime),
       preparing: this.preparing, roles: this.roles, maxWorkers: this.maxWorkers,
       maxTaskBytes: this.maxTaskBytes, maxSpecialtyBytes: this.maxSpecialtyBytes,
       spawnTimeoutMs: this.spawnTimeoutMs, maxDependencyReportBytes: this.maxDependencyReportBytes,
       leadName: this.leadName, execution: this.execution, scheduling: this.scheduling, lead: () => this.lead,
     })
     this.lead = this.createLeadSession(options)
+    this.unguardWake = this.team.guardWake(target => this.admitFollowup(target))
+  }
+
+  private basePort(): TeamPort {
+    return this.options.modelToolSurface === 'legacy' ? this.team : this.modelSurface.port
+  }
+
+  private createModelInput(): ManagedModelInput {
+    const options = this.options
+    return new ManagedModelInput({
+      team: this.team, signal: this.lifecycle.signal, timeoutMs: this.workerTimeoutMs,
+      maxPendingInputs: positiveInteger(options.maxPendingInputs ?? 64, 'maxPendingInputs'),
+      worker: name => this.workerRuntimes.get(name),
+      run: (runtime, signal) => this.execution.runInput(runtime, signal),
+      report: runtime => this.settlements.notify(runtime),
+      releaseDependents: runtime => this.scheduling.releaseDependents(runtime),
+      admit: runtime => this.admitFollowup(runtime.request.name),
+    })
+  }
+
+  private createModelSurface(options: ManagedAgentTeamOptions): ManagedModelSurface {
+    return new ManagedModelSurface({ team: this.team, options, input: this.modelInput,
+      worker: name => this.workerRuntimes.get(name),
+      ...(options.collaboration ? { peerSend: (sender: string, target: string, message: string,
+        delivery: { signal: AbortSignal; interrupt: boolean }) =>
+        this.collaboration!.sendInput(sender, target, message, delivery) } : {}),
+    })
+  }
+
+  private createCollaboration(options: ManagedAgentTeamOptions): ManagedTeamCollaboration | undefined {
+    const basePort = this.basePort()
+    return !options.collaboration ? undefined
+      : new ManagedTeamCollaboration(options.collaboration === true ? {} : options.collaboration, {
+        team: this.team, basePort, lead: this.leadName, signal: this.lifecycle.signal,
+        workerTimeoutMs: this.workerTimeoutMs,
+        redirect: (sender, target, message) => this.modelInput.enqueue(sender, target, message, true),
+        joinMembers: signal => this.joinMembers(signal),
+        initialWork: () => [...[...this.workerRuntimes.values()].filter(runtime => this.workerBusy(runtime))
+          .map(runtime => runtime.settled), ...[...this.preparing.values()].map(prepared => prepared.settled)],
+        cancelMembers: (reason, activeOnly) => this.cancelCollaborationMembers(reason, activeOnly),
+        injectLead: text => this.lead.inject(createUserMessage({ source: { kind: 'app', producer: 'managed-team' },
+          content: [{ type: 'text', text }] })),
+      })
+  }
+
+  private workerBusy(runtime: WorkerRuntime): boolean {
+    return !runtime.settledComplete || this.scheduling.workerHasWork(runtime)
+      || this.modelInput.outstanding().some(job => job.name === runtime.request.name)
+  }
+
+  private async joinMembers(signal?: AbortSignal): Promise<void> {
+    const outstanding = [...this.workerRuntimes.values()].filter(runtime => this.workerBusy(runtime))
+    await abortable(Promise.all([
+      ...outstanding.map(async runtime => {
+        await this.modelInput.whenIdle(runtime.request.name, signal)
+        await runtime.settled
+      }),
+      ...[...this.preparing.values()].map(prepared => prepared.settled),
+    ]), signal)
+  }
+
+  private async cancelCollaborationMembers(reason: unknown, activeOnly = false): Promise<void> {
+    const members = new Map(this.team.members().map(member => [member.name, member]))
+    const workers = [...this.workerRuntimes.values()].filter(runtime => !activeOnly || !runtime.settledComplete
+      || runtime.session.isRunning || members.get(runtime.request.name)?.status === 'running')
+    const preparing = [...this.preparing.values()]
+    for (const runtime of workers) runtime.closing = true
+    for (const prepared of preparing) prepared.controller.abort(reason)
+    await Promise.allSettled([
+      ...workers.map(runtime => this.closeWorker(runtime.request.name, reason)),
+      ...preparing.map(prepared => prepared.settled),
+    ])
+  }
+
+  private leadTools(options: ManagedAgentTeamOptions): ReturnType<typeof mergeTools> {
+    const tools = mergeTools(options.leadSessionOptions?.tools, this.controlTools())
+    return mergeTools(undefined, filterToolsByDepth(tools.names().map(name => tools.get(name)!), options))
   }
 
   private createLeadSession(options: ManagedAgentTeamOptions): AgentSession {
     return options.lead.createSession({
       ...options.leadSessionOptions,
-      // A lead's forced answer must not be confirmed in a tool-less window
-      // while its workers may still report: their results could only arrive
-      // after a synthesis already declared complete. Hosts can opt back in.
       runtimeLimits: { ...options.leadSessionOptions?.runtimeLimits,
         finalizeSteps: options.leadSessionOptions?.runtimeLimits?.finalizeSteps ?? 0 },
       hooks: this.leadCoordination.hooks(options.leadSessionOptions?.hooks),
       registry: options.registry,
-      tools: mergeTools(options.leadSessionOptions?.tools, this.controlTools()),
+      tools: this.leadTools(options),
       team: {
-        team: this.team,
+        team: this.sessionTeam,
         name: this.leadName,
         role: 'lead',
-        instructions: LEAD_INSTRUCTIONS,
+        instructions: options.modelToolSurface === 'legacy'
+          ? managedLeadInstructions(options) : leanLeadInstructions(options),
         ...(options.leadDescription === undefined ? {} : { description: options.leadDescription }),
       },
     })
   }
 
-  /** Run the lead. It decides whether and how many workers to create. */
-  run(input: AgentInput, invocation: AgentInvocationOptions = {}): Promise<AgentResponse> {
-    this.lifecycle.signal.throwIfAborted()
-    return this.lead.run(input, invocation)
+  private admitFollowup(target: string): void {
+    const runtime = this.workerRuntimes.get(target)
+    if (runtime === undefined || this.workerBusy(runtime)) return
+    const busy = [...this.workerRuntimes.values()].filter(worker => this.workerBusy(worker)).length
+      + this.preparing.size
+    if (busy >= this.maxWorkers) throw new Error(`managed agent team reached its ${this.maxWorkers}-worker limit`)
+    this.scheduling.checkWriteScopes(runtime.request, [])
+    this.invocation?.workers.add(runtime)
   }
 
-  /**
-   * Add a message to the lead's context, and make sure something reads it.
-   *
-   * Injection alone is enough only while the lead is mid-turn: its next model
-   * round rebuilds the request from history and picks the message up. Once the
-   * lead has answered and is only waiting on its workers, an injected message
-   * sits in history with nothing scheduled to read it — which is what happened
-   * to a user who typed a correction while the researchers were still running
-   * and never got an answer to it. Idle, the lead is scheduled one turn.
-   * @param text - What the user said.
-   * @returns True; the message is always accepted.
-   */
+  async run(input: AgentInput, invocation: AgentInvocationOptions = {}): Promise<AgentResponse> {
+    this.lifecycle.signal.throwIfAborted()
+    if (this.invocation !== undefined) throw new Error('managed lead is already running')
+    const owned = { signal: invocation.signal, workers: new Set<WorkerRuntime>() }
+    this.invocation = owned
+    this.settlements.latestResponse = undefined
+    this.settlements.leadFailure = undefined
+    this.joining = this.options.autoLeadCoordination !== false
+    this.settlements.resumeReports()
+    try {
+      const execute = () => this.lead.run(input, invocation)
+      const response = this.collaboration === undefined ? await execute()
+        : await this.collaboration.runLead(execute, combineSignals(invocation.signal, this.lifecycle.signal))
+      if (!this.joining) return response
+      await this.whenQuiet(combineSignals(invocation.signal, this.lifecycle.signal))
+      this.settlements.throwLeadFailure()
+      return this.settlements.latestResponse ?? response
+    } finally {
+      this.joining = false
+      if (invocation.signal?.aborted === true) {
+        void this.team.cancel(this.leadName, invocation.signal.reason).catch(() => undefined)
+        await Promise.allSettled([...owned.workers].map(runtime =>
+          this.closeWorker(runtime.request.name, invocation.signal!.reason)))
+      }
+      this.invocation = undefined
+    }
+  }
+
   steer(text: string): boolean {
     this.lifecycle.signal.throwIfAborted()
     this.lead.inject(text)
-    this.leadCoordination.interruptWait()
-    // Ends a wait the lead is parked in, so the correction is read now rather
-    // than after its wait budget expires.
+    this.settlements.resumeReports()
     try { this.team.notifySteer(this.leadName) } catch { /* team disposed */ }
     if (!this.lead.isRunning) {
       try { this.team.wake(this.leadName) } catch { /* team disposed */ }
@@ -176,123 +287,29 @@ export class ManagedAgentTeam {
     return true
   }
 
-  /** Prepare a specialized worker and begin its independent work. */
   spawn(request: ManagedAgentSpawnRequest, signal?: AbortSignal): Promise<ManagedAgentWorker> {
     return this.spawning.spawn(request, signal)
   }
 
-  /**
-   * The `role` parameter, when the host declared any roles.
-   *
-   * Each role's purpose and precondition go in the description, which is where
-   * Codex puts its role registry too: the lead is choosing a role at the
-   * moment it reads this, so this is the only place the guidance can arrive in
-   * time to change the choice.
-   * @returns A one-property object to spread, or nothing.
-   */
-  private roleSchema(): Record<string, unknown> {
-    return managedRoleSchema(this.roles)
-  }
-
-  /**
-   * Tell the lead what one of its workers did.
-   *
-   * Quiet WHILE THE LEAD IS STILL IN ITS TURN: the report appends to history
-   * and the next model round rebuilds its request from history, so the lead
-   * reads it without an extra turn being scheduled. Holding that turn open is
-   * the lead's turn hooks's job.
-   *
-   * A wake-up once the lead has gone idle, because then nothing else will ever
-   * read the report. The hold cannot cover every case — a turn that ended on
-   * its step budget, or on an error, is not eligible to continue, and a worker
-   * that outlives the run reports into a conversation with no turn left. That
-   * is the failure this exists for: the transcript ends on a worker's own
-   * output, and the synthesis the lead was there to write never happens. One
-   * more turn is the point, not a duplicate answer.
-   */
-  private async notifyLead(runtime: WorkerRuntime, summary: string): Promise<void> {
-    const worker = runtime.request.name
-    if (runtime.closing || this.lifecycle.signal.aborted || this.workerRuntimes.get(worker) !== runtime) return
-    const delivery = this.deliveryFor(worker)
-    // A quiet report is a bet that the lead's next model round will read it.
-    // Cleared by `beforeStep`, which is that round; still set at the end of a
-    // turn that cannot continue, it means the bet lost and nobody ever will.
-    if (delivery === 'quiet') this.leadCoordination.markUnread()
-    try {
-      const signal = combineSignals(runtime.controller.signal, this.lifecycle.signal,
-        AbortSignal.timeout(this.spawnTimeoutMs))
-      await abortable(this.team.sendMessage(managedTeamNoticeRequest({
-        from: worker,
-        target: this.leadName,
-        message: `Worker '${worker}' ${truncate(summary, Math.min(this.maxDependencyReportBytes,
-          Math.max(64, Math.floor(this.team.messageByteLimit / 4))))}`,
-        delivery,
-        signal,
-      })), signal)
-    } catch {
-      // The lead may already be gone, or the team disposed. A worker's report
-      // is not worth failing anything else over; `workers()` still has it.
-    }
-  }
-
-  /**
-   * Quiet into an open turn, a wake-up into an idle conversation.
-   * @param worker - The worker whose report is being delivered.
-   * @returns The delivery the report needs to actually be read.
-   */
-  private deliveryFor(worker: string): 'quiet' | 'wakeup' {
-    // Mid-turn: the next model round rebuilds its request from history, so the
-    // report is read without scheduling anything.
-    if (this.options.autoLeadCoordination === false || this.lead.isRunning) return 'quiet'
-    // Idle, and the host is driving: waking would start a turn it did not ask
-    // for, and it can read the result from `workers()` whenever it likes.
-    if (this.workerRuntimes.get(worker)?.leadDriven !== true) return 'quiet'
-    return 'wakeup'
-  }
-
-  /**
-   * Wait until no worker is outstanding and the lead has nothing left to do.
-   *
-   * The roster cannot answer this on its own. A worker's last event fires
-   * before its run resolves, and its completion report — the thing that wakes
-   * the lead — is delivered after that. For the moment in between, every member
-   * looks idle: a caller watching the roster sees a finished team and stops
-   * listening, exactly as the synthesis is about to be written. Waiting here
-   * covers that gap, because a worker's `settled` resolves only once its report
-   * has been delivered.
-   * @param signal - Gives up waiting; the work itself is not cancelled.
-   */
   async whenQuiet(signal?: AbortSignal): Promise<void> {
-    for (;;) {
-      signal?.throwIfAborted()
-      const outstanding = [...this.workerRuntimes.values()]
-        .filter(runtime => !runtime.settledComplete)
-      const preparing = [...this.preparing.values()].map(prepared => prepared.settled)
-      if (outstanding.length + preparing.length > 0) {
-        await abortable(Promise.all([...outstanding.map(runtime => runtime.settled), ...preparing]), signal)
-      }
-      await this.team.whenIdle(this.leadName, signal)
-      const busy = this.preparing.size > 0 || [...this.workerRuntimes.values()]
-        .some(runtime => !runtime.settledComplete)
-      if (!busy) return
-    }
+    return joinManagedTeam({
+      settlements: this.settlements, team: this.team, leadName: this.leadName, lead: () => this.lead,
+      workers: () => [...this.workerRuntimes.values()], preparing: () => [...this.preparing.values()],
+      workerBusy: runtime => this.workerBusy(runtime), hasInputs: () => this.modelInput.outstanding().length > 0,
+      needsSynthesis: () => this.needsSynthesis(), closing: () => [...this.closingWorkers],
+      joinMembers: signal => this.joinMembers(signal),
+      joinCollaboration: signal => this.collaboration?.onLeadEnd(true, signal),
+    }, signal)
   }
 
-  /** Current detached worker lifecycle view. */
+  private needsSynthesis(): boolean {
+    return this.options.autoLeadCoordination !== false && this.lead.lastOutcome()?.yielded === true
+  }
+
   workers(): readonly ManagedAgentWorker[] {
     return Object.freeze([...this.workerRuntimes.values()].map(runtime => managedWorkerView(runtime)))
   }
 
-  /**
-   * Wait for one worker to finish, for at most `timeoutMs`.
-   *
-   * Bounded on purpose. An unbounded wait is how a host loses the ability to
-   * tell a slow worker from a stuck one; a caller that gets `undefined` back
-   * still holds every other option.
-   * @param name - Worker address.
-   * @param options - Budget, default {@link DEFAULT_WAIT_TIMEOUT_MS}, and a signal.
-   * @returns Its result, or undefined if it had not finished in time.
-   */
   async awaitWorker(
     name: string,
     options: { readonly timeoutMs?: number; readonly signal?: AbortSignal } = {},
@@ -300,30 +317,9 @@ export class ManagedAgentTeam {
     const address = memberName(name)
     const runtime = this.workerRuntimes.get(address)
     if (runtime === undefined) throw new Error(`unknown managed worker '${address}'`)
-    const budget = timeoutValue(options.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS)
-    // The timer is cleared either way: a worker that finishes early must not
-    // leave one pending, which in a long-lived host is a slow leak.
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const deadline = new Promise<void>((resolve) => { timer = setTimeout(resolve, budget) })
-    try {
-      await abortable(Promise.race([runtime.settled, deadline]), options.signal)
-    } finally {
-      clearTimeout(timer)
-    }
-    options.signal?.throwIfAborted()
-    return runtime.result
+    return awaitManagedWorker(runtime, options)
   }
 
-  /**
-   * Stop a worker and give up its slot.
-   *
-   * This is the stopping point a delegated agent otherwise lacks. A worker that
-   * has already finished is still occupying a `maxWorkers` slot, so closing is
-   * how a lead makes room for the next one.
-   * @param name - Worker address.
-   * @param reason - Cancellation reason for a worker still running.
-   * @returns The status it held before being closed.
-   */
   async closeWorker(
     name: string,
     reason: unknown = new Error('managed worker closed'),
@@ -332,55 +328,70 @@ export class ManagedAgentTeam {
     const runtime = this.workerRuntimes.get(address)
     if (runtime === undefined) throw new Error(`unknown managed worker '${address}'`)
     runtime.closing = true
-    runtime.closeTask ??= Promise.resolve().then(() => closeManagedWorker(runtime, reason, {
-      team: this.team, scheduling: this.scheduling, closeTimeoutMs: this.closeTimeoutMs,
-      workerRuntimes: this.workerRuntimes,
-    }))
+    this.collaboration?.closeMember(address)
+    this.modelInput.cancel(address)
+    runtime.closeTask ??= this.closeAndReport(runtime, reason)
     return runtime.closeTask
+
   }
 
-  /**
-   * Stop every worker this harness started.
-   *
-   * Workers outlive the lead's turn by design, so something has to end them:
-   * without this a detached run would keep calling the model after the host had
-   * moved on. Disposing the underlying `AgentTeam` is left to whoever owns it.
-   * @param reason - Cancellation reason handed to each worker.
-   */
+  private closeAndReport(runtime: WorkerRuntime, reason: unknown): Promise<ManagedAgentWorkerStatus> {
+    const task = closeManagedWorker(runtime, reason, {
+      team: this.team, scheduling: this.scheduling, closeTimeoutMs: this.closeTimeoutMs,
+      workerRuntimes: this.workerRuntimes,
+    }).then(async previous => {
+      if (previous === 'pending' || previous === 'running') this.settlements.pending(runtime)
+      if (await this.settlements.flushReports()) this.settlements.wakeForReport(runtime)
+      return previous
+    }).finally(() => { this.closingWorkers.delete(task) })
+    this.closingWorkers.add(task)
+    return task
+  }
+
   dispose(reason: unknown = new Error('managed agent team disposed')): Promise<void> {
     if (this.disposeTask !== undefined) return this.disposeTask
     this.lifecycle.abort(reason)
+    this.settlements.dispose()
+    this.unguardWake()
     const names = [...this.workerRuntimes.keys()]
     this.disposeTask = Promise.allSettled([
       ...[...this.preparing.values()].map(prepared => prepared.settled),
       ...names.map(name => this.closeWorker(name, reason)),
+      ...this.modelInput.outstanding().map(job => job.settled),
     ]).then(() => undefined)
     return this.disposeTask
   }
 
-  /** Remove one idle generated worker from the harness and shared roster. */
   removeWorker(name: string): void {
     const address = memberName(name)
     const runtime = this.workerRuntimes.get(address)
     if (runtime === undefined) throw new Error(`unknown managed worker '${address}'`)
-    if (runtime.status === 'pending' || runtime.status === 'running' || !runtime.settledComplete
+    if (this.workerBusy(runtime)
       || runtime.session.isRunning) {
       throw new Error(`cannot remove running managed worker '${address}'`)
     }
+    this.collaboration?.closeMember(address)
     this.team.detach(address)
     this.workerRuntimes.delete(address)
   }
 
   private controlTools(): readonly ToolDefinition<any>[] {
-    return managedControlTools({
+    const controls = this.options.modelToolSurface === 'legacy' ? managedControlTools : leanControlTools
+    return controls({
       options: this.options, spawnTimeoutMs: this.spawnTimeoutMs, workerTimeoutMs: this.workerTimeoutMs,
-      roleSchema: () => this.roleSchema(),
-      spawn: (request, signal) => this.spawn(request, signal),
+      roleSchema: () => managedRoleSchema(this.roles),
+      spawn: async (request, signal) => {
+        const owner = this.invocation
+        const worker = await this.spawn(request, signal)
+        const runtime = this.workerRuntimes.get(worker.name)
+        if (runtime !== undefined) owner?.workers.add(runtime)
+        return worker
+      },
+      workerBusy: name => this.modelInput.outstanding().some(job => job.name === name),
       workerRuntime: name => this.workerRuntimes.get(name),
       closeWorker: name => this.closeWorker(name),
     })
   }
-
 
 }
 

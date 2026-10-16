@@ -39,11 +39,14 @@ export async function dispatchRemote(
         if (byteLength(result) > host.maxLinkedResultBytes) {
           throw new Error(`linked A2A result exceeds the ${host.maxLinkedResultBytes}-byte limit`)
         }
+        member.outcome = result.succeeded ? { kind: 'completed', text: result.text }
+          : { kind: 'failed', text: result.text, message: result.state ?? 'Remote task failed' }
         member.error = undefined
         host.emit({ type: 'member-run-end', member: member.name })
         return result
       } catch (error: unknown) {
         member.error = errorMessage(error)
+        member.outcome = { kind: 'failed', message: member.error }
         host.emit({ type: 'member-run-error', member: member.name, error: member.error })
         throw error
       }

@@ -380,7 +380,7 @@
           "withRetry",
           "withoutRunReport"
         ],
-        "declarationSha256": "39b19fde9eed6b60d73f5de2484772a46fe87c4fae69d35e52e5fb3344a739a9"
+        "declarationSha256": "022580067aa1a23892990ad6f65c8edd1d799c80d33113d41b3c59eb40538c79"
       },
       "./agent": {
         "exports": [
@@ -442,6 +442,9 @@
           "CapabilityIdentityConflict",
           "CheckpointContext",
           "CloneAgentOverrides",
+          "CollaborationBoardSnapshot",
+          "CollaborationTask",
+          "CollaborationTaskView",
           "CompactionBackoffReason",
           "CompactionResult",
           "CompletionSubmission",
@@ -450,10 +453,12 @@
           "ContextMilestone",
           "ContextOptimizationMetrics",
           "ContextOptimizerOptions",
+          "CreateCollaborationTask",
           "DEFAULT_MIN_WAIT_TIMEOUT_MS",
           "DEFAULT_SPAWN_SETUP_TIMEOUT_MS",
           "DEFAULT_WAIT_TIMEOUT_MS",
           "DEFAULT_WORKER_CLOSE_TIMEOUT_MS",
+          "DELEGATION_STRATEGY",
           "DeepAgentOptions",
           "DefinedAgent",
           "DefinedAgentTeam",
@@ -487,12 +492,15 @@
           "LinkedAgentResult",
           "LinkedAgentSendInput",
           "LinkedAgentTransport",
+          "MANAGED_DELEGATION_RUNTIME",
+          "MANAGED_TEAM_FEATURES",
           "MAX_SKILL_DESCRIPTION_CHARS",
           "MAX_SKILL_ID_CHARS",
           "MAX_SKILL_INSTRUCTIONS_CHARS",
           "MAX_SKILL_NAME_CHARS",
           "MAX_SKILL_RESOURCE_CHARS",
           "MAX_SKILL_RESOURCE_PATH_CHARS",
+          "ManagedAgentDelegationMode",
           "ManagedAgentRole",
           "ManagedAgentSpawnContext",
           "ManagedAgentSpawnRequest",
@@ -501,6 +509,7 @@
           "ManagedAgentWorker",
           "ManagedAgentWorkerResult",
           "ManagedAgentWorkerStatus",
+          "ManagedTeamCollaborationOptions",
           "MemorySpillStoreLimits",
           "ModelCallPolicyDecision",
           "PostToolDecision",
@@ -604,6 +613,7 @@
           "TurnHooks",
           "TurnOutcome",
           "UNCHANGED_ANSWER_MARKER",
+          "UpdateCollaborationTask",
           "UsageCoverageSummary",
           "UsageEstimationInput",
           "UsageEstimator",
@@ -619,6 +629,7 @@
           "authoritativeTokenUsage",
           "authorizeToolCall",
           "budgetTokenTotal",
+          "buildDelegationStrategy",
           "buildTraceTree",
           "cloneAgent",
           "completedHistoryPrefix",
@@ -649,10 +660,12 @@
           "estimateTextTokens",
           "executionModeOf",
           "experimentalNestedToolPort",
+          "filterToolsByDepth",
           "finalizeToolCall",
           "fixedApprovalBroker",
           "fixedUserInputBroker",
           "localToolExecutionBackend",
+          "managedAgentRolePresets",
           "normalizeToolPairing",
           "prepareToolCall",
           "previewForSpill",
@@ -680,7 +693,7 @@
           "validateSkillSource",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "3d979ed2e95e36196fc4804e351bac4b6e0537fa832865af195d7bacaa598c9c"
+        "declarationSha256": "3b558ca9d50642022b5979f12267c91d11a812ed82bbc2293004adbd818febf7"
       },
       "./memory": {
         "exports": [
@@ -719,7 +732,7 @@
           "resolveMemoryConfig",
           "selectCompactablePrefix"
         ],
-        "declarationSha256": "2791b4ae2fafa64d4a7c10a8f9929cec277834f0005af3ee9f605fa1adaac1e2"
+        "declarationSha256": "78b62bde3bc013e99a19e04fcd43b00859e2760e32c11586301d72785596ac35"
       },
       "./provider": {
         "exports": [
@@ -929,7 +942,7 @@
           "truncateMiddleToTokens",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "f07397d81f2a6d75bd10ce138e3d1683665b4bdebb8ce2da50f9107b176e78ca"
+        "declarationSha256": "ed1a0ae1c23ca3a2583bc7ff5e9a6a5ec53c06d9c6ceaf4807ae1249178a5f23"
       },
       "./observability": {
         "exports": [

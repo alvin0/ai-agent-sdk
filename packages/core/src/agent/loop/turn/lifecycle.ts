@@ -43,7 +43,9 @@ async function runLifecycle(state: TurnState): Promise<TurnOutcome> {
     const candidate = await finalizedOutcome(state)
     const canContinue = candidate.reason.kind === 'completed'
       && state.workSteps() < state.maxSteps && state.admissionStop() === undefined
-    if (await continueAfterTurnHook(state.options, state.signal, candidate, canContinue)) {
+    const action = await continueAfterTurnHook(state.options, state.signal, candidate, canContinue)
+    if (action === 'yield') return { ...candidate, yielded: true }
+    if (action === 'continue') {
       state.reason = undefined
       continue
     }

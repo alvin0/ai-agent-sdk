@@ -4,8 +4,52 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ## Unreleased
 
+### Breaking
+
+- Managed teams default to the lean model surface: `spawn_agent`, `send_input`, `wait_agents`,
+  `close_agent`, and explicit paged `get_agent_result`. Set `modelToolSurface: 'legacy'` to retain
+  the earlier names/schemas (`list_agents`, `send_message`, `followup_task`, name-based close).
+  Host lifecycle, remote delivery and worker-view methods remain available. Lean model tools address
+  managed workers and the lead only; remote peers remain host hooks.
+- Managed lead guidance defaults to proactive bounded delegation; set `delegationMode: 'explicit'`
+  for requested delegation only. Generated workers inherit eligible lead application tools by default.
+  Set `inheritLeadTools: false` or `workerSessionOptions.tools: []` to opt out. Explicit worker tools
+  replace definition tools; templates/factories retain their own capabilities. Roles only narrow grants.
+  Guarded inheritance requires the same interceptor array/approval broker supplied explicitly to workers.
+  Undefined scoped session options preserve base policy; inheritance opt-out also clears cloned native
+  tools, skills and skill IDs. Explicit templates, factories and worker grants remain host-owned.
+- `list_agents` is status-only. Local/remote `wait_agents` joins all selected targets and returns
+  bounded new results once per recipient/outcome, shared with push notices. Joining an already settled
+  selection returns immediately without repeating evidence. Active joins capture all outcomes published
+  during the join, including queued follow-ups. Explicit result pages are repeatable.
+- Finished workers auto-release concurrency slots while retaining their addresses and results.
+  `close_agent` in lean mode cancels unfinished work by default, unless model cancellation is disabled;
+  legacy close still requires `cancelRunning: true`. Reactivated workers must pass slot/write admission.
+- Automatic managed `run()` joins through synthesis and rejects scheduled synthesis failures; concurrent
+  `run()` calls reject even when auto coordination is disabled. Invocation abort cancels owned work and
+  its synthesis wake without disposing the reusable team. Standalone wait cancellation stops only waiting.
+
+### Fixed
+
+- Replace periodic hold prompts with runtime-attributed push settlements and event-driven yield/join.
+  Preserve lost-wake recovery across idle observers and cancelled flushes; bound synthesis-only retries
+  to three without progress. Keep partial cancellation/timeout/failure evidence and structured results.
+  Settlement notices batch eight reports, disclose remaining work and fit serialized field budgets;
+  `get_agent_result` pages text/structured/error fields without splitting Unicode. `holdWaitMs` is deprecated.
+- Keep interrupted held-worker dependency identity until replacement settles; fence pending/preparing
+  cancellation before releasing dependencies. Failed setup settles held waits and drains queued wakes.
+  Preserve model-input response ownership when concurrent host follow-ups run, and avoid assigning
+  a second delivery identity when forwarding the scheduler's terminal observer event.
+- Offline benchmark fake adapters recognize lean spawn `target` results as well as legacy addresses.
+
 ### Added
 
+- Opt-in `collaboration: true`: revision-CAS task board, compact task discovery, owner/dependency checks,
+  bounded peer wakes and automatic ready/blocked notices. The board remains local and in memory.
+  Joins share managed settlement barriers; each join has a deadline, with pending/preparing work cancelled
+  as one fenced batch on expiry. Idle evidence remains readable. Use an invocation signal for a total cap.
+- Export reusable delegation strategy, explicit/proactive modes, role presets and tool depth filtering.
+  Hosts supply nesting depth and continue to own tools, authorization, persistence and workspace isolation.
 - Autonomous multi-agent benchmark under `test-human/multi-agent-bench/`: six isolated fixture tasks,
   single/team baselines, optional collaboration feature detection, SDK-wide usage metrics,
   deterministic graders, offline CI coverage, and branch comparison reports. No host API changes.

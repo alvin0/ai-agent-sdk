@@ -1,8 +1,9 @@
 import { timeoutValue } from '../../platform/config.ts'
 import { AgentTeam } from './team.ts'
 import type { ManagedAgentTeamOptions, ManagedAgentRole } from './managed-types.ts'
+import { spawnContext } from './managed-validation.ts'
 import {
-  DEFAULT_WORKER_CLOSE_TIMEOUT_MS, DEFAULT_HOLD_WAIT_MS, DEFAULT_SPAWN_SETUP_TIMEOUT_MS,
+  DEFAULT_WORKER_CLOSE_TIMEOUT_MS, DEFAULT_SPAWN_SETUP_TIMEOUT_MS,
 } from './managed-config.ts'
 
 export function managedTimeouts(options: ManagedAgentTeamOptions) {
@@ -10,13 +11,16 @@ export function managedTimeouts(options: ManagedAgentTeamOptions) {
     workerTimeoutMs: timeoutValue(options.workerTimeoutMs ?? 10 * 60_000),
     observerTimeoutMs: timeoutValue(options.observerTimeoutMs ?? 1_000),
     closeTimeoutMs: timeoutValue(options.closeTimeoutMs ?? DEFAULT_WORKER_CLOSE_TIMEOUT_MS),
-    holdWaitMs: timeoutValue(options.holdWaitMs ?? DEFAULT_HOLD_WAIT_MS),
     spawnTimeoutMs: timeoutValue(options.spawnTimeoutMs ?? DEFAULT_SPAWN_SETUP_TIMEOUT_MS),
   }
 }
 
 export function managedRoles(options: ManagedAgentTeamOptions): Map<string, ManagedAgentRole> {
-  const roles = new Map((options.roles ?? []).map(role => [role.name, role]))
+  const roles = new Map((options.roles ?? []).map(role => [role.name, Object.freeze({
+    ...role,
+    ...(role.context === undefined ? {} : { context: spawnContext(role.context) }),
+    ...(role.tools === undefined ? {} : { tools: Object.freeze([...role.tools]) }),
+  })]))
   if (roles.size !== (options.roles ?? []).length) {
     throw new Error('managed agent roles contain a duplicate name')
   }

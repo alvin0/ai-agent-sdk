@@ -78,7 +78,7 @@ class Workers extends StubAdapter {
 
 /** A worker's own name, as its generated instructions state it. */
 function workerName(options: GenerateOptions): string {
-  return /dynamically assigned worker '([^']+)'/.exec(options.system ?? '')?.[1] ?? 'unknown'
+  return /You are managed worker '([^']+)'/.exec(options.system ?? '')?.[1] ?? 'unknown'
 }
 
 function teamOf(
@@ -87,7 +87,7 @@ function teamOf(
 ): ManagedAgentTeam {
   const registry = new ModelRegistry()
   registry.registerAdapter(['test'], adapter)
-  return createManagedAgentTeam({
+  return createManagedAgentTeam({ modelToolSurface: 'legacy',
     registry,
     holdWaitMs: 20,
     lead: defineAgent({

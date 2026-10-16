@@ -44,6 +44,8 @@ export type TurnEndReason =
   | { readonly kind: 'error'; readonly failure: ModelFailure }
 
 export interface TurnOutcome {
+  /** The host yielded this turn for external work; it is not a final answer. */
+  readonly yielded?: true
   readonly reason: TurnEndReason
   readonly text: string
   readonly steps: number
@@ -239,5 +241,7 @@ export interface TurnHooks {
   readonly beforeStep?: (ctx: BeforeStepContext) => Promise<StepDecision> | StepDecision
   readonly onRequestError?: (ctx: RequestErrorContext) => Promise<'retry' | 'fail'> | 'retry' | 'fail'
   readonly checkpoint?: (ctx: CheckpointContext) => Promise<void> | void
-  readonly onTurnEnd?: (ctx: TurnEndContext) => Promise<void> | void
+  /** Return yield to end without a final answer or deep-mode self-check polling. */
+  readonly onTurnEnd?: (ctx: TurnEndContext) => Promise<void | { readonly kind: 'yield' }>
+    | void | { readonly kind: 'yield' }
 }

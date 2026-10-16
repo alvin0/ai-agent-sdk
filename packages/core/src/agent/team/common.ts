@@ -8,6 +8,7 @@ export const MEMBER_NAME = /^[a-zA-Z][a-zA-Z0-9_-]*$/
 export const MAX_MEMBER_NAME_LENGTH = 128
 export const TEAM_TOOL_NAMES = Object.freeze({
   list: 'list_agents',
+  result: 'get_agent_result',
   send: 'send_message',
   followup: 'followup_task',
   wait: 'wait_agents',
@@ -38,7 +39,7 @@ export function parseMessageTool(raw: unknown): { target: string; message: strin
  * back and decides whether to wait again, message the agent, or close it. An
  * unbounded one made a slow agent indistinguishable from a hung one.
  */
-export const DEFAULT_WAIT_TIMEOUT_MS = 30_000
+export const DEFAULT_WAIT_TIMEOUT_MS = 120_000
 
 /**
  * Shortest wait a `wait_agents` call can ask for.
@@ -53,7 +54,7 @@ export const DEFAULT_WAIT_TIMEOUT_MS = 30_000
  * Asking for less is not an error: a lead should not need to know the floor to
  * write a valid call, so the request is raised to it rather than rejected.
  */
-export const DEFAULT_MIN_WAIT_TIMEOUT_MS = 5_000
+export const DEFAULT_MIN_WAIT_TIMEOUT_MS = 10_000
 
 export function parseWaitTool(
   raw: unknown,

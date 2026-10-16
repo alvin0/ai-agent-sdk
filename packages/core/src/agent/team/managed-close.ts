@@ -37,12 +37,13 @@ export async function closeManagedWorker(
     // A cancellation that times out must not wedge the close: the slot is
     // freed either way, exactly as it is for a run that ignores its signal.
   }
+  // A cancelled follow-up is watched by the team scheduler, which has now drained.
+  settleStoppedFollowup(runtime, previous)
   if (previous === 'pending') {
     // Never started, so there is no run to wait for — and `settled` would
     // never resolve on its own, because nothing is going to end.
     runtime.status = 'closed'
-    runtime.start = undefined
-    host.team.markPending(address, undefined)
+    releaseHeldStart(runtime, host.team)
     runtime.markSettled()
   } else {
     // Waited for, but not indefinitely, and a worker that ignores its signal
@@ -53,7 +54,9 @@ export async function closeManagedWorker(
     runtime.status = 'closed'
     runtime.markSettled()
   }
+  host.team.releaseSlot(address)
   recordEvidence(runtime)
+  recordCancellation(runtime, previous, host.team)
   if (host.scheduling.workerHasWork(runtime)) {
     if (runtime.request.writes.length > 0) host.scheduling.retainWrites(runtime)
     // Closing frees the managed slot, but cannot establish that an active
@@ -80,3 +83,19 @@ export async function closeManagedWorker(
   return previous
 }
 
+function settleStoppedFollowup(runtime: WorkerRuntime, previous: ManagedAgentWorkerStatus): void {
+  if (!runtime.session.isRunning && previous !== 'pending') runtime.markSettled()
+}
+
+function recordCancellation(runtime: WorkerRuntime, previous: ManagedAgentWorkerStatus, team: AgentTeam): void {
+  if (previous === 'running' || previous === 'pending') {
+    team.recordOutcome(runtime.request.name, { kind: 'failed', status: 'cancelled', message: 'Worker cancelled',
+      ...(runtime.result === undefined ? {} : { text: runtime.result.text }) })
+  }
+}
+
+function releaseHeldStart(runtime: WorkerRuntime, team: AgentTeam): void {
+  runtime.start?.()
+  runtime.start = undefined
+  team.markPending(runtime.request.name, undefined)
+}

@@ -1,3 +1,5 @@
+import { statusOnly } from './team-results.ts'
+import { resultTool } from './team-result-tool.ts'
 import { executeTeamWait } from './team-wait-operation.ts'
 import type { TeamToolsHost } from './team-tool-host.ts'
 import { defineTool, type ToolDefinition } from '../tool/definition.ts'
@@ -10,7 +12,8 @@ import { messageToolSchema, parseMessageTool, parseWaitTool, emptyObject, member
 export class TeamTools {
   constructor(private readonly host: TeamToolsHost) {}
 
-  toolsFor(sender: string, access: TeamToolAccess = 'full'): readonly ToolDefinition<any>[] {
+  toolsFor(sender: string, access: TeamToolAccess = 'full',
+    whenIdle?: (target: string, signal: AbortSignal) => Promise<void>): readonly ToolDefinition<any>[] {
     this.host.assertActive()
     const name = memberName(sender)
     // Called before `attach`, so the access level arrives as an argument
@@ -26,9 +29,10 @@ export class TeamTools {
         description: 'List local and remote addressable agents, their protocols, supported delivery modes, and status.',
         parameters: { type: 'object', properties: {}, additionalProperties: false },
         parse: raw => emptyObject(raw, 'list_agents'),
-        execute: () => asJson(this.host.members()),
+        execute: () => asJson(this.host.members().map(statusOnly)),
         isConcurrencySafe: () => true,
       }),
+      resultTool(this.host),
       defineTool({
         name: TEAM_TOOL_NAMES.send,
         budgetExempt: true,
@@ -44,25 +48,30 @@ export class TeamTools {
         name: TEAM_TOOL_NAMES.followup,
         budgetExempt: true,
         description: 'Send active work to a local agent or interoperable remote A2A peer '
-          + 'and wait for its accepted result.',
+          + 'and return acceptance immediately for local work. Remote calls return their transport result. '
+          + 'Use wait_agents to join local work; it returns new settled results.',
         parameters: messageToolSchema('Follow-up instruction the target must process.'),
         parse: parseMessageTool,
         execute: async ({ target, message }, ctx) => asJson(
           await this.host.followup(name, target, message, ctx.signal),
         ),
       })],
-      ...!coordinating ? [] : [this.waitTool(name, sender)],
+      ...!coordinating ? [] : [this.waitTool(name, sender, whenIdle)],
     ])
   }
 
-  private waitTool(name: string, sender: string): ToolDefinition<any> {
+  private waitTool(name: string, sender: string,
+    whenIdle?: (target: string, signal: AbortSignal) => Promise<void>): ToolDefinition<any> {
     return defineTool({ name: TEAM_TOOL_NAMES.wait, budgetExempt: true,
-        description: 'Wait until one of the selected local or remote agents finishes its scheduled'
-          + ' work, then return their current roster state. Returns early with interrupted=true when'
+        description: 'Join all selected agents until they settle or the timeout expires. Prefer long waits. '
+          + 'Returns compact new results directly, without repeating settlement notices. '
+          + 'Returns early with interrupted=true when'
           + ' the user sends you something while you wait, so read that before waiting again.',
         parameters: waitToolSchema(this.host.waitTimeoutMs, this.host.minWaitTimeoutMs),
         parse: parseWaitTool,
-        execute: (args, ctx) => executeTeamWait(this.host, { name, sender }, args, ctx),
+        execute: (args, ctx) => executeTeamWait(
+          whenIdle === undefined ? this.host : { ...this.host, whenIdle }, { name, sender }, args, ctx),
+        timeoutMs: this.host.waitTimeoutMs + 1_000,
         isConcurrencySafe: () => true,
     })
   }

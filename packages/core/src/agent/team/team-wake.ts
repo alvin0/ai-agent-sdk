@@ -1,6 +1,7 @@
 import type { AgentRunEvent } from '../mode/run-agent.ts'
 import type { AgentTeamEvent } from './types.ts'
 import type { LocalMemberRuntime } from './team-runtime-types.ts'
+import { abortable } from './common.ts'
 import { recordAnsweredWake, recordWakeResponse, answeredWake } from './team-support.ts'
 
 interface WakeHost {
@@ -13,7 +14,9 @@ export async function runWakeLoop(member: LocalMemberRuntime, signal: AbortSigna
   try {
     while (member.wakeConsumedSeq < member.wakeRequestedSeq) {
       signal.throwIfAborted()
+      while (member.pendingStart !== undefined) await abortable(member.pendingStart, signal)
       await member.session.whenIdle(signal)
+      if (member.pendingStart !== undefined) continue
       const through = member.wakeRequestedSeq
       if (answeredWake(member)) {
         recordAnsweredWake(member)
@@ -30,9 +33,11 @@ export async function runWakeLoop(member: LocalMemberRuntime, signal: AbortSigna
   }
 }
 
-function emitWakeResult(member: LocalMemberRuntime, failure: string | undefined, host: WakeHost): void {
-  if (failure === undefined) host.emit({ type: 'member-run-end', member: member.name })
-  else host.emit({ type: 'member-run-error', member: member.name, error: failure })
+function emitWakeResult(
+  member: LocalMemberRuntime, failure: string | undefined, host: WakeHost, response: unknown,
+): void {
+  if (failure === undefined) host.emit({ type: 'member-run-end', member: member.name, response })
+  else host.emit({ type: 'member-run-error', member: member.name, error: failure, response })
 }
 function recordWakeCancellation(member: LocalMemberRuntime, through: number, host: WakeHost): void {
   member.wakeConsumedSeq = through
@@ -51,10 +56,14 @@ async function runOneWake(
   member: LocalMemberRuntime, signal: AbortSignal, host: WakeHost, through: number,
 ): Promise<boolean> {
   host.emit({ type: 'member-run-start', member: member.name })
+  let terminal: AgentRunEvent | undefined
   try {
     const response = await member.session.runPending({
       signal,
-      onEvent: event => host.observeAgentEvent(member.name, event),
+      onEvent: event => {
+        if (event.type === 'agent-end') { terminal = event; return }
+        return host.observeAgentEvent(member.name, event)
+      },
     })
     if (signal.aborted) {
       recordWakeCancellation(member, through, host)
@@ -62,7 +71,10 @@ async function runOneWake(
     }
     const failure = recordWakeResponse(member, response)
     member.wakeConsumedSeq = through
-    emitWakeResult(member, failure, host)
+    emitWakeResult(member, failure, host, response)
+    // Publish the final agent event only after the roster reflects settlement.
+    // Hosts can now drain on this event without waiting for a heartbeat.
+    if (terminal !== undefined) await host.observeAgentEvent(member.name, terminal)
   } catch (error: unknown) {
     if (signal.aborted) {
       member.error = undefined

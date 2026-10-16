@@ -18,9 +18,13 @@ export type AgentMessageDelivery = 'quiet' | 'wakeup'
  * longer receives that answer as a tool return value: an agent started
  * concurrently reports here instead.
  */
-export type AgentMemberOutcome =
+export type AgentMemberOutcome = {
+  readonly status?: 'completed' | 'failed' | 'timeout' | 'cancelled'
+  readonly structured?: import('../../primitives/index.ts').JsonValue
+} & (
   | { readonly kind: 'completed'; readonly text: string }
   | { readonly kind: 'failed'; readonly message: string; readonly text?: string }
+)
 
 /** Detached runtime view of one addressable member. */
 export interface AgentTeamMember {
@@ -116,9 +120,9 @@ export type AgentTeamEvent =
   | { readonly type: 'member-linked'; readonly member: AgentTeamMember }
   | { readonly type: 'message-accepted'; readonly message: AgentMessageRecord }
   | { readonly type: 'member-run-start'; readonly member: string }
-  | { readonly type: 'member-run-end'; readonly member: string }
+  | { readonly type: 'member-run-end'; readonly member: string; readonly response?: unknown }
   | { readonly type: 'member-run-cancelled'; readonly member: string }
-  | { readonly type: 'member-run-error'; readonly member: string; readonly error: string }
+  | { readonly type: 'member-run-error'; readonly member: string; readonly error: string; readonly response?: unknown }
   | { readonly type: 'team-disposed'; readonly teamId: string }
 
 export interface AgentTeamOptions {
@@ -133,14 +137,14 @@ export interface AgentTeamOptions {
   readonly maxMailboxBytes?: number
   /** Maximum serialized bytes for descriptions and collaboration instructions. Defaults to 8 KiB. */
   readonly maxMetadataBytes?: number
-  /** Maximum time dispose waits for cooperative transports/providers. Defaults to 30 seconds. */
+  /** Maximum time dispose waits for cooperative transports/providers. Defaults to 120 seconds. */
   readonly disposeTimeoutMs?: number
   /** End-to-end bound for one remote dispatch or local wake-up batch. Defaults to 10 minutes. */
   readonly operationTimeoutMs?: number
   /** Maximum wait per asynchronous agent-event observer. Defaults to 1 second. */
   readonly observerTimeoutMs?: number
   /**
-   * How long `wait_agents` waits before reporting back. Defaults to 30 seconds.
+   * How long `wait_agents` waits before reporting back. Defaults to 120 seconds.
    *
    * The tool call can ask for less. It cannot wait forever, because a
    * coordinator that never regains control cannot tell a slow agent from a
@@ -148,7 +152,7 @@ export interface AgentTeamOptions {
    */
   readonly waitTimeoutMs?: number
   /**
-   * Shortest wait one `wait_agents` call may ask for. Defaults to 5 seconds.
+   * Shortest wait one `wait_agents` call may ask for. Defaults to 10 seconds.
    *
    * A lead that asks for a second gets the roster back unchanged and has spent
    * a model round learning nothing. A request below the floor is raised to it,
