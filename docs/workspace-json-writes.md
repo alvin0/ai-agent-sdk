@@ -5,9 +5,10 @@ The SDK leaves filesystem access with the host. Core exports the portable
 from `@alvin0/ai-agent-sdk-core/tools` (also `/agent`). It performs no I/O.
 Call it on the **complete proposed file content**, after authorization and size checks,
 before creating directories, opening/truncating a file, or committing a patch.
-Pass the host-resolved target path, including symlink resolution where supported,
-so suffix matching describes the actual file. The hook also strips terminal POSIX
-`/` and `/.` segments defensively; it does not resolve symlinks or authorize paths.
+Pass the host-resolved target path, following allowed symlinks, so suffix matching
+describes the actual file. The hook defensively strips terminal separator/dot
+segments (both `/` and `\`), trailing dots/spaces and NTFS alternate-stream suffixes
+in the final path segment on every host OS. It does not resolve symlinks or authorize paths.
 
 ```ts
 import { validateJsonFileContent, type JsonWriteGuardOptions }
@@ -43,6 +44,14 @@ The repository's existing host tools apply this hook by default:
 | Chat sample | `write_file`, `edit_file` | `createSampleTools(root, { validateJsonWrites: false })` |
 | Agentcode | `write_file`, `replace_in_file` | `createAgentCodeToolRegistry(root, { validateJsonWrites: false })` |
 | Benchmark workspace | `write_file`, `edit_file` (entire replacement batch) | `Workspace.create(task, parent, { validateJsonWrites: false })` |
+
+Chat and agentcode resolve existing files with `realpath`; for new files they resolve
+the closest existing ancestor and append the missing segments. They check containment
+against the canonical workspace root, validate the resulting relative target and write
+to the canonical absolute target. Resolution creates no directories. A pre-existing
+`alias.txt -> x.json` therefore receives JSON validation for both writes and edits.
+The benchmark instead rejects symlinks in every target path segment before validation
+and writing, using the host's path separator. It does not follow symlinks.
 
 Existing calls remain valid. The host opt-out is useful for intentional incremental
 JSON construction; it is not exposed as a model tool argument. Edits validate only

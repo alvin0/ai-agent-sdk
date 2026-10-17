@@ -3,7 +3,7 @@ import { dirname, relative, resolve } from 'node:path'
 import { defineTool, validateJsonFileContent, type JsonWriteGuardOptions } from '@alvin0/ai-agent-sdk-core/agent'
 import type { DiffLine } from '../wire'
 import { json, card, requireString, optionalBoolean } from './values'
-import { inRoot } from './paths'
+import { inRoot, writableInRoot } from './paths'
 import { currentText, replaceOnce, diffLines } from './text'
 
 export function writeFileTool(root: string, options: JsonWriteGuardOptions = {}) {
@@ -27,11 +27,12 @@ export function writeFileTool(root: string, options: JsonWriteGuardOptions = {})
     },
     execute: async ({ path, content }) => {
       const absolute = inRoot(root, path)
-      validateJsonFileContent(relative(root, absolute), content, options)
-      const before = await currentText(absolute)
-      const existed = before !== '' || await stat(absolute).then(() => true, () => false)
-      await mkdir(dirname(absolute), { recursive: true })
-      await writeFile(absolute, content, 'utf8')
+      const { absolute: target, relativePath } = await writableInRoot(root, absolute)
+      validateJsonFileContent(relativePath, content, options)
+      const before = await currentText(target)
+      const existed = before !== '' || await stat(target).then(() => true, () => false)
+      await mkdir(dirname(target), { recursive: true })
+      await writeFile(target, content, 'utf8')
       return json({
         path: relative(root, absolute),
         created: !existed,
@@ -81,10 +82,11 @@ export function editFileTool(root: string, options: JsonWriteGuardOptions = {}) 
     },
     execute: async ({ path, oldText, newText, replaceAll }) => {
       const absolute = inRoot(root, path)
-      const before = await readFile(absolute, 'utf8')
+      const { absolute: target, relativePath } = await writableInRoot(root, absolute)
+      const before = await readFile(target, 'utf8')
       const { content, count } = replaceOnce(before, oldText, newText, replaceAll)
-      validateJsonFileContent(relative(root, absolute), content, options)
-      await writeFile(absolute, content, 'utf8')
+      validateJsonFileContent(relativePath, content, options)
+      await writeFile(target, content, 'utf8')
       return json({ path: relative(root, absolute), replaced: count, lines: diffLines(before, content) })
     },
     render: (value) => {

@@ -12,15 +12,16 @@ export interface JsonWriteGuardOptions {
  * One leading BOM is tolerated; accepted text is never modified or reserialized.
  * Hosts retain ownership of paths, authorization, size limits and the actual write.
  * @param path - Host-resolved target file path (including symlink resolution when
- * supported), used for suffix matching and diagnostics. Terminal POSIX `/` and
- * `/.` segments are also stripped defensively; authorization remains host-owned.
+ * supported), used for suffix matching and diagnostics. Terminal separator/dot
+ * segments, Windows trailing dots/spaces and NTFS streams are stripped for suffix
+ * detection on every host OS; authorization remains host-owned.
  * @param content - Complete proposed file content, including all edits.
  * @param options - Host opt-out for intentionally incomplete JSON files.
  */
 export function validateJsonFileContent(
   path: string, content: string, options: JsonWriteGuardOptions = {},
 ): void {
-  const target = trimTerminalSegments(path)
+  const target = jsonSuffixTarget(path)
   if (options.validateJsonWrites === false || !/\.json$/iu.test(target)) return
   const bom = content.startsWith('\uFEFF') ? 1 : 0
   const text = content.slice(bom)
@@ -44,12 +45,27 @@ export function validateJsonFileContent(
   }
 }
 
+function jsonSuffixTarget(path: string): string {
+  const target = trimTerminalSegments(path)
+  const segmentStart = Math.max(target.lastIndexOf('/'), target.lastIndexOf('\\')) + 1
+  // A drive-relative path (C:x.json) has a drive colon, not a stream colon.
+  const start = segmentStart === 0 && /^[a-z]:/iu.test(target) ? 2 : segmentStart
+  const stream = target.indexOf(':', start)
+  let end = stream < 0 ? target.length : stream
+  while (end > start && (target[end - 1] === '.' || target[end - 1] === ' ')) end--
+  return target.slice(0, end)
+}
+
 function trimTerminalSegments(path: string): string {
   let end = path.length
   while (end > 0) {
-    if (path[end - 1] === '/') end--
-    else if (path[end - 1] === '.' && path[end - 2] === '/') end -= 2
+    if (isSeparator(path[end - 1])) end--
+    else if (path[end - 1] === '.' && isSeparator(path[end - 2])) end -= 2
     else break
   }
   return path.slice(0, end)
+}
+
+function isSeparator(character: string | undefined): boolean {
+  return character === '/' || character === '\\'
 }

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -136,6 +136,23 @@ describe('portable JSON diagnostics', () => {
     expect(() => validateJsonFileContent('dir.json/file.txt', 'anything')).not.toThrow()
   })
 
+  it.each([
+    'x.json.', 'x.json ', 'x.JSON. . ', 'x.json::$DATA', 'x.json:metadata',
+    'x.json. :metadata', 'dir\\x.json', 'dir\\x.json. ', 'dir\\x.json::$DATA',
+    'dir\\x.json\\.', 'dir\\x.json\\.\\', 'dir/x.json. ', 'dir:stream\\x.json',
+    'C:\\dir\\x.json::$DATA', 'C:x.json', 'C:x.json::$DATA',
+  ])('validates Windows JSON aliases on every host: %s', path => {
+    expect(() => validateJsonFileContent(path, '[1 2]')).toThrow('Invalid JSON')
+    expect(() => validateJsonFileContent(path, '[1, 2]')).not.toThrow()
+    expect(() => validateJsonFileContent(path, '[1 2]', { validateJsonWrites: false })).not.toThrow()
+  })
+
+  it.each(['dir.json\\file.txt', 'dir.json \\file.txt', 'x.jsonc. ', 'x.json5::$DATA', 'x.txt:copy.json'])(
+    'does not mistake a Windows parent or stream name for the file suffix: %s', path => {
+      expect(() => validateJsonFileContent(path, 'anything')).not.toThrow()
+    },
+  )
+
   it('caps the path before JSON escaping, including escape-heavy paths', () => {
     for (const path of ['a'.repeat(10_000) + '.json', '\u0001'.repeat(10_000) + '.json']) {
       let message = ''
@@ -180,23 +197,97 @@ describe('portable JSON diagnostics', () => {
 })
 
 describe('resolved host targets and benchmark startup', () => {
-  it('validates agentcode symlink targets before writes and replacements', async () => {
-    const f = await fixture('agentcode')
+  it.each([
+    ['chat', 'write'], ['chat', 'edit'], ['agentcode', 'write'], ['agentcode', 'edit'],
+  ])('validates %s symlink targets before %s', async (host, operation) => {
+    const f = await fixture(host)
     await f.write('x.json', '[1, 2]')
     await symlink('x.json', join(f.root, 'alias.txt'))
-    expect(await f.write('alias.txt', '[1 2]')).toMatchObject({ isError: true, error: { code: 'INVALID_ARGUMENTS' } })
-    expect(await f.edit('alias.txt', '1, 2', '1 2'))
-      .toMatchObject({ isError: true, error: { code: 'INVALID_ARGUMENTS' } })
+    const result = operation === 'write'
+      ? await f.write('alias.txt', '[1 2]') : await f.edit('alias.txt', '1, 2', '1 2')
+    expect(result).toMatchObject({ isError: true, error: { code: 'INVALID_ARGUMENTS' } })
     expect(await readFile(join(f.root, 'x.json'), 'utf8')).toBe('[1, 2]')
+    const corrected = operation === 'write'
+      ? await f.write('alias.txt', '[3, 4]') : await f.edit('alias.txt', '1, 2', '3, 4')
+    expect(corrected.isError).toBe(false)
+    expect(await readFile(join(f.root, 'x.json'), 'utf8')).toBe('[3, 4]')
   })
 
-  it('keeps agentcode symlink escape checks ahead of directory creation', async () => {
-    const f = await fixture('agentcode')
+  it.each(['chat', 'agentcode'])('keeps %s symlink escape checks ahead of directory creation', async host => {
+    const f = await fixture(host)
     const outside = await mkdtemp(join(tmpdir(), 'json-guard-outside-'))
     roots.push(outside)
     await symlink(outside, join(f.root, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
     expect((await f.write('linked/new/x.json', '{}')).isError).toBe(true)
     await expect(readFile(join(outside, 'new'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('resolves missing chat targets through symlink parents without creating directories', async () => {
+    const f = await fixture('chat')
+    await mkdir(join(f.root, 'actual'))
+    await symlink('actual', join(f.root, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
+    expect(await f.write('linked/new/x.json', '[1 2]'))
+      .toMatchObject({ isError: true, error: { code: 'INVALID_ARGUMENTS' } })
+    await expect(readFile(join(f.root, 'actual/new'))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect((await f.write('linked/new/x.json', '[1, 2]')).isError).toBe(false)
+    expect(await readFile(join(f.root, 'actual/new/x.json'), 'utf8')).toBe('[1, 2]')
+  })
+
+  it('keeps logical chat result paths when the workspace root is itself a symlink', async () => {
+    const f = await fixture('chat')
+    const parent = await mkdtemp(join(tmpdir(), 'json-guard-root-'))
+    roots.push(parent)
+    await symlink(f.root, join(parent, 'workspace'), process.platform === 'win32' ? 'junction' : 'dir')
+    const tools = createSampleTools(join(parent, 'workspace'))
+    const result = await dispatchToolCall({
+      catalog: tools,
+      call: { callId: ToolCallId('root-alias'), toolName: 'write_file',
+        rawArguments: JSON.stringify({ path: 'x.json', content: '{}' }) },
+      position: { turn: 1, step: 1 }, signal: new AbortController().signal,
+    })
+    expect(result).toMatchObject({ isError: false, value: { path: 'x.json' } })
+    expect(await readFile(join(f.root, 'x.json'), 'utf8')).toBe('{}')
+  })
+
+  it.each(['alias.txt', 'linked/x.json'])(
+    'preserves benchmark symlink rejection for %s writes and edits', async path => {
+      const f = await fixture('benchmark')
+      await f.write('x.json', '[1, 2]')
+      await symlink('x.json', join(f.root, 'alias.txt'))
+      await symlink(f.root, join(f.root, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
+      const rejected = { isError: true, error: { message: expect.stringContaining('Symlinks are forbidden') } }
+      expect(await f.write(path, '[3, 4]')).toMatchObject(rejected)
+      expect(await f.edit(path, '1, 2', '3, 4')).toMatchObject(rejected)
+      expect(await readFile(join(f.root, 'x.json'), 'utf8')).toBe('[1, 2]')
+    },
+  )
+
+  it('validates the actual chat suffix rather than a JSON-named symlink alias', async () => {
+    const f = await fixture('chat')
+    await f.write('x.txt', 'text')
+    await symlink('x.txt', join(f.root, 'alias.json'))
+    expect((await f.write('alias.json', '{invalid}')).isError).toBe(false)
+    expect((await f.edit('alias.json', '{invalid}', '')).isError).toBe(false)
+    expect(await readFile(join(f.root, 'x.txt'), 'utf8')).toBe('')
+  })
+
+  it.each(['write', 'edit'])('rejects a chat symlink to an outside file before %s', async operation => {
+    const f = await fixture('chat')
+    const outside = await mkdtemp(join(tmpdir(), 'json-guard-outside-'))
+    roots.push(outside)
+    await writeFile(join(outside, 'x.json'), '[1, 2]')
+    await symlink(join(outside, 'x.json'), join(f.root, 'alias.txt'))
+    const result = operation === 'write'
+      ? await f.write('alias.txt', '[3, 4]') : await f.edit('alias.txt', '1, 2', '3, 4')
+    expect(result.isError).toBe(true)
+    expect(await readFile(join(outside, 'x.json'), 'utf8')).toBe('[1, 2]')
+  })
+
+  it('rejects dangling chat symlinks without creating their target', async () => {
+    const f = await fixture('chat')
+    await symlink('missing.json', join(f.root, 'alias.txt'))
+    expect((await f.write('alias.txt', '[1 2]')).isError).toBe(true)
+    await expect(readFile(join(f.root, 'missing.json'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it.each([undefined, {}])('fails clearly at benchmark startup with an unusable dist hook: %j', async hook => {

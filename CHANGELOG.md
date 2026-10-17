@@ -15,8 +15,11 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Fixed
 
-- Validate workspace JSON writes/edits against resolved target paths, including trailing
-  `/` and `/.` aliases, before creating directories or writing files. Cap diagnostic
+- Validate chat and agentcode workspace JSON writes/edits against canonical,
+  symlink-followed targets, rejecting workspace escapes before creating directories
+  or writing files. The benchmark rejects symlink paths instead. Detect terminal
+  `/` and `\` separator/dot aliases, Windows trailing dots/spaces and NTFS stream
+  suffixes on every host OS. Cap diagnostic
   paths at 200 characters. The benchmark now fails at startup if core dist lacks the
   JSON validation hook; rebuild core before running it against older SDK checkouts.
 

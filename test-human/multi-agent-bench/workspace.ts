@@ -1,6 +1,6 @@
 import { cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { defineTool, type ToolDefinition } from '../../packages/core/dist/index.js'
 import * as coreTools from '../../packages/core/dist/tools.js'
 import type { JsonWriteGuardOptions } from '../../packages/core/dist/tools.js'
@@ -51,7 +51,7 @@ export class Workspace {
     const rel = relative(this.root, target)
     if (rel.startsWith('..') || isAbsolute(rel)) throw new Error('Path outside workspace')
     let current = this.root
-    for (const part of rel.split('/').filter(Boolean)) {
+    for (const part of rel.split(sep).filter(Boolean)) {
       current = join(current, part)
       const stat = await lstat(current).catch(() => undefined)
       if (stat?.isSymbolicLink()) throw new Error('Symlinks are forbidden')
