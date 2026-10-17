@@ -619,3 +619,41 @@ describe('lean managed model surface', () => {
     } finally { await team.dispose(); await team.team.dispose() }
   })
 })
+
+describe('managed settlement delivery audit regressions', () => {
+  const text = (value: string): readonly StreamChunk[] => [
+    { type: 'text-delta', index: 0, text: value },
+    { type: 'block-end', index: 0, block: { type: 'text', text: value } },
+    { type: 'finish', reason: { kind: 'stop' } },
+  ]
+
+  it('delivers a settlement deferred during a lead turn after a queued follow-up restarts the worker', async () => {
+    const { adapter, team } = fixture()
+    const inTurn = deferred<void>()
+    const release = deferred<void>()
+    let first = true
+    adapter.leadReply = async () => {
+      if (first) { first = false; inTurn.resolve(); await release.promise }
+      return text('lead-done')
+    }
+    try {
+      const running = team.run('go')
+      await inTurn.promise
+      await team.spawn({ name: 'worker', task: 'first' })
+      await adapter.started(1)
+      await call(team, 'send_input', { target: 'worker', message: 'second' })
+      adapter.finish(1, 'first-result')
+      await adapter.started(2)
+      release.resolve()
+      await vi.waitFor(() => expect(team.lead.isRunning).toBe(false))
+      adapter.finish(2, 'second-result')
+      await running
+      await team.whenQuiet()
+      const leadInputs = JSON.stringify(adapter.requests
+        .filter(request => request.tools?.some(tool => tool.name === 'spawn_agent'))
+        .map(request => request.messages))
+      expect(leadInputs).toContain('first-result')
+      expect(leadInputs).toContain('second-result')
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+})

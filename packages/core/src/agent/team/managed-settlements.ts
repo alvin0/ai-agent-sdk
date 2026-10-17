@@ -5,7 +5,7 @@ import { createUserMessage } from '../../message/index.ts'
 import type { AgentResponse, AgentSession } from '../define/session.ts'
 import { managedTeamNoticeRequest } from '../history/input-work.ts'
 import type { AgentTeam } from './team.ts'
-import type { AgentTeamEvent } from './types.ts'
+import type { AgentMemberOutcome, AgentTeamEvent } from './types.ts'
 import type { ManagedAgentTeamOptions, WorkerRuntime } from './managed-types.ts'
 import { recordEvidence } from './managed-outcomes.ts'
 import { abortable, combineSignals } from './managed-cancellation.ts'
@@ -24,7 +24,8 @@ interface SettlementHost {
 
 export class ManagedSettlements {
   private readonly batchNotices = new Set<Promise<void>>()
-  private readonly pendingReports = new Set<WorkerRuntime>()
+  /** Settled outcome instance captured at notification; a later follow-up must not hide it. */
+  private readonly pendingReports = new Map<WorkerRuntime, AgentMemberOutcome | undefined>()
   private readonly unsubscribe: () => void
   private deferredFlush: Promise<void> | undefined
   deliveredRevision = 0
@@ -38,7 +39,7 @@ export class ManagedSettlements {
   resumeCaptured(targets: readonly string[]): void {
     for (const target of targets) {
       const runtime = this.host.workers.get(target)
-      if (runtime !== undefined) this.pendingReports.add(runtime)
+      if (runtime !== undefined && !this.pendingReports.has(runtime)) this.pendingReports.set(runtime, undefined)
     }
     this.resumeReports()
   }
@@ -63,7 +64,9 @@ export class ManagedSettlements {
     if (owner !== undefined) this.wakeForReport(owner)
   }
 
-  pending(runtime: WorkerRuntime): void { this.pendingReports.add(runtime) }
+  pending(runtime: WorkerRuntime): void {
+    if (!this.pendingReports.has(runtime)) this.pendingReports.set(runtime, undefined)
+  }
   get hasPending(): boolean { return this.pendingReports.size > 0 }
   dispose(): void { this.unsubscribe(); this.pendingReports.clear() }
 
@@ -84,7 +87,7 @@ export class ManagedSettlements {
     if (signal.aborted) return
     this.deferredFlush = abortable(this.host.lead().whenIdle(signal), signal).then(async () => {
       signal.throwIfAborted()
-      const pending = [...this.pendingReports]
+      const pending = [...this.pendingReports.keys()]
       const delivered = await this.flushReports()
       if (delivered) {
         const owner = pending.find(runtime => runtime.leadDriven) ?? pending[0]
@@ -106,7 +109,7 @@ export class ManagedSettlements {
   async notify(runtime: WorkerRuntime): Promise<void> {
     if (this.host.signal.aborted || this.host.workers.get(runtime.request.name) !== runtime) return
     this.host.team.releaseSlot(runtime.request.name)
-    this.pendingReports.add(runtime)
+    this.pendingReports.set(runtime, this.settledOutcome(runtime))
     if (this.host.lead().isRunning) this.deferReports()
     else {
       const delivered = await this.flushReports()
@@ -123,12 +126,18 @@ export class ManagedSettlements {
 
   /** One batch notice, claiming the same outcome instances as wait_agents. */
   async flushReports(): Promise<boolean> {
-    const pending = [...this.pendingReports].slice(0, 8)
-    for (const runtime of pending) this.pendingReports.delete(runtime)
+    const entries = [...this.pendingReports].slice(0, 8)
+    const pending = entries.map(([runtime]) => runtime)
+    const outcomes = new Map<string, AgentMemberOutcome>()
+    for (const [runtime, outcome] of entries) {
+      this.pendingReports.delete(runtime)
+      if (outcome !== undefined) outcomes.set(runtime.request.name, outcome)
+    }
     if (pending.length === 0 || this.host.signal.aborted) return false
     const budget = Math.max(256, Math.min(8192,
       Math.floor((Math.min(48 * 1024, this.host.team.messageByteLimit) - 1024) / pending.length) - 256))
-    const results = this.host.team.takeResults(this.host.leadName, pending.map(runtime => runtime.request.name), budget)
+    const results = this.host.team.takeResults(this.host.leadName, pending.map(runtime => runtime.request.name),
+      budget, outcomes)
     if (results.length === 0) {
       if (this.hasPending) this.deferReports()
       return false
@@ -154,6 +163,12 @@ export class ManagedSettlements {
     this.deliveredRevision++
     if (this.hasPending) this.deferReports()
     return true
+  }
+
+  private settledOutcome(runtime: WorkerRuntime): AgentMemberOutcome | undefined {
+    const member = this.host.team.members().find(candidate => candidate.name === runtime.request.name)
+    return member === undefined || member.status === 'running' || member.status === 'pending'
+      ? undefined : member.outcome
   }
 
   private remaining(delivered: readonly WorkerRuntime[]): string {

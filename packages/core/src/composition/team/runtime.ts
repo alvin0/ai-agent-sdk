@@ -210,7 +210,9 @@ function createControlPlane(
     onEvent: event => {
       // The composition owns additional direct runs and compactions; its close
       // event must wait for those too, not just the control-plane wake tasks.
-      if (event.type !== 'team-disposed') emit(projectEvent(event))
+      if (event.type === 'team-disposed') return
+      const projected = projectEvent(event)
+      if (projected !== undefined) emit(projected)
     },
     ...(options.onAgentEvent === undefined ? {} : { onAgentEvent: options.onAgentEvent }),
   }, signal => {
@@ -291,18 +293,30 @@ function captureLink(raw: unknown, host: RuntimeAgentHost, teamId: string): Link
   })
 }
 
-function projectEvent(event: AgentTeamEvent): RuntimeAgentTeamEvent {
-  if (event.type === 'team-progress') return event
-  if (event.type === 'member-attached') return Object.freeze({ type: event.type, member: event.member.name })
-  if (event.type === 'member-linked') return Object.freeze({ type: event.type, member: event.member.name,
-    protocol: event.member.protocol ?? 'unknown' })
-  if (event.type === 'message-accepted') return Object.freeze({ type: event.type,
-    messageId: event.message.id, target: event.message.target })
-  if (event.type === 'member-run-start' || event.type === 'member-run-end') return Object.freeze(event)
-  if (event.type === 'member-run-error') return Object.freeze({ type: event.type, member: event.member,
-    error: Object.freeze({ code: 'TEAM_MEMBER_RUN_FAILED', stage: 'team-operation',
-      message: 'Runtime team member operation failed', usageCoverage: NOT_APPLICABLE_USAGE_COVERAGE,
-      possiblyBilledAttemptsWithoutUsage: 0 }) })
-  if (event.type === 'team-disposed') return Object.freeze({ type: 'team-closed', teamId: event.teamId })
-  return Object.freeze({ type: 'member-run-end', member: event.member })
+/** Project raw team events onto the sanitized runtime surface; internal timeline facts are not exposed. */
+function projectEvent(event: AgentTeamEvent): RuntimeAgentTeamEvent | undefined {
+  switch (event.type) {
+    case 'team-progress': return event
+    case 'team-timeline': return undefined
+    case 'member-attached': return Object.freeze({ type: event.type, member: event.member.name })
+    case 'member-linked': return Object.freeze({ type: event.type, member: event.member.name,
+      protocol: event.member.protocol ?? 'unknown' })
+    case 'message-accepted': return Object.freeze({ type: event.type,
+      messageId: event.message.id, target: event.message.target })
+    // Member responses stay inside the team; the runtime surface carries identity only.
+    case 'member-run-start':
+    case 'member-run-end': return Object.freeze({ type: event.type, member: event.member })
+    case 'member-run-cancelled': return Object.freeze({ type: 'member-run-end', member: event.member })
+    case 'member-run-error': return Object.freeze({ type: event.type, member: event.member,
+      error: Object.freeze({ code: 'TEAM_MEMBER_RUN_FAILED', stage: 'team-operation',
+        message: 'Runtime team member operation failed', usageCoverage: NOT_APPLICABLE_USAGE_COVERAGE,
+        possiblyBilledAttemptsWithoutUsage: 0 }) })
+    case 'team-disposed': return Object.freeze({ type: 'team-closed', teamId: event.teamId })
+    default: return unreachableEvent(event)
+  }
+}
+
+function unreachableEvent(event: never): undefined {
+  void event
+  return undefined
 }

@@ -132,8 +132,14 @@ export class AgentTeam implements TeamPort {
     return () => { this.listeners.delete(listener) }
   }
   /** Claim compact results; shares delivery state with wait_agents. */
-  takeResults(sender: string, targets: readonly string[], maxBytes?: number) {
-    return this.results.take(sender, this.results.select(this.members(), targets), maxBytes)
+  takeResults(sender: string, targets: readonly string[], maxBytes?: number,
+    settled?: ReadonlyMap<string, AgentMemberOutcome>) {
+    const members = this.results.select(this.members(), targets).map(member => {
+      const outcome = settled?.get(member.name)
+      // A captured settlement is delivered even if a queued follow-up already restarted the member.
+      return outcome === undefined ? member : { ...member, status: 'idle' as const, outcome }
+    })
+    return this.results.take(sender, members, maxBytes)
   }
   /** Register an active join against the same per-outcome delivery ledger as notices. */
   captureResults(sender: string, targets: readonly string[], retained = true) {

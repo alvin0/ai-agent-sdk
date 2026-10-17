@@ -27,6 +27,8 @@ interface CollaborationHost {
   readonly lead: string
   readonly signal: AbortSignal
   readonly workerTimeoutMs: number
+  /** The lead's onTurnEnd hook deadline; the join runs inside that hook. */
+  readonly leadHookTimeoutMs: number
   readonly basePort: TeamPort
   redirect(sender: string, target: string, message: string): void
   joinMembers(signal?: AbortSignal): Promise<void>
@@ -51,7 +53,11 @@ export class ManagedTeamCollaboration implements TeamPort {
 
   constructor(options: ManagedTeamCollaborationOptions, private readonly host: CollaborationHost) {
     this.maxPeerTurnsPerPair = positiveInteger(options.maxPeerTurnsPerPair ?? 8, 'collaboration.maxPeerTurnsPerPair')
-    this.joinTimeoutMs = positiveInteger(options.joinTimeoutMs ?? host.workerTimeoutMs, 'collaboration.joinTimeoutMs')
+    const requested = positiveInteger(options.joinTimeoutMs ?? host.workerTimeoutMs, 'collaboration.joinTimeoutMs')
+    // The join waits inside the lead's onTurnEnd hook. Expire it first, leaving time to cancel members
+    // and inject the recovery note, or the hook timeout fails the lead instead.
+    const margin = Math.min(30_000, Math.floor(host.leadHookTimeoutMs / 5))
+    this.joinTimeoutMs = Math.max(1, Math.min(requested, host.leadHookTimeoutMs - margin))
     this.notifications = new CollaborationNotifications(host.team, host.lead, this.sessions, () => { this.epoch++ })
     this.board = new CollaborationTaskBoard(options, { lead: host.lead, signal: host.signal,
       assertMember: name => this.assertMember(name), changed: (before, after, actor, { operation, task }) => {
