@@ -9,7 +9,7 @@ import { ManagedModelSurface } from './managed-model-surface.ts'
 import { ManagedModelInput } from './managed-model-input.ts'
 import { hasSuccessfulTeamSpawn, ManagedLazyTools } from './managed-lazy-tools.ts'
 import { ManagedTeamCollaboration } from './managed-collaboration.ts'
-import { filterToolsByDepth } from './managed-capabilities.ts'
+import { assertWorkerToolInheritance, filterToolsByDepth } from './managed-capabilities.ts'
 import type { TeamPort } from './contracts.ts'
 import { ManagedSettlements } from './managed-settlements.ts'
 import { createUserMessage } from '../../message/index.ts'
@@ -79,6 +79,7 @@ export class ManagedAgentTeam {
   private readonly limits: ReturnType<typeof managedLimits>
   constructor(private readonly options: ManagedAgentTeamOptions) {
     this.limits = managedLimits(options)
+    assertWorkerToolInheritance(options)
     this.roles = managedRoles(options)
     this.team = managedControlPlane(options, this.limits.maxWorkers)
     this.leadName = memberName(options.leadName ?? options.lead.id)

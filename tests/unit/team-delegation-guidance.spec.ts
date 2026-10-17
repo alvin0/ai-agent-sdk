@@ -178,15 +178,11 @@ describe('worker application tools and role narrowing', () => {
     } finally { await managed.dispose() }
   })
 
-  it.each(['interceptors', 'approvals'] as const)('refuses inheritance without matching lead %s', async key => {
+  it.each(['interceptors', 'approvals'] as const)('refuses inheritance without matching lead %s', key => {
     const policy = key === 'interceptors' ? { interceptors: [{ name: 'guard' }] }
       : { approvals: { request: async () => 'deny' as const } }
-    const { adapter, managed } = setup({ leadSessionOptions: policy })
-    try {
-      await expect(managed.spawn({ task: 'guarded' })).rejects.toThrow(`same ${key}`)
-      expect(adapter.requests).toEqual([])
-      expect(managed.workers()).toEqual([])
-    } finally { await managed.dispose() }
+    // Static configuration that would refuse every generated worker fails at construction.
+    expect(() => setup({ leadSessionOptions: policy })).toThrow(`same ${key}`)
   })
 
   it('refuses per-worker overrides that replace a shared approval broker', async () => {
@@ -197,11 +193,9 @@ describe('worker application tools and role narrowing', () => {
     finally { await managed.dispose() }
   })
 
-  it('refuses a different interceptor array even if its names match', async () => {
-    const { managed } = setup({ leadSessionOptions: { interceptors: [{ name: 'guard' }] },
-      workerSessionOptions: { interceptors: [{ name: 'guard' }] } })
-    try { await expect(managed.spawn({ task: 'guarded' })).rejects.toThrow('same interceptors') }
-    finally { await managed.dispose() }
+  it('refuses a different interceptor array even if its names match', () => {
+    expect(() => setup({ leadSessionOptions: { interceptors: [{ name: 'guard' }] },
+      workerSessionOptions: { interceptors: [{ name: 'guard' }] } })).toThrow('same interceptors')
   })
 
   it('executes the shared interceptor and approval broker before an inherited tool', async () => {
