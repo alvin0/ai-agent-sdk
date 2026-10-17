@@ -212,3 +212,23 @@ describe('collaboration offer recovery', () => {
     expect(adapter.rounds.get(other)).toBe(2)
   })
 })
+
+describe('collaboration disposal', () => {
+  it('does not re-offer tasks while the team is disposing', async () => {
+    const adapter = new CollaborationAdapter()
+    const team = managed(adapter)
+    const board = team.collaboration!.board
+    await board.create('lead', { id: 'p', title: 'Producer' })
+    await board.create('lead', { id: 'c', title: 'Pull work', blockedBy: ['p'] })
+    await team.spawn({ name: 'alice', task: 'Wait' }); await team.awaitWorker('alice')
+    await team.spawn({ name: 'bob', task: 'Wait' }); await team.awaitWorker('bob')
+    await board.update('lead', { id: 'p', expectedRevision: 1, action: 'claim' })
+    await board.update('lead', { id: 'p', expectedRevision: 2, action: 'complete' })
+    await team.collaboration!.whenMembersIdle(AbortSignal.timeout(1000))
+    const before = new Map(adapter.rounds)
+    const wake = vi.spyOn(team.team, 'wake')
+    await team.dispose()
+    expect(wake.mock.calls.filter(([name]) => name !== 'lead')).toEqual([])
+    expect(adapter.rounds).toEqual(before)
+  })
+})

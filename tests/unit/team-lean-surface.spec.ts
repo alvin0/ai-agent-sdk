@@ -1,3 +1,4 @@
+import { teamInternals } from '../../packages/core/src/agent/team/team-internal.ts'
 import { TeamResults } from '../../packages/core/src/agent/team/team-results.ts'
 import { describe, expect, it, vi } from 'vitest'
 import { AgentTeam, createManagedAgentTeam, defineAgent } from '../../packages/core/src/agent/index.ts'
@@ -824,8 +825,9 @@ describe('audit re-review regressions', () => {
     const outcome = { kind: 'completed', text: 'first' } as const
     const capture = results.capture('lead', [{ name: 'a', status: 'idle', outcome } as never], ['a'])
     capture.release()
-    expect(results.takeReleased('lead').get('a')).toBe(outcome)
-    expect(results.takeReleased('lead').size).toBe(0)
+    expect(results.takeReleased('lead', ['b']).size).toBe(0)
+    expect(results.takeReleased('lead', ['a']).get('a')).toBe(outcome)
+    expect(results.takeReleased('lead', ['a']).size).toBe(0)
   })
 
   it('wakes an idle lead for a closed lead-driven worker while only host-driven work runs', async () => {
@@ -881,5 +883,24 @@ describe('audit re-review regressions', () => {
       .rejects.toThrow()
     expect(team.messages()).toHaveLength(1)
     await team.dispose()
+  })
+})
+
+describe('audit round 2 regressions', () => {
+  it('returns claims of a batch join that fails without an abort', async () => {
+    const { adapter, team } = fixture()
+    const internals = teamInternals(team.team) as { waitForBatch: (...args: never[]) => Promise<unknown> }
+    internals.waitForBatch = async () => {
+      await adapter.started(1)
+      adapter.finish(1, 'batch-result')
+      await team.awaitWorker('worker_1')
+      throw new Error('join failed')
+    }
+    try {
+      await expect(call(team, 'spawn_agents', { tasks: [{ task: 'a' }], join: true })).rejects.toThrow('join failed')
+      const later = JSON.stringify(await call(team, 'wait_agents', { targets: ['worker_1'], timeout_ms: 10 }))
+        + JSON.stringify(team.team.messages())
+      expect(later).toContain('batch-result')
+    } finally { await team.dispose(); await team.team.dispose() }
   })
 })

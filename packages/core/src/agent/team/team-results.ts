@@ -35,9 +35,16 @@ export class TeamResults {
   /** Claims returned by cancelled joins, so a managed requeue can deliver the exact released outcome. */
   private readonly released = new Map<string, Map<string, AgentMemberOutcome>>()
 
-  takeReleased(recipient: string): ReadonlyMap<string, AgentMemberOutcome> {
-    const claims = this.released.get(recipient) ?? new Map<string, AgentMemberOutcome>()
-    this.released.delete(recipient)
+  takeReleased(recipient: string, targets: readonly string[]): ReadonlyMap<string, AgentMemberOutcome> {
+    const released = this.released.get(recipient)
+    const claims = new Map<string, AgentMemberOutcome>()
+    for (const name of targets) {
+      const outcome = released?.get(name)
+      if (outcome === undefined) continue
+      claims.set(name, outcome)
+      released!.delete(name)
+    }
+    if (released?.size === 0) this.released.delete(recipient)
     return claims
   }
 
@@ -69,7 +76,13 @@ export class TeamResults {
           delivered.delete(name)
           let released = this.released.get(recipient)
           if (released === undefined) this.released.set(recipient, released = new Map())
+          released.delete(name)
           released.set(name, outcome)
+          // Callers that never requeue (peer waits) keep only a bounded, newest-first set.
+          for (const oldest of released.keys()) {
+            if (released.size <= MAX_ARCHIVED) break
+            released.delete(oldest)
+          }
         }
         claims.length = 0
         captured.length = 0

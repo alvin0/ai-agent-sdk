@@ -17,7 +17,7 @@ export interface TeamInternals {
   /** Retain a managed worker's address while releasing its concurrency reservation. */
   releaseSlot(name: string): void
   /** Claims released by cancelled joins since the last call, keyed by member. */
-  takeReleasedClaims(recipient: string): ReadonlyMap<string, AgentMemberOutcome>
+  takeReleasedClaims(recipient: string, targets: readonly string[]): ReadonlyMap<string, AgentMemberOutcome>
   /** Whether the recipient already claimed the member's current settled outcome. */
   resultDelivered(recipient: string, member: AgentTeamMember): boolean
 }

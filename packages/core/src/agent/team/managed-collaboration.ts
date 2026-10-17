@@ -116,7 +116,8 @@ export class ManagedTeamCollaboration implements TeamPort {
     this.names.delete(name)
     this.sessions.delete(name)
     this.instructions.delete(name)
-    this.notifications.memberClosed(name, this.board.snapshot())
+    // Disposal closes members one by one; never re-offer into a team being torn down.
+    if (!this.host.signal.aborted) this.notifications.memberClosed(name, this.board.snapshot())
   }
 
   private assertMember(name: string): void {

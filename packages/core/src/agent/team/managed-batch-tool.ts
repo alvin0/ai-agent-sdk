@@ -121,11 +121,11 @@ async function executeBatch(host: BatchToolHost, { tasks, ids, join }: ReturnTyp
         guidance: host.spawnGuidance(),
       }))
     } catch (error: unknown) {
-      if (!signal.aborted) throw error
-      // The aborted call returns addresses, not evidence. Roll back its exact outcome claims.
+      // A failed or aborted join returns no evidence. Roll back its exact outcome claims either way.
       capture?.close()
       capture?.release()
       host.resume(targets)
+      if (!signal.aborted) throw error
       return asJson(batchPayload(workers, coverage.view(), [], { cancelled: true, guidance: host.spawnGuidance() }))
     }
   } finally {
