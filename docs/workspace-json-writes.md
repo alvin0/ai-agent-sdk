@@ -5,14 +5,17 @@ The SDK leaves filesystem access with the host. Core exports the portable
 from `@alvin0/ai-agent-sdk-core/tools` (also `/agent`). It performs no I/O.
 Call it on the **complete proposed file content**, after authorization and size checks,
 before creating directories, opening/truncating a file, or committing a patch.
+Pass the host-resolved target path, including symlink resolution where supported,
+so suffix matching describes the actual file. The hook also strips terminal POSIX
+`/` and `/.` segments defensively; it does not resolve symlinks or authorize paths.
 
 ```ts
 import { validateJsonFileContent, type JsonWriteGuardOptions }
   from '@alvin0/ai-agent-sdk-core/tools'
 
-function writeArtifact(path: string, content: string, options: JsonWriteGuardOptions = {}) {
-  validateJsonFileContent(path, content, options)
-  return hostWrite(path, content) // host-owned authorization, path checks and storage
+function writeArtifact(resolvedPath: string, content: string, options: JsonWriteGuardOptions = {}) {
+  validateJsonFileContent(resolvedPath, content, options)
+  return hostWrite(resolvedPath, content) // host-owned authorization, path checks and storage
 }
 ```
 
@@ -25,7 +28,8 @@ Other suffixes, including `.jsonc` and `.json5`, are unvalidated.
 
 Failures throw a recoverable `ToolError` with code `INVALID_ARGUMENTS`. Normal tool
 dispatch returns an error to the model so it can correct and retry. The message
-includes the target path, the native parse reason (bounded to 160 characters),
+includes the target path (capped at 200 characters before JSON escaping),
+the native parse reason (bounded to 160 characters),
 one-based line/column and a JSON-escaped excerpt of up to 80 source characters.
 Columns count UTF-16 code units, including any BOM, matching JavaScript offsets.
 Native error offsets are used where available; a diagnostic scanner otherwise
@@ -44,6 +48,8 @@ Existing calls remain valid. The host opt-out is useful for intentional incremen
 JSON construction; it is not exposed as a model tool argument. Edits validate only
 the final content, so they can repair an invalid existing file. Intermediate states
 inside an edit batch need not be valid. Tool descriptions and schemas are unchanged.
+The benchmark requires the built core hook at startup and reports a clear rebuild
+error if it is absent or not a function; stale builds cannot silently skip validation.
 
 Custom tools must mount the hook themselves. It does not intercept arbitrary tool
 names, shell writes, renames, native provider tools or external processes. It adds no

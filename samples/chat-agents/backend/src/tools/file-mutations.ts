@@ -27,7 +27,7 @@ export function writeFileTool(root: string, options: JsonWriteGuardOptions = {})
     },
     execute: async ({ path, content }) => {
       const absolute = inRoot(root, path)
-      validateJsonFileContent(path, content, options)
+      validateJsonFileContent(relative(root, absolute), content, options)
       const before = await currentText(absolute)
       const existed = before !== '' || await stat(absolute).then(() => true, () => false)
       await mkdir(dirname(absolute), { recursive: true })
@@ -83,7 +83,7 @@ export function editFileTool(root: string, options: JsonWriteGuardOptions = {}) 
       const absolute = inRoot(root, path)
       const before = await readFile(absolute, 'utf8')
       const { content, count } = replaceOnce(before, oldText, newText, replaceAll)
-      validateJsonFileContent(path, content, options)
+      validateJsonFileContent(relative(root, absolute), content, options)
       await writeFile(absolute, content, 'utf8')
       return json({ path: relative(root, absolute), replaced: count, lines: diffLines(before, content) })
     },

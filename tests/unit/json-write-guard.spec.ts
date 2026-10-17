@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
 import {
   dispatchToolCall, ToolRegistry, validateJsonFileContent, type JsonWriteGuardOptions,
@@ -75,17 +75,35 @@ describe.each(['chat', 'agentcode', 'benchmark'])('%s workspace JSON writes', ho
     expect(await readFile(join(f.root, 'output.json'), 'utf8')).toBe('[1, 2]')
   })
 
+  it.each(['x.json/.', 'x.json/', 'dir.json/../x.json'])('validates resolved writes and edits to %s', async path => {
+    const f = await fixture(host)
+    expect(await f.write(path, '[1 2]')).toMatchObject({ isError: true, error: { code: 'INVALID_ARGUMENTS' } })
+    await expect(readFile(join(f.root, 'x.json'))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect((await f.write(path, '[1, 2]')).isError).toBe(false)
+    expect(await f.edit(path, '1, 2', '1 2')).toMatchObject({ isError: true, error: { code: 'INVALID_ARGUMENTS' } })
+    expect(await readFile(join(f.root, 'x.json'), 'utf8')).toBe('[1, 2]')
+  })
+
+  it('rejects invalid uppercase JSON edits without changing bytes', async () => {
+    const f = await fixture(host)
+    expect((await f.write('x.JSON', '[1, 2]')).isError).toBe(false)
+    expect(await f.edit('x.JSON', '1, 2', '1 2')).toMatchObject({ isError: true, error: { code: 'INVALID_ARGUMENTS' } })
+    expect(await readFile(join(f.root, 'x.JSON'), 'utf8')).toBe('[1, 2]')
+  })
+
   it.each(['', ' \r\n\t', '\uFEFF'])('rejects empty JSON: %j', async content => {
     const f = await fixture(host)
     expect((await f.write('output.json', content)).isError).toBe(true)
   })
 
-  it.each(['output.txt', 'output.jsonc', 'output.json5'])('leaves %s unvalidated for writes and edits', async path => {
-    const f = await fixture(host)
-    expect((await f.write(path, '{invalid}')).isError).toBe(false)
-    expect((await f.edit(path, '{invalid}', '')).isError).toBe(false)
-    expect(await readFile(join(f.root, path), 'utf8')).toBe('')
-  })
+  it.each(['output.txt', 'output.jsonc', 'output.json5', 'dir.json/file.txt'])(
+    'leaves %s unvalidated for writes and edits', async path => {
+      const f = await fixture(host)
+      expect((await f.write(path, '{invalid}')).isError).toBe(false)
+      expect((await f.edit(path, '{invalid}', '')).isError).toBe(false)
+      expect(await readFile(join(f.root, path), 'utf8')).toBe('')
+    },
+  )
 
   it('lets the host opt out for both writes and edits', async () => {
     const f = await fixture(host, { validateJsonWrites: false })
@@ -110,6 +128,25 @@ describe.each(['chat', 'agentcode', 'benchmark'])('%s workspace JSON writes', ho
 })
 
 describe('portable JSON diagnostics', () => {
+  it.each(['x.json/.', 'x.json/', 'x.json/././/'])('defensively checks terminal path segments in %s', path => {
+    expect(() => validateJsonFileContent(path, '[1 2]')).toThrow('Invalid JSON in "x.json"')
+  })
+
+  it('does not validate non-JSON files inside a JSON-named directory', () => {
+    expect(() => validateJsonFileContent('dir.json/file.txt', 'anything')).not.toThrow()
+  })
+
+  it('caps the path before JSON escaping, including escape-heavy paths', () => {
+    for (const path of ['a'.repeat(10_000) + '.json', '\u0001'.repeat(10_000) + '.json']) {
+      let message = ''
+      try { validateJsonFileContent(path, '{') } catch (error) { message = (error as Error).message }
+      const encoded = message.slice('Invalid JSON in '.length).split(': ')[0]!
+      expect(JSON.parse(encoded)).toBe(path.slice(0, 200))
+      expect(encoded.length).toBeLessThanOrEqual(200 * 6 + 2)
+      expect(message.length).toBeLessThan(1600)
+    }
+  })
+
   it.each([
     ['{\n  "x": }', 2, 8], ['{\n  "x": truX}', 2, 11], ['[1,]', 1, 4],
     ['\uFEFF[1 2]', 1, 5], ['{\r\n  "x": [1 2]}', 2, 11], ['', 1, 1], ['[1,', 1, 4],
@@ -139,5 +176,40 @@ describe('portable JSON diagnostics', () => {
   it('locates deeply nested unexpected tokens without recursive diagnostic parsing', () => {
     const content = '['.repeat(12_000) + 'BAD' + ']'.repeat(12_000)
     expect(() => validateJsonFileContent('deep.json', content)).toThrow('line 1, column 12001.')
+  })
+})
+
+describe('resolved host targets and benchmark startup', () => {
+  it('validates agentcode symlink targets before writes and replacements', async () => {
+    const f = await fixture('agentcode')
+    await f.write('x.json', '[1, 2]')
+    await symlink('x.json', join(f.root, 'alias.txt'))
+    expect(await f.write('alias.txt', '[1 2]')).toMatchObject({ isError: true, error: { code: 'INVALID_ARGUMENTS' } })
+    expect(await f.edit('alias.txt', '1, 2', '1 2'))
+      .toMatchObject({ isError: true, error: { code: 'INVALID_ARGUMENTS' } })
+    expect(await readFile(join(f.root, 'x.json'), 'utf8')).toBe('[1, 2]')
+  })
+
+  it('keeps agentcode symlink escape checks ahead of directory creation', async () => {
+    const f = await fixture('agentcode')
+    const outside = await mkdtemp(join(tmpdir(), 'json-guard-outside-'))
+    roots.push(outside)
+    await symlink(outside, join(f.root, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
+    expect((await f.write('linked/new/x.json', '{}')).isError).toBe(true)
+    await expect(readFile(join(outside, 'new'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it.each([undefined, {}])('fails clearly at benchmark startup with an unusable dist hook: %j', async hook => {
+    vi.resetModules()
+    vi.doMock('../../packages/core/dist/tools.js', async importOriginal => ({
+      ...await importOriginal<object>(), validateJsonFileContent: hook,
+    }))
+    try {
+      await expect(import('../../test-human/multi-agent-bench/workspace.ts'))
+        .rejects.toThrow('Benchmark requires core validateJsonFileContent; rebuild @alvin0/ai-agent-sdk-core')
+    } finally {
+      vi.doUnmock('../../packages/core/dist/tools.js')
+      vi.resetModules()
+    }
   })
 })

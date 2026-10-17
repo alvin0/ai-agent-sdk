@@ -15,6 +15,11 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Fixed
 
+- Validate workspace JSON writes/edits against resolved target paths, including trailing
+  `/` and `/.` aliases, before creating directories or writing files. Cap diagnostic
+  paths at 200 characters. The benchmark now fails at startup if core dist lacks the
+  JSON validation hook; rebuild core before running it against older SDK checkouts.
+
 - Add host `progressUpdates.stallFloorMs` (default 300,000 ms); stall after
   `max(stalledIntervals * intervalMs, stallFloorMs)` without lead/selected-worker activity,
   including a hung lead with no busy workers. `stalled` permits another request in the same

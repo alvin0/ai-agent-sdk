@@ -11,14 +11,17 @@ export interface JsonWriteGuardOptions {
  * Validate the complete post-write/edit text before any filesystem mutation.
  * One leading BOM is tolerated; accepted text is never modified or reserialized.
  * Hosts retain ownership of paths, authorization, size limits and the actual write.
- * @param path - Target file path, used for suffix matching and diagnostics.
+ * @param path - Host-resolved target file path (including symlink resolution when
+ * supported), used for suffix matching and diagnostics. Terminal POSIX `/` and
+ * `/.` segments are also stripped defensively; authorization remains host-owned.
  * @param content - Complete proposed file content, including all edits.
  * @param options - Host opt-out for intentionally incomplete JSON files.
  */
 export function validateJsonFileContent(
   path: string, content: string, options: JsonWriteGuardOptions = {},
 ): void {
-  if (options.validateJsonWrites === false || !/\.json$/iu.test(path)) return
+  const target = trimTerminalSegments(path)
+  if (options.validateJsonWrites === false || !/\.json$/iu.test(target)) return
   const bom = content.startsWith('\uFEFF') ? 1 : 0
   const text = content.slice(bom)
   try { JSON.parse(text) }
@@ -34,9 +37,19 @@ export function validateJsonFileContent(
     // Native messages can embed source snippets. Keep those bounded too.
     const reason = message.slice(0, 160)
     throw ToolError.respondToModel(
-      `Invalid JSON in ${JSON.stringify(path)}: ${reason}; line ${line}, column ${column}. `
+      `Invalid JSON in ${JSON.stringify(target.slice(0, 200))}: ${reason}; line ${line}, column ${column}. `
       + `Near: ${excerpt}. Fix the JSON and retry; no file was written.`,
       TOOL_ERROR_CODES.INVALID_ARGUMENTS,
     )
   }
+}
+
+function trimTerminalSegments(path: string): string {
+  let end = path.length
+  while (end > 0) {
+    if (path[end - 1] === '/') end--
+    else if (path[end - 1] === '.' && path[end - 2] === '/') end -= 2
+    else break
+  }
+  return path.slice(0, end)
 }

@@ -10,6 +10,10 @@ import { auditChecks } from './volume-grade.ts'
 import { sandboxChecks, sandboxScript } from './sandbox.ts'
 export { sandboxChecks } from './sandbox.ts'
 
+if (typeof coreTools.validateJsonFileContent !== 'function') {
+  throw new Error('Benchmark requires core validateJsonFileContent; rebuild @alvin0/ai-agent-sdk-core before running')
+}
+
 function validatePage(offset: number, limit: number) {
   if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 16384) {
     throw new Error('Expected byte offset >=0 and limit between 1 and 16384')
@@ -79,8 +83,7 @@ export class Workspace {
     if (this.task.frozen?.includes(relative(this.root, path))) {
       throw new Error('Frozen shared interface or healthy module')
     }
-    // One frozen harness also runs against SDK branches predating this host hook.
-    coreTools.validateJsonFileContent?.(name, content, this.options)
+    coreTools.validateJsonFileContent(relative(this.root, path), content, this.options)
     await mkdir(dirname(path), { recursive: true })
     await writeFile(path, content)
     return { written: name }
