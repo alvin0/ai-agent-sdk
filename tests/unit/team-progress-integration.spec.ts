@@ -216,7 +216,7 @@ describe('managed progress integration', () => {
 
   it.each(['requested', 'settled', 'max-duration', 'max-reports', 'stalled', 'delivery-failed', 'replaced'] as const)
   ('clears all timers after managed %s termination', async reason => {
-    const limits = { minIntervalMs: 10, maxIntervalMs: 100,
+    const limits = { minIntervalMs: 10, maxIntervalMs: 100, stallFloorMs: 1,
       ...(reason === 'max-duration' ? { maxDurationMs: 5 } : {}),
       ...(reason === 'max-reports' ? { maxReports: 1 } : {}),
     }

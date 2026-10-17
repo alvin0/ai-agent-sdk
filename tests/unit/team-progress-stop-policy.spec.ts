@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { progressActivity } from '../../packages/core/src/agent/team/team-progress-internal.ts'
 import { fixture, events } from './team-progress.fixture.ts'
 
-const blocking = ['host', 'delivery-failed', 'aborted', 'steered', 'max-duration', 'max-reports', 'stalled'] as const
+const blocking = ['host', 'delivery-failed', 'aborted', 'steered', 'max-duration', 'max-reports', 'closed'] as const
 
 describe('progress stop policy for a managed invocation', () => {
   it.each(blocking)('keeps %s authoritative through wakes, invalid requests and lead stops', reason => {
@@ -12,7 +12,7 @@ describe('progress stop policy for a managed invocation', () => {
     const state = f.progress.state()
     progressActivity(f.team, { kind: 'invocation', member: 'lead', signal: new AbortController().signal })
     expect(() => f.start()).toThrow(/stopped.*for this run/)
-    expect(() => f.progress.configure({ stop: true })).toThrow(/stopped.*for this run/)
+    expect(f.progress.configure({ stop: true })).toEqual({ scheduled: false })
     f.progress.stop('requested')
     f.progress.stop('replaced')
     expect(() => f.start()).toThrow(/stopped.*for this run/)
@@ -33,7 +33,7 @@ describe('progress stop policy for a managed invocation', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it.each(['requested', 'replaced', 'settled', 'run-ended'] as const)
+  it.each(['requested', 'replaced', 'settled', 'run-ended', 'stalled'] as const)
   ('allows rescheduling after %s within the same live invocation', reason => {
     const f = fixture({}, undefined, {})
     f.start(['a'])

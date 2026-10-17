@@ -94,7 +94,9 @@ describe('bounded runtime progress schedule', () => {
   })
 
   it.each([{ minIntervalMs: 0 }, { minIntervalMs: 101, maxIntervalMs: 100 },
-    { maxReports: -1 }, { maxDurationMs: Infinity }, { stalledIntervals: 0 },
+    { stallFloorMs: 0 }, { stallFloorMs: -1 }, { stallFloorMs: 1.5 },
+    { stallFloorMs: Infinity }, { stallFloorMs: 2 ** 32 }, { maxReports: -1 }, { maxDurationMs: Infinity },
+    { stalledIntervals: 0 },
     { maxConsecutiveFailures: NaN }, { maxIntervalMs: 2 ** 32 }])('rejects unsafe host bounds %j', options => {
     expect(() => fixture(options)).toThrow()
     expect(vi.getTimerCount()).toBe(0)
@@ -160,7 +162,7 @@ describe('bounded runtime progress schedule', () => {
   })
 
   it('stops on K inactive intervals, resetting only for targeted activity', async () => {
-    const f = fixture({ stalledIntervals: 2 })
+    const f = fixture({ stalledIntervals: 2, stallFloorMs: 1 })
     f.start(['a'])
     await vi.advanceTimersByTimeAsync(10)
     f.activity('a')
@@ -313,9 +315,9 @@ describe('bounded runtime progress schedule', () => {
     f.progress.dispose()
     expectStopped('closed')
     // Disposed instances must not retain path hints or invocation signals.
-    const retained = f.progress as unknown as { activity: Map<string, unknown>; latestSignal: unknown }
+    const retained = f.progress as unknown as { activity: Map<string, unknown>; rawInvocation: unknown }
     expect(retained.activity.size).toBe(0)
-    expect(retained.latestSignal).toBeUndefined()
+    expect(retained.rawInvocation).toBeUndefined()
   })
 
   it.each(['error', 'aborted'])('stops on a failed lead run (%s)', status => {

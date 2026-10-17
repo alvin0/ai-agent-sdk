@@ -11,7 +11,7 @@ function expectStopped(reason: string) {
 
 describe('invocation-wide progress updates', () => {
   it('follows two spawn waves and lead-only gaps with one schedule and cadence', async () => {
-    const f = fixture({ stalledIntervals: 2 }, undefined, {})
+    const f = fixture({ stalledIntervals: 2, stallFloorMs: 200 }, undefined, {})
     f.start()
     await vi.advanceTimersByTimeAsync(10)
     vi.spyOn(f.session, 'isRunning', 'get').mockReturnValue(false)
@@ -55,29 +55,30 @@ describe('invocation-wide progress updates', () => {
     expectStopped('host')
   })
 
-  it('counts quiet ticks toward the watchdog only when the lead is also inactive', async () => {
-    const f = fixture({ stalledIntervals: 2 }, undefined, {})
+  it('stalls a hung lead without busy workers but preserves short gaps with active lead', async () => {
+    const f = fixture({ stalledIntervals: 2, stallFloorMs: 40 }, undefined, {})
     f.busy.clear()
     f.start()
-    await vi.advanceTimersByTimeAsync(100)
+    await vi.advanceTimersByTimeAsync(30)
+    f.activity('lead')
+    await vi.advanceTimersByTimeAsync(30)
     expect(events).toEqual([])
-    vi.spyOn(f.session, 'isRunning', 'get').mockReturnValue(false)
-    await vi.advanceTimersByTimeAsync(10)
-    expect(events).toEqual([])
+    expect(f.progress.state().active).toBe(true)
+    // isRunning stays true: one hung response must still reach the inactivity bound.
     await vi.advanceTimersByTimeAsync(10)
     expect(reports()).toEqual([])
     expectStopped('stalled')
   })
 
   it.each(['model', 'tool'] as const)('lead %s activity resets the watchdog', async kind => {
-    const f = fixture({ stalledIntervals: 2 })
+    const f = fixture({ stalledIntervals: 2, stallFloorMs: 1 })
     f.start()
     await vi.advanceTimersByTimeAsync(10)
     if (kind === 'model') f.activity('lead')
     else progressActivity(f.team, { kind: 'tool', member: 'lead', name: 'read_file', args: {} })
-    await vi.advanceTimersByTimeAsync(20)
+    await vi.advanceTimersByTimeAsync(10)
     expect(f.progress.state().active).toBe(true)
-    expect(reports()).toHaveLength(3)
+    expect(reports()).toHaveLength(2)
     await vi.advanceTimersByTimeAsync(10)
     expectStopped('stalled')
   })

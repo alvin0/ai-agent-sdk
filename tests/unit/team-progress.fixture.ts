@@ -31,9 +31,16 @@ interface ProgressFixture {
   activity(member?: string): void
   tool(args?: unknown): void
   settled(member: string): void
+  endLead(): void
+}
+interface FixtureSession {
+  isRunning?: boolean
+  yielded?: boolean
+  whenIdle?: () => Promise<void>
 }
 export function fixture(
   options: TeamProgressOptions = {}, observer?: (event: TeamProgressEvent) => void, owner?: object,
+  lead: FixtureSession = {},
 ): ProgressFixture {
   const team = new AgentTeam({ id: 'progress-test', onEvent: event => {
     if (event.type === 'team-progress') {
@@ -54,8 +61,11 @@ export function fixture(
       attachedAt: new Date(0).toISOString(), startedAt: new Date(0).toISOString(),
       modelCalls: 2, durationMs: 0, runs: 1, activeRuns: Number(busy.has(name)),
     })) }))
-  const session = { get isRunning() { return true },
-    whenIdle: () => new Promise<void>(() => {}), lastOutcome: () => ({ yielded: true }) } as unknown as AgentSession
+  let endIdle!: () => void
+  const idle = new Promise<void>(resolve => { endIdle = resolve })
+  const session = { get isRunning() { return lead.isRunning ?? true },
+    whenIdle: () => lead.whenIdle?.() ?? idle,
+    lastOutcome: () => ({ yielded: lead.yielded ?? true }) } as unknown as AgentSession
   const progress = new ManagedProgress({ team, lead: 'lead', signal: controller.signal,
     session: () => session, workers: () => workers, busy: name => busy.has(name),
   }, { minIntervalMs: 10, maxIntervalMs: 100, ...options })
@@ -67,6 +77,7 @@ export function fixture(
     activity: (member = 'a') => recordTeamTimeline(team, { kind: 'model-requested', member, runId: 'run' }),
     tool: (args: unknown = { path: '/src/file.ts', token: 'secret' }) => progressActivity(team,
       { kind: 'tool', member: 'a', name: 'read_file', args }),
+    endLead: () => { lead.isRunning = false; endIdle() },
     settled: (member: string) => {
       busy.delete(member)
       recordTeamTimeline(team, { kind: 'worker-settled', member, status: 'completed' })

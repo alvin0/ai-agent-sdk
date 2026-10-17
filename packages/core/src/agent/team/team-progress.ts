@@ -7,6 +7,8 @@ export interface TeamProgressOptions {
   readonly maxDurationMs?: number
   readonly maxReports?: number
   readonly stalledIntervals?: number
+  /** Minimum inactivity before stalling; defaults to five minutes. */
+  readonly stallFloorMs?: number
   readonly maxConsecutiveFailures?: number
 }
 /** Host cancellation only; settlement and scheduler reasons are runtime-owned. */

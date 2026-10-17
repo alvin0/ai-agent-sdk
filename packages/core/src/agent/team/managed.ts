@@ -78,6 +78,7 @@ export class ManagedAgentTeam {
   private readonly unguardWake: () => void
   private readonly settlements: ManagedSettlements
   private joining = false
+  private finishingSignal: AbortSignal | undefined // Suppress aborted settlement wakes during cleanup.
   private invocation: { signal: AbortSignal | undefined; workers: Set<WorkerRuntime> } | undefined
   private readonly roles: Map<string, ManagedAgentRole>
   constructor(private readonly options: ManagedAgentTeamOptions) {
@@ -109,7 +110,7 @@ export class ManagedAgentTeam {
     this.settlements = new ManagedSettlements({
       options, team: this.team, leadName: this.leadName, signal: this.lifecycle.signal,
       workers: this.workerRuntimes, lead: () => this.lead, joining: () => this.joining,
-      invocationSignal: () => this.invocation?.signal,
+      invocationSignal: () => this.invocation?.signal ?? this.finishingSignal,
       releaseDependents: runtime => this.releaseDependents(runtime),
     })
     this.leadCoordination = new ManagedLeadCoordination({
@@ -246,35 +247,41 @@ export class ManagedAgentTeam {
     this.scheduling.checkWriteScopes(runtime.request, [])
     this.invocation?.workers.add(runtime)
   }
+  private leadBusy(): boolean { return this.invocation !== undefined || this.lead.isRunning }
   async run(input: AgentInput, invocation: AgentInvocationOptions = {}): Promise<AgentResponse> {
     this.lifecycle.signal.throwIfAborted()
-    if (this.invocation !== undefined) throw new Error('managed lead is already running')
+    if (this.leadBusy()) throw new Error('managed lead is already running')
     const owned = { signal: invocation.signal, workers: new Set<WorkerRuntime>() }
-    this.invocation = owned
-    this.progress.beginManagedInvocation(combineSignals(invocation.signal, this.lifecycle.signal))
-    this.settlements.latestResponse = undefined
-    this.settlements.leadFailure = undefined
-    this.joining = this.options.autoLeadCoordination !== false
-    this.settlements.resumeReports()
+    const signal = combineSignals(invocation.signal, this.lifecycle.signal)
+    let progressOwner: ReturnType<ManagedProgress['beginManagedInvocation']> | null = null
     try {
+      this.invocation = owned
+      progressOwner = this.progress.beginManagedInvocation(signal)
+      this.settlements.latestResponse = undefined
+      this.settlements.leadFailure = undefined
+      this.joining = this.options.autoLeadCoordination !== false
+      this.settlements.resumeReports()
       const execute = () => this.lead.run(input, invocation)
       const response = this.collaboration === undefined ? await execute()
-        : await this.collaboration.runLead(execute, combineSignals(invocation.signal, this.lifecycle.signal))
+        : await this.collaboration.runLead(execute, signal)
       this.finalBoundary('lead-returned')
       if (!this.joining) return response
-      await this.whenQuiet(combineSignals(invocation.signal, this.lifecycle.signal))
+      await this.whenQuiet(signal)
       this.settlements.throwLeadFailure()
       this.finalBoundary('team-joined')
       return this.settlements.latestResponse ?? response
     } finally {
-      this.progress.finishInvocation(invocation.signal?.aborted ? 'aborted' : 'run-ended')
-      this.joining = false
-      if (invocation.signal?.aborted === true) {
-        void this.team.cancel(this.leadName, invocation.signal.reason).catch(() => undefined)
-        await Promise.allSettled([...owned.workers].map(runtime =>
-          this.closeWorker(runtime.request.name, invocation.signal!.reason)))
-      }
       this.invocation = undefined
+      this.finishingSignal = signal
+      this.joining = false
+      try {
+        this.progress.finishInvocation(signal.aborted ? 'aborted' : 'run-ended', progressOwner)
+      } catch { /* Progress cleanup cannot prevent invocation release or worker cancellation. */ }
+      if (signal.aborted) {
+        await Promise.allSettled([this.team.cancel(this.leadName, signal.reason),
+          ...[...owned.workers].map(runtime => this.closeWorker(runtime.request.name, signal.reason))])
+      }
+      if (this.finishingSignal === signal) this.finishingSignal = undefined
     }
   }
   private finalBoundary(kind: 'lead-returned' | 'team-joined'): void {
@@ -319,18 +326,14 @@ export class ManagedAgentTeam {
   workers(): readonly ManagedAgentWorker[] {
     return Object.freeze([...this.workerRuntimes.values()].map(runtime => managedWorkerView(runtime)))
   }
-  async awaitWorker(
-    name: string,
-    options: { readonly timeoutMs?: number; readonly signal?: AbortSignal } = {},
-  ): Promise<ManagedAgentWorkerResult | undefined> {
+  async awaitWorker(name: string, options: { readonly timeoutMs?: number; readonly signal?: AbortSignal } = {}):
+  Promise<ManagedAgentWorkerResult | undefined> {
     const runtime = this.workerRuntimes.get(memberName(name))
     if (runtime === undefined) throw new Error(`unknown managed worker '${name}'`)
     return awaitManagedWorker(runtime, options)
   }
-  async closeWorker(
-    name: string,
-    reason: unknown = new Error('managed worker closed'),
-  ): Promise<ManagedAgentWorkerStatus> {
+  async closeWorker(name: string, reason: unknown = new Error('managed worker closed')):
+  Promise<ManagedAgentWorkerStatus> {
     const address = memberName(name)
     const runtime = this.workerRuntimes.get(address)
     if (runtime === undefined) throw new Error(`unknown managed worker '${address}'`)
