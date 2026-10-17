@@ -55,7 +55,8 @@ describe('Round 4 reading-volume calibration', () => {
     const workspace = await Workspace.create(extraction)
     try {
       for (const answer of ['{}', 'null', '[1,2]', 'broken JSON']) {
-        await workspace.write('answer.json', answer)
+        // Seed malformed external bytes directly; model tools now guard JSON writes.
+        await writeFile(join(workspace.root, 'answer.json'), answer)
         const grade = await workspace.grade()
         expect(grade.score).toBe(0)
         expect(grade.checks).toHaveLength(432)
@@ -101,7 +102,7 @@ describe('Round 4 reading-volume calibration', () => {
     try {
       await workspace.write('findings.json', JSON.stringify({ findings }))
       expect(await workspace.grade()).toMatchObject({ score: 1, precision: 1, recall: 1 })
-      await workspace.write('findings.json', 'bad JSON')
+      await writeFile(join(workspace.root, 'findings.json'), 'bad JSON')
       expect(await workspace.grade()).toMatchObject({ score: 0, precision: 0, recall: 0 })
     } finally { await workspace.close() }
   })

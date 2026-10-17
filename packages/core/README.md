@@ -51,6 +51,11 @@ The documented root plus `/agent`, `/memory`, `/observability`, `/provider`,
 `/skills`, `/tools`, `/embedding`, and `./package.json` are public. Internal source paths are
 not compatibility contracts.
 
+`validateJsonFileContent` from `/tools` or `/agent` validates complete `.json`
+write/edit content before a host writes it. Validation defaults on, preserves accepted
+bytes and reports recoverable syntax errors. See [workspace JSON writes](../../docs/workspace-json-writes.md)
+for host opt-out and integration examples.
+
 `createManagedAgentTeam` from `/agent` supports lead delegation and opt-in shared-board
 collaboration. See the [multi-agent host guide](../../docs/multi-agent.md) for tools,
 budgets and migration from 0.1.12, and the [offline example](../../samples/multi-agent-offline/README.md)

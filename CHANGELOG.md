@@ -22,6 +22,14 @@ All notable changes to the AI Agent SDK are documented in this file.
   `type` must be identifier-like, `message` stays capped at 2,048 characters and `code` at 128.
   Cross-realm `Error` objects (vm contexts, workers) are now recognized as errors.
 
+- Validate chat and agentcode workspace JSON writes/edits against canonical,
+  symlink-followed targets, rejecting workspace escapes before creating directories
+  or writing files. The benchmark rejects symlink paths instead. Detect terminal
+  `/` and `\` separator/dot aliases, Windows trailing dots/spaces and NTFS stream
+  suffixes on every host OS. Cap diagnostic
+  paths at 200 characters. The benchmark now fails at startup if core dist lacks the
+  JSON validation hook; rebuild core before running it against older SDK checkouts.
+
 - Add host `progressUpdates.stallFloorMs` (default 300,000 ms); stall after
   `max(stalledIntervals * intervalMs, stallFloorMs)` without lead/selected-worker activity,
   including a hung lead with no busy workers. `stalled` permits another request in the same
@@ -49,6 +57,12 @@ All notable changes to the AI Agent SDK are documented in this file.
   on disposal. Steering reports `steered` separately from signal cancellation (`aborted`).
 
 ### Changed
+
+- Workspace `write_file`, `edit_file` and agentcode `replace_in_file` now reject invalid
+  `.json` content before writing (case-insensitive; empty files are invalid). Valid bytes are
+  preserved, including an optional leading UTF-8 BOM. Hosts can set `validateJsonWrites: false`
+  on the chat sample tools, agentcode registry or benchmark workspace. The portable core
+  `validateJsonFileContent` hook supports custom host tools; see [workspace JSON writes](docs/workspace-json-writes.md).
 
 - Managed lead guidance now weighs worker context/startup/synthesis cost: do small or sequential
   work directly, use one worker for a worthwhile side task or fresh-context check, and fan out for

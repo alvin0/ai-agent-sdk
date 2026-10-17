@@ -1,12 +1,18 @@
 import { cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { defineTool, type ToolDefinition } from '../../packages/core/dist/index.js'
+import * as coreTools from '../../packages/core/dist/tools.js'
+import type { JsonWriteGuardOptions } from '../../packages/core/dist/tools.js'
 import { artifactChecks, checkCount, fixtureRoot, type Task } from './tasks.ts'
 
 import { auditChecks } from './volume-grade.ts'
 import { sandboxChecks, sandboxScript } from './sandbox.ts'
 export { sandboxChecks } from './sandbox.ts'
+
+if (typeof coreTools.validateJsonFileContent !== 'function') {
+  throw new Error('Benchmark requires core validateJsonFileContent; rebuild @alvin0/ai-agent-sdk-core before running')
+}
 
 function validatePage(offset: number, limit: number) {
   if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 16384) {
@@ -24,8 +30,11 @@ function pageEnd(bytes: Buffer, offset: number, limit: number): number {
 export class Workspace {
   readonly root: string
   readonly task: Task
-  private constructor(root: string, task: Task) { this.root = root; this.task = task }
-  static async create(task: Task, parent = tmpdir()) {
+  private readonly options: JsonWriteGuardOptions
+  private constructor(root: string, task: Task, options: JsonWriteGuardOptions) {
+    this.root = root; this.task = task; this.options = options
+  }
+  static async create(task: Task, parent = tmpdir(), options: JsonWriteGuardOptions = {}) {
     const root = await mkdtemp(join(parent, 'ma-bench-'))
     if (task.files) {
       for (const [name, content] of Object.entries(task.files)) {
@@ -34,7 +43,7 @@ export class Workspace {
         await writeFile(path, content)
       }
     } else await cp(join(fixtureRoot, task.id), root, { recursive: true })
-    return new Workspace(root, task)
+    return new Workspace(root, task, options)
   }
   async path(name: string) {
     if (!name || isAbsolute(name) || name.includes('\0')) throw new Error('Expected relative workspace path')
@@ -42,7 +51,7 @@ export class Workspace {
     const rel = relative(this.root, target)
     if (rel.startsWith('..') || isAbsolute(rel)) throw new Error('Path outside workspace')
     let current = this.root
-    for (const part of rel.split('/').filter(Boolean)) {
+    for (const part of rel.split(sep).filter(Boolean)) {
       current = join(current, part)
       const stat = await lstat(current).catch(() => undefined)
       if (stat?.isSymbolicLink()) throw new Error('Symlinks are forbidden')
@@ -74,6 +83,7 @@ export class Workspace {
     if (this.task.frozen?.includes(relative(this.root, path))) {
       throw new Error('Frozen shared interface or healthy module')
     }
+    coreTools.validateJsonFileContent(relative(this.root, path), content, this.options)
     await mkdir(dirname(path), { recursive: true })
     await writeFile(path, content)
     return { written: name }
