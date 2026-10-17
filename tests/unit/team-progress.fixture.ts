@@ -57,8 +57,9 @@ export function fixture(
   const session = { get isRunning() { return true },
     whenIdle: () => new Promise<void>(() => {}), lastOutcome: () => ({ yielded: true }) } as unknown as AgentSession
   const progress = new ManagedProgress({ team, lead: 'lead', signal: controller.signal,
-    session: () => session, workers: () => workers, busy: name => busy.has(name), owned: () => owner,
+    session: () => session, workers: () => workers, busy: name => busy.has(name),
   }, { minIntervalMs: 10, maxIntervalMs: 100, ...options })
+  if (owner !== undefined) progress.beginManagedInvocation(invocation.signal)
   progressActivity(team, { kind: 'invocation', member: 'lead', signal: invocation.signal })
   dispose = async () => { progress.dispose(); await team.dispose() }
   return { progress, team, controller, invocation, busy, workers, session, snapshotSpy,

@@ -22,6 +22,9 @@ class TwoWaves extends ModelAdapter {
   workerCalls = 0
   readonly workers = [gate(), gate()]
   readonly leadGap = gate()
+  readonly synthesis = gate()
+  reschedule = false
+  private get synthesisCall(): number { return this.reschedule ? 7 : 6 }
   async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     if ((options.system ?? '').includes('You are managed worker')) {
       const wave = this.workerCalls++
@@ -35,7 +38,11 @@ class TwoWaves extends ModelAdapter {
     else if (this.leadCalls === 4) {
       await this.leadGap.promise
       yield* call('spawn_agent', { task: 'Verify the second module.' })
-    } else yield* answer(this.leadCalls < 6 ? 'Waiting for evidence.' : 'Both modules verified.')
+    } else if (this.reschedule && this.leadCalls === 5) yield* call('progress_updates', { interval_ms: 20 })
+    else {
+      if (this.leadCalls === this.synthesisCall) await this.synthesis.promise
+      yield* answer(this.leadCalls < 6 ? 'Waiting for evidence.' : 'Both modules verified.')
+    }
   }
 }
 
@@ -101,6 +108,25 @@ function setup() {
   return { team, adapter, events, timersAtStop }
 }
 
+async function cleanup(s: Scenario, running: Promise<unknown>) {
+  s.adapter.synthesis.release()
+  s.adapter.leadGap.release()
+  for (const worker of s.adapter.workers) worker.release()
+  await s.team.dispose()
+  await s.team.team.dispose()
+  await running.catch(() => undefined)
+  await vi.advanceTimersByTimeAsync(0)
+  try { expect(vi.getTimerCount()).toBe(0) } finally { vi.useRealTimers() }
+}
+
+async function newUserMessage(s: Scenario) {
+  s.adapter.leadCalls = 0
+  s.adapter.workerCalls = 0
+  await s.team.run('New request: verify again and report progress.')
+  expect(s.events.filter(event => event.phase === 'stopped').map(event => event.reason)).toEqual(['host', 'settled'])
+  expect(new Set(s.events.map(event => event.scheduleId))).toEqual(new Set([1, 2]))
+}
+
 describe('managed progress across spawn waves', () => {
   it('schedules once across yield, synthesis, a quiet lead gap and a second spawn wave', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] })
@@ -111,6 +137,10 @@ describe('managed progress across spawn waves', () => {
     try {
       await firstWave(s)
       await secondWave(s)
+      await vi.waitFor(() => expect(adapter.leadCalls).toBe(6), { interval: 1 })
+      expect(team.progressUpdates().active).toBe(true)
+      expect(events.filter(event => event.phase === 'stopped')).toEqual([])
+      adapter.synthesis.release()
       await result
       await vi.advanceTimersByTimeAsync(0)
       expect(events.filter(event => event.phase === 'stopped').map(event => event.reason)).toEqual(['settled'])
@@ -119,13 +149,40 @@ describe('managed progress across spawn waves', () => {
       expect(timersAtStop).toEqual([0])
       expect(vi.getTimerCount()).toBe(0)
     } finally {
-      adapter.leadGap.release()
-      for (const worker of adapter.workers) worker.release()
-      await team.dispose()
-      await team.team.dispose()
-      await result.catch(() => undefined)
-      await vi.advanceTimersByTimeAsync(0)
-      try { expect(vi.getTimerCount()).toBe(0) } finally { vi.useRealTimers() }
+      await cleanup(s, result)
+    }
+  })
+
+
+  it('refuses a model restart after host stop across settlement wakes and another spawn wave', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] })
+    const s = setup()
+    s.adapter.reschedule = true
+    const running = s.team.run('Verify modules; report periodically.')
+    void running.catch(() => undefined)
+    try {
+      await firstWave(s)
+      s.team.stopProgressUpdates()
+      s.adapter.leadGap.release()
+      await vi.waitFor(() => {
+        expect(s.adapter.leadCalls).toBe(6)
+        expect(s.team.lead.isRunning).toBe(false)
+      }, { interval: 1 })
+      expect(JSON.stringify(s.team.lead.history.entries()))
+        .toContain('progress updates were stopped by the host for this run')
+      await vi.advanceTimersByTimeAsync(100)
+      expect(reports(s)).toHaveLength(1)
+      expect(s.events.filter(event => event.phase === 'stopped').map(event => event.reason)).toEqual(['host'])
+      s.adapter.workers[1]!.release()
+      await vi.waitFor(() => expect(s.adapter.leadCalls).toBe(7), { interval: 1 })
+      expect(s.team.progressUpdates()).toMatchObject({ active: false, reason: 'host' })
+      s.adapter.synthesis.release()
+      await running
+      expect(new Set(s.events.map(event => event.scheduleId))).toEqual(new Set([1]))
+      // A new user message has a new managed lifetime, even on the same retained team.
+      await newUserMessage(s)
+    } finally {
+      await cleanup(s, running)
     }
   })
 })

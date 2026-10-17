@@ -15,6 +15,12 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Fixed
 
+- Bind untargeted progress schedules explicitly to managed `run()` admission/finalization,
+  including yielded turns, settlement wakes, later spawn waves and final synthesis. Use the
+  managed invocation signal rather than a provisional lead turn's signal.
+- Preserve host/protection progress stops for the rest of the invocation: `host`, `aborted`,
+  `steered`, `delivery-failed`, `max-duration`, `max-reports`, and `stalled` refuse model restarts.
+  A new managed invocation can request updates again; requested/replaced/settled stops remain restartable.
 - Untargeted `progress_updates` follows current and future managed workers for the owning
   invocation, spanning spawn waves without per-wave scheduling. Quiet lead-only gaps emit no
   worker reports and do not trip the stall watchdog while the lead is running; lead model/tool
@@ -35,6 +41,9 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Breaking
 
+- After a host/protection progress stop, `progress_updates` now returns a tool error for the
+  rest of that managed invocation, including synthesis wakes. Hosts should start a new `run()`
+  for a new user message to permit scheduling again. Public host method signatures are unchanged.
 - Narrow the unreleased `stopProgressUpdates(reason)` host argument to `host` (default),
   `run-ended`, or `aborted`. Runtime-only reasons now throw `TypeError`. Raw lead calls stop
   their schedule at invocation end even after a provisional yield; use managed `run()` to

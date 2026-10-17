@@ -144,7 +144,7 @@ export class ManagedAgentTeam {
     return new ManagedProgress({ team: this.team, lead: this.leadName, signal: this.lifecycle.signal,
       session: () => this.lead, workers: () => [...this.workerRuntimes.keys(), ...this.preparing.keys()],
       busy: name => this.preparing.has(name) || (this.workerRuntimes.has(name)
-        && this.workerBusy(this.workerRuntimes.get(name)!)), owned: () => this.invocation,
+        && this.workerBusy(this.workerRuntimes.get(name)!)),
     }, options.progressUpdates)
   }
   private guardCoordination(): () => void {
@@ -251,6 +251,7 @@ export class ManagedAgentTeam {
     if (this.invocation !== undefined) throw new Error('managed lead is already running')
     const owned = { signal: invocation.signal, workers: new Set<WorkerRuntime>() }
     this.invocation = owned
+    this.progress.beginManagedInvocation(combineSignals(invocation.signal, this.lifecycle.signal))
     this.settlements.latestResponse = undefined
     this.settlements.leadFailure = undefined
     this.joining = this.options.autoLeadCoordination !== false

@@ -171,11 +171,28 @@ They also stop when the managed invocation fails/aborts, a raw lead
 session finishes/fails/aborts, the managed team is disposed, or the underlying team closes.
 A schedule belongs to the lead invocation that requested it. Managed `run()` owns its
 provisional yields and synthesis wakes until it joins or ends; reporting continues across those
-wakes with the original schedule signal authoritative. A raw `lead.run()`/`lead.stream()`
+wakes with the managed invocation signal authoritative. Admission to `managed.run()` opens
+that lifetime explicitly; its `finally` closes it on success, rejection or abort. Individual
+lead session idle periods and settlement wakes cannot close or replace that lifetime.
+A raw `lead.run()`/`lead.stream()`
 ends its schedule on idle, even if the last outcome yielded. A later independent invocation
 must request progress again. Invocation admission and idle completion are observed directly,
 including failures before the run observation starts; stale yielded outcomes cannot keep a
 schedule alive. Consumer cancellation is also observed by the session runtime.
+
+Stops also carry an invocation policy. `host`, `delivery-failed`, `aborted`, `steered`,
+`max-duration`, `max-reports`, and `stalled` block every subsequent model request to schedule
+in the same managed `run()`, including later spawn waves and synthesis turns. This applies even
+if the stop happens before any schedule exists. The tool reports a short error, such as
+“progress updates were stopped by the host for this run”; it creates no timer or schedule.
+The first blocking reason is retained. A model's `stop: true`, invalid replacement, or another
+stop cannot clear the block. A newly admitted managed `run()` (new user message) resets it;
+steering an existing run does not. Raw lead calls reset at their next invocation admission.
+`requested` (lead cancellation), `replaced`, and explicit-target `settled` are restartable while
+the invocation is live. `run-ended` is a boundary annotation rather than a protection latch;
+calling the host stop hook with that reason alone permits reconfiguration if the run is still
+live. `closed` is terminal for the disposed helper/team. These rules preserve host intent and
+prevent repeated model calls from bypassing duration/report/stall limits.
 
 Duration, successful-report count, and consecutive inactive-interval bounds always apply.
 Selected worker model requests, tool dispatches or settlements, and lead model requests/tool

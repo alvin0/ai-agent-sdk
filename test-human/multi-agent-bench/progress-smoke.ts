@@ -5,6 +5,7 @@ import * as agent from '../../packages/core/dist/agent.js'
 import type { ManagedAgentTeamOptions } from '../../packages/core/dist/agent.js'
 import { execute } from './execute.ts'
 import { createHook } from 'node:async_hooks'
+import { isProgressTimer } from './progress-timers.ts'
 
 const timerStacks = new Map<number, string>()
 Error.stackTraceLimit = 60
@@ -25,7 +26,16 @@ const leadCalls = () => managed?.snapshot().members.find(member => member.name =
 
 const teamFactory = ((options: ManagedAgentTeamOptions) => {
   const prior = options.team instanceof agent.AgentTeam ? undefined : options.team?.onEvent
+  const lead = options.leadSessionOptions ?? {}
+  const progressCalls = { name: 'smoke-progress-calls', around: async (call: { toolName: string; args: unknown },
+    next: () => Promise<{ isError?: boolean; content?: unknown; error?: { message: string } }>) => {
+    const result = await next()
+    if (call.toolName === 'progress_updates') log.push({ t: Date.now() - started, tool: 'progress_updates',
+      args: call.args, isError: result.isError === true, result: JSON.stringify(result.isError ? result.error?.message : result.content).slice(0, 200) })
+    return result
+  } }
   const m = agent.createManagedAgentTeam({ ...options,
+    leadSessionOptions: { ...lead, interceptors: [...(lead.interceptors ?? []), progressCalls] },
     ...(scenario === 'throw-sink' ? { progressUpdates: { maxConsecutiveFailures: 1 } } : {}), team: { ...options.team, onEvent: event => {
     prior?.(event)
     if (event.type === 'team-progress') {
@@ -49,8 +59,12 @@ const teamFactory = ((options: ManagedAgentTeamOptions) => {
 
 const { result } = await execute({ arm: 'team', task: 'multi-module-audit', rep: 0, provider: 'codex', model,
   timeoutMs: 900000, codexAuth }, undefined, { teamFactory })
+// Let async_hooks destroy callbacks retire cleared timers after execute() disposes the team.
+await new Promise<void>(resolve => setImmediate(resolve))
+const progressTimers = [...timerStacks.values()].filter(isProgressTimer).length
 const timers = (process as unknown as { getActiveResourcesInfo(): string[] }).getActiveResourcesInfo()
   .filter(kind => kind === 'Timeout')
 console.log(JSON.stringify({ scenario, status: result.status, score: result.score, error: result.error,
   wallMs: result.metrics.wallMs, leadCalls: result.metrics.leadModelCalls, spawns: result.metrics.spawns,
-  finalState: managed?.progressUpdates(), liveTimeoutsAfterDispose: timers.length, timerStacks: [...timerStacks.values()], events: log }, null, 1))
+  finalState: managed?.progressUpdates(), progressTimers, liveTimeoutsAfterDispose: timers.length,
+  timerStacks: [...timerStacks.values()], events: log }, null, 1))
