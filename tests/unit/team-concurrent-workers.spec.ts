@@ -43,7 +43,6 @@ function teamOf(adapter: ModelAdapter, options: {
     registry,
     ...options.modelToolSurface === undefined ? {} : { modelToolSurface: options.modelToolSurface },
     // Tests are not paced by a production-sized wait for worker news.
-    holdWaitMs: 20,
     lead: defineAgent({
       id: 'lead',
       provider: 'test',

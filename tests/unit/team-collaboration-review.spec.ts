@@ -37,7 +37,7 @@ describe('collaboration review regressions', () => {
       if (round === 2) attempted.resolve()
       return answer('synthesis')
     })
-    const team = managed(adapter, { workerTimeoutMs: 120_000, holdWaitMs: 10_000 })
+    const team = managed(adapter, { workerTimeoutMs: 120_000 })
     const running = team.run('Solve')
     try {
       await started.promise; await attempted.promise
@@ -64,7 +64,7 @@ describe('collaboration review regressions', () => {
       }
       return round === 1 ? call('spawn_agent', { name: 'worker', task: 'Stall' }) : answer('partial')
     })
-    const team = managed(adapter, { collaboration: { joinTimeoutMs: 25 }, holdWaitMs: 1000 })
+    const team = managed(adapter, { collaboration: { joinTimeoutMs: 25 } })
     await team.spawn({ name: 'idle', task: 'Finish' }); await team.awaitWorker('idle')
     await team.run('Join')
     expect(team.workers().map(worker => worker.name)).toEqual(['idle'])

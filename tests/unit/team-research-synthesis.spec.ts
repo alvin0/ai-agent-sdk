@@ -135,7 +135,6 @@ function research(adapter: ModelAdapter, onAgentEvent?: (member: string, event: 
   return createManagedAgentTeam({ modelToolSurface: 'legacy',
     registry,
     // Tests are not paced by a production-sized wait for worker news.
-    holdWaitMs: 20,
     lead: defineAgent({
       id: 'lead', provider: 'test', model: 'scripted',
       instructions: 'You lead a research team.', mode: 'basic', maxTurns: 4,

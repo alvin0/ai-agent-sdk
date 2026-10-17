@@ -27,7 +27,7 @@ import { ManagedWorkerScheduling } from './managed-scheduling.ts'
 import { joinManagedTeam } from './managed-join.ts'
 import { finishManagedRun, managedFinishingSignal } from './managed-run-finish.ts'
 import { ManagedLeadCoordination } from './managed-lead.ts'
-export { DEFAULT_HOLD_WAIT_MS, DEFAULT_SPAWN_SETUP_TIMEOUT_MS,
+export { DEFAULT_SPAWN_SETUP_TIMEOUT_MS,
   DEFAULT_WORKER_CLOSE_TIMEOUT_MS } from './managed-config.ts'
 import type {
   ManagedAgentRole, ManagedAgentSpawnRequest, ResolvedManagedAgentSpawnRequest, ManagedAgentWorkerResult,

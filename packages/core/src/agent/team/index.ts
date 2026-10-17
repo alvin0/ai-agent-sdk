@@ -1,5 +1,5 @@
 export { AgentTeam } from './team.ts'
-export { DEFAULT_MIN_WAIT_TIMEOUT_MS, DEFAULT_WAIT_TIMEOUT_MS } from './common.ts'
+export { DEFAULT_MIN_WAIT_TIMEOUT_MS } from './common.ts'
 export { buildDelegationStrategy, DELEGATION_STRATEGY, MANAGED_DELEGATION_RUNTIME } from './managed-controls.ts'
 export { filterToolsByDepth } from './managed-capabilities.ts'
 

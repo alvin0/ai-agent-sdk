@@ -44,6 +44,11 @@ All notable changes to the AI Agent SDK are documented in this file.
 
     Where a library needs a numeric timeout, the default is the timer maximum, 2147483647 ms.
     Teardown, dispose, observer and credential/catalog setup bounds are unchanged.
+  - **Removed dead options:** the deprecated `holdWaitMs` option, which was ignored, is gone, along
+    with the unused `DEFAULT_HOLD_WAIT_MS` and `DEFAULT_WAIT_TIMEOUT_MS` exports. Delete them from
+    host code. `DEFAULT_MIN_WAIT_TIMEOUT_MS`, `DEFAULT_WORKER_CLOSE_TIMEOUT_MS` and
+    `DEFAULT_SPAWN_SETUP_TIMEOUT_MS` stay, because they still prevent wait spinning and bound
+    close/cleanup.
   - **Hung model calls:** these are still caught. The new `runtimeLimits.modelIdleTimeoutMs`
     (default 10 minutes) resets on every stream chunk and only cuts a stream that has gone silent.
     The HTTP `streamIdleTimeoutMs` still applies, and `maxModelStreamEvents` is now opt-in, since

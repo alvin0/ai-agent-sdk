@@ -211,8 +211,6 @@ export interface ManagedAgentTeamOptions {
    * cancellation must not be able to hold the harness at its cap forever.
    */
   readonly closeTimeoutMs?: number
-  /** @deprecated Accepted for compatibility; event-driven joins do not poll. */
-  readonly holdWaitMs?: number
   /** Allow model-invoked close_agent to cancel unfinished work (default true).
    * Host closeWorker, disposal and user cancellation are always available. */
   readonly allowModelWorkerCancellation?: boolean

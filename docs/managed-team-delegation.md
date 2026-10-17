@@ -224,8 +224,8 @@ Lean failed results use `partial_result` and `error`; host outcomes also retain 
 default, maximum 16 KiB. Follow `page.nextOffset` with the same field until null. Explicit reads do not
 consume deliveries. `workers()`, `members()` and `awaitWorker()` retain full host evidence. A retained
 address must be closed/removed when no longer needed; freeing an active slot is automatic, not eviction.
-`holdWaitMs` is accepted but deprecated. Long waits cost no periodic lead calls. Scheduled synthesis
-failure rejects; three synthesis-only wakes without worker progress reject as a stall.
+Long waits cost no periodic lead calls. Scheduled synthesis failure rejects; after three synthesis-only
+wakes without worker progress the join ends and returns the lead's latest answer.
 
 Invocation cancellation stops workers owned by that invocation and leaves independently host-started
 work and the team usable. `dispose()` remains terminal. Concurrent `run()` calls are refused.

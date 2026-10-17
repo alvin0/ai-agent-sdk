@@ -456,7 +456,6 @@
           "CreateCollaborationTask",
           "DEFAULT_MIN_WAIT_TIMEOUT_MS",
           "DEFAULT_SPAWN_SETUP_TIMEOUT_MS",
-          "DEFAULT_WAIT_TIMEOUT_MS",
           "DEFAULT_WORKER_CLOSE_TIMEOUT_MS",
           "DELEGATION_STRATEGY",
           "DeepAgentOptions",
@@ -710,7 +709,7 @@
           "validateSkillSource",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "ae9683539739dda0afcbbe5d0f53c151930ee03baff6e58658ab82f8572eb36b"
+        "declarationSha256": "d304ac27d459adbbac75dea8bf07e4ea8fa75d001019e3c11c44da7c2ee2d50e"
       },
       "./memory": {
         "exports": [

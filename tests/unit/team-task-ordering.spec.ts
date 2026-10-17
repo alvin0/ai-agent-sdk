@@ -89,7 +89,6 @@ function teamOf(
   registry.registerAdapter(['test'], adapter)
   return createManagedAgentTeam({ modelToolSurface: 'legacy',
     registry,
-    holdWaitMs: 20,
     lead: defineAgent({
       id: 'lead',
       provider: 'test',
