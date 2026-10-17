@@ -302,7 +302,9 @@ export class AgentTeam implements TeamPort {
     }
   }
   private emit(event: AgentTeamEvent): boolean {
-    if (event.type === 'team-progress') return deliverProgressEvent(event, [this.onEvent, ...this.listeners])
+    if (event.type === 'team-progress') {
+      return deliverProgressEvent(this, event, () => [this.onEvent, ...this.listeners])
+    }
     this.observeLifecycle(event)
     this.publishSettlement(event)
     let delivered = true
