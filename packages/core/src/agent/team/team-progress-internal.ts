@@ -24,8 +24,27 @@ export function progressActivity(team: object, activity: ProgressActivity): void
   for (const listener of listeners.get(team) ?? []) { try { listener(activity) } catch { /* observer isolation */ } }
 }
 
-/** The existing team event contract is synchronous. Reject async sinks without unhandled rejections. */
-export function deliverProgressEvent(event: TeamProgressEvent,
+const deliveries = new WeakMap<object, TeamProgressEvent[]>()
+
+/** The existing team event contract is synchronous. Reject async sinks without unhandled rejections.
+ * An event emitted from inside an observer waits, so every observer sees one emission order. */
+export function deliverProgressEvent(team: object, event: TeamProgressEvent,
+  observers: () => readonly (((event: TeamProgressEvent) => void) | undefined)[]): boolean {
+  const active = deliveries.get(team)
+  if (active !== undefined) {
+    active.push(event)
+    return true
+  }
+  const queue = [event]
+  deliveries.set(team, queue)
+  try {
+    const delivered = deliverToAll(event, observers())
+    for (let index = 1; index < queue.length; index++) deliverToAll(queue[index]!, observers())
+    return delivered
+  } finally { deliveries.delete(team) }
+}
+
+function deliverToAll(event: TeamProgressEvent,
   observers: readonly (((event: TeamProgressEvent) => void) | undefined)[]): boolean {
   let delivered = true
   for (const observer of observers) {

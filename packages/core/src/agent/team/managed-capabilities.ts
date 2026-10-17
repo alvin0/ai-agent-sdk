@@ -39,7 +39,8 @@ export function toolDefinitions(
     : tools
 }
 
-/** A host override is a replacement; a role is only an intersection, never a tool supplier. */
+/** Host-supplied worker tools replace inherited lead tools and a template/factory agent's own tools.
+ * A role is only an intersection, never a tool supplier. */
 export function managedWorkerTools(
   options: ManagedAgentTeamOptions, definition: DefinedAgent,
   supplied: ManagedAgentTeamOptions['workerSessionOptions'], role: ManagedAgentRole | undefined,
@@ -62,17 +63,32 @@ function defaultWorkerTools(
   options: ManagedAgentTeamOptions, definition: DefinedAgent,
   supplied: ManagedAgentTeamOptions['workerSessionOptions'],
 ): readonly ToolDefinition<any>[] {
-  if (options.workerFactory !== undefined || options.workerTemplate !== undefined) return definition.tools
+  if (suppliesOwnWorker(options)) return definition.tools
+  const inherited = inheritedLeadTools(options)
+  if (inherited.length > 0) assertInheritedToolSafeguards(options, supplied)
+  return inherited
+}
+
+function suppliesOwnWorker(options: ManagedAgentTeamOptions): boolean {
+  return options.workerFactory !== undefined || options.workerTemplate !== undefined
+}
+
+/** Static configuration that would refuse every generated worker fails at construction, not at first spawn. */
+export function assertWorkerToolInheritance(options: ManagedAgentTeamOptions): void {
+  if (suppliesOwnWorker(options) || options.workerSessionOptionsFactory !== undefined
+    || options.workerSessionOptions?.tools !== undefined || inheritedLeadTools(options).length === 0) return
+  assertInheritedToolSafeguards(options, options.workerSessionOptions)
+}
+
+function inheritedLeadTools(options: ManagedAgentTeamOptions): readonly ToolDefinition<any>[] {
   if (options.inheritLeadTools === false) return []
   const excluded = new Set<string>([
     ...Object.values(TEAM_TOOL_NAMES), ...Object.values(AGENT_CONTROL_TOOLS),
     'spawn_agent', 'spawn_agents', 'close_agent', 'send_input', 'wait_agents', 'get_agent_result',
     'progress_updates', 'request_user_input_async', 'ask_user', ...options.leadOnlyTools ?? [],
   ])
-  const inherited = [...options.lead.tools, ...toolDefinitions(options.leadSessionOptions?.tools)]
+  return [...options.lead.tools, ...toolDefinitions(options.leadSessionOptions?.tools)]
     .filter(tool => !excluded.has(tool.name) && tool.awaitsPerson !== true)
-  if (inherited.length > 0) assertInheritedToolSafeguards(options, supplied)
-  return inherited
 }
 
 /** Refuse automatic sharing of guarded tools unless the host explicitly shares the same safeguards. */

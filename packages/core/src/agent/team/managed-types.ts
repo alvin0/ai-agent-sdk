@@ -192,6 +192,13 @@ export interface ManagedAgentTeamOptions {
    * Defaults to 8 KiB per dependency; at least 4 bytes. Full results remain readable by scoped tool.
    */
   readonly maxDependencyReportBytes?: number
+  /**
+   * Settled workers retained for follow-ups and result paging. Above this bound, accepting a spawn removes
+   * the oldest idle workers whose current result the lead already received; their results stay readable
+   * from the closed-member archive. Host-driven workers whose results the lead never took are kept.
+   * Defaults to 256.
+   */
+  readonly maxRetainedWorkers?: number
   /** Active run deadline, excluding queued dependencies and setup. Defaults to 10 minutes. */
   readonly workerTimeoutMs?: number
   /** Maximum wait per worker event observer callback. Defaults to 1 second. */

@@ -19,10 +19,10 @@ export interface JsonWriteGuardOptions {
  * @param options - Host opt-out for intentionally incomplete JSON files.
  */
 export function validateJsonFileContent(
-  path: string, content: string, options: JsonWriteGuardOptions = {},
+  path: string, content: string, options?: JsonWriteGuardOptions | null,
 ): void {
   const target = jsonSuffixTarget(path)
-  if (options.validateJsonWrites === false || !/\.json$/iu.test(target)) return
+  if (options?.validateJsonWrites === false || !/\.json$/iu.test(target)) return
   const bom = content.startsWith('\uFEFF') ? 1 : 0
   const text = content.slice(bom)
   try { JSON.parse(text) }
@@ -30,11 +30,9 @@ export function validateJsonFileContent(
     const message = error instanceof Error ? error.message : String(error)
     const position = /\bat position (\d+)(?: \(line \d+ column \d+\))?$/u.exec(message)
     const offset = (position === null ? jsonErrorOffset(text) : Number(position[1])) + bom
-    const prefix = content.slice(0, offset)
-    const line = prefix.split('\n').length
-    const column = offset - prefix.lastIndexOf('\n')
-    const start = Math.max(0, Math.min(offset - 40, content.length - 80))
-    const excerpt = JSON.stringify(content.slice(start, start + 80))
+    const { line, column } = lineColumn(content, offset)
+    const start = codePointBoundary(content, Math.max(0, Math.min(offset - 40, content.length - 80)))
+    const excerpt = JSON.stringify(content.slice(start, codePointBoundary(content, start + 80)))
     // Native messages can embed source snippets. Keep those bounded too.
     const reason = message.slice(0, 160)
     throw ToolError.respondToModel(
@@ -43,6 +41,24 @@ export function validateJsonFileContent(
       TOOL_ERROR_CODES.INVALID_ARGUMENTS,
     )
   }
+}
+
+/** Count lines without materializing a split of a possibly large file. */
+function lineColumn(content: string, offset: number): { line: number; column: number } {
+  let line = 1
+  let lineStart = 0
+  for (let index = content.indexOf('\n'); index >= 0 && index < offset; index = content.indexOf('\n', index + 1)) {
+    line++
+    lineStart = index + 1
+  }
+  return { line, column: offset - lineStart + 1 }
+}
+
+/** Move an excerpt boundary off the low half of a surrogate pair. */
+function codePointBoundary(content: string, index: number): number {
+  const code = content.charCodeAt(index)
+  const previous = content.charCodeAt(index - 1)
+  return code >= 0xdc00 && code <= 0xdfff && previous >= 0xd800 && previous <= 0xdbff ? index - 1 : index
 }
 
 function jsonSuffixTarget(path: string): string {

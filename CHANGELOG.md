@@ -13,7 +13,38 @@ All notable changes to the AI Agent SDK are documented in this file.
   and attempt one terminal `team-progress` event. The chat sample renders streamed notices.
   See `docs/team-observability.md`.
 
+- Host turn hooks: `onTurnEnd` may return `{ kind: 'yield' }` to end the turn without a final
+  answer (`lastOutcome().yielded` reports it). Session team ports gain optional
+  `observeInvocation(sender, signal)` and `filterCatalog(sender, catalog)`. `member-run-end` and
+  `member-run-error` events carry the member `response`; `AgentMemberOutcome` adds `status`
+  (`completed`/`failed`/`timeout`/`cancelled`) and `structured`.
+- `AgentTeamOptions.mailboxOverflow` (`'reject'` default, `'evict-oldest'`) chooses whether a full
+  audit mailbox refuses new messages or drops its oldest records. Managed control planes created
+  from options default to `'evict-oldest'`, so a long-lived managed team keeps delivering spawn tasks.
+- `ManagedAgentTeamOptions.maxRetainedWorkers` (default 256): accepting a spawn above the bound
+  removes the oldest idle workers whose current result the lead already received. Their results
+  stay readable from the closed-member archive, which keeps the newest 256 closed members.
+
 ### Fixed
+
+- Managed settlement delivery: a result deferred during a lead turn is delivered even when a queued
+  follow-up has already restarted that worker; a cancelled `wait_agents` returns the results it had
+  claimed to normal delivery; a rejected lead `run()` cancels its busy model-spawned workers instead
+  of leaving them to wake the lead later; closing one worker no longer wakes a yielded lead while
+  other work is outstanding; a batch worker closed before its start returned settles as cancelled.
+- The runtime agent-team surface projects one sanitized `member-run-end` per run (cancelled runs
+  included) and never exposes `team-timeline` facts or member responses.
+- Collaboration joins expire before the lead's `onTurnEnd` hook deadline (`hookTimeoutMs`), so the
+  recovery note is injected instead of the hook timeout failing the lead.
+- A newly ready shared task is offered to one idle member (rotating) once, instead of waking every
+  idle member to race one claim; the lead still sees every ready task.
+- Progress events emitted from inside an observer are delivered after the current event to every
+  observer, and a host stop issued while a schedule is being replaced blocks the replacement.
+- Static managed configuration whose lead tools would need the lead's interceptors/approvals now
+  fails at construction instead of at the first spawn.
+- `safeErrorRecord` caps `Error` and cause type names at 128 characters. JSON write diagnostics
+  count lines without splitting the file, keep excerpts on code-point boundaries and accept `null`
+  options. `disposeTimeoutMs` documentation now states its real 30-second default.
 
 - `safeErrorRecord` now keeps the `type`/`name`, `message`, `code`, `retryable` and `status`
   data fields of plain failure records (for example tool error results), so tool-call
@@ -71,6 +102,9 @@ All notable changes to the AI Agent SDK are documented in this file.
   tools remain available initially; host hooks, schemas, queue limits and settlement delivery are unchanged.
 
 ### Breaking
+
+- `wait_agents` now defaults to a 120-second wait (was 30) with a 10-second floor (was 5) for every
+  `AgentTeam`. Set `waitTimeoutMs` / `minWaitTimeoutMs` to keep the previous bounds.
 
 - After a host/protection progress stop, `progress_updates` now returns a tool error for the
   rest of that managed invocation, including synthesis wakes, except idempotent `stop: true`.

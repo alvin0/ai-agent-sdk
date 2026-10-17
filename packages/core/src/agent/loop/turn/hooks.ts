@@ -4,6 +4,9 @@ import { positiveSafeInteger } from './config.ts'
 import { codedRuntimeError } from './common.ts'
 import { nextValueWithAbort } from './cancellation.ts'
 
+/** Default per-hook deadline when `hookTimeoutMs` is not configured. */
+export const DEFAULT_HOOK_TIMEOUT_MS = 10 * 60_000
+
 export async function runOptionalHook<TArgs extends readonly unknown[], TResult>(
   hook: ((...args: TArgs) => TResult | Promise<TResult>) | undefined,
   args: TArgs,
@@ -27,7 +30,7 @@ export async function runHook<T>(
 ): Promise<T> {
   const { name, onCancellation } = context
   const operation = options.accounting?.startOperation('hook', { data: { name } })
-  const timeoutMs = positiveSafeInteger(options.hookTimeoutMs ?? 10 * 60_000, 'hookTimeoutMs')
+  const timeoutMs = positiveSafeInteger(options.hookTimeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS, 'hookTimeoutMs')
   const teardownTimeoutMs = positiveSafeInteger(
     options.hookTeardownTimeoutMs ?? 30_000,
     'hookTeardownTimeoutMs',

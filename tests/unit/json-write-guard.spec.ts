@@ -190,6 +190,16 @@ describe('portable JSON diagnostics', () => {
     expect(await workspace.readAll('batch.json')).toBe('{"a": 1 , "b": 2}')
   })
 
+  it('accepts null options and keeps excerpts on code point boundaries', () => {
+    expect(() => validateJsonFileContent('ok.json', '{}', null)).not.toThrow()
+    // The 80-unit excerpt window starts on the low half of an emoji here.
+    const content = '{"kk": "' + '\u{1F600}'.repeat(50) + '" BAD }'
+    let message = ''
+    try { validateJsonFileContent('emoji.json', content, null) } catch (error) { message = (error as Error).message }
+    expect(message).toContain('Invalid JSON')
+    expect(message).not.toMatch(/\\ud[89a-f][0-9a-f]{2}/iu)
+  })
+
   it('locates deeply nested unexpected tokens without recursive diagnostic parsing', () => {
     const content = '['.repeat(12_000) + 'BAD' + ']'.repeat(12_000)
     expect(() => validateJsonFileContent('deep.json', content)).toThrow('line 1, column 12001.')

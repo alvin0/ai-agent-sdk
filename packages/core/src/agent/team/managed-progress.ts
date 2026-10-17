@@ -140,6 +140,8 @@ export class ManagedProgress {
     }
     // Replace first: invalid or dead replacement requests must not leave the previous loop running.
     this.stop('replaced')
+    // A 'stopped' observer may host-stop or steer; that block wins over this replacement.
+    if (this.blockedReason !== undefined) throw new Error(this.blockedMessage())
     const signal = this.scheduleSignal()
     const targets = request.targets === undefined ? undefined : progressTargets(request.targets, this.host.workers())
     const owner = this.scheduleOwner()

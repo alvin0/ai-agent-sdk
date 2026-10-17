@@ -1,3 +1,4 @@
+import { teamInternals } from '../../packages/core/src/agent/team/team-internal.ts'
 import { TeamResults } from '../../packages/core/src/agent/team/team-results.ts'
 import { describe, expect, it, vi } from 'vitest'
 import { AgentTeam, createManagedAgentTeam, defineAgent } from '../../packages/core/src/agent/index.ts'
@@ -616,6 +617,294 @@ describe('lean managed model surface', () => {
       expect(request.tools?.map(tool => tool.name) ?? [])
         .toEqual(access === 'full' ? ['send_input', 'wait_agents', 'get_agent_result'] : access === 'reporting' ? ['send_input'] : [])
       if (access === false) expect(request.system).not.toMatch(/send_input|wait_agents/)
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+})
+
+describe('managed settlement delivery audit regressions', () => {
+  const text = (value: string): readonly StreamChunk[] => [
+    { type: 'text-delta', index: 0, text: value },
+    { type: 'block-end', index: 0, block: { type: 'text', text: value } },
+    { type: 'finish', reason: { kind: 'stop' } },
+  ]
+
+  it('delivers a settlement deferred during a lead turn after a queued follow-up restarts the worker', async () => {
+    const { adapter, team } = fixture()
+    const inTurn = deferred<void>()
+    const release = deferred<void>()
+    let first = true
+    adapter.leadReply = async () => {
+      if (first) { first = false; inTurn.resolve(); await release.promise }
+      return text('lead-done')
+    }
+    try {
+      const running = team.run('go')
+      await inTurn.promise
+      await team.spawn({ name: 'worker', task: 'first' })
+      await adapter.started(1)
+      await call(team, 'send_input', { target: 'worker', message: 'second' })
+      adapter.finish(1, 'first-result')
+      await adapter.started(2)
+      release.resolve()
+      await vi.waitFor(() => expect(team.lead.isRunning).toBe(false))
+      adapter.finish(2, 'second-result')
+      await running
+      await team.whenQuiet()
+      const leadInputs = JSON.stringify(adapter.requests
+        .filter(request => request.tools?.some(tool => tool.name === 'spawn_agent'))
+        .map(request => request.messages))
+      expect(leadInputs).toContain('first-result')
+      expect(leadInputs).toContain('second-result')
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
+  it('cancels busy owned workers when the lead run rejects instead of waking the lead later', async () => {
+    const { adapter, team } = fixture({ leadSessionOptions: { hooks: {
+      onTurnEnd: () => { throw new Error('host hook failed') } } } })
+    let worker = ''
+    adapter.leadReply = async () => {
+      worker = (await call(team, 'spawn_agent', { task: 'first' }) as { target: string }).target
+      await adapter.started(1)
+      return text('lead-done')
+    }
+    const leadRequests = () => adapter.requests.filter(request =>
+      request.tools?.some(tool => tool.name === 'spawn_agent')).length
+    try {
+      await expect(team.run('go')).rejects.toThrow('host hook failed')
+      const before = leadRequests()
+      expect(team.workers().find(member => member.name === worker)?.status).not.toBe('running')
+      adapter.finish(1, 'late-result')
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(leadRequests()).toBe(before)
+      expect(team.lead.isRunning).toBe(false)
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
+  it('does not wake a yielded lead for a closed worker while other workers still run', async () => {
+    const { adapter, team } = fixture()
+    let round = 0
+    adapter.leadReply = async () => {
+      round++
+      if (round === 1) {
+        await call(team, 'spawn_agent', { task: 'a' })
+        await call(team, 'spawn_agent', { task: 'b' })
+        await adapter.started(2)
+      }
+      return text(`lead-${round}`)
+    }
+    try {
+      const running = team.run('go')
+      await vi.waitFor(() => expect(team.lead.lastOutcome()?.yielded).toBe(true))
+      await vi.waitFor(() => expect(team.lead.isRunning).toBe(false))
+      const leadTurns = round
+      await call(team, 'close_agent', { target: 'worker_1' })
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(round).toBe(leadTurns)
+      adapter.finish(2, 'b-result')
+      await running
+      expect(round).toBe(leadTurns + 1)
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
+  it('returns results claimed by a cancelled wait to later delivery', async () => {
+    const { adapter, team } = fixture()
+    try {
+      await team.spawn({ name: 'A', task: 'a' })
+      await team.spawn({ name: 'B', task: 'b' })
+      await adapter.started(2)
+      const controller = new AbortController()
+      const waiting = call(team, 'wait_agents', { targets: ['A', 'B'] }, controller.signal)
+      adapter.finish(1, 'a-result')
+      await team.awaitWorker('A')
+      controller.abort(new Error('user cancelled'))
+      await expect(waiting).rejects.toThrow('user cancelled')
+      const later = JSON.stringify(await call(team, 'wait_agents', { targets: ['A'], timeout_ms: 10 }))
+        + JSON.stringify(team.team.messages())
+      expect(later).toContain('a-result')
+      await team.closeWorker('B')
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+})
+
+describe('long-lived managed team retention', () => {
+  it('keeps spawning after the audit mailbox fills', async () => {
+    const { adapter, team } = fixture({ team: { minWaitTimeoutMs: 10, waitTimeoutMs: 1000, maxMessages: 3 } })
+    try {
+      for (let index = 1; index <= 5; index++) {
+        await team.spawn({ name: `w${index}`, task: `task ${index}` })
+        await adapter.started(index)
+        adapter.finish(index)
+        await team.awaitWorker(`w${index}`)
+      }
+      expect(team.team.messages().length).toBeLessThanOrEqual(3)
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
+  it('evicts the oldest delivered idle workers above maxRetainedWorkers and keeps their results', async () => {
+    const { adapter, team } = fixture({ maxRetainedWorkers: 2 })
+    try {
+      for (let index = 1; index <= 3; index++) {
+        await team.spawn({ name: `w${index}`, task: `task ${index}` })
+        await adapter.started(index)
+        adapter.finish(index, `result-${index}`)
+        await call(team, 'wait_agents', { targets: [`w${index}`] })
+      }
+      await team.spawn({ name: 'w4', task: 'task 4' })
+      expect(team.workers().map(worker => worker.name)).toEqual(['w3', 'w4'])
+      expect(JSON.stringify(await call(team, 'get_agent_result', { target: 'w1' }))).toContain('result-1')
+      await team.closeWorker('w4')
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
+  it('never evicts a busy worker', async () => {
+    const { adapter, team } = fixture({ maxRetainedWorkers: 1 })
+    try {
+      await team.spawn({ name: 'w1', task: 'task 1' })
+      await adapter.started(1)
+      await team.spawn({ name: 'w2', task: 'task 2' })
+      expect(team.workers().map(worker => worker.name)).toEqual(['w1', 'w2'])
+      await team.closeWorker('w1')
+      await team.closeWorker('w2')
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
+  it('bounds the closed-member archive', () => {
+    const results = new TeamResults()
+    for (let index = 0; index < 300; index++) {
+      results.archive({ name: `m${index}`, status: 'idle', outcome: { kind: 'completed', text: `${index}` } } as never)
+    }
+    expect(results.retained('m0')).toBeUndefined()
+    expect(results.retained('m299')?.outcome?.text).toBe('299')
+  })
+
+  it('evicts the oldest audit records in evict-oldest mode and rejects by default', async () => {
+    for (const mailboxOverflow of ['evict-oldest', undefined] as const) {
+      const team = new AgentTeam({ maxMessages: 2, ...(mailboxOverflow === undefined ? {} : { mailboxOverflow }) })
+      const sessions = ['a', 'b'].map(id => ({ definition: { id }, conversationId: id, isRunning: false,
+        inject: () => 1, whenIdle: async () => {} }))
+      for (const session of sessions) team.attach(session as never)
+      const send = (message: string) => team.sendMessage({ from: 'a', target: 'b', message, delivery: 'quiet' })
+      await send('oldest-audit-record')
+      await send('second-audit-record')
+      if (mailboxOverflow === undefined) await expect(send('third-audit-record')).rejects.toThrow(/2-message mailbox limit/)
+      else {
+        await send('third-audit-record')
+        expect(JSON.stringify(team.messages())).not.toContain('oldest-audit-record')
+        expect(team.messages()).toHaveLength(2)
+      }
+      await team.dispose()
+    }
+    expect(() => new AgentTeam({ mailboxOverflow: 'drop' as never })).toThrow('mailboxOverflow')
+  })
+})
+
+describe('batch worker start races', () => {
+  it('settles a worker closed before its start returned as cancelled', async () => {
+    const { startBatchWorker } = await import('../../packages/core/src/agent/team/managed-batch-spawn.ts')
+    const settled = vi.fn()
+    const view = await startBatchWorker('gone', { settled } as never, {
+      start: async () => ({ name: 'gone', status: 'running' }) as never,
+      worker: () => undefined, cancelled: () => false, drain: () => {},
+    })
+    expect(settled).toHaveBeenCalledWith('gone', 'cancelled', false)
+    expect(JSON.stringify(view)).not.toContain('Cannot read')
+  })
+})
+
+describe('audit re-review regressions', () => {
+  const text = (value: string): readonly StreamChunk[] => [
+    { type: 'text-delta', index: 0, text: value },
+    { type: 'block-end', index: 0, block: { type: 'text', text: value } },
+    { type: 'finish', reason: { kind: 'stop' } },
+  ]
+  const leadRequests = (adapter: Controlled) => adapter.requests.filter(request =>
+    request.tools?.some(tool => tool.name === 'spawn_agent')).length
+
+  it('keeps the exact released outcome when a cancelled wait requeues a since-restarted worker', () => {
+    const results = new TeamResults()
+    const outcome = { kind: 'completed', text: 'first' } as const
+    const capture = results.capture('lead', [{ name: 'a', status: 'idle', outcome } as never], ['a'])
+    capture.release()
+    expect(results.takeReleased('lead', ['b']).size).toBe(0)
+    expect(results.takeReleased('lead', ['a']).get('a')).toBe(outcome)
+    expect(results.takeReleased('lead', ['a']).size).toBe(0)
+    const peer = results.capture('peer', [{ name: 'a', status: 'idle', outcome } as never], ['a'])
+    peer.release()
+    results.archive({ name: 'peer', status: 'idle' } as never)
+    expect(results.takeReleased('peer', ['a']).size).toBe(0)
+  })
+
+  it('wakes an idle lead for a closed lead-driven worker while only host-driven work runs', async () => {
+    const { adapter, team } = fixture()
+    adapter.leadReply = async options => {
+      if (leadRequests(adapter) === 1) {
+        await call(team, 'spawn_agent', { task: 'a' })
+        await adapter.started(1)
+        adapter.finish(1, 'a-result')
+      }
+      void options
+      return text('lead')
+    }
+    try {
+      await team.run('go')
+      await team.whenQuiet()
+      await team.spawn({ name: 'host', task: 'host work' })
+      await adapter.started(2)
+      await call(team, 'send_input', { target: 'worker_1', message: 'again' })
+      await adapter.started(3)
+      const before = leadRequests(adapter)
+      await team.closeWorker('worker_1')
+      await vi.waitFor(() => expect(leadRequests(adapter)).toBeGreaterThan(before))
+      await team.closeWorker('host')
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
+  it('never starts a queued model spawn after the lead run rejects', async () => {
+    const { adapter, team } = fixture({ maxWorkers: 1, leadSessionOptions: { hooks: {
+      onTurnEnd: () => { throw new Error('host hook failed') } } } })
+    adapter.leadReply = async () => {
+      await call(team, 'spawn_agents', { tasks: [{ task: 'first' }, { task: 'queued' }] })
+      await adapter.started(1)
+      return text('lead')
+    }
+    try {
+      await expect(team.run('go')).rejects.toThrow('host hook failed')
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(team.workers().filter(worker => worker.status === 'running')).toEqual([])
+      expect(adapter.requests.filter(request => !request.tools?.some(tool => tool.name === 'spawn_agent')))
+        .toHaveLength(1)
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
+  it('refuses an oversized message without draining the evicting audit log', async () => {
+    const team = new AgentTeam({ maxMessages: 4, maxMailboxBytes: 200, mailboxOverflow: 'evict-oldest' })
+    for (const id of ['a', 'b']) {
+      team.attach({ definition: { id }, conversationId: id, isRunning: false, inject: () => 1,
+        whenIdle: async () => {} } as never)
+    }
+    await team.sendMessage({ from: 'a', target: 'b', message: 'kept-audit-record', delivery: 'quiet' })
+    await expect(team.sendMessage({ from: 'a', target: 'b', message: 'x'.repeat(500), delivery: 'quiet' }))
+      .rejects.toThrow()
+    expect(team.messages()).toHaveLength(1)
+    await team.dispose()
+  })
+})
+
+describe('audit round 2 regressions', () => {
+  it('returns claims of a batch join that fails without an abort', async () => {
+    const { adapter, team } = fixture()
+    const internals = teamInternals(team.team) as { waitForBatch: (...args: never[]) => Promise<unknown> }
+    internals.waitForBatch = async () => {
+      await adapter.started(1)
+      adapter.finish(1, 'batch-result')
+      await team.awaitWorker('worker_1')
+      throw new Error('join failed')
+    }
+    try {
+      await expect(call(team, 'spawn_agents', { tasks: [{ task: 'a' }], join: true })).rejects.toThrow('join failed')
+      const later = JSON.stringify(await call(team, 'wait_agents', { targets: ['worker_1'], timeout_ms: 10 }))
+        + JSON.stringify(team.team.messages())
+      expect(later).toContain('batch-result')
     } finally { await team.dispose(); await team.team.dispose() }
   })
 })

@@ -204,6 +204,25 @@ describe('bounded runtime progress schedule', () => {
     expectStopped('replaced')
   })
 
+  it('lets a host stop issued by a replaced-schedule observer win over the replacement', () => {
+    let f!: ReturnType<typeof fixture>
+    f = fixture({}, event => { if (event.phase === 'stopped' && event.reason === 'replaced') f.progress.stop('host') })
+    f.start()
+    expect(() => f.progress.configure(parseProgressRequest({ interval_ms: 50 }))).toThrow('stopped by the host')
+    expect(f.progress.state().active).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('delivers a stop emitted from inside an observer after the report to every observer', async () => {
+    let f!: ReturnType<typeof fixture>
+    f = fixture({}, event => { if (event.phase === 'report') f.progress.stop('host') })
+    const seen: string[] = []
+    f.team.subscribe(event => { if (event.type === 'team-progress') seen.push(event.phase) })
+    f.start()
+    await vi.advanceTimersByTimeAsync(10)
+    expect(seen).toEqual(['report', 'stopped'])
+  })
+
   it('fails closed on async observers and contains rejected promises', async () => {
     const f = fixture({}, async () => { throw new Error('async sink unsupported') })
     f.start()

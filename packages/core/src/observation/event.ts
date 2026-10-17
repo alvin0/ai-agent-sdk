@@ -98,7 +98,7 @@ function isError(value: unknown): value is Error {
 
 function causeType(cause: unknown, causeIsError: boolean): string {
   const causeName = causeIsError ? safeRead(cause as object, 'name') : undefined
-  if (typeof causeName === 'string' && causeName.length > 0) return causeName
+  if (typeof causeName === 'string' && causeName.length > 0) return causeName.slice(0, 128)
   return causeIsError ? 'Error' : typeof cause
 }
 
@@ -164,7 +164,7 @@ export function safeErrorRecord(value: unknown, includeStack = false): SafeError
   const status = safeRead(source, 'status')
   const stack = includeStack ? safeRead(source, 'stack') : undefined
   return Object.freeze({
-    type: typeof name === 'string' && name.length > 0 ? name : 'Error',
+    type: typeof name === 'string' && name.length > 0 ? name.slice(0, 128) : 'Error',
     message: boundedUnknownMessage(message),
     ...failureFields(code, retryable, status),
     ...causeTypes.length > 0 ? { causeTypes: Object.freeze(causeTypes) } : {},

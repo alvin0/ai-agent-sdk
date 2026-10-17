@@ -314,6 +314,25 @@ describe('runtime-owned Universal agent teams', () => {
     expect(events).toEqual(eventsAtClose)
   })
 
+  it('projects one sanitized run-end per wakeup run and hides timeline facts and responses', async () => {
+    const adapter = new TeamAdapter()
+    const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
+    const local = agents(runtime), events: { type: string; member?: string }[] = []
+    const team = runtime.team({ id: 'projected-team', onEvent: event => events.push(event), members: [
+      { name: 'lead', agent: local.lead, role: 'lead' }, { name: 'worker', agent: local.worker },
+    ] })
+    await team.sendMessage({ from: 'lead', target: 'worker', message: 'go', delivery: 'wakeup' })
+    await vi.waitFor(() => expect(events.some(event => event.type === 'member-run-end')).toBe(true))
+    await team.session('worker').whenIdle()
+    await team.close()
+    const runs = events.filter(event => event.member === 'worker' && event.type === 'member-run-start')
+    const ends = events.filter(event => event.member === 'worker' && event.type === 'member-run-end')
+    expect(runs).toHaveLength(1)
+    expect(ends).toEqual([{ type: 'member-run-end', member: 'worker' }])
+    expect(events.every(event => event.type !== 'team-timeline' && !('response' in event))).toBe(true)
+    await runtime.close()
+  })
+
   it('accepts a wakeup follow-up while the target session is running', async () => {
     const adapter = new FollowupTeamAdapter()
     const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })

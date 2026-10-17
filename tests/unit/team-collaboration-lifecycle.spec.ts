@@ -250,4 +250,26 @@ describe('managed collaboration lifecycle', () => {
     await team.run('Synthesize')
     await team.whenQuiet(AbortSignal.timeout(1000))
   })
+
+  it.each([[500, 500], [300, 1500]])('expires the join before a %ims lead hook deadline (join %ims)', async (hook, join) => {
+    const adapter = new CollaborationAdapter(async (name, round, options) => {
+      if (name === 'bob') {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 5_000)
+          options.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(options.signal!.reason) },
+            { once: true })
+        })
+      }
+      return answer(`${name} ${round}`)
+    })
+    const team = managed(adapter, {
+      leadSessionOptions: { runtimeLimits: { hookTimeoutMs: hook, hookTeardownTimeoutMs: 300 } },
+      collaboration: { joinTimeoutMs: join },
+    })
+    await team.spawn({ name: 'bob', task: 'B' })
+    await expect(team.run('go')).resolves.toBeDefined()
+    expect(JSON.stringify(adapter.requests.filter(request => request.name === 'lead').at(-1)?.options.messages))
+      .toContain('Collaboration join deadline expired')
+    await team.dispose(); await team.team.dispose()
+  }, 10_000)
 })

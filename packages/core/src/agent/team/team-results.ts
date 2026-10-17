@@ -7,6 +7,9 @@ export function statusOnly(member: AgentTeamMember): Omit<AgentTeamMember, 'outc
   return metadata
 }
 
+/** Closed-member results kept for late retrieval. */
+export const MAX_ARCHIVED = 256
+
 export class TeamResults {
   private readonly delivered = new Map<string, Map<string, AgentMemberOutcome>>()
 
@@ -23,6 +26,26 @@ export class TeamResults {
       return [{ worker: member.name, status: outcome.status ?? outcome.kind,
         ...compactOutcome(outcome, budget) }]
     })
+  }
+
+  isDelivered(recipient: string, member: AgentTeamMember): boolean {
+    return member.outcome !== undefined && this.delivered.get(recipient)?.get(member.name) === member.outcome
+  }
+
+  /** Claims returned by cancelled joins, so a managed requeue can deliver the exact released outcome. */
+  private readonly released = new Map<string, Map<string, AgentMemberOutcome>>()
+
+  takeReleased(recipient: string, targets: readonly string[]): ReadonlyMap<string, AgentMemberOutcome> {
+    const released = this.released.get(recipient)
+    const claims = new Map<string, AgentMemberOutcome>()
+    for (const name of targets) {
+      const outcome = released?.get(name)
+      if (outcome === undefined) continue
+      claims.set(name, outcome)
+      released!.delete(name)
+    }
+    if (released?.size === 0) this.released.delete(recipient)
+    return claims
   }
 
   private readonly collectors = new Set<(members: readonly AgentTeamMember[]) => void>()
@@ -49,7 +72,17 @@ export class TeamResults {
       release: () => {
         const delivered = this.delivered.get(recipient)
         for (const { name, outcome } of claims) {
-          if (delivered?.get(name) === outcome) delivered.delete(name)
+          if (delivered?.get(name) !== outcome) continue
+          delivered.delete(name)
+          let released = this.released.get(recipient)
+          if (released === undefined) this.released.set(recipient, released = new Map())
+          released.delete(name)
+          released.set(name, outcome)
+          // Callers that never requeue (peer waits) keep only a bounded, newest-first set.
+          for (const oldest of released.keys()) {
+            if (released.size <= MAX_ARCHIVED) break
+            released.delete(oldest)
+          }
         }
         claims.length = 0
         captured.length = 0
@@ -64,7 +97,18 @@ export class TeamResults {
 
   private readonly archived = new Map<string, AgentTeamMember>()
 
-  archive(member: AgentTeamMember): void { this.archived.set(member.name, { ...member, status: 'idle' }) }
+  /** Closed members stay retrievable, oldest first out past a fixed bound. */
+  archive(member: AgentTeamMember): void {
+    // A closed member never resumes its own released claims, so live members bound the released maps.
+    this.released.delete(member.name)
+    this.archived.delete(member.name)
+    this.archived.set(member.name, { ...member, status: 'idle' })
+    for (const name of this.archived.keys()) {
+      if (this.archived.size <= MAX_ARCHIVED) break
+      this.archived.delete(name)
+      for (const delivered of this.delivered.values()) delivered.delete(name)
+    }
+  }
   forget(name: string): void { this.archived.delete(name) }
   retained(name: string): AgentTeamMember | undefined { return this.archived.get(name) }
   select(members: readonly AgentTeamMember[], targets: readonly string[]): readonly AgentTeamMember[] {
@@ -73,7 +117,7 @@ export class TeamResults {
       return member === undefined ? [] : [member]
     })
   }
-  clear(): void { this.delivered.clear(); this.archived.clear(); this.collectors.clear() }
+  clear(): void { this.delivered.clear(); this.archived.clear(); this.collectors.clear(); this.released.clear() }
 }
 
 /** Shared compact result shape for lean waits and batch joins on either model surface. */

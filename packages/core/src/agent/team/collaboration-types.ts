@@ -5,7 +5,9 @@ export interface ManagedTeamCollaborationOptions {
   readonly maxPeerTurnsPerPair?: number
   /** Per-join deadline before active (running, pending or preparing) members are cancelled.
    * Re-armed on each onLeadEnd; not a total run cap. Defaults to workerTimeoutMs
-   * (10 minutes unless configured). Use the invocation signal for a total cap. */
+   * (10 minutes unless configured). Use the invocation signal for a total cap. The join runs inside the
+   * lead's onTurnEnd hook, so the effective deadline is clamped below the lead's `runtimeLimits.hookTimeoutMs`
+   * (default 10 minutes) by min(30 s, hookTimeoutMs / 5). */
   readonly joinTimeoutMs?: number
   /** Maximum retained tasks, including completed tasks. Default 128. */
   readonly maxTasks?: number

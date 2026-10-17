@@ -1,3 +1,4 @@
+import { teamInternals } from '../../packages/core/src/agent/team/team-internal.ts'
 import { createCoreSpan as internalSpan, type ObservationEvent as InternalEvent } from '../../packages/core/src/observation/index.ts'
 import { TeamObservation } from '../../packages/core/src/agent/team/team-observation.ts'
 import { describe, expect, it, vi } from 'vitest'
@@ -68,10 +69,11 @@ describe('host team timeline and snapshots', () => {
     const claims: unknown[] = []
     const team = create(adapter, { team: { onEvent: event => {
       if (event.type === 'team-timeline' && event.kind === 'worker-settled') {
-        claims.push(...team.team.takeResults('lead', ['w']))
+        claims.push(...teamInternals(team.team).takeResults('lead', ['w']))
       }
     } } })
-    const capture = vi.spyOn(team.team, 'captureResults')
+    // captureResults is private runtime plumbing; spy on the instance to observe the active join.
+    const capture = vi.spyOn(team.team as unknown as { captureResults(): unknown }, 'captureResults')
     const running = team.run('Research')
     await vi.waitFor(() => expect(capture).toHaveBeenCalled())
     adapter.gates.get('w')!.resolve()
@@ -183,7 +185,7 @@ describe('host team timeline and snapshots', () => {
   it('retains failed setup metadata after a prepared session is detached', async () => {
     const events: AgentTeamEvent[] = []
     const team = create(new GatedTeam(), { autoLeadCoordination: false,
-      team: { maxMessages: 1, onEvent: event => events.push(event) } })
+      team: { maxMessages: 1, mailboxOverflow: 'reject', onEvent: event => events.push(event) } })
     await team.spawn({ name: 'w', task: 'task' })
     await expect(team.spawn({ name: 'setup-failure', task: 'over mailbox capacity' })).rejects.toThrow()
     expect(timeline(events).some(event => event.kind === 'spawn-failed' && event.member === 'setup-failure')).toBe(true)
@@ -197,7 +199,7 @@ describe('host team timeline and snapshots', () => {
     const adapter = new GatedTeam()
     adapter.gates.get('w')!.resolve()
     const team = create(adapter, { autoLeadCoordination: false,
-      team: { maxMessages: 1, onEvent: event => events.push(event) } })
+      team: { maxMessages: 1, mailboxOverflow: 'reject', onEvent: event => events.push(event) } })
     await team.spawn({ name: 'w', task: 'task' })
     await team.awaitWorker('w')
     expect(timeline(events).filter(event => event.kind === 'notice-delivered')).toMatchObject([

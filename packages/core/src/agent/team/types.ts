@@ -142,9 +142,15 @@ export interface AgentTeamOptions {
   readonly maxLinkedResultBytes?: number
   /** Maximum cumulative serialized content/result bytes retained by the mailbox. Defaults to 64 MiB. */
   readonly maxMailboxBytes?: number
+  /**
+   * What a full audit mailbox does with a new message. `reject` (default for AgentTeam) refuses it;
+   * `evict-oldest` drops the oldest accepted records first. Managed teams default to `evict-oldest`
+   * so a long-lived team keeps spawning after it has exchanged `maxMessages` messages.
+   */
+  readonly mailboxOverflow?: 'reject' | 'evict-oldest'
   /** Maximum serialized bytes for descriptions and collaboration instructions. Defaults to 8 KiB. */
   readonly maxMetadataBytes?: number
-  /** Maximum time dispose waits for cooperative transports/providers. Defaults to 120 seconds. */
+  /** Maximum time dispose waits for cooperative transports/providers. Defaults to 30 seconds. */
   readonly disposeTimeoutMs?: number
   /** End-to-end bound for one remote dispatch or local wake-up batch. Defaults to 10 minutes. */
   readonly operationTimeoutMs?: number
