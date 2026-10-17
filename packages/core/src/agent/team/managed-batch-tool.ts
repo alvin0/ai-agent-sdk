@@ -1,4 +1,5 @@
 /** One model call for bounded FIFO fan-out and compact per-item accountability. */
+import { teamInternals } from './team-internal.ts'
 import { defineTool, type ToolDefinition, type ToolRunContext } from '../tool/definition.ts'
 import type { ManagedWorkerSpawning } from './managed-spawn.ts'
 import type { AgentTeam } from './team.ts'
@@ -90,7 +91,7 @@ async function executeBatch(host: BatchToolHost, { tasks, ids, join }: ReturnTyp
       reserved: names => {
         targets = names
         reserveCoverage(coverage, names, ids, host.guidanceBudget())
-        if (join) capture = host.team.captureResults(host.leadName, names, false)
+        if (join) capture = teamInternals(host.team).captureResults(host.leadName, names, false)
       },
       started: name => {
         coverage.update(name, 'running')
@@ -107,7 +108,7 @@ async function executeBatch(host: BatchToolHost, { tasks, ids, join }: ReturnTyp
       }))
     }
     try {
-      const waited = await host.team.waitForBatch(host.leadName, targets,
+      const waited = await teamInternals(host.team).waitForBatch(host.leadName, targets,
         (target, waitSignal) => abortable(coverage.wait(target), waitSignal), { ...ctx, signal }) as {
           timedOut: boolean; interrupted?: boolean
         }

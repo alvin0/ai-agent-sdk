@@ -1,4 +1,5 @@
 /** Codex-style dynamic worker creation and delegation over AgentTeam. */
+import { guardManagedCoordination } from './managed-guards.ts'
 import type { TeamSnapshot } from './team-timeline.ts'
 import { recordTeamTimeline } from './team-observation-internal.ts'
 import { createManagedLeadSession } from './managed-lead-session.ts'
@@ -23,6 +24,7 @@ import { ManagedWorkerExecution } from './managed-worker.ts'
 import { closeManagedWorker } from './managed-close.ts'
 import { ManagedWorkerScheduling } from './managed-scheduling.ts'
 import { joinManagedTeam } from './managed-join.ts'
+import { finishManagedRun, managedFinishingSignal } from './managed-run-finish.ts'
 import { ManagedLeadCoordination } from './managed-lead.ts'
 export { DEFAULT_HOLD_WAIT_MS, DEFAULT_SPAWN_SETUP_TIMEOUT_MS,
   DEFAULT_WORKER_CLOSE_TIMEOUT_MS } from './managed-config.ts'
@@ -142,21 +144,15 @@ export class ManagedAgentTeam {
     this.lead = this.createLeadSession(options)
     this.unguardWake = this.guardCoordination()
   }
+  private guardCoordination(): () => void { // Followups and peer waits respect admission and queue state.
+    return guardManagedCoordination(this.team, this.leadName, target => this.admitFollowup(target),
+      target => this.preparing.get(target)?.queued === true) }
   private createProgress(options: ManagedAgentTeamOptions): ManagedProgress {
     return new ManagedProgress({ team: this.team, lead: this.leadName, signal: this.lifecycle.signal,
       session: () => this.lead, workers: () => [...this.workerRuntimes.keys(), ...this.preparing.keys()],
       busy: name => this.preparing.has(name) || (this.workerRuntimes.has(name)
         && this.workerBusy(this.workerRuntimes.get(name)!)),
     }, options.progressUpdates)
-  }
-  private guardCoordination(): () => void {
-    const unguardWake = this.team.guardWake(target => this.admitFollowup(target))
-    const unguardWait = this.team.guardWait((sender, targets) => {
-      if (sender !== this.leadName && targets.some(target => this.preparing.get(target)?.queued)) {
-        throw new Error('cannot peer-wait on a queued worker; return work to the lead')
-      }
-    })
-    return () => { unguardWake(); unguardWait() }
   }
   private async releaseDependents(runtime: WorkerRuntime): Promise<void> {
     await this.scheduling.releaseDependents(runtime)
@@ -257,7 +253,7 @@ export class ManagedAgentTeam {
     const owned = { signal: invocation.signal, workers: new Set<WorkerRuntime>() }
     const signal = combineSignals(invocation.signal, this.lifecycle.signal)
     let progressOwner: ReturnType<ManagedProgress['beginManagedInvocation']> | null = null
-    let failed = false, failure: unknown
+    let failed: { error: unknown } | undefined
     try {
       this.invocation = owned
       progressOwner = this.progress.beginManagedInvocation(signal)
@@ -275,26 +271,17 @@ export class ManagedAgentTeam {
       this.finalBoundary('team-joined')
       return this.settlements.latestResponse ?? response
     } catch (error: unknown) {
-      failed = true
-      failure = error
+      failed = { error }
       throw error
     } finally {
       this.invocation = undefined
-      // A failed run owes no synthesis: its busy workers must not outlive it and wake the lead later.
-      const finishing = signal.aborted || !failed ? signal
-        : AbortSignal.abort(new Error('managed lead run failed', { cause: failure }))
+      const finishing = managedFinishingSignal(signal, failed)
       this.finishingSignal = finishing
       this.joining = false
-      try {
-        this.progress.finishInvocation(signal.aborted ? 'aborted' : 'run-ended', progressOwner)
-      } catch { /* Progress cleanup cannot prevent invocation release or worker cancellation. */ }
-      if (signal.aborted) {
-        await Promise.allSettled([this.team.cancel(this.leadName, signal.reason),
-          ...[...owned.workers].map(runtime => this.closeWorker(runtime.request.name, signal.reason))])
-      } else if (failed) {
-        await Promise.allSettled([...owned.workers].filter(runtime => this.workerBusy(runtime))
-          .map(runtime => this.closeWorker(runtime.request.name, finishing.reason)))
-      }
+      await finishManagedRun({ cancelLead: reason => this.team.cancel(this.leadName, reason),
+        closeWorker: (name, reason) => this.closeWorker(name, reason), workerBusy: runtime => this.workerBusy(runtime),
+        finishProgress: aborted => this.progress.finishInvocation(aborted ? 'aborted' : 'run-ended', progressOwner),
+      }, signal, finishing, owned.workers)
       if (this.finishingSignal === finishing) this.finishingSignal = undefined
     }
   }
@@ -400,12 +387,11 @@ export class ManagedAgentTeam {
       options: this.options, team: this.team, leadName: this.leadName, lazyTools: this.lazyTools,
       spawning: this.spawning, settlements: this.settlements, roles: this.roles,
       maxWorkers: this.maxWorkers, maxQueued: this.maxQueued, spawnTimeoutMs: this.spawnTimeoutMs,
-      workerTimeoutMs: this.workerTimeoutMs, workers: this.workerRuntimes,
-      owner: () => this.invocation?.workers,
+      workerTimeoutMs: this.workerTimeoutMs, workers: this.workerRuntimes, owner: () => this.invocation?.workers,
       signal: () => combineSignals(this.lifecycle.signal, this.invocation?.signal),
-      spawn: (request, signal) => this.spawn(request, signal),
+      spawn: (request, signal) => this.spawn(request, signal), progress: this.progress,
       busy: name => this.modelInput.outstanding().some(job => job.name === name),
-      close: name => this.closeWorker(name), progress: this.progress,
+      close: name => this.closeWorker(name),
     })
   }
 }

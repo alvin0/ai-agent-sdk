@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { closeManagedWorker } from '../../packages/core/src/agent/team/managed-close.ts'
 import { TeamResults } from '../../packages/core/src/agent/team/team-results.ts'
+import { registerTeamInternals } from '../../packages/core/src/agent/team/team-internal.ts'
 import { GatedTeam, create, tool } from './team-push-join.fixture.ts'
+
+/** The close mock team doubles as its internal bridge. */
+function internal<T extends object>(team: T): T { registerTeamInternals(team, team as never); return team }
 
 describe('bounded retained worker results', () => {
   it('marks structured pages truncated only when they omit part of the retained value', async () => {
@@ -30,8 +34,8 @@ describe('bounded retained worker results', () => {
     const recordOutcome = vi.fn()
     const previous = await closeManagedWorker(runtime as never, new Error('close'), {
       closeTimeoutMs: 100, workerRuntimes: new Map([['w', runtime]]),
-      team: { cancel: async () => { runtime.result = { text: 'Completed report at the close boundary' } },
-        releaseSlot: vi.fn(), recordOutcome, detach: vi.fn() },
+      team: internal({ cancel: async () => { runtime.result = { text: 'Completed report at the close boundary' } },
+        releaseSlot: vi.fn(), recordOutcome, detach: vi.fn() }),
       scheduling: { workerHasWork: () => false, releaseDependents: async () => {} },
     } as never)
     expect(previous).toBe('running')

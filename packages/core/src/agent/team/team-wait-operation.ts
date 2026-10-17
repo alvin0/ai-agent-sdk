@@ -12,7 +12,6 @@ export async function executeTeamWait(
 ): Promise<JsonValue> {
   const { name, sender } = caller
   const { targets, timeoutMs } = args
-
   const release = host.beginWait(name, targets)
   const budget = timeoutMs === undefined
     ? host.waitTimeoutMs
@@ -47,31 +46,21 @@ export async function executeTeamWait(
     })
     // The caller's own cancellation still wins; a steer does not.
     ctx.signal.throwIfAborted()
-    if (steer.signal.aborted) {
-      return asJson({
-        agents: host.members().filter(member => new Set(targets).has(member.name)).map(statusOnly),
-        results: capture.take(),
-        settled: null,
-        timedOut: false,
-        interrupted: true,
-        waitedMs: budget,
-      })
-    }
+    const steered = steer.signal.aborted
     const selected = new Set(targets)
     return asJson({
       agents: host.members().filter(member => selected.has(member.name)).map(statusOnly),
       results: capture.take(),
-      settled: settled ?? null,
-      timedOut: settled === undefined,
+      settled: steered ? null : settled ?? null,
+      timedOut: !steered && settled === undefined,
+      ...(steered ? { interrupted: true } : {}),
       // The budget actually used, which is not always the one asked
       // for: a lead that reads `timedOut` after a request below the
       // floor would otherwise misjudge how long its workers had.
       waitedMs: budget,
     })
   } catch (error: unknown) {
-    // A cancelled or failed join returns no evidence; return its claims to the delivery ledger.
-    capture.close()
-    capture.release()
+    capture.close(); capture.release() // A failed join returns no evidence; its claims go back to the ledger.
     throw error
   } finally { finished.abort(); capture.close(); release() }
 

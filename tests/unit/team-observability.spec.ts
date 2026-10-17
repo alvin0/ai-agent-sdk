@@ -1,3 +1,4 @@
+import { teamInternals } from '../../packages/core/src/agent/team/team-internal.ts'
 import { createCoreSpan as internalSpan, type ObservationEvent as InternalEvent } from '../../packages/core/src/observation/index.ts'
 import { TeamObservation } from '../../packages/core/src/agent/team/team-observation.ts'
 import { describe, expect, it, vi } from 'vitest'
@@ -68,7 +69,7 @@ describe('host team timeline and snapshots', () => {
     const claims: unknown[] = []
     const team = create(adapter, { team: { onEvent: event => {
       if (event.type === 'team-timeline' && event.kind === 'worker-settled') {
-        claims.push(...team.team.takeResults('lead', ['w']))
+        claims.push(...teamInternals(team.team).takeResults('lead', ['w']))
       }
     } } })
     const capture = vi.spyOn(team.team, 'captureResults')

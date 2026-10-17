@@ -1,4 +1,5 @@
 /** Compact settlement delivery and lifecycle accounting for retained follow-ups. */
+import { teamInternals } from './team-internal.ts'
 import type { BatchCoverage } from './managed-batch-coverage.ts'
 import { recordTeamTimeline } from './team-observation-internal.ts'
 import { createUserMessage } from '../../message/index.ts'
@@ -108,7 +109,7 @@ export class ManagedSettlements {
   /** Queue runtime-owned evidence; an active round consumes it at its next boundary. */
   async notify(runtime: WorkerRuntime): Promise<void> {
     if (this.host.signal.aborted || this.host.workers.get(runtime.request.name) !== runtime) return
-    this.host.team.releaseSlot(runtime.request.name)
+    teamInternals(this.host.team).releaseSlot(runtime.request.name)
     this.pendingReports.set(runtime, this.settledOutcome(runtime))
     if (this.host.lead().isRunning) this.deferReports()
     else {
@@ -136,8 +137,8 @@ export class ManagedSettlements {
     if (pending.length === 0 || this.host.signal.aborted) return false
     const budget = Math.max(256, Math.min(8192,
       Math.floor((Math.min(48 * 1024, this.host.team.messageByteLimit) - 1024) / pending.length) - 256))
-    const results = this.host.team.takeResults(this.host.leadName, pending.map(runtime => runtime.request.name),
-      budget, outcomes)
+    const results = teamInternals(this.host.team).takeResults(this.host.leadName,
+      pending.map(runtime => runtime.request.name), budget, outcomes)
     if (results.length === 0) {
       if (this.hasPending) this.deferReports()
       return false

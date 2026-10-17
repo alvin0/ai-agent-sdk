@@ -25,6 +25,10 @@ export class TeamResults {
     })
   }
 
+  isDelivered(recipient: string, member: AgentTeamMember): boolean {
+    return member.outcome !== undefined && this.delivered.get(recipient)?.get(member.name) === member.outcome
+  }
+
   private readonly collectors = new Set<(members: readonly AgentTeamMember[]) => void>()
 
   /** An active join claims evidence synchronously at publication, before automatic notices. */

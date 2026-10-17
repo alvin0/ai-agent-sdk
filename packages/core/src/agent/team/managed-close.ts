@@ -1,4 +1,5 @@
 /** Bounded cancellation and write-claim cleanup for one managed worker. */
+import { teamInternals } from './team-internal.ts'
 import type { AgentTeam } from './team.ts'
 import type { ManagedAgentWorkerStatus, WorkerRuntime } from './managed-types.ts'
 import type { ManagedWorkerScheduling } from './managed-scheduling.ts'
@@ -54,7 +55,7 @@ export async function closeManagedWorker(
     runtime.status = 'closed'
     runtime.markSettled()
   }
-  host.team.releaseSlot(address)
+  teamInternals(host.team).releaseSlot(address)
   recordEvidence(runtime)
   recordCancellation(runtime, previous, host.team)
   if (host.scheduling.workerHasWork(runtime)) {

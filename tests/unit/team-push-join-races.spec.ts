@@ -3,6 +3,10 @@ import type { ManagedAgentTeam } from '@alvin0/ai-agent-sdk-core/agent'
 import { isManagedTeamNotice } from '../../packages/core/src/agent/history/input-work.ts'
 import { ManagedSettlements } from '../../packages/core/src/agent/team/managed-settlements.ts'
 import { GatedTeam, create, deferred, tool } from './team-push-join.fixture.ts'
+import { registerTeamInternals } from '../../packages/core/src/agent/team/team-internal.ts'
+
+/** The settlement mock team doubles as its internal bridge. */
+function internal<T extends object>(team: T): T { registerTeamInternals(team, team as never); return team }
 
 describe('managed settlement handoff races', () => {
   it('rejects a synthesis wake that throws before agent-end instead of re-waking forever', async () => {
@@ -141,14 +145,14 @@ describe('managed settlement handoff races', () => {
     const host = { signal: new AbortController().signal, workers, leadName: 'lead', options: {},
       invocationSignal: () => undefined, joining: () => true,
       lead: () => ({ get isRunning() { return running }, whenIdle: async () => { running = false } }),
-      team: { recordTimeline: vi.fn(), subscribe: () => () => {}, releaseSlot: () => {}, wake: () => {},
+      team: internal({ recordTimeline: vi.fn(), subscribe: () => () => {}, releaseSlot: () => {}, wake: () => {},
         members: () => [], messageByteLimit: 65536,
         takeResults: (_: string, names: string[]) => {
           received.push(names)
           return names.map(worker => ({ worker, status: 'completed', text: 'finding' }))
         }, sendMessage: async () => {
           if (received.length === 1) { running = true; await settlements.notify(second as never) }
-        } },
+        } }),
     }
     settlements = new ManagedSettlements(host as never)
     await settlements.notify(first as never)

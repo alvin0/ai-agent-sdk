@@ -8,6 +8,7 @@ import { teamInstructions } from './team-instructions.ts'
 import { TeamWork } from './team-work.ts'
 import { TeamRoster } from './team-roster.ts'
 import { TeamMailbox } from './team-mailbox.ts'
+import { registerTeamInternals } from './team-internal.ts'
 import type { LocalMemberRuntime, AddressableMember } from './team-runtime-types.ts'
 import { teamTimeouts } from './team-support.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
@@ -76,6 +77,14 @@ export class AgentTeam implements TeamPort {
     this.observation = new TeamObservation(this.id, event => this.emit(event),
       () => this.onEvent !== undefined || this.listeners.size > 0, options)
     registerTeamObservation(this, this.observation)
+    registerTeamInternals(this, {
+      guardWake: guard => this.guardWake(guard), guardWait: guard => this.guardWait(guard),
+      takeResults: (sender, targets, maxBytes, settled) => this.takeResults(sender, targets, maxBytes, settled),
+      captureResults: (sender, targets, retained) => this.captureResults(sender, targets, retained),
+      waitForBatch: (sender, targets, whenIdle, ctx) => this.waitForBatch(sender, targets, whenIdle, ctx),
+      releaseSlot: name => this.releaseSlot(name),
+      resultDelivered: (recipient, member) => this.results.isDelivered(recipient, member),
+    })
     this.onEvent = options.onEvent
     this.onAgentEvent = options.onAgentEvent
     this.roster = new TeamRoster({ id: this.id, maxMembers, maxMetadataBytes, emit: event => this.emit(event) })
@@ -121,8 +130,7 @@ export class AgentTeam implements TeamPort {
   /** Detached metadata summary; no prompt, message or worker result content. */
   snapshot(): TeamSnapshot { return this.observation.snapshot(this.members()) }
   members(): readonly AgentTeamMember[] { return this.roster.members() }
-  /** Host admission hooks run before wake-up input is accepted. Throw to refuse work. */
-  guardWake(guard: (target: string) => void): () => void {
+  private guardWake(guard: (target: string) => void): () => void {
     this.wakeGuards.add(guard)
     return () => { this.wakeGuards.delete(guard) }
   }
@@ -131,8 +139,7 @@ export class AgentTeam implements TeamPort {
     this.listeners.add(listener)
     return () => { this.listeners.delete(listener) }
   }
-  /** Claim compact results; shares delivery state with wait_agents. */
-  takeResults(sender: string, targets: readonly string[], maxBytes?: number,
+  private takeResults(sender: string, targets: readonly string[], maxBytes?: number,
     settled?: ReadonlyMap<string, AgentMemberOutcome>) {
     const members = this.results.select(this.members(), targets).map(member => {
       const outcome = settled?.get(member.name)
@@ -141,12 +148,10 @@ export class AgentTeam implements TeamPort {
     })
     return this.results.take(sender, members, maxBytes)
   }
-  /** Register an active join against the same per-outcome delivery ledger as notices. */
-  captureResults(sender: string, targets: readonly string[], retained = true) {
+  private captureResults(sender: string, targets: readonly string[], retained = true) {
     return this.results.capture(sender, this.members(), targets, retained)
   }
-  /** Retain a managed worker's address while releasing its concurrency reservation. */
-  releaseSlot(name: string): void {
+  private releaseSlot(name: string): void {
     if (this.roster.releaseSlot(name)) this.observation.record({ kind: 'slot-released', member: name })
   }
   messages(): readonly AgentMessageRecord[] {
@@ -220,14 +225,14 @@ export class AgentTeam implements TeamPort {
   private requireLocalMember(value: string): LocalMemberRuntime {
     return this.roster.requireLocalMember(value)
   }
-  guardWait(guard: (sender: string, targets: readonly string[]) => void): () => void {
+  private guardWait(guard: (sender: string, targets: readonly string[]) => void): () => void {
     this.waitGuards.add(guard)
     return () => { this.waitGuards.delete(guard) }
   }
 
   /** Managed independent batch barrier, including reserved addresses without sessions yet.
    * Its outer collector owns results; this barrier must not claim archived or current evidence. */
-  waitForBatch(sender: string, targets: readonly string[],
+  private waitForBatch(sender: string, targets: readonly string[],
     whenIdle: (target: string, signal?: AbortSignal) => Promise<void>, ctx: ToolRunContext) {
     return executeTeamWait({
       waitTimeoutMs: this.waitTimeoutMs, minWaitTimeoutMs: this.minWaitTimeoutMs,

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ManagedSettlements } from '../../packages/core/src/agent/team/managed-settlements.ts'
 import { deferred } from './team-push-join.fixture.ts'
+import { registerTeamInternals } from '../../packages/core/src/agent/team/team-internal.ts'
+
+/** The settlement mock team doubles as its internal bridge. */
+function internal<T extends object>(team: T): T { registerTeamInternals(team, team as never); return team }
 
 function settlementHarness(count: number) {
   const idle = deferred()
@@ -16,10 +20,11 @@ function settlementHarness(count: number) {
   const settlements = new ManagedSettlements({ signal: new AbortController().signal,
     invocationSignal: () => invocation, workers, lead: () => lead, leadName: 'lead',
     options: {}, joining: () => true,
-    team: { recordTimeline: vi.fn(), subscribe: () => () => {}, wake, messageByteLimit: 65536,
+    team: internal({ recordTimeline: vi.fn(), subscribe: () => () => {}, wake, messageByteLimit: 65536,
+      members: () => [], releaseSlot: () => {},
       takeResults: (_recipient: string, names: string[]) => names.map(worker => ({ worker, text: 'finding' })),
       sendMessage: async (request: { message: string }) => { messages.push(request.message) },
-    },
+    }),
   } as never)
   for (const worker of workers.values()) settlements.pending(worker as never)
   return { settlements, messages, lead, wake, first, idle,

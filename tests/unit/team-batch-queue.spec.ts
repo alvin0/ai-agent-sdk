@@ -1,3 +1,4 @@
+import { teamInternals } from '../../packages/core/src/agent/team/team-internal.ts'
 import { describe, expect, it, vi } from 'vitest'
 import { DISCLOSED_TEAM_GUIDANCE } from '../../packages/core/src/agent/team/managed-lazy-tools.ts'
 import { defineAgent } from '../../packages/core/src/agent/index.ts'
@@ -161,7 +162,7 @@ describe('managed batch queue and review regressions', () => {
     team.team.recordOutcome('a', { kind: 'completed', text: 'archived prior evidence' })
     team.team.detach('a')
     await execute(team, 'spawn_agents', { tasks: [tasks()[0]], join: true })
-    expect(team.team.takeResults('lead', ['a'])).toMatchObject([{ text: 'archived prior evidence' }])
+    expect(teamInternals(team.team).takeResults('lead', ['a'])).toMatchObject([{ text: 'archived prior evidence' }])
   })
 
   it.each([undefined, DISCLOSED_TEAM_GUIDANCE])('bounds escaped payload with optional lazy guidance: %s', guidance => {
