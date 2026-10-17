@@ -121,9 +121,10 @@ Nếu bạn sinh JSON Schema từ chính bộ kiểm tra của mình, cả lớp
 
 ## Lời gọi sai lặp lại đều có chặn trên
 
-Phát hiện lặp y hệt cảnh báo ở `repeatToolWarningAt` và dừng ở `repeatToolLimit`;
-lỗi liên tiếp bị cắt bởi `maxConsecutiveToolErrors`. Nên một model không thoả mãn
-được schema của bạn sẽ thất bại ồn ào, thay vì lặp cho tới khi cạn trần token.
+Phát hiện lặp y hệt cảnh báo mỗi `repeatToolWarningAt` lần, lỗi liên tiếp cảnh
+báo mỗi `consecutiveToolErrorWarningAt` lần. Đặt `repeatToolLimit` hoặc
+`maxConsecutiveToolErrors` để bật điểm dừng cứng, khi đó một model không thoả mãn
+được schema của bạn sẽ thất bại ồn ào thay vì lặp mãi.
 
 Nếu bạn thấy điều đó xảy ra, thường schema hoặc description mới là khiếm khuyết.
 

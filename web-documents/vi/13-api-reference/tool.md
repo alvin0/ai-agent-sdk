@@ -279,11 +279,11 @@ Xem [Durable Execution](/vi/03-tools/durable-execution) để biết hợp đồ
 
 | Chặn trên | Mặc định |
 | --- | --- |
-| `maxToolCalls` | 64 mỗi lượt chạy |
+| `maxToolCalls` | `'auto'` (không có); trần mỗi lượt chạy là tự chọn |
 | `maxToolResultBytes` | Kết quả đã tuần tự hoá được giữ, có chặn trên |
-| `maxToolDurationMs` | Thời gian thực cho mỗi lời gọi |
+| `maxToolDurationMs` | Không có; thời gian thực cho mỗi lời gọi, tự chọn |
 | `toolTeardownTimeoutMs` | Thời gian chờ sau khi huỷ một tool bất hợp tác |
-| `maxConsecutiveToolErrors` | Ngưỡng cắt |
+| `maxConsecutiveToolErrors` | Không có; ngưỡng cắt tự chọn (cảnh báo mỗi 4 lỗi) |
 | `maxParallel` | Số lời gọi an toàn chạy đồng thời |
 
 ## Đọc tiếp

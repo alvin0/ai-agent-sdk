@@ -50,4 +50,4 @@ The LLM bridge's opt-in `model-generated` confidence is self-reported, not provi
 probability evidence. Evidence gates abstain without acceptable evidence.
 
 - [OpenAI generation](/en/09-providers/openai)
-- [Current migration](/en/01-introduction/upgrading-to-0-1-12)
+- [Current migration](/en/01-introduction/upgrading-to-0-1-13)

@@ -2,7 +2,9 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
-## Unreleased
+## 0.1.13 - 2026-10-17
+
+See [upgrading to 0.1.13](docs/upgrading-to-0.1.13.md).
 
 ### Breaking
 
@@ -57,6 +59,70 @@ All notable changes to the AI Agent SDK are documented in this file.
     no longer fails with "Lead synthesis stalled". It records the `synthesis` budget as exhausted
     and returns the lead's latest answer.
 
+- `wait_agents` now waits until its targets settle by default (it was 30 seconds), and a
+  model-requested wait has a 10-second floor (it was 5). Set `waitTimeoutMs` / `minWaitTimeoutMs`
+  to bound waits again.
+
+- After a host/protection progress stop, `progress_updates` now returns a tool error for the
+  rest of that managed invocation, including synthesis wakes, except idempotent `stop: true`.
+  Hosts should start a new `run()`
+  for a new user message to permit scheduling again. Public host method signatures are unchanged.
+- Narrow the unreleased `stopProgressUpdates(reason)` host argument to `host` (default),
+  `run-ended`, or `aborted`. Runtime-only reasons now throw `TypeError`. Raw lead calls stop
+  their schedule at invocation end even after a provisional yield; use managed `run()` to
+  retain reporting across worker joins and synthesis wakes. A new invocation must request again.
+
+- Managed lead catalogs reserve `progress_updates`; rename a host tool using that name or set
+  `progressUpdates: false`. `AgentTeamEvent` and `RuntimeAgentTeamEvent` add `team-progress`;
+  exhaustive event switches must handle the new variant. Existing lifecycle APIs are preserved.
+
+- Aborted `spawn_agents` calls return worker addresses with `cancelled: true` instead of throwing
+  after admission; inspect the flag and coverage before synthesizing. Standalone `wait_agents` keeps
+  its existing throwing cancellation behavior.
+
+- Managed lead catalogs now reserve `spawn_agents` for batch fan-out on both tool surfaces.
+  Rename any host-provided tool using that name; host lifecycle APIs remain unchanged.
+- Plain lean managed leads now expose `spawn_agent` and `spawn_agents` initially; after successful host/model spawning
+  or queued batch admission,
+  control tools remain visible for the team lifetime. Set `progressiveToolDisclosure: false` for
+  eager schemas and full strategy in the system prompt (including workers).
+  Existing team members or a successful spawn in restored lead history also disclose controls.
+  Legacy, collaboration, depth-limited leads
+  and worker catalogs remain eager. The lazy lead keeps a compact stable prompt; its first model
+  spawn result appends detailed coordination guidance once. Default lean schema descriptions are shorter.
+- Rename the unreleased benchmark metric `spawnRejected` to `spawnsRejected`. Spawn rejection
+  reasons add `aborted` with code `TEAM_SPAWN_ABORTED` for pre-admission cancellation.
+
+- Remove unreleased public `AgentTeam.recordTimeline`/`observeSession` instrumentation methods;
+  runtime observation now uses internal helpers. Host consumers use `onEvent`/`subscribe` and typed
+  `snapshot(): TeamSnapshot`. Export `TeamSettlementUsage` used by `recordOutcome`.
+
+- `AgentTeamEvent` adds the `team-timeline` variant. Exhaustive event switches must handle it
+  (or retain a default case); existing event variants and callbacks remain supported.
+
+- Managed teams default to the lean model surface: `spawn_agent`, `spawn_agents`, `send_input`, `wait_agents`,
+  `close_agent`, and explicit paged `get_agent_result`. Set `modelToolSurface: 'legacy'` to retain
+  the earlier names/schemas (`list_agents`, `send_message`, `followup_task`, name-based close).
+  Host lifecycle, remote delivery and worker-view methods remain available. Lean model tools address
+  managed workers and the lead only; remote peers remain host hooks.
+- Managed lead guidance defaults to proactive bounded delegation; set `delegationMode: 'explicit'`
+  for requested delegation only. Generated workers inherit eligible lead application tools by default.
+  Set `inheritLeadTools: false` or `workerSessionOptions.tools: []` to opt out. Explicit worker tools
+  replace definition tools; templates/factories retain their own capabilities. Roles only narrow grants.
+  Guarded inheritance requires the same interceptor array/approval broker supplied explicitly to workers.
+  Undefined scoped session options preserve base policy; inheritance opt-out also clears cloned native
+  tools, skills and skill IDs. Explicit templates, factories and worker grants remain host-owned.
+- `list_agents` is status-only. Local/remote `wait_agents` joins all selected targets and returns
+  bounded new results once per recipient/outcome, shared with push notices. Joining an already settled
+  selection returns immediately without repeating evidence. Active joins capture all outcomes published
+  during the join, including queued follow-ups. Explicit result pages are repeatable.
+- Finished workers auto-release concurrency slots while retaining their addresses and results.
+  `close_agent` in lean mode cancels unfinished work by default, unless model cancellation is disabled;
+  legacy close still requires `cancelRunning: true`. Reactivated workers must pass slot/write admission.
+- Automatic managed `run()` joins through synthesis and rejects scheduled synthesis failures; concurrent
+  `run()` calls reject even when auto coordination is disabled. Invocation abort cancels owned work and
+  its synthesis wake without disposing the reusable team. Standalone wait cancellation stops only waiting.
+
 ### Added
 
 - Managed leads can call the lazily disclosed `progress_updates` tool to request bounded,
@@ -77,6 +143,107 @@ All notable changes to the AI Agent SDK are documented in this file.
 - `ManagedAgentTeamOptions.maxRetainedWorkers` (default 256): accepting a spawn above the bound
   removes the oldest idle workers whose current result the lead already received. Their results
   stay readable from the closed-member archive, which keeps the newest 256 closed members.
+
+- Managed lead tool `spawn_agents({ tasks: [{ name?, item_id?, task, context?, role?, writes? }], join? })`
+  admits independent tasks into free slots plus a bounded FIFO backlog (`maxQueued`, default twice
+  `maxWorkers`, capped at 1024). Queued tasks hold no worker slot or session. Overflow reports free
+  slots and queued count; invalid requests fail before setup. Dependencies and peer waits on queued
+  siblings are disallowed. `join: true` waits across waves with no polling, returns per-item coverage,
+  and shares a 48 KiB aggregate payload budget with warnings/errors and an `omitted` recovery list.
+  Nonjoining batches push one compact final coverage account after all items settle. Call aborts
+  return worker addresses and release unreturned join claims for push recovery; call/invocation/team
+  cancellation drains queued items exactly once (call cancellation only while in flight).
+  Host APIs and single spawning remain compatible.
+  Shared exported delegation strategy is tool-neutral; batch tool advice lives in managed instructions.
+- Multi-agent host guide with migration from 0.1.12 and troubleshooting, plus `pnpm sample:multi-agent`
+  for offline delegation and collaboration through a local fake adapter and real SDK tools.
+- Typed host team timeline through existing `AgentTeam` `onEvent`/`subscribe` hooks: spawn requests,
+  member starts/settlements with canonical usage, worker status, lead yields/wake reasons, notice
+  delivery, empty synthesis wakes, budget decisions and committed collaboration board operations.
+  Managed teams expose immutable `snapshot()` summaries of member status, timings and usage.
+  The benchmark prefers timeline facts and retains its older-SDK fallback. See `docs/team-observability.md`.
+
+- Opt-in `collaboration: true`: revision-CAS task board, compact task discovery, owner/dependency checks,
+  bounded peer wakes and automatic ready/blocked notices. The board remains local and in memory.
+  Joins share managed settlement barriers; each join has a deadline, with pending/preparing work cancelled
+  as one fenced batch on expiry. Idle evidence remains readable. Use an invocation signal for a total cap.
+- Export reusable delegation strategy, explicit/proactive modes, role presets and tool depth filtering.
+  Hosts supply nesting depth and continue to own tools, authorization, persistence and workspace isolation.
+- Autonomous multi-agent benchmark under `test-human/multi-agent-bench/`: six isolated fixture tasks,
+  single/team baselines, optional collaboration feature detection, SDK-wide usage metrics,
+  deterministic graders, offline CI coverage, and branch comparison reports. No host API changes.
+
+### Changed
+
+- Workspace `write_file`, `edit_file` and agentcode `replace_in_file` now reject invalid
+  `.json` content before writing (case-insensitive; empty files are invalid). Valid bytes are
+  preserved, including an optional leading UTF-8 BOM. Hosts can set `validateJsonWrites: false`
+  on the chat sample tools, agentcode registry or benchmark workspace. The portable core
+  `validateJsonFileContent` hook supports custom host tools; see [workspace JSON writes](docs/workspace-json-writes.md).
+
+- Managed lead guidance now weighs worker context/startup/synthesis cost: do small or sequential
+  work directly, use one worker for a worthwhile side task or fresh-context check, and fan out for
+  many independent items when accuracy or time benefits justify the cost. Once justified, prefer
+  more, smaller chunks for careful work within host slot/queue limits. Both spawn
+  tools remain available initially; host hooks, schemas, queue limits and settlement delivery are unchanged.
+
+- Round 9 benchmark `forkSpawns`, `freshSpawns` and `contextUnknownSpawns` count accepted spawns
+  only on both timeline and older-SDK fallback paths. Rejected or pending requests no longer inflate
+  timeline context buckets; attempts, refusals, concurrency and per-member usage retain their semantics.
+  Historical timeline context counts may include refused requests; rerun with identical harness bytes
+  for comparisons. SDK host APIs and model-facing prompts/tools are unchanged.
+
+- Round 8 benchmark metrics consume schema-v1 `team.onEvent` timeline facts: accepted spawns,
+  attempts/refusals, resolved context, active-run concurrency, wasted wakes and finalized usage.
+  Per-member/conversation metrics, root-lead call input and source fields match the observability
+  contract; older SDKs retain inference fallbacks. Audit team events now live once at `teamEvents`
+  instead of `delegation.teamEvents`/`delegation.timelineEvents`. Analysis omits empty merge-gate
+  cohorts and writes files only with `--out <file>` (no default input-directory write). Benchmark
+  consumers must update audit/report paths; SDK host APIs and model-facing prompts/tools are unchanged.
+
+- Round 7 benchmark protocol V7 adds manifest-pinned `--team-options` passthrough, delegation
+  attempts/acceptance/rejections, observed context/concurrency and per-member usage, delegated versus
+  non-delegated quality reports, and per-task merge-gate delta/regression summaries. Older SDKs
+  ignore unknown knobs; SDK host APIs and default prompts/tools are unchanged. Earlier cohorts remain
+  readable by analysis but require rerunning with the same V7 harness for matched comparisons.
+
+- Chat-agents dynamic teams explicitly select lean proactive delegation, keep host-owned worker
+  capabilities and cancellation protection, and use fresh reviewer context. Tool labels and
+  lifecycle documentation match push results, synthesis joins and automatic slot release.
+- Round 6 benchmark protocol V6 adds SDK adapter retries (six attempts, provider retry-after up
+  to 60 seconds), a process-wide model-call semaphore (default four), infrastructure classification
+  and two fresh-workspace reruns, immutable attempt evidence, and manifest-checked `--resume`.
+  Analysis excludes infra-failed cells, warns on insufficient repetitions, and reports retry counts,
+  actual wait and raw/active wall time. V1–V5 cohorts require rerunning; SDK host APIs are unchanged.
+
+- Round 5 benchmark protocol V5 calibrates against live Round 4 failures: exact batched `edit_file`
+  for all arms/tasks, eight-operation migration files, configurable 1200-second volume job/worker
+  budgets, explicit shared-budget prompts, and 72 incident reports with later corrections.
+  Early team completion records graded `completed-orphans` with bounded settlement grace and worker
+  counts; partial usage retains numeric reported totals flagged `usageIncomplete`. Tool errors include
+  names, bounded arguments and real messages. V1–V4 cohorts require rerunning; SDK host APIs are unchanged.
+
+- Round 4 benchmark protocol V4 replaces unsolvable numeric extraction with 24 incident-reading
+  reports, adds 60-file module audits and 40-file API migrations, and separates volume, overhead
+  and control aggregates. Fixed grading checklists preserve partial credit after cap/error/timeout;
+  cached input costs 0.1 token under the default 1.5M aggregate weighted cap. Analysis retains raw
+  and weighted metrics plus flagged reported lower bounds. Artifact tasks omit the empty shell;
+  migration exposes tests only. V3 cohorts must be rerun for comparisons; SDK host APIs are unchanged.
+
+- Round 3 benchmark protocol V3 uses 24 one-page CSV extraction files with a test-only shell,
+  a 400k shared token default and recorded per-task overrides. Collaboration feature flags and
+  lean/push-join status notices are recognized. A copy/build/run comparison driver preserves
+  identical bench bytes across worktrees. V2 cohorts require rerunning for matched comparisons.
+
+- Multi-agent benchmark defaults to seeded scaled tasks; `--suite smoke` retains the original tiny
+  fixtures. All arms share aggregate token/turn/tool caps, with explicit cap-hit metrics. V2 manifests
+  include suite, seed, label and limits; V1 benchmark results require rerunning for matched comparisons.
+- Benchmark worker reports count as fresh lead evidence, collaboration-board exports map to
+  `collaboration: true`, fake coordination follows offered schemas, and Codex credentials use an
+  explicit revisioned file store. SDK bundles and Git metadata resolve from the harness repository.
+- Benchmark file reads now page at 16 KiB; the isolated runner supports module tests and bounded
+  JSON-producing scripts. Review grading executes counterexamples against original handlers.
+  No production SDK host API or model prompt changes.
 
 ### Fixed
 
@@ -140,87 +307,6 @@ All notable changes to the AI Agent SDK are documented in this file.
   before run observation starts, guard late completion callbacks, and clear retained activity
   on disposal. Steering reports `steered` separately from signal cancellation (`aborted`).
 
-### Changed
-
-- Workspace `write_file`, `edit_file` and agentcode `replace_in_file` now reject invalid
-  `.json` content before writing (case-insensitive; empty files are invalid). Valid bytes are
-  preserved, including an optional leading UTF-8 BOM. Hosts can set `validateJsonWrites: false`
-  on the chat sample tools, agentcode registry or benchmark workspace. The portable core
-  `validateJsonFileContent` hook supports custom host tools; see [workspace JSON writes](docs/workspace-json-writes.md).
-
-- Managed lead guidance now weighs worker context/startup/synthesis cost: do small or sequential
-  work directly, use one worker for a worthwhile side task or fresh-context check, and fan out for
-  many independent items when accuracy or time benefits justify the cost. Once justified, prefer
-  more, smaller chunks for careful work within host slot/queue limits. Both spawn
-  tools remain available initially; host hooks, schemas, queue limits and settlement delivery are unchanged.
-
-### Breaking
-
-- `wait_agents` now defaults to a 120-second wait (was 30) with a 10-second floor (was 5) for every
-  `AgentTeam`. Set `waitTimeoutMs` / `minWaitTimeoutMs` to keep the previous bounds.
-
-- After a host/protection progress stop, `progress_updates` now returns a tool error for the
-  rest of that managed invocation, including synthesis wakes, except idempotent `stop: true`.
-  Hosts should start a new `run()`
-  for a new user message to permit scheduling again. Public host method signatures are unchanged.
-- Narrow the unreleased `stopProgressUpdates(reason)` host argument to `host` (default),
-  `run-ended`, or `aborted`. Runtime-only reasons now throw `TypeError`. Raw lead calls stop
-  their schedule at invocation end even after a provisional yield; use managed `run()` to
-  retain reporting across worker joins and synthesis wakes. A new invocation must request again.
-
-- Managed lead catalogs reserve `progress_updates`; rename a host tool using that name or set
-  `progressUpdates: false`. `AgentTeamEvent` and `RuntimeAgentTeamEvent` add `team-progress`;
-  exhaustive event switches must handle the new variant. Existing lifecycle APIs are preserved.
-
-- Aborted `spawn_agents` calls return worker addresses with `cancelled: true` instead of throwing
-  after admission; inspect the flag and coverage before synthesizing. Standalone `wait_agents` keeps
-  its existing throwing cancellation behavior.
-
-- Managed lead catalogs now reserve `spawn_agents` for batch fan-out on both tool surfaces.
-  Rename any host-provided tool using that name; host lifecycle APIs remain unchanged.
-- Plain lean managed leads now expose `spawn_agent` and `spawn_agents` initially; after successful host/model spawning
-  or queued batch admission,
-  control tools remain visible for the team lifetime. Set `progressiveToolDisclosure: false` for
-  eager schemas and full strategy in the system prompt (including workers).
-  Existing team members or a successful spawn in restored lead history also disclose controls.
-  Legacy, collaboration, depth-limited leads
-  and worker catalogs remain eager. The lazy lead keeps a compact stable prompt; its first model
-  spawn result appends detailed coordination guidance once. Default lean schema descriptions are shorter.
-- Rename the unreleased benchmark metric `spawnRejected` to `spawnsRejected`. Spawn rejection
-  reasons add `aborted` with code `TEAM_SPAWN_ABORTED` for pre-admission cancellation.
-
-- Remove unreleased public `AgentTeam.recordTimeline`/`observeSession` instrumentation methods;
-  runtime observation now uses internal helpers. Host consumers use `onEvent`/`subscribe` and typed
-  `snapshot(): TeamSnapshot`. Export `TeamSettlementUsage` used by `recordOutcome`.
-
-- `AgentTeamEvent` adds the `team-timeline` variant. Exhaustive event switches must handle it
-  (or retain a default case); existing event variants and callbacks remain supported.
-
-- Managed teams default to the lean model surface: `spawn_agent`, `spawn_agents`, `send_input`, `wait_agents`,
-  `close_agent`, and explicit paged `get_agent_result`. Set `modelToolSurface: 'legacy'` to retain
-  the earlier names/schemas (`list_agents`, `send_message`, `followup_task`, name-based close).
-  Host lifecycle, remote delivery and worker-view methods remain available. Lean model tools address
-  managed workers and the lead only; remote peers remain host hooks.
-- Managed lead guidance defaults to proactive bounded delegation; set `delegationMode: 'explicit'`
-  for requested delegation only. Generated workers inherit eligible lead application tools by default.
-  Set `inheritLeadTools: false` or `workerSessionOptions.tools: []` to opt out. Explicit worker tools
-  replace definition tools; templates/factories retain their own capabilities. Roles only narrow grants.
-  Guarded inheritance requires the same interceptor array/approval broker supplied explicitly to workers.
-  Undefined scoped session options preserve base policy; inheritance opt-out also clears cloned native
-  tools, skills and skill IDs. Explicit templates, factories and worker grants remain host-owned.
-- `list_agents` is status-only. Local/remote `wait_agents` joins all selected targets and returns
-  bounded new results once per recipient/outcome, shared with push notices. Joining an already settled
-  selection returns immediately without repeating evidence. Active joins capture all outcomes published
-  during the join, including queued follow-ups. Explicit result pages are repeatable.
-- Finished workers auto-release concurrency slots while retaining their addresses and results.
-  `close_agent` in lean mode cancels unfinished work by default, unless model cancellation is disabled;
-  legacy close still requires `cancelRunning: true`. Reactivated workers must pass slot/write admission.
-- Automatic managed `run()` joins through synthesis and rejects scheduled synthesis failures; concurrent
-  `run()` calls reject even when auto coordination is disabled. Invocation abort cancels owned work and
-  its synthesis wake without disposing the reusable team. Standalone wait cancellation stops only waiting.
-
-### Fixed
-
 - Accepted `spawn_agents` backlog survives the tool call returning and the lead turn ending,
   including partial join timeouts and later tool deadlines. Call abort drains queued items only
   while that call is in flight; invocation/team cancellation remains attached until settlement.
@@ -245,103 +331,12 @@ All notable changes to the AI Agent SDK are documented in this file.
   Preserve lost-wake recovery across idle observers and cancelled flushes; bound synthesis-only retries
   to three without progress. Keep partial cancellation/timeout/failure evidence and structured results.
   Settlement notices batch eight reports, disclose remaining work and fit serialized field budgets;
-  `get_agent_result` pages text/structured/error fields without splitting Unicode. `holdWaitMs` is deprecated.
+  `get_agent_result` pages text/structured/error fields without splitting Unicode.
 - Keep interrupted held-worker dependency identity until replacement settles; fence pending/preparing
   cancellation before releasing dependencies. Failed setup settles held waits and drains queued wakes.
   Preserve model-input response ownership when concurrent host follow-ups run, and avoid assigning
   a second delivery identity when forwarding the scheduler's terminal observer event.
 - Offline benchmark fake adapters recognize lean spawn `target` results as well as legacy addresses.
-
-### Added
-
-- Managed lead tool `spawn_agents({ tasks: [{ name?, item_id?, task, context?, role?, writes? }], join? })`
-  admits independent tasks into free slots plus a bounded FIFO backlog (`maxQueued`, default twice
-  `maxWorkers`, capped at 1024). Queued tasks hold no worker slot or session. Overflow reports free
-  slots and queued count; invalid requests fail before setup. Dependencies and peer waits on queued
-  siblings are disallowed. `join: true` waits across waves with no polling, returns per-item coverage,
-  and shares a 48 KiB aggregate payload budget with warnings/errors and an `omitted` recovery list.
-  Nonjoining batches push one compact final coverage account after all items settle. Call aborts
-  return worker addresses and release unreturned join claims for push recovery; call/invocation/team
-  cancellation drains queued items exactly once (call cancellation only while in flight).
-  Host APIs and single spawning remain compatible.
-  Shared exported delegation strategy is tool-neutral; batch tool advice lives in managed instructions.
-- Multi-agent host guide with 0.1.12 migration and troubleshooting, plus `pnpm sample:multi-agent`
-  for offline delegation and collaboration through a local fake adapter and real SDK tools.
-- Typed host team timeline through existing `AgentTeam` `onEvent`/`subscribe` hooks: spawn requests,
-  member starts/settlements with canonical usage, worker status, lead yields/wake reasons, notice
-  delivery, empty synthesis wakes, budget decisions and committed collaboration board operations.
-  Managed teams expose immutable `snapshot()` summaries of member status, timings and usage.
-  The benchmark prefers timeline facts and retains its older-SDK fallback. See `docs/team-observability.md`.
-
-- Opt-in `collaboration: true`: revision-CAS task board, compact task discovery, owner/dependency checks,
-  bounded peer wakes and automatic ready/blocked notices. The board remains local and in memory.
-  Joins share managed settlement barriers; each join has a deadline, with pending/preparing work cancelled
-  as one fenced batch on expiry. Idle evidence remains readable. Use an invocation signal for a total cap.
-- Export reusable delegation strategy, explicit/proactive modes, role presets and tool depth filtering.
-  Hosts supply nesting depth and continue to own tools, authorization, persistence and workspace isolation.
-- Autonomous multi-agent benchmark under `test-human/multi-agent-bench/`: six isolated fixture tasks,
-  single/team baselines, optional collaboration feature detection, SDK-wide usage metrics,
-  deterministic graders, offline CI coverage, and branch comparison reports. No host API changes.
-
-### Changed
-
-- Round 9 benchmark `forkSpawns`, `freshSpawns` and `contextUnknownSpawns` count accepted spawns
-  only on both timeline and older-SDK fallback paths. Rejected or pending requests no longer inflate
-  timeline context buckets; attempts, refusals, concurrency and per-member usage retain their semantics.
-  Historical timeline context counts may include refused requests; rerun with identical harness bytes
-  for comparisons. SDK host APIs and model-facing prompts/tools are unchanged.
-
-- Round 8 benchmark metrics consume schema-v1 `team.onEvent` timeline facts: accepted spawns,
-  attempts/refusals, resolved context, active-run concurrency, wasted wakes and finalized usage.
-  Per-member/conversation metrics, root-lead call input and source fields match the observability
-  contract; older SDKs retain inference fallbacks. Audit team events now live once at `teamEvents`
-  instead of `delegation.teamEvents`/`delegation.timelineEvents`. Analysis omits empty merge-gate
-  cohorts and writes files only with `--out <file>` (no default input-directory write). Benchmark
-  consumers must update audit/report paths; SDK host APIs and model-facing prompts/tools are unchanged.
-
-- Round 7 benchmark protocol V7 adds manifest-pinned `--team-options` passthrough, delegation
-  attempts/acceptance/rejections, observed context/concurrency and per-member usage, delegated versus
-  non-delegated quality reports, and per-task merge-gate delta/regression summaries. Older SDKs
-  ignore unknown knobs; SDK host APIs and default prompts/tools are unchanged. Earlier cohorts remain
-  readable by analysis but require rerunning with the same V7 harness for matched comparisons.
-
-- Chat-agents dynamic teams explicitly select lean proactive delegation, keep host-owned worker
-  capabilities and cancellation protection, and use fresh reviewer context. Tool labels and
-  lifecycle documentation match push results, synthesis joins and automatic slot release.
-- Round 6 benchmark protocol V6 adds SDK adapter retries (six attempts, provider retry-after up
-  to 60 seconds), a process-wide model-call semaphore (default four), infrastructure classification
-  and two fresh-workspace reruns, immutable attempt evidence, and manifest-checked `--resume`.
-  Analysis excludes infra-failed cells, warns on insufficient repetitions, and reports retry counts,
-  actual wait and raw/active wall time. V1–V5 cohorts require rerunning; SDK host APIs are unchanged.
-
-- Round 5 benchmark protocol V5 calibrates against live Round 4 failures: exact batched `edit_file`
-  for all arms/tasks, eight-operation migration files, configurable 1200-second volume job/worker
-  budgets, explicit shared-budget prompts, and 72 incident reports with later corrections.
-  Early team completion records graded `completed-orphans` with bounded settlement grace and worker
-  counts; partial usage retains numeric reported totals flagged `usageIncomplete`. Tool errors include
-  names, bounded arguments and real messages. V1–V4 cohorts require rerunning; SDK host APIs are unchanged.
-
-- Round 4 benchmark protocol V4 replaces unsolvable numeric extraction with 24 incident-reading
-  reports, adds 60-file module audits and 40-file API migrations, and separates volume, overhead
-  and control aggregates. Fixed grading checklists preserve partial credit after cap/error/timeout;
-  cached input costs 0.1 token under the default 1.5M aggregate weighted cap. Analysis retains raw
-  and weighted metrics plus flagged reported lower bounds. Artifact tasks omit the empty shell;
-  migration exposes tests only. V3 cohorts must be rerun for comparisons; SDK host APIs are unchanged.
-
-- Round 3 benchmark protocol V3 uses 24 one-page CSV extraction files with a test-only shell,
-  a 400k shared token default and recorded per-task overrides. Collaboration feature flags and
-  lean/push-join status notices are recognized. A copy/build/run comparison driver preserves
-  identical bench bytes across worktrees. V2 cohorts require rerunning for matched comparisons.
-
-- Multi-agent benchmark defaults to seeded scaled tasks; `--suite smoke` retains the original tiny
-  fixtures. All arms share aggregate token/turn/tool caps, with explicit cap-hit metrics. V2 manifests
-  include suite, seed, label and limits; V1 benchmark results require rerunning for matched comparisons.
-- Benchmark worker reports count as fresh lead evidence, collaboration-board exports map to
-  `collaboration: true`, fake coordination follows offered schemas, and Codex credentials use an
-  explicit revisioned file store. SDK bundles and Git metadata resolve from the harness repository.
-- Benchmark file reads now page at 16 KiB; the isolated runner supports module tests and bounded
-  JSON-producing scripts. Review grading executes counterexamples against original handlers.
-  No production SDK host API or model prompt changes.
 
 ## 0.1.12 - 2026-10-11
 

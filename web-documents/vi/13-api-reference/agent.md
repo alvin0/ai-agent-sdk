@@ -145,8 +145,9 @@ interface RuntimeAgentSession {
 ```ts
 {
   maxSteps?: number | 'auto'
-  maxToolCalls?: number
-  maxConsecutiveToolErrors?: number
+  maxToolCalls?: number | 'auto'
+  maxConsecutiveToolErrors?: number | 'auto'
+  consecutiveToolErrorWarningAt?: number
   maxTotalTokens?: number | 'auto'
   finalReportReserveTokens?: number
   finalizeSteps?: number
@@ -163,11 +164,14 @@ trần đó** — không bỏ gì khác.
 
 | Giới hạn | Mặc định | `'auto'` nghĩa là |
 | --- | --- | --- |
-| `maxTurns` / `maxSteps` | `16` | Chạy theo tiêu chí hoàn thành: không có trần số bước model |
+| `maxTurns` / `maxSteps` | `'auto'` | Chạy theo tiêu chí hoàn thành: không có trần số bước model |
+| `maxToolCalls` | `'auto'` | Không có trần số tool |
 | `maxTotalTokens` | `'auto'` | Không có trần token tổng; nhắc token và phần dự trữ báo cáo không hoạt động |
 
-Các chốt tài nguyên, huỷ, nén ngữ cảnh, sổ kế toán mức run, chốt chống lặp và
-kiểm tra hoàn thành đều vẫn còn hiệu lực. Session được tuần tự hoá giữ nguyên
+Từ 0.1.13, mọi giới hạn có thể dừng lượt chạy mặc định tắt; đặt một con số để
+bật. Các chốt tài nguyên, huỷ, nén ngữ cảnh, cảnh báo chống lặp,
+`modelIdleTimeoutMs` cắt stream im lặng (10 phút) và kiểm tra hoàn thành đều vẫn
+còn hiệu lực. Session được tuần tự hoá giữ nguyên
 `'auto'` chứ không quy về một con số.
 
 `finalReportReserveTokens` dừng công việc tool khi vẫn còn dư token cho một báo
@@ -190,8 +194,8 @@ và trả lời từ những gì đã có, như mọi budget khác, thay vì b�
 câu trả lời. Mặc định `'auto'` (không giới hạn thời gian).
 
 `userInputTimeoutMs` giới hạn thời gian `request_user_input` chờ một người trả
-lời. Mặc định bằng `maxToolDurationMs`, vốn không còn giới hạn chính việc chờ,
-nên có thể cho người dùng nhiều thời gian hơn tool. Khi hết hạn, model được báo
+lời. Đây là tùy chọn: mặc định việc chờ không có deadline và kết thúc khi người
+dùng trả lời hoặc lượt chạy bị huỷ; `maxToolDurationMs` không giới hạn nó. Khi hết hạn, model được báo
 là người dùng chưa trả lời và tiếp tục với giả định đã nêu rõ; việc này không bị
 ghi nhận là người dùng bỏ qua câu hỏi.
 

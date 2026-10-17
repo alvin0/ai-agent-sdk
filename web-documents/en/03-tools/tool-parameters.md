@@ -121,10 +121,10 @@ If you generate JSON Schema from your validator, this class of bug disappears.
 
 ## Repeated invalid calls are bounded
 
-Exact-repeat detection warns at `repeatToolWarningAt` and stops at
-`repeatToolLimit`; consecutive failures are cut off by
-`maxConsecutiveToolErrors`. So a model that cannot satisfy your schema fails
-loudly instead of looping until the token ceiling.
+Exact-repeat detection warns every `repeatToolWarningAt` repeats, and
+consecutive failures warn every `consecutiveToolErrorWarningAt`. Set
+`repeatToolLimit` or `maxConsecutiveToolErrors` to opt in to a hard stop, so a
+model that cannot satisfy your schema fails loudly instead of looping.
 
 If you see that happen, the schema or the description is usually the defect.
 

@@ -187,7 +187,7 @@ export async function POST(request: Request): Promise<Response> {
 
 `SdkMcpServerOptions` also accepts `instructions`, `approvals`, `interceptors`,
 and bounds: `maxExports` (1,024), `maxDefinitionBytes` (4 MiB), `maxInputBytes`
-(1 MiB), `maxOutputBytes` (4 MiB), `operationTimeoutMs` (10 min),
+(1 MiB), `maxOutputBytes` (4 MiB), `operationTimeoutMs` (none by default; opt-in),
 `teardownTimeoutMs` (30 s), `observerTimeoutMs` (5 s).
 
 The handler accepts already-validated `authInfo` but performs no authentication

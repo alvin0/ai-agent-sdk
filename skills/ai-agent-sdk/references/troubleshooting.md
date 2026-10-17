@@ -4,13 +4,15 @@
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Answered without using the tools | `maxTurns` / `maxToolCalls` exhausted; exhaustion reserves one tools-disabled final answer, which looks exactly like this | Raise the budget, or set `onExhausted: 'continue'` |
+| Answered without using the tools | A `maxTurns` / `maxToolCalls` cap you set was exhausted (both default to `'auto'`); exhaustion reserves one tools-disabled final answer, which looks exactly like this | Raise or remove the cap, or set `onExhausted: 'continue'` |
 | Stopped mid-task with no final answer | Token exhaustion stops **immediately** — the safety budget must not spend itself explaining it was reached | Check `maxTotalTokens` in `runtimeLimits` |
-| Keeps calling the same tool | Exact-repeat detection (`repeatToolWarningAt`, `repeatToolLimit`) or cycle detection (`toolCycleWarningAt`, `toolCycleLimit`, `maxToolCycleLength`) | Raise them — but first check whether the tool's result is uninformative |
+| Keeps calling the same tool | By default repeat/cycle guards only warn (every `repeatToolWarningAt` / `toolCycleWarningAt` repetitions) | First check whether the tool's result is uninformative; set `repeatToolLimit` / `toolCycleLimit` to opt in to a hard stop |
+| Stopped after repeated tool errors | `maxConsecutiveToolErrors` was set; by default failures only trigger a warning every `consecutiveToolErrorWarningAt` (4) | Fix the failing tool or arguments, or remove the limit |
+| Model call failed with `MODEL_TIMEOUT` | The stream was silent for `modelIdleTimeoutMs` (10 min), or an opt-in `modelTimeoutMs` passed | Check the provider connection; raise `modelIdleTimeoutMs` for models that think silently for longer |
 | `deep` mode never finishes | The turn cannot end until the `submit_result` self-check is accepted | Read the terminal report; the submission was rejected, not missing |
 
-Watch for the app-authored budget warning injected at **75%** of
-`maxToolCalls` — it appears in history as a lifecycle entry.
+When `maxToolCalls` is set, watch for the app-authored budget warning injected
+at **75%** of it — it appears in history as a lifecycle entry.
 
 ## Nothing gets compacted
 

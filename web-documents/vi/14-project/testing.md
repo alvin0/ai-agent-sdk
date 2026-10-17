@@ -140,4 +140,4 @@ observability, và MCP.
 - [`@alvin0/ai-agent-sdk-testkit`](/vi/14-project/testkit)
 - [Đóng góp](/vi/14-project/contributing)
 
-Xem [nâng cấp lên 0.1.12](/vi/01-introduction/upgrading-to-0-1-12) cho release hiện tại và phạm vi bằng chứng local/hosted.
+Xem [nâng cấp lên 0.1.13](/vi/01-introduction/upgrading-to-0-1-13) cho release hiện tại và phạm vi bằng chứng local/hosted.

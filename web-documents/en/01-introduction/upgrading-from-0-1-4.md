@@ -1,7 +1,7 @@
 # Upgrading from 0.1.4 to 0.1.5
 
 This guide covers changes introduced in **0.1.5**. For the current workspace,
-see [upgrading to 0.1.12](/en/01-introduction/upgrading-to-0-1-12).
+see [upgrading to 0.1.13](/en/01-introduction/upgrading-to-0-1-13).
 
 Existing import routes, provider/model/effort configuration, ordinary tools,
 `run`/`stream`, and snapshot/resume remain available. The effort redesign in the

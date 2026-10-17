@@ -145,8 +145,9 @@ interface RuntimeAgentSession {
 ```ts
 {
   maxSteps?: number | 'auto'
-  maxToolCalls?: number
-  maxConsecutiveToolErrors?: number
+  maxToolCalls?: number | 'auto'
+  maxConsecutiveToolErrors?: number | 'auto'
+  consecutiveToolErrorWarningAt?: number
   maxTotalTokens?: number | 'auto'
   finalReportReserveTokens?: number
   finalizeSteps?: number
@@ -163,11 +164,14 @@ interface RuntimeAgentSession {
 
 | Limit | Default | `'auto'` means |
 | --- | --- | --- |
-| `maxTurns` / `maxSteps` | `16` | Completion-driven: no fixed model-step ceiling |
+| `maxTurns` / `maxSteps` | `'auto'` | Completion-driven: no fixed model-step ceiling |
+| `maxToolCalls` | `'auto'` | No tool-call ceiling |
 | `maxTotalTokens` | `'auto'` | No aggregate token ceiling; reminders and report reserves are inactive |
 
-Resource guards, cancellation, compaction, the run-level ledger, loop guards,
-and completion checks all still apply. A serialized session preserves `'auto'`
+Since 0.1.13 every limit that can stop a run defaults to off; set a number to
+opt in. Resource guards, cancellation, compaction, loop-guard warnings, the
+silent-stream `modelIdleTimeoutMs` (10 minutes), and completion checks all still
+apply. A serialized session preserves `'auto'`
 rather than resolving it to a number.
 
 `finalReportReserveTokens` stops tool work with token headroom left for one
@@ -190,8 +194,8 @@ turn answers from what it has, like any other spent budget, instead of being
 cancelled with nothing. Default `'auto'` (no time budget).
 
 `userInputTimeoutMs` bounds how long `request_user_input` waits for a person.
-It defaults to `maxToolDurationMs`, which no longer bounds the wait itself, so
-people can be given longer than tools. When it passes, the model is told the
+It is opt-in: by default the wait has no deadline and ends when the person
+answers or the run is cancelled; `maxToolDurationMs` does not bound it. When it passes, the model is told the
 person did not answer and continues on stated assumptions; it is not recorded as
 the person dismissing the question.
 

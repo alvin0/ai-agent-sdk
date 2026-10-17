@@ -73,7 +73,7 @@ class AgentTeam {
 | `list_agents` | — | Roster: kind, protocol, delivery modes, status |
 | `send_message` | local only | Quiet context injection |
 | `followup_task` | local or remote | Serialized work, returns the result |
-| `wait_agents` | local | Waits within `timeoutMs`; a timeout returns the roster |
+| `wait_agents` | local | Waits until selected work settles, or an optional `timeoutMs`; a timeout returns the roster |
 | `spawn_agent` | managed lead only | Starts a worker clone and returns without waiting |
 
 Set `team: { team, tools: false }` when only the host may communicate. Sender

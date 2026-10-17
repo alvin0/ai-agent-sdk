@@ -144,10 +144,10 @@ Bạn không cần tự dựng những thứ này:
 | --- | --- |
 | Ngữ cảnh sắp tràn | Nén tự động ở `thresholdRatio` |
 | Nhà cung cấp xác nhận đã tràn | Một lần nén-rồi-thử-lại (`maxOverflowRetries`) |
-| Model đang lặp lại chính nó | `repeatToolWarningAt` → cảnh báo, `repeatToolLimit` → dừng |
-| Model đang lặp một chu trình ngắn | `toolCycleWarningAt` / `toolCycleLimit` |
-| Tool liên tục thất bại | Ngưỡng cắt `maxConsecutiveToolErrors` |
-| Ngân sách tool gần cạn | Một cảnh báo do app soạn ở mốc 75% `maxToolCalls` |
+| Model đang lặp lại chính nó | `repeatToolWarningAt` → cảnh báo, `repeatToolLimit` (tự chọn) → dừng |
+| Model đang lặp một chu trình ngắn | `toolCycleWarningAt` / `toolCycleLimit` (tự chọn) |
+| Tool liên tục thất bại | Cảnh báo `consecutiveToolErrorWarningAt`, ngưỡng cắt `maxConsecutiveToolErrors` (tự chọn) |
+| Ngân sách tool gần cạn | Một cảnh báo do app soạn ở mốc 75% `maxToolCalls` đã đặt |
 | Một lựa chọn model/effort/native-tool bất khả thi | Bị chặn trước khi có I/O tới nhà cung cấp |
 
 ## Chọn chỗ đặt điều kiện

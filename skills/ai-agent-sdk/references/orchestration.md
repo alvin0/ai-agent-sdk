@@ -129,8 +129,10 @@ concept cannot silently change the declared topology.
 
 `runtime.team(options)` is the runtime-level entry point for the same thing.
 
-Managed-team prompts supply protocol facts. Put required planning, delegation,
-and synthesis strategy in the host's instructions. `autoLeadCoordination`
+Managed-team guidance defaults to proactive, bounded delegation
+(`delegationMode: 'explicit'` delegates only when asked), and generated workers
+inherit eligible lead tools (`inheritLeadTools: false` opts out). Put
+task-specific planning and synthesis strategy in the host's instructions. `autoLeadCoordination`
 defaults to true; false leaves run scheduling to the host. `workerTeamTools`
 defaults to `reporting`, and also accepts `full` or false. A clean tool-only
 worker can finish with empty text; set `requireWorkerText: true` for mandatory
@@ -141,18 +143,29 @@ for readers. They enforce scheduling conflicts, not filesystem authorization.
 `dependsOn` binds already registered producer instances, even after address
 reuse. Read retained status/results before closing a worker. The 8 KiB default
 `maxDependencyReportBytes` accepts custom values of at least 4; full dependency
-evidence remains retrievable. `workerTimeoutMs` bounds active execution, not
-setup or time waiting on dependencies. Apply a host end-to-end deadline when
-those phases must also be bounded.
+evidence remains retrievable. `workerTimeoutMs` is opt-in (no default deadline);
+when set, it bounds active execution, not setup or time waiting on dependencies.
+Apply a host end-to-end deadline (an invocation signal) when a total cap is needed.
 
 ### Parallel delegation
 
 One `spawn_agent` call creates a real `DefinedAgent` clone and `AgentSession`.
-Multiple `spawn_agent` calls in the same model step are concurrency-safe, so
-independent work fans out. The lead also gets `list_agents` and `wait_agents`.
+Multiple `spawn_agent` calls in the same model step are concurrency-safe, and
+`spawn_agents({ tasks, join? })` admits a batch into free slots plus a bounded
+FIFO backlog (`maxQueued`). The default lean model surface is `spawn_agent`,
+`spawn_agents`, `send_input`, `wait_agents`, `close_agent` and paged
+`get_agent_result`; `modelToolSurface: 'legacy'` keeps the earlier names
+(`list_agents`, `send_message`, `followup_task`). Plain lean leads disclose the
+control tools after the first successful spawn.
 
-`wait_agents` returns as soon as the **first** selected target settles. A
-finished worker keeps its `maxWorkers` slot accounting honest.
+Worker results arrive as runtime push settlements; `wait_agents` joins **all**
+selected targets and returns only new evidence. With no `waitTimeoutMs` it waits
+until they settle, new input steers the lead (`interrupted: true`), or the run is
+cancelled. Finished workers release their slots automatically and keep their
+addresses; `maxRetainedWorkers` (256) bounds idle retained workers. Managed
+`run()` joins through synthesis; if the lead keeps yielding without new reports,
+the run returns the lead's latest answer. `progress_updates` (lazily disclosed)
+lets the lead request runtime-owned user status reports.
 
 `maxParallel` (in `runtimeLimits`) caps how many eligible tool calls run at once.
 
