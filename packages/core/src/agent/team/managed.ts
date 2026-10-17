@@ -110,7 +110,7 @@ export class ManagedAgentTeam {
     this.settlements = new ManagedSettlements({
       options, team: this.team, leadName: this.leadName, signal: this.lifecycle.signal,
       workers: this.workerRuntimes, lead: () => this.lead, joining: () => this.joining,
-      invocationSignal: () => this.invocation?.signal ?? this.finishingSignal,
+      invocationSignal: () => this.invocation !== undefined ? this.invocation.signal : this.finishingSignal,
       releaseDependents: runtime => this.releaseDependents(runtime),
     })
     this.leadCoordination = new ManagedLeadCoordination({
@@ -261,7 +261,7 @@ export class ManagedAgentTeam {
       this.settlements.leadFailure = undefined
       this.joining = this.options.autoLeadCoordination !== false
       this.settlements.resumeReports()
-      const execute = () => this.lead.run(input, invocation)
+      const execute = () => this.lead.run(input, { ...invocation, signal })
       const response = this.collaboration === undefined ? await execute()
         : await this.collaboration.runLead(execute, signal)
       this.finalBoundary('lead-returned')
