@@ -30,7 +30,6 @@ import type {
 import {
   boundedString, positiveInteger, newTeamId,
   DEFAULT_MIN_WAIT_TIMEOUT_MS,
-  DEFAULT_WAIT_TIMEOUT_MS,
 } from './common.ts'
 export class AgentTeam implements TeamPort {
   private readonly observation: TeamObservation
@@ -41,7 +40,7 @@ export class AgentTeam implements TeamPort {
   private readonly disposeTimeoutMs: number
   private readonly operationTimeoutMs: number | undefined
   private readonly observerTimeoutMs: number
-  private readonly waitTimeoutMs: number
+  private readonly waitTimeoutMs: number | undefined
   private readonly minWaitTimeoutMs: number
   private onEvent: ((event: AgentTeamEvent) => void) | undefined
   private onAgentEvent: AgentTeamOptions['onAgentEvent']
@@ -68,7 +67,7 @@ export class AgentTeam implements TeamPort {
     this.maxMessages = positiveInteger(options.maxMessages ?? 10_000, 'maxMessages')
     const maxMailboxBytes = positiveInteger(options.maxMailboxBytes ?? 64 * 1024 * 1024, 'maxMailboxBytes')
     const maxMetadataBytes = positiveInteger(options.maxMetadataBytes ?? 8 * 1024, 'maxMetadataBytes')
-    const timeouts = teamTimeouts(options, DEFAULT_WAIT_TIMEOUT_MS, DEFAULT_MIN_WAIT_TIMEOUT_MS)
+    const timeouts = teamTimeouts(options, DEFAULT_MIN_WAIT_TIMEOUT_MS)
     this.disposeTimeoutMs = timeouts.disposeTimeoutMs
     this.operationTimeoutMs = timeouts.operationTimeoutMs
     this.observerTimeoutMs = timeouts.observerTimeoutMs

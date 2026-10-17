@@ -102,14 +102,16 @@ export function localMemberIdle(member: LocalMemberRuntime, requested: number): 
     && requested === member.wakeRequestedSeq
 }
 
-export function teamTimeouts(options: AgentTeamOptions, defaultWait: number, defaultMinWait: number) {
+export function teamTimeouts(options: AgentTeamOptions, defaultMinWait: number) {
   const disposeTimeoutMs = timeoutValue(options.disposeTimeoutMs ?? 30_000)
   // Opt-in: a default deadline would cut a long lead or member turn and discard its work.
   const operationTimeoutMs = options.operationTimeoutMs === undefined
     ? undefined : timeoutValue(options.operationTimeoutMs)
   const observerTimeoutMs = timeoutValue(options.observerTimeoutMs ?? 1_000)
-  const waitTimeoutMs = timeoutValue(options.waitTimeoutMs ?? defaultWait)
-  const minWaitTimeoutMs = Math.min(timeoutValue(options.minWaitTimeoutMs ?? defaultMinWait), waitTimeoutMs)
+  // Opt-in: by default wait_agents waits until its targets settle, the caller is steered, or it is cancelled.
+  const waitTimeoutMs = options.waitTimeoutMs === undefined ? undefined : timeoutValue(options.waitTimeoutMs)
+  const minWaitTimeoutMs = Math.min(timeoutValue(options.minWaitTimeoutMs ?? defaultMinWait),
+    waitTimeoutMs ?? Infinity)
   return { disposeTimeoutMs, operationTimeoutMs, observerTimeoutMs, waitTimeoutMs, minWaitTimeoutMs }
 }
 
@@ -157,7 +159,7 @@ export function answeredWake(member: LocalMemberRuntime): boolean {
   return member.session.hasUnansweredInput?.() === false
 }
 
-export function waitToolSchema(waitTimeoutMs: number, minWaitTimeoutMs: number) {
+export function waitToolSchema(waitTimeoutMs: number | undefined, minWaitTimeoutMs: number) {
   return {
           type: 'object',
           properties: {
@@ -168,7 +170,9 @@ export function waitToolSchema(waitTimeoutMs: number, minWaitTimeoutMs: number) 
             timeoutMs: {
               type: 'number',
               description:
-                `Give up after this long and report instead, default ${String(waitTimeoutMs)}.`
+                (waitTimeoutMs === undefined
+                  ? 'Optional: give up after this long and report instead. Omit it to wait until they settle.'
+                  : `Give up after this long and report instead, default ${String(waitTimeoutMs)}.`)
                 + ` Anything under ${String(minWaitTimeoutMs)} is raised to it: a wait too short to`
                 + ` finish anything costs a model round without new results.`,
             },

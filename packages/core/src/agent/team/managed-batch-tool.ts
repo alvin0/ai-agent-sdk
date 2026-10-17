@@ -19,8 +19,8 @@ interface BatchToolHost {
   readonly leadName: string
   readonly maxWorkers: number
   readonly maxQueued: number
-  readonly spawnTimeoutMs: number
-  readonly waitTimeoutMs: number
+  readonly spawnTimeoutMs: number | undefined
+  readonly waitTimeoutMs: number | undefined
   guidanceBudget(): string | undefined
   spawnGuidance(): string | undefined
   roleSchema(): Record<string, unknown>
@@ -52,7 +52,8 @@ export function batchSpawnTool(host: BatchToolHost): ToolDefinition<any> {
     }, required: ['tasks'], additionalProperties: false },
     parse: parseBatch,
     execute: (args, ctx) => executeBatch(host, args, ctx),
-    timeoutMs: host.spawnTimeoutMs + host.waitTimeoutMs,
+    ...host.spawnTimeoutMs === undefined || host.waitTimeoutMs === undefined
+      ? {} : { timeoutMs: host.spawnTimeoutMs + host.waitTimeoutMs },
     isConcurrencySafe: () => true,
   })
 }

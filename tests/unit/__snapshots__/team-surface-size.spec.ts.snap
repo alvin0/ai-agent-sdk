@@ -236,8 +236,8 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
     ],
     "legacy": [
       {
-        "estimatedTokens": 2173,
-        "sha256": "84e321e67de0f30af408250664e78d85d621817442e25d88acf48596993bfe11",
+        "estimatedTokens": 2180,
+        "sha256": "0a426d78127c1fcb6b92150fbb26ec1a21992574659e255580d014f8439a63de",
         "system": 2633,
         "toolNames": [
           "spawn_agent",
@@ -249,8 +249,8 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
           "followup_task",
           "wait_agents",
         ],
-        "tools": 6058,
-        "total": 8691,
+        "tools": 6087,
+        "total": 8720,
       },
       {
         "estimatedTokens": 660,
@@ -265,8 +265,8 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
         "total": 2639,
       },
       {
-        "estimatedTokens": 2279,
-        "sha256": "19614e22a3ea2b7d497f03ebf253df2fe24c4660d503a5536536c9e84ab49d07",
+        "estimatedTokens": 2286,
+        "sha256": "bf97ca6f0c15d23b2c7ebbe7b1cc41349beb6395e100c00364d376e5cc5490bc",
         "system": 2633,
         "toolNames": [
           "spawn_agent",
@@ -279,8 +279,8 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
           "wait_agents",
           "progress_updates",
         ],
-        "tools": 6481,
-        "total": 9114,
+        "tools": 6510,
+        "total": 9143,
       },
     ],
     "single": [

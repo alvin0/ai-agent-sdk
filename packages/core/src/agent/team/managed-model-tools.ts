@@ -55,7 +55,7 @@ export function leanControlTools(host: ManagedControlsHost): readonly ToolDefini
         ...(guidance === undefined ? {} : { guidance }),
         ...worker.error === undefined ? {} : { error: worker.error } })
     },
-    timeoutMs: host.spawnTimeoutMs,
+    ...host.spawnTimeoutMs === undefined ? {} : { timeoutMs: host.spawnTimeoutMs },
     isConcurrencySafe: () => true,
   }), defineTool({
     name: 'close_agent', budgetExempt: true,

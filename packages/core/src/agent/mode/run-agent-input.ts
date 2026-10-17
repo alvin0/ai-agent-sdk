@@ -11,7 +11,8 @@ type UserInputToolOptions = {
   broker: UserInputBroker
   state: DeepState
   emit: (event: AgentRunEvent) => Promise<void>
-  waitMs: number
+  /** Opt-in answer deadline; undefined waits until the user answers or the run is cancelled. */
+  waitMs: number | undefined
   accounting?: RunTurnOptions['accounting']
 }
 
@@ -39,7 +40,7 @@ async function waitForInput(
 }
 
 type FinishInputOptions = {
-  response: UserInputDecision; questions: readonly UserInputQuestion[]; waitMs: number
+  response: UserInputDecision; questions: readonly UserInputQuestion[]; waitMs: number | undefined
   unanswered: AbortSignal; ctx: UserInputContext; state: DeepState
   operation: string | undefined; accounting: RunTurnOptions['accounting']
 }
@@ -66,7 +67,7 @@ function abortedInputResponse(
 function finishInputResponse(options: FinishInputOptions): JsonObject {
   const { response, questions, waitMs, unanswered, ctx, state, operation, accounting } = options
   if (response === 'abort' && unanswered.aborted && !ctx.signal.aborted) {
-    return timedOutInputResponse(waitMs, operation, accounting)
+    return timedOutInputResponse(waitMs!, operation, accounting)
   }
   if (response === 'abort') return abortedInputResponse(ctx, state, operation, accounting)
   state.draftAnswer = undefined
@@ -106,7 +107,7 @@ export function userInputTool(
       }
       // Start the broker first: an event consumer may resolve synchronously, and
       // the waiter must already exist when the request event becomes visible.
-      const unanswered = AbortSignal.timeout(waitMs)
+      const unanswered = waitMs === undefined ? new AbortController().signal : AbortSignal.timeout(waitMs)
       try {
         const pending = broker.request(request, AbortSignal.any([ctx.signal, unanswered]))
         // Observe the broker immediately, including rejection while publication

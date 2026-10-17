@@ -18,6 +18,7 @@ export interface A2AAgentLinkOptions {
   readonly allowPrivateNetwork?: boolean
   readonly allowRedirects?: boolean
   readonly validateEndpoint?: (url: URL) => void
+  /** Opt-in deadline for discovery and each remote request; none by default. */
   readonly timeoutMs?: number
   readonly teardownTimeoutMs?: number
   readonly maxRequestBytes?: number

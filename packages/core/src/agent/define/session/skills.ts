@@ -80,10 +80,7 @@ export async function prepareSkills(
 ): Promise<void> {
   const { skillLookup, clearPending, signal, accounting } = context
   const operation = accounting?.startOperation('skill', { data: { action: 'discover-and-restore' } })
-  const operationSignal = AbortSignal.any([
-    AbortSignal.timeout(definition.skillOptions.operationTimeoutMs),
-    ...signal === undefined ? [] : [signal],
-  ])
+  const operationSignal = skillSignal(definition.skillOptions.operationTimeoutMs, signal)
   try {
     if (catalog === undefined) {
       if (pending.length > 0) {
@@ -115,4 +112,12 @@ export async function prepareSkills(
     failSkillPreparation(catalog, accounting, operation, { operationSignal, error })
     throw error
   }
+}
+
+/** Opt-in skill deadline combined with the caller's signal. */
+function skillSignal(timeoutMs: number | undefined, signal: AbortSignal | undefined): AbortSignal {
+  return AbortSignal.any([
+    ...timeoutMs === undefined ? [] : [AbortSignal.timeout(timeoutMs)],
+    ...signal === undefined ? [] : [signal],
+  ])
 }

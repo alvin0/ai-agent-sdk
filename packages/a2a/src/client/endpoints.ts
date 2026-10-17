@@ -1,3 +1,4 @@
+import { A2A_NO_DEADLINE_MS } from '../common/limits.ts'
 import {
   type AgentCard,
 } from '@a2a-js/sdk'
@@ -55,7 +56,7 @@ export function validateEndpoint(value: string, options: A2AAgentLinkOptions): U
 export function endpointFetch(baseFetch: typeof fetch, options: A2AAgentLinkOptions): typeof fetch {
   if (typeof baseFetch !== 'function') throw new TypeError('A2A endpoint resolution requires fetch')
   const maxBytes = positiveInteger(options.maxTransportBytes ?? 16 * 1024 * 1024, 'maxTransportBytes')
-  const timeoutMs = positiveInteger(options.timeoutMs ?? 120_000, 'timeoutMs')
+  const timeoutMs = positiveInteger(options.timeoutMs ?? A2A_NO_DEADLINE_MS, 'timeoutMs')
   const teardownTimeoutMs = positiveInteger(options.teardownTimeoutMs ?? 30_000, 'teardownTimeoutMs')
   return (async (input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> => {
     const value = typeof input === 'string' || input instanceof URL ? input.toString() : input.url

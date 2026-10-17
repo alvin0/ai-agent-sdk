@@ -5,7 +5,7 @@ import type { ManagedAgentTeamOptions, ManagedAgentRole } from './managed-types.
 import { positiveInteger, spawnContext } from './managed-validation.ts'
 import { DEFAULT_MAX_RETAINED_WORKERS } from './managed-retention.ts'
 import {
-  DEFAULT_WORKER_CLOSE_TIMEOUT_MS, DEFAULT_SPAWN_SETUP_TIMEOUT_MS,
+  DEFAULT_WORKER_CLOSE_TIMEOUT_MS,
 } from './managed-config.ts'
 
 function dependencyReportBytes(value: number | undefined): number {
@@ -28,7 +28,7 @@ export function managedLimits(options: ManagedAgentTeamOptions) {
     workerTimeoutMs: options.workerTimeoutMs === undefined ? undefined : timeoutValue(options.workerTimeoutMs),
     observerTimeoutMs: timeoutValue(options.observerTimeoutMs ?? 1_000),
     closeTimeoutMs: timeoutValue(options.closeTimeoutMs ?? DEFAULT_WORKER_CLOSE_TIMEOUT_MS),
-    spawnTimeoutMs: timeoutValue(options.spawnTimeoutMs ?? DEFAULT_SPAWN_SETUP_TIMEOUT_MS),
+    spawnTimeoutMs: options.spawnTimeoutMs === undefined ? undefined : timeoutValue(options.spawnTimeoutMs),
   })
 }
 

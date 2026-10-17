@@ -70,8 +70,8 @@
     "total": 2703
   },
   "legacy": {
-    "estimatedTokens": 2173,
-    "sha256": "84e321e67de0f30af408250664e78d85d621817442e25d88acf48596993bfe11",
+    "estimatedTokens": 2180,
+    "sha256": "0a426d78127c1fcb6b92150fbb26ec1a21992574659e255580d014f8439a63de",
     "system": 2633,
     "toolNames": [
       "spawn_agent",
@@ -83,8 +83,8 @@
       "followup_task",
       "wait_agents"
     ],
-    "tools": 6058,
-    "total": 8691
+    "tools": 6087,
+    "total": 8720
   },
   "single": {
     "estimatedTokens": 60,

@@ -68,7 +68,7 @@ export function managedLeadInstructions(options: ManagedAgentTeamOptions): strin
 
 export interface ManagedControlsHost {
   readonly options: ManagedAgentTeamOptions
-  readonly spawnTimeoutMs: number
+  readonly spawnTimeoutMs: number | undefined
   readonly workerTimeoutMs: number | undefined
   spawnGuidance(): string | undefined
   roleSchema(): Record<string, unknown>
@@ -137,7 +137,7 @@ function spawnControlTool(host: ManagedControlsHost): ToolDefinition<any> {
     // Seconds, not the worker's whole deadline: this call only starts the
     // worker now. Leaving it at workerTimeoutMs would let a stuck SETUP
     // hold the lead for ten minutes.
-    timeoutMs: host.spawnTimeoutMs,
+    ...host.spawnTimeoutMs === undefined ? {} : { timeoutMs: host.spawnTimeoutMs },
     isConcurrencySafe: () => true,
   })
 }

@@ -20,7 +20,7 @@ import {
   abortable,
   disposeReport,
 } from './support.ts'
-import { defaultLimit   } from '../common/limits.ts'
+import { A2A_NO_DEADLINE_MS, defaultLimit } from '../common/limits.ts'
 import {
   TaskState,
 } from '@a2a-js/sdk'
@@ -79,7 +79,7 @@ export class DefinedAgentA2AExecutor implements AgentExecutor {
     this.maxInputBytes = defaultLimit(options.maxInputBytes, 1024 * 1024, 'maxInputBytes')
     this.maxOutputBytes = defaultLimit(options.maxOutputBytes, 1024 * 1024, 'maxOutputBytes')
     this.disposeTimeoutMs = defaultLimit(options.disposeTimeoutMs, 30_000, 'disposeTimeoutMs')
-    this.taskTimeoutMs = defaultLimit(options.taskTimeoutMs, 10 * 60_000, 'taskTimeoutMs')
+    this.taskTimeoutMs = defaultLimit(options.taskTimeoutMs, A2A_NO_DEADLINE_MS, 'taskTimeoutMs')
     this.observerTimeoutMs = defaultLimit(options.observerTimeoutMs, 5_000, 'observerTimeoutMs')
   }
 

@@ -39,6 +39,7 @@ export function parseMessageTool(raw: unknown): { target: string; message: strin
  * back and decides whether to wait again, message the agent, or close it. An
  * unbounded one made a slow agent indistinguishable from a hung one.
  */
+/** Former wait_agents default, kept for hosts that opt in to a bounded wait. */
 export const DEFAULT_WAIT_TIMEOUT_MS = 120_000
 
 /**

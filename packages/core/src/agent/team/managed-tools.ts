@@ -16,7 +16,7 @@ import { filterToolsByDepth } from './managed-capabilities.ts'
 interface ManagedToolsHost {
   options: ManagedAgentTeamOptions; team: AgentTeam; leadName: string; lazyTools: ManagedLazyTools
   spawning: ManagedWorkerSpawning; settlements: ManagedSettlements; roles: Map<string, ManagedAgentRole>
-  maxWorkers: number; maxQueued: number; spawnTimeoutMs: number; workerTimeoutMs: number | undefined
+  maxWorkers: number; maxQueued: number; spawnTimeoutMs: number | undefined; workerTimeoutMs: number | undefined
   workers: Map<string, WorkerRuntime>; progress: ManagedProgress
   owner(): Set<WorkerRuntime> | undefined
   signal(): AbortSignal
@@ -44,7 +44,7 @@ export function managedTools(host: ManagedToolsHost): readonly ToolDefinition<an
   const batch = batchSpawnTool({
     spawning: host.spawning, team: host.team, leadName: host.leadName,
     maxWorkers: host.maxWorkers, maxQueued: host.maxQueued, spawnTimeoutMs: host.spawnTimeoutMs,
-    waitTimeoutMs: host.team.toolsFor(host.leadName).find(tool => tool.name === 'wait_agents')!.timeoutMs!,
+    waitTimeoutMs: host.team.toolsFor(host.leadName).find(tool => tool.name === 'wait_agents')!.timeoutMs,
     roleSchema: () => managedRoleSchema(host.roles),
     spawnGuidance: () => host.lazyTools.takeGuidance(host.options),
     guidanceBudget: () => host.lazyTools.guidanceBudget(host.options),

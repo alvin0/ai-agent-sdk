@@ -4,6 +4,7 @@ import { abortable, throwIfAborted } from './async.ts'
 import type { DecisionDescription, DecisionInput, DecisionModelHandle, DecisionQuestions,
   DecisionResult } from './types.ts'
 import { bindDecisionInput, decisionError, snapshotDecisionInput } from './validation.ts'
+import { DECISION_NO_DEADLINE_MS } from './deadline.ts'
 
 export interface DecisionCallOptions {
   readonly signal?: AbortSignal
@@ -23,7 +24,7 @@ export async function evaluateDecisionBatch<Q extends DecisionQuestions>(
   model: DecisionModelHandle, inputs: readonly DecisionInput<Q>[], options: DecisionBatchOptions = {},
 ): Promise<readonly DecisionBatchItem<Q>[]> {
   const concurrency = options.concurrency ?? 4
-  const timeout = options.timeoutMs ?? 30_000
+  const timeout = options.timeoutMs ?? DECISION_NO_DEADLINE_MS
   const callerSignal = options.signal
   const context = options.context
   validateBatchLimits(concurrency, timeout, inputs)

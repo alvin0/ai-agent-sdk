@@ -217,8 +217,7 @@ export interface ManagedAgentTeamOptions {
    * Host closeWorker, disposal and user cancellation are always available. */
   readonly allowModelWorkerCancellation?: boolean
   /**
-   * How long `spawn_agent` may take to get a worker running.
-   * Defaults to {@link DEFAULT_SPAWN_SETUP_TIMEOUT_MS}.
+   * Opt-in limit on how long `spawn_agent` may take to get a worker running. None by default.
    *
    * Only the setup: the worker's own deadline is `workerTimeoutMs`, and how
    * long the lead may WAIT for it is the team's `waitTimeoutMs` — pass it
