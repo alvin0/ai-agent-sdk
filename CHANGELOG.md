@@ -15,6 +15,11 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Fixed
 
+- Untargeted `progress_updates` follows current and future managed workers for the owning
+  invocation, spanning spawn waves without per-wave scheduling. Quiet lead-only gaps emit no
+  worker reports and do not trip the stall watchdog while the lead is running; lead model/tool
+  activity resets the watchdog. Identical untargeted requests keep the schedule and cadence.
+  Explicit targets retain their frozen-set settlement behavior.
 - Keep `progress_updates` out of every initial lead catalog, including eager, legacy and
   collaboration. Bind schedules to their requesting invocation; observe idle directly even
   before run observation starts, guard late completion callbacks, and clear retained activity

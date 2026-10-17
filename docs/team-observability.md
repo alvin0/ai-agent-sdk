@@ -115,8 +115,10 @@ remain reviewer-owned under the plan's N>=3 contract and model policy.
 
 After spawning, a lead can call `progress_updates({ interval_ms: 20000 })` when the user asks
 for status every 20 seconds. `targets` optionally selects current managed worker addresses;
-omission captures all current workers, including queued workers. Later spawns are excluded.
-Calling again replaces the schedule; `progress_updates({ stop: true })` cancels it. Workers
+omission follows all current and future managed workers, including queued workers, for the
+owning invocation. Repeating the same clamped interval without targets preserves the schedule
+and its next tick; changing interval or specifying targets replaces it.
+`progress_updates({ stop: true })` cancels it. Workers
 need no progress tool or prompt. All initial lead prompts and catalogs stay byte-identical
 to the integration baseline, including eager, legacy and collaboration modes.
 The once-only disclosed guidance adds: “If the user asks for periodic status, call
@@ -162,7 +164,10 @@ commands, credentials and tool results are excluded. A path itself can be sensit
 control whether to offer this feature to their users.
 
 Schedules stop actively on lead stop, host stop, replacement, or user steering/interruption.
-They stop passively when targets settle, the managed invocation ends/fails/aborts, a raw lead
+Explicit targets stop when that frozen set settles. Untargeted schedules stay active through
+spawn waves and lead-only gaps; quiet ticks emit no worker report. They stop as `settled` when
+the owning invocation ends with no outstanding workers, or `run-ended` if workers remain.
+They also stop when the managed invocation fails/aborts, a raw lead
 session finishes/fails/aborts, the managed team is disposed, or the underlying team closes.
 A schedule belongs to the lead invocation that requested it. Managed `run()` owns its
 provisional yields and synthesis wakes until it joins or ends; reporting continues across those
@@ -173,9 +178,11 @@ including failures before the run observation starts; stale yielded outcomes can
 schedule alive. Consumer cancellation is also observed by the session runtime.
 
 Duration, successful-report count, and consecutive inactive-interval bounds always apply.
-Only targeted worker model requests, tool dispatches or settlements reset the stall watchdog;
-a long tool with no new runtime activity intentionally stops as `stalled`. Two consecutive
-build/delivery failures stop as `delivery-failed`. A successful tick resets that failure count.
+Selected worker model requests, tool dispatches or settlements, and lead model requests/tool
+dispatches reset the stall watchdog. Quiet ticks do not count as stalled while the lead session
+is running; when the lead is also inactive, the watchdog still applies. A busy worker with no
+new worker or lead activity can stop as `stalled`. Two consecutive
+build/delivery failures stop as `delivery-failed`. A successful report resets that failure count.
 The synchronous event channel isolates throwing observers, still calls the remaining observers,
 and reports their aggregate delivery failure to this scheduler. Callbacks must be synchronous;
 returned promises count as delivery failures, and their rejections are contained. Terminal delivery is attempted

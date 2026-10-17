@@ -20,7 +20,7 @@ interface ProgressHost {
 interface Schedule {
   readonly id: number
   readonly intervalMs: number
-  readonly targets: readonly string[]
+  readonly targets: readonly string[] | undefined
   readonly signal: AbortSignal
   readonly owner: object
   readonly started: number
@@ -54,9 +54,9 @@ export class ManagedProgress {
     const channel = progressChannel(host.team)
     this.cleanup.push(watchProgressActivity(host.team, event => this.observe(event)),
       host.team.subscribe(event => {
-        if (event.type !== 'team-timeline' || event.member === host.lead) return
+        if (event.type !== 'team-timeline') return
         if ((event.kind === 'model-requested' || event.kind === 'worker-settled')
-          && this.current?.targets.includes(event.member)) this.revision++
+          && (event.member === host.lead || this.targets()?.includes(event.member))) this.revision++
         if (event.kind === 'worker-settled' || event.kind === 'member-closed') {
           // Outcome publication can precede slot/settlement bookkeeping in the same stack.
           queueMicrotask(() => this.checkSettled())
@@ -71,8 +71,7 @@ export class ManagedProgress {
   }
   private observe(event: ProgressActivity): void {
     if (event.member === this.host.lead) {
-      if (event.kind === 'invocation') this.beginInvocation(event.signal)
-      if (event.kind === 'run-end') this.leadEnded(event.status)
+      this.observeLead(event)
       return
     }
     if (event.kind === 'settlement') { this.checkSettled(); return }
@@ -80,7 +79,12 @@ export class ManagedProgress {
     const old = this.activity.get(event.member) ?? { calls: 0, reported: 0 }
     this.activity.set(event.member, { ...old, calls: old.calls + 1, lastTool: event.name.slice(0, 80),
       argumentHint: pathHint(event.args) })
-    if (this.current?.targets.includes(event.member)) this.revision++
+    if (this.targets()?.includes(event.member)) this.revision++
+  }
+  private observeLead(event: ProgressActivity): void {
+    if (event.kind === 'invocation') this.beginInvocation(event.signal)
+    if (event.kind === 'run-end') this.leadEnded(event.status)
+    if (event.kind === 'tool') this.revision++
   }
   private beginInvocation(signal: AbortSignal): void {
     const owner = this.host.owned() ?? signal
@@ -106,22 +110,21 @@ export class ManagedProgress {
   state(): TeamProgressState {
     const s = this.current
     return deepCloneFreeze(s === undefined ? this.previous : { active: true, intervalMs: s.intervalMs,
-      targets: s.targets, startedAt: s.startedAt, reportsSent: s.reportsSent,
+      targets: this.targets(s)!, startedAt: s.startedAt, reportsSent: s.reportsSent,
       ...s.nextAt === undefined ? {} : { nextAt: s.nextAt } })
   }
   configure(request: ProgressRequest) {
     if (this.stopping || this.ticking) throw new Error('progress schedule is delivering; retry after delivery')
     if (request.stop) { this.stop('requested'); return { scheduled: false } }
+    const intervalMs = Math.max(this.limits.minIntervalMs, Math.min(this.limits.maxIntervalMs, request.interval_ms!))
+    const active = this.unchanged(request, intervalMs)
+    if (active !== undefined) {
+      return { scheduled: true, interval_ms: intervalMs, targets: this.targets(active)! }
+    }
     // Replace first: invalid or dead replacement requests must not leave the previous loop running.
     this.stop('replaced')
-    if (!this.enabled) throw new Error('progress updates disabled')
-    this.host.signal.throwIfAborted()
-    progressChannel(this.host.team).signal.throwIfAborted()
-    const signal = this.latestSignal
-    if (signal === undefined || !this.leadAlive()) throw new Error('progress updates require a live lead invocation')
-    signal.throwIfAborted()
-    const targets = progressTargets(request.targets, this.host.workers())
-    const intervalMs = Math.max(this.limits.minIntervalMs, Math.min(this.limits.maxIntervalMs, request.interval_ms!))
+    const signal = this.scheduleSignal()
+    const targets = request.targets === undefined ? undefined : progressTargets(request.targets, this.host.workers())
     const s: Schedule = { id: ++this.serial, intervalMs, targets, signal,
       owner: this.host.owned() ?? signal, started: performance.now(),
       startedAt: new Date().toISOString(), reportsSent: 0, failures: 0, stalls: 0, revision: this.revision }
@@ -129,10 +132,25 @@ export class ManagedProgress {
     this.current = s
     this.bindScheduleSignal(s)
     if (!this.checkSettled()) this.arm(s)
-    return { scheduled: this.current === s, interval_ms: intervalMs, targets }
+    return { scheduled: this.current === s, interval_ms: intervalMs, targets: this.targets(s)! }
+  }
+  private unchanged(request: ProgressRequest, intervalMs: number): Schedule | undefined {
+    const s = this.current
+    return s !== undefined && s.targets === undefined && request.targets === undefined
+      && s.intervalMs === intervalMs && this.leadAlive() && !s.signal.aborted
+      && s.owner === (this.host.owned() ?? this.latestSignal) ? s : undefined
+  }
+  private scheduleSignal(): AbortSignal {
+    if (!this.enabled) throw new Error('progress updates disabled')
+    this.host.signal.throwIfAborted()
+    progressChannel(this.host.team).signal.throwIfAborted()
+    const signal = this.latestSignal
+    if (signal === undefined || !this.leadAlive()) throw new Error('progress updates require a live lead invocation')
+    signal.throwIfAborted()
+    return signal
   }
   finishInvocation(reason: TeamProgressStopReason): void {
-    if (!this.checkSettled()) this.stop(reason)
+    if (!this.checkSettled(true)) this.stop(reason)
   }
   stop(reason: TeamProgressStopReason = 'host'): void {
     const s = this.current
@@ -141,7 +159,7 @@ export class ManagedProgress {
     this.unbindRun()
     this.unbindRun = () => {}
     clearTimeout(s.timer)
-    this.previous = { active: false, intervalMs: s.intervalMs, targets: s.targets,
+    this.previous = { active: false, intervalMs: s.intervalMs, targets: this.targets(s)!,
       startedAt: s.startedAt, reportsSent: s.reportsSent, reason }
     this.stopping = true
     try { this.deliver(s, 'stopped', reason) } catch { /* Terminal delivery is attempted once, never retried. */ }
@@ -155,10 +173,15 @@ export class ManagedProgress {
     this.activity.clear()
     this.latestSignal = undefined
   }
-  private checkSettled(): boolean {
+  private targets(s = this.current): readonly string[] | undefined {
+    return s === undefined ? undefined : s.targets ?? this.host.workers()
+  }
+  private checkSettled(ended = false): boolean {
     const s = this.current
     if (s === undefined) return true
-    if (s.targets.some(name => this.host.busy(name))) return false
+    if (this.targets(s)!.some(name => this.host.busy(name))) return false
+    // A managed invocation owns later spawn waves and synthesis, including idle gaps.
+    if (s.targets === undefined && !ended && this.leadAlive()) return false
     this.stop('settled')
     return true
   }
@@ -187,15 +210,20 @@ export class ManagedProgress {
     const reason = this.expired(s)
     if (reason !== undefined) { this.stop(reason); return }
     if (this.checkSettled()) return
-    s.stalls = s.revision === this.revision ? s.stalls + 1 : 0
-    s.revision = this.revision
-    if (s.stalls >= this.limits.stalledIntervals) { this.stop('stalled'); return }
+    const busy = this.targets(s)!.some(name => this.host.busy(name))
+    if (this.stalled(s, busy)) { this.stop('stalled'); return }
+    if (!busy) return // No worker report during lead-only work; keep the cadence and bounds.
     if (!this.deliver(s, 'report')) throw new Error('progress delivery failed')
     if (this.current !== s) return
     s.failures = 0
     s.reportsSent++
     for (const value of this.activity.values()) value.reported = value.calls
     if (s.reportsSent >= this.limits.maxReports) this.stop('max-reports')
+  }
+  private stalled(s: Schedule, busy: boolean): boolean {
+    s.stalls = s.revision === this.revision && (busy || !this.host.session().isRunning) ? s.stalls + 1 : 0
+    s.revision = this.revision
+    return s.stalls >= this.limits.stalledIntervals
   }
   private leadAlive(): boolean {
     return this.host.owned() !== undefined || this.host.session().isRunning
@@ -213,7 +241,8 @@ export class ManagedProgress {
       if (phase !== 'stopped') throw error
       snapshot = { teamId: this.host.team.id, occurredAt: new Date().toISOString(), members: [] }
     }
-    const members = snapshot.members.filter(member => s.targets.includes(member.name))
+    const targets = this.targets(s)!
+    const members = snapshot.members.filter(member => targets.includes(member.name))
       .map(member => progressMember(member, this.activity.get(member.name), snapshot.occurredAt))
     const text = members.map(member => `${member.name}: ${member.status}, ${Math.round(member.elapsedMs / 1000)}s, `
       + `${member.modelCalls} model calls, ${member.toolCalls} tools since last report`
@@ -221,7 +250,7 @@ export class ManagedProgress {
     return progressChannel(this.host.team).emit(deepCloneFreeze({ type: 'team-progress', teamId: snapshot.teamId,
       lead: this.host.lead, scheduleId: s.id, phase, ...reason === undefined ? {} : { reason },
       occurredAt: snapshot.occurredAt, elapsedMs: Math.max(0, performance.now() - s.started),
-      reportsSent: s.reportsSent + Number(phase === 'report'), targets: s.targets, members,
+      reportsSent: s.reportsSent + Number(phase === 'report'), targets, members,
       text: (phase === 'stopped' ? `Progress updates stopped (${reason}). ` : 'Worker progress: ') + text }))
   }
 }
@@ -257,8 +286,8 @@ function progressMember(member: TeamMemberSnapshot, activity: Activity | undefin
     ...activity?.argumentHint === undefined ? {} : { argumentHint: activity.argumentHint } }
 }
 
-function progressTargets(requested: readonly string[] | undefined, workers: readonly string[]): string[] {
-  const targets = [...new Set(requested ?? workers)]
+function progressTargets(requested: readonly string[], workers: readonly string[]): string[] {
+  const targets = [...new Set(requested)]
   if (targets.length === 0 || targets.some(name => !workers.includes(name))) {
     throw new TypeError('targets must name current managed workers')
   }

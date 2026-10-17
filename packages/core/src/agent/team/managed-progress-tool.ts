@@ -17,8 +17,8 @@ export function parseProgressRequest(raw: unknown): ProgressRequest {
 export function progressTool(progress: ManagedProgress) {
   return defineTool({
     name: 'progress_updates',
-    description: 'Send periodic worker status to the user without model calls. Call once when requested; '
-      + 'omit targets for all current workers. Calling again replaces; stop:true cancels.',
+    description: 'Send periodic worker status to the user without model calls. '
+      + 'Omit targets to follow all current and future workers until run ends. Changes replace; stop:true cancels.',
     parameters: { type: 'object', properties: {
       interval_ms: { type: 'integer', minimum: 1 },
       targets: { type: 'array', items: { type: 'string' }, minItems: 1 },

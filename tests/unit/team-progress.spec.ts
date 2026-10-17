@@ -65,7 +65,7 @@ describe('bounded runtime progress schedule', () => {
   it('handles already settled targets without arming', () => {
     const f = fixture()
     f.busy.clear()
-    expect(f.start()).toMatchObject({ scheduled: false })
+    expect(f.start(['a', 'b'])).toMatchObject({ scheduled: false })
     expectStopped('settled')
   })
 

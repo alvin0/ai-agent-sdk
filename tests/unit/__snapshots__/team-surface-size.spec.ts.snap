@@ -48,7 +48,7 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
       },
       {
         "estimatedTokens": 2262,
-        "sha256": "908deff8660fb8bb781de8aac2d16544286541b8d511c8e83e5f7feb03bab97a",
+        "sha256": "dcc4e1eb4b2284cfdb8debddecdfb21bd066945a94d45fa8bde9964e324d4797",
         "system": 3140,
         "toolNames": [
           "spawn_agent",
@@ -62,8 +62,8 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
           "task_update",
           "progress_updates",
         ],
-        "tools": 5906,
-        "total": 9046,
+        "tools": 5905,
+        "total": 9045,
       },
     ],
     "eager": [
@@ -94,7 +94,7 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
       },
       {
         "estimatedTokens": 1616,
-        "sha256": "c0d8c4f0880dcb1207ecb331d6e19858fdc25bac906f58801c91b4eec9a75332",
+        "sha256": "e7558bfffd57c4fc9da16674605d819b1700642cf3630c7fa1199ba5439bc83c",
         "system": 2272,
         "toolNames": [
           "spawn_agent",
@@ -105,8 +105,8 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
           "get_agent_result",
           "progress_updates",
         ],
-        "tools": 4192,
-        "total": 6464,
+        "tools": 4191,
+        "total": 6463,
       },
     ],
     "eagerFullWorker": [
@@ -139,7 +139,7 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
       },
       {
         "estimatedTokens": 1616,
-        "sha256": "c0d8c4f0880dcb1207ecb331d6e19858fdc25bac906f58801c91b4eec9a75332",
+        "sha256": "e7558bfffd57c4fc9da16674605d819b1700642cf3630c7fa1199ba5439bc83c",
         "system": 2272,
         "toolNames": [
           "spawn_agent",
@@ -150,8 +150,8 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
           "get_agent_result",
           "progress_updates",
         ],
-        "tools": 4192,
-        "total": 6464,
+        "tools": 4191,
+        "total": 6463,
       },
     ],
     "fullWorker": [
@@ -180,7 +180,7 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
       },
       {
         "estimatedTokens": 1179,
-        "sha256": "e85b87f28be3fffc55246e51c6a6b24039d6963756236fc344ea32b2b28a330a",
+        "sha256": "743f7537eaf0c2e2b274d715f246375b138d72a9f92f66c05c55c086c88c2705",
         "system": 842,
         "toolNames": [
           "spawn_agent",
@@ -191,8 +191,8 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
           "get_agent_result",
           "progress_updates",
         ],
-        "tools": 3874,
-        "total": 4716,
+        "tools": 3873,
+        "total": 4715,
       },
     ],
     "lean": [
@@ -219,7 +219,7 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
       },
       {
         "estimatedTokens": 1179,
-        "sha256": "e85b87f28be3fffc55246e51c6a6b24039d6963756236fc344ea32b2b28a330a",
+        "sha256": "743f7537eaf0c2e2b274d715f246375b138d72a9f92f66c05c55c086c88c2705",
         "system": 842,
         "toolNames": [
           "spawn_agent",
@@ -230,8 +230,8 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
           "get_agent_result",
           "progress_updates",
         ],
-        "tools": 3874,
-        "total": 4716,
+        "tools": 3873,
+        "total": 4715,
       },
     ],
     "legacy": [
@@ -266,7 +266,7 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
       },
       {
         "estimatedTokens": 2279,
-        "sha256": "815534f2af127b691d4efda12f8e88b59d9bbdae2c32b36f4413bfdd9a948740",
+        "sha256": "19614e22a3ea2b7d497f03ebf253df2fe24c4660d503a5536536c9e84ab49d07",
         "system": 2633,
         "toolNames": [
           "spawn_agent",
@@ -279,8 +279,8 @@ exports[`managed model surface size > snapshots sizes, tool names and exact surf
           "wait_agents",
           "progress_updates",
         ],
-        "tools": 6482,
-        "total": 9115,
+        "tools": 6481,
+        "total": 9114,
       },
     ],
     "single": [

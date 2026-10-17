@@ -229,7 +229,8 @@ describe('managed progress integration', () => {
     if (reason === 'requested') await tool.execute(tool.parse!({ stop: true }), {} as ToolRunContext)
     else if (reason === 'replaced') expect(() => tool.parse!({ interval_ms: 'bad' })).toThrow()
     else if (reason === 'settled') { f.adapter.finish(); await running.result }
-    else await vi.advanceTimersByTimeAsync(reason === 'max-duration' ? 5 : 60)
+    // The final lead model request after scheduling now resets the activity watchdog.
+    else await vi.advanceTimersByTimeAsync(reason === 'max-duration' ? 5 : 80)
     expect(f.team.progressUpdates()).toMatchObject({ active: false, reason })
     expect(f.events.filter(event => event.phase === 'stopped')).toHaveLength(1)
     f.adapter.finish()
