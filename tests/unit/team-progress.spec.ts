@@ -69,7 +69,7 @@ describe('bounded runtime progress schedule', () => {
     expectStopped('settled')
   })
 
-  it.each(['host', 'requested', 'run-ended', 'aborted', 'closed'] as const)
+  it.each(['host', 'requested', 'run-ended', 'aborted', 'closed', 'steered'] as const)
   ('actively stops %s exactly once', reason => {
     const f = fixture()
     f.start()
@@ -189,7 +189,7 @@ describe('bounded runtime progress schedule', () => {
   it('stops if liveness disappears even when an end event is missing', async () => {
     const f = fixture()
     f.start()
-    vi.spyOn(f.session, 'lastOutcome').mockReturnValue({ yielded: false } as never)
+    vi.spyOn(f.session, 'isRunning', 'get').mockReturnValue(false)
     await vi.advanceTimersByTimeAsync(10)
     expectStopped('run-ended')
     expect(() => f.start()).toThrow(/live lead invocation/)
@@ -209,10 +209,20 @@ describe('bounded runtime progress schedule', () => {
     expectStopped('delivery-failed')
   })
 
-  it('keeps the original invocation abort authoritative across synthesis wakes', () => {
+  it('stops an old schedule at new invocation admission without a renewed request', () => {
     const f = fixture()
     f.start()
     progressActivity(f.team, { kind: 'invocation', member: 'lead', signal: new AbortController().signal })
+    f.invocation.abort()
+    expectStopped('run-ended')
+  })
+
+  it('keeps the original signal authoritative across wakes owned by one managed invocation', () => {
+    const f = fixture({}, undefined, {})
+    f.start()
+    progressActivity(f.team, { kind: 'invocation', member: 'lead', signal: new AbortController().signal })
+    expect(f.progress.state().active).toBe(true)
+    expect(vi.getTimerCount()).toBe(1)
     f.invocation.abort()
     expectStopped('aborted')
   })
@@ -243,17 +253,69 @@ describe('bounded runtime progress schedule', () => {
 
   it('has no overlapping ticks or reentrant replacement; allows an active stop during delivery', async () => {
     const f = fixture()
+    let timerCount: number | undefined
+    let replacementError: unknown
     f.team.subscribe(event => {
       if (event.type !== 'team-progress' || event.phase !== 'report') return
-      expect(vi.getTimerCount()).toBe(0)
-      const replace = f.start
-      expect(replace).toThrow(/delivering/)
+      timerCount = vi.getTimerCount()
+      try { f.start() } catch (error) { replacementError = error }
       f.progress.stop('host')
     })
     f.start()
     await vi.advanceTimersByTimeAsync(100)
+    expect(timerCount).toBe(0)
+    expect(replacementError).toBeInstanceOf(Error)
+    expect((replacementError as Error).message).toMatch(/delivering/)
     expect(events.filter(event => event.phase === 'report')).toHaveLength(1)
     expectStopped('host')
+  })
+
+  it.each(['resolve', 'reject'] as const)('isolates a late idle %s from a newer schedule', async mode => {
+    const f = fixture()
+    let finish!: () => void
+    vi.spyOn(f.session, 'whenIdle').mockImplementationOnce(() => new Promise<void>((resolve, reject) => {
+      finish = mode === 'resolve' ? resolve : () => reject(new Error('late idle rejection'))
+    }))
+    progressActivity(f.team, { kind: 'invocation', member: 'lead', signal: f.invocation.signal })
+    f.start()
+    progressActivity(f.team, { kind: 'run-end', member: 'lead', status: 'success' })
+    progressActivity(f.team, { kind: 'invocation', member: 'lead', signal: new AbortController().signal })
+    expectStopped('run-ended')
+    f.start(['b']) // The new invocation explicitly requests its own schedule.
+    finish()
+    await Promise.resolve()
+    expect(f.progress.state()).toMatchObject({ active: true, targets: ['b'] })
+    expect(vi.getTimerCount()).toBe(1)
+    f.progress.stop()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it.each(['resolve', 'reject'] as const)('stops directly on idle %s with stale yielded and no run-end', async mode => {
+    const f = fixture()
+    let finish!: () => void
+    vi.spyOn(f.session, 'whenIdle').mockImplementationOnce(() => new Promise<void>((resolve, reject) => {
+      finish = mode === 'resolve' ? resolve : () => reject(new Error('failed before run span'))
+    }))
+    progressActivity(f.team, { kind: 'invocation', member: 'lead', signal: f.invocation.signal })
+    f.start()
+    vi.spyOn(f.session, 'isRunning', 'get').mockReturnValue(false)
+    expect(f.session.lastOutcome()?.yielded).toBe(true)
+    finish()
+    await Promise.resolve()
+    expectStopped('run-ended') // No clock advancement: invocation end clears the timer directly.
+    expect(() => f.start()).toThrow(/live lead invocation/)
+  })
+
+  it('clears activity hints and the latest signal on disposal', () => {
+    const f = fixture()
+    f.tool()
+    f.start()
+    f.progress.dispose()
+    expectStopped('closed')
+    // Disposed instances must not retain path hints or invocation signals.
+    const retained = f.progress as unknown as { activity: Map<string, unknown>; latestSignal: unknown }
+    expect(retained.activity.size).toBe(0)
+    expect(retained.latestSignal).toBeUndefined()
   })
 
   it.each(['error', 'aborted'])('stops on a failed lead run (%s)', status => {

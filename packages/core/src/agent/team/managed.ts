@@ -16,7 +16,7 @@ import type { ToolDefinition } from '../tool/definition.ts'
 import { AgentTeam } from './team.ts'
 import { managedTools } from './managed-tools.ts'
 import { ManagedProgress } from './managed-progress.ts'
-import type { TeamProgressStopReason } from './team-progress.ts'
+import type { TeamProgressHostStopReason } from './team-progress.ts'
 import { managedWorkerView } from './managed-reports.ts'
 import { ManagedWorkerSpawning } from './managed-spawn.ts'
 import { ManagedWorkerExecution } from './managed-worker.ts'
@@ -144,7 +144,7 @@ export class ManagedAgentTeam {
     return new ManagedProgress({ team: this.team, lead: this.leadName, signal: this.lifecycle.signal,
       session: () => this.lead, workers: () => [...this.workerRuntimes.keys(), ...this.preparing.keys()],
       busy: name => this.preparing.has(name) || (this.workerRuntimes.has(name)
-        && this.workerBusy(this.workerRuntimes.get(name)!)), owned: () => this.invocation !== undefined,
+        && this.workerBusy(this.workerRuntimes.get(name)!)), owned: () => this.invocation,
     }, options.progressUpdates)
   }
   private guardCoordination(): () => void {
@@ -177,9 +177,6 @@ export class ManagedAgentTeam {
   }
   private createModelSurface(options: ManagedAgentTeamOptions): ManagedModelSurface {
     return new ManagedModelSurface({ team: this.team, options, input: this.modelInput,
-      filterCatalog: (sender, catalog) => sender === this.leadName ? this.lazyTools.filter(catalog, options, () =>
-        this.team.members().some(member => member.name !== this.leadName)
-          || hasSuccessfulTeamSpawn(this.lead.history.entries())) : catalog,
       worker: name => this.workerRuntimes.get(name),
       ...(options.collaboration ? { peerSend: (sender: string, target: string, message: string,
         delivery: { signal: AbortSignal; interrupt: boolean }) =>
@@ -235,6 +232,9 @@ export class ManagedAgentTeam {
     return createManagedLeadSession(options, {
       team: this.team, name: this.leadName, port: this.sessionTeam, tools: this.leadTools(options),
       hooks: this.leadCoordination.hooks(options.leadSessionOptions?.hooks),
+      filterCatalog: catalog => this.lazyTools.filter(catalog, options, () =>
+        this.team.members().some(member => member.name !== this.leadName)
+          || hasSuccessfulTeamSpawn(this.lead.history.entries())),
     })
   }
   private admitFollowup(target: string): void {
@@ -283,7 +283,7 @@ export class ManagedAgentTeam {
   }
   steer(text: string): boolean {
     this.lifecycle.signal.throwIfAborted()
-    this.progress.stop('aborted')
+    this.progress.stop('steered')
     this.lead.inject(text)
     this.settlements.resumeReports()
     try { this.team.notifySteer(this.leadName) } catch { /* team disposed */ }
@@ -311,7 +311,10 @@ export class ManagedAgentTeam {
   /** Team metadata and completed-run usage, including retained/closed members. */
   snapshot(): TeamSnapshot { return this.team.snapshot() }
   progressUpdates() { return this.progress.state() }
-  stopProgressUpdates(reason: TeamProgressStopReason = 'host'): void { this.progress.stop(reason) }
+  stopProgressUpdates(reason: TeamProgressHostStopReason = 'host'): void {
+    if (!['host', 'run-ended', 'aborted'].includes(reason)) throw new TypeError('invalid host progress stop reason')
+    this.progress.stop(reason)
+  }
   workers(): readonly ManagedAgentWorker[] {
     return Object.freeze([...this.workerRuntimes.values()].map(runtime => managedWorkerView(runtime)))
   }

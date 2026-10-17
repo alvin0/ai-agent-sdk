@@ -9,8 +9,10 @@ export interface TeamProgressOptions {
   readonly stalledIntervals?: number
   readonly maxConsecutiveFailures?: number
 }
+/** Host cancellation only; settlement and scheduler reasons are runtime-owned. */
+export type TeamProgressHostStopReason = 'host' | 'run-ended' | 'aborted'
 export type TeamProgressStopReason = 'requested' | 'host' | 'settled' | 'run-ended' | 'aborted'
-  | 'closed' | 'max-duration' | 'max-reports' | 'stalled' | 'delivery-failed' | 'replaced'
+  | 'steered' | 'closed' | 'max-duration' | 'max-reports' | 'stalled' | 'delivery-failed' | 'replaced'
 export interface TeamProgressState {
   readonly active: boolean
   readonly intervalMs?: number

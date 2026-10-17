@@ -12,6 +12,9 @@ const fixture = JSON.parse(readFileSync(new URL('../fixtures/team-lazy-surfaces.
   before: Record<string, FrozenView[]>
   combined: Record<string, FrozenView[]>
 }
+// Frozen directly from integration 4cc1c91, independent of updatable snapshots.
+const initial = JSON.parse(readFileSync(
+  new URL('../fixtures/team-progress-initial-surfaces.json', import.meta.url), 'utf8')) as Record<string, unknown>
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 // Frozen r4 lead catalogs, including spawn_agent/spawn_agents schemas and descriptions.
 // System text may change; snapshot updates must not silently change tool JSON.
@@ -48,9 +51,13 @@ describe('managed model surface size', () => {
     }).toMatchSnapshot()
     expect({ system: after.lean![0]!.system, guidance: DISCLOSED_TEAM_GUIDANCE })
       .toMatchSnapshot('lead prompt and disclosed guidance')
+    for (const [name, views] of Object.entries(after)) {
+      expect(surfaceSize(views[0]!)).toEqual(initial[name])
+      expect(views[0]!.tools.some(tool => tool.name === 'progress_updates')).toBe(false)
+    }
     const baselineTools = (view: Surfaces[string][number]) =>
       view.tools.filter(tool => tool.name !== 'progress_updates')
-    const total = (view: Surfaces[string][number]) => view.system.length + JSON.stringify(baselineTools(view)).length
+    const total = (view: Surfaces[string][number]) => view.system.length + JSON.stringify(view.tools).length
     const batch = (view: Surfaces[string][number]) =>
       JSON.stringify(view.tools.filter(tool => tool.name === 'spawn_agents')).length - 2
     // The new initial batch verb has a separate 1,200-character budget. Keep lazy's
@@ -71,7 +78,7 @@ describe('managed model surface size', () => {
     }
     for (const name of ['eager', 'eagerFullWorker', 'legacy', 'collaboration'] as const) {
       const expected = leadToolHashes[name === 'eagerFullWorker' ? 'eager' : name]
-      expect(hash(baselineTools(after[name]![0]!))).toBe(expected)
+      expect(hash(after[name]![0]!.tools)).toBe(expected)
       expect(hash(baselineTools(after[name]![2]!))).toBe(expected)
     }
     expect(hash(after.lean![0]!)).toBe('36fe0d31ff7c25fc18882ebe0e138d127e5dc18572eaf4d21a86007e01dccbda')

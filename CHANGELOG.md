@@ -13,6 +13,13 @@ All notable changes to the AI Agent SDK are documented in this file.
   and attempt one terminal `team-progress` event. The chat sample renders streamed notices.
   See `docs/team-observability.md`.
 
+### Fixed
+
+- Keep `progress_updates` out of every initial lead catalog, including eager, legacy and
+  collaboration. Bind schedules to their requesting invocation; observe idle directly even
+  before run observation starts, guard late completion callbacks, and clear retained activity
+  on disposal. Steering reports `steered` separately from signal cancellation (`aborted`).
+
 ### Changed
 
 - Managed lead guidance now weighs worker context/startup/synthesis cost: do small or sequential
@@ -22,6 +29,11 @@ All notable changes to the AI Agent SDK are documented in this file.
   tools remain available initially; host hooks, schemas, queue limits and settlement delivery are unchanged.
 
 ### Breaking
+
+- Narrow the unreleased `stopProgressUpdates(reason)` host argument to `host` (default),
+  `run-ended`, or `aborted`. Runtime-only reasons now throw `TypeError`. Raw lead calls stop
+  their schedule at invocation end even after a provisional yield; use managed `run()` to
+  retain reporting across worker joins and synthesis wakes. A new invocation must request again.
 
 - Managed lead catalogs reserve `progress_updates`; rename a host tool using that name or set
   `progressUpdates: false`. `AgentTeamEvent` and `RuntimeAgentTeamEvent` add `team-progress`;

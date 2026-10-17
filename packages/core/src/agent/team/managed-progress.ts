@@ -15,13 +15,14 @@ interface ProgressHost {
   session(): AgentSession
   workers(): readonly string[]
   busy(name: string): boolean
-  owned(): boolean
+  owned(): object | undefined
 }
 interface Schedule {
   readonly id: number
   readonly intervalMs: number
   readonly targets: readonly string[]
   readonly signal: AbortSignal
+  readonly owner: object
   readonly started: number
   readonly startedAt: string
   reportsSent: number
@@ -70,7 +71,7 @@ export class ManagedProgress {
   }
   private observe(event: ProgressActivity): void {
     if (event.member === this.host.lead) {
-      if (event.kind === 'invocation') this.latestSignal = event.signal
+      if (event.kind === 'invocation') this.beginInvocation(event.signal)
       if (event.kind === 'run-end') this.leadEnded(event.status)
       return
     }
@@ -81,16 +82,23 @@ export class ManagedProgress {
       argumentHint: pathHint(event.args) })
     if (this.current?.targets.includes(event.member)) this.revision++
   }
+  private beginInvocation(signal: AbortSignal): void {
+    const owner = this.host.owned() ?? signal
+    if (this.current !== undefined && this.current.owner !== owner) this.stop('run-ended')
+    this.latestSignal = signal
+    // Subscribe at invocation admission: failures before the observation span starts still release idle.
+    const ended = () => {
+      if (this.latestSignal !== signal || this.host.owned() !== undefined) return
+      this.latestSignal = undefined
+      this.finishInvocation(signal.aborted ? 'aborted' : 'run-ended')
+    }
+    void this.host.session().whenIdle().then(ended, ended)
+  }
   private leadEnded(status: string): void {
-    const signal = this.latestSignal
     if (status !== 'success') this.stop(status === 'aborted' ? 'aborted' : 'run-ended')
-    void this.host.session().whenIdle().then(() => {
-      if (this.latestSignal !== signal || this.host.owned()) return
-      if (this.host.session().lastOutcome()?.yielded !== true) this.finishInvocation('run-ended')
-    }).catch(() => this.stop('run-ended'))
   }
   private bindScheduleSignal(s: Schedule): void {
-    const abort = () => this.stop('aborted')
+    const abort = () => { if (this.current === s) this.stop('aborted') }
     s.signal.addEventListener('abort', abort, { once: true })
     this.unbindRun = () => s.signal.removeEventListener('abort', abort)
     if (s.signal.aborted) abort()
@@ -114,7 +122,8 @@ export class ManagedProgress {
     signal.throwIfAborted()
     const targets = progressTargets(request.targets, this.host.workers())
     const intervalMs = Math.max(this.limits.minIntervalMs, Math.min(this.limits.maxIntervalMs, request.interval_ms!))
-    const s: Schedule = { id: ++this.serial, intervalMs, targets, signal, started: performance.now(),
+    const s: Schedule = { id: ++this.serial, intervalMs, targets, signal,
+      owner: this.host.owned() ?? signal, started: performance.now(),
       startedAt: new Date().toISOString(), reportsSent: 0, failures: 0, stalls: 0, revision: this.revision }
     for (const value of this.activity.values()) value.reported = value.calls
     this.current = s
@@ -130,6 +139,7 @@ export class ManagedProgress {
     if (s === undefined) return
     this.current = undefined // Invalidate before calling any host code (including reentrant listeners).
     this.unbindRun()
+    this.unbindRun = () => {}
     clearTimeout(s.timer)
     this.previous = { active: false, intervalMs: s.intervalMs, targets: s.targets,
       startedAt: s.startedAt, reportsSent: s.reportsSent, reason }
@@ -140,7 +150,10 @@ export class ManagedProgress {
   dispose(): void {
     this.stop('closed')
     this.unbindRun()
+    this.unbindRun = () => {}
     for (const remove of this.cleanup.splice(0)) remove()
+    this.activity.clear()
+    this.latestSignal = undefined
   }
   private checkSettled(): boolean {
     const s = this.current
@@ -185,7 +198,7 @@ export class ManagedProgress {
     if (s.reportsSent >= this.limits.maxReports) this.stop('max-reports')
   }
   private leadAlive(): boolean {
-    return this.host.owned() || this.host.session().isRunning || this.host.session().lastOutcome()?.yielded === true
+    return this.host.owned() !== undefined || this.host.session().isRunning
   }
   private expired(s: Schedule): TeamProgressStopReason | undefined {
     if (this.host.signal.aborted || progressChannel(this.host.team).signal.aborted) return 'closed'

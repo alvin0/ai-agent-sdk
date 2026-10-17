@@ -9,12 +9,12 @@ import type { TeamProgressEvent, TeamProgressOptions } from '../../packages/core
 import type { AgentSession } from '../../packages/core/src/agent/define/session.ts'
 
 export const events: TeamProgressEvent[] = []
-let dispose = () => {}
+let dispose = async () => {}
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] })
   events.length = 0
 })
-afterEach(() => { dispose(); vi.restoreAllMocks(); vi.useRealTimers() })
+afterEach(async () => { await dispose(); vi.restoreAllMocks(); vi.useRealTimers() })
 
 interface ProgressFixture {
   progress: ManagedProgress; team: AgentTeam; controller: AbortController; invocation: AbortController
@@ -24,11 +24,13 @@ interface ProgressFixture {
   tool(args?: unknown): void
   settled(member: string): void
 }
-export function fixture(options: TeamProgressOptions = {}, observer?: (event: TeamProgressEvent) => void):
-ProgressFixture {
+export function fixture(
+  options: TeamProgressOptions = {}, observer?: (event: TeamProgressEvent) => void, owner?: object,
+): ProgressFixture {
   const team = new AgentTeam({ id: 'progress-test', onEvent: event => {
     if (event.type === 'team-progress') { events.push(event); return observer?.(event) }
   } })
+  dispose = async () => { await team.dispose() }
   const controller = new AbortController()
   const invocation = new AbortController()
   const busy = new Set(['a', 'b'])
@@ -39,12 +41,13 @@ ProgressFixture {
       attachedAt: new Date(0).toISOString(), startedAt: new Date(0).toISOString(),
       modelCalls: 2, durationMs: 0, runs: 1, activeRuns: Number(busy.has(name)),
     })) }))
-  const session = { whenIdle: async () => {}, lastOutcome: () => ({ yielded: true }) } as unknown as AgentSession
+  const session = { get isRunning() { return true },
+    whenIdle: () => new Promise<void>(() => {}), lastOutcome: () => ({ yielded: true }) } as unknown as AgentSession
   const progress = new ManagedProgress({ team, lead: 'lead', signal: controller.signal,
-    session: () => session, workers: () => ['a', 'b'], busy: name => busy.has(name), owned: () => false,
+    session: () => session, workers: () => ['a', 'b'], busy: name => busy.has(name), owned: () => owner,
   }, { minIntervalMs: 10, maxIntervalMs: 100, ...options })
   progressActivity(team, { kind: 'invocation', member: 'lead', signal: invocation.signal })
-  dispose = () => progress.dispose()
+  dispose = async () => { progress.dispose(); await team.dispose() }
   return { progress, team, controller, invocation, busy, session, snapshotSpy,
     start: (targets?: string[]) => progress.configure({ interval_ms: 10, ...targets === undefined ? {} : { targets } }),
     activity: (member = 'a') => recordTeamTimeline(team, { kind: 'model-requested', member, runId: 'run' }),

@@ -75,17 +75,18 @@ export class ManagedLazyTools {
   }
 
   filter(catalog: ToolCatalog, options: ManagedAgentTeamOptions, hasPriorTeam: () => boolean): ToolCatalog {
-    if (!progressiveTeamTools(options)) return catalog
+    const lazy = progressiveTeamTools(options)
     const disclosed = () => {
       if (!this.disclosed && hasPriorTeam()) this.disclose()
       return this.disclosed
     }
-    const visible = (name: string) => disclosed() || !CONTROLS.has(name)
+    const deferred = (name: string) => name === 'progress_updates' || (lazy && CONTROLS.has(name))
+    const visible = (name: string) => disclosed() || !deferred(name)
     // Skills/runtime tools may be registered after team controls. Keep every
     // initially visible schema before the disclosed suffix, in host order.
     const ordered = <T extends { readonly name: string }>(tools: readonly T[]): readonly T[] => [
-      ...tools.filter(tool => !CONTROLS.has(tool.name)),
-      ...disclosed() ? tools.filter(tool => CONTROLS.has(tool.name) && tool.name !== 'progress_updates') : [],
+      ...tools.filter(tool => !deferred(tool.name)),
+      ...disclosed() ? tools.filter(tool => deferred(tool.name) && tool.name !== 'progress_updates') : [],
       ...disclosed() ? tools.filter(tool => tool.name === 'progress_updates') : [],
     ]
     return {

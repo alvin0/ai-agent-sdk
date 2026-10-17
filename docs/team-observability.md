@@ -117,9 +117,11 @@ After spawning, a lead can call `progress_updates({ interval_ms: 20000 })` when 
 for status every 20 seconds. `targets` optionally selects current managed worker addresses;
 omission captures all current workers, including queued workers. Later spawns are excluded.
 Calling again replaces the schedule; `progress_updates({ stop: true })` cancels it. Workers
-need no progress tool or prompt. The initial lean prompt and catalog stay byte-identical.
+need no progress tool or prompt. All initial lead prompts and catalogs stay byte-identical
+to the integration baseline, including eager, legacy and collaboration modes.
 The once-only disclosed guidance adds: “If the user asks for periodic status, call
-progress_updates once; do not poll.” Eager/legacy catalogs also offer the tool.
+progress_updates once; do not poll.” In every mode the tool appears only after successful
+spawning or admitted queued work (or restored prior team evidence).
 
 The runtime sends `type: 'team-progress'` on `team: { onEvent }` and `managed.team.subscribe()`.
 Render `event.text` directly as a status/notice, or render its structured `members` array.
@@ -148,7 +150,10 @@ managed.stopProgressUpdates() // reason: host; repeated stops are idempotent
 
 All numeric host bounds must be positive, timer-safe integers; min must not exceed max.
 The requested interval must be a positive integer and is clamped to the host interval range.
-`progressUpdates: false` hides the tool entirely. Configuration does not auto-start a timer.
+`progressUpdates: false` hides the tool entirely; host inspect/stop hooks remain safe no-ops.
+Configuration does not auto-start a timer. Host `stopProgressUpdates(reason)` accepts only
+`host` (default), `run-ended`, or `aborted`; other reasons throw `TypeError` even from JavaScript.
+Settlement, steering and scheduler stop reasons are reserved for the runtime.
 Only one schedule runs per managed team. Report data includes status, elapsed milliseconds,
 logical model calls, completed-run usage (active usage remains unknown), the last runtime tool
 name, a path/file argument hint capped at 120 characters, and tool-call counts since the last
@@ -159,10 +164,13 @@ control whether to offer this feature to their users.
 Schedules stop actively on lead stop, host stop, replacement, or user steering/interruption.
 They stop passively when targets settle, the managed invocation ends/fails/aborts, a raw lead
 session finishes/fails/aborts, the managed team is disposed, or the underlying team closes.
-A provisional yield is part of an outstanding invocation: reporting continues while workers
-run, with the original invocation AbortSignal still authoritative. Streaming hosts should
-keep their invocation signal until `whenQuiet()` and call `stopProgressUpdates('run-ended')`
-when their user stream ends. Consumer cancellation is also observed by the session runtime.
+A schedule belongs to the lead invocation that requested it. Managed `run()` owns its
+provisional yields and synthesis wakes until it joins or ends; reporting continues across those
+wakes with the original schedule signal authoritative. A raw `lead.run()`/`lead.stream()`
+ends its schedule on idle, even if the last outcome yielded. A later independent invocation
+must request progress again. Invocation admission and idle completion are observed directly,
+including failures before the run observation starts; stale yielded outcomes cannot keep a
+schedule alive. Consumer cancellation is also observed by the session runtime.
 
 Duration, successful-report count, and consecutive inactive-interval bounds always apply.
 Only targeted worker model requests, tool dispatches or settlements reset the stall watchdog;
@@ -175,7 +183,9 @@ once even after failures; a broken observer cannot be guaranteed to receive it. 
 attempts are not counted as successful reports and may have reached other subscribers.
 
 The reasons are `requested`, `host`, `settled`, `run-ended`, `aborted`, `closed`, `max-duration`,
-`max-reports`, `stalled`, `delivery-failed`, and `replaced`. A stop invalidates ownership and
+`max-reports`, `stalled`, `delivery-failed`, `replaced`, and `steered`. `steer()` uses
+`steered`; signal cancellation uses `aborted`. Disposal also clears retained activity hints and
+invocation signal references. A stop invalidates ownership and
 clears its timer before calling any host callback. Reports use one synchronous timeout chain;
 there is no overlapping asynchronous delivery. It re-arms after successful ticks or bounded,
 contained failure retries, only while the same schedule remains live. Timers are cleared on

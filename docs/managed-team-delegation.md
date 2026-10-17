@@ -14,6 +14,8 @@ the controls too. Batch results containing only setup failures do not qualify. T
 Set `progressiveToolDisclosure: false` for eager schemas and full system guidance for leads and workers.
 Delegation cost guidance applies to both lazy and eager surfaces. Legacy,
 collaboration and depth-limited leads, and all worker catalogs, remain eager. Host APIs are unchanged.
+`progress_updates` is always withheld until the first successful spawn/admitted batch or prior team evidence,
+including eager, legacy, collaboration and depth-limited lead catalogs. Workers never receive it.
 
 `createManagedAgentTeam` remains a collection of host hooks. It does not own a filesystem,
 process sandbox, credential store, or tool authorization policy.

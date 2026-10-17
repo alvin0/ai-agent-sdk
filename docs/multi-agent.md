@@ -140,6 +140,8 @@ adds detailed coordination guidance once, including across mixed single/batch pa
 Set `progressiveToolDisclosure: false` to restore the previous eager schemas,
 descriptions and full system guidance. Collaboration, legacy, depth-limited leads and
 worker catalogs remain eager. At the depth limit, spawning is unavailable.
+`progress_updates` is always withheld until the first successful spawn/admitted batch or prior team evidence,
+including eager, legacy, collaboration and depth-limited lead catalogs. Workers never receive it.
 
 | Tool | Model arguments and behavior |
 | --- | --- |
