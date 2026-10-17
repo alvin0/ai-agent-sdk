@@ -10,6 +10,7 @@ import { defineDecisionProviderPlugin, type DecisionProviderPlugin } from './plu
 import type { DecisionModelInfo, DecisionQuestions, DecisionRequest, DecisionResult } from './types.ts'
 import { bindDecisionInput, decisionError, identifier, snapshotDecisionInput, snapshotJson,
 } from './validation.ts'
+import { DECISION_NO_DEADLINE_MS } from './deadline.ts'
 
 export interface LlmDecisionAdapterOptions {
   /** Raw, single-attempt SDK adapter. The decision runtime owns retries. */
@@ -86,7 +87,7 @@ class LlmDecisionAdapter extends DecisionAdapter {
   override async evaluate(request: DecisionRequest, context?: ModelInvocationContext): Promise<DecisionResult> {
     const input = snapshotDecisionInput(request)
     const provider = identifier(request.provider, 'Provider route'), model = identifier(request.model, 'Model id')
-    const timeout = input.timeoutMs ?? 30_000
+    const timeout = input.timeoutMs ?? DECISION_NO_DEADLINE_MS
     validateLlmTimeout(timeout)
     const controller = new AbortController()
     const forward = () => controller.abort(input.signal?.reason)

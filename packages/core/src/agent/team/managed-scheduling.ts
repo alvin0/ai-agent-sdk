@@ -17,6 +17,7 @@ interface ManagedSchedulingHost {
   readonly signal: AbortSignal
   readonly workers: ReadonlyMap<string, WorkerRuntime>
   preparing(): Iterable<{ readonly request: ResolvedManagedAgentSpawnRequest }>
+  hasInputs?(runtime: WorkerRuntime): boolean
   startWorker(runtime: WorkerRuntime): Promise<void>
 }
 
@@ -109,7 +110,7 @@ export class ManagedWorkerScheduling {
 
   /** Includes team-owned follow-ups queued between session runs. */
   workerHasWork(runtime: WorkerRuntime, runningRoster?: ReadonlySet<string | undefined>): boolean {
-    return runtime.session.isRunning || this.drainingWrites.has(runtime)
+    return runtime.session.isRunning || this.drainingWrites.has(runtime) || this.host.hasInputs?.(runtime) === true
       || (runningRoster === undefined
         ? this.host.team.members().some(member => member.name === runtime.request.name
           && member.conversationId === runtime.session.conversationId && member.status === 'running')

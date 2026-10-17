@@ -1,5 +1,7 @@
 export { AgentTeam } from './team.ts'
-export { DEFAULT_MIN_WAIT_TIMEOUT_MS, DEFAULT_WAIT_TIMEOUT_MS } from './common.ts'
+export { DEFAULT_MIN_WAIT_TIMEOUT_MS } from './common.ts'
+export { buildDelegationStrategy, DELEGATION_STRATEGY, MANAGED_DELEGATION_RUNTIME } from './managed-controls.ts'
+export { filterToolsByDepth } from './managed-capabilities.ts'
 
 export type {
   TeamMemberAttachmentOptions,
@@ -46,3 +48,18 @@ export type {
   SendAgentMessageRequest,
   SendAgentMessageResult,
 } from './types.ts'
+
+export const MANAGED_TEAM_FEATURES = Object.freeze({ collaboration: true } as const)
+export { managedAgentRolePresets } from './managed-roles.ts'
+export type { ManagedAgentDelegationMode } from './managed-types.ts'
+export type { ManagedTeamCollaborationOptions, CollaborationTask, CollaborationTaskView,
+  CollaborationBoardSnapshot, CreateCollaborationTask, UpdateCollaborationTask } from './collaboration-types.ts'
+
+export type { TeamTimelineData, TeamTimelineEvent, TeamWakeReason, TeamSettlementStatus,
+  TeamActivation, TeamSpawnRejection,
+  TeamMemberSnapshot, TeamSnapshot } from './team-timeline.ts'
+
+export type { TeamSettlementUsage } from './team-observation.ts'
+
+export type { TeamProgressOptions, TeamProgressState, TeamProgressStopReason, TeamProgressHostStopReason,
+  TeamProgressEvent, TeamProgressMember } from './team-progress.ts'

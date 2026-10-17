@@ -23,22 +23,40 @@ import type { JsonValue } from '../../../primitives/index.ts'
 
 export type AgentInput = string | UserMessage
 
-/** Deployment-neutral resource guards for normal model/tool turns in one session. */
+/**
+ * Deployment-neutral resource guards for normal model/tool turns in one session.
+ *
+ * Count, loop and total-time limits are opt-in: omitted or 'auto' never stops a turn, so a long run is
+ * not cut short and its spent tokens are not wasted. Set a number to enforce one. Loop guards still
+ * steer the model with periodic warnings; a model call is still cut when its stream goes silent for
+ * `modelIdleTimeoutMs`.
+ */
 export interface AgentRuntimeLimits {
   readonly teardownTimeoutMs?: number
-  readonly modelTimeoutMs?: number
+  /** Opt-in total model-call deadline; none by default. */
+  readonly modelTimeoutMs?: number | 'auto'
+  /** Longest silence between model stream chunks before the call is cut; defaults to 10 minutes. */
+  readonly modelIdleTimeoutMs?: number
   readonly maxModelRequestBytes?: number
   readonly maxModelResponseBytes?: number
   readonly maxModelStreamEvents?: number
   readonly maxToolResultBytes?: number
-  readonly maxToolDurationMs?: number
+  /** Opt-in per-call tool deadline (a tool's own timeoutMs still applies); none by default. */
+  readonly maxToolDurationMs?: number | 'auto'
   readonly toolTeardownTimeoutMs?: number
   readonly maxParallelToolCalls?: number
-  readonly maxConsecutiveToolErrors?: number
+  /** Opt-in hard stop after this many consecutive failed tool calls; none by default. */
+  readonly maxConsecutiveToolErrors?: number | 'auto'
+  /** Warn the model after every this-many consecutive failed tool calls; defaults to 4. */
+  readonly consecutiveToolErrorWarningAt?: number
+  /** Warn the model after every this-many identical tool calls; defaults to 3. */
   readonly repeatToolWarningAt?: number
-  readonly repeatToolLimit?: number
+  /** Opt-in hard stop for identical tool calls; none by default. */
+  readonly repeatToolLimit?: number | 'auto'
+  /** Warn the model after every this-many repetitions of a tool-call cycle; defaults to 2. */
   readonly toolCycleWarningAt?: number
-  readonly toolCycleLimit?: number
+  /** Opt-in hard stop for repeated tool-call cycles; none by default. */
+  readonly toolCycleLimit?: number | 'auto'
   readonly maxToolCycleLength?: number
   /**
    * Estimated tokens of text one tool result may put in front of the model;
@@ -74,9 +92,8 @@ export interface AgentRuntimeLimits {
   /** Exempt-only steps to confirm an answer a budget forced; deep mode defaults to 2, basic to 0. */
   readonly finalizeSteps?: number
   /**
-   * How long `request_user_input` waits for an answer. Defaults to
-   * `maxToolDurationMs`, which no longer bounds the wait itself, so a host can
-   * give people longer than it gives tools.
+   * Opt-in limit on how long `request_user_input` waits for an answer. Falls back to a numeric
+   * `maxToolDurationMs`; with neither set, the run waits until the person answers or it is cancelled.
    */
   readonly userInputTimeoutMs?: number
   /**
@@ -85,7 +102,8 @@ export interface AgentRuntimeLimits {
    * `budget-exhausted` / `time`) instead of being cancelled. Default 'auto'.
    */
   readonly maxTurnDurationMs?: number | 'auto'
-  readonly hookTimeoutMs?: number
+  /** Opt-in per-hook deadline; none by default. */
+  readonly hookTimeoutMs?: number | 'auto'
   readonly hookTeardownTimeoutMs?: number
   /** Maximum settlement time for each host memory-store load or commit callback. */
   readonly memoryOperationTimeoutMs?: number
@@ -162,9 +180,13 @@ export interface AgentSessionOptions {
 }
 
 export interface AgentSessionTeamPort {
+  /** Runtime-owned invocation lifetime, including consumer cancellation. */
+  observeInvocation?(sender: string, signal: AbortSignal): void
   attach(session: AgentSession, options?: AgentSessionTeamAttachmentOptions): void
   toolsFor(sender: string, access?: 'full' | 'reporting'): readonly ToolDefinition<any>[]
   instructionsFor(name: string): string
+  /** Optional live projection, applied after runtime tools are composed. */
+  filterCatalog?(sender: string, catalog: ToolCatalog): ToolCatalog
 }
 
 export interface AgentSessionTeamAttachmentOptions {

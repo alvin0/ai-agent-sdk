@@ -17,11 +17,11 @@ explaining that it was reached. Check `maxTotalTokens` in `runtimeLimits`.
 
 **"It keeps calling the same tool."**
 
-Exact-repeat detection warns at `repeatToolWarningAt` and stops at
-`repeatToolLimit`. Short multi-step cycle detection uses `toolCycleWarningAt`,
-`toolCycleLimit`, and `maxToolCycleLength`. If the model genuinely needs
-repetition, raise these — but first check whether your tool's result is
-uninformative.
+Exact-repeat detection warns every `repeatToolWarningAt` repeats; short
+multi-step cycle detection warns every `toolCycleWarningAt` cycles
+(`maxToolCycleLength` sets the longest cycle). By default these only warn — set
+`repeatToolLimit` or `toolCycleLimit` to opt in to a hard stop. First check
+whether your tool's result is uninformative.
 
 ## Nothing gets compacted
 

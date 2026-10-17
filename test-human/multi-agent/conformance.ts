@@ -47,7 +47,8 @@ function fixture(sdk: SDK, extra: Partial<Agent.ManagedAgentTeamOptions> = {}) {
       return { provider, id, name: id, reasoning: { efforts: [{ id: effort, name: 'medium' }] } }
     }
     override async *stream(options: Core.GenerateOptions): AsyncIterable<Core.StreamChunk> {
-      const name = /dynamically assigned worker '([^']+)'/.exec(options.system ?? '')?.[1] ?? 'lead'
+      const workerIdentity = /(?:You are managed|dynamically assigned) worker '([^']+)'/
+      const name = workerIdentity.exec(options.system ?? '')?.[1] ?? 'lead'
       const requests = this.requests.get(name) ?? []
       requests.push(options); this.requests.set(name, requests)
       this.gate(this.starts, name).release()
@@ -99,7 +100,7 @@ function fixture(sdk: SDK, extra: Partial<Agent.ManagedAgentTeamOptions> = {}) {
   const definition = sdk.agent.defineAgent({ id: 'lead', provider: 'fixture', model: 'controlled',
     instructions: 'Complete only your assigned task from supplied evidence.', mode: 'basic', maxTurns: 4 })
   const managed = sdk.agent.createManagedAgentTeam({ registry, lead: definition, maxWorkers: 8,
-    holdWaitMs: 50, closeTimeoutMs: 1000, workerTimeoutMs: 5000, ...extra })
+    closeTimeoutMs: 1000, workerTimeoutMs: 5000, ...extra })
   const body = (name: string) => JSON.stringify(adapter.requests.get(name)?.[0]?.messages ?? [])
   const finish = async (name: string) => { adapter.finish(name); return managed.awaitWorker(name, { timeoutMs: 2000 }) }
   const cleanup = async () => { await managed.dispose(); await managed.team.dispose() }
@@ -131,7 +132,7 @@ export async function runCase(sdk: SDK, id: CaseId): Promise<CaseResult> {
       && advertised.full!.length === teamVerbs.length
     observed = { offered, advertised }
   } else if (id === 'host-controls-lead-turns') {
-    const f = fixture(sdk, { autoLeadCoordination: false, holdWaitMs: 1000 })
+    const f = fixture(sdk, { autoLeadCoordination: false })
     let returned = false
     const run = f.managed.run('Commission detached work.').then(() => { returned = true })
     try {
@@ -252,7 +253,7 @@ export async function runCase(sdk: SDK, id: CaseId): Promise<CaseResult> {
   } else if (id === 'steer-interrupts-automatic-hold') {
     const entered = deferred(), released = deferred()
     let first = true
-    const f = fixture(sdk, { holdWaitMs: 1000, leadSessionOptions: { hooks: { async onTurnEnd() {
+    const f = fixture(sdk, { leadSessionOptions: { hooks: { async onTurnEnd() {
       if (first) { first = false; entered.release(); await released.promise }
     } } } })
     try {
@@ -261,7 +262,7 @@ export async function runCase(sdk: SDK, id: CaseId): Promise<CaseResult> {
       f.managed.steer('Read this correction immediately.'); released.release()
       await new Promise<void>(resolve => setTimeout(resolve, 50))
       const callsBeforeWorkerFinished = f.adapter.requests.get('lead')?.length ?? 0
-      passed = callsBeforeWorkerFinished >= 2; observed = { callsBeforeWorkerFinished, holdWaitMs: 1000 }
+      passed = callsBeforeWorkerFinished >= 2; observed = { callsBeforeWorkerFinished }
       await f.finish('held'); await run
     } finally { released.release(); await f.cleanup() }
   } else if (id === 'quiet-waits-for-setup') {
@@ -273,7 +274,7 @@ export async function runCase(sdk: SDK, id: CaseId): Promise<CaseResult> {
       let quiet = false
       const wait = f.managed.whenQuiet().then(() => { quiet = true })
       await checkpoint(); const returnedDuringSetup = quiet
-      prepared.release(); await setup; await wait
+      prepared.release(); await setup; await f.finish('preparing'); await wait
       passed = !returnedDuringSetup; observed = { returnedDuringSetup }
     } finally { prepared.release(); await f.cleanup() }
   } else if (id === 'close-coalesces-instance') {

@@ -95,7 +95,7 @@ even when the request uses an alias. New/pinned model IDs need no SDK release.
 `typesafeAdapter(options)` supports direct use and catalog discovery.
 `typesafePlugin(options)` installs it into the decision runtime. Options include
 `apiKey`, `baseUrl` (default `https://api.typesafe.ai/v1`), injected `fetch`, custom
-headers, `requestTimeoutMs` (30 seconds), `maxRequestBytes` (2 MiB),
+headers, `requestTimeoutMs` (no default deadline; opt-in), `maxRequestBytes` (2 MiB),
 `maxResponseBytes` (4 MiB), and `retryPolicy`. Plugins also accept `id` and `routes`
 (default `['typesafe']`). Local HTTP requires explicit `allowInsecureHttp: true`.
 Connection options are captured at construction. Redirects are rejected, custom

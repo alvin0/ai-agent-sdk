@@ -72,8 +72,8 @@ const agent = runtime.agent({
   instructions: 'Review carefully and cite evidence.',
   mode: 'basic',                  // 'basic' | 'deep' | 'deep-human-in-loop'
   commentary: 'concise',          // 'auto' | 'concise' | 'off'
-  maxTurns: 16,                   // model steps, default 16
-  maxToolCalls: 64,               // dispatched tools, default 64
+  maxTurns: 16,                   // opt-in step cap; default 'auto' (none)
+  maxToolCalls: 64,               // opt-in tool-call cap; default 'auto' (none)
 
   // Capabilities
   tools: [readFile],              // host functions the scheduler executes

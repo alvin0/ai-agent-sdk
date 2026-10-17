@@ -50,8 +50,8 @@ const agent = runtime.agent({
 | `outputFormat` | `ModelOutputFormat` | Văn bản hoặc JSON Schema có tên cho câu trả lời cuối. |
 | `mode` | `'basic' \| 'deep' \| 'deep-human-in-loop'` | Chính sách thực thi. |
 | `commentary` | `'auto' \| 'concise' \| 'off'` | Tường thuật tiến độ. Mặc định `auto` để caller và model quyết định; chọn `concise` để yêu cầu cập nhật tiến độ ngắn. |
-| `maxTurns` | `number \| 'auto'` | Số bước model. Mặc định 16. |
-| `maxToolCalls` | `number` | Số tool được điều phối. Mặc định 64. |
+| `maxTurns` | `number \| 'auto'` | Số bước model. Mặc định `'auto'` (không trần); đặt số để bật. |
+| `maxToolCalls` | `number \| 'auto'` | Số tool được điều phối. Mặc định `'auto'` (không trần). |
 | `tools` | `ToolDefinition[]` | Hàm của host, do bộ lập lịch thực thi. |
 | `nativeTools` | `NativeToolSchema[]` | Nhà cung cấp thực thi. Bộ lập lịch không bao giờ chạy chúng. |
 | `toolChoice` | `ToolChoice` | Chọn tool: bắt buộc/tự động/không. |

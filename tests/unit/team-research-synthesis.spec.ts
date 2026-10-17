@@ -132,10 +132,9 @@ class SectorResearch extends StubAdapter {
 function research(adapter: ModelAdapter, onAgentEvent?: (member: string, event: AgentRunEvent) => void) {
   const registry = new ModelRegistry()
   registry.registerAdapter(['test'], adapter)
-  return createManagedAgentTeam({
+  return createManagedAgentTeam({ modelToolSurface: 'legacy',
     registry,
     // Tests are not paced by a production-sized wait for worker news.
-    holdWaitMs: 20,
     lead: defineAgent({
       id: 'lead', provider: 'test', model: 'scripted',
       instructions: 'You lead a research team.', mode: 'basic', maxTurns: 4,
@@ -158,7 +157,7 @@ describe('a delegated research run ends on the lead', () => {
     const adapter = new SectorResearch()
     const managed = research(adapter)
 
-    const first = await managed.run('Which stocks look good for Sep–Oct? Split it by sector.')
+    const first = await managed.lead.run('Which stocks look good for Sep–Oct? Split it by sector.')
     // The lead ran out of turns while its researchers were still working. This
     // is the moment the conversation used to be abandoned.
     expect(first.text).toContain('still waiting')
@@ -179,9 +178,10 @@ describe('a delegated research run ends on the lead', () => {
     const finalRequest = JSON.stringify(adapter.leadRequests.at(-1))
     for (const sector of SECTORS) expect(finalRequest).toContain(`${sector} says`)
     const reports = managed.lead.history.messages().filter(message => message.role === 'user'
-      && message.content.some(block => block.type === 'text' && block.text.includes("Worker '")))
-    expect(reports).toHaveLength(SECTORS.length)
-    for (const report of reports) expect(report.source).toEqual({ kind: 'app', producer: 'managed-team' })
+      && message.content.some(block => block.type === 'text' && block.text.includes('Managed worker settlement')))
+    expect(reports.length).toBeGreaterThan(0)
+    expect(reports.length).toBeLessThanOrEqual(SECTORS.length)
+    for (const report of reports) expect(report.source).toEqual({ kind: 'app', producer: 'managed-team-settlement' })
 
     await managed.dispose()
   }, 30_000)
@@ -189,7 +189,7 @@ describe('a delegated research run ends on the lead', () => {
   it('never leaves a worker speaking after the lead has closed it', async () => {
     const adapter = new SectorResearch()
     const managed = research(adapter)
-    await managed.run('Which stocks look good for Sep–Oct? Split it by sector.')
+    await managed.lead.run('Which stocks look good for Sep–Oct? Split it by sector.')
     await adapter.allStarted
 
     // What the lead does when it decides it has enough and wants its slots back.
@@ -217,7 +217,7 @@ describe('a delegated research run ends on the lead', () => {
     // submitted after the lead had answered.
     const adapter = new SectorResearch()
     const managed = research(adapter)
-    await managed.run('Which stocks look good for Sep–Oct? Split it by sector.')
+    await managed.lead.run('Which stocks look good for Sep–Oct? Split it by sector.')
     await adapter.allStarted
     adapter.releaseWorkers()
     await managed.awaitWorker('consumer_retail')
@@ -248,7 +248,7 @@ describe('a delegated research run ends on the lead', () => {
     const managed = research(adapter, (member, event) => {
       if (event.type === 'turn-end') seen.push(member)
     })
-    await managed.run('Which stocks look good for Sep–Oct? Split it by sector.')
+    await managed.lead.run('Which stocks look good for Sep–Oct? Split it by sector.')
     await adapter.allStarted
     adapter.releaseWorkers()
     for (const sector of SECTORS) await managed.awaitWorker(sector)
@@ -256,7 +256,7 @@ describe('a delegated research run ends on the lead', () => {
 
     for (const sector of SECTORS) {
       expect(managed.team.messages().filter(message =>
-        JSON.stringify(message.content).includes(`Worker '${sector}' finished`))).toHaveLength(1)
+        message.content.some(block => block.type === 'text' && block.text.includes(`"worker":"${sector}"`)))).toHaveLength(1)
     }
     await managed.dispose()
   }, 30_000)

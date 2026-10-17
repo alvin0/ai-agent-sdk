@@ -1,0 +1,1 @@
+exports.defaultTtlSeconds = 30;

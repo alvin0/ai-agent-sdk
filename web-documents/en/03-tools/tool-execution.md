@@ -149,10 +149,10 @@ try {
 | Bound | Effect |
 | --- | --- |
 | `maxToolResultBytes` | Serialized bytes retained for one finalized result |
-| `maxToolDurationMs` | End-to-end allowance for one call |
+| `maxToolDurationMs` | Opt-in end-to-end allowance for one call |
 | `toolTeardownTimeoutMs` | Wait after cancelling an uncooperative tool |
-| `maxToolCalls` | Dispatched tools per run (64 by default) |
-| `maxConsecutiveToolErrors` | Consecutive failures before cutoff |
+| `maxToolCalls` | Opt-in cap on dispatched tools per run (default `'auto'`) |
+| `maxConsecutiveToolErrors` | Opt-in consecutive failures before cutoff |
 
 Oversized tool-result text is pruned to a durable head/tail projection before
 summarization during compaction, so a huge result degrades gracefully instead of

@@ -1,5 +1,7 @@
 /** Public identities, delivery values, and event records for local and remote A2A. */
 
+import type { TeamProgressEvent } from './team-progress.ts'
+import type { TeamTimelineEvent } from './team-timeline.ts'
 import type { ContentBlock } from '../../message/index.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
 import type { SdkLogger } from '../../logging/types.ts'
@@ -18,9 +20,13 @@ export type AgentMessageDelivery = 'quiet' | 'wakeup'
  * longer receives that answer as a tool return value: an agent started
  * concurrently reports here instead.
  */
-export type AgentMemberOutcome =
+export type AgentMemberOutcome = {
+  readonly status?: 'completed' | 'failed' | 'timeout' | 'cancelled'
+  readonly structured?: import('../../primitives/index.ts').JsonValue
+} & (
   | { readonly kind: 'completed'; readonly text: string }
   | { readonly kind: 'failed'; readonly message: string; readonly text?: string }
+)
 
 /** Detached runtime view of one addressable member. */
 export interface AgentTeamMember {
@@ -112,16 +118,21 @@ export interface SendAgentMessageResult {
 }
 
 export type AgentTeamEvent =
+  | TeamTimelineEvent
+  | TeamProgressEvent
   | { readonly type: 'member-attached'; readonly member: AgentTeamMember }
   | { readonly type: 'member-linked'; readonly member: AgentTeamMember }
   | { readonly type: 'message-accepted'; readonly message: AgentMessageRecord }
   | { readonly type: 'member-run-start'; readonly member: string }
-  | { readonly type: 'member-run-end'; readonly member: string }
+  | { readonly type: 'member-run-end'; readonly member: string; readonly response?: unknown }
   | { readonly type: 'member-run-cancelled'; readonly member: string }
-  | { readonly type: 'member-run-error'; readonly member: string; readonly error: string }
+  | { readonly type: 'member-run-error'; readonly member: string; readonly error: string; readonly response?: unknown }
   | { readonly type: 'team-disposed'; readonly teamId: string }
 
 export interface AgentTeamOptions {
+  /** Host-supplied ancestry for nested teams; managed sessions infer it from inherited observation. */
+  readonly parentTeamId?: string
+  readonly depth?: number
   readonly id?: string
   readonly maxMembers?: number
   /** Maximum number of accepted messages retained for audit. Defaults to 10,000. */
@@ -131,24 +142,28 @@ export interface AgentTeamOptions {
   readonly maxLinkedResultBytes?: number
   /** Maximum cumulative serialized content/result bytes retained by the mailbox. Defaults to 64 MiB. */
   readonly maxMailboxBytes?: number
+  /**
+   * What a full audit mailbox does with a new message. `reject` (default for AgentTeam) refuses it;
+   * `evict-oldest` drops the oldest accepted records first. Managed teams default to `evict-oldest`
+   * so a long-lived team keeps spawning after it has exchanged `maxMessages` messages.
+   */
+  readonly mailboxOverflow?: 'reject' | 'evict-oldest'
   /** Maximum serialized bytes for descriptions and collaboration instructions. Defaults to 8 KiB. */
   readonly maxMetadataBytes?: number
   /** Maximum time dispose waits for cooperative transports/providers. Defaults to 30 seconds. */
   readonly disposeTimeoutMs?: number
-  /** End-to-end bound for one remote dispatch or local wake-up batch. Defaults to 10 minutes. */
+  /** Opt-in end-to-end bound for one remote dispatch or local wake-up batch; none by default. */
   readonly operationTimeoutMs?: number
   /** Maximum wait per asynchronous agent-event observer. Defaults to 1 second. */
   readonly observerTimeoutMs?: number
   /**
-   * How long `wait_agents` waits before reporting back. Defaults to 30 seconds.
-   *
-   * The tool call can ask for less. It cannot wait forever, because a
-   * coordinator that never regains control cannot tell a slow agent from a
-   * stuck one, and neither can the person watching it.
+   * Opt-in default for how long `wait_agents` waits before reporting back. None by default: the
+   * wait ends when its targets settle, when the caller is steered by new input, or on cancellation.
+   * The tool call can still ask for a bounded wait.
    */
   readonly waitTimeoutMs?: number
   /**
-   * Shortest wait one `wait_agents` call may ask for. Defaults to 5 seconds.
+   * Shortest wait one `wait_agents` call may ask for. Defaults to 10 seconds.
    *
    * A lead that asks for a second gets the roster back unchanged and has spent
    * a model round learning nothing. A request below the floor is raised to it,

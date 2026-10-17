@@ -5,6 +5,10 @@
       "collapsed": false,
       "items": [
         {
+          "text": "Upgrading to 0.1.13",
+          "link": "/en/01-introduction/upgrading-to-0-1-13"
+        },
+        {
           "text": "Upgrading to 0.1.12",
           "link": "/en/01-introduction/upgrading-to-0-1-12"
         },
@@ -452,6 +456,10 @@
       "text": "1. Giới thiệu",
       "collapsed": false,
       "items": [
+        {
+          "text": "Nâng cấp lên 0.1.13",
+          "link": "/vi/01-introduction/upgrading-to-0-1-13"
+        },
         {
           "text": "Nâng cấp lên 0.1.12",
           "link": "/vi/01-introduction/upgrading-to-0-1-12"

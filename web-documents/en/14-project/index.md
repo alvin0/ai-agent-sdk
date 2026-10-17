@@ -4,7 +4,7 @@
 
 | Item | Value |
 | --- | --- |
-| Version | `0.1.12` |
+| Version | `0.1.13` |
 | License | MIT |
 | Node requirement | 22.18+ for workspace tooling; 22.12+ for installed Node capability packages |
 | Registry publication | Merge to `main` triggers publication — 27 packages under `@alvin0` |
@@ -30,7 +30,7 @@ of the provider packages.
 To install from a local tarball instead:
 
 ```bash
-pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.12.tgz
+pnpm add ./artifacts/alvin0-ai-agent-sdk-core-0.1.13.tgz
 ```
 
 ## Versioning

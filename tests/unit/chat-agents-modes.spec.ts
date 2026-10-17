@@ -459,9 +459,27 @@ describe('what the app actually configures for a single agent', () => {
     try {
       const events: AgentRunEvent[] = []
       for await (const event of handles.events) events.push(event as AgentRunEvent)
+      const leadTools = adapter.requests[0]!.tools!
+      expect(leadTools.map(tool => tool.name)).toContain('spawn_agent')
+      // Team-auto keeps the lazy default for work the lead can finish locally.
+      const controls = ['send_input', 'wait_agents', 'get_agent_result', 'close_agent']
+      for (const request of adapter.requests) {
+        for (const control of controls) expect(request.tools?.map(tool => tool.name)).not.toContain(control)
+      }
+      expect(leadTools.map(tool => tool.name)).not.toContain('followup_task')
+      expect(adapter.requests[0]!.system)
+        .toContain('Do small or sequential work directly; weigh context and synthesis cost.')
+      expect(adapter.requests[0]!.system).not.toContain('Collaboration mode:')
       if (actor === 'worker') {
-        await handles.managedTeam!.spawn({ name: 'researcher', task: 'Review all 55 sources.' })
-        expect(await handles.managedTeam!.awaitWorker('researcher')).toMatchObject({
+        const reviewer = await handles.managedTeam!.spawn({
+          name: 'reviewer', role: 'reviewer', context: 'fork', task: 'Review all 55 sources.',
+        })
+        const disclosed = handles.managedTeam!.lead.effectiveCatalog()!.schemas()
+        expect(disclosed.map(tool => tool.name)).toEqual(expect.arrayContaining(controls))
+        const sending = disclosed.find(tool => tool.name === 'send_input')!
+        expect('parameters' in sending && sending.parameters.properties).not.toHaveProperty('interrupt')
+        expect(reviewer.context).toBe('fresh')
+        expect(await handles.managedTeam!.awaitWorker('reviewer')).toMatchObject({
           text: 'Final report: 55 sources checked.', succeeded: true,
         })
       }
@@ -578,7 +596,7 @@ describe('what the app actually configures for a single agent', () => {
     expect(second).not.toContain('Re-run more narrowly')
   })
 
-  it('keeps a final report after the sample consumes all work steps', async () => {
+  it('runs past the old 32-step budget to its own final report', async () => {
     const { requests, events } = await appRun([
       ...Array.from({ length: 32 }, (_, index) => call(`read-${index}`, 'read_file', { path: `source-${index}.md` })),
       text('Report: sources compared; pending items remain unverified.'),
@@ -589,7 +607,8 @@ describe('what the app actually configures for a single agent', () => {
     const end = events.find(event => event.type === 'agent-end')
     expect(end?.type === 'agent-end' && end.outcome.text).toContain('Report: sources compared')
     expect(requests).toHaveLength(33)
-    expect(requests.at(-1)?.toolChoice).toBe('none')
+    // No step ceiling: the report is the model's own answer, not a forced tools-off finalizer.
+    expect(requests.at(-1)?.toolChoice).not.toBe('none')
     expect(requests[0]?.system).toContain('reconcile the plan')
   })
 

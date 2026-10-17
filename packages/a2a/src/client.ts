@@ -1,4 +1,4 @@
-import { defaultLimit } from './common/limits.ts'
+import { A2A_NO_DEADLINE_MS, defaultLimit } from './common/limits.ts'
 import { sendStreaming } from './client/stream.ts'
 import { contentPart, normalizeResult } from './client/content.ts'
 import { nonEmpty, positiveInteger, byteLength, combineSignals, raceWithSignal } from './client/values.ts'
@@ -62,7 +62,7 @@ export class A2AAgentLink implements LinkedAgentTransport {
       options.agentId ?? agentCard?.name ?? options.baseUrl,
       'A2A linked agent id',
     )
-    this.timeoutMs = defaultLimit(options.timeoutMs, 120_000, 'timeoutMs')
+    this.timeoutMs = defaultLimit(options.timeoutMs, A2A_NO_DEADLINE_MS, 'timeoutMs')
     this.teardownTimeoutMs = defaultLimit(options.teardownTimeoutMs, 30_000, 'teardownTimeoutMs')
     this.maxRequestBytes = defaultLimit(options.maxRequestBytes, 1024 * 1024, 'maxRequestBytes')
     this.maxResponseBytes = defaultLimit(options.maxResponseBytes, 1024 * 1024, 'maxResponseBytes')
@@ -310,7 +310,7 @@ async function resolveAgentLink(options: A2AAgentLinkOptions): Promise<A2AAgentL
     validateAgentCard(options.agentCard, cardOptions)
     const guardedFetch = endpointFetch(options.fetch ?? globalThis.fetch, cardOptions)
     const factory = options.clientFactory ?? defaultFactory({ ...cardOptions, fetch: guardedFetch })
-    const signal = AbortSignal.timeout(defaultLimit(options.timeoutMs, 120_000, 'timeoutMs'))
+    const signal = AbortSignal.timeout(defaultLimit(options.timeoutMs, A2A_NO_DEADLINE_MS, 'timeoutMs'))
     const link = new A2AAgentLink(
       await raceWithSignal(factory.createFromAgentCard(options.agentCard), signal),
       cardOptions,
@@ -325,7 +325,7 @@ async function resolveAgentLink(options: A2AAgentLinkOptions): Promise<A2AAgentL
     fetchImpl: guardedFetch,
     legacyCompat: { enabled: options.legacyCompat ?? false },
   })
-  const signal = AbortSignal.timeout(defaultLimit(options.timeoutMs, 120_000, 'timeoutMs'))
+  const signal = AbortSignal.timeout(defaultLimit(options.timeoutMs, A2A_NO_DEADLINE_MS, 'timeoutMs'))
   const agentCard = await raceWithSignal(resolver.resolve(baseUrl.href, options.cardPath), signal)
   validateAgentCard(agentCard, discoveryOptions)
   const factory = options.clientFactory ?? defaultFactory({ ...discoveryOptions, fetch: guardedFetch })

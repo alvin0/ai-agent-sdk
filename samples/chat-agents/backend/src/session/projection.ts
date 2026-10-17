@@ -14,6 +14,7 @@ import type { createCallRecording } from './call-recording'
 import type { PromptRunContext } from './run-context'
 
 export interface PromptProjection {
+  stopProgressNotices?: () => void
   readonly context: PromptRunContext
   readonly trace: RunTrace
   readonly tally: UsageTally

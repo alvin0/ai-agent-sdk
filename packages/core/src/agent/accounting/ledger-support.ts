@@ -73,10 +73,10 @@ export interface MutableOperation {
 
 export function resolveLimits(input: RunLedgerLimits | undefined): ResolvedLimits {
   return Object.freeze({
-    maxModelCalls: positive(input?.maxModelCalls ?? 1_024, 'maxModelCalls'),
-    maxAttemptsPerCall: positive(input?.maxAttemptsPerCall ?? 16, 'maxAttemptsPerCall'),
-    maxToolCalls: positive(input?.maxToolCalls ?? 10_000, 'maxToolCalls'),
-    maxSerializedBytes: positive(input?.maxSerializedBytes ?? 16 * 1024 * 1024, 'maxSerializedBytes'),
+    maxModelCalls: optInLimit(input?.maxModelCalls, 'maxModelCalls'),
+    maxAttemptsPerCall: optInLimit(input?.maxAttemptsPerCall, 'maxAttemptsPerCall'),
+    maxToolCalls: optInLimit(input?.maxToolCalls, 'maxToolCalls'),
+    maxSerializedBytes: optInLimit(input?.maxSerializedBytes, 'maxSerializedBytes'),
   })
 }
 
@@ -186,6 +186,11 @@ export function errorData(error: SafeErrorRecord): JsonObject {
 
 export function isOperationStatus(value: unknown): value is OperationStatus {
   return value === 'success' || value === 'error' || value === 'aborted' || value === 'rejected' || value === 'unknown'
+}
+
+/** Omitted or 'auto' means no cap, so accounting never aborts a run the caller did not bound. */
+function optInLimit(value: number | 'auto' | undefined, label: string): number {
+  return value === undefined || value === 'auto' ? Infinity : positive(value, label)
 }
 
 function positive(value: number, label: string): number {

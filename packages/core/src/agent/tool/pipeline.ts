@@ -186,17 +186,23 @@ export async function finalizeToolCall(call: AuthorizedToolCall,
   }
 }
 
+/** Opt-in like the scheduler: no default deadline for a tool call. */
+function facadeDeadline(value: number | undefined): { timeoutMs: number | undefined; deadline: AbortSignal } {
+  if (value === undefined) return { timeoutMs: undefined, deadline: new AbortController().signal }
+  const timeoutMs = positiveSafeInteger(value, 'defaultTimeoutMs')
+  return { timeoutMs, deadline: AbortSignal.timeout(timeoutMs) }
+}
+
 /** Compatibility facade for callers that do not need scheduling. */
 export async function dispatchToolCall(options: DispatchToolCallOptions): Promise<ToolExecutionResult> {
   if (options.signal.aborted) {
     return toolFailure('the call was cancelled before it started', TOOL_ERROR_CODES.ABORTED_BEFORE_DISPATCH)
   }
-  const timeoutMs = positiveSafeInteger(options.defaultTimeoutMs ?? 10 * 60_000, 'defaultTimeoutMs')
+  const { timeoutMs, deadline } = facadeDeadline(options.defaultTimeoutMs)
   const teardownTimeoutMs = positiveSafeInteger(options.teardownTimeoutMs ?? 30_000, 'teardownTimeoutMs')
-  const deadline = AbortSignal.timeout(timeoutMs)
   const signal = AbortSignal.any([options.signal, deadline])
   const pending = dispatchToolCallInternal({
-    ...options, signal, defaultTimeoutMs: timeoutMs, teardownTimeoutMs,
+    ...options, signal, ...timeoutMs === undefined ? {} : { defaultTimeoutMs: timeoutMs }, teardownTimeoutMs,
   })
   try {
     return await raceWithSignal(pending, signal)

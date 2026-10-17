@@ -34,13 +34,15 @@ abstract class StubAdapter extends ModelAdapter {
 const isLead = (options: GenerateOptions): boolean =>
   (options.tools ?? []).some(tool => tool.name === 'spawn_agent')
 
-function teamOf(adapter: ModelAdapter, options: { maxWorkers?: number; allowModelWorkerCancellation?: boolean } = {}) {
+function teamOf(adapter: ModelAdapter, options: {
+  maxWorkers?: number; allowModelWorkerCancellation?: boolean; modelToolSurface?: 'lean' | 'legacy'
+} = {}) {
   const registry = new ModelRegistry()
   registry.registerAdapter(['test'], adapter)
-  return createManagedAgentTeam({
+  return createManagedAgentTeam({ modelToolSurface: 'legacy',
     registry,
+    ...options.modelToolSurface === undefined ? {} : { modelToolSurface: options.modelToolSurface },
     // Tests are not paced by a production-sized wait for worker news.
-    holdWaitMs: 20,
     lead: defineAgent({
       id: 'lead',
       provider: 'test',
@@ -115,7 +117,7 @@ describe('spawn_agent no longer waits', () => {
     expect(leadRun.outcome.reason.kind).toBe('completed')
     const seen = JSON.stringify(adapter.leadRequests.at(-1))
     expect(seen).toContain('worker answer')
-    expect(seen).toContain('finished')
+    expect(seen).toContain('completed')
     await managed.dispose()
   }, 20_000)
 
@@ -149,7 +151,7 @@ describe('spawn_agent no longer waits', () => {
 
     const adapter = new LeadSpawnsThenFinishes()
     const managed = teamOf(adapter)
-    const first = await managed.run('research and synthesize')
+    const first = await managed.lead.run('research and synthesize')
     expect(first.text).toContain('synthesis')
     expect(managed.lead.isRunning).toBe(false)
 
@@ -167,7 +169,7 @@ describe('spawn_agent no longer waits', () => {
     await managed.dispose()
   }, 20_000)
 
-  it('counts a dependency-queued worker as unfinished when holding the turn open', async () => {
+  it('yields without polling while a dependency-queued worker is unfinished', async () => {
     // A worker held behind `dependsOn` has not started, but it will run and
     // report. Counting only the running ones let a lead conclude while its
     // whole dependency chain was still queued.
@@ -181,8 +183,8 @@ describe('spawn_agent no longer waits', () => {
     const leadRun = await managed.lead.run('are we done?', {})
     expect(leadRun.outcome.reason.kind).toBe('completed')
     const held = JSON.stringify(adapter.leadRequests.at(-1))
-    expect(held).toContain('Outstanding managed workers:')
-    expect(held).toContain('second')
+    expect(adapter.leadRequests).toHaveLength(1)
+    expect(held).not.toContain('Outstanding managed workers:')
 
     adapter.release?.()
     await managed.dispose()
@@ -209,7 +211,7 @@ describe('spawn_agent no longer waits', () => {
     await managed.spawn({ name: 'w', task: 'do it' })
     adapter.release?.()
     await managed.awaitWorker('w')
-    // `list_agents` is how the lead reads a finished worker's answer.
+    // The host roster retains full evidence; model-facing discovery is metadata only.
     const member = managed.team.members().find(entry => entry.name === 'w')
     expect(member?.outcome).toEqual({ kind: 'completed', text: 'worker answer' })
     await managed.dispose()
@@ -238,27 +240,23 @@ describe('the lead owns the ending', () => {
     }
   }
 
-  it('will not let the lead conclude while a worker is unfinished', async () => {
+  it('yields the raw turn and resumes synthesis when the worker finishes', async () => {
     const adapter = new EagerLead()
     const managed = teamOf(adapter)
     const run = managed.lead.run('delegate and answer', {})
 
-    // Round one spawns, round two tries to answer. A lead left to itself would
-    // stop there — so a THIRD round is the signal that the turn was sent back:
-    // concluding at two would answer from nothing, and once the turn is over
-    // the worker's report has no turn left to be read in.
-    const deadline = Date.now() + 5_000
-    while (adapter.leadRounds < 3 && Date.now() < deadline) {
-      await new Promise((resolve) => { setTimeout(resolve, 20) })
-    }
-    expect(adapter.leadRounds).toBeGreaterThan(2)
+    // The raw turn yields after spawning and one holding response. No polling round.
+    await run
+    expect(adapter.leadRounds).toBe(2)
+    expect(managed.lead.isRunning).toBe(false)
     expect(managed.workers()[0]?.status).toBe('running')
 
     adapter.finishWorker()
-    const response = await run
+    await managed.whenQuiet()
+    const response = managed.lead.lastOutcome()!
     // Once nothing is outstanding the turn is free to end — the guard must not
     // turn "wait for your workers" into "never finish".
-    expect(response.outcome.reason.kind).toBe('completed')
+    expect(response.reason.kind).toBe('completed')
     expect(response.text).toBe('lead answer')
     expect(await managed.awaitWorker('w')).toMatchObject({ text: 'worker answer' })
     await managed.dispose()
@@ -268,7 +266,7 @@ describe('the lead owns the ending', () => {
     const adapter = new HeldWorker()
     const registry = new ModelRegistry()
     registry.registerAdapter(['test'], adapter)
-    const managed = createManagedAgentTeam({
+    const managed = createManagedAgentTeam({ modelToolSurface: 'legacy',
       registry,
       lead: defineAgent({
         id: 'lead',
@@ -296,7 +294,7 @@ describe('a detached worker still reports', () => {
     const registry = new ModelRegistry()
     registry.registerAdapter(['test'], adapter)
     const seen: { worker: string; type: string }[] = []
-    const managed = createManagedAgentTeam({
+    const managed = createManagedAgentTeam({ modelToolSurface: 'legacy',
       registry,
       lead: defineAgent({
         id: 'lead',
@@ -392,7 +390,7 @@ describe('close_agent is the stopping point', () => {
       }
     }
     const adapter = new ClosingLead()
-    const managed = teamOf(adapter, { allowModelWorkerCancellation })
+    const managed = teamOf(adapter, { allowModelWorkerCancellation, modelToolSurface: 'legacy' })
     try {
       await managed.spawn({ name: 'w', task: 'finish the report' })
       await adapter.workerRunning
@@ -507,17 +505,17 @@ describe('close_agent is the stopping point', () => {
     await managed.dispose()
   }, 20_000)
 
-  it('closes a finished worker that is still holding a slot', async () => {
+  it('removes a finished worker whose slot was already released', async () => {
     const adapter = new HeldWorker()
     const managed = teamOf(adapter, { maxWorkers: 1 })
     await managed.spawn({ name: 'w', task: 'do it' })
     adapter.release?.()
     await managed.awaitWorker('w')
-    // Codex's rule, and the reason close_agent matters: finishing is not
-    // leaving. A lead that never closes runs out of workers.
+    await expect(managed.spawn({ name: 'next', task: 'next' })).resolves.toMatchObject({ status: 'running' })
+    await managed.awaitWorker('next')
     expect(managed.workers()[0]?.status).toBe('completed')
     expect(await managed.closeWorker('w')).toBe('completed')
-    expect(managed.workers()).toEqual([])
+    expect(managed.workers().map(worker => worker.name)).toEqual(['next'])
     await managed.dispose()
   }, 20_000)
 })
@@ -577,7 +575,7 @@ describe('the budgets are the host set', () => {
     const adapter = new HeldWorker()
     const registry = new ModelRegistry()
     registry.registerAdapter(['test'], adapter)
-    const managed = createManagedAgentTeam({
+    const managed = createManagedAgentTeam({ modelToolSurface: 'legacy',
       registry,
       lead: defineAgent({
         id: 'lead',
@@ -596,7 +594,7 @@ describe('the budgets are the host set', () => {
     })
     // Read, not ignored: an impossible value is refused rather than quietly
     // falling back to the built-in default.
-    expect(() => createManagedAgentTeam({
+    expect(() => createManagedAgentTeam({ modelToolSurface: 'legacy',
       registry,
       lead: defineAgent({
         id: 'lead2',

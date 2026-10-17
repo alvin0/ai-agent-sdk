@@ -72,6 +72,7 @@ export function buildAgentTurnOptions(setup: AgentTurnSetup): RunTurnOptions {
     commentary: options.commentary ?? 'auto',
     teardownTimeoutMs: options.teardownTimeoutMs ?? 30_000,
     ...optionalTurnProperty('modelTimeoutMs', options.modelTimeoutMs),
+    ...optionalTurnProperty('modelIdleTimeoutMs', options.modelIdleTimeoutMs),
     ...optionalTurnProperty('maxModelRequestBytes', options.maxModelRequestBytes),
     ...optionalTurnProperty('maxModelResponseBytes', options.maxModelResponseBytes),
     ...optionalTurnProperty('maxModelStreamEvents', options.maxModelStreamEvents),

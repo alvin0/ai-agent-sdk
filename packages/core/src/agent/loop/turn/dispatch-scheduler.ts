@@ -1,4 +1,4 @@
-import type { AgentEvent, TurnBounds, TurnHooks, ToolDeclineReason, ExhaustedBudget } from '../types.ts'
+import type { AgentEvent, ResolvedTurnBounds, TurnHooks, ToolDeclineReason, ExhaustedBudget } from '../types.ts'
 import type { TraceRef } from '../../trace/trace.ts'
 import type { RunTurnOptions } from './types.ts'
 import type { modelRound } from './model-round.ts'
@@ -11,7 +11,7 @@ import type { prepareDispatch } from './dispatch-preparation.ts'
 
 type SchedulerContext = {
   round: Awaited<ReturnType<typeof modelRound>>; options: RunTurnOptions; turn: number; step: number
-  signal: AbortSignal; root: TraceRef; bounds: TurnBounds; guardDeclined: boolean | undefined
+  signal: AbortSignal; root: TraceRef; bounds: ResolvedTurnBounds; guardDeclined: boolean | undefined
   budgetIsAWall: boolean; remaining: number; declineReason: ToolDeclineReason
   emit: (event: AgentEvent) => Promise<void>; recover: ReturnType<typeof prepareDispatch>['recover']
   toolActivity: (awaitsPerson: boolean, active: boolean) => void; finalizeUntil: number | undefined
@@ -43,7 +43,7 @@ export async function dispatchRoundTools(ctx: SchedulerContext) {
       maxResultTokens: bounds.maxToolResultTokens,
       resultOverflow: bounds.toolResultOverflow,
       ...optionalDispatch('spillStore', options.spillStore),
-      maxDurationMs: bounds.maxToolDurationMs,
+      ...optionalDispatch('maxDurationMs', finiteOrUndefined(bounds.maxToolDurationMs)),
       teardownTimeoutMs: bounds.toolTeardownTimeoutMs,
       ...optionalDispatch('logger', options.logger),
       ...optionalDispatch('interceptors', options.interceptors),
@@ -73,4 +73,9 @@ export async function dispatchRoundTools(ctx: SchedulerContext) {
       ...optionalDispatch('programResults', programResults),
     })
 
+}
+
+/** Infinity is the resolved form of an unset opt-in limit; timers take none instead. */
+function finiteOrUndefined(value: number): number | undefined {
+  return Number.isFinite(value) ? value : undefined
 }

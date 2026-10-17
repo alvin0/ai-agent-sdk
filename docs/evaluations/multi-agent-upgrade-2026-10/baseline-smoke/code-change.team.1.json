@@ -1,0 +1,44 @@
+{
+  "arm": "team",
+  "task": "code-change",
+  "rep": 1,
+  "provider": "codex",
+  "model": "gpt-6-luna",
+  "timeoutMs": 180000,
+  "schemaVersion": 1,
+  "status": "failed",
+  "score": 0.5,
+  "pass": false,
+  "checks": [
+    false,
+    true,
+    false,
+    true
+  ],
+  "metrics": {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "totalTokens": 0,
+    "reportedTokens": 0,
+    "usageComplete": true,
+    "leadModelCalls": 1,
+    "totalModelCalls": 1,
+    "spawns": 0,
+    "wastedLeadTurns": 0,
+    "wallMs": 27.918083999999993,
+    "errors": [
+      "lead sdk.model.call: {\"status\":\"error\",\"durationMs\":2.817667,\"finishReason\":\"error\",\"dispatchState\":\"not-sent\",\"coverage\":\"not-applicable\",\"reported\":{},\"attemptCount\":0}",
+      "lead: {\"message\":\"no Codex credentials at /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/.temp/wt/benchmark/.providers/.codex/auth.json; run `npm run provider:codex:login-device` to sign in\",\"code\":\"MISSING_CREDENTIAL\"}",
+      "Error: Lead incomplete: {\"kind\":\"error\",\"failure\":{\"message\":\"no Codex credentials at /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/.temp/wt/benchmark/.providers/.codex/auth.json; run `npm run provider:codex:login-device` to sign in\",\"code\":\"MISSING_CREDENTIAL\"}}"
+    ]
+  },
+  "text": "",
+  "artifacts": {
+    "SPEC.md": "normalize trims, lowercases and replaces runs of spaces with one hyphen. cents rounds a decimal price to integer cents.\n",
+    "src/names.cjs": "exports.normalize = value => value;\n",
+    "src/prices.cjs": "exports.cents = value => value;\n"
+  },
+  "error": "Error: Lead incomplete: {\"kind\":\"error\",\"failure\":{\"message\":\"no Codex credentials at /Users/dinh-ai/Documents/workspace/coding/ai-agent-sdk/.temp/wt/benchmark/.providers/.codex/auth.json; run `npm run provider:codex:login-device` to sign in\",\"code\":\"MISSING_CREDENTIAL\"}}"
+}

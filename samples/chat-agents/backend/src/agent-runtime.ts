@@ -33,14 +33,13 @@ import { createFileSpillStore } from './spill'
 import type { AgentRow } from './agents'
 
 /**
- * Tool-using steps one ordinary agent gets for a prompt.
- *
- * The SDK spends this on steps, not on conversational turns, so it is a budget
- * for actions: reading files, editing, running a command.
+ * Tool-using steps one ordinary agent gets for a prompt: 'auto', so a prompt
+ * finishes by completion rather than stopping mid-task and wasting the tokens
+ * already spent. Loop guards still steer the model with warnings.
  */
-const TURN_BUDGET = 32
+const TURN_BUDGET = 'auto' as const
 
-/** Team leads and workers finish by completion, with resource/loop guards intact. */
+/** Team leads and workers finish by completion, too. */
 const TEAM_TURN_BUDGET = 'auto' as const
 
 /**
@@ -89,6 +88,7 @@ const WORKER_ROLES = [
       + ' a reviewer started over an empty workspace can only invent a checklist',
     instructions: 'Review what exists. Report concrete findings with file and line'
       + ' references, and do not modify any file.',
+    context: 'fresh',
   },
 ] as const
 
@@ -392,7 +392,7 @@ export async function startRun(
     // turn spends its calls long before the work is done, and a wall there
     // declines the very call that would have finished — the handover, the
     // submission. The turn stays bounded by steps, tokens, and the run ledger.
-    runtimeLimits: { modelTimeoutMs: MODEL_TIMEOUT_MS, onExhausted: 'continue' as const,
+    runtimeLimits: { modelIdleTimeoutMs: MODEL_TIMEOUT_MS, onExhausted: 'continue' as const,
       maxTotalTokens: 'auto' as const },
     // With a store mounted the default `auto` overflow policy spills instead of
     // truncating, so a `cat` of a large file costs the model a preview and a
@@ -468,6 +468,9 @@ export async function startRun(
     const report = context.onWorkerEvent ?? onMemberEvent
     const managed = context.managedTeam ?? createManagedAgentTeam({
       registry: context.registry,
+      modelToolSurface: 'lean',
+      delegationMode: 'proactive',
+      collaboration: false,
       allowModelWorkerCancellation: false,
       lead: definitionFor(
         context.agent,
@@ -478,6 +481,9 @@ export async function startRun(
         instructions,
       ),
       leadName: 'lead',
+      // An explicit host grant: preserve this sample's worker loop, skills and
+      // approval policy. Automatic lead-tool inheritance applies to generated
+      // workers only when no template/factory or explicit tools are supplied.
       workerTemplate: definitionFor(context.agent, context, { id: 'worker' }, tools, skills, instructions),
       leadSessionOptions,
       workerSessionOptions: sessionOptions,

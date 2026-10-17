@@ -1,0 +1,1 @@
+exports.normalize = value => value;

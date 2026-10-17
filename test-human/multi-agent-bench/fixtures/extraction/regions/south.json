@@ -1,0 +1,25 @@
+{
+  "region": "south",
+  "services": [
+    {
+      "id": "south-0",
+      "requests": 400,
+      "errors": 3
+    },
+    {
+      "id": "south-1",
+      "requests": 407,
+      "errors": 4
+    },
+    {
+      "id": "south-2",
+      "requests": 414,
+      "errors": 0
+    },
+    {
+      "id": "south-3",
+      "requests": 421,
+      "errors": 1
+    }
+  ]
+}

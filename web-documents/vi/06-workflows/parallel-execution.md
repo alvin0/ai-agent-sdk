@@ -86,15 +86,16 @@ exclusive khi ghi.
 runtimeLimits: { /* … */ }   // maxParallel chặn số lời gọi an toàn chạy cùng lúc
 ```
 
-`maxParallel` chặn số lời gọi đủ điều kiện thực sự chạy đồng thời. Kết hợp với
-`maxToolCalls` (64 mỗi lượt chạy) và `maxToolDurationMs`, một lần toả rộng không
-thể vét cạn hệ thống hạ nguồn của bạn.
+`maxParallel` chặn số lời gọi đủ điều kiện thực sự chạy đồng thời, nên một lần
+toả rộng không thể vét cạn hệ thống hạ nguồn của bạn. Thêm `maxToolCalls` và
+`maxToolDurationMs` (tự chọn) khi cần cả trần số lượng hoặc thời gian.
 
 ## 3. Agent song song — một team quản lý
 
-`createManagedAgentTeam()` cho agent dẫn dắt một tool `spawn_agent`. **Nhiều lời
-gọi `spawn_agent` trong cùng một bước model là an toàn khi chạy đồng thời**, nên
-các worker độc lập chạy song song.
+`createManagedAgentTeam()` cho agent dẫn dắt `spawn_agent` và `spawn_agents`.
+**Nhiều lời gọi `spawn_agent` trong cùng một bước model là an toàn khi chạy đồng
+thời**, còn `spawn_agents({ tasks })` nhận một lô vào các slot trống cộng một hàng
+đợi FIFO có giới hạn, nên các worker độc lập chạy song song.
 
 ```ts
 const harness = createManagedAgentTeam({
@@ -117,20 +118,24 @@ làm việc trong lúc worker chạy; một agent dẫn dắt bị treo trong to
 chính nó thì không đọc được tin nhắn của worker, không spawn thêm được, và
 không nhận ra khi một worker tắt tiếng.
 
-Worker báo cáo lại theo ba đường: một tin nhắn hoàn thành lặng lẽ chèn vào
-history của agent dẫn dắt, một `outcome` ghi trên roster và trả về qua
-`list_agents`, và `wait_agents`. Worker đã xong vẫn giữ slot `maxWorkers` cho
-tới khi `close_agent` giải phóng.
+Bề mặt tool mặc định (lean) là `spawn_agent`, `spawn_agents`, `send_input`,
+`wait_agents`, `close_agent` và `get_agent_result` có phân trang
+(`modelToolSurface: 'legacy'` giữ `list_agents`, `send_message` và
+`followup_task`). Worker báo cáo lại bằng một settlement do runtime đẩy vào
+history của agent dẫn dắt và một `outcome` trên roster. Worker đã xong tự giải
+phóng slot `maxWorkers` và vẫn địa chỉ hoá được qua `send_input` cho tới khi đóng
+bằng host `closeWorker(name)` hoặc model `close_agent`; `maxRetainedWorkers` (256)
+giới hạn số worker rảnh được giữ lại.
 
-Worker đã hoàn thành vẫn địa chỉ hoá được qua `list_agents`, `send_message`, và
-`followup_task` cho tới khi đóng bằng host `closeWorker(name)` hoặc model `close_agent`.
-
-Prompt managed team mô tả lifecycle; instructions của host quy định lập kế
-hoạch, phân công và tổng hợp. `autoLeadCoordination` mặc định true,
+Hướng dẫn managed team mặc định phân công chủ động, có giới hạn
+(`delegationMode: 'explicit'` để tắt) và worker kế thừa các tool đủ điều kiện của
+agent dẫn dắt (`inheritLeadTools: false` để tắt); instructions của host quy định
+kế hoạch và cách tổng hợp riêng cho từng việc. `autoLeadCoordination` mặc định true,
 `workerTeamTools` là `reporting`, `requireWorkerText` là false. Đặt option cuối
 thành true nếu bắt buộc có báo cáo text. `writes` phải tương đối trong workspace;
 `dependsOn` gắn với producer instance đã đăng ký kể cả khi tái sử dụng địa chỉ.
-`workerTimeoutMs` tính thực thi chủ động, không tính setup/thời gian đợi dependency.
+`workerTimeoutMs` là tự chọn (không có deadline mặc định) và tính thực thi chủ
+động, không tính setup/thời gian đợi dependency.
 Xem [nâng cấp từ 0.1.4](/vi/01-introduction/upgrading-from-0-1-4) về validation
 và thay đổi ngữ nghĩa hoàn tất.
 
@@ -160,9 +165,11 @@ Số worker, dung lượng team, tính duy nhất của địa chỉ, việc hu�
 ## Điểm hợp: `wait_agents`
 
 Một agent điều phối tổng hợp kết quả trước khi các worker xong việc sẽ cho ra thứ
-vô nghĩa nhưng đầy tự tin. `wait_agents` chờ các công việc được chọn, trả về ngay khi target **đầu tiên**
-kết thúc và luôn trong `timeoutMs` (mặc định 30 giây). Hết thời gian là một kết
-quả bình thường mang theo roster hiện tại, không phải lỗi.
+vô nghĩa nhưng đầy tự tin. `wait_agents` chờ **tất cả** target được chọn và chỉ trả về bằng chứng mới. Không
+có `timeout_ms` thì nó chờ tới khi chúng kết thúc, có input mới điều hướng agent
+dẫn dắt (`interrupted: true`), hoặc lượt chạy bị huỷ; timeout do model yêu cầu
+tối thiểu 10 giây. Hết thời gian là một kết quả bình thường mang theo roster hiện
+tại, không phải lỗi. `run()` của managed team chờ tới bước tổng hợp.
 
 ```ts
 // Từ vòng lặp tool của chính agent dẫn dắt, model gọi wait_agents.

@@ -1,0 +1,25 @@
+{
+  "region": "central",
+  "services": [
+    {
+      "id": "central-0",
+      "requests": 500,
+      "errors": 4
+    },
+    {
+      "id": "central-1",
+      "requests": 507,
+      "errors": 0
+    },
+    {
+      "id": "central-2",
+      "requests": 514,
+      "errors": 1
+    },
+    {
+      "id": "central-3",
+      "requests": 521,
+      "errors": 2
+    }
+  ]
+}

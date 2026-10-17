@@ -3,12 +3,13 @@
 import type { UserMessage } from '../../message/index.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
 import type { ToolDefinition } from '../tool/definition.ts'
+import type { ToolCatalog } from '../tool/registry.ts'
 
 /**
  * How much of the team tool set one member may use.
  *
  * `full` is every verb. `reporting` withholds the two that BLOCK or DELEGATE —
- * `wait_agents` and `followup_task` — leaving `list_agents` and `send_message`.
+ * `wait_agents` and `followup_task` — leaving discovery, result reads and quiet messaging.
  *
  * The distinction exists because an agent created to carry out one bounded task
  * needs a stopping point, and the coordination verbs take it away: given them,
@@ -55,7 +56,11 @@ export interface TeamSessionPort {
 
 /** Session-facing surface of a team control plane. */
 export interface TeamPort {
+  /** Runtime invocation lifetime, including consumer cancellation; never the shorter step signal. */
+  observeInvocation?(sender: string, signal: AbortSignal): void
   attach(session: TeamSessionPort, options?: TeamMemberAttachmentOptions): void
   toolsFor(sender: string, access?: TeamToolAccess): readonly ToolDefinition<any>[]
   instructionsFor(name: string): string
+  /** Optional live projection; must apply the same visibility to schemas and dispatch. */
+  filterCatalog?(sender: string, catalog: ToolCatalog): ToolCatalog
 }

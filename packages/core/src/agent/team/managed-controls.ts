@@ -5,49 +5,92 @@ import {
 import {
   asJson,
 } from './managed-outcomes.ts'
-import type { ManagedAgentRole, ManagedAgentSpawnRequest, ManagedAgentTeamOptions,
+import { atManagedDepthLimit, filterToolsByDepth } from './managed-capabilities.ts'
+import type { ManagedAgentDelegationMode, ManagedAgentRole, ManagedAgentSpawnRequest, ManagedAgentTeamOptions,
   ManagedAgentWorker, ManagedAgentWorkerStatus, WorkerRuntime } from './managed-types.ts'
 
-/** Protocol facts only; task strategy and output contracts belong to the host. */
-export const LEAD_INSTRUCTIONS = [
-  'You have access to a managed team. Your task and coordination strategy are defined by the host instructions.',
-  'Return only the caller-requested result in the caller’s format; include explanation only when requested.',
-  'spawn_agent returns a worker lifecycle view, not its final result. list_agents exposes status and retained results; '
-  + 'wait_agents waits within its timeout.',
-  'dependsOn references already registered producer instances. Pending dependents start after those producers settle '
-  + 'and receive their results or failure status, even if a producer address is later closed or reused.',
-  'fresh starts from the assigned task; fork also copies the completed lead conversation.',
-  'writes declares relative scheduling scopes under the host conflict policy; '
-  + 'it does not grant filesystem permissions. Omit it when no write scope is needed.',
-  'send_message is an update, not terminal completion. completed and failed are terminal worker states; '
-  + 'pending and running are not.',
-  'Finished workers occupy slots until close_agent. '
-  + 'Closing unfinished work requires cancelRunning: true and host authorization.',
+/** Shared delegation strategy; host-selected mode and runtime details are appended below. */
+export const DELEGATION_STRATEGY = [
+  'Delegation adds worker context, startup and synthesis cost. Do small or sequential tasks directly. '
+  + 'Use one worker when a bounded side task or fresh-context check justifies that cost.',
+  'Fan out for many independent items when accuracy or time benefits justify cost. '
+  + 'Inspect scope first; once fan-out is justified, plan partitions before reading bulk inputs. '
+  + 'Size chunks carefully: accuracy degrades as items per worker grow; '
+  + 'prefer more, smaller chunks within slot and queue limits. '
+  + 'Keep immediate critical-path blockers and tightly coupled work local.',
+  'Batch worthwhile independent work. '
+  + 'Worker brief: objective, inputs, output, write scope, verification.',
+  'Use disjoint write sets, including your own. Do not redo delegated work; continue useful non-overlapping work.',
+  'For fresh context, give a self-contained brief. For fork, state only new information; '
+  + 'the worker sees completed conversation turns, not this in-flight turn.',
+  'Stay responsive to user updates. Keep coordination in the parent. Child output is a report to synthesize: '
+  + 'review evidence, resolve gaps, and return the caller-requested result in the requested format.',
+  'Wait sparingly, only when a result blocks your next step. Do not busy-poll status or repeat short waits.',
 ].join(' ')
+
+/** Runtime-independent strategy for managed, lean, or host-composed tool surfaces. */
+export function buildDelegationStrategy(mode: ManagedAgentDelegationMode = 'proactive'): string {
+  if (mode !== 'explicit' && mode !== 'proactive') throw new TypeError('invalid managed delegationMode')
+  return [
+    mode === 'explicit'
+      ? 'Delegate only when the user or host instructions explicitly ask for agents, delegation, or parallel work.'
+      : 'Default to doing the work directly; use the team when its benefit outweighs coordination cost.',
+    DELEGATION_STRATEGY,
+  ].join(' ')
+}
+
+/** Scheduling facts for this control plane; replace independently when changing result delivery. */
+export const MANAGED_DELEGATION_RUNTIME = 'Runtime: results are pushed automatically; '
+  + 'wait_agents joins selected workers and returns only new results. '
+  + 'Finished workers auto-release slots; get_agent_result reads capped retained pages.'
+
+export function managedLeadInstructions(options: ManagedAgentTeamOptions): string {
+  const strategy = buildDelegationStrategy(options.delegationMode).replace('Keep coordination in the parent.',
+    options.collaboration ? 'Coordinate shared work through the task board and bounded peer messages.'
+      : 'Keep coordination in the parent.')
+  return [
+    atManagedDepthLimit(options)
+      ? 'Delegation depth limit reached. Do the work directly; do not spawn agents. '
+        + 'Stay responsive to user updates. Review worker reports, resolve gaps, and synthesize the '
+        + 'caller-requested result in the requested format. Wait sparingly when a result blocks your next step; '
+        + 'do not busy-poll status or repeat short waits.'
+      : strategy,
+    MANAGED_DELEGATION_RUNTIME,
+    ...atManagedDepthLimit(options) ? []
+      : ['Use spawn_agent for one worthwhile task; spawn_agents for justified fan-out. '
+        + 'Overflow queues FIFO within host limits; capacity is a limit, not a target.'],
+    options.autoLeadCoordination === false
+      ? 'Use wait_agents when blocked on a worker result; the host controls later turns.'
+      : 'When only waiting remains, end your turn instead of polling; managed coordination collects worker reports '
+        + 'and continues synthesis. Do not present a final answer before needed reports arrive.',
+  ].join(' ')
+}
 
 export interface ManagedControlsHost {
   readonly options: ManagedAgentTeamOptions
-  readonly spawnTimeoutMs: number
-  readonly workerTimeoutMs: number
+  readonly spawnTimeoutMs: number | undefined
+  readonly workerTimeoutMs: number | undefined
+  spawnGuidance(): string | undefined
   roleSchema(): Record<string, unknown>
   spawn(request: ManagedAgentSpawnRequest, signal?: AbortSignal): Promise<ManagedAgentWorker>
+  workerBusy?(name: string): boolean
   workerRuntime(name: string): WorkerRuntime | undefined
   closeWorker(name: string): Promise<ManagedAgentWorkerStatus>
 }
 
 export function managedControlTools(host: ManagedControlsHost): readonly ToolDefinition<any>[] {
-  return Object.freeze([spawnControlTool(host), closeControlTool(host)])
+  return Object.freeze(filterToolsByDepth([spawnControlTool(host), closeControlTool(host)], host.options))
 }
 
 function spawnControlTool(host: ManagedControlsHost): ToolDefinition<any> {
   return defineTool({
     name: 'spawn_agent',
     description: [
-      'Create a managed worker for the supplied task.',
-      'Returns a lifecycle view after setup; a dependent may still be pending.',
-      'Use list_agents for retained status/results and wait_agents for bounded waits.',
-      'dependsOn binds already registered producer instances; '
-      + 'writes declares relative scheduling scopes under host policy.',
+      'Delegate one worthwhile side task or fresh-context check; do small or sequential tasks directly.',
+      'Brief: objective, expected output, write scope, verification. Use disjoint write sets. '
+      + 'Continue your own non-overlapping work; do not redo theirs.',
+      'Returns a worker address and status, not a final report. Reports are injected automatically; '
+      + 'use get_agent_result for retained pages or wait_agents when blocked. Synthesize the result before answering.',
     ].join(' '),
     parameters: {
       type: 'object',
@@ -94,7 +137,7 @@ function spawnControlTool(host: ManagedControlsHost): ToolDefinition<any> {
     // Seconds, not the worker's whole deadline: this call only starts the
     // worker now. Leaving it at workerTimeoutMs would let a stuck SETUP
     // hold the lead for ten minutes.
-    timeoutMs: host.spawnTimeoutMs,
+    ...host.spawnTimeoutMs === undefined ? {} : { timeoutMs: host.spawnTimeoutMs },
     isConcurrencySafe: () => true,
   })
 }
@@ -104,8 +147,8 @@ function closeControlTool(host: ManagedControlsHost): ToolDefinition<any> {
     name: 'close_agent',
     budgetExempt: true,
     description: [
-      'Close a worker you no longer need and free its slot.',
-      'A finished worker still occupies one until closed, so close it once you have read its result.',
+      'Cancel unfinished work or remove a worker you no longer need.',
+      'Finished workers release slots automatically; closing removes their retained address.',
       'A running or pending worker is kept alive by default so it can finish its final report.',
       host.options.allowModelWorkerCancellation === false
         ? 'The host requires worker reports: you cannot cancel unfinished workers. Wait for their result.'
@@ -138,7 +181,7 @@ function closeControlTool(host: ManagedControlsHost): ToolDefinition<any> {
       }
       return asJson({ worker: name, closed: true, previousStatus: await host.closeWorker(name) })
     },
-    timeoutMs: host.workerTimeoutMs,
+    ...host.workerTimeoutMs === undefined ? {} : { timeoutMs: host.workerTimeoutMs },
   })
 }
 
@@ -146,6 +189,7 @@ export function managedRoleSchema(roles: ReadonlyMap<string, ManagedAgentRole>):
   if (roles.size === 0) return {}
   const lines = [...roles.values()].map(role =>
     `- ${role.name}: ${role.description}`
+    + (role.context === undefined ? '' : ` Context: ${role.context}.`)
     + (role.whenToUse === undefined ? '' : ` Use when: ${role.whenToUse}`))
   return {
     role: {

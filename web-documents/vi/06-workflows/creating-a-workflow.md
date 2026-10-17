@@ -128,9 +128,11 @@ Tham gia một team mặc định phơi ra:
 | `list_agents` | Đích cục bộ và từ xa, giao thức, chế độ giao nhận, trạng thái |
 | `send_message` | Tiêm ngữ cảnh im lặng vào một session **cục bộ** khác |
 | `followup_task` | Công việc tuần tự trên đích cục bộ **hoặc từ xa**, trả về kết quả |
-| `wait_agents` | Chờ trong `timeoutMs`; hết thời gian thì trả roster |
+| `wait_agents` | Chờ tới khi công việc được chọn kết thúc, hoặc `timeoutMs` tự chọn; hết thời gian thì trả roster |
 
-Agent dẫn dắt trong team quản lý còn nhận thêm `spawn_agent`. Đặt
+Agent dẫn dắt trong team quản lý thì nhận bề mặt lean — `spawn_agent`,
+`spawn_agents`, `send_input`, `wait_agents`, `close_agent`, `get_agent_result` —
+trừ khi đặt `modelToolSurface: 'legacy'`. Đặt
 `team: { team, tools: false }` khi chỉ host được phép giao tiếp.
 
 **Danh tính người gửi được gắn ngay lúc tạo session**, nên model không thể giả

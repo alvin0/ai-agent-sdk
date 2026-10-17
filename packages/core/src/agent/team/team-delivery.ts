@@ -4,7 +4,7 @@ import type { dispatchRemote } from './team-remote.ts'
 import type { AgentTeamEvent, LinkedAgentResult, SendAgentMessageRequest, SendAgentMessageResult } from './types.ts'
 import { messageDelivery, frameTeamMessage, acceptedMessageRecord } from './team-message.ts'
 import { createUserMessage } from '../../message/index.ts'
-import { isManagedTeamNoticeRequest } from '../history/input-work.ts'
+import { managedTeamNoticeProducer } from '../history/input-work.ts'
 import { newMessageId, byteLength, deepCloneFreeze } from './common.ts'
 
 interface DeliveryHost {
@@ -35,12 +35,13 @@ export async function sendTeamMessage(
   let result: LinkedAgentResult | undefined
   try {
     if (target.kind === 'local') {
+      const producer = managedTeamNoticeProducer(request)
       const message = createUserMessage({
-        source: isManagedTeamNoticeRequest(request) ? { kind: 'app' as const, producer: 'managed-team' } : {
+        source: producer === undefined ? {
           kind: 'agent-message' as const,
           teamId: host.teamId, messageId: id, sender: sender.name,
           senderAgentId: sender.session.definition.id,
-        },
+        } : { kind: 'app' as const, producer },
         content: framed,
       })
       const seq = target.session.inject(message)

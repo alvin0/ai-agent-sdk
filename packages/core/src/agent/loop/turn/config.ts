@@ -1,19 +1,21 @@
-import type { TurnBounds } from '../types.ts'
+import type { ResolvedTurnBounds, TurnBounds } from '../types.ts'
 import { type RunTurnOptions } from './types.ts'
 
 export const DEFAULT_BOUNDS: TurnBounds = Object.freeze({
-  maxSteps: 16,
-  maxToolCalls: 64,
+  // Nothing that counts work stops a turn by default. Hosts opt in to each ceiling.
+  maxSteps: 'auto',
+  maxToolCalls: 'auto',
   // Halfway, a quarter left, and nearly gone. Three notices, spaced so the
   // first is still early enough to change the plan and the last is impossible
   // to ignore.
   toolBudgetRemindAt: Object.freeze([32, 16, 6]),
   onExhausted: 'force-final-answer',
-  maxConsecutiveToolErrors: 8,
+  maxConsecutiveToolErrors: 'auto',
+  consecutiveToolErrorWarningAt: 4,
   repeatToolWarningAt: 3,
-  repeatToolLimit: 6,
+  repeatToolLimit: 'auto',
   toolCycleWarningAt: 2,
-  toolCycleLimit: 3,
+  toolCycleLimit: 'auto',
   maxToolCycleLength: 4,
   maxTotalTokens: 'auto',
   finalReportReserveTokens: 0,
@@ -25,7 +27,7 @@ export const DEFAULT_BOUNDS: TurnBounds = Object.freeze({
   // small enough that a handful of them cannot spend a context window.
   maxToolResultTokens: 10_000,
   toolResultOverflow: 'auto',
-  maxToolDurationMs: 10 * 60_000,
+  maxToolDurationMs: 'auto',
   toolTeardownTimeoutMs: 30_000,
 })
 function validateTokenBounds(bounds: TurnBounds): void {
@@ -50,18 +52,31 @@ function validateStepBounds(bounds: TurnBounds): void {
   }
 }
 
-export function resolveBounds(input: Partial<TurnBounds> | undefined): TurnBounds {
+const UNLIMITED_KEYS = ['maxToolCalls', 'maxConsecutiveToolErrors', 'repeatToolLimit', 'toolCycleLimit',
+  'maxToolDurationMs'] as const
+
+function numericLimit(value: number | 'auto'): number { return value === 'auto' ? Infinity : value }
+
+function validateLoopLimits(bounds: TurnBounds): void {
+  if (numericLimit(bounds.repeatToolLimit) < bounds.repeatToolWarningAt) {
+    throw new RangeError('repeatToolLimit must be >= repeatToolWarningAt')
+  }
+  if (numericLimit(bounds.toolCycleLimit) < bounds.toolCycleWarningAt) {
+    throw new RangeError('toolCycleLimit must be >= toolCycleWarningAt')
+  }
+}
+
+export function resolveBounds(input: Partial<TurnBounds> | undefined): ResolvedTurnBounds {
   const bounds = { ...DEFAULT_BOUNDS, ...input }
   validateTokenBounds(bounds)
   validateAutomaticBound(bounds.maxTurnDurationMs, 'maxTurnDurationMs')
   validateStepBounds(bounds)
   validateAutomaticBound(bounds.maxSteps, 'maxSteps')
+  for (const key of UNLIMITED_KEYS) validateAutomaticBound(bounds[key], key)
+  if (bounds.maxToolDurationMs !== 'auto') timerMs(bounds.maxToolDurationMs, 'maxToolDurationMs')
   for (const key of [
-    'maxToolCalls', 'maxConsecutiveToolErrors', 'repeatToolWarningAt',
-    'repeatToolLimit', 'toolCycleWarningAt', 'toolCycleLimit', 'maxToolCycleLength',
-    'maxParallel', 'maxToolResultBytes', 'maxToolResultTokens',
-    'maxToolDurationMs',
-    'toolTeardownTimeoutMs',
+    'consecutiveToolErrorWarningAt', 'repeatToolWarningAt', 'toolCycleWarningAt', 'maxToolCycleLength',
+    'maxParallel', 'maxToolResultBytes', 'maxToolResultTokens', 'toolTeardownTimeoutMs',
   ] as const) {
     if (!Number.isSafeInteger(bounds[key])
       || bounds[key] < 1) throw new RangeError(`${key} must be a positive safe integer`)
@@ -72,12 +87,7 @@ export function resolveBounds(input: Partial<TurnBounds> | undefined): TurnBound
   if (!['force-final-answer', 'stop', 'continue'].includes(bounds.onExhausted)) {
     throw new RangeError("onExhausted must be 'force-final-answer', 'stop', or 'continue'")
   }
-  if (bounds.repeatToolLimit < bounds.repeatToolWarningAt) {
-    throw new RangeError('repeatToolLimit must be >= repeatToolWarningAt')
-  }
-  if (bounds.toolCycleLimit < bounds.toolCycleWarningAt) {
-    throw new RangeError('toolCycleLimit must be >= toolCycleWarningAt')
-  }
+  validateLoopLimits(bounds)
   if (!Array.isArray(bounds.toolBudgetRemindAt)
     || bounds.toolBudgetRemindAt.some(value => !Number.isSafeInteger(value) || value < 1)) {
     // Out-of-range thresholds are dropped rather than rejected, but a
@@ -85,10 +95,17 @@ export function resolveBounds(input: Partial<TurnBounds> | undefined): TurnBound
     // `0.25` would leave a host believing it had asked for a reminder.
     throw new RangeError('toolBudgetRemindAt must contain only positive safe integers')
   }
-  return Object.freeze(bounds)
+  return Object.freeze({ ...bounds, ...Object.fromEntries(UNLIMITED_KEYS.map(key =>
+    [key, numericLimit(bounds[key])])) } as ResolvedTurnBounds)
 }
 export function positiveFinite(value: number, name: string): number {
   if (!Number.isFinite(value) || value <= 0) throw new RangeError(`${name} must be a positive finite number`)
+  return value
+}
+/** Timers clamp delays above 2^31-1 ms to 1 ms, so a long opt-in deadline must stay in range. */
+export function timerMs(value: number, name: string): number {
+  positiveFinite(value, name)
+  if (value > 2_147_483_647) throw new RangeError(`${name} must not exceed 2147483647ms`)
   return value
 }
 export function positiveSafeInteger(value: number, name: string): number {

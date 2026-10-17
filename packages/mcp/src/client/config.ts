@@ -1,7 +1,14 @@
+/**
+ * Largest delay a timer honors. Used as the default tool-call and operation deadline, which means no
+ * practical deadline: the MCP SDK otherwise imposes its own 60-second request default.
+ */
+export const MCP_NO_DEADLINE_MS = 2_147_483_647
+
 /** Internal defaults shared by MCP client lifecycle, HTTP policy, and reconnect code. */
 export const MCP_CLIENT_DEFAULTS = Object.freeze({
-  toolCallTimeoutMs: 120_000,
-  operationTimeoutMs: 120_000,
+  // Opt-in: a long remote tool call (or its HTTP/SSE response) is never cut by default.
+  toolCallTimeoutMs: MCP_NO_DEADLINE_MS,
+  operationTimeoutMs: MCP_NO_DEADLINE_MS,
   closeTimeoutMs: 30_000,
   maxTools: 1_024,
   maxCatalogBytes: 4 * 1024 * 1024,

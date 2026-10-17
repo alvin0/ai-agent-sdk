@@ -9,7 +9,7 @@ Tham gia một team mặc định phơi những tool sau cho model:
 | `list_agents` | — | Đích cục bộ và từ xa, giao thức, chế độ giao nhận, trạng thái |
 | `send_message` | **Chỉ cục bộ** | Tiêm ngữ cảnh im lặng vào một session khác |
 | `followup_task` | Cục bộ **hoặc từ xa** | Khởi động công việc tuần tự, trả về kết quả |
-| `wait_agents` | Cục bộ | Chờ công việc được chọn trong `timeoutMs`; hết thời gian thì trả roster |
+| `wait_agents` | Cục bộ | Chờ tới khi công việc được chọn kết thúc, hoặc `timeoutMs` tự chọn; hết thời gian thì trả roster |
 
 Agent dẫn dắt trong team quản lý còn nhận thêm `spawn_agent`.
 
@@ -110,15 +110,17 @@ làm việc trong lúc worker chạy; một agent dẫn dắt bị treo trong to
 chính nó thì không đọc được tin nhắn của worker, không spawn thêm được, và
 không nhận ra khi một worker tắt tiếng.
 
-Worker báo cáo lại theo ba đường: một tin nhắn hoàn thành lặng lẽ chèn vào
-history của agent dẫn dắt, một `outcome` ghi trên roster và trả về qua
-`list_agents`, và `wait_agents`. Worker đã xong vẫn giữ slot `maxWorkers` cho
-tới khi `close_agent` giải phóng.
+Worker báo cáo lại bằng một settlement do runtime đẩy vào history của agent dẫn
+dắt và một `outcome` trên roster; `wait_agents` chờ tất cả worker được chọn.
+Worker đã xong tự giải phóng slot `maxWorkers`.
 
 **Nhiều lời gọi `spawn_agent` trong cùng một bước model là an toàn khi chạy đồng
-thời**, nên các worker độc lập chạy song song. Worker đã hoàn thành vẫn địa chỉ
-hoá được qua `list_agents`, `send_message`, và `followup_task` cho tới khi bị gỡ
-bằng `removeWorker()`.
+thời**, còn `spawn_agents` nhận một lô, nên các worker độc lập chạy song song. Bề
+mặt lean mặc định là `spawn_agent`, `spawn_agents`, `send_input`, `wait_agents`,
+`close_agent` và `get_agent_result` (`modelToolSurface: 'legacy'` giữ
+`list_agents`, `send_message` và `followup_task`). Worker đã hoàn thành vẫn địa
+chỉ hoá được cho tới khi đóng bằng host `closeWorker(name)` hoặc model
+`close_agent`.
 
 ### Cô lập các danh tính được sinh ra
 

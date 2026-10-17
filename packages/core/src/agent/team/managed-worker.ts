@@ -8,9 +8,10 @@ import {
   abortable, combineSignals,
 } from './managed-cancellation.ts'
 import {
-  errorMessage, failureOf, recordEvidence,
+  asJson, errorMessage, failureOf, recordEvidence,
 } from './managed-outcomes.ts'
 import { waitForSettlement } from '../../async/index.ts'
+import { deadlineOrNever, optionalDeadline } from './common.ts'
 
 interface ManagedWorkerHost {
   readonly options: ManagedAgentTeamOptions
@@ -18,11 +19,11 @@ interface ManagedWorkerHost {
   readonly signal: AbortSignal
   readonly workerRuntimes: ReadonlyMap<string, WorkerRuntime>
   readonly leadName: string
-  readonly workerTimeoutMs: number
+  readonly workerTimeoutMs: number | undefined
   readonly observerTimeoutMs: number
-  readonly spawnTimeoutMs: number
+  readonly spawnTimeoutMs: number | undefined
   readonly maxDependencyReportBytes: number
-  notifyLead(runtime: WorkerRuntime, summary: string): Promise<void>
+  notifyLead(runtime: WorkerRuntime): Promise<void>
   releaseDependents(runtime: WorkerRuntime): Promise<void>
 }
 
@@ -37,7 +38,8 @@ export class ManagedWorkerExecution {
    */
   private beginWorker(runtime: WorkerRuntime): void {
     const name = runtime.request.name
-    if (runtime.status !== 'pending' || runtime.closing || this.host.signal.aborted
+    if (runtime.status !== 'pending' || runtime.inputOwnsSettlement === true
+      || runtime.closing || this.host.signal.aborted
       || this.host.workerRuntimes.get(name) !== runtime) return
     runtime.start?.()
     runtime.start = undefined
@@ -59,7 +61,7 @@ export class ManagedWorkerExecution {
     // Every worker event is lost with it — including the approval requests a
     // worker parks on, which leaves it waiting for an answer nobody was ever
     // shown, and the run hangs.
-    const deadline = AbortSignal.timeout(this.host.workerTimeoutMs)
+    const deadline = deadlineOrNever(this.host.workerTimeoutMs)
     runtime.deadline = deadline
     const running = runtime.session.runPending({
       signal: combineSignals(runtime.controller.signal, deadline),
@@ -68,6 +70,15 @@ export class ManagedWorkerExecution {
         : { onEvent: (event: AgentRunEvent) => this.observeWorkerEvent(name, event) }),
     })
     void this.followWorker(runtime, running)
+  }
+
+  /** An input owns this response even if a host wake starts immediately afterward. */
+  runInput(runtime: WorkerRuntime, signal: AbortSignal): Promise<AgentResponse> {
+    return runtime.session.runPending({ signal,
+      ...(this.host.options.onWorkerEvent === undefined ? {} : {
+        onEvent: (event: AgentRunEvent) => this.observeWorkerEvent(runtime.request.name, event),
+      }),
+    })
   }
 
   /** One handoff path for both already-settled and asynchronously released dependencies. */
@@ -82,7 +93,7 @@ export class ManagedWorkerExecution {
       const report = managedDependencyReport(runtime.dependencies, this.host.maxDependencyReportBytes)
       if (report !== undefined) {
         const signal = combineSignals(setupSignal, runtime.controller.signal, this.host.signal,
-          AbortSignal.timeout(this.host.spawnTimeoutMs))
+          optionalDeadline(this.host.spawnTimeoutMs))
         await abortable(this.host.team.sendMessage({ from: this.host.leadName, target: runtime.request.name,
           message: report, delivery: 'quiet', signal }), signal)
         signal.throwIfAborted()
@@ -91,7 +102,7 @@ export class ManagedWorkerExecution {
     } catch (error: unknown) {
       // Missing required context is a visible failure, never a successful task
       // dispatched with the dependencies silently omitted.
-      if (!runtime.closing && !this.host.signal.aborted) {
+      if (!runtime.closing && !this.host.signal.aborted && runtime.inputOwnsSettlement !== true) {
         runtime.status = 'failed'
         runtime.error = `dependency handoff failed: ${errorMessage(error)}`
         recordEvidence(runtime)
@@ -101,7 +112,7 @@ export class ManagedWorkerExecution {
           this.host.team.markPending(runtime.request.name, undefined)
           this.host.team.recordOutcome(runtime.request.name, { kind: 'failed', message: runtime.error })
         } catch { /* shared team already disposed */ }
-        await this.host.notifyLead(runtime, `failed: ${runtime.error}`)
+        await this.host.notifyLead(runtime)
         runtime.markSettled()
         await this.host.releaseDependents(runtime)
       }
@@ -137,7 +148,7 @@ export class ManagedWorkerExecution {
       + ' Narrow the task, or split it, before delegating it again'
   }
 
-  private recordWorkerResponse(runtime: WorkerRuntime, response: AgentResponse, name: string): string {
+  private recordWorkerResponse(runtime: WorkerRuntime, response: AgentResponse, name: string): void {
     // A run that RESOLVES has not necessarily succeeded: a model call that
     // failed ends the turn with an error reason and an empty answer. Read
     // as a success it became "Worker 'x' finished:" with nothing after the
@@ -161,9 +172,9 @@ export class ManagedWorkerExecution {
         })
       }
       recordEvidence(runtime)
-      this.host.team.recordOutcome(name, { kind: 'failed', message: failure })
-      return `failed: ${failure}`
-        + (runtime.result === undefined ? '' : `\nPartial findings (not a completed task): ${runtime.result.text}`)
+      this.host.team.recordOutcome(name, { kind: 'failed', message: failure,
+        status: workerFailureStatus(runtime, response.outcome.reason.kind === 'aborted'),
+        ...(runtime.result === undefined ? {} : { text: runtime.result.text }) }, response.report)
     } else {
       runtime.status = 'completed'
       runtime.result = Object.freeze({
@@ -172,10 +183,12 @@ export class ManagedWorkerExecution {
         conversationId: runtime.session.conversationId,
         text: response.text,
         succeeded: response.outcome.completed,
+        ...structuredCompletion(response),
       })
       recordEvidence(runtime)
-      this.host.team.recordOutcome(name, { kind: 'completed', text: response.text })
-      return `finished: ${response.text}`
+      this.host.team.recordOutcome(name, { kind: 'completed', text: response.text,
+        ...(runtime.result.structured === undefined ? {} : { structured: runtime.result.structured }) },
+      response.report)
     }
   }
 
@@ -195,7 +208,8 @@ export class ManagedWorkerExecution {
     try {
       const response = await running
       if (runtime.status !== 'closed' && !runtime.closing) {
-        await this.host.notifyLead(runtime, this.recordWorkerResponse(runtime, response, name))
+        this.recordWorkerResponse(runtime, response, name)
+        await this.host.notifyLead(runtime)
       }
     } catch (error: unknown) {
       // A close is not a failure. Reporting the abort it caused would tell the
@@ -206,8 +220,8 @@ export class ManagedWorkerExecution {
         runtime.error = this.describeWorkerFailure(error, runtime)
         recordEvidence(runtime)
         try { this.host.team.recordOutcome(name, { kind: 'failed',
-          message: runtime.error }) } catch { /* shared team disposed */ }
-        await this.host.notifyLead(runtime, `failed: ${runtime.error}`)
+          message: runtime.error, status: workerFailureStatus(runtime) }) } catch { /* shared team disposed */ }
+        await this.host.notifyLead(runtime)
       }
     } finally {
       runtime.markSettled()
@@ -222,4 +236,14 @@ export class ManagedWorkerExecution {
     await waitForSettlement(observer, this.host.observerTimeoutMs)
   }
 
+}
+
+function workerFailureStatus(runtime: WorkerRuntime, aborted = false): 'timeout' | 'cancelled' | 'failed' {
+  if (runtime.deadline?.aborted === true) return 'timeout'
+  if (aborted || runtime.controller.signal.aborted) return 'cancelled'
+  return 'failed'
+}
+
+function structuredCompletion(response: AgentResponse) {
+  return response.outcome.completion === undefined ? {} : { structured: asJson(response.outcome.completion) }
 }

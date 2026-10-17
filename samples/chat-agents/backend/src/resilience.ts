@@ -22,21 +22,17 @@ import type { ModelFailure } from '@alvin0/ai-agent-sdk-core'
 import type { TurnHooks } from '@alvin0/ai-agent-sdk-core/agent'
 
 /**
- * Cap on one model stream.
+ * Longest silence inside one model stream before it is treated as a dead connection.
  *
- * A HARD deadline for the whole stream, not an idle timer: the SDK arms it once
- * before the request and never resets it on a chunk. So it has to exceed the
- * longest legitimate single generation, not the longest gap inside one.
+ * An IDLE timer, reset on every chunk: a long, healthy generation is never cut,
+ * however long it streams. It used to be a hard deadline on the whole stream,
+ * which killed healthy work (a reasoning model streaming a tool-heavy turn, or
+ * several concurrent subagent streams sharing one provider) and then retried it
+ * into the same wall, wasting every token already spent.
  *
- * This was 90 seconds, on the reasoning that no healthy answer here takes
- * longer. That was wrong twice over. A reasoning model at medium effort
- * routinely streams a tool-heavy turn for more than that, and once subagents
- * began running concurrently several streams shared one provider at once. The
- * cap was killing healthy work — and then retrying it into the same wall.
- *
- * Five minutes still catches a dead connection well before the SDK's ten-minute
- * ceiling would, and the run now reports what it is waiting on the whole time,
- * so a slow stream no longer has to look like a hung app.
+ * Five minutes of silence still catches a dead connection well before the SDK's
+ * ten-minute idle default would, and the run reports what it is waiting on the
+ * whole time, so a slow stream no longer has to look like a hung app.
  */
 export const MODEL_TIMEOUT_MS = 300_000
 
@@ -157,11 +153,10 @@ export function retryHooks(onRetry: (notice: RetryNotice) => void): TurnHooks {
  * for minutes. Treating that silence as a fault produces a warning while the
  * run is visibly working — and an automatic abort would kill the install.
  *
- * Every operation a run can be inside is already bounded by the SDK: a model
- * round by {@link MODEL_TIMEOUT_MS}, and a tool call — `wait_agents` included,
- * since waiting on a member IS a tool call — by the loop's `maxToolDurationMs`.
- * So the gap this fills is not a missing timeout. It is that ten minutes inside
- * a legitimate bound looks exactly like a hang when the window says nothing.
+ * A dead model connection is already caught by the SDK's stream idle timer
+ * ({@link MODEL_TIMEOUT_MS}), and `wait_agents` returns when its members settle.
+ * So the gap this fills is not a missing timeout. It is that a long, legitimate
+ * operation looks exactly like a hang when the window says nothing.
  * The fix is to say what is happening, not to guess that something broke.
  */
 export const PROGRESS_REPORT_MS = 20_000

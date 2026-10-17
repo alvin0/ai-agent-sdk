@@ -126,13 +126,6 @@ interface ConversationOptions {
   /** Let the researchers finish DURING the lead's final round. */
   readonly releaseOnLastLeadTurn?: boolean
   readonly leadTurns?: number
-  /**
-   * How long the lead's turn is held open waiting for news.
-   *
-   * Short by default so a test is not paced by a production-sized wait; the
-   * spin test raises it, because that is the behaviour it measures.
-   */
-  readonly holdWaitMs?: number
   /** Deadline for a worker's own run. */
   readonly workerTimeoutMs?: number
   /** Researchers that never finish, however long the test waits. */
@@ -210,7 +203,7 @@ async function conversation(options: ConversationOptions = {}): Promise<{
     wake.ring()
   }
 
-  const managed = createManagedAgentTeam({
+  const managed = createManagedAgentTeam({ modelToolSurface: 'legacy',
     registry,
     // The app routes worker events through its own sink AND the team's, which
     // is what makes a worker's run observable at all.
@@ -221,7 +214,6 @@ async function conversation(options: ConversationOptions = {}): Promise<{
       maxTurns: options.leadTurns ?? 3,
     }),
     leadName: LEAD,
-    holdWaitMs: options.holdWaitMs ?? 50,
     ...options.workerTimeoutMs === undefined ? {} : { workerTimeoutMs: options.workerTimeoutMs },
     team: {
       id: 'research',
@@ -413,7 +405,7 @@ describe('the app keeps listening until the lead has synthesized', () => {
     // budget was gone. Codex's parent blocks inside its wait tool instead of
     // re-asking; the DeepSeek harness starts a new round only when the agent is
     // idle AND there is something to do.
-    const chat = await conversation({ leadTurns: 12, holdWaitMs: 1_000 })
+    const chat = await conversation({ leadTurns: 12 })
     const running = chat.run()
     await chat.adapter.allStarted
     // Long enough that a spinning lead would burn most of its budget.
@@ -442,8 +434,8 @@ describe('the app keeps listening until the lead has synthesized', () => {
     await running
     await chat.settled()
 
-    const reports = chat.reports()
-    expect(reports.some(message => message.includes("Worker 'realestate_infra' failed"))).toBe(true)
+    const reports = chat.reports().map(text => JSON.parse(text).map((block: { text?: string }) => block.text ?? '').join('\n'))
+    expect(reports.some(message => message.includes('"worker":"realestate_infra"') && message.includes('"status":"failed"'))).toBe(true)
     // The other three still reported, and the lead still owns the ending.
     const said = chat.persisted.filter(node => node.kind === 'text')
     expect(said.at(-1)?.member).toBeUndefined()
@@ -460,9 +452,10 @@ describe('the app keeps listening until the lead has synthesized', () => {
     await running
     await chat.settled()
 
-    const reports = chat.reports().filter(message => message.includes("Worker '"))
-    expect(reports).toHaveLength(SECTORS.length)
-    expect(reports.every(message => message.includes('failed'))).toBe(true)
+    const reports = chat.reports().filter(message => message.includes('Managed worker settlement'))
+    expect(reports.length).toBeGreaterThan(0)
+    expect(reports.length).toBeLessThanOrEqual(SECTORS.length)
+    expect(reports.every(message => message.includes('timeout'))).toBe(true)
     // Named, not "The operation was aborted due to timeout": the lead has to be
     // able to tell a deadline from a crash to decide what to do next.
     expect(reports.every(message => message.includes('deadline without finishing'))).toBe(true)

@@ -89,7 +89,8 @@ function safeRead(value: object, key: PropertyKey): unknown {
 
 function isError(value: unknown): value is Error {
   try {
-    return value instanceof Error
+    // Cross-realm Errors (vm, workers) fail instanceof but keep the Error brand.
+    return value instanceof Error || Object.prototype.toString.call(value) === '[object Error]'
   } catch {
     return false
   }
@@ -97,7 +98,7 @@ function isError(value: unknown): value is Error {
 
 function causeType(cause: unknown, causeIsError: boolean): string {
   const causeName = causeIsError ? safeRead(cause as object, 'name') : undefined
-  if (typeof causeName === 'string' && causeName.length > 0) return causeName
+  if (typeof causeName === 'string' && causeName.length > 0) return causeName.slice(0, 128)
   return causeIsError ? 'Error' : typeof cause
 }
 
@@ -114,9 +115,36 @@ function readCauseTypes(source: object): string[] {
   return causeTypes
 }
 
+function ownDataValue(value: object, key: PropertyKey): unknown {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key)
+    return descriptor !== undefined && 'value' in descriptor ? descriptor.value : undefined
+  } catch {
+    return undefined
+  }
+}
+
+const RECORD_TYPE = /^[\w.:-]{1,128}$/u
+
+/**
+ * Plain failure records such as `{ type, message, code }` keep bounded fields. Only own data properties are
+ * read, so accessors are never invoked; a Proxy's getOwnPropertyDescriptor trap may still run (errors contained).
+ */
+function errorLikeRecord(value: unknown): SafeErrorRecord | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const message = ownDataValue(value, 'message')
+  if (typeof message !== 'string') return undefined
+  const type = ownDataValue(value, 'type') ?? ownDataValue(value, 'name')
+  return Object.freeze({
+    type: typeof type === 'string' && RECORD_TYPE.test(type) ? type : 'object',
+    message: boundedUnknownMessage(message),
+    ...failureFields(ownDataValue(value, 'code'), ownDataValue(value, 'retryable'), ownDataValue(value, 'status')),
+  })
+}
+
 function failureFields(code: unknown, retryable: unknown, status: unknown) {
   return {
-    ...typeof code === 'string' && code.length > 0 ? { code } : {},
+    ...typeof code === 'string' && code.length > 0 ? { code: code.slice(0, 128) } : {},
     ...typeof retryable === 'boolean' ? { retryable } : {},
     ...typeof status === 'number' && Number.isInteger(status) ? { status } : {},
   }
@@ -124,7 +152,9 @@ function failureFields(code: unknown, retryable: unknown, status: unknown) {
 
 /** Converts thrown values without retaining bodies, credentials, or stacks by default. */
 export function safeErrorRecord(value: unknown, includeStack = false): SafeErrorRecord {
-  if (!isError(value)) return Object.freeze({ type: typeof value, message: boundedUnknownMessage(value) })
+  if (!isError(value)) {
+    return errorLikeRecord(value) ?? Object.freeze({ type: typeof value, message: boundedUnknownMessage(value) })
+  }
   const source = value as object
   const causeTypes = readCauseTypes(source)
   const name = safeRead(source, 'name')
@@ -134,7 +164,7 @@ export function safeErrorRecord(value: unknown, includeStack = false): SafeError
   const status = safeRead(source, 'status')
   const stack = includeStack ? safeRead(source, 'stack') : undefined
   return Object.freeze({
-    type: typeof name === 'string' && name.length > 0 ? name : 'Error',
+    type: typeof name === 'string' && name.length > 0 ? name.slice(0, 128) : 'Error',
     message: boundedUnknownMessage(message),
     ...failureFields(code, retryable, status),
     ...causeTypes.length > 0 ? { causeTypes: Object.freeze(causeTypes) } : {},

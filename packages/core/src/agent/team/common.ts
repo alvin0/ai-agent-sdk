@@ -8,6 +8,7 @@ export const MEMBER_NAME = /^[a-zA-Z][a-zA-Z0-9_-]*$/
 export const MAX_MEMBER_NAME_LENGTH = 128
 export const TEAM_TOOL_NAMES = Object.freeze({
   list: 'list_agents',
+  result: 'get_agent_result',
   send: 'send_message',
   followup: 'followup_task',
   wait: 'wait_agents',
@@ -32,15 +33,6 @@ export function parseMessageTool(raw: unknown): { target: string; message: strin
 }
 
 /**
- * How long `wait_agents` waits before reporting back instead.
- *
- * A bounded wait is what keeps a coordinator informed: it gets the roster
- * back and decides whether to wait again, message the agent, or close it. An
- * unbounded one made a slow agent indistinguishable from a hung one.
- */
-export const DEFAULT_WAIT_TIMEOUT_MS = 30_000
-
-/**
  * Shortest wait a `wait_agents` call can ask for.
  *
  * A tool call may ask for less than the default but not for a wait too short
@@ -53,7 +45,7 @@ export const DEFAULT_WAIT_TIMEOUT_MS = 30_000
  * Asking for less is not an error: a lead should not need to know the floor to
  * write a valid call, so the request is raised to it rather than rejected.
  */
-export const DEFAULT_MIN_WAIT_TIMEOUT_MS = 5_000
+export const DEFAULT_MIN_WAIT_TIMEOUT_MS = 10_000
 
 export function parseWaitTool(
   raw: unknown,
@@ -167,6 +159,16 @@ export async function abortable<T>(promise: Promise<T>, signal?: AbortSignal): P
     signal.addEventListener('abort', abort, { once: true })
     promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort))
   })
+}
+
+/** An opt-in deadline: undefined means none. */
+export function optionalDeadline(timeoutMs: number | undefined): AbortSignal | undefined {
+  return timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs)
+}
+
+/** A deadline signal, or one that never aborts when no deadline is set. */
+export function deadlineOrNever(timeoutMs: number | undefined): AbortSignal {
+  return timeoutMs === undefined ? new AbortController().signal : AbortSignal.timeout(timeoutMs)
 }
 
 export function combineSignals(...signals: readonly (AbortSignal | undefined)[]): AbortSignal {

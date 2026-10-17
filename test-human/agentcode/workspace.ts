@@ -19,23 +19,16 @@ export async function resolveExistingAgentCodePath(root: string, requested: stri
   return canonical
 }
 
+/** Resolve without creating directories so host validation can precede mutation. */
 export async function resolveWritableAgentCodePath(root: string, requested: string): Promise<string> {
-  const absoluteRoot = await ensureAgentCodeWorkspace(root)
+  const absoluteRoot = await realpath(root)
   const target = resolveAgentCodePath(absoluteRoot, requested)
   const existing = await closestExisting(target)
   const canonicalParent = await realpath(existing)
   assertContained(absoluteRoot, canonicalParent, requested)
-  await mkdir(dirname(target), { recursive: true })
-  const canonicalDirectory = await realpath(dirname(target))
-  assertContained(absoluteRoot, canonicalDirectory, requested)
-  try {
-    const canonicalTarget = await realpath(target)
-    assertContained(absoluteRoot, canonicalTarget, requested)
-    return canonicalTarget
-  } catch (error: unknown) {
-    if (isMissing(error)) return target
-    throw error
-  }
+  const canonicalTarget = resolve(canonicalParent, relative(existing, target))
+  assertContained(absoluteRoot, canonicalTarget, requested)
+  return canonicalTarget
 }
 
 export async function ensureAgentCodeWorkspace(root: string): Promise<string> {

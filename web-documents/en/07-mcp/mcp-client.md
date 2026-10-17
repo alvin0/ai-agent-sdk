@@ -50,7 +50,8 @@ export type { McpCloseReport }
 
 ### Connection surface
 
-`operationTimeoutMs`, `toolCallTimeoutMs`, `closeTimeoutMs`, and reconnect
+`operationTimeoutMs` and `toolCallTimeoutMs` default to no deadline (the timer
+maximum) since 0.1.13. They, `closeTimeoutMs`, and reconnect
 `initialDelayMs` / `maxDelayMs` must be integer milliseconds from `1` through
 `2147483647`. Values outside this range are rejected before timers are scheduled;
 byte and count limits are validated separately.

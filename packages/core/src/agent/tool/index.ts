@@ -67,6 +67,7 @@ export {
 } from './output-budget.ts'
 
 export { defineToolFromSchema, type RuntimeSchema } from './schema.ts'
+export { validateJsonFileContent, type JsonWriteGuardOptions } from './json-write-guard.ts'
 
 export {
   createToolExecutionInterceptor, localToolExecutionBackend, type ToolExecutionBackend,

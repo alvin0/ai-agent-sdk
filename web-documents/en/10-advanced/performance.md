@@ -12,19 +12,20 @@ runtime.agent({
   id: 'worker',
   model,
   instructions: '…',
-  maxTurns: 16,        // model steps
-  maxToolCalls: 64,    // dispatched tools
+  maxTurns: 16,        // opt-in model-step cap (default 'auto')
+  maxToolCalls: 64,    // opt-in tool-call cap (default 'auto')
   maxTokens: 16_384,   // per-response output ceiling
 })
 ```
 
 | Bound | Default | Exhaustion behaviour |
 | --- | --- | --- |
-| Model steps | 16 | Reserves one tool-disabled final answer. |
-| Dispatched tools | 64 | Reserves one tool-disabled final answer. |
-| Aggregate reported tokens | 500,000 | **Stops immediately** — the safety budget must not spend itself explaining that it was reached. |
+| Model steps | `'auto'` (none) | When set, reserves one tool-disabled final answer. |
+| Dispatched tools | `'auto'` (none) | When set, reserves one tool-disabled final answer. |
+| Aggregate reported tokens | `'auto'` (none) | **Stops immediately** — the safety budget must not spend itself explaining that it was reached. |
 
-At **75% of `maxToolCalls`** the loop injects one app-authored budget warning
+Since 0.1.13 every limit that can stop a run is opt-in, so a long run is not cut
+short after spending tokens. When `maxToolCalls` is set, at **75%** of it the loop injects one app-authored budget warning
 before the next model step, so a long coding agent can stop broad exploration and
 reserve calls for edits and verification.
 
@@ -54,10 +55,11 @@ const session = agent.createSession({
 
 | Group | Purpose |
 | --- | --- |
-| `repeatTool*` | Exact-repeat detection — warn, then stop. |
-| `toolCycle*`, `maxToolCycleLength` | Short multi-step cycle detection. |
-| `maxConsecutiveToolErrors` | Consecutive-error cutoff. |
-| `maxToolDurationMs` | Cooperative wall-clock bound per tool call. |
+| `repeatTool*` | Exact-repeat detection — warns every `repeatToolWarningAt` (3); `repeatToolLimit` stop is opt-in. |
+| `toolCycle*`, `maxToolCycleLength` | Short multi-step cycle detection — warns every `toolCycleWarningAt` (2); the limit is opt-in. |
+| `maxConsecutiveToolErrors` | Opt-in consecutive-error cutoff; `consecutiveToolErrorWarningAt` (4) warns by default. |
+| `maxToolDurationMs` | Opt-in cooperative wall-clock bound per tool call. |
+| `modelTimeoutMs` / `modelIdleTimeoutMs` | Opt-in total model-call deadline / silent-stream cut (default 10 minutes). |
 | `toolTeardownTimeoutMs` | How long teardown waits after abort before reporting `MODEL_TEARDOWN_TIMEOUT`. |
 | `observerTimeoutMs` | Bound on host observer callbacks. |
 

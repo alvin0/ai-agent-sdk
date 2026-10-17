@@ -93,11 +93,10 @@ export interface AgentDefinitionInput {
   readonly toolChoice?: ToolChoice
   /** Constrain visible model output to plain text or a named JSON Schema. */
   readonly outputFormat?: ModelOutputFormat
-  /** Maximum model iterations for one user turn; defaults to 16. */
-  /** Model steps per prompt; 'auto' continues without a fixed step ceiling. */
+  /** Model steps per prompt; defaults to 'auto' (no step ceiling). Set a number to opt in to a cap. */
   readonly maxTurns?: number | 'auto'
-  /** Maximum host tool calls for one user turn; defaults to 64. */
-  readonly maxToolCalls?: number
+  /** Host tool calls per prompt; defaults to 'auto' (no cap). Set a number to opt in to a cap. */
+  readonly maxToolCalls?: number | 'auto'
   /** Public progress narration policy; defaults to `auto` (caller-defined style). */
   readonly commentary?: 'auto' | 'concise' | 'off'
   /** Durable task facts injected outside compactable conversation history. */
@@ -130,7 +129,7 @@ export interface AgentDefinition {
   readonly toolChoice: ToolChoice | undefined
   readonly outputFormat: ModelOutputFormat | undefined
   readonly maxTurns: number | 'auto'
-  readonly maxToolCalls: number
+  readonly maxToolCalls: number | 'auto'
   readonly commentary: 'auto' | 'concise' | 'off'
   readonly memory: AgentMemoryConfig
   readonly compaction: AgentCompactionConfig | false
@@ -170,7 +169,7 @@ class DefinedAgentValue implements DefinedAgent {
   readonly toolChoice: ToolChoice | undefined
   readonly outputFormat: ModelOutputFormat | undefined
   readonly maxTurns: number | 'auto'
-  readonly maxToolCalls: number
+  readonly maxToolCalls: number | 'auto'
   readonly commentary: 'auto' | 'concise' | 'off'
   readonly memory: AgentMemoryConfig
   readonly compaction: AgentCompactionConfig | false
@@ -197,8 +196,8 @@ class DefinedAgentValue implements DefinedAgent {
     this.contextSections = captureContextSections(input.contextSections) ?? Object.freeze([])
     this.toolChoice = input.toolChoice
     this.outputFormat = captureOutputFormat(input.outputFormat)
-    this.maxTurns = input.maxTurns ?? 16
-    this.maxToolCalls = input.maxToolCalls ?? 64
+    this.maxTurns = input.maxTurns ?? 'auto'
+    this.maxToolCalls = input.maxToolCalls ?? 'auto'
     this.commentary = input.commentary ?? 'auto'
     this.memory = resolveMemoryConfig(input.memory)
     this.compaction = captureCompaction(input)

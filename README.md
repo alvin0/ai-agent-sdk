@@ -10,8 +10,11 @@ message.
 
 ## Setup
 
-For the 0.1.12 release, read the [release notes](CHANGELOG.md).
-For migration to 0.1.12, read [upgrading to 0.1.12](docs/upgrading-to-0.1.12.md).
+For the 0.1.13 release, read the [release notes](CHANGELOG.md).
+For migration to 0.1.13, read [upgrading to 0.1.13](docs/upgrading-to-0.1.13.md).
+For the managed-team API, read the [multi-agent guide](docs/multi-agent.md)
+and run the [offline delegation and collaboration example](samples/multi-agent-offline/README.md)
+with `pnpm sample:multi-agent`.
 For the 0.1.10 decision runtime release, read the [release notes](CHANGELOG.md).
 For the 0.1.9 release, read the [release notes](CHANGELOG.md).
 For the 0.1.8 release, read [upgrading from 0.1.7](docs/upgrading-from-0.1.7.md).

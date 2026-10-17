@@ -1,12 +1,12 @@
 import type { LinkedAgentResult } from './types.ts'
 import type { RemoteMemberRuntime } from './team-runtime-types.ts'
 import { AgentSdkError } from '../../errors/index.ts'
-import { byteLength, errorMessage, combineSignals, abortable } from './common.ts'
+import { byteLength, errorMessage, combineSignals, abortable, optionalDeadline } from './common.ts'
 
 interface RemoteDispatchHost {
   readonly maxMessages: number
   readonly maxLinkedResultBytes: number
-  readonly operationTimeoutMs: number
+  readonly operationTimeoutMs: number | undefined
   readonly lifecycle: AbortSignal
   readonly ownRemoteTask: ((signal: AbortSignal) => () => void) | undefined
   emit(event: any): void
@@ -22,7 +22,7 @@ export async function dispatchRemote(
     const controller = new AbortController()
     const signal = combineSignals(
       input.signal, host.lifecycle, controller.signal,
-      AbortSignal.timeout(host.operationTimeoutMs),
+      optionalDeadline(host.operationTimeoutMs),
     )
     signal.throwIfAborted()
     const releaseOwnership = host.ownRemoteTask?.(signal)
@@ -39,11 +39,14 @@ export async function dispatchRemote(
         if (byteLength(result) > host.maxLinkedResultBytes) {
           throw new Error(`linked A2A result exceeds the ${host.maxLinkedResultBytes}-byte limit`)
         }
+        member.outcome = result.succeeded ? { kind: 'completed', text: result.text }
+          : { kind: 'failed', text: result.text, message: result.state ?? 'Remote task failed' }
         member.error = undefined
         host.emit({ type: 'member-run-end', member: member.name })
         return result
       } catch (error: unknown) {
         member.error = errorMessage(error)
+        member.outcome = { kind: 'failed', message: member.error }
         host.emit({ type: 'member-run-error', member: member.name, error: member.error })
         throw error
       }

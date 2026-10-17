@@ -1622,7 +1622,7 @@ describe('runTurn', () => {
     expect(text).toContain('Answer now from what you already have')
   })
 
-  it('detects a repeating multi-step tool cycle before dispatching the final cycle call', async () => {
+  it('detects a repeating multi-step tool cycle before dispatching the final cycle call when opted in', async () => {
     const state = await setup([
       toolRound([{ id: 'cycle-a1', name: 'echo', arguments: '{"value":1}' }]),
       toolRound([{ id: 'cycle-b1', name: 'other', arguments: '{"value":2}' }]),
@@ -1640,7 +1640,7 @@ describe('runTurn', () => {
     let terminal: Extract<AgentEvent, { type: 'turn-end' }> | undefined
     for await (const event of runTurn({
       registry: state.registry, config: { provider: 'test', model: 'm' },
-      history: state.history, tools: state.tools,
+      history: state.history, tools: state.tools, bounds: { toolCycleLimit: 3 },
     })) if (event.type === 'turn-end') terminal = event
 
     expect(otherExecutions).toBe(2)

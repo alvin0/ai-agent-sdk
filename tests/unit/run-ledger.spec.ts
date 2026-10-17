@@ -223,6 +223,14 @@ describe('canonical agent run ledger', () => {
     expect(report.errors).toContainEqual(expect.objectContaining({ code: 'OPERATION_TERMINAL_MISSING' }))
   })
 
+  it('records tool error results by type and message, not [object Object]', async () => {
+    const state = ledger()
+    const id = state.startOperation('tool', { operationId: 'tool-error' })
+    state.endOperation(id, 'error', { error: { type: 'ToolError', message: 'invalid spawn batch', code: 'INVALID' } })
+    const report = await state.finalize('success', true)
+    expect(report.errors).toContainEqual({ type: 'ToolError', message: 'invalid spawn batch', code: 'INVALID' })
+  })
+
   it('fails closed when ledger model, attempt, tool, or byte limits are exceeded', async () => {
     const modelBound = ledger({ limits: { maxModelCalls: 1 } })
     await modelBound.recordModelCall(call(), request)

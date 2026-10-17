@@ -60,7 +60,6 @@ import {
   DEFAULT_MAX_REQUEST_BYTES,
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_MAX_RESPONSE_CHUNKS,
-  DEFAULT_REQUEST_TIMEOUT_MS,
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   type HttpConnection,
   type HttpModelAdapter,
@@ -776,7 +775,6 @@ describe('Feature: github-copilot-provider, Property 23: Header được giải 
 /** Options that land on the connection with a runtime default when unset. */
 const DEFAULTED_LIMITS = {
   streamIdleTimeoutMs: DEFAULT_STREAM_IDLE_TIMEOUT_MS,
-  requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
   maxRequestBytes: DEFAULT_MAX_REQUEST_BYTES,
   maxResponseBytes: DEFAULT_MAX_RESPONSE_BYTES,
   maxResponseChunks: DEFAULT_MAX_RESPONSE_CHUNKS,
@@ -792,6 +790,8 @@ const DEFAULTED_LIMITS = {
  * / SDK-constant tier fills the gap instead (see RuntimeDefaults).
  */
 const PASSTHROUGH_LIMITS = [
+  // No default end-to-end deadline: a live stream is never cut, a silent one is cut by streamIdleTimeoutMs.
+  'requestTimeoutMs',
   'maxSseEvents',
   'maxSseEventChars',
   'requestLoggerTimeoutMs',
@@ -823,7 +823,7 @@ describe('Feature: github-copilot-provider, Property 26: Option đi tới đích
           ? intBetween(rng, 60_000, 600_000)
           : intBetween(rng, 4_096, 1_048_576)
       }
-      for (const key of ['maxSseEvents', 'maxSseEventChars', 'requestLoggerTimeoutMs',
+      for (const key of ['requestTimeoutMs', 'maxSseEvents', 'maxSseEventChars', 'requestLoggerTimeoutMs',
         'defaultMaxTokens', 'defaultContextWindow']) {
         if (bool(rng)) chosen[key] = intBetween(rng, 1_000, 90_000)
       }

@@ -1,3 +1,4 @@
+import { runInNewContext } from 'node:vm'
 import { describe, expect, it, vi } from 'vitest'
 import { ModelAdapter, SDK_VERSION } from '@alvin0/ai-agent-sdk-core'
 import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
@@ -390,6 +391,44 @@ describe('core observation identities and model-call handles', () => {
       code: { get() { throw new Error('code getter') } },
     })
     expect(safeErrorRecord(hostile)).toEqual({ type: 'Error', message: 'undefined' })
+  })
+
+  it('keeps plain failure records instead of rendering [object Object]', () => {
+    const huge = Object.assign(new Error('long names'), { name: 'N'.repeat(4096),
+      cause: Object.assign(new Error('inner'), { name: 'C'.repeat(4096) }) })
+    expect(safeErrorRecord(huge).type).toHaveLength(128)
+    expect(safeErrorRecord(huge).causeTypes?.[0]).toHaveLength(128)
+    expect(safeErrorRecord({ type: 'ToolError', message: 'spawn rejected', code: 'INVALID_ARGS' }))
+      .toEqual({ type: 'ToolError', message: 'spawn rejected', code: 'INVALID_ARGS' })
+    expect(safeErrorRecord({ message: 'plain' })).toEqual({ type: 'object', message: 'plain' })
+    const getter = vi.fn(() => 'secret')
+    const hostile = Object.defineProperty({ message: 'visible' }, 'type', { get: getter })
+    expect(safeErrorRecord(hostile)).toEqual({ type: 'object', message: 'visible' })
+    expect(getter).not.toHaveBeenCalled()
+    expect(safeErrorRecord({ detail: 1 })).toEqual({ type: 'object', message: '[object Object]' })
+  })
+
+  it('bounds plain failure record fields and keeps retry metadata', () => {
+    const record = safeErrorRecord({ type: 'Busy<body>', message: 'm'.repeat(5_000), code: 'c'.repeat(500),
+      retryable: true, status: 503 })
+    expect(record).toEqual({ type: 'object', message: 'm'.repeat(2_048), code: 'c'.repeat(128),
+      retryable: true, status: 503 })
+    expect(safeErrorRecord({ name: 'RateLimit', message: 'slow' })).toEqual({ type: 'RateLimit', message: 'slow' })
+  })
+
+  it('contains Proxy traps while reading plain failure records', () => {
+    const trap = vi.fn((target: object, key: PropertyKey) => Reflect.getOwnPropertyDescriptor(target, key))
+    expect(safeErrorRecord(new Proxy({ message: 'proxied' }, { getOwnPropertyDescriptor: trap })))
+      .toEqual({ type: 'object', message: 'proxied' })
+    expect(trap).toHaveBeenCalled()
+    const hostile = new Proxy({}, { getOwnPropertyDescriptor() { throw new Error('trap') } })
+    expect(safeErrorRecord(hostile)).toEqual({ type: 'object', message: '[object Object]' })
+  })
+
+  it('treats cross-realm Errors as Errors', () => {
+    const foreign = runInNewContext('const e = new TypeError("foreign"); e.code = "X"; e') as unknown
+    expect(foreign instanceof Error).toBe(false)
+    expect(safeErrorRecord(foreign)).toEqual({ type: 'TypeError', message: 'foreign', code: 'X' })
   })
 
   it('normalizes foreign failure data without invoking outer or inner accessors', () => {

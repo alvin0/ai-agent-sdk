@@ -18,10 +18,11 @@ thích rằng nó đã cạn. Kiểm tra `maxTotalTokens` trong `runtimeLimits`.
 
 **"Nó cứ gọi mãi một tool."**
 
-Phát hiện lặp y hệt cảnh báo ở `repeatToolWarningAt` và dừng ở `repeatToolLimit`.
-Phát hiện chu trình đa bước ngắn dùng `toolCycleWarningAt`, `toolCycleLimit`, và
-`maxToolCycleLength`. Nếu model thực sự cần lặp lại, hãy nâng các mức này — nhưng
-trước hết hãy kiểm tra xem kết quả tool của bạn có vô nghĩa không.
+Phát hiện lặp y hệt cảnh báo mỗi `repeatToolWarningAt` lần; phát hiện chu trình
+đa bước ngắn cảnh báo mỗi `toolCycleWarningAt` lần (`maxToolCycleLength` đặt độ
+dài chu trình tối đa). Mặc định chúng chỉ cảnh báo — đặt `repeatToolLimit` hoặc
+`toolCycleLimit` để bật điểm dừng cứng. Trước hết hãy kiểm tra xem kết quả tool
+của bạn có vô nghĩa không.
 
 ## Không có gì được nén
 

@@ -18,14 +18,16 @@ export function buildTurnOutcome(input: {
 
 export async function continueAfterTurnHook(
   options: RunTurnOptions, signal: AbortSignal, outcome: TurnOutcome, canContinue: boolean,
-): Promise<boolean> {
+): Promise<'continue' | 'end' | 'yield'> {
   const entriesBeforeHook = options.history.entries().length
-  await runOptionalHook(options.hooks?.onTurnEnd, [{
+  const decision = await runOptionalHook(options.hooks?.onTurnEnd, [{
     outcome, snapshot: options.history.snapshot(), canContinue,
   }], options, { signal: signal.aborted ? new AbortController().signal : signal, name: 'onTurnEnd' })
+  if (decision?.kind === 'yield' && !signal.aborted) return 'yield'
   // Queued input is delivered only when no hook append already continues the turn.
   return canContinue && !signal.aborted
     && (options.history.entries().length > entriesBeforeHook || deliverQueuedInput(options.history))
+    ? 'continue' : 'end'
 }
 
 export function turnOutcomeStatus(outcome: TurnOutcome): 'error' | 'aborted' | 'success' {

@@ -184,8 +184,9 @@ host workflow code or a tool. Pass `ModelInvocationContext` as the second argume
 to `evaluate()` to join existing provider-attempt accounting; this runtime does
 not create an independent observation exporter or fabricate attempt telemetry.
 
-The default logical deadline is 30 seconds, including preparation, attempts and
-backoff. Override with runtime `timeoutMs` or per-call `timeoutMs`. SDK retry policy
+There is no default logical deadline (since 0.1.13; it was 30 seconds). Set runtime
+`timeoutMs` or per-call `timeoutMs` to bound preparation, attempts and backoff;
+values above 2,147,483,647 ms are rejected. SDK retry policy
 and backoff helpers are reused; the adapter's route retry policy takes precedence
 over the runtime default when explicitly configured (TypeSafe inherits the runtime
 policy when its `retryPolicy` is omitted). A single prepared call is reused across
@@ -265,7 +266,7 @@ The LLM bridge and TypeSafe compile each rubric once per adapter/rubric identity
 and reuse the captured request through retries. No result cache or cross-call
 credential/connection cache is introduced. Prepared calls reject requests targeting
 a different provider/model before dispatch. Direct LLM prepared evaluations also
-honor `timeoutMs` (30 seconds by default) and close stalled iterators without
+honor an opt-in `timeoutMs` and close stalled iterators without
 waiting for their teardown. JSON arrays must contain only their own enumerable
 indexed data properties; getters, custom iterators, symbols and auxiliary
 properties are rejected without running caller hooks. LLM prompts put the fixed questions
@@ -282,8 +283,8 @@ This is client-side scheduling, not a provider batch endpoint. Retries occupy th
 same concurrency slot. A batch accepts at most 1,024 inputs, snapshots queued
 payloads before dispatch, and does not automatically chunk or truncate data.
 
-The batch deadline defaults to 30 seconds and includes queue time. Batch `timeoutMs`
-sets that overall deadline; task `timeoutMs` or input `timeoutMs` still governs each
+A batch has no default deadline. Batch `timeoutMs` sets an overall deadline that
+includes queue time; task `timeoutMs` or input `timeoutMs` still governs each
 dispatched call, including custom handles that ignore deadlines. Item deadlines
 start on dispatch, independently of the overall deadline that includes queue time.
 Batch cancellation preserves caller `ModelError` reasons (including `TIMEOUT`)

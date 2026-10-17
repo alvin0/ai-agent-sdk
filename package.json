@@ -4,7 +4,7 @@
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
   },
-  "version": "0.1.12",
+  "version": "0.1.13",
   "private": true,
   "packageManager": "pnpm@11.25.0",
   "description": "Private workspace orchestration for ai-agent-sdk packages",
@@ -98,6 +98,7 @@
     "human:mcp:github": "pnpm build:cli --silent && node dist-cli/mcp-github.mjs",
     "human:decision": "node --env-file=.env scripts/typesafe-decision-smoke.mts",
     "human:decision:all": "node --env-file=.env scripts/decision-live-smoke.mts",
+    "sample:multi-agent": "node samples/multi-agent-offline/run.ts",
     "sample:decision-tools": "node --env-file-if-exists=.env samples/decision-tool-routing/benchmark.mts",
     "sample:decision-documents": "node --env-file-if-exists=.env samples/decision-document-selection/run.mts"
   },

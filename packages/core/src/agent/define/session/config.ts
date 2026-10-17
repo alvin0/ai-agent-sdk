@@ -41,22 +41,29 @@ function validateRunTimeouts(values: AgentRuntimeLimits): void {
     throw new RangeError("agent runtimeLimits.maxTurnDurationMs must be a positive safe integer or 'auto'")
   }
   if (values.userInputTimeoutMs !== undefined
-    && (!Number.isSafeInteger(values.userInputTimeoutMs) || values.userInputTimeoutMs < 1)) {
-    throw new RangeError('agent runtimeLimits.userInputTimeoutMs must be a positive safe integer')
+    && (!Number.isSafeInteger(values.userInputTimeoutMs) || values.userInputTimeoutMs < 1
+      || values.userInputTimeoutMs > 2_147_483_647)) {
+    throw new RangeError('agent runtimeLimits.userInputTimeoutMs must be a positive safe integer up to 2147483647')
   }
 }
 
+const OPT_IN_LIMITS: ReadonlySet<string> = new Set(['modelTimeoutMs', 'maxToolDurationMs',
+  'maxConsecutiveToolErrors', 'repeatToolLimit', 'toolCycleLimit', 'hookTimeoutMs'])
+
 function validateNumericLimits(values: AgentRuntimeLimits): void {
   for (const key of [
-    'teardownTimeoutMs', 'modelTimeoutMs', 'maxModelRequestBytes',
+    'teardownTimeoutMs', 'modelTimeoutMs', 'modelIdleTimeoutMs', 'maxModelRequestBytes',
     'maxModelResponseBytes', 'maxModelStreamEvents', 'maxToolResultBytes',
     'maxToolDurationMs', 'toolTeardownTimeoutMs', 'maxParallelToolCalls',
-    'maxConsecutiveToolErrors', 'repeatToolWarningAt', 'repeatToolLimit',
+    'maxConsecutiveToolErrors', 'consecutiveToolErrorWarningAt', 'repeatToolWarningAt', 'repeatToolLimit',
     'toolCycleWarningAt', 'toolCycleLimit', 'maxToolCycleLength', 'maxToolResultTokens',
     'hookTimeoutMs', 'hookTeardownTimeoutMs', 'memoryOperationTimeoutMs',
     'observerTimeoutMs',
   ] as const) {
     const value = values[key]
+    // 'auto' leaves an opt-in limit off.
+    if (value === 'auto' && OPT_IN_LIMITS.has(key)) continue
+    if (value === 'auto') throw new RangeError(`agent runtimeLimits.${key} must be a positive safe integer`)
     if (value !== undefined && key.endsWith('Ms')) timeoutValue(value)
     if (value !== undefined && (!Number.isSafeInteger(value) || value < 1)) {
       throw new RangeError(`agent runtimeLimits.${key} must be a positive safe integer`)
@@ -80,10 +87,12 @@ function validateLimitModes(values: AgentRuntimeLimits): void {
 }
 
 function validateRepeatLimits(values: AgentRuntimeLimits): void {
-  if ((values.repeatToolLimit ?? 6) < (values.repeatToolWarningAt ?? 3)) {
+  const repeat = values.repeatToolLimit
+  if (typeof repeat === 'number' && repeat < (values.repeatToolWarningAt ?? 3)) {
     throw new RangeError('agent runtimeLimits.repeatToolLimit must be >= repeatToolWarningAt')
   }
-  if ((values.toolCycleLimit ?? 3) < (values.toolCycleWarningAt ?? 2)) {
+  const cycle = values.toolCycleLimit
+  if (typeof cycle === 'number' && cycle < (values.toolCycleWarningAt ?? 2)) {
     throw new RangeError('agent runtimeLimits.toolCycleLimit must be >= toolCycleWarningAt')
   }
 }

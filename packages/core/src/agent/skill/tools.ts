@@ -29,7 +29,7 @@ export interface AgentSkillOptions {
   readonly maxSearchResources?: number
   /** Maximum resource characters inspected by one search. Defaults to 200000. */
   readonly maxSearchInputChars?: number
-  /** Deadline for one skill discovery/load/read/search operation. Defaults to 120 seconds. */
+  /** Opt-in deadline for one skill discovery/load/read/search operation; none by default. */
   readonly operationTimeoutMs?: number
   /** Maximum entries accepted in the merged skill catalog. Defaults to 1,024. */
   readonly maxSkills?: number
@@ -45,7 +45,7 @@ export interface ResolvedAgentSkillOptions {
   readonly maxSearchResultChars: number
   readonly maxSearchResources: number
   readonly maxSearchInputChars: number
-  readonly operationTimeoutMs: number
+  readonly operationTimeoutMs?: number
   readonly maxSkills: number
   readonly maxDiscoveryBytes: number
 }
@@ -72,8 +72,8 @@ export function resolveSkillOptions(input: AgentSkillOptions | undefined): Resol
       source.maxSearchInputChars, 200_000,
       { min: 256, max: 10_240_000, name: 'maxSearchInputChars' },
     ),
-    operationTimeoutMs: integer(source.operationTimeoutMs, 120_000,
-      { min: 1, max: 2_147_483_647, name: 'operationTimeoutMs' }),
+    ...source.operationTimeoutMs === undefined ? {} : { operationTimeoutMs: integer(source.operationTimeoutMs, 1,
+      { min: 1, max: 2_147_483_647, name: 'operationTimeoutMs' }) },
     maxSkills: integer(source.maxSkills, 1_024, { min: 1, max: 100_000, name: 'maxSkills' }),
     maxDiscoveryBytes: integer(
       source.maxDiscoveryBytes, 4 * 1024 * 1024,
@@ -148,7 +148,7 @@ function createLoadSkillTool(
       return renderSkill(skill, options.maxManifestChars)
     },
     meta: (_value, { skillId }) => ({ kind: 'skill', skillId, resourcePath: null }),
-    timeoutMs: options.operationTimeoutMs,
+    ...options.operationTimeoutMs === undefined ? {} : { timeoutMs: options.operationTimeoutMs },
   })
 }
 
@@ -190,7 +190,7 @@ function createReadSkillTool(
     meta: (_value, { skillId, path, section }) => ({
       kind: 'skill', skillId, resourcePath: section === null ? path : `${path}#${section}`,
     }),
-    timeoutMs: options.operationTimeoutMs,
+    ...options.operationTimeoutMs === undefined ? {} : { timeoutMs: options.operationTimeoutMs },
   })
 }
 
@@ -213,7 +213,7 @@ function createSearchSkillTool(
       return searchSkillResources({ catalog, options, lookup, query, skillId, signal: context.signal })
     },
     meta: (_value, { skillId }) => ({ kind: 'skill-search', skillId }),
-    timeoutMs: options.operationTimeoutMs,
+    ...options.operationTimeoutMs === undefined ? {} : { timeoutMs: options.operationTimeoutMs },
   })
 }
 
