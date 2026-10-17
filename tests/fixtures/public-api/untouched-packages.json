@@ -578,6 +578,11 @@
           "TeamMemberAttachmentOptions",
           "TeamMemberSnapshot",
           "TeamPort",
+          "TeamProgressEvent",
+          "TeamProgressMember",
+          "TeamProgressOptions",
+          "TeamProgressState",
+          "TeamProgressStopReason",
           "TeamSessionPort",
           "TeamSettlementStatus",
           "TeamSettlementUsage",
@@ -702,7 +707,7 @@
           "validateSkillSource",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "91e67a69af104c169205797d7e6d5da233dcddd61e177a0502616ac1d5d3770f"
+        "declarationSha256": "9063846663d415db37806d55dda0cd53a3eb90c1327d8b8c198654985d92dda5"
       },
       "./memory": {
         "exports": [

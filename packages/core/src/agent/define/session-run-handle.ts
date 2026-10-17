@@ -286,6 +286,11 @@ function bindSessionBoundaries(host: { readonly inputState: SessionInputState })
   host.inputState.bindBoundaries()
 }
 
+function observeTeamInvocation(host: SessionRunHost, signal: AbortSignal): void {
+  const team = host.options.team
+  try { team?.team.observeInvocation?.(team.name ?? host.definition.id, signal) } catch { /* observer isolation */ }
+}
+
 export function createSessionRunHandle(
   host: SessionRunHost,
   input: AgentInput | undefined,
@@ -314,6 +319,7 @@ export function createSessionRunHandle(
     bindSkillProviderLogger(host.skillCatalog, ledger.modelInvocation.logger)
   }
   host.active = true
+  observeTeamInvocation(host, signal)
   bindSessionBoundaries(host)
   host.activeAdditionalInstructions = additionalInstructions
   host.activeInvocation = invocation

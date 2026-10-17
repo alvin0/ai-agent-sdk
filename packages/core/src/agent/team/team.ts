@@ -1,3 +1,4 @@
+import { deliverProgressEvent, progressActivity, registerProgressChannel } from './team-progress-internal.ts'
 import { TeamObservation, type TeamSettlementUsage } from './team-observation.ts'
 import { registerTeamObservation } from './team-observation-internal.ts'
 import type { TeamSnapshot, TeamWakeReason } from './team-timeline.ts'
@@ -85,6 +86,7 @@ export class AgentTeam implements TeamPort {
       cancelMember: (name, reason) => this.cancel(name, reason), clear: () => this.clear(),
       emit: event => this.emit(event), observeAgentEvent: (member, event) => this.observeAgentEvent(member, event),
     })
+    registerProgressChannel(this, { signal: this.work.signal, emit: event => this.emit(event) })
     this.teamTools = new TeamTools({
       waitTimeoutMs: this.waitTimeoutMs, minWaitTimeoutMs: this.minWaitTimeoutMs,
       assertActive: () => this.assertActive(), members: () => this.members(),
@@ -96,6 +98,9 @@ export class AgentTeam implements TeamPort {
       beginWait: (from, targets) => this.beginWait(from, targets),
       whenIdle: (name, signal) => this.whenIdle(name, signal), member: name => this.roster.locals.get(name),
     })
+  }
+  observeInvocation(member: string, signal: AbortSignal): void {
+    progressActivity(this, { kind: 'invocation', member, signal })
   }
   attach(session: TeamSessionPort, options: TeamMemberAttachmentOptions = {}): void {
     this.assertActive()
@@ -285,11 +290,14 @@ export class AgentTeam implements TeamPort {
         'response' in event ? (event.response as { report?: TeamSettlementUsage } | undefined)?.report : undefined)
     }
   }
-  private emit(event: AgentTeamEvent): void {
+  private emit(event: AgentTeamEvent): boolean {
+    if (event.type === 'team-progress') return deliverProgressEvent(event, [this.onEvent, ...this.listeners])
     this.observeLifecycle(event)
     this.publishSettlement(event)
-    try { this.onEvent?.(event) } catch {}
-    for (const listener of this.listeners) { try { listener(event) } catch {} }
+    let delivered = true
+    try { this.onEvent?.(event) } catch { delivered = false }
+    for (const listener of this.listeners) { try { listener(event) } catch { delivered = false } }
+    return delivered
   }
   private async observeAgentEvent(member: string, event: AgentRunEvent): Promise<void> {
     return observeAgentEvent({

@@ -110,3 +110,79 @@ source, and `usageMetricsSource` identifies finalized team ledgers versus model 
 Older SDKs retain attachment/evidence fallbacks. Copy identical harness bytes to compared branches.
 Offline fixtures validate plumbing, not model-dependent surface costs or quality. Live comparisons
 remain reviewer-owned under the plan's N>=3 contract and model policy.
+
+## User-requested periodic progress
+
+After spawning, a lead can call `progress_updates({ interval_ms: 20000 })` when the user asks
+for status every 20 seconds. `targets` optionally selects current managed worker addresses;
+omission captures all current workers, including queued workers. Later spawns are excluded.
+Calling again replaces the schedule; `progress_updates({ stop: true })` cancels it. Workers
+need no progress tool or prompt. The initial lean prompt and catalog stay byte-identical.
+The once-only disclosed guidance adds: “If the user asks for periodic status, call
+progress_updates once; do not poll.” Eager/legacy catalogs also offer the tool.
+
+The runtime sends `type: 'team-progress'` on `team: { onEvent }` and `managed.team.subscribe()`.
+Render `event.text` directly as a status/notice, or render its structured `members` array.
+`phase: 'report'` is periodic; `phase: 'stopped'` is the one final report for that schedule.
+Correlate by `(teamId, lead, scheduleId)`; stopped events include `reason`. These events do
+not enter the mailbox, lead history, model context, settlement delivery ledger, or lead wake
+queue. They cause zero model calls. The chat sample projects them onto its existing notice
+stream and unsubscribes when the prompt stream closes.
+
+```ts
+const managed = createManagedAgentTeam({
+  registry, lead,
+  progressUpdates: {
+    minIntervalMs: 5_000, maxIntervalMs: 600_000,
+    maxDurationMs: 30 * 60_000, maxReports: 120,
+    stalledIntervals: 3, maxConsecutiveFailures: 2,
+  },
+  team: { onEvent(event) {
+    if (event.type === 'team-progress') showUserNotice(event.text)
+  } },
+})
+// The lead chooses whether/when to schedule. The host can inspect or cancel it.
+const state = managed.progressUpdates() // frozen: active, intervalMs, targets, startedAt, reportsSent, nextAt
+managed.stopProgressUpdates() // reason: host; repeated stops are idempotent
+```
+
+All numeric host bounds must be positive, timer-safe integers; min must not exceed max.
+The requested interval must be a positive integer and is clamped to the host interval range.
+`progressUpdates: false` hides the tool entirely. Configuration does not auto-start a timer.
+Only one schedule runs per managed team. Report data includes status, elapsed milliseconds,
+logical model calls, completed-run usage (active usage remains unknown), the last runtime tool
+name, a path/file argument hint capped at 120 characters, and tool-call counts since the last
+successful report. Hints are untrusted display text; escape them normally. Arbitrary arguments,
+commands, credentials and tool results are excluded. A path itself can be sensitive: hosts
+control whether to offer this feature to their users.
+
+Schedules stop actively on lead stop, host stop, replacement, or user steering/interruption.
+They stop passively when targets settle, the managed invocation ends/fails/aborts, a raw lead
+session finishes/fails/aborts, the managed team is disposed, or the underlying team closes.
+A provisional yield is part of an outstanding invocation: reporting continues while workers
+run, with the original invocation AbortSignal still authoritative. Streaming hosts should
+keep their invocation signal until `whenQuiet()` and call `stopProgressUpdates('run-ended')`
+when their user stream ends. Consumer cancellation is also observed by the session runtime.
+
+Duration, successful-report count, and consecutive inactive-interval bounds always apply.
+Only targeted worker model requests, tool dispatches or settlements reset the stall watchdog;
+a long tool with no new runtime activity intentionally stops as `stalled`. Two consecutive
+build/delivery failures stop as `delivery-failed`. A successful tick resets that failure count.
+The synchronous event channel isolates throwing observers, still calls the remaining observers,
+and reports their aggregate delivery failure to this scheduler. Callbacks must be synchronous;
+returned promises count as delivery failures, and their rejections are contained. Terminal delivery is attempted
+once even after failures; a broken observer cannot be guaranteed to receive it. Failed periodic
+attempts are not counted as successful reports and may have reached other subscribers.
+
+The reasons are `requested`, `host`, `settled`, `run-ended`, `aborted`, `closed`, `max-duration`,
+`max-reports`, `stalled`, `delivery-failed`, and `replaced`. A stop invalidates ownership and
+clears its timer before calling any host callback. Reports use one synchronous timeout chain;
+there is no overlapping asynchronous delivery. It re-arms after successful ticks or bounded,
+contained failure retries, only while the same schedule remains live. Timers are cleared on
+stop and unref'ed where supported. Everything is in memory: process exit/crash leaves no
+persistent job or background loop.
+
+Run `node samples/multi-agent-offline/progress.ts` after building core for a credential-free
+scripted lead that responds to a user request by scheduling progress. The host receives two
+periodic reports and one final settled event, with unchanged lead calls and history while
+reporting. This demonstrates runtime plumbing, not live model compliance or latency/cost.

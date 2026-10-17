@@ -4,6 +4,15 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Managed leads can call the lazily disclosed `progress_updates` tool to request bounded,
+  runtime-owned user status reports without extra lead calls or model-history growth.
+  Hosts can disable/configure limits with `progressUpdates`, inspect `progressUpdates()`,
+  and actively cancel with `stopProgressUpdates()`. All stop paths clear the timeout chain
+  and attempt one terminal `team-progress` event. The chat sample renders streamed notices.
+  See `docs/team-observability.md`.
+
 ### Changed
 
 - Managed lead guidance now weighs worker context/startup/synthesis cost: do small or sequential
@@ -13,6 +22,10 @@ All notable changes to the AI Agent SDK are documented in this file.
   tools remain available initially; host hooks, schemas, queue limits and settlement delivery are unchanged.
 
 ### Breaking
+
+- Managed lead catalogs reserve `progress_updates`; rename a host tool using that name or set
+  `progressUpdates: false`. `AgentTeamEvent` and `RuntimeAgentTeamEvent` add `team-progress`;
+  exhaustive event switches must handle the new variant. Existing lifecycle APIs are preserved.
 
 - Aborted `spawn_agents` calls return worker addresses with `cancelled: true` instead of throwing
   after admission; inspect the flag and coverage before synthesizing. Standalone `wait_agents` keeps

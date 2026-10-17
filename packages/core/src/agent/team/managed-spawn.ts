@@ -1,4 +1,5 @@
 /** Resolves, prepares, and dispatches newly commissioned managed workers. */
+import { progressActivity } from './team-progress-internal.ts'
 import { startBatchWorker, spawnManagedBatch,
   type BatchSpawnCallbacks, type BatchWorkerView } from './managed-batch-spawn.ts'
 import { ManagedSpawnQueue } from './managed-spawn-queue.ts'
@@ -33,7 +34,6 @@ import {
 import {
   errorMessage, recordEvidence, SETTLED_WORKER_STATUS,
 } from './managed-outcomes.ts'
-
 interface ManagedSpawnHost {
   readonly options: ManagedAgentTeamOptions
   readonly sessionTeam: TeamPort
@@ -64,7 +64,6 @@ interface ManagedSpawnHost {
 }
 type ScopedSessionOptions = Awaited<ReturnType<NonNullable<ManagedAgentTeamOptions['workerSessionOptionsFactory']>>>
 type PreparedWorker = ManagedSpawnHost['preparing'] extends Map<string, infer T> ? T & { finish(): void } : never
-
 export class ManagedWorkerSpawning {
   private workerSequence = 0
   private readonly observation: ManagedSpawnObservation
@@ -233,7 +232,8 @@ export class ManagedWorkerSpawning {
       deadline: undefined,
       controller,
       settled: new Promise<void>((resolve) => { markSettled = resolve }),
-      markSettled: () => { recordEvidence(runtime); runtime.settledComplete = true; markSettled() },
+      markSettled: () => { recordEvidence(runtime); runtime.settledComplete = true; markSettled();
+        progressActivity(this.host.team, { kind: 'settlement', member: resolved.name }) },
       start: undefined,
       warnings,
       result: undefined,

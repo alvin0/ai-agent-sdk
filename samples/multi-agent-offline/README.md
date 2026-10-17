@@ -61,3 +61,12 @@ newer explicitly selected model and never fall back to an older model.
 See the [multi-agent guide](../../docs/multi-agent.md) for roles, guarded inheritance,
 limits, streaming, migration and troubleshooting; the [chat sample](../chat-agents/README.md)
 shows a conversation-owned streaming integration.
+
+## Periodic progress (offline)
+
+After building core, run `node samples/multi-agent-offline/progress.ts`.
+The scripted lead receives a user request, spawns verification, calls `progress_updates`
+once, and yields. The runtime emits two reports to the host and a final settled report.
+The scenario asserts zero extra lead calls and unchanged lead history during reporting.
+Its 20 ms interval uses an explicit demo host floor; production defaults start at 5 seconds.
+No network, credentials, or live model behavior is involved.

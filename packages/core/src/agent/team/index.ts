@@ -60,3 +60,6 @@ export type { TeamTimelineData, TeamTimelineEvent, TeamWakeReason, TeamSettlemen
   TeamMemberSnapshot, TeamSnapshot } from './team-timeline.ts'
 
 export type { TeamSettlementUsage } from './team-observation.ts'
+
+export type { TeamProgressOptions, TeamProgressState, TeamProgressStopReason,
+  TeamProgressEvent, TeamProgressMember } from './team-progress.ts'

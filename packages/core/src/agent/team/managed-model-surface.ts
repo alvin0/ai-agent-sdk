@@ -26,6 +26,7 @@ export class ManagedModelSurface {
 
   constructor(private readonly host: SurfaceHost) {
     this.port = {
+      observeInvocation: (sender, signal) => this.host.team.observeInvocation(sender, signal),
       attach: (session, options = {}) => {
         this.host.team.attach(session, options)
         const addresses = new Set(this.host.team.members().map(member => member.name))

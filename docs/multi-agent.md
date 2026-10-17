@@ -130,8 +130,8 @@ These are the default **managed lean** tools; host lifecycle APIs keep their exi
 names and richer worker views. Use the exact returned `target` for later model calls.
 
 Plain lean leads initially receive application tools, `spawn_agent` and `spawn_agents`. After the
-first successful host/model spawn or admitted queued batch, `send_input`, `wait_agents`, `get_agent_result`
-and `close_agent` become visible and stay visible for the team lifetime. A rejected
+first successful host/model spawn or admitted queued batch, `send_input`, `wait_agents`, `get_agent_result`,
+`close_agent` and `progress_updates` become visible and stay visible for the team lifetime. A rejected
 spawn does not disclose controls. Existing team members or successful spawn call/result
 pairs in restored lead history also reveal them; hosts still own session rehydration.
 The short lead system prompt stays stable; the first successful model spawn result
@@ -149,6 +149,7 @@ worker catalogs remain eager. At the depth limit, spawning is unavailable.
 | `wait_agents` | `{ targets?, timeout_ms? }`; omit targets to join all managed workers. Joins all selected work and returns new results plus `timed_out` / optional `interrupted`. |
 | `get_agent_result` | `{ target, field?, offset?, maxBytes? }`; repeatable retained pages of `text`, serialized `structured`, or `error`. Default 6 KiB, maximum 16 KiB. Follow `page.nextOffset` with the same field until null. Offsets are character positions supplied by the SDK, not byte offsets. |
 | `close_agent` | `{ target }`; closes retained work and cancels unfinished work by default. With `allowModelWorkerCancellation: false`, unfinished work is protected and interrupt is omitted from the send schema. |
+| `progress_updates` | `{ interval_ms?, targets?, stop? }`; schedules runtime-owned user status after spawning. `stop: true` cancels. Reports go only to host events. See [progress lifecycle and host controls](team-observability.md#user-requested-periodic-progress). |
 
 Workers default to `workerTeamTools: 'reporting'`: `send_input` provides context only
 outside collaboration; returning their final answer settles their task. `'full'` adds

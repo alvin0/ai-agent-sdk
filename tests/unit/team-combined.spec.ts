@@ -14,7 +14,8 @@ describe('combined managed team', () => {
     const running = team.run('Investigate together')
     await started.promise
     expect(adapter.requests[0]!.options.tools?.map(tool => tool.name)).toEqual([
-      'spawn_agent', 'spawn_agents', 'close_agent', 'send_input', 'wait_agents', 'get_agent_result',
+      'spawn_agent', 'spawn_agents', 'close_agent', 'progress_updates',
+        'send_input', 'wait_agents', 'get_agent_result',
       'task_create', 'task_list', 'task_update',
     ])
     finish.resolve()

@@ -292,6 +292,7 @@ function captureLink(raw: unknown, host: RuntimeAgentHost, teamId: string): Link
 }
 
 function projectEvent(event: AgentTeamEvent): RuntimeAgentTeamEvent {
+  if (event.type === 'team-progress') return event
   if (event.type === 'member-attached') return Object.freeze({ type: event.type, member: event.member.name })
   if (event.type === 'member-linked') return Object.freeze({ type: event.type, member: event.member.name,
     protocol: event.member.protocol ?? 'unknown' })
