@@ -9,8 +9,8 @@ All notable changes to the AI Agent SDK are documented in this file.
 - Run-stopping limits are now opt-in. A run no longer stops part-way through by default and
   wastes the tokens it has already spent. To bring a limit back, set it to a number:
   - **Counts:** `maxTurns`/`maxSteps` and `maxToolCalls` now default to `'auto'`. The old defaults
-    were 16 and 64. The run ledger's `maxModelCalls`, `maxToolCalls` and `maxSerializedBytes` are
-    now unlimited by default.
+    were 16 and 64. The run ledger's `maxModelCalls`, `maxAttemptsPerCall`, `maxToolCalls` and
+    `maxSerializedBytes` are now unlimited by default.
   - **Loop guards are warn-only:** `repeatToolLimit`, `toolCycleLimit` and `maxConsecutiveToolErrors`
     default to `'auto'`. The repeat and cycle reminders now fire at every multiple of
     `repeatToolWarningAt` and `toolCycleWarningAt`. A new `consecutiveToolErrorWarningAt` setting
@@ -24,6 +24,10 @@ All notable changes to the AI Agent SDK are documented in this file.
     - collaboration `joinTimeoutMs`
     - the HTTP transport's `requestTimeoutMs`
     - the step deadline in `runToolCalls`
+    - `dispatchToolCall`'s `defaultTimeoutMs`
+    - compaction `summaryTimeoutMs`
+
+    An opt-in deadline above 2147483647 ms is rejected, because timers would fire it after 1 ms.
   - **Hung model calls:** these are still caught. The new `runtimeLimits.modelIdleTimeoutMs`
     (default 10 minutes) resets on every stream chunk and only cuts a stream that has gone silent.
     The HTTP `streamIdleTimeoutMs` still applies, and `maxModelStreamEvents` is now opt-in, since

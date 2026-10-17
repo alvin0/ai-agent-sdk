@@ -31,7 +31,7 @@ export interface AgentCompactionOptions {
   readonly maxSummaryResponseBytes?: number
   /** Maximum chunks accepted from the summarizer. Defaults to 50,000. */
   readonly maxSummaryStreamEvents?: number
-  /** Total summarizer/model-metadata deadline. Defaults to 10 minutes. */
+  /** Opt-in total summarizer/model-metadata deadline; none by default (provider stream idle timeouts still apply). */
   readonly summaryTimeoutMs?: number
   /** Maximum wait for a non-cooperative summarizer teardown. Defaults to 30 seconds. */
   readonly teardownTimeoutMs?: number
@@ -56,7 +56,7 @@ export interface AgentCompactionConfig {
   readonly maxSummaryRequestBytes: number
   readonly maxSummaryResponseBytes: number
   readonly maxSummaryStreamEvents: number
-  readonly summaryTimeoutMs: number
+  readonly summaryTimeoutMs?: number
   readonly teardownTimeoutMs: number
   readonly maxToolResultChars: number
 }
@@ -124,7 +124,7 @@ function summaryPayloadLimits(input: AgentCompactionOptions | undefined): Pick<A
 function timingConfig(input: AgentCompactionOptions | undefined): Pick<AgentCompactionConfig,
   'summaryTimeoutMs' | 'teardownTimeoutMs' | 'maxToolResultChars'> {
   return {
-    summaryTimeoutMs: timeoutValue(input?.summaryTimeoutMs ?? 10 * 60_000),
+    ...input?.summaryTimeoutMs === undefined ? {} : { summaryTimeoutMs: timeoutValue(input.summaryTimeoutMs) },
     teardownTimeoutMs: timeoutValue(input?.teardownTimeoutMs ?? 30_000),
     maxToolResultChars: positiveInteger(input?.maxToolResultChars ?? 24_000, 'maxToolResultChars'),
   }

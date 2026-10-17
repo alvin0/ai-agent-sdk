@@ -63,7 +63,7 @@ function compactionInput(value: AgentCompactionConfig | false): AgentCompactionO
     maxSummaryRequestBytes: value.maxSummaryRequestBytes,
     maxSummaryResponseBytes: value.maxSummaryResponseBytes,
     maxSummaryStreamEvents: value.maxSummaryStreamEvents,
-    summaryTimeoutMs: value.summaryTimeoutMs,
+    ...(value.summaryTimeoutMs === undefined ? {} : { summaryTimeoutMs: value.summaryTimeoutMs }),
     teardownTimeoutMs: value.teardownTimeoutMs,
     maxToolResultChars: value.maxToolResultChars,
   }

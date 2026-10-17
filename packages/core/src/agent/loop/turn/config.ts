@@ -73,6 +73,7 @@ export function resolveBounds(input: Partial<TurnBounds> | undefined): ResolvedT
   validateStepBounds(bounds)
   validateAutomaticBound(bounds.maxSteps, 'maxSteps')
   for (const key of UNLIMITED_KEYS) validateAutomaticBound(bounds[key], key)
+  if (bounds.maxToolDurationMs !== 'auto') timerMs(bounds.maxToolDurationMs, 'maxToolDurationMs')
   for (const key of [
     'consecutiveToolErrorWarningAt', 'repeatToolWarningAt', 'toolCycleWarningAt', 'maxToolCycleLength',
     'maxParallel', 'maxToolResultBytes', 'maxToolResultTokens', 'toolTeardownTimeoutMs',
@@ -99,6 +100,12 @@ export function resolveBounds(input: Partial<TurnBounds> | undefined): ResolvedT
 }
 export function positiveFinite(value: number, name: string): number {
   if (!Number.isFinite(value) || value <= 0) throw new RangeError(`${name} must be a positive finite number`)
+  return value
+}
+/** Timers clamp delays above 2^31-1 ms to 1 ms, so a long opt-in deadline must stay in range. */
+export function timerMs(value: number, name: string): number {
+  positiveFinite(value, name)
+  if (value > 2_147_483_647) throw new RangeError(`${name} must not exceed 2147483647ms`)
   return value
 }
 export function positiveSafeInteger(value: number, name: string): number {

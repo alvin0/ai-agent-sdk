@@ -1,4 +1,5 @@
 import { detachedFrozen } from '../../primitives/index.ts'
+import { timeoutValue } from '../../platform/config.ts'
 import type { ToolExecutionResult } from '../tool/definition.ts'
 import { prepareToolCall, type ToolCallRequest } from '../tool/pipeline.ts'
 import { createToolAdmission } from './admission.ts'
@@ -15,7 +16,7 @@ export function createScheduleContext(
   const maxResultBytes = positiveInteger(options.maxResultBytes ?? 4 * 1024 * 1024, 'maxResultBytes')
   // No default tool-step deadline; a tool's own timeoutMs or the caller's opt-in limit bounds it.
   const maxDurationMs = options.maxDurationMs === undefined
-    ? undefined : positiveInteger(options.maxDurationMs, 'maxDurationMs')
+    ? undefined : timeoutValue(positiveInteger(options.maxDurationMs, 'maxDurationMs'))
   const teardownTimeoutMs = positiveInteger(options.teardownTimeoutMs ?? 30_000, 'teardownTimeoutMs')
   const admissionLimit = internal.admissionLimit ?? Math.max(0, options.dispatchLimit ?? options.calls.length)
   const admission = createToolAdmission(admissionLimit)

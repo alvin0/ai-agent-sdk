@@ -1,7 +1,7 @@
 import type { ModelCallReport } from '../../../observation/index.ts'
 import type { GenerateOptions } from '../../../contract/index.ts'
 import { BlockAssembler, type StreamChunk } from '../../../stream/index.ts'
-import { positiveFinite, positiveSafeInteger } from './config.ts'
+import { positiveFinite, positiveSafeInteger, timerMs } from './config.ts'
 import { serializedBytes, modelFailureFinish, modelAbortedFinish, messageOf } from './common.ts'
 import { validateStreamChunk } from './validation.ts'
 import { StreamAbortError, nextWithAbort, closeIterator } from './cancellation.ts'
@@ -40,8 +40,8 @@ interface StreamState {
 function streamLimits(context: ModelRoundContext): StreamLimits {
   const { options } = context
   const modelTimeoutMs = options.modelTimeoutMs === undefined || options.modelTimeoutMs === 'auto'
-    ? undefined : positiveFinite(options.modelTimeoutMs, 'modelTimeoutMs')
-  const modelIdleTimeoutMs = positiveFinite(options.modelIdleTimeoutMs ?? 10 * 60_000, 'modelIdleTimeoutMs')
+    ? undefined : timerMs(options.modelTimeoutMs, 'modelTimeoutMs')
+  const modelIdleTimeoutMs = timerMs(options.modelIdleTimeoutMs ?? 10 * 60_000, 'modelIdleTimeoutMs')
   const maxRequestBytes = positiveSafeInteger(options.maxModelRequestBytes ?? 32 * 1024 * 1024, 'maxModelRequestBytes')
   const maxResponseBytes = positiveSafeInteger(options.maxModelResponseBytes ?? 32 * 1024 * 1024,
     'maxModelResponseBytes')
@@ -89,12 +89,13 @@ async function consumeModelStream(
   const roundSignal = AbortSignal.any([signal, owned.signal])
   let timedOut: string | undefined
   const expire = (message: string) => { timedOut ??= message; owned.abort(new Error(message)) }
+  const handle = options.registry.stream({ ...requestBase, signal: roundSignal }, options.accounting?.modelInvocation)
+  const iterator = handle[Symbol.asyncIterator]()
+  // Armed only once the stream exists, so a synchronous adapter failure leaves no timer behind.
   const timeout = limits.modelTimeoutMs === undefined ? undefined
     : setTimeout(() => { expire(`model stream exceeded ${limits.modelTimeoutMs}ms`) }, limits.modelTimeoutMs)
   const idle = new IdleTimer(limits.modelIdleTimeoutMs,
     () => { expire(`model stream sent no data for ${limits.modelIdleTimeoutMs}ms`) })
-  const handle = options.registry.stream({ ...requestBase, signal: roundSignal }, options.accounting?.modelInvocation)
-  const iterator = handle[Symbol.asyncIterator]()
   const state: StreamState = { assembler, owned, signal: roundSignal, limits,
     closedBlockIndexes: new Set(), idle, events: 0, responseBytes: 0, sawFinish: false }
   let exhausted = false

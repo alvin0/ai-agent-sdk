@@ -81,7 +81,7 @@ export interface UsageEstimationInput {
 /** Run-wide caps are opt-in: omitted or 'auto' never stops a run; set a number to enforce one. */
 export interface RunLedgerLimits {
   readonly maxModelCalls?: number | 'auto'
-  readonly maxAttemptsPerCall?: number
+  readonly maxAttemptsPerCall?: number | 'auto'
   readonly maxToolCalls?: number | 'auto'
   readonly maxSerializedBytes?: number | 'auto'
 }

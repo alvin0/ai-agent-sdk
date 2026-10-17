@@ -80,7 +80,7 @@ describe('limits are opt-in by default', () => {
       repeatToolWarningAt: 3, toolCycleWarningAt: 2, consecutiveToolErrorWarningAt: 4,
     })
     expect(resolveLimits(undefined)).toMatchObject({
-      maxModelCalls: Infinity, maxToolCalls: Infinity, maxSerializedBytes: Infinity,
+      maxModelCalls: Infinity, maxAttemptsPerCall: Infinity, maxToolCalls: Infinity, maxSerializedBytes: Infinity,
     })
     expect(hookTimeout(undefined)).toBeUndefined()
     expect(hookTimeout('auto')).toBeUndefined()
@@ -95,6 +95,9 @@ describe('limits are opt-in by default', () => {
     })).not.toThrow()
     expect(() => resolveRuntimeLimits({ repeatToolLimit: 2, repeatToolWarningAt: 3 })).toThrow(/repeatToolLimit/)
     expect(() => resolveRuntimeLimits({ teardownTimeoutMs: 'auto' as never })).toThrow(/teardownTimeoutMs/)
+    // A delay past 2^31-1 ms would fire after 1 ms, so an opt-in deadline that long is rejected.
+    expect(() => hookTimeout(2 ** 31)).toThrow(/2147483647/)
+    expect(() => resolveBounds({ maxToolDurationMs: 2 ** 31 })).toThrow(/2147483647/)
   })
 
   it('runs past every old default wall and keeps steering with periodic repeat warnings', async () => {
@@ -134,6 +137,10 @@ describe('limits are opt-in by default', () => {
   it('cuts a model stream that goes silent for the idle timeout', async () => {
     const { end } = await run([slowStream(5, 400)], { modelIdleTimeoutMs: 60 })
     expect(JSON.stringify(end.outcome)).toContain('model stream sent no data for 60ms')
+  })
+
+  it('rejects an opt-in model deadline beyond the timer range', async () => {
+    await expect(run([textRound('x')], { modelIdleTimeoutMs: 2 ** 31 })).rejects.toThrow(/2147483647/)
   })
 
   it('applies a total model deadline only when the caller sets one', async () => {

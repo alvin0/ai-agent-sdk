@@ -74,7 +74,7 @@ export interface MutableOperation {
 export function resolveLimits(input: RunLedgerLimits | undefined): ResolvedLimits {
   return Object.freeze({
     maxModelCalls: optInLimit(input?.maxModelCalls, 'maxModelCalls'),
-    maxAttemptsPerCall: positive(input?.maxAttemptsPerCall ?? 16, 'maxAttemptsPerCall'),
+    maxAttemptsPerCall: optInLimit(input?.maxAttemptsPerCall, 'maxAttemptsPerCall'),
     maxToolCalls: optInLimit(input?.maxToolCalls, 'maxToolCalls'),
     maxSerializedBytes: optInLimit(input?.maxSerializedBytes, 'maxSerializedBytes'),
   })

@@ -1,12 +1,13 @@
 import { waitForSettlement } from '../../../async/index.ts'
 import { type RunTurnOptions } from './types.ts'
-import { positiveSafeInteger } from './config.ts'
+import { positiveSafeInteger, timerMs } from './config.ts'
 import { codedRuntimeError } from './common.ts'
 import { nextValueWithAbort } from './cancellation.ts'
 
 /** Hooks have no default deadline: a long hook (a managed-team join) must not fail the turn it serves. */
 export function hookTimeout(value: number | 'auto' | undefined): number | undefined {
-  return value === undefined || value === 'auto' ? undefined : positiveSafeInteger(value, 'hookTimeoutMs')
+  if (value === undefined || value === 'auto') return undefined
+  return timerMs(positiveSafeInteger(value, 'hookTimeoutMs'), 'hookTimeoutMs')
 }
 
 export async function runOptionalHook<TArgs extends readonly unknown[], TResult>(
