@@ -27,7 +27,9 @@ class OpenAiDecisionAdapter extends DecisionAdapter {
     super()
     this.#host = Object.freeze({ label: 'OpenAI Decisions', baseUrl: baseUrl(options),
       credential: captureCredential(options.apiKey), fetch: options.fetch ?? globalThis.fetch,
-      headers: captureHeaders(options.headers), timeout: bound(options.requestTimeoutMs, 30_000, 'requestTimeoutMs'),
+      // Timer maximum: no practical deadline unless the caller opts in to one.
+      headers: captureHeaders(options.headers),
+      timeout: bound(options.requestTimeoutMs, 2_147_483_647, 'requestTimeoutMs'),
       maxResponse: bound(options.maxResponseBytes, 4_194_304, 'maxResponseBytes'), readUsage: responseUsage })
     this.#maxRequest = bound(options.maxRequestBytes, 2_097_152, 'maxRequestBytes')
     this.#safetyIdentifier = safetyIdentifier(options.safetyIdentifier)

@@ -1,5 +1,6 @@
 /** High-level agent modes built on the provider-neutral bounded tool loop. */
 
+import { timerMs } from '../loop/turn/config.ts'
 import { type Message } from '../../message/index.ts'
 import type { CallConfig } from '../../contract/index.ts'
 import { detachedFrozen } from '../../primitives/index.ts'
@@ -295,7 +296,7 @@ function createAgentInternalTools(setup: {
 function userInputWait(options: RunAgentOptions): number | undefined {
   const configured = ('userInputTimeoutMs' in options ? options.userInputTimeoutMs : undefined)
     ?? (typeof options.bounds?.maxToolDurationMs === 'number' ? options.bounds.maxToolDurationMs : undefined)
-  return configured === undefined ? undefined : positiveFinite(configured, 'userInputTimeoutMs')
+  return configured === undefined ? undefined : timerMs(configured, 'userInputTimeoutMs')
 }
 
 async function prepareAgentRun(

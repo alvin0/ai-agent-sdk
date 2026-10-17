@@ -37,6 +37,10 @@ All notable changes to the AI Agent SDK are documented in this file.
     - MCP server `operationTimeoutMs` (it was 10 minutes)
     - A2A client `timeoutMs` (it was 120 seconds) and server `taskTimeoutMs` (it was 10 minutes)
     - decision-adapter `timeoutMs` (it was 30 seconds)
+    - OpenAI and TypeSafe decision adapter `requestTimeoutMs` (it was 30 seconds)
+    - runtime memory load/commit callbacks (it was 30 seconds)
+
+    A tool `timeoutMs` above the timer maximum is clamped to it instead of firing after 1 ms.
 
     Where a library needs a numeric timeout, the default is the timer maximum, 2147483647 ms.
     Teardown, dispose, observer and credential/catalog setup bounds are unchanged.

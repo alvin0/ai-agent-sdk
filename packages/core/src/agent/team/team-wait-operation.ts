@@ -12,8 +12,9 @@ export async function executeTeamWait(
 ): Promise<JsonValue> {
   const { name, sender } = caller
   const { targets, timeoutMs } = args
-  const release = host.beginWait(name, targets)
+  // Validate first: a rejected budget must not leave a registered wait edge behind.
   const budget = waitBudget(host, timeoutMs)
+  const release = host.beginWait(name, targets)
   const startedAt = Date.now()
   const capture = host.captureResults(name, targets)
   const finished = new AbortController()
@@ -48,7 +49,7 @@ export async function executeTeamWait(
       agents: host.members().filter(member => selected.has(member.name)).map(statusOnly),
       results: capture.take(),
       settled: steered ? null : settled ?? null,
-      timedOut: !steered && settled === undefined,
+      timedOut: !steered && settled === undefined && budget !== undefined,
       ...(steered ? { interrupted: true } : {}),
       // The budget actually used, which is not always the one asked
       // for: a lead that reads `timedOut` after a request below the

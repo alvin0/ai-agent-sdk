@@ -12,7 +12,8 @@ import type {
 export function createRuntimeMemoryPersistence(
   binding: CapturedMemoryBinding,
   agentId: string,
-  timeoutMs = 30_000,
+  /** Opt-in load/commit deadline; none by default. */
+  timeoutMs?: number,
 ): RuntimeMemoryPersistence {
   return Object.freeze({
     bindingId: binding.bindingId,
@@ -31,7 +32,7 @@ export function createRuntimeMemoryPersistence(
 interface MemoryOperationContext {
   readonly signal: AbortSignal
   readonly logger: SdkLogger
-  readonly timeoutMs: number
+  readonly timeoutMs: number | undefined
 }
 
 function captureLoadedMemory(value: unknown) {
@@ -171,12 +172,13 @@ function memoryFailure(
   )
 }
 
-function callbackScope(caller: AbortSignal, timeoutMs: number): {
+function callbackScope(caller: AbortSignal, timeoutMs: number | undefined): {
   readonly signal: AbortSignal
   readonly dispose: () => void
 } {
   const deadline = new AbortController()
-  const timer = setTimeout(() => deadline.abort(new Error('Memory callback deadline exceeded')), timeoutMs)
+  const timer = timeoutMs === undefined ? undefined
+    : setTimeout(() => deadline.abort(new Error('Memory callback deadline exceeded')), timeoutMs)
   return Object.freeze({
     signal: AbortSignal.any([caller, deadline.signal]),
     dispose: () => clearTimeout(timer),

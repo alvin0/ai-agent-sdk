@@ -113,7 +113,8 @@ function captureBehavior<Args>(receiver: object) {
 function captureTimeout(receiver: object): unknown {
   const value = optionalOwnData(receiver, 'timeoutMs')
   if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value) || value <= 0)) invalid()
-  return value
+  // Timers fire after 1 ms above 2^31-1 ms; the timer maximum already means no practical deadline.
+  return typeof value === 'number' ? Math.min(value, 2_147_483_647) : value
 }
 
 function captureTrueFlag(receiver: object, key: string): true | undefined {

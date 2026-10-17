@@ -53,7 +53,7 @@ export function batchSpawnTool(host: BatchToolHost): ToolDefinition<any> {
     parse: parseBatch,
     execute: (args, ctx) => executeBatch(host, args, ctx),
     ...host.spawnTimeoutMs === undefined || host.waitTimeoutMs === undefined
-      ? {} : { timeoutMs: host.spawnTimeoutMs + host.waitTimeoutMs },
+      ? {} : { timeoutMs: Math.min(host.spawnTimeoutMs + host.waitTimeoutMs, 2_147_483_647) },
     isConcurrencySafe: () => true,
   })
 }
