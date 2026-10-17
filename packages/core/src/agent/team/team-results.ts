@@ -32,6 +32,15 @@ export class TeamResults {
     return member.outcome !== undefined && this.delivered.get(recipient)?.get(member.name) === member.outcome
   }
 
+  /** Claims returned by cancelled joins, so a managed requeue can deliver the exact released outcome. */
+  private readonly released = new Map<string, Map<string, AgentMemberOutcome>>()
+
+  takeReleased(recipient: string): ReadonlyMap<string, AgentMemberOutcome> {
+    const claims = this.released.get(recipient) ?? new Map<string, AgentMemberOutcome>()
+    this.released.delete(recipient)
+    return claims
+  }
+
   private readonly collectors = new Set<(members: readonly AgentTeamMember[]) => void>()
 
   /** An active join claims evidence synchronously at publication, before automatic notices. */
@@ -56,7 +65,11 @@ export class TeamResults {
       release: () => {
         const delivered = this.delivered.get(recipient)
         for (const { name, outcome } of claims) {
-          if (delivered?.get(name) === outcome) delivered.delete(name)
+          if (delivered?.get(name) !== outcome) continue
+          delivered.delete(name)
+          let released = this.released.get(recipient)
+          if (released === undefined) this.released.set(recipient, released = new Map())
+          released.set(name, outcome)
         }
         claims.length = 0
         captured.length = 0
@@ -89,7 +102,7 @@ export class TeamResults {
       return member === undefined ? [] : [member]
     })
   }
-  clear(): void { this.delivered.clear(); this.archived.clear(); this.collectors.clear() }
+  clear(): void { this.delivered.clear(); this.archived.clear(); this.collectors.clear(); this.released.clear() }
 }
 
 /** Shared compact result shape for lean waits and batch joins on either model surface. */

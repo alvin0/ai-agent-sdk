@@ -809,3 +809,77 @@ describe('batch worker start races', () => {
     expect(JSON.stringify(view)).not.toContain('Cannot read')
   })
 })
+
+describe('audit re-review regressions', () => {
+  const text = (value: string): readonly StreamChunk[] => [
+    { type: 'text-delta', index: 0, text: value },
+    { type: 'block-end', index: 0, block: { type: 'text', text: value } },
+    { type: 'finish', reason: { kind: 'stop' } },
+  ]
+  const leadRequests = (adapter: Controlled) => adapter.requests.filter(request =>
+    request.tools?.some(tool => tool.name === 'spawn_agent')).length
+
+  it('keeps the exact released outcome when a cancelled wait requeues a since-restarted worker', () => {
+    const results = new TeamResults()
+    const outcome = { kind: 'completed', text: 'first' } as const
+    const capture = results.capture('lead', [{ name: 'a', status: 'idle', outcome } as never], ['a'])
+    capture.release()
+    expect(results.takeReleased('lead').get('a')).toBe(outcome)
+    expect(results.takeReleased('lead').size).toBe(0)
+  })
+
+  it('wakes an idle lead for a closed lead-driven worker while only host-driven work runs', async () => {
+    const { adapter, team } = fixture()
+    adapter.leadReply = async options => {
+      if (leadRequests(adapter) === 1) {
+        await call(team, 'spawn_agent', { task: 'a' })
+        await adapter.started(1)
+        adapter.finish(1, 'a-result')
+      }
+      void options
+      return text('lead')
+    }
+    try {
+      await team.run('go')
+      await team.whenQuiet()
+      await team.spawn({ name: 'host', task: 'host work' })
+      await adapter.started(2)
+      await call(team, 'send_input', { target: 'worker_1', message: 'again' })
+      await adapter.started(3)
+      const before = leadRequests(adapter)
+      await team.closeWorker('worker_1')
+      await vi.waitFor(() => expect(leadRequests(adapter)).toBeGreaterThan(before))
+      await team.closeWorker('host')
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
+  it('never starts a queued model spawn after the lead run rejects', async () => {
+    const { adapter, team } = fixture({ maxWorkers: 1, leadSessionOptions: { hooks: {
+      onTurnEnd: () => { throw new Error('host hook failed') } } } })
+    adapter.leadReply = async () => {
+      await call(team, 'spawn_agents', { tasks: [{ task: 'first' }, { task: 'queued' }] })
+      await adapter.started(1)
+      return text('lead')
+    }
+    try {
+      await expect(team.run('go')).rejects.toThrow('host hook failed')
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(team.workers().filter(worker => worker.status === 'running')).toEqual([])
+      expect(adapter.requests.filter(request => !request.tools?.some(tool => tool.name === 'spawn_agent')))
+        .toHaveLength(1)
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
+  it('refuses an oversized message without draining the evicting audit log', async () => {
+    const team = new AgentTeam({ maxMessages: 4, maxMailboxBytes: 200, mailboxOverflow: 'evict-oldest' })
+    for (const id of ['a', 'b']) {
+      team.attach({ definition: { id }, conversationId: id, isRunning: false, inject: () => 1,
+        whenIdle: async () => {} } as never)
+    }
+    await team.sendMessage({ from: 'a', target: 'b', message: 'kept-audit-record', delivery: 'quiet' })
+    await expect(team.sendMessage({ from: 'a', target: 'b', message: 'x'.repeat(500), delivery: 'quiet' }))
+      .rejects.toThrow()
+    expect(team.messages()).toHaveLength(1)
+    await team.dispose()
+  })
+})

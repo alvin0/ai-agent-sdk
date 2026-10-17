@@ -22,7 +22,10 @@ export class TeamMailbox {
   ) {}
 
   reserve(contentBytes: number): () => void {
-    if (this.evict) this.evictFor(contentBytes)
+    // Evict only when the message could fit an empty log; a refused message never drains the audit history.
+    if (this.evict && this.pendingMessages < this.maxMessages && this.pendingBytes + contentBytes <= this.maxBytes) {
+      this.evictFor(contentBytes)
+    }
     if (this.records.length + this.pendingMessages >= this.maxMessages) {
       throw new Error(`A2A team reached its ${this.maxMessages}-message mailbox limit`)
     }

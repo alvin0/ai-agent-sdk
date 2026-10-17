@@ -116,6 +116,7 @@ export class ManagedTeamCollaboration implements TeamPort {
     this.names.delete(name)
     this.sessions.delete(name)
     this.instructions.delete(name)
+    this.notifications.memberClosed(name, this.board.snapshot())
   }
 
   private assertMember(name: string): void {

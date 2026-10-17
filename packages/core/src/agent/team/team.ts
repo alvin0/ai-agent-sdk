@@ -84,6 +84,7 @@ export class AgentTeam implements TeamPort {
       waitForBatch: (sender, targets, whenIdle, ctx) => this.waitForBatch(sender, targets, whenIdle, ctx),
       releaseSlot: name => this.releaseSlot(name),
       resultDelivered: (recipient, member) => this.results.isDelivered(recipient, member),
+      takeReleasedClaims: recipient => this.results.takeReleased(recipient),
     })
     this.onEvent = options.onEvent
     this.onAgentEvent = options.onAgentEvent

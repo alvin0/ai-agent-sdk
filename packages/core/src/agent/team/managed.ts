@@ -239,7 +239,9 @@ export class ManagedAgentTeam {
   async run(input: AgentInput, invocation: AgentInvocationOptions = {}): Promise<AgentResponse> {
     this.lifecycle.signal.throwIfAborted()
     if (this.leadBusy()) throw new Error('managed lead is already running')
-    const owned = { signal: invocation.signal, workers: new Set<WorkerRuntime>() }
+    // A failed run aborts its own signal too, so queued and still-starting model spawns never start.
+    const failure = new AbortController(),
+      owned = { signal: combineSignals(invocation.signal, failure.signal), workers: new Set<WorkerRuntime>() }
     const signal = combineSignals(invocation.signal, this.lifecycle.signal)
     let progressOwner: ReturnType<ManagedProgress['beginManagedInvocation']> | null = null
     let failed: { error: unknown } | undefined
@@ -266,6 +268,7 @@ export class ManagedAgentTeam {
       this.invocation = undefined
       const finishing = managedFinishingSignal(signal, failed)
       this.finishingSignal = finishing
+      if (finishing !== signal) failure.abort(finishing.reason)
       this.joining = false
       await finishManagedRun({ cancelLead: reason => this.team.cancel(this.leadName, reason),
         closeWorker: (name, reason) => this.closeWorker(name, reason), workerBusy: runtime => this.workerBusy(runtime),
@@ -340,9 +343,10 @@ export class ManagedAgentTeam {
     }).then(async previous => {
       this.spawning.drainQueue()
       if (previous === 'pending' || previous === 'running') this.settlements.pending(runtime)
-      // A close is not news while other work is outstanding; the next settlement wake carries its evidence.
-      const others = this.preparing.size > 0
-        || [...this.workerRuntimes.values()].some(other => other !== runtime && this.workerBusy(other))
+      // A close is not news while other work that will itself wake the lead is outstanding.
+      const wakes = (other: WorkerRuntime) => this.joining || other.leadDriven
+      const others = (this.joining && this.preparing.size > 0) || [...this.workerRuntimes.values()]
+        .some(other => other !== runtime && this.workerBusy(other) && wakes(other))
       if (await this.settlements.flushReports() && !others) this.settlements.wakeForReport(runtime)
       return previous
     }).finally(() => { this.closingWorkers.delete(task) })

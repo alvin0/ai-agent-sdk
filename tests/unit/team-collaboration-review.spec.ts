@@ -191,3 +191,24 @@ describe('collaboration review regressions', () => {
     expect(team.workers()[0]?.result?.succeeded).toBe(true)
   })
 })
+
+describe('collaboration offer recovery', () => {
+  it('re-offers a ready task when the member it was offered to closes', async () => {
+    const adapter = new CollaborationAdapter()
+    const team = managed(adapter)
+    const board = team.collaboration!.board
+    await board.create('lead', { id: 'p', title: 'Producer' })
+    await board.create('lead', { id: 'c', title: 'Pull work', blockedBy: ['p'] })
+    await team.spawn({ name: 'alice', task: 'Wait' }); await team.awaitWorker('alice')
+    await team.spawn({ name: 'bob', task: 'Wait' }); await team.awaitWorker('bob')
+    await board.update('lead', { id: 'p', expectedRevision: 1, action: 'claim' })
+    await board.update('lead', { id: 'p', expectedRevision: 2, action: 'complete' })
+    await team.collaboration!.whenMembersIdle(AbortSignal.timeout(1000))
+    const offered = adapter.rounds.get('alice') === 2 ? 'alice' : 'bob'
+    const other = offered === 'alice' ? 'bob' : 'alice'
+    expect(adapter.rounds.get(other)).toBe(1)
+    await team.closeWorker(offered)
+    await team.collaboration!.whenMembersIdle(AbortSignal.timeout(1000))
+    expect(adapter.rounds.get(other)).toBe(2)
+  })
+})

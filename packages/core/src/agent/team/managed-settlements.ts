@@ -38,9 +38,13 @@ export class ManagedSettlements {
   }
 
   resumeCaptured(targets: readonly string[]): void {
+    // The released outcome survives a follow-up that restarted the worker before this flush.
+    const released = teamInternals(this.host.team).takeReleasedClaims(this.host.leadName)
     for (const target of targets) {
       const runtime = this.host.workers.get(target)
-      if (runtime !== undefined && !this.pendingReports.has(runtime)) this.pendingReports.set(runtime, undefined)
+      if (runtime === undefined) continue
+      const outcome = released.get(target) ?? this.pendingReports.get(runtime)
+      this.pendingReports.set(runtime, outcome)
     }
     this.resumeReports()
   }

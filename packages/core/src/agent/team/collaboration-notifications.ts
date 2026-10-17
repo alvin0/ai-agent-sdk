@@ -9,6 +9,8 @@ import { taskReady } from './collaboration-task-state.ts'
 export class CollaborationNotifications {
   private readonly delivered = new Set<string>()
   private cursor = 0
+  /** Task id to the member it was offered to, so a close can re-offer it. */
+  private readonly offers = new Map<string, string>()
 
   constructor(private readonly team: AgentTeam, private readonly lead: string,
     private readonly sessions: ReadonlyMap<string, TeamSessionPort>, private readonly onWake: () => void) {}
@@ -48,8 +50,21 @@ export class CollaborationNotifications {
         + 'Read task_list and claim with its current revision if you can help.')) {
         this.cursor = index + 1
         this.delivered.add(offered)
+        this.offers.set(id, idle[index]!.name)
         return
       }
+    }
+  }
+
+  /** An offered member that closes no longer holds the task's single offer. */
+  memberClosed(name: string, board: CollaborationBoardSnapshot): void {
+    const tasks = new Map(board.tasks.map(task => [task.id, task]))
+    for (const [id, member] of [...this.offers]) {
+      if (member !== name) continue
+      this.offers.delete(id)
+      this.delivered.delete(noticeKey('', id, 'available'))
+      const task = tasks.get(id)
+      if (task?.status === 'pending' && taskReady(task, tasks)) this.notifyAvailable(id)
     }
   }
 
