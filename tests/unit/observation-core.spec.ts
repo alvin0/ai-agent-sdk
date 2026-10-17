@@ -394,6 +394,10 @@ describe('core observation identities and model-call handles', () => {
   })
 
   it('keeps plain failure records instead of rendering [object Object]', () => {
+    const huge = Object.assign(new Error('long names'), { name: 'N'.repeat(4096),
+      cause: Object.assign(new Error('inner'), { name: 'C'.repeat(4096) }) })
+    expect(safeErrorRecord(huge).type).toHaveLength(128)
+    expect(safeErrorRecord(huge).causeTypes?.[0]).toHaveLength(128)
     expect(safeErrorRecord({ type: 'ToolError', message: 'spawn rejected', code: 'INVALID_ARGS' }))
       .toEqual({ type: 'ToolError', message: 'spawn rejected', code: 'INVALID_ARGS' })
     expect(safeErrorRecord({ message: 'plain' })).toEqual({ type: 'object', message: 'plain' })

@@ -150,7 +150,7 @@ export interface AgentTeamOptions {
   readonly mailboxOverflow?: 'reject' | 'evict-oldest'
   /** Maximum serialized bytes for descriptions and collaboration instructions. Defaults to 8 KiB. */
   readonly maxMetadataBytes?: number
-  /** Maximum time dispose waits for cooperative transports/providers. Defaults to 120 seconds. */
+  /** Maximum time dispose waits for cooperative transports/providers. Defaults to 30 seconds. */
   readonly disposeTimeoutMs?: number
   /** End-to-end bound for one remote dispatch or local wake-up batch. Defaults to 10 minutes. */
   readonly operationTimeoutMs?: number
