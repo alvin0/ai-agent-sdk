@@ -72,7 +72,8 @@ describe('host team timeline and snapshots', () => {
         claims.push(...teamInternals(team.team).takeResults('lead', ['w']))
       }
     } } })
-    const capture = vi.spyOn(team.team, 'captureResults')
+    // captureResults is private runtime plumbing; spy on the instance to observe the active join.
+    const capture = vi.spyOn(team.team as unknown as { captureResults(): unknown }, 'captureResults')
     const running = team.run('Research')
     await vi.waitFor(() => expect(capture).toHaveBeenCalled())
     adapter.gates.get('w')!.resolve()
