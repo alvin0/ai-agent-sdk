@@ -24,7 +24,8 @@ export function managedLimits(options: ManagedAgentTeamOptions) {
       'maxRetainedWorkers'),
     maxTaskBytes: positiveInteger(options.maxTaskBytes ?? 64 * 1024, 'maxTaskBytes'),
     maxSpecialtyBytes: positiveInteger(options.maxSpecialtyBytes ?? 8 * 1024, 'maxSpecialtyBytes'),
-    workerTimeoutMs: timeoutValue(options.workerTimeoutMs ?? 10 * 60_000),
+    // Opt-in: a default deadline would discard a long worker's spent tokens.
+    workerTimeoutMs: options.workerTimeoutMs === undefined ? undefined : timeoutValue(options.workerTimeoutMs),
     observerTimeoutMs: timeoutValue(options.observerTimeoutMs ?? 1_000),
     closeTimeoutMs: timeoutValue(options.closeTimeoutMs ?? DEFAULT_WORKER_CLOSE_TIMEOUT_MS),
     spawnTimeoutMs: timeoutValue(options.spawnTimeoutMs ?? DEFAULT_SPAWN_SETUP_TIMEOUT_MS),

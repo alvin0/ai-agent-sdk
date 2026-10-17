@@ -82,7 +82,7 @@ export function leanControlTools(host: ManagedControlsHost): readonly ToolDefini
       await host.closeWorker(target)
       return asJson({ target, closed: true })
     },
-    timeoutMs: host.workerTimeoutMs,
+    ...host.workerTimeoutMs === undefined ? {} : { timeoutMs: host.workerTimeoutMs },
   })], host.options)
 }
 

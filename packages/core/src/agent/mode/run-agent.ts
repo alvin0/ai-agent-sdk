@@ -163,7 +163,7 @@ export interface DeepState {
   resolvedMarkerAnswer?: string
 }
 
-const DEFAULT_MAX_TURNS = 16
+const DEFAULT_MAX_TURNS = 'auto'
 
 /** Changing the wording of an unsubmitted conclusion is not execution progress. */
 export const UNVERIFIED_ANSWER_LIMIT = 3
@@ -284,7 +284,7 @@ function createAgentInternalTools(setup: {
   if (broker !== undefined) {
     const waitMs = positiveFinite(
       ('userInputTimeoutMs' in options ? options.userInputTimeoutMs : undefined)
-        ?? options.bounds?.maxToolDurationMs ?? 10 * 60_000,
+        ?? (typeof options.bounds?.maxToolDurationMs === 'number' ? options.bounds.maxToolDurationMs : 10 * 60_000),
       'userInputTimeoutMs',
     )
     internalTools.push(userInputTool({

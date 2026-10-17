@@ -13,7 +13,9 @@ export function createScheduleContext(
 ): ScheduleContext {
   const maxParallel = positiveInteger(options.maxParallel ?? 8, 'maxParallel')
   const maxResultBytes = positiveInteger(options.maxResultBytes ?? 4 * 1024 * 1024, 'maxResultBytes')
-  const maxDurationMs = positiveInteger(options.maxDurationMs ?? 10 * 60_000, 'maxDurationMs')
+  // No default tool-step deadline; a tool's own timeoutMs or the caller's opt-in limit bounds it.
+  const maxDurationMs = options.maxDurationMs === undefined
+    ? undefined : positiveInteger(options.maxDurationMs, 'maxDurationMs')
   const teardownTimeoutMs = positiveInteger(options.teardownTimeoutMs ?? 30_000, 'teardownTimeoutMs')
   const admissionLimit = internal.admissionLimit ?? Math.max(0, options.dispatchLimit ?? options.calls.length)
   const admission = createToolAdmission(admissionLimit)

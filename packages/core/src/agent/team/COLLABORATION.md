@@ -51,7 +51,7 @@ revision, persistence callback, hydration or durable peer-turn recovery.
 ```ts
 collaboration: {
   maxPeerTurnsPerPair: 8,
-  // joinTimeoutMs defaults to the team's workerTimeoutMs (normally 10 minutes).
+  // joinTimeoutMs defaults to the team's workerTimeoutMs (none unless configured).
   maxTasks: 128,
   maxTaskBytes: 16 * 1024,
   maxBoardBytes: 1024 * 1024,

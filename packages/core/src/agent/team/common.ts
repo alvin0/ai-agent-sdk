@@ -170,6 +170,16 @@ export async function abortable<T>(promise: Promise<T>, signal?: AbortSignal): P
   })
 }
 
+/** An opt-in deadline: undefined means none. */
+export function optionalDeadline(timeoutMs: number | undefined): AbortSignal | undefined {
+  return timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs)
+}
+
+/** A deadline signal, or one that never aborts when no deadline is set. */
+export function deadlineOrNever(timeoutMs: number | undefined): AbortSignal {
+  return timeoutMs === undefined ? new AbortController().signal : AbortSignal.timeout(timeoutMs)
+}
+
 export function combineSignals(...signals: readonly (AbortSignal | undefined)[]): AbortSignal {
   const active = signals.filter((signal): signal is AbortSignal => signal !== undefined)
   if (active.length === 1) return active[0]!

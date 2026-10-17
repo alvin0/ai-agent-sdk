@@ -8,15 +8,18 @@ import { StreamAbortError, nextWithAbort, closeIterator } from './cancellation.t
 import type { ModelRoundContext, ModelStreamResult } from './model-round-types.ts'
 
 function abortedStreamFinish(
-  signal: AbortSignal, timedOut: boolean, timeoutMs: number, error: StreamAbortError,
+  signal: AbortSignal, timeout: string | undefined, error: StreamAbortError,
 ): ReturnType<typeof modelFailureFinish> {
   if (signal.aborted) return modelAbortedFinish(messageOf(signal.reason ?? error))
-  if (timedOut) return modelFailureFinish(`model stream exceeded ${timeoutMs}ms`, 'MODEL_TIMEOUT')
+  if (timeout !== undefined) return modelFailureFinish(timeout, 'MODEL_TIMEOUT')
   return modelFailureFinish(messageOf(error.cause ?? error), 'MODEL_STREAM_ABORTED')
 }
 
 interface StreamLimits {
-  readonly modelTimeoutMs: number
+  /** Total wall-clock cap; undefined (the default) never cuts a model call that is still streaming. */
+  readonly modelTimeoutMs: number | undefined
+  /** Longest wait for the next chunk; a silent (hung) connection is the only default cut. */
+  readonly modelIdleTimeoutMs: number
   readonly maxRequestBytes: number
   readonly maxResponseBytes: number
   readonly maxStreamEvents: number
@@ -28,6 +31,7 @@ interface StreamState {
   readonly signal: AbortSignal
   readonly limits: StreamLimits
   readonly closedBlockIndexes: Set<number>
+  readonly idle: IdleTimer
   events: number
   responseBytes: number
   sawFinish: boolean
@@ -35,13 +39,17 @@ interface StreamState {
 
 function streamLimits(context: ModelRoundContext): StreamLimits {
   const { options } = context
-  const modelTimeoutMs = positiveFinite(options.modelTimeoutMs ?? 10 * 60_000, 'modelTimeoutMs')
+  const modelTimeoutMs = options.modelTimeoutMs === undefined || options.modelTimeoutMs === 'auto'
+    ? undefined : positiveFinite(options.modelTimeoutMs, 'modelTimeoutMs')
+  const modelIdleTimeoutMs = positiveFinite(options.modelIdleTimeoutMs ?? 10 * 60_000, 'modelIdleTimeoutMs')
   const maxRequestBytes = positiveSafeInteger(options.maxModelRequestBytes ?? 32 * 1024 * 1024, 'maxModelRequestBytes')
   const maxResponseBytes = positiveSafeInteger(options.maxModelResponseBytes ?? 32 * 1024 * 1024,
     'maxModelResponseBytes')
-  const maxStreamEvents = positiveSafeInteger(options.maxModelStreamEvents ?? 100_000, 'maxModelStreamEvents')
+  // Event count is opt-in; response bytes already bound memory for long streamed answers.
+  const maxStreamEvents = options.maxModelStreamEvents === undefined
+    ? Infinity : positiveSafeInteger(options.maxModelStreamEvents, 'maxModelStreamEvents')
   const teardownTimeoutMs = positiveFinite(options.teardownTimeoutMs ?? 30_000, 'teardownTimeoutMs')
-  return { modelTimeoutMs, maxRequestBytes, maxResponseBytes, maxStreamEvents, teardownTimeoutMs }
+  return { modelTimeoutMs, modelIdleTimeoutMs, maxRequestBytes, maxResponseBytes, maxStreamEvents, teardownTimeoutMs }
 }
 
 export async function streamModelRound(
@@ -79,22 +87,24 @@ async function consumeModelStream(
   const { options, signal } = context
   const owned = new AbortController()
   const roundSignal = AbortSignal.any([signal, owned.signal])
-  let timedOut = false
-  const timeout = setTimeout(() => {
-    timedOut = true
-    owned.abort(new Error(`model stream exceeded ${limits.modelTimeoutMs}ms`))
-  }, limits.modelTimeoutMs)
+  let timedOut: string | undefined
+  const expire = (message: string) => { timedOut ??= message; owned.abort(new Error(message)) }
+  const timeout = limits.modelTimeoutMs === undefined ? undefined
+    : setTimeout(() => { expire(`model stream exceeded ${limits.modelTimeoutMs}ms`) }, limits.modelTimeoutMs)
+  const idle = new IdleTimer(limits.modelIdleTimeoutMs,
+    () => { expire(`model stream sent no data for ${limits.modelIdleTimeoutMs}ms`) })
   const handle = options.registry.stream({ ...requestBase, signal: roundSignal }, options.accounting?.modelInvocation)
   const iterator = handle[Symbol.asyncIterator]()
   const state: StreamState = { assembler, owned, signal: roundSignal, limits,
-    closedBlockIndexes: new Set(), events: 0, responseBytes: 0, sawFinish: false }
+    closedBlockIndexes: new Set(), idle, events: 0, responseBytes: 0, sawFinish: false }
   let exhausted = false
   try { exhausted = await pumpStream(context, iterator, state) }
   catch (error: unknown) {
     if (!(error instanceof StreamAbortError)) throw error
-    assembler.push(abortedStreamFinish(signal, timedOut, limits.modelTimeoutMs, error))
+    assembler.push(abortedStreamFinish(signal, timedOut, error))
   } finally {
     clearTimeout(timeout)
+    idle.stop()
     if (!exhausted) await teardownStream(iterator, state)
   }
   const report = await handle.report
@@ -124,7 +134,9 @@ async function pumpStream(
   context: ModelRoundContext, iterator: AsyncIterator<StreamChunk>, state: StreamState,
 ): Promise<boolean> {
   while (true) {
-    const next = await nextWithAbort(iterator.next(), state.signal)
+    // Only the wait on the adapter counts as idle; slow event consumers never trip it.
+    state.idle.arm()
+    const next = await nextWithAbort(iterator.next(), state.signal).finally(() => { state.idle.stop() })
     if (next.done === true) return true
     if (!validateChunk(next.value, state)) return false
     await publishChunk(next.value, context, state)
@@ -205,4 +217,11 @@ async function publishVisibleChunk(chunk: StreamChunk, context: ModelRoundContex
   })
   else if (chunk.type === 'usage') await emit({ type: 'usage', usage: chunk.usage, trace })
   else if (chunk.type === 'usage-progress') await emit({ ...chunk, trace })
+}
+
+class IdleTimer {
+  private timer: ReturnType<typeof setTimeout> | undefined
+  constructor(private readonly ms: number, private readonly onIdle: () => void) {}
+  arm(): void { this.stop(); this.timer = setTimeout(this.onIdle, this.ms) }
+  stop(): void { if (this.timer !== undefined) clearTimeout(this.timer); this.timer = undefined }
 }

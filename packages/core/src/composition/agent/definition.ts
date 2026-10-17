@@ -140,7 +140,7 @@ function legacyRunFields(values: Record<string, unknown>, providerOptions: Captu
       compaction: values.compaction as NonNullable<RuntimeAgentBindingInput['compaction']>,
     }),
     ...(values.maxTurns === undefined ? {} : { maxTurns: values.maxTurns as number | 'auto' }),
-    ...(values.maxToolCalls === undefined ? {} : { maxToolCalls: values.maxToolCalls as number }),
+    ...(values.maxToolCalls === undefined ? {} : { maxToolCalls: values.maxToolCalls as number | 'auto' }),
     ...(values.commentary === undefined ? {} : {
       commentary: values.commentary as NonNullable<RuntimeAgentBindingInput['commentary']>,
     }),

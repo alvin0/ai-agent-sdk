@@ -87,10 +87,10 @@ describe('host team timeline and snapshots', () => {
     const team = create(adapter, { team: { onEvent: event => events.push(event) },
       leadSessionOptions: { hooks: { onTurnEnd: () => ({ kind: 'yield' }) } } })
     const running = team.run('Research')
-    const rejected = expect(running).rejects.toThrow('yielded after 3 synthesis wakes')
     await vi.waitFor(() => expect(team.lead.lastOutcome()?.yielded).toBe(true))
     adapter.gates.get('w')!.resolve()
-    await rejected
+    // Exhaustion ends the join with the lead's latest answer instead of failing the paid-for run.
+    await expect(running).resolves.toBeDefined()
     expect(timeline(events).filter(event => event.kind === 'wasted-wake')).toHaveLength(3)
     expect(timeline(events).find(event => event.kind === 'budget' && event.budget === 'synthesis'))
       .toMatchObject({ action: 'exhausted', used: 3, limit: 3 })

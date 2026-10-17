@@ -4,8 +4,10 @@ import { positiveSafeInteger } from './config.ts'
 import { codedRuntimeError } from './common.ts'
 import { nextValueWithAbort } from './cancellation.ts'
 
-/** Default per-hook deadline when `hookTimeoutMs` is not configured. */
-export const DEFAULT_HOOK_TIMEOUT_MS = 10 * 60_000
+/** Hooks have no default deadline: a long hook (a managed-team join) must not fail the turn it serves. */
+export function hookTimeout(value: number | 'auto' | undefined): number | undefined {
+  return value === undefined || value === 'auto' ? undefined : positiveSafeInteger(value, 'hookTimeoutMs')
+}
 
 export async function runOptionalHook<TArgs extends readonly unknown[], TResult>(
   hook: ((...args: TArgs) => TResult | Promise<TResult>) | undefined,
@@ -30,12 +32,12 @@ export async function runHook<T>(
 ): Promise<T> {
   const { name, onCancellation } = context
   const operation = options.accounting?.startOperation('hook', { data: { name } })
-  const timeoutMs = positiveSafeInteger(options.hookTimeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS, 'hookTimeoutMs')
+  const timeoutMs = hookTimeout(options.hookTimeoutMs)
   const teardownTimeoutMs = positiveSafeInteger(
     options.hookTeardownTimeoutMs ?? 30_000,
     'hookTeardownTimeoutMs',
   )
-  const deadline = AbortSignal.timeout(timeoutMs)
+  const deadline = timeoutMs === undefined ? new AbortController().signal : AbortSignal.timeout(timeoutMs)
   const combined = AbortSignal.any([signal, deadline])
   try {
     const value = await nextValueWithAbort(pending, combined)

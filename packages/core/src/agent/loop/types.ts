@@ -7,9 +7,10 @@ import type {
 } from './events.ts'
 
 export interface TurnBounds {
-  /** Model steps before finalization; 'auto' removes only the step ceiling. */
+  /** Model steps before finalization. Default 'auto': no step ceiling; set a number to opt in. */
   readonly maxSteps: number | 'auto'
-  readonly maxToolCalls: number
+  /** Tool calls per turn. Default 'auto': unlimited and no budget reminders; set a number to opt in. */
+  readonly maxToolCalls: number | 'auto'
   /**
    * Remaining-call counts at which the turn tells the model how much is left.
    *
@@ -39,15 +40,19 @@ export interface TurnBounds {
    *   limits, or cancellation, never grant an extra model call.
    */
   readonly onExhausted: 'force-final-answer' | 'stop' | 'continue'
-  readonly maxConsecutiveToolErrors: number
+  /** Consecutive failed tool steps before the turn stops. Default 'auto': never stops; a reminder is sent at
+   * `consecutiveToolErrorWarningAt`. */
+  readonly maxConsecutiveToolErrors: number | 'auto'
+  /** Consecutive failed tool steps before a corrective reminder. Default 4. */
+  readonly consecutiveToolErrorWarningAt: number
   /** Consecutive identical calls before a corrective reminder. */
   readonly repeatToolWarningAt: number
-  /** Consecutive identical calls before declining further repetition. */
-  readonly repeatToolLimit: number
+  /** Consecutive identical calls before declining further repetition. Default 'auto': warn only. */
+  readonly repeatToolLimit: number | 'auto'
   /** Repeated step-pattern cycles before a corrective reminder is injected. */
   readonly toolCycleWarningAt: number
-  /** Repeated step-pattern cycles before further calls in the cycle are declined. */
-  readonly toolCycleLimit: number
+  /** Repeated step-pattern cycles before further calls in the cycle are declined. Default 'auto': warn only. */
+  readonly toolCycleLimit: number | 'auto'
   /** Longest repeating sequence of tool-call steps inspected for cycles. */
   readonly maxToolCycleLength: number
   /** Maximum aggregate model tokens per turn. Default 'auto' imposes no total-token ceiling. */
@@ -92,11 +97,16 @@ export interface TurnBounds {
    * moment it can.
    */
   readonly toolResultOverflow: ToolOutputOverflowPolicy
-  /** End-to-end wall-clock allowance for one tool call. */
-  readonly maxToolDurationMs: number
+  /** End-to-end wall-clock allowance for one tool call. Default 'auto': no deadline; set a number to opt in. */
+  readonly maxToolDurationMs: number | 'auto'
   /** Maximum wait after canceling an uncooperative in-process tool. */
   readonly toolTeardownTimeoutMs: number
 }
+
+/** Limits that accept 'auto' resolve to Infinity, so count comparisons never trip. */
+type UnlimitedBound = 'maxToolCalls' | 'maxConsecutiveToolErrors' | 'repeatToolLimit' | 'toolCycleLimit'
+  | 'maxToolDurationMs'
+export type ResolvedTurnBounds = Omit<TurnBounds, UnlimitedBound> & { readonly [K in UnlimitedBound]: number }
 
 export type {
   AgentEvent, AgentMaintenanceEvent, AssistantContentTiming, BeforeStepContext, CheckpointContext,

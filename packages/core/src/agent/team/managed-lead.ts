@@ -21,12 +21,7 @@ export class ManagedSynthesisGuard {
     this.revision = revision
   }
 
-  wake(): void {
-    if (this.exhausted) {
-      throw new Error(`Lead synthesis stalled: yielded after ${this.limit} synthesis wakes without new worker reports`)
-    }
-    this.wakes++
-  }
+  wake(): void { this.wakes++ }
 }
 
 export class ManagedLeadCoordination {

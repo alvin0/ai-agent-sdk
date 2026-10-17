@@ -1,4 +1,4 @@
-import type { TurnBounds, TurnOutcome, ExhaustedBudget } from '../types.ts'
+import type { ResolvedTurnBounds, TurnOutcome, ExhaustedBudget } from '../types.ts'
 import type { modelRound } from './model-round.ts'
 import type { scheduleToolCalls } from '../schedule.ts'
 import { repeatKey } from './repetition.ts'
@@ -7,7 +7,7 @@ import { reportReserve } from './report-budget.ts'
 
 type ExhaustionContext = {
   modelCallReports: readonly ModelCallReport[]
-  bounds: TurnBounds; budgetTokens: number | undefined; maxTotalTokens: number; maxSteps: number
+  bounds: ResolvedTurnBounds; budgetTokens: number | undefined; maxTotalTokens: number; maxSteps: number
   repeatedLimitBeforeDispatch: boolean; round: Awaited<ReturnType<typeof modelRound>>
   recoveredCallIds: Set<string>; recoveredReplanKeys: Set<string>; individuallyRepeatedCallIds: Set<string>
   scheduled: Awaited<ReturnType<typeof scheduleToolCalls>>; signal: AbortSignal

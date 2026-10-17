@@ -244,7 +244,7 @@ host must drive later lead turns. Deprecated `holdWaitMs` is accepted but ignore
 | `maxPendingInputs` | 64 pending accepted model follow-ups |
 | `depth` / `maxDepth` | 0 / 1; host must supply nesting depth |
 | `maxTaskBytes` / `maxSpecialtyBytes` | 64 KiB / 8 KiB UTF-8 for spawn briefs |
-| `workerTimeoutMs` | 10 minutes of active work; excludes setup and dependency queue time |
+| `workerTimeoutMs` | none (opt-in); when set, bounds active work and excludes setup and dependency queue time |
 | `team: { waitTimeoutMs }` | 120 seconds; host cap for each `wait_agents` call's `timeout_ms` |
 | `spawnTimeoutMs` / `closeTimeoutMs` | 30 seconds each; bound setup and shutdown waits |
 | `observerTimeoutMs` | 1 second per worker event observer callback |
@@ -252,7 +252,7 @@ host must drive later lead turns. Deprecated `holdWaitMs` is accepted but ignore
 | `writeScopePolicy` | `'reject'`; `'warn'` records overlap, `'off'` skips admission checks |
 | `requireWorkerText` | false; clean tool-only work is valid |
 | `collaboration.maxPeerTurnsPerPair` | 8 credits per unordered pair for the team's lifetime |
-| `collaboration.joinTimeoutMs` | `workerTimeoutMs`, per join; expiry cancels running/pending/preparing members |
+| `collaboration.joinTimeoutMs` | `workerTimeoutMs` (none unless set), per join; expiry cancels running/pending/preparing members |
 | `collaboration.maxTasks` | 128 retained tasks, including completed tasks |
 | `collaboration.maxTaskBytes` / `maxBoardBytes` | 16 KiB per serialized task / 1 MiB total board |
 

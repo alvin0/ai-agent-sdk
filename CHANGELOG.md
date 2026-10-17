@@ -4,6 +4,34 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ## Unreleased
 
+### Breaking
+
+- Run-stopping limits are now opt-in. A run no longer stops part-way through by default and
+  wastes the tokens it has already spent. To bring a limit back, set it to a number:
+  - **Counts:** `maxTurns`/`maxSteps` and `maxToolCalls` now default to `'auto'`. The old defaults
+    were 16 and 64. The run ledger's `maxModelCalls`, `maxToolCalls` and `maxSerializedBytes` are
+    now unlimited by default.
+  - **Loop guards are warn-only:** `repeatToolLimit`, `toolCycleLimit` and `maxConsecutiveToolErrors`
+    default to `'auto'`. The repeat and cycle reminders now fire at every multiple of
+    `repeatToolWarningAt` and `toolCycleWarningAt`. A new `consecutiveToolErrorWarningAt` setting
+    (default 4) tells the model to change approach after repeated failures.
+  - **Total-time limits:** these are now opt-in and have no default deadline:
+    - `modelTimeoutMs`
+    - `maxToolDurationMs`
+    - `hookTimeoutMs`
+    - managed `workerTimeoutMs`
+    - team `operationTimeoutMs`
+    - collaboration `joinTimeoutMs`
+    - the HTTP transport's `requestTimeoutMs`
+    - the step deadline in `runToolCalls`
+  - **Hung model calls:** these are still caught. The new `runtimeLimits.modelIdleTimeoutMs`
+    (default 10 minutes) resets on every stream chunk and only cuts a stream that has gone silent.
+    The HTTP `streamIdleTimeoutMs` still applies, and `maxModelStreamEvents` is now opt-in, since
+    response bytes already bound memory.
+  - **Lead synthesis:** when the lead keeps yielding without new worker reports, the managed team
+    no longer fails with "Lead synthesis stalled". It records the `synthesis` budget as exhausted
+    and returns the lead's latest answer.
+
 ### Added
 
 - Managed leads can call the lazily disclosed `progress_updates` tool to request bounded,

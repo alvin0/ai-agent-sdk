@@ -69,7 +69,7 @@ export function managedLeadInstructions(options: ManagedAgentTeamOptions): strin
 export interface ManagedControlsHost {
   readonly options: ManagedAgentTeamOptions
   readonly spawnTimeoutMs: number
-  readonly workerTimeoutMs: number
+  readonly workerTimeoutMs: number | undefined
   spawnGuidance(): string | undefined
   roleSchema(): Record<string, unknown>
   spawn(request: ManagedAgentSpawnRequest, signal?: AbortSignal): Promise<ManagedAgentWorker>
@@ -181,7 +181,7 @@ function closeControlTool(host: ManagedControlsHost): ToolDefinition<any> {
       }
       return asJson({ worker: name, closed: true, previousStatus: await host.closeWorker(name) })
     },
-    timeoutMs: host.workerTimeoutMs,
+    ...host.workerTimeoutMs === undefined ? {} : { timeoutMs: host.workerTimeoutMs },
   })
 }
 

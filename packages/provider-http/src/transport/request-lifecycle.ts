@@ -63,7 +63,8 @@ export class TransportRequest {
     this.callerSignal = input.signal
     this.consumer = new AbortController()
     this.limits = resolveTransportLimits(connection)
-    this.timeout = AbortSignal.timeout(this.limits.requestTimeoutMs)
+    this.timeout = Number.isFinite(this.limits.requestTimeoutMs)
+      ? AbortSignal.timeout(this.limits.requestTimeoutMs) : new AbortController().signal
     this.signal = AbortSignal.any([
       this.consumer.signal, this.timeout,
       ...this.callerSignal === undefined ? [] : [this.callerSignal],

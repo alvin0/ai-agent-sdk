@@ -1,6 +1,6 @@
 import type { ModelCallReport } from '../../../observation/index.ts'
 import { budgetTokenTotal, summarizeModelCallUsage } from '../../accounting/ledger.ts'
-import type { ExhaustedBudget, TurnBounds } from '../types.ts'
+import type { ExhaustedBudget, ResolvedTurnBounds } from '../types.ts'
 import type { RunTurnOptions } from './types.ts'
 import type { modelRound } from './model-round.ts'
 import type { ToolProgress } from './tool-progress.ts'
@@ -9,7 +9,7 @@ import { dispatchDeclineReason } from './dispatch-guards.ts'
 import { createRepeatRecovery } from './repeat-recovery.ts'
 
 type DispatchPreparation = {
-  options: RunTurnOptions; bounds: TurnBounds; toolCalls: number; round: Awaited<ReturnType<typeof modelRound>>
+  options: RunTurnOptions; bounds: ResolvedTurnBounds; toolCalls: number; round: Awaited<ReturnType<typeof modelRound>>
   lastRepeat: ToolProgress['lastRepeat']; successfulCalls: ToolProgress['successfulCalls']; actionSteps: string[]
   modelCallReports: ModelCallReport[]; maxTotalTokens: number; finalizeUntil: number | undefined
   finalizeReason: ExhaustedBudget | undefined; timeSpent: () => number; maxTurnDurationMs: number

@@ -22,17 +22,17 @@ describe('managed settlement handoff races', () => {
     expect(team.lead.lastOutcome()?.yielded).toBe(true)
   })
 
-  it('bounds synthesis wakes when a host hook keeps yielding without new reports', async () => {
+  it('bounds synthesis wakes when a host hook keeps yielding, then returns instead of failing', async () => {
     const adapter = new GatedTeam()
     const team = create(adapter, { leadSessionOptions: { hooks: {
       onTurnEnd: () => ({ kind: 'yield' }),
     } } })
     const running = team.run('Research')
-    const rejected = expect(running).rejects.toThrow('yielded after 3 synthesis wakes without new worker reports')
     await vi.waitFor(() => expect(team.lead.lastOutcome()?.yielded).toBe(true))
     const wake = vi.spyOn(team.lead, 'runPending')
     adapter.gates.get('w')!.resolve()
-    await rejected
+    // The worker report and lead turns already paid for are kept: the run returns the latest answer.
+    await expect(running).resolves.toBeDefined()
     expect(wake).toHaveBeenCalledTimes(4)
   })
 

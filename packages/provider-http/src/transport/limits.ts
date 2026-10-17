@@ -12,7 +12,10 @@
 
 import type { HttpTransportConnection } from './connection.ts'
 
-/** Default end-to-end bound once provider request construction begins. */
+/**
+ * Bound on connection setup (credentials, catalog). Streaming requests have no default end-to-end
+ * deadline: a live stream is never cut, and a silent one is cut by the stream idle timeout instead.
+ */
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10 * 60_000
 /** Default serialized request ceiling. */
 export const DEFAULT_MAX_REQUEST_BYTES = 32 * 1024 * 1024
@@ -46,7 +49,7 @@ export function positiveFinite(value: number, name: string): number {
  * reads cannot move a bound mid-request.
  */
 export interface ResolvedTransportLimits {
-  /** End-to-end request/stream timeout. */
+  /** Opt-in end-to-end request/stream timeout; Infinity (the default) means none. */
   readonly requestTimeoutMs: number
   /** Maximum serialized outbound request bytes. */
   readonly maxRequestBytes: number
@@ -73,10 +76,8 @@ export function resolveTransportLimits(
   connection: HttpTransportConnection,
 ): ResolvedTransportLimits {
   return Object.freeze({
-    requestTimeoutMs: positiveFinite(
-      connection.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
-      'requestTimeoutMs',
-    ),
+    requestTimeoutMs: connection.requestTimeoutMs === undefined
+      ? Infinity : positiveFinite(connection.requestTimeoutMs, 'requestTimeoutMs'),
     maxRequestBytes: positiveInteger(
       connection.maxRequestBytes ?? DEFAULT_MAX_REQUEST_BYTES,
       'maxRequestBytes',

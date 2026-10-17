@@ -11,6 +11,7 @@ import {
   asJson, errorMessage, failureOf, recordEvidence,
 } from './managed-outcomes.ts'
 import { waitForSettlement } from '../../async/index.ts'
+import { deadlineOrNever } from './common.ts'
 
 interface ManagedWorkerHost {
   readonly options: ManagedAgentTeamOptions
@@ -18,7 +19,7 @@ interface ManagedWorkerHost {
   readonly signal: AbortSignal
   readonly workerRuntimes: ReadonlyMap<string, WorkerRuntime>
   readonly leadName: string
-  readonly workerTimeoutMs: number
+  readonly workerTimeoutMs: number | undefined
   readonly observerTimeoutMs: number
   readonly spawnTimeoutMs: number
   readonly maxDependencyReportBytes: number
@@ -60,7 +61,7 @@ export class ManagedWorkerExecution {
     // Every worker event is lost with it — including the approval requests a
     // worker parks on, which leaves it waiting for an answer nobody was ever
     // shown, and the run hangs.
-    const deadline = AbortSignal.timeout(this.host.workerTimeoutMs)
+    const deadline = deadlineOrNever(this.host.workerTimeoutMs)
     runtime.deadline = deadline
     const running = runtime.session.runPending({
       signal: combineSignals(runtime.controller.signal, deadline),
