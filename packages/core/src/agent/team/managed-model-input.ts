@@ -1,4 +1,5 @@
 /** Serializes model follow-ups and binds reports to their own run responses. */
+import { progressActivity } from './team-progress-internal.ts'
 import { recordTeamTimeline } from './team-observation-internal.ts'
 import { asJson, failureOf, recordEvidence } from './managed-outcomes.ts'
 import type { AgentMemberOutcome } from './types.ts'
@@ -84,6 +85,7 @@ export class ManagedModelInput {
       this.pendingInputs--
       if (this.jobs.get(target)?.settled === settled) this.jobs.delete(target)
       await this.host.releaseDependents(runtime)
+      progressActivity(this.host.team, { kind: 'settlement', member: target })
     })
     this.jobs.set(target, { controller, settled })
   }

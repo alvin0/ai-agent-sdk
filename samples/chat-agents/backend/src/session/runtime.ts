@@ -1,4 +1,5 @@
 import type { AgentInput } from '@alvin0/ai-agent-sdk-core'
+import { listenTeamProgress } from './progress'
 import { startRun } from '../agent-runtime'
 import type { RunHandles } from '../agent-runtime'
 import { listAgents } from '../agents'
@@ -51,7 +52,10 @@ export async function bindPromptExecution(state: PromptProjection, handles: RunH
   // between prompts is a new prompt rather than a silent no-op.
   live.steerRun = handles.steer
   live.notify = () => { wake.ring() }
-  if (handles.managedTeam !== undefined) live.managed = handles.managedTeam
+  if (handles.managedTeam !== undefined) {
+    live.managed = handles.managedTeam
+    state.stopProgressNotices = bindProgressNotices(state, handles.managedTeam)
+  }
   live.workerSink = onMemberEvent
   // Now the roster exists, so a member's tokens can be charged to its own
   // route rather than to the conversation's.
@@ -66,4 +70,15 @@ export async function bindPromptExecution(state: PromptProjection, handles: RunH
     }
   }
 
+}
+
+/** Progress stays on the UI stream; it never enters session.history. */
+function bindProgressNotices(state: PromptProjection, managed: NonNullable<RunHandles['managedTeam']>): () => void {
+  const { controller, live } = state.context
+  return listenTeamProgress(managed.team, controller.signal, notice => {
+    live.outbox.push({ wire: notice,
+      node: { kind: 'notice', id: `n_${String(live.seq)}_${String(live.outbox.length)}`,
+        level: notice.level, message: notice.message } })
+    state.wake.ring()
+  })
 }

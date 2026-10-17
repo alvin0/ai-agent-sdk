@@ -7,6 +7,7 @@ const observations = new WeakMap<object, TeamObservation>()
 const contexts = new WeakMap<ObservationPort, { parentTeamId: string; depth: number }>()
 export function registerTeamObservation(team: object, observation: TeamObservation): void {
   observations.set(team, observation)
+  observation.bindProgress(team)
 }
 export function recordTeamTimeline(team: object, data: TeamTimelineData): void {
   observations.get(team)?.record(data)

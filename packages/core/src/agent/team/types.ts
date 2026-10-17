@@ -1,5 +1,6 @@
 /** Public identities, delivery values, and event records for local and remote A2A. */
 
+import type { TeamProgressEvent } from './team-progress.ts'
 import type { TeamTimelineEvent } from './team-timeline.ts'
 import type { ContentBlock } from '../../message/index.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
@@ -118,6 +119,7 @@ export interface SendAgentMessageResult {
 
 export type AgentTeamEvent =
   | TeamTimelineEvent
+  | TeamProgressEvent
   | { readonly type: 'member-attached'; readonly member: AgentTeamMember }
   | { readonly type: 'member-linked'; readonly member: AgentTeamMember }
   | { readonly type: 'message-accepted'; readonly message: AgentMessageRecord }

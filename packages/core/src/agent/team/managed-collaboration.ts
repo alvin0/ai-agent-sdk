@@ -62,6 +62,9 @@ export class ManagedTeamCollaboration implements TeamPort {
       } })
   }
 
+  observeInvocation(sender: string, signal: AbortSignal): void {
+    this.host.basePort.observeInvocation?.(sender, signal)
+  }
   attach(session: TeamSessionPort, options: TeamMemberAttachmentOptions = {}): void {
     this.host.basePort.attach(session, options)
     this.names.add(options.name ?? session.definition.id)

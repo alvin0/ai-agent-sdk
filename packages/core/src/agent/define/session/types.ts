@@ -162,6 +162,8 @@ export interface AgentSessionOptions {
 }
 
 export interface AgentSessionTeamPort {
+  /** Runtime-owned invocation lifetime, including consumer cancellation. */
+  observeInvocation?(sender: string, signal: AbortSignal): void
   attach(session: AgentSession, options?: AgentSessionTeamAttachmentOptions): void
   toolsFor(sender: string, access?: 'full' | 'reporting'): readonly ToolDefinition<any>[]
   instructionsFor(name: string): string

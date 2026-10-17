@@ -1,3 +1,4 @@
+import type { TeamProgressOptions } from './team-progress.ts'
 import type { JsonValue } from '../../primitives/index.ts'
 import type { ManagedTeamCollaborationOptions } from './collaboration-types.ts'
 import type { ModelRegistry } from '../../runtime/index.ts'
@@ -111,6 +112,8 @@ export interface ManagedAgentTeamOptions {
   readonly leadDescription?: string
   readonly team?: AgentTeam | AgentTeamOptions
   readonly maxWorkers?: number
+  /** Runtime-owned user progress; enabled by default with bounded fail-safe scheduling. */
+  readonly progressUpdates?: false | TeamProgressOptions
   /** FIFO batch backlog; queued items hold no worker slot. Defaults to 2 * maxWorkers; zero disables it. */
   readonly maxQueued?: number
   /** Lean model tools by default; legacy preserves earlier tool names and schemas. */

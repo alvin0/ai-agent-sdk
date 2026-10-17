@@ -90,7 +90,8 @@ describe('lean managed model surface', () => {
     try {
       await team.run('work')
       expect(adapter.requests[0]!.tools!.map(tool => tool.name)).toEqual([
-        'spawn_agent', 'spawn_agents', 'close_agent', 'send_input', 'wait_agents', 'get_agent_result',
+        'spawn_agent', 'spawn_agents', 'close_agent',
+        'send_input', 'wait_agents', 'get_agent_result',
       ])
       expect(JSON.stringify(adapter.requests[0])).not.toMatch(/cancelRunning|list_agents|followup_task/)
       const spawn = await call(team, 'spawn_agent', { task: 'check it' })

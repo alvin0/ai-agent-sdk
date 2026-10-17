@@ -4,6 +4,43 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Managed leads can call the lazily disclosed `progress_updates` tool to request bounded,
+  runtime-owned user status reports without extra lead calls or model-history growth.
+  Hosts can disable/configure limits with `progressUpdates`, inspect `progressUpdates()`,
+  and actively cancel with `stopProgressUpdates()`. All stop paths clear the timeout chain
+  and attempt one terminal `team-progress` event. The chat sample renders streamed notices.
+  See `docs/team-observability.md`.
+
+### Fixed
+
+- Add host `progressUpdates.stallFloorMs` (default 300,000 ms); stall after
+  `max(stalledIntervals * intervalMs, stallFloorMs)` without lead/selected-worker activity,
+  including a hung lead with no busy workers. `stalled` permits another request in the same
+  invocation; `closed` remains blocking. `stop: true` is idempotent after blocking stops.
+- Preserve progress duration/report budgets across replacements and restarts in one invocation.
+  Raw invocations use unique ownership tokens even when reusing an AbortSignal. Finalization
+  clears only its own token; managed admission rejects an already running raw lead before
+  touching progress, and immediate lead failures release invocation state and timers.
+- Keep managed progress across unsuccessful individual lead turns until managed finalization.
+
+- Bind untargeted progress schedules explicitly to managed `run()` admission/finalization,
+  including yielded turns, settlement wakes, later spawn waves and final synthesis. Use the
+  managed invocation signal rather than a provisional lead turn's signal.
+- Preserve host/protection progress stops for the rest of the invocation: `host`, `aborted`,
+  `steered`, `delivery-failed`, `max-duration`, `max-reports`, and `closed` refuse model restarts.
+  A new managed invocation can request updates again; requested/replaced/settled stops remain restartable.
+- Untargeted `progress_updates` follows current and future managed workers for the owning
+  invocation, spanning spawn waves without per-wave scheduling. Quiet lead-only gaps emit no
+  worker reports; lead model/tool activity resets the bounded inactivity watchdog. Identical
+  untargeted requests keep the schedule and cadence.
+  Explicit targets retain their frozen-set settlement behavior.
+- Keep `progress_updates` out of every initial lead catalog, including eager, legacy and
+  collaboration. Bind schedules to their requesting invocation; observe idle directly even
+  before run observation starts, guard late completion callbacks, and clear retained activity
+  on disposal. Steering reports `steered` separately from signal cancellation (`aborted`).
+
 ### Changed
 
 - Managed lead guidance now weighs worker context/startup/synthesis cost: do small or sequential
@@ -13,6 +50,19 @@ All notable changes to the AI Agent SDK are documented in this file.
   tools remain available initially; host hooks, schemas, queue limits and settlement delivery are unchanged.
 
 ### Breaking
+
+- After a host/protection progress stop, `progress_updates` now returns a tool error for the
+  rest of that managed invocation, including synthesis wakes, except idempotent `stop: true`.
+  Hosts should start a new `run()`
+  for a new user message to permit scheduling again. Public host method signatures are unchanged.
+- Narrow the unreleased `stopProgressUpdates(reason)` host argument to `host` (default),
+  `run-ended`, or `aborted`. Runtime-only reasons now throw `TypeError`. Raw lead calls stop
+  their schedule at invocation end even after a provisional yield; use managed `run()` to
+  retain reporting across worker joins and synthesis wakes. A new invocation must request again.
+
+- Managed lead catalogs reserve `progress_updates`; rename a host tool using that name or set
+  `progressUpdates: false`. `AgentTeamEvent` and `RuntimeAgentTeamEvent` add `team-progress`;
+  exhaustive event switches must handle the new variant. Existing lifecycle APIs are preserved.
 
 - Aborted `spawn_agents` calls return worker addresses with `cancelled: true` instead of throwing
   after admission; inspect the flag and coverage before synthesizing. Standalone `wait_agents` keeps
