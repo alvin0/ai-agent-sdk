@@ -187,27 +187,41 @@ Definition-level:
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `maxTurns` | 16 | Model steps per prompt; `'auto'` removes the step ceiling, not resource limits |
-| `maxToolCalls` | 64 | Dispatched tools |
+| `maxTurns` | `'auto'` | Model steps per prompt; set a number to opt in to a step cap |
+| `maxToolCalls` | `'auto'` | Dispatched tools; set a number to opt in to a cap |
 | `maxTokens` | model default | Output ceiling for one call |
+
+Since 0.1.13, every limit that can stop a run is **opt-in**: count, loop and
+total-time limits default to `'auto'`/none, so a long run is never cut short and
+its spent tokens are not wasted. Loop guards still steer the model with
+periodic warnings, and `modelIdleTimeoutMs` (default 10 minutes, reset on every
+chunk) still cuts a silent, hung model stream.
 
 Session-level `runtimeLimits: AgentRuntimeLimits` is where the rest lives:
 
 ```ts
 {
-  teardownTimeoutMs, modelTimeoutMs,
-  maxModelRequestBytes, maxModelResponseBytes, maxModelStreamEvents,
-  maxToolResultBytes, maxToolDurationMs, toolTeardownTimeoutMs,
+  teardownTimeoutMs,
+  modelTimeoutMs,                            // opt-in total model-call deadline
+  modelIdleTimeoutMs,                        // default 600,000: cut a silent stream
+  maxModelRequestBytes, maxModelResponseBytes,
+  maxModelStreamEvents,                      // opt-in
+  maxToolResultBytes, toolTeardownTimeoutMs,
+  maxToolDurationMs,                         // opt-in per-call tool deadline
   maxParallelToolCalls,                      // caps simultaneous concurrency-safe calls
-  maxConsecutiveToolErrors,
-  repeatToolWarningAt, repeatToolLimit,      // loop guards
-  toolCycleWarningAt, toolCycleLimit, maxToolCycleLength,
+  maxConsecutiveToolErrors,                  // opt-in hard stop
+  consecutiveToolErrorWarningAt,             // default 4: warn every N failures
+  repeatToolWarningAt, repeatToolLimit,      // warn every 3; limit opt-in
+  toolCycleWarningAt, toolCycleLimit,        // warn every 2; limit opt-in
+  maxToolCycleLength,
   maxToolResultTokens,                       // default 10,000
   toolResultOverflow,                        // 'auto' | 'truncate' | 'spill'
   onExhausted,                               // 'force-final-answer' | 'stop' | 'continue'
   maxTotalTokens,                            // 'auto' by default: no aggregate ceiling
   finalReportReserveTokens,                  // headroom for one tools-disabled report
-  hookTimeoutMs, hookTeardownTimeoutMs,
+  hookTimeoutMs,                             // opt-in
+  hookTeardownTimeoutMs,
+  userInputTimeoutMs,                        // opt-in; request_user_input waits otherwise
   memoryOperationTimeoutMs,
   observerTimeoutMs,                         // default 30,000
 }
@@ -222,8 +236,13 @@ usually the last one.
 finalizers included) but excludes compaction; summary calls use compaction
 limits and still appear in the report.
 
-At **75%** of `maxToolCalls` the loop injects one warning before the next model
-step — see references/context-and-instructions.md.
+When `maxToolCalls` is set, at **75%** of it the loop injects one warning before
+the next model step — see references/context-and-instructions.md. With the
+default `'auto'` there is no budget to warn about.
+
+The run ledger (`ledgerLimits`) is unbounded by default too: `maxModelCalls`,
+`maxAttemptsPerCall`, `maxToolCalls` and `maxSerializedBytes` apply only when set.
+Opt-in deadlines must not exceed 2,147,483,647 ms; larger values are rejected.
 
 ## Oversized tool output: truncate or spill
 

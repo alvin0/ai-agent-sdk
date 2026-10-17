@@ -466,11 +466,12 @@ so the run hung permanently.
 
 **Failures are retried, and slowly is not silently.** The SDK ships neither
 policy on purpose: `runTurn` asks `hooks.onRequestError` whether to retry and
-fails when no host answers, and it caps a model stream at ten minutes. Both are
+fails when no host answers, and by default it cuts only a model stream that
+stays silent for ten minutes (`modelIdleTimeoutMs`). Both are
 right for a library and wrong for a chat window, so `backend/src/resilience.ts`
 supplies the host half — a bounded retry (3 attempts) for transient failures
 only, honouring a provider's `Retry-After` with jittered exponential backoff
-otherwise, and a five-minute stream deadline. A rate limit or a dropped socket
+otherwise, and a five-minute stream idle timeout. A rate limit or a dropped socket
 is worth another attempt; a bad API key fails identically every time. Every
 retry is announced in the transcript, because a silent recovery is exactly how a
 stalled run gets mistaken for a working one.
@@ -502,9 +503,10 @@ instead would put a green "Done" dot over a command still going.
 **A quiet run says what it is waiting on.** Silence is not a fault: a reasoning
 model is silent before its first token, `npm install` is silent for minutes, and
 a lead inside `wait_agents` is silent for as long as its member works. Every one
-of those is already bounded by the SDK — a model round by `MODEL_TIMEOUT_MS`, a
-tool call by the loop's `maxToolDurationMs`, and waiting on a member IS a tool
-call — so nothing here is missing a timeout. What is missing is the telling: ten
+of those is either bounded or deliberately unbounded — a silent model stream by
+`MODEL_TIMEOUT_MS` (the sample's `modelIdleTimeoutMs`), a tool call only when the
+host opts in to `maxToolDurationMs`, and waiting on a member is a tool call that
+ends when the member settles or the user stops the run. What is missing is the telling: ten
 minutes inside a legitimate bound looks exactly like a hang when the window says
 nothing. So `createIdleWatch` reports instead of accusing. After twenty quiet
 seconds the composer's hint becomes `Still running a command · 40s`, updating

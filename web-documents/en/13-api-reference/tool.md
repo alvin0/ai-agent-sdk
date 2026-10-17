@@ -277,11 +277,11 @@ See [Durable Execution](/en/03-tools/durable-execution) for the contract.
 
 | Bound | Default |
 | --- | --- |
-| `maxToolCalls` | 64 per run |
+| `maxToolCalls` | `'auto'` (none); opt-in per-run cap |
 | `maxToolResultBytes` | Bounded retained serialized result |
-| `maxToolDurationMs` | Per-call wall clock |
+| `maxToolDurationMs` | None; opt-in per-call wall clock |
 | `toolTeardownTimeoutMs` | Wait after cancelling an uncooperative tool |
-| `maxConsecutiveToolErrors` | Cutoff |
+| `maxConsecutiveToolErrors` | None; opt-in cutoff (warns every 4 failures) |
 | `maxParallel` | Simultaneous concurrency-safe calls |
 
 ## Read next

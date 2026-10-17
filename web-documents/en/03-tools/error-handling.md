@@ -119,13 +119,13 @@ unreachable dependency — and return values for **domain outcomes**.
 
 | Bound | Behaviour |
 | --- | --- |
-| `maxConsecutiveToolErrors` | Cuts off after N consecutive failures |
-| `repeatToolWarningAt` / `repeatToolLimit` | Warns, then recovers an eligible exact repeat or stops |
-| `toolCycleWarningAt` / `toolCycleLimit` / `maxToolCycleLength` | Detects short multi-step cycles |
-| `maxToolCalls` | 64 dispatched tools per run |
+| `consecutiveToolErrorWarningAt` / `maxConsecutiveToolErrors` | Warns every 4 failures; the cutoff is opt-in |
+| `repeatToolWarningAt` / `repeatToolLimit` | Warns every 3 repeats; recovery or stop at the opt-in limit |
+| `toolCycleWarningAt` / `toolCycleLimit` / `maxToolCycleLength` | Detects short multi-step cycles; the limit is opt-in |
+| `maxToolCalls` | Opt-in cap on dispatched tools per run |
 
-So a model that cannot satisfy your tool fails loudly rather than looping until
-the token ceiling. When you hit these, the schema or the description is usually
+By default these guards steer the model with warnings instead of ending the run;
+set the limits when a model that cannot satisfy your tool must fail loudly. When you hit these, the schema or the description is usually
 the real defect.
 
 At the exact-repeat limit, the loop may reuse the immediately preceding successful

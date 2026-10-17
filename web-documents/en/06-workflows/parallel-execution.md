@@ -86,15 +86,16 @@ and exclusive for writes.
 runtimeLimits: { /* … */ }   // maxParallel bounds simultaneous safe calls
 ```
 
-`maxParallel` caps how many eligible calls actually run at once. Combined with
-`maxToolCalls` (64 per run) and `maxToolDurationMs`, a wide fan-out cannot
-exhaust your downstream.
+`maxParallel` caps how many eligible calls actually run at once, so a wide
+fan-out cannot exhaust your downstream. Add opt-in `maxToolCalls` and
+`maxToolDurationMs` when you also need a count or time cap.
 
 ## 3. Parallel agents — a managed team
 
-`createManagedAgentTeam()` gives the lead a `spawn_agent` tool. **Multiple
-`spawn_agent` calls in the same model step are concurrency-safe**, so independent
-workers run in parallel.
+`createManagedAgentTeam()` gives the lead `spawn_agent` and `spawn_agents`.
+**Multiple `spawn_agent` calls in the same model step are concurrency-safe**, and
+`spawn_agents({ tasks })` admits a batch into free slots plus a bounded FIFO
+backlog, so independent workers run in parallel.
 
 ```ts
 const harness = createManagedAgentTeam({
@@ -116,20 +117,24 @@ the worker, and returns — **without** waiting for it. The lead keeps working
 while its workers do; a lead parked inside its own tool call could not read a
 worker's messages, spawn anything else, or notice one going quiet.
 
-A worker reports back three ways: a quiet completion message injected into the
-lead's history, an `outcome` recorded on the roster and returned by
-`list_agents`, and `wait_agents`. A finished worker keeps its `maxWorkers` slot
-until `close_agent` releases it.
+The default lean model surface is `spawn_agent`, `spawn_agents`, `send_input`,
+`wait_agents`, `close_agent` and paged `get_agent_result`
+(`modelToolSurface: 'legacy'` keeps `list_agents`, `send_message` and
+`followup_task`). A worker reports back as a runtime push settlement in the
+lead's history and an `outcome` on the roster. A finished worker releases its
+`maxWorkers` slot automatically and stays addressable through `send_input` until
+closed with host `closeWorker(name)` or model `close_agent`;
+`maxRetainedWorkers` (256) bounds idle retained workers.
 
-Completed workers stay addressable through `list_agents`, `send_message`, and
-`followup_task` until closed with host `closeWorker(name)` or model `close_agent`.
-
-Managed prompts describe lifecycle; host instructions supply planning,
-delegation, and synthesis strategy. `autoLeadCoordination` defaults to true,
+Managed guidance defaults to proactive, bounded delegation
+(`delegationMode: 'explicit'` opts out) and workers inherit eligible lead tools
+(`inheritLeadTools: false` opts out); host instructions supply task-specific
+planning and synthesis strategy. `autoLeadCoordination` defaults to true,
 `workerTeamTools` to `reporting`, and `requireWorkerText` to false. Set the latter
 to true for mandatory textual reports. `writes` must stay workspace-relative;
 `dependsOn` binds registered producer instances across address reuse.
-`workerTimeoutMs` measures active execution, excluding setup/dependency waiting.
+`workerTimeoutMs` is opt-in (no default deadline) and measures active execution,
+excluding setup/dependency waiting.
 See [upgrading from 0.1.4](/en/01-introduction/upgrading-from-0-1-4) for validation
 and completion changes.
 
@@ -159,9 +164,11 @@ enforced by the harness.
 ## Joining: `wait_agents`
 
 A coordinator that synthesizes before its workers finish produces confident
-nonsense. `wait_agents` waits for selected work, returning as soon as the **first** target
-settles and always within `timeoutMs` (default 30 s). A timeout is a normal
-result carrying the current roster, not a failure.
+nonsense. `wait_agents` joins **all** selected targets and returns only new evidence. With
+no `timeout_ms` it waits until they settle, new input steers the lead
+(`interrupted: true`), or the run is cancelled; a model-requested timeout has a
+10-second floor. A timeout is a normal result carrying the current roster, not a
+failure. Managed `run()` joins through synthesis.
 
 ```ts
 // From the lead's own tool loop, the model calls wait_agents.

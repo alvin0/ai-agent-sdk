@@ -143,4 +143,4 @@ core, agent, base observability, protocols, observability capabilities, and MCP.
 - [`@alvin0/ai-agent-sdk-testkit`](/en/14-project/testkit)
 - [Contributing](/en/14-project/contributing)
 
-For the current release and hosted versus local evidence, see [upgrading to 0.1.12](/en/01-introduction/upgrading-to-0-1-12).
+For the current release and hosted versus local evidence, see [upgrading to 0.1.13](/en/01-introduction/upgrading-to-0-1-13).

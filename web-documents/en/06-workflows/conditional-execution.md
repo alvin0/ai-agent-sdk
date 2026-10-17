@@ -146,10 +146,10 @@ You do not need to build these:
 | --- | --- |
 | Context is about to overflow | Automatic compaction at `thresholdRatio` |
 | The provider confirmed overflow | One compact-and-retry (`maxOverflowRetries`) |
-| The model is repeating itself | `repeatToolWarningAt` → warn, `repeatToolLimit` → stop |
-| The model is looping over a short cycle | `toolCycleWarningAt` / `toolCycleLimit` |
-| Tools keep failing | `maxConsecutiveToolErrors` cutoff |
-| The tool budget is nearly gone | An app-authored warning at 75% of `maxToolCalls` |
+| The model is repeating itself | `repeatToolWarningAt` → warn, opt-in `repeatToolLimit` → stop |
+| The model is looping over a short cycle | `toolCycleWarningAt` / opt-in `toolCycleLimit` |
+| Tools keep failing | `consecutiveToolErrorWarningAt` warning, opt-in `maxConsecutiveToolErrors` cutoff |
+| The tool budget is nearly gone | An app-authored warning at 75% of a set `maxToolCalls` |
 | A model/effort/native-tool selection is impossible | Rejected before provider I/O |
 
 ## Choosing where to put a condition

@@ -134,8 +134,8 @@ dụng — cộng thêm trần ở tầng truyền tải:
 
 | Chặn trên | Phạm vi |
 | --- | --- |
-| `maxToolCalls` (64) | Số tool điều phối mỗi lượt chạy |
-| `maxToolDurationMs` | Một lời gọi, đầu tới cuối |
+| `maxToolCalls` (tự chọn) | Số tool điều phối mỗi lượt chạy |
+| `maxToolDurationMs` (tự chọn) | Một lời gọi, đầu tới cuối |
 | `maxToolResultBytes` | Kết quả đã tuần tự hoá được giữ |
 | Trần phản hồi / danh mục / kết quả | Số byte truyền tải MCP thô |
 | Deadline thao tác | Theo từng yêu cầu MCP |

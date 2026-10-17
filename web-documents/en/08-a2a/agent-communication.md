@@ -9,7 +9,7 @@ Joining a team exposes these to the model by default:
 | `list_agents` | — | Local and remote targets, protocol, delivery modes, status |
 | `send_message` | **Local only** | Injects quiet context into another session |
 | `followup_task` | Local **or remote** | Starts serialized work, returns the result |
-| `wait_agents` | Local | Waits for selected work within `timeoutMs`; a timeout returns the roster |
+| `wait_agents` | Local | Waits until selected work settles, or an optional `timeoutMs`; a timeout returns the roster |
 
 The managed lead additionally receives `spawn_agent`.
 
@@ -109,15 +109,16 @@ the worker, and returns — **without** waiting for it. The lead keeps working
 while its workers do; a lead parked inside its own tool call could not read a
 worker's messages, spawn anything else, or notice one going quiet.
 
-A worker reports back three ways: a quiet completion message injected into the
-lead's history, an `outcome` recorded on the roster and returned by
-`list_agents`, and `wait_agents`. A finished worker keeps its `maxWorkers` slot
-until `close_agent` releases it.
+A worker reports back as a runtime push settlement in the lead's history and an
+`outcome` on the roster; `wait_agents` joins all selected workers. A finished
+worker releases its `maxWorkers` slot automatically.
 
-**Multiple `spawn_agent` calls in the same model step are concurrency-safe**, so
-independent workers run in parallel. Completed workers stay addressable through
-`list_agents`, `send_message`, and `followup_task` until removed with
-`removeWorker()`.
+**Multiple `spawn_agent` calls in the same model step are concurrency-safe**, and
+`spawn_agents` admits a batch, so independent workers run in parallel. The
+default lean surface is `spawn_agent`, `spawn_agents`, `send_input`,
+`wait_agents`, `close_agent` and `get_agent_result` (`modelToolSurface: 'legacy'`
+keeps `list_agents`, `send_message` and `followup_task`). Completed workers stay
+addressable until closed with host `closeWorker(name)` or model `close_agent`.
 
 ### Isolating generated identities
 

@@ -154,7 +154,7 @@ export function retryHooks(onRetry: (notice: RetryNotice) => void): TurnHooks {
  * run is visibly working — and an automatic abort would kill the install.
  *
  * A dead model connection is already caught by the SDK's stream idle timer
- * ({@link MODEL_TIMEOUT_MS}), and `wait_agents` returns on its own wait timeout.
+ * ({@link MODEL_TIMEOUT_MS}), and `wait_agents` returns when its members settle.
  * So the gap this fills is not a missing timeout. It is that a long, legitimate
  * operation looks exactly like a hang when the window says nothing.
  * The fix is to say what is happening, not to guess that something broke.

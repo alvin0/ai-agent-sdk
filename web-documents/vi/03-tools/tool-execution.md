@@ -148,10 +148,10 @@ try {
 | Chặn trên | Tác dụng |
 | --- | --- |
 | `maxToolResultBytes` | Số byte đã tuần tự hoá được giữ cho một kết quả hoàn tất |
-| `maxToolDurationMs` | Hạn mức đầu-cuối cho một lời gọi |
+| `maxToolDurationMs` | Hạn mức đầu-cuối cho một lời gọi (tự chọn) |
 | `toolTeardownTimeoutMs` | Thời gian chờ sau khi huỷ một tool bất hợp tác |
-| `maxToolCalls` | Số tool điều phối mỗi lượt chạy (mặc định 64) |
-| `maxConsecutiveToolErrors` | Số lỗi liên tiếp trước khi cắt |
+| `maxToolCalls` | Trần số tool điều phối mỗi lượt chạy (tự chọn, mặc định `'auto'`) |
+| `maxConsecutiveToolErrors` | Số lỗi liên tiếp trước khi cắt (tự chọn) |
 
 Văn bản kết quả tool quá lớn được cắt còn phần đầu/đuôi bền vững trước khi tóm
 tắt trong lúc nén, nên một kết quả khổng lồ suy giảm mềm mại thay vì làm nổ cửa

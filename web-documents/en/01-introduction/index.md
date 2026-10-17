@@ -103,4 +103,4 @@ Everything else in this documentation is a variation on those four steps.
 
 For 0.1.8, see [upgrading from 0.1.7](/en/01-introduction/upgrading-from-0-1-7).
 
-For current API changes, read [upgrading to 0.1.12](/en/01-introduction/upgrading-to-0-1-12).
+For current API changes, read [upgrading to 0.1.13](/en/01-introduction/upgrading-to-0-1-13).

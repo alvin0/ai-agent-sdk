@@ -50,8 +50,8 @@ const agent = runtime.agent({
 | `outputFormat` | `ModelOutputFormat` | Plain text or a named JSON Schema for the final answer. |
 | `mode` | `'basic' \| 'deep' \| 'deep-human-in-loop'` | Execution policy. |
 | `commentary` | `'auto' \| 'concise' \| 'off'` | Progress narration. Default `auto` leaves the style to caller instructions and the model; opt into `concise` for short progress updates. |
-| `maxTurns` | `number \| 'auto'` | Model steps. Default 16. |
-| `maxToolCalls` | `number` | Dispatched tools. Default 64. |
+| `maxTurns` | `number \| 'auto'` | Model steps. Default `'auto'` (no cap); set a number to opt in. |
+| `maxToolCalls` | `number \| 'auto'` | Dispatched tools. Default `'auto'` (no cap). |
 | `tools` | `ToolDefinition[]` | Host functions the scheduler executes. |
 | `nativeTools` | `NativeToolSchema[]` | Provider-executed. The scheduler never runs these. |
 | `toolChoice` | `ToolChoice` | Forced/auto/none tool selection. |

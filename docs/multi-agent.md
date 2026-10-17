@@ -10,7 +10,8 @@ See [workspace JSON writes](workspace-json-writes.md) for the portable core hook
 Start with the [offline example](../samples/multi-agent-offline/README.md), which runs
 both modes without credentials. The [chat sample](../samples/chat-agents/README.md)
 shows streaming, approvals and a conversation-owned team. See the
-[Unreleased changelog](../CHANGELOG.md#unreleased) for migration details.
+[0.1.13 changelog](../CHANGELOG.md#0113---2026-10-17) and
+[upgrading to 0.1.13](upgrading-to-0.1.13.md) for migration details.
 
 ## Choose a shape
 
@@ -273,7 +274,7 @@ ignores its signal.
 
 ## Migrate from 0.1.12
 
-The [Unreleased Breaking section](../CHANGELOG.md#breaking) is authoritative.
+The [0.1.13 Breaking section](../CHANGELOG.md#breaking) is authoritative.
 
 | Earlier expectation | New behavior / migration |
 | --- | --- |

@@ -134,8 +134,8 @@ apply — plus transport-level caps:
 
 | Bound | Scope |
 | --- | --- |
-| `maxToolCalls` (64) | Dispatched tools per run |
-| `maxToolDurationMs` | One call, end to end |
+| `maxToolCalls` (opt-in) | Dispatched tools per run |
+| `maxToolDurationMs` (opt-in) | One call, end to end |
 | `maxToolResultBytes` | Retained serialized result |
 | Response / catalog / result caps | Raw MCP transport bytes |
 | Operation deadlines | Per MCP request |

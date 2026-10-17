@@ -12,19 +12,21 @@ runtime.agent({
   id: 'worker',
   model,
   instructions: '…',
-  maxTurns: 16,        // số bước model
-  maxToolCalls: 64,    // số tool được điều phối
+  maxTurns: 16,        // trần số bước model, tự chọn (mặc định 'auto')
+  maxToolCalls: 64,    // trần số tool, tự chọn (mặc định 'auto')
   maxTokens: 16_384,   // trần output cho mỗi phản hồi
 })
 ```
 
 | Chặn trên | Mặc định | Hành vi khi cạn |
 | --- | --- | --- |
-| Số bước model | 16 | Dành sẵn một câu trả lời cuối đã tắt tool. |
-| Số tool điều phối | 64 | Dành sẵn một câu trả lời cuối đã tắt tool. |
-| Tổng token đã báo cáo | 500.000 | **Dừng ngay** — ngân sách an toàn không được tự tiêu vào việc giải thích rằng nó đã cạn. |
+| Số bước model | `'auto'` (không có) | Khi đặt, dành sẵn một câu trả lời cuối đã tắt tool. |
+| Số tool điều phối | `'auto'` (không có) | Khi đặt, dành sẵn một câu trả lời cuối đã tắt tool. |
+| Tổng token đã báo cáo | `'auto'` (không có) | **Dừng ngay** — ngân sách an toàn không được tự tiêu vào việc giải thích rằng nó đã cạn. |
 
-Ở mốc **75% của `maxToolCalls`**, vòng lặp chèn một cảnh báo ngân sách do app
+Từ 0.1.13, mọi giới hạn có thể dừng một lượt chạy đều là tự chọn, nên lượt chạy
+dài không bị cắt ngang sau khi đã tiêu token. Khi đặt `maxToolCalls`, ở mốc
+**75%** của nó, vòng lặp chèn một cảnh báo ngân sách do app
 soạn trước bước model kế tiếp, để một agent lập trình dài hơi dừng thăm dò rộng
 và để dành lượt gọi cho việc sửa và kiểm chứng.
 
@@ -55,10 +57,11 @@ const session = agent.createSession({
 
 | Nhóm | Mục đích |
 | --- | --- |
-| `repeatTool*` | Phát hiện lặp y hệt — cảnh báo, rồi dừng. |
-| `toolCycle*`, `maxToolCycleLength` | Phát hiện chu trình đa bước ngắn. |
-| `maxConsecutiveToolErrors` | Ngưỡng cắt khi lỗi liên tiếp. |
-| `maxToolDurationMs` | Chặn trên thời gian thực, mang tính hợp tác, cho mỗi lời gọi tool. |
+| `repeatTool*` | Phát hiện lặp y hệt — cảnh báo mỗi `repeatToolWarningAt` (3) lần; dừng ở `repeatToolLimit` là tự chọn. |
+| `toolCycle*`, `maxToolCycleLength` | Phát hiện chu trình đa bước ngắn — cảnh báo mỗi `toolCycleWarningAt` (2); giới hạn là tự chọn. |
+| `maxConsecutiveToolErrors` | Ngưỡng cắt khi lỗi liên tiếp, tự chọn; mặc định `consecutiveToolErrorWarningAt` (4) chỉ cảnh báo. |
+| `maxToolDurationMs` | Chặn trên thời gian thực, mang tính hợp tác, cho mỗi lời gọi tool; tự chọn. |
+| `modelTimeoutMs` / `modelIdleTimeoutMs` | Deadline tổng cho lời gọi model (tự chọn) / cắt stream im lặng (mặc định 10 phút). |
 | `toolTeardownTimeoutMs` | Thời gian tháo dỡ chờ sau khi abort, trước khi báo `MODEL_TEARDOWN_TIMEOUT`. |
 | `observerTimeoutMs` | Chặn trên cho callback quan sát của host. |
 

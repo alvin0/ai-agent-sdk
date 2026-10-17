@@ -127,9 +127,11 @@ Joining a team exposes these by default:
 | `list_agents` | Local and remote targets, protocol, delivery modes, status |
 | `send_message` | Quiet context into another **local** session |
 | `followup_task` | Serialized work on a local **or remote** target, returns the result |
-| `wait_agents` | Waits within `timeoutMs`; a timeout returns the roster |
+| `wait_agents` | Waits until selected work settles, or an optional `timeoutMs`; a timeout returns the roster |
 
-The managed lead additionally receives `spawn_agent`. Set
+A managed lead instead gets the lean surface — `spawn_agent`, `spawn_agents`,
+`send_input`, `wait_agents`, `close_agent`, `get_agent_result` — unless
+`modelToolSurface: 'legacy'` is set. Set
 `team: { team, tools: false }` when only the host may communicate.
 
 **Sender identity is bound at session creation**, so a model cannot forge `from`.
