@@ -8,6 +8,7 @@ import { taskReady } from './collaboration-task-state.ts'
  * Reopen/complete and claim/release loops cannot renew automatic turn credits. */
 export class CollaborationNotifications {
   private readonly delivered = new Set<string>()
+  private cursor = 0
 
   constructor(private readonly team: AgentTeam, private readonly lead: string,
     private readonly sessions: ReadonlyMap<string, TeamSessionPort>, private readonly onWake: () => void) {}
@@ -34,25 +35,39 @@ export class CollaborationNotifications {
       + 'Read task_list with ids for dependencies and findings; work only when ready=true.')
   }
 
+  /** One idle member per newly ready task, rotating, so members do not all spend a turn racing one claim.
+   * The lead still sees every ready task on the board and can assign work an offered member skips. */
   private notifyAvailable(id: string): void {
-    for (const member of this.team.members()) {
-      if (member.name === this.lead || member.status !== 'idle') continue
-      this.notify(member.name, id, 'available', `Shared task '${id}' is ready and unclaimed. `
-        + 'Read task_list and claim with its current revision if you can help.')
+    const offered = noticeKey('', id, 'available') // Member names are non-empty; this marks the task itself.
+    if (this.delivered.has(offered)) return
+    const idle = this.team.members().filter(member => member.name !== this.lead && member.status === 'idle'
+      && this.sessions.has(member.name) && !this.delivered.has(noticeKey(member.name, id, 'available')))
+    for (let offset = 0; offset < idle.length; offset++) {
+      const index = (this.cursor + offset) % idle.length
+      if (this.notify(idle[index]!.name, id, 'available', `Shared task '${id}' is ready and unclaimed. `
+        + 'Read task_list and claim with its current revision if you can help.')) {
+        this.cursor = index + 1
+        this.delivered.add(offered)
+        return
+      }
     }
   }
 
-  private notify(name: string, id: string, kind: string, text: string): void {
-    const key = JSON.stringify([name, id, kind])
-    if (this.delivered.has(key)) return
+  /** A notice counts as delivered only once it reached the member's session. */
+  private notify(name: string, id: string, kind: string, text: string): boolean {
+    const key = noticeKey(name, id, kind)
+    if (this.delivered.has(key)) return false
     const session = this.sessions.get(name)
-    if (session === undefined) return
-    this.delivered.add(key)
+    if (session === undefined) return false
     try {
       session.inject(createUserMessage({ source: { kind: 'app', producer: 'managed-team' },
         content: [{ type: 'text', text }] }))
-      // Lead joining owns its continuation. Members use the ordinary pending-start-aware wake queue.
-      if (name !== this.lead) { this.team.wake(name); this.onWake() }
-    } catch { /* closed claimant; retained board state remains authoritative */ }
+    } catch { return false /* closed claimant; retained board state remains authoritative */ }
+    this.delivered.add(key)
+    // Lead joining owns its continuation. Members use the ordinary pending-start-aware wake queue.
+    try { if (name !== this.lead) { this.team.wake(name); this.onWake() } } catch { /* member closed after inject */ }
+    return true
   }
 }
+
+function noticeKey(name: string, id: string, kind: string): string { return JSON.stringify([name, id, kind]) }

@@ -113,7 +113,7 @@ describe('collaboration review regressions', () => {
     expect(observed.list()[1]?.ready).toBe(false)
   })
 
-  it('offers newly ready unclaimed work to idle members once over repeated reopen/complete cycles', async () => {
+  it('offers newly ready unclaimed work to one idle member once over repeated reopen/complete cycles', async () => {
     const adapter = new CollaborationAdapter()
     const team = managed(adapter)
     const board = team.collaboration!.board
@@ -124,8 +124,8 @@ describe('collaboration review regressions', () => {
     await board.update('lead', { id: 'p', expectedRevision: 1, action: 'claim' })
     await board.update('lead', { id: 'p', expectedRevision: 2, action: 'complete' })
     await team.collaboration!.whenMembersIdle(AbortSignal.timeout(1000))
-    expect(adapter.rounds.get('alice')).toBe(2)
-    expect(adapter.rounds.get('bob')).toBe(2)
+    // One offer per ready task: the other idle member does not spend a turn racing the same claim.
+    expect([adapter.rounds.get('alice'), adapter.rounds.get('bob')].sort()).toEqual([1, 2])
     expect(JSON.stringify(adapter.requests.at(-1)?.options.messages)).toContain("'c' is ready and unclaimed")
     await board.update('lead', { id: 'p', expectedRevision: 3, action: 'reopen' })
     await team.collaboration!.whenMembersIdle(AbortSignal.timeout(1000))
