@@ -180,6 +180,7 @@ export class ManagedAgentTeam {
   private createModelSurface(options: ManagedAgentTeamOptions): ManagedModelSurface {
     return new ManagedModelSurface({ team: this.team, options, input: this.modelInput,
       worker: name => this.workerRuntimes.get(name),
+      resume: targets => this.settlements.resumeCaptured(targets),
       ...(options.collaboration ? { peerSend: (sender: string, target: string, message: string,
         delivery: { signal: AbortSignal; interrupt: boolean }) =>
         this.collaboration!.sendInput(sender, target, message, delivery) } : {}),

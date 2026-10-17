@@ -14,6 +14,8 @@ interface SurfaceHost {
   peerSend?(sender: string, target: string, message: string,
     options: { signal: AbortSignal; interrupt: boolean }): Promise<unknown>
   worker(name: string): WorkerRuntime | undefined
+  /** Requeue evidence an aborted wait released, so normal settlement push delivers it. */
+  resume(targets: readonly string[]): void
 }
 
 /** A session-facing adapter, leaving AgentTeam's public tools and host hooks intact. */
@@ -166,9 +168,12 @@ export class ManagedModelSurface {
         }
         const tool = this.host.team.toolsFor(sender, 'full', (target, signal) =>
           this.waitWorker(target, signal)).find(tool => tool.name === 'wait_agents')!
-        const view = await tool.execute!(args, ctx) as unknown as {
-          results: ReturnType<TeamResults['take']>
-          timedOut: boolean; interrupted?: boolean
+        let view: { results: ReturnType<TeamResults['take']>; timedOut: boolean; interrupted?: boolean }
+        try {
+          view = await tool.execute!(args, ctx) as unknown as typeof view
+        } catch (error: unknown) {
+          this.host.resume(args.targets)
+          throw error
         }
         return asJson({ results: modelResults(view.results), timed_out: view.timedOut,
           ...view.interrupted ? { interrupted: true } : {} })

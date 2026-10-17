@@ -68,6 +68,11 @@ export async function executeTeamWait(
       // floor would otherwise misjudge how long its workers had.
       waitedMs: budget,
     })
+  } catch (error: unknown) {
+    // A cancelled or failed join returns no evidence; return its claims to the delivery ledger.
+    capture.close()
+    capture.release()
+    throw error
   } finally { finished.abort(); capture.close(); release() }
 
 }

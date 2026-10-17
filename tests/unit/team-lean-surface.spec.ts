@@ -656,4 +656,23 @@ describe('managed settlement delivery audit regressions', () => {
       expect(leadInputs).toContain('second-result')
     } finally { await team.dispose(); await team.team.dispose() }
   })
+
+  it('returns results claimed by a cancelled wait to later delivery', async () => {
+    const { adapter, team } = fixture()
+    try {
+      await team.spawn({ name: 'A', task: 'a' })
+      await team.spawn({ name: 'B', task: 'b' })
+      await adapter.started(2)
+      const controller = new AbortController()
+      const waiting = call(team, 'wait_agents', { targets: ['A', 'B'] }, controller.signal)
+      adapter.finish(1, 'a-result')
+      await team.awaitWorker('A')
+      controller.abort(new Error('user cancelled'))
+      await expect(waiting).rejects.toThrow('user cancelled')
+      const later = JSON.stringify(await call(team, 'wait_agents', { targets: ['A'], timeout_ms: 10 }))
+        + JSON.stringify(team.team.messages())
+      expect(later).toContain('a-result')
+      await team.closeWorker('B')
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
 })
