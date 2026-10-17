@@ -1,6 +1,6 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { pathToFileURL } from 'node:url'
 import { infraStatus } from './cells.ts'
 import type { Result } from './execute.ts'
 import type { Metrics } from './metrics.ts'
@@ -239,7 +239,7 @@ export function parseAnalysisArgs(args: string[]) {
   }
   return { dirA: resolve(dirA), dirB: resolve(dirB), out: rest[1] === undefined ? undefined : resolve(rest[1]) }
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   const { dirA, dirB, out } = parseAnalysisArgs(process.argv.slice(2))
   await compare(dirA, dirB, out)
 }

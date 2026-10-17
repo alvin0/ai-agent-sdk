@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { cp, mkdir, mkdtemp, realpath, rename, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs, treeHash } from './run.ts'
 
 type Command = (command: string, args: string[], cwd: string) => Promise<number>
@@ -124,6 +124,6 @@ export async function compareBranches(args: string[], invoke: Command = command)
   } finally { await rm(frozen, { recursive: true, force: true }) }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   process.exitCode = await compareBranches(process.argv.slice(2))
 }
