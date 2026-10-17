@@ -41,8 +41,9 @@ function validateRunTimeouts(values: AgentRuntimeLimits): void {
     throw new RangeError("agent runtimeLimits.maxTurnDurationMs must be a positive safe integer or 'auto'")
   }
   if (values.userInputTimeoutMs !== undefined
-    && (!Number.isSafeInteger(values.userInputTimeoutMs) || values.userInputTimeoutMs < 1)) {
-    throw new RangeError('agent runtimeLimits.userInputTimeoutMs must be a positive safe integer')
+    && (!Number.isSafeInteger(values.userInputTimeoutMs) || values.userInputTimeoutMs < 1
+      || values.userInputTimeoutMs > 2_147_483_647)) {
+    throw new RangeError('agent runtimeLimits.userInputTimeoutMs must be a positive safe integer up to 2147483647')
   }
 }
 

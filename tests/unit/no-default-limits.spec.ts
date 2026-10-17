@@ -9,6 +9,9 @@ import { resolveRuntimeLimits } from '../../packages/core/src/agent/define/sessi
 import { hookTimeout } from '../../packages/core/src/agent/loop/turn/hooks.ts'
 import { managedLimits } from '../../packages/core/src/agent/team/managed-options.ts'
 import { teamTimeouts } from '../../packages/core/src/agent/team/team-support.ts'
+import { resolveSkillOptions } from '../../packages/core/src/agent/skill/tools.ts'
+import { MCP_CLIENT_DEFAULTS } from '../../packages/mcp/src/client/config.ts'
+import { MCP_SERVER_DEFAULTS } from '../../packages/mcp-server/src/common/config.ts'
 
 type Round = readonly StreamChunk[] | (() => AsyncIterable<StreamChunk>)
 
@@ -85,7 +88,11 @@ describe('limits are opt-in by default', () => {
     expect(hookTimeout(undefined)).toBeUndefined()
     expect(hookTimeout('auto')).toBeUndefined()
     expect(managedLimits({} as never).workerTimeoutMs).toBeUndefined()
-    expect(teamTimeouts({} as never, 120_000, 1_000).operationTimeoutMs).toBeUndefined()
+    expect(teamTimeouts({} as never, 1_000)).toMatchObject({ operationTimeoutMs: undefined, waitTimeoutMs: undefined })
+    expect(managedLimits({} as never).spawnTimeoutMs).toBeUndefined()
+    expect(resolveSkillOptions({}).operationTimeoutMs).toBeUndefined()
+    expect(MCP_CLIENT_DEFAULTS).toMatchObject({ toolCallTimeoutMs: 2_147_483_647, operationTimeoutMs: 2_147_483_647 })
+    expect(MCP_SERVER_DEFAULTS.operationTimeoutMs).toBe(2_147_483_647)
   })
 
   it("accepts 'auto' and numbers for opt-in session limits and still checks warning order", () => {

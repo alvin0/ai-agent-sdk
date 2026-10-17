@@ -8,10 +8,12 @@ import { DECISION_PROVIDER_PLUGIN_API_VERSION, type DecisionProviderPlugin,
 import type { DecisionInput, DecisionModelHandle, DecisionModelTarget, DecisionQuestions } from './types.ts'
 import { bindDecisionInput, identifier, snapshotDecisionInput, snapshotDecisionModelInfo,
   validateDecisionResult } from './validation.ts'
+import { DECISION_NO_DEADLINE_MS } from './deadline.ts'
 
 export interface DecisionRuntimeOptions {
   readonly providers?: readonly DecisionProviderPlugin[]
   readonly retryPolicy?: RetryPolicyConfig
+  /** Opt-in decision deadline; none by default. */
   readonly timeoutMs?: number
   readonly context?: ModelInvocationContext
 }
@@ -41,7 +43,7 @@ class DecisionRuntimeState {
   private closed = false
   constructor(options: DecisionRuntimeOptions) {
     this.defaultPolicy = resolveRetryPolicy(options.retryPolicy, 'decision.retryPolicy')
-    this.defaultTimeout = options.timeoutMs ?? 30_000
+    this.defaultTimeout = options.timeoutMs ?? DECISION_NO_DEADLINE_MS
     this.defaultContext = options.context
     validateRuntimeTimeout(this.defaultTimeout)
   }

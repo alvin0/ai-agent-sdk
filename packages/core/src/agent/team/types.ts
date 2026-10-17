@@ -157,11 +157,9 @@ export interface AgentTeamOptions {
   /** Maximum wait per asynchronous agent-event observer. Defaults to 1 second. */
   readonly observerTimeoutMs?: number
   /**
-   * How long `wait_agents` waits before reporting back. Defaults to 120 seconds.
-   *
-   * The tool call can ask for less. It cannot wait forever, because a
-   * coordinator that never regains control cannot tell a slow agent from a
-   * stuck one, and neither can the person watching it.
+   * Opt-in default for how long `wait_agents` waits before reporting back. None by default: the
+   * wait ends when its targets settle, when the caller is steered by new input, or on cancellation.
+   * The tool call can still ask for a bounded wait.
    */
   readonly waitTimeoutMs?: number
   /**

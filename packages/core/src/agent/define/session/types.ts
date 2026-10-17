@@ -92,9 +92,8 @@ export interface AgentRuntimeLimits {
   /** Exempt-only steps to confirm an answer a budget forced; deep mode defaults to 2, basic to 0. */
   readonly finalizeSteps?: number
   /**
-   * How long `request_user_input` waits for an answer. Defaults to
-   * `maxToolDurationMs`, which no longer bounds the wait itself, so a host can
-   * give people longer than it gives tools.
+   * Opt-in limit on how long `request_user_input` waits for an answer. Falls back to a numeric
+   * `maxToolDurationMs`; with neither set, the run waits until the person answers or it is cancelled.
    */
   readonly userInputTimeoutMs?: number
   /**

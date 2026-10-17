@@ -47,7 +47,8 @@ class TypesafeDecisionAdapter extends DecisionAdapter {
     this.#baseUrl = url.href.replace(/\/$/, '')
     this.#fetch = options.fetch ?? globalThis.fetch
     this.#headers = capturePublicHeaders(options.headers)
-    this.#timeout = bound(options.requestTimeoutMs, 30_000, 'requestTimeoutMs')
+    // Timer maximum: no practical deadline unless the caller opts in to one.
+    this.#timeout = bound(options.requestTimeoutMs, 2_147_483_647, 'requestTimeoutMs')
     this.#maxRequest = bound(options.maxRequestBytes, 2_097_152, 'maxRequestBytes')
     this.#maxResponse = bound(options.maxResponseBytes, 4_194_304, 'maxResponseBytes')
     this.#retry = options.retryPolicy === undefined ? undefined : resolveRetryPolicy(options.retryPolicy,

@@ -5,6 +5,7 @@ import type { DecisionInput, DecisionResult } from './types.ts'
 import { throwIfAborted } from './async.ts'
 import { readDecisionStream } from './llm-stream.ts'
 import { decodeLlmOutput } from './llm-decode.ts'
+import { DECISION_NO_DEADLINE_MS } from './deadline.ts'
 export interface CapturedLlmRequest { readonly input: DecisionInput;
   readonly generation: Omit<GenerateOptions, 'signal'> }
 export interface LlmResponseOptions { readonly mode: 'json-schema' | 'tool'; readonly evidence: boolean;
@@ -21,7 +22,7 @@ export async function runLlmDecision(
   if (signal?.aborted) forward()
   // Prepared calls are public: bound their attempts even without a runtime wrapper.
   const timer = setTimeout(() => controller.abort(new ModelError('LLM decision deadline exceeded',
-    'TIMEOUT')), input.timeoutMs ?? 30_000)
+    'TIMEOUT')), input.timeoutMs ?? DECISION_NO_DEADLINE_MS)
   let iterator: AsyncIterator<StreamChunk> | undefined
   let closed = false
   try {

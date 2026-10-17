@@ -1,5 +1,6 @@
 /** High-level agent modes built on the provider-neutral bounded tool loop. */
 
+import { timerMs } from '../loop/turn/config.ts'
 import { type Message } from '../../message/index.ts'
 import type { CallConfig } from '../../contract/index.ts'
 import { detachedFrozen } from '../../primitives/index.ts'
@@ -282,17 +283,20 @@ function createAgentInternalTools(setup: {
   if (options.spillStore !== undefined) internalTools.push(readSpillTool(options.spillStore) as ToolDefinition)
   if (mode !== 'basic') internalTools.push(completionTool(state, options.history, options.tools))
   if (broker !== undefined) {
-    const waitMs = positiveFinite(
-      ('userInputTimeoutMs' in options ? options.userInputTimeoutMs : undefined)
-        ?? (typeof options.bounds?.maxToolDurationMs === 'number' ? options.bounds.maxToolDurationMs : 10 * 60_000),
-      'userInputTimeoutMs',
-    )
+    const waitMs = userInputWait(options)
     internalTools.push(userInputTool({
       mode: mode as Exclude<AgentMode, 'basic'>, broker, state, emit, waitMs,
       accounting: options.accounting,
     }))
   }
   return internalTools
+}
+
+/** No default deadline: the run waits for the person unless the host opts in to one. */
+function userInputWait(options: RunAgentOptions): number | undefined {
+  const configured = ('userInputTimeoutMs' in options ? options.userInputTimeoutMs : undefined)
+    ?? (typeof options.bounds?.maxToolDurationMs === 'number' ? options.bounds.maxToolDurationMs : undefined)
+  return configured === undefined ? undefined : timerMs(configured, 'userInputTimeoutMs')
 }
 
 async function prepareAgentRun(

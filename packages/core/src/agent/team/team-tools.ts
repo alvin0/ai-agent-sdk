@@ -71,7 +71,8 @@ export class TeamTools {
         parse: parseWaitTool,
         execute: (args, ctx) => executeTeamWait(
           whenIdle === undefined ? this.host : { ...this.host, whenIdle }, { name, sender }, args, ctx),
-        timeoutMs: this.host.waitTimeoutMs + 1_000,
+        ...this.host.waitTimeoutMs === undefined ? {}
+          : { timeoutMs: Math.min(this.host.waitTimeoutMs + 1_000, 2_147_483_647) },
         isConcurrencySafe: () => true,
     })
   }

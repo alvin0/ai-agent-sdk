@@ -11,7 +11,7 @@ import {
   asJson, errorMessage, failureOf, recordEvidence,
 } from './managed-outcomes.ts'
 import { waitForSettlement } from '../../async/index.ts'
-import { deadlineOrNever } from './common.ts'
+import { deadlineOrNever, optionalDeadline } from './common.ts'
 
 interface ManagedWorkerHost {
   readonly options: ManagedAgentTeamOptions
@@ -21,7 +21,7 @@ interface ManagedWorkerHost {
   readonly leadName: string
   readonly workerTimeoutMs: number | undefined
   readonly observerTimeoutMs: number
-  readonly spawnTimeoutMs: number
+  readonly spawnTimeoutMs: number | undefined
   readonly maxDependencyReportBytes: number
   notifyLead(runtime: WorkerRuntime): Promise<void>
   releaseDependents(runtime: WorkerRuntime): Promise<void>
@@ -93,7 +93,7 @@ export class ManagedWorkerExecution {
       const report = managedDependencyReport(runtime.dependencies, this.host.maxDependencyReportBytes)
       if (report !== undefined) {
         const signal = combineSignals(setupSignal, runtime.controller.signal, this.host.signal,
-          AbortSignal.timeout(this.host.spawnTimeoutMs))
+          optionalDeadline(this.host.spawnTimeoutMs))
         await abortable(this.host.team.sendMessage({ from: this.host.leadName, target: runtime.request.name,
           message: report, delivery: 'quiet', signal }), signal)
         signal.throwIfAborted()

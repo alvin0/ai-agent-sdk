@@ -41,7 +41,7 @@ export interface DefinedAgentA2AExecutorOptions {
   readonly maxOutputBytes?: number
   /** Maximum time dispose waits for cooperative providers. Defaults to 30 seconds. */
   readonly disposeTimeoutMs?: number
-  /** End-to-end bound for session creation, queueing, and agent execution. Defaults to 10 minutes. */
+  /** Opt-in end-to-end bound for session creation, queueing, and agent execution; none by default. */
   readonly taskTimeoutMs?: number
   /** Maximum wait for the private error observer. Defaults to 5 seconds. */
   readonly observerTimeoutMs?: number

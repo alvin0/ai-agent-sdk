@@ -62,7 +62,9 @@ export interface McpClientLifecycleOptions {
   readonly reconnect?: McpReconnectOptions | false
   readonly toolFilter?: ToolFilter
   readonly prefixToolNames?: boolean
+  /** Opt-in per-tool-call deadline; none by default. */
   readonly toolCallTimeoutMs?: number
+  /** Opt-in deadline for connect, discovery, HTTP requests and other operations; none by default. */
   readonly operationTimeoutMs?: number
   readonly closeTimeoutMs?: number
   readonly maxTools?: number

@@ -22,7 +22,7 @@ const leadToolHashes = {
   leanInitial: 'ba91447ebfafa208b43b7f50586132c80174005c2570a5ab9d1bde514d1e41a4',
   leanDisclosed: 'c30e44408de10684f279670ad47cb09c23a5f4a4f6ae4b56f9184e9bf68f56f0',
   eager: '28aa1b2b0e6340f3b0bc5673322ab29cbccd7c6a2ef720b8a5fada4e5fa91ed4',
-  legacy: '62a1a7a2a0ca561d78381f871532728cab1a1bf00033fb118b4d4088a931f48b',
+  legacy: 'a773fc9864ed37e9f8d64cef9e5561e0bc2e079c977fd14ef80b39eec86f1761',
   collaboration: '056a0973d4df25d3af88fef329769e455c0f1be531b13114f4fcfae6a5ac1db7',
 }
 

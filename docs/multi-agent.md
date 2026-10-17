@@ -162,8 +162,9 @@ active worker follow-ups, joins and result reads, but does not grant nested spaw
 `false` removes worker team tools. `depth` / `maxDepth` bound SDK spawning; hosts that
 compose nested teams must pass the actual child depth and guard opaque delegation tools.
 
-Set the `team: { waitTimeoutMs }` option to cap how long one `wait_agents` call may
-wait. The model's `timeout_ms` can request a shorter wait within the host limits.
+By default a `wait_agents` call waits until its targets settle, until new input steers the
+lead, or until the run is cancelled. Set the `team: { waitTimeoutMs }` option to cap each
+wait. The model's `timeout_ms` can still request a bounded wait within the host limits.
 
 Declare disjoint `writes` scopes, including the lead's own scope in your host workflow.
 They are scheduler declarations, not filesystem authorization or locks on arbitrary
@@ -245,8 +246,8 @@ host must drive later lead turns. Deprecated `holdWaitMs` is accepted but ignore
 | `depth` / `maxDepth` | 0 / 1; host must supply nesting depth |
 | `maxTaskBytes` / `maxSpecialtyBytes` | 64 KiB / 8 KiB UTF-8 for spawn briefs |
 | `workerTimeoutMs` | none (opt-in); when set, bounds active work and excludes setup and dependency queue time |
-| `team: { waitTimeoutMs }` | 120 seconds; host cap for each `wait_agents` call's `timeout_ms` |
-| `spawnTimeoutMs` / `closeTimeoutMs` | 30 seconds each; bound setup and shutdown waits |
+| `team: { waitTimeoutMs }` | none (opt-in); host cap for each `wait_agents` call's `timeout_ms` |
+| `spawnTimeoutMs` / `closeTimeoutMs` | spawn: none (opt-in), bounds setup; close: 30 seconds, bounds shutdown waits |
 | `observerTimeoutMs` | 1 second per worker event observer callback |
 | `maxDependencyReportBytes` | 8 KiB per producer; larger retained output is paged |
 | `writeScopePolicy` | `'reject'`; `'warn'` records overlap, `'off'` skips admission checks |

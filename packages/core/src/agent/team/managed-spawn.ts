@@ -25,12 +25,10 @@ import {
   spawnContext, memberName, nonEmpty, boundedString,
 } from './managed-validation.ts'
 import { mergeTools } from './managed-tool-input.ts'
-import {
-  abortable, combineSignals,
-} from './managed-cancellation.ts'
-import {
-  normalizeWriteScope,
-} from './managed-write-scopes.ts'
+import { optionalDeadline } from './common.ts'
+import { DEFAULT_SPAWN_SETUP_TIMEOUT_MS as CLEANUP_MS } from './managed-config.ts'
+import { abortable, combineSignals } from './managed-cancellation.ts'
+import { normalizeWriteScope } from './managed-write-scopes.ts'
 import {
   errorMessage, recordEvidence, SETTLED_WORKER_STATUS,
 } from './managed-outcomes.ts'
@@ -54,7 +52,7 @@ interface ManagedSpawnHost {
   readonly maxQueued: number
   readonly maxTaskBytes: number
   readonly maxSpecialtyBytes: number
-  readonly spawnTimeoutMs: number
+  readonly spawnTimeoutMs: number | undefined
   readonly maxDependencyReportBytes: number
   readonly leadName: string
   readonly execution: ManagedWorkerExecution
@@ -153,7 +151,7 @@ export class ManagedWorkerSpawning {
     try {
       const warnings = checkedWarnings ?? this.host.scheduling.checkWriteScopes(resolved, dependencies)
       const operationSignal = combineSignals(signal, this.host.signal, prepared.controller.signal,
-        AbortSignal.timeout(this.host.spawnTimeoutMs))
+        optionalDeadline(this.host.spawnTimeoutMs))
       operationSignal.throwIfAborted()
       const definition = await abortable(workerDefinition(this.host.options, resolved), operationSignal)
       operationSignal.throwIfAborted()
@@ -362,7 +360,7 @@ export class ManagedWorkerSpawning {
       runtime.dependencies = []
       try { this.host.team.markPending(resolved.name, undefined) } catch { /* team already disposed */ }
       runtime.markSettled()
-      try { await abortable(cancelled, AbortSignal.timeout(this.host.spawnTimeoutMs)) } catch { /* bounded cleanup */ }
+      try { await abortable(cancelled, AbortSignal.timeout(this.host.spawnTimeoutMs ?? CLEANUP_MS)) } catch { /**/ }
       if (this.host.workerRuntimes.get(resolved.name) === runtime) {
         this.host.workerRuntimes.delete(resolved.name)
         try { this.host.team.detach(resolved.name) } catch { /* registration already removed */ }
