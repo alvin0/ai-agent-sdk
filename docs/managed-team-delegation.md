@@ -74,8 +74,9 @@ Custom user-input names without that metadata must be listed in `leadOnlyTools`.
 apply to inheritance; explicit worker tools and custom definitions remain host-owned. Team reporting
 tools are created with the worker's own identity, under the existing `workerTeamTools` setting.
 
-Inheritance fails closed at spawn with a host-facing error if the lead has interceptors or an approval
-broker and the worker does not explicitly supply the same interceptor array and broker object. The SDK
+Inheritance fails closed with a host-facing error if the lead has interceptors or an approval broker
+and the worker does not explicitly supply the same interceptor array and broker object. Static options
+fail at team construction; a `workerSessionOptionsFactory` is checked at each spawn. The SDK
 does not assume a different policy is equivalent or copy session-bound guard closures automatically.
 The check uses the final merged worker session options, including per-worker overrides. Either share
 those exact objects intentionally, disable inheritance, or supply explicit worker tools/template/factory
