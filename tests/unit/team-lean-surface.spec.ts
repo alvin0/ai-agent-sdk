@@ -698,3 +698,75 @@ describe('managed settlement delivery audit regressions', () => {
     } finally { await team.dispose(); await team.team.dispose() }
   })
 })
+
+describe('long-lived managed team retention', () => {
+  it('keeps spawning after the audit mailbox fills', async () => {
+    const { adapter, team } = fixture({ team: { minWaitTimeoutMs: 10, waitTimeoutMs: 1000, maxMessages: 3 } })
+    try {
+      for (let index = 1; index <= 5; index++) {
+        await team.spawn({ name: `w${index}`, task: `task ${index}` })
+        await adapter.started(index)
+        adapter.finish(index)
+        await team.awaitWorker(`w${index}`)
+      }
+      expect(team.team.messages().length).toBeLessThanOrEqual(3)
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
+  it('evicts the oldest delivered idle workers above maxRetainedWorkers and keeps their results', async () => {
+    const { adapter, team } = fixture({ maxRetainedWorkers: 2 })
+    try {
+      for (let index = 1; index <= 3; index++) {
+        await team.spawn({ name: `w${index}`, task: `task ${index}` })
+        await adapter.started(index)
+        adapter.finish(index, `result-${index}`)
+        await call(team, 'wait_agents', { targets: [`w${index}`] })
+      }
+      await team.spawn({ name: 'w4', task: 'task 4' })
+      expect(team.workers().map(worker => worker.name)).toEqual(['w3', 'w4'])
+      expect(JSON.stringify(await call(team, 'get_agent_result', { target: 'w1' }))).toContain('result-1')
+      await team.closeWorker('w4')
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
+  it('never evicts a busy worker', async () => {
+    const { adapter, team } = fixture({ maxRetainedWorkers: 1 })
+    try {
+      await team.spawn({ name: 'w1', task: 'task 1' })
+      await adapter.started(1)
+      await team.spawn({ name: 'w2', task: 'task 2' })
+      expect(team.workers().map(worker => worker.name)).toEqual(['w1', 'w2'])
+      await team.closeWorker('w1')
+      await team.closeWorker('w2')
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
+  it('bounds the closed-member archive', () => {
+    const results = new TeamResults()
+    for (let index = 0; index < 300; index++) {
+      results.archive({ name: `m${index}`, status: 'idle', outcome: { kind: 'completed', text: `${index}` } } as never)
+    }
+    expect(results.retained('m0')).toBeUndefined()
+    expect(results.retained('m299')?.outcome?.text).toBe('299')
+  })
+
+  it('evicts the oldest audit records in evict-oldest mode and rejects by default', async () => {
+    for (const mailboxOverflow of ['evict-oldest', undefined] as const) {
+      const team = new AgentTeam({ maxMessages: 2, ...(mailboxOverflow === undefined ? {} : { mailboxOverflow }) })
+      const sessions = ['a', 'b'].map(id => ({ definition: { id }, conversationId: id, isRunning: false,
+        inject: () => 1, whenIdle: async () => {} }))
+      for (const session of sessions) team.attach(session as never)
+      const send = (message: string) => team.sendMessage({ from: 'a', target: 'b', message, delivery: 'quiet' })
+      await send('oldest-audit-record')
+      await send('second-audit-record')
+      if (mailboxOverflow === undefined) await expect(send('third-audit-record')).rejects.toThrow(/2-message mailbox limit/)
+      else {
+        await send('third-audit-record')
+        expect(JSON.stringify(team.messages())).not.toContain('oldest-audit-record')
+        expect(team.messages()).toHaveLength(2)
+      }
+      await team.dispose()
+    }
+    expect(() => new AgentTeam({ mailboxOverflow: 'drop' as never })).toThrow('mailboxOverflow')
+  })
+})

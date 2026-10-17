@@ -7,7 +7,7 @@ import { sendTeamMessage } from './team-delivery.ts'
 import { teamInstructions } from './team-instructions.ts'
 import { TeamWork } from './team-work.ts'
 import { TeamRoster } from './team-roster.ts'
-import { TeamMailbox } from './team-mailbox.ts'
+import { evictsOldest, TeamMailbox } from './team-mailbox.ts'
 import { registerTeamInternals } from './team-internal.ts'
 import type { LocalMemberRuntime, AddressableMember } from './team-runtime-types.ts'
 import { teamTimeouts } from './team-support.ts'
@@ -88,7 +88,7 @@ export class AgentTeam implements TeamPort {
     this.onEvent = options.onEvent
     this.onAgentEvent = options.onAgentEvent
     this.roster = new TeamRoster({ id: this.id, maxMembers, maxMetadataBytes, emit: event => this.emit(event) })
-    this.mailbox = new TeamMailbox(this.maxMessages, maxMailboxBytes)
+    this.mailbox = new TeamMailbox(this.maxMessages, maxMailboxBytes, evictsOldest(options.mailboxOverflow))
     this.work = new TeamWork({
       id: this.id, disposeTimeoutMs: this.disposeTimeoutMs, operationTimeoutMs: this.operationTimeoutMs,
       localMembers: () => this.roster.locals.values(), remoteMembers: () => this.roster.remotes.values(),

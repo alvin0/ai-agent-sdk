@@ -69,6 +69,7 @@ export class ManagedSettlements {
     if (!this.pendingReports.has(runtime)) this.pendingReports.set(runtime, undefined)
   }
   get hasPending(): boolean { return this.pendingReports.size > 0 }
+  isPending(runtime: WorkerRuntime): boolean { return this.pendingReports.has(runtime) }
   dispose(): void { this.unsubscribe(); this.pendingReports.clear() }
 
   throwLeadFailure(): void {

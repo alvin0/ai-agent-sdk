@@ -21,5 +21,5 @@ export {
   errorMessage, asJson, SETTLED_WORKER_STATUS, failureOf, recordEvidence,
 } from './managed-outcomes.ts'
 export {
-  managedTimeouts, managedRoles, managedControlPlane,
+  managedLimits, managedRoles, managedControlPlane,
 } from './managed-options.ts'

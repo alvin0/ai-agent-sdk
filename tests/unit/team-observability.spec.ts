@@ -184,7 +184,7 @@ describe('host team timeline and snapshots', () => {
   it('retains failed setup metadata after a prepared session is detached', async () => {
     const events: AgentTeamEvent[] = []
     const team = create(new GatedTeam(), { autoLeadCoordination: false,
-      team: { maxMessages: 1, onEvent: event => events.push(event) } })
+      team: { maxMessages: 1, mailboxOverflow: 'reject', onEvent: event => events.push(event) } })
     await team.spawn({ name: 'w', task: 'task' })
     await expect(team.spawn({ name: 'setup-failure', task: 'over mailbox capacity' })).rejects.toThrow()
     expect(timeline(events).some(event => event.kind === 'spawn-failed' && event.member === 'setup-failure')).toBe(true)
@@ -198,7 +198,7 @@ describe('host team timeline and snapshots', () => {
     const adapter = new GatedTeam()
     adapter.gates.get('w')!.resolve()
     const team = create(adapter, { autoLeadCoordination: false,
-      team: { maxMessages: 1, onEvent: event => events.push(event) } })
+      team: { maxMessages: 1, mailboxOverflow: 'reject', onEvent: event => events.push(event) } })
     await team.spawn({ name: 'w', task: 'task' })
     await team.awaitWorker('w')
     expect(timeline(events).filter(event => event.kind === 'notice-delivered')).toMatchObject([

@@ -1,5 +1,6 @@
 /** Codex-style dynamic worker creation and delegation over AgentTeam. */
 import { guardManagedCoordination } from './managed-guards.ts'
+import { evictRetainedWorkers } from './managed-retention.ts'
 import type { TeamSnapshot } from './team-timeline.ts'
 import { recordTeamTimeline } from './team-observation-internal.ts'
 import { createManagedLeadSession } from './managed-lead-session.ts'
@@ -41,7 +42,7 @@ import { memberName, positiveInteger } from './managed-validation.ts'
 import { mergeTools } from './managed-tool-input.ts'
 import { abortable, combineSignals } from './managed-cancellation.ts'
 import { DEFAULT_HOOK_TIMEOUT_MS } from '../loop/turn/hooks.ts'
-import { managedMaxQueued, managedTimeouts, managedRoles, managedControlPlane } from './managed-options.ts'
+import { managedLimits, managedRoles, managedControlPlane } from './managed-options.ts'
 export { completedHistoryPrefix } from './managed-support.ts'
 /** Dynamic worker harness. Dependencies retain producer identity across address closure. */
 export class ManagedAgentTeam {
@@ -54,15 +55,7 @@ export class ManagedAgentTeam {
   private readonly modelSurface: ManagedModelSurface
   private readonly lazyTools = new ManagedLazyTools()
   private readonly sessionTeam: TeamPort
-  private readonly maxWorkers: number
-  private readonly maxQueued: number
-  private readonly maxTaskBytes: number
-  private readonly maxSpecialtyBytes: number
-  private readonly workerTimeoutMs: number
-  private readonly observerTimeoutMs: number
-  private readonly closeTimeoutMs: number
   private readonly leadCoordination: ManagedLeadCoordination
-  private readonly spawnTimeoutMs: number
   private readonly workerRuntimes = new Map<string, WorkerRuntime>()
   private readonly spawning: ManagedWorkerSpawning
   private readonly execution: ManagedWorkerExecution
@@ -77,28 +70,17 @@ export class ManagedAgentTeam {
   private readonly lifecycle = new AbortController()
   private readonly closingWorkers = new Set<Promise<ManagedAgentWorkerStatus>>()
   private disposeTask: Promise<void> | undefined
-  private readonly maxDependencyReportBytes: number
   private readonly unguardWake: () => void
   private readonly settlements: ManagedSettlements
   private joining = false
   private finishingSignal: AbortSignal | undefined // Suppress aborted settlement wakes during cleanup.
   private invocation: { signal: AbortSignal | undefined; workers: Set<WorkerRuntime> } | undefined
   private readonly roles: Map<string, ManagedAgentRole>
+  private readonly limits: ReturnType<typeof managedLimits>
   constructor(private readonly options: ManagedAgentTeamOptions) {
-    this.maxWorkers = positiveInteger(options.maxWorkers ?? 7, 'maxWorkers')
-    this.maxQueued = managedMaxQueued(options, this.maxWorkers)
-    this.maxTaskBytes = positiveInteger(options.maxTaskBytes ?? 64 * 1024, 'maxTaskBytes')
-    this.maxSpecialtyBytes = positiveInteger(options.maxSpecialtyBytes ?? 8 * 1024, 'maxSpecialtyBytes')
-    const timeouts = managedTimeouts(options)
-    this.workerTimeoutMs = timeouts.workerTimeoutMs
-    this.observerTimeoutMs = timeouts.observerTimeoutMs
-    this.closeTimeoutMs = timeouts.closeTimeoutMs
-    this.spawnTimeoutMs = timeouts.spawnTimeoutMs
-    this.maxDependencyReportBytes = positiveInteger(options.maxDependencyReportBytes ?? 8 * 1024,
-      'maxDependencyReportBytes')
-    if (this.maxDependencyReportBytes < 4) throw new TypeError('maxDependencyReportBytes must be at least 4')
+    this.limits = managedLimits(options)
     this.roles = managedRoles(options)
-    this.team = managedControlPlane(options, this.maxWorkers)
+    this.team = managedControlPlane(options, this.limits.maxWorkers)
     this.leadName = memberName(options.leadName ?? options.lead.id)
     this.progress = this.createProgress(options)
     this.modelInput = this.createModelInput()
@@ -127,22 +109,27 @@ export class ManagedAgentTeam {
     })
     this.execution = new ManagedWorkerExecution({
       options, team: this.team, signal: this.lifecycle.signal, workerRuntimes: this.workerRuntimes,
-      leadName: this.leadName, workerTimeoutMs: this.workerTimeoutMs, observerTimeoutMs: this.observerTimeoutMs,
-      spawnTimeoutMs: this.spawnTimeoutMs, maxDependencyReportBytes: this.maxDependencyReportBytes,
+      leadName: this.leadName, workerTimeoutMs: this.limits.workerTimeoutMs,
+      observerTimeoutMs: this.limits.observerTimeoutMs,
+      spawnTimeoutMs: this.limits.spawnTimeoutMs, maxDependencyReportBytes: this.limits.maxDependencyReportBytes,
       notifyLead: runtime => this.settlements.notify(runtime),
       releaseDependents: runtime => this.releaseDependents(runtime),
     })
     this.spawning = new ManagedWorkerSpawning({
       options, team: this.team, signal: this.lifecycle.signal, workerRuntimes: this.workerRuntimes,
       sessionTeam: this.sessionTeam, collaboration: this.collaboration,
-      workerBusy: runtime => this.workerBusy(runtime), accepted: () => this.lazyTools.disclose(),
-      preparing: this.preparing, roles: this.roles, maxWorkers: this.maxWorkers, maxQueued: this.maxQueued,
-      maxTaskBytes: this.maxTaskBytes, maxSpecialtyBytes: this.maxSpecialtyBytes,
-      spawnTimeoutMs: this.spawnTimeoutMs, maxDependencyReportBytes: this.maxDependencyReportBytes,
+      workerBusy: runtime => this.workerBusy(runtime), accepted: () => this.accepted(),
+      preparing: this.preparing, roles: this.roles, ...this.limits,
       leadName: this.leadName, execution: this.execution, scheduling: this.scheduling, lead: () => this.lead,
     })
     this.lead = this.createLeadSession(options)
     this.unguardWake = this.guardCoordination()
+  }
+  private accepted(): void {
+    this.lazyTools.disclose()
+    evictRetainedWorkers({ team: this.team, leadName: this.leadName, limit: this.limits.maxRetainedWorkers,
+      workers: this.workerRuntimes, remove: name => this.removeWorker(name),
+      evictable: runtime => !runtime.closing && !this.settlements.isPending(runtime) && !this.workerBusy(runtime) })
   }
   private guardCoordination(): () => void { // Followups and peer waits respect admission and queue state.
     return guardManagedCoordination(this.team, this.leadName, target => this.admitFollowup(target),
@@ -164,7 +151,7 @@ export class ManagedAgentTeam {
   private createModelInput(): ManagedModelInput {
     const options = this.options
     return new ManagedModelInput({
-      team: this.team, signal: this.lifecycle.signal, timeoutMs: this.workerTimeoutMs,
+      team: this.team, signal: this.lifecycle.signal, timeoutMs: this.limits.workerTimeoutMs,
       maxPendingInputs: positiveInteger(options.maxPendingInputs ?? 64, 'maxPendingInputs'),
       worker: name => this.workerRuntimes.get(name),
       run: (runtime, signal) => this.execution.runInput(runtime, signal),
@@ -187,7 +174,7 @@ export class ManagedAgentTeam {
     return !options.collaboration ? undefined
       : new ManagedTeamCollaboration(options.collaboration === true ? {} : options.collaboration, {
         team: this.team, basePort, lead: this.leadName, signal: this.lifecycle.signal,
-        workerTimeoutMs: this.workerTimeoutMs,
+        workerTimeoutMs: this.limits.workerTimeoutMs,
         leadHookTimeoutMs: options.leadSessionOptions?.runtimeLimits?.hookTimeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS,
         redirect: (sender, target, message) => this.modelInput.enqueue(sender, target, message, true),
         joinMembers: signal => this.joinMembers(signal),
@@ -242,7 +229,8 @@ export class ManagedAgentTeam {
     if (runtime === undefined || this.workerBusy(runtime)) return
     this.spawning.drainQueue()
     const busy = this.spawning.busy
-    if (busy >= this.maxWorkers) throw new Error(`managed agent team reached its ${this.maxWorkers}-worker limit`)
+    const max = this.limits.maxWorkers
+    if (busy >= max) throw new Error(`managed agent team reached its ${max}-worker limit`)
     this.scheduling.checkWriteScopes(runtime.request, [])
     this.invocation?.workers.add(runtime)
   }
@@ -346,7 +334,7 @@ export class ManagedAgentTeam {
   }
   private closeAndReport(runtime: WorkerRuntime, reason: unknown): Promise<ManagedAgentWorkerStatus> {
     const task = closeManagedWorker(runtime, reason, {
-      team: this.team, scheduling: this.scheduling, closeTimeoutMs: this.closeTimeoutMs,
+      team: this.team, scheduling: this.scheduling, closeTimeoutMs: this.limits.closeTimeoutMs,
       workerRuntimes: this.workerRuntimes,
     }).then(async previous => {
       this.spawning.drainQueue()
@@ -386,8 +374,8 @@ export class ManagedAgentTeam {
     return managedTools({
       options: this.options, team: this.team, leadName: this.leadName, lazyTools: this.lazyTools,
       spawning: this.spawning, settlements: this.settlements, roles: this.roles,
-      maxWorkers: this.maxWorkers, maxQueued: this.maxQueued, spawnTimeoutMs: this.spawnTimeoutMs,
-      workerTimeoutMs: this.workerTimeoutMs, workers: this.workerRuntimes, owner: () => this.invocation?.workers,
+      maxWorkers: this.limits.maxWorkers, maxQueued: this.limits.maxQueued, spawnTimeoutMs: this.limits.spawnTimeoutMs,
+      workerTimeoutMs: this.limits.workerTimeoutMs, workers: this.workerRuntimes, owner: () => this.invocation?.workers,
       signal: () => combineSignals(this.lifecycle.signal, this.invocation?.signal),
       spawn: (request, signal) => this.spawn(request, signal), progress: this.progress,
       busy: name => this.modelInput.outstanding().some(job => job.name === name),

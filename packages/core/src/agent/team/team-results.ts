@@ -7,6 +7,9 @@ export function statusOnly(member: AgentTeamMember): Omit<AgentTeamMember, 'outc
   return metadata
 }
 
+/** Closed-member results kept for late retrieval. */
+export const MAX_ARCHIVED = 256
+
 export class TeamResults {
   private readonly delivered = new Map<string, Map<string, AgentMemberOutcome>>()
 
@@ -68,7 +71,16 @@ export class TeamResults {
 
   private readonly archived = new Map<string, AgentTeamMember>()
 
-  archive(member: AgentTeamMember): void { this.archived.set(member.name, { ...member, status: 'idle' }) }
+  /** Closed members stay retrievable, oldest first out past a fixed bound. */
+  archive(member: AgentTeamMember): void {
+    this.archived.delete(member.name)
+    this.archived.set(member.name, { ...member, status: 'idle' })
+    for (const name of this.archived.keys()) {
+      if (this.archived.size <= MAX_ARCHIVED) break
+      this.archived.delete(name)
+      for (const delivered of this.delivered.values()) delivered.delete(name)
+    }
+  }
   forget(name: string): void { this.archived.delete(name) }
   retained(name: string): AgentTeamMember | undefined { return this.archived.get(name) }
   select(members: readonly AgentTeamMember[], targets: readonly string[]): readonly AgentTeamMember[] {
