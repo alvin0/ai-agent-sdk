@@ -828,6 +828,10 @@ describe('audit re-review regressions', () => {
     expect(results.takeReleased('lead', ['b']).size).toBe(0)
     expect(results.takeReleased('lead', ['a']).get('a')).toBe(outcome)
     expect(results.takeReleased('lead', ['a']).size).toBe(0)
+    const peer = results.capture('peer', [{ name: 'a', status: 'idle', outcome } as never], ['a'])
+    peer.release()
+    results.archive({ name: 'peer', status: 'idle' } as never)
+    expect(results.takeReleased('peer', ['a']).size).toBe(0)
   })
 
   it('wakes an idle lead for a closed lead-driven worker while only host-driven work runs', async () => {
