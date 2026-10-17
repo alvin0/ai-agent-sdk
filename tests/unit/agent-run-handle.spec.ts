@@ -238,6 +238,38 @@ describe('agent run handle and usage contract', () => {
     expect(response.report.operationCounts['user-input']).toMatchObject({ total: 1, success: 1, unknown: 0 })
   })
 
+  it('observes failed tool operations with their tool error message', async () => {
+    const state = registryFor([
+      [
+        ...toolRound().slice(0, -1),
+        { type: 'usage', usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 } },
+        { type: 'finish', reason: { kind: 'tool-calls' } },
+      ],
+      textRound('done', { inputTokens: 3, outputTokens: 1, totalTokens: 4 }),
+    ])
+    const lookup = defineTool({
+      name: 'lookup', description: 'Lookup.', parameters: { type: 'object' },
+      execute: () => { throw new Error('lookup backend down') },
+    })
+    const events: ObservationEvent[] = []
+    const observation: ObservationPort = {
+      mode: 'operational',
+      openSpan: input => createCoreSpan(input),
+      capture: event => {
+        events.push(event)
+        return { eventId: event.eventId, status: 'accepted', durable: false, boundary: 'none' }
+      },
+    }
+    await defineAgent({
+      id: 'failing-tool-agent', provider: 'test', model: 'scripted', effort: 'low',
+      instructions: 'Use the lookup.', tools: [lookup], compaction: false,
+    }).createSession({ registry: state.registry, observation }).run('go')
+    const ended = events.find(event => event.name === 'sdk.tool.call' && event.phase === 'end')
+    const error = (ended?.data as { error?: { type: string; message: string } } | undefined)?.error
+    expect(error?.type).toBe('ToolError')
+    expect(error?.message).toContain('lookup backend down')
+  })
+
   it('preserves the report but fails closed when an audit terminal checkpoint is rejected', async () => {
     const state = registryFor([textRound('done', { inputTokens: 1, outputTokens: 1, totalTokens: 2 })])
     const observation: ObservationPort = {
