@@ -19,6 +19,7 @@ export interface AgentTeamMemberInput {
 }
 
 export type RuntimeAgentTeamEvent =
+  | import('../../agent/team/team-progress.ts').TeamProgressEvent
   | { readonly type: 'member-attached'; readonly member: string }
   | { readonly type: 'member-linked'; readonly member: string; readonly protocol: string }
   | { readonly type: 'message-accepted'; readonly messageId: string; readonly target: string }

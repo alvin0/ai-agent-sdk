@@ -1,0 +1,97 @@
+{
+  "collaboration": {
+    "estimatedTokens": 2156,
+    "sha256": "41534595de8c887769ee203448f28c057aef79985f76c388ee93e7e2c014061c",
+    "system": 3140,
+    "toolNames": [
+      "spawn_agent",
+      "spawn_agents",
+      "close_agent",
+      "send_input",
+      "wait_agents",
+      "get_agent_result",
+      "task_create",
+      "task_list",
+      "task_update"
+    ],
+    "tools": 5482,
+    "total": 8622
+  },
+  "eager": {
+    "estimatedTokens": 1510,
+    "sha256": "a73ca657024a3187446edcc98576e441f273d31184b55513bb821770c75fd25f",
+    "system": 2272,
+    "toolNames": [
+      "spawn_agent",
+      "spawn_agents",
+      "close_agent",
+      "send_input",
+      "wait_agents",
+      "get_agent_result"
+    ],
+    "tools": 3768,
+    "total": 6040
+  },
+  "eagerFullWorker": {
+    "estimatedTokens": 1510,
+    "sha256": "a73ca657024a3187446edcc98576e441f273d31184b55513bb821770c75fd25f",
+    "system": 2272,
+    "toolNames": [
+      "spawn_agent",
+      "spawn_agents",
+      "close_agent",
+      "send_input",
+      "wait_agents",
+      "get_agent_result"
+    ],
+    "tools": 3768,
+    "total": 6040
+  },
+  "fullWorker": {
+    "estimatedTokens": 676,
+    "sha256": "36fe0d31ff7c25fc18882ebe0e138d127e5dc18572eaf4d21a86007e01dccbda",
+    "system": 842,
+    "toolNames": [
+      "spawn_agent",
+      "spawn_agents"
+    ],
+    "tools": 1861,
+    "total": 2703
+  },
+  "lean": {
+    "estimatedTokens": 676,
+    "sha256": "36fe0d31ff7c25fc18882ebe0e138d127e5dc18572eaf4d21a86007e01dccbda",
+    "system": 842,
+    "toolNames": [
+      "spawn_agent",
+      "spawn_agents"
+    ],
+    "tools": 1861,
+    "total": 2703
+  },
+  "legacy": {
+    "estimatedTokens": 2173,
+    "sha256": "84e321e67de0f30af408250664e78d85d621817442e25d88acf48596993bfe11",
+    "system": 2633,
+    "toolNames": [
+      "spawn_agent",
+      "spawn_agents",
+      "close_agent",
+      "list_agents",
+      "get_agent_result",
+      "send_message",
+      "followup_task",
+      "wait_agents"
+    ],
+    "tools": 6058,
+    "total": 8691
+  },
+  "single": {
+    "estimatedTokens": 60,
+    "sha256": "fc9eeadd36f8f90c81aa763b332351c51463ab94b7000d66212c099234ce931a",
+    "system": 238,
+    "toolNames": [],
+    "tools": 2,
+    "total": 240
+  }
+}

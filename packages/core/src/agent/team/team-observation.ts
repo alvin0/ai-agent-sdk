@@ -1,4 +1,5 @@
 /** Projects existing ledger facts onto the team event channel without changing delivery receipts. */
+import { progressActivity } from './team-progress-internal.ts'
 import { NOOP_OBSERVATION_PORT, addUsageCounters, type ObservationEvent,
   type ObservationPort } from '../../observation/index.ts'
 import type { TurnHooks } from '../loop/events.ts'
@@ -25,6 +26,8 @@ type MemberState = { provisional?: true; view: TeamMemberSnapshot; runId?: strin
 const eventOwners = new WeakMap<ObservationEvent, TeamObservation>()
 
 export class TeamObservation {
+  private team: object = {}
+  bindProgress(team: object): void { this.team = team }
   private sequence = 0
   private readonly origin = performance.now()
   private readonly states = new Map<string, MemberState>()
@@ -139,7 +142,13 @@ export class TeamObservation {
         this.observe(member, event)
         return port.checkpoint!(event, signal)
       } },
-    }, hooks: { ...options.hooks, onTurnEnd: async context => {
+    }, hooks: { ...options.hooks,
+      checkpoint: async context => {
+        if (context.kind === 'before-tool-dispatch') progressActivity(this.team, {
+          kind: 'tool', member, name: context.call.toolName, args: context.call.rawArguments,
+        })
+        return options.hooks?.checkpoint?.(context)
+      }, onTurnEnd: async context => {
       if (context.outcome.reason.kind === 'budget-exhausted') this.record({ kind: 'budget', member,
         budget: context.outcome.reason.budget, action: 'exhausted' })
       return options.hooks?.onTurnEnd?.(context)
@@ -197,6 +206,7 @@ export class TeamObservation {
         ...event.correlation.conversationId === undefined ? {} : { conversationId: event.correlation.conversationId } })
     } else if (event.phase === 'end' && this.active.delete(runId)) {
       const usage = event.data.usage as unknown as RunUsageReport
+      progressActivity(this.team, { kind: 'run-end', member, status: String(event.data.status) })
       const status = event.data.status as 'success' | 'error' | 'aborted' | 'rejected' | 'unknown'
       const durationMs = typeof event.data.durationMs === 'number' ? event.data.durationMs : 0
       if (sameConversation(state, event)) state.lastUsage = usage

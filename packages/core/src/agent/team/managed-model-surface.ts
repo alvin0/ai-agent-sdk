@@ -6,7 +6,6 @@ import { defineTool, type ToolDefinition } from '../tool/definition.ts'
 import { asJson, memberName, nonEmpty, object, parseWaitTool } from './common.ts'
 import { renderModelResult } from './managed-model-tools.ts'
 import { modelResults, type TeamResults } from './team-results.ts'
-import type { ToolCatalog } from '../tool/registry.ts'
 
 interface SurfaceHost {
   readonly team: AgentTeam
@@ -15,7 +14,6 @@ interface SurfaceHost {
   peerSend?(sender: string, target: string, message: string,
     options: { signal: AbortSignal; interrupt: boolean }): Promise<unknown>
   worker(name: string): WorkerRuntime | undefined
-  filterCatalog(sender: string, catalog: ToolCatalog): ToolCatalog
 }
 
 /** A session-facing adapter, leaving AgentTeam's public tools and host hooks intact. */
@@ -26,6 +24,7 @@ export class ManagedModelSurface {
 
   constructor(private readonly host: SurfaceHost) {
     this.port = {
+      observeInvocation: (sender, signal) => this.host.team.observeInvocation(sender, signal),
       attach: (session, options = {}) => {
         this.host.team.attach(session, options)
         const addresses = new Set(this.host.team.members().map(member => member.name))
@@ -35,7 +34,6 @@ export class ManagedModelSurface {
       },
       toolsFor: (sender, access) => this.toolsFor(sender, access),
       instructionsFor: name => this.instructionsFor(name),
-      filterCatalog: (sender, catalog) => this.host.filterCatalog(sender, catalog),
     }
   }
 

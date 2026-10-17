@@ -10,6 +10,7 @@ import { observeTeamSession } from './team-observation-internal.ts'
 
 export function createManagedLeadSession(options: ManagedAgentTeamOptions, control: {
   team: AgentTeam; name: string; port: TeamPort; tools: ToolCatalog; hooks: AgentSessionOptions['hooks']
+  filterCatalog(catalog: ToolCatalog): ToolCatalog
 }): AgentSession {
   return options.lead.createSession(observeTeamSession(control.team, control.name, {
     ...options.leadSessionOptions,
@@ -17,7 +18,13 @@ export function createManagedLeadSession(options: ManagedAgentTeamOptions, contr
       finalizeSteps: options.leadSessionOptions?.runtimeLimits?.finalizeSteps ?? 0 },
     ...control.hooks === undefined ? {} : { hooks: control.hooks }, registry: options.registry, tools: control.tools,
     team: {
-      team: control.port, name: control.name, role: 'lead',
+      team: {
+        attach: (session, attachment) => control.port.attach(session, attachment),
+        toolsFor: (sender, access) => control.port.toolsFor(sender, access),
+        instructionsFor: name => control.port.instructionsFor(name),
+        observeInvocation: (sender, signal) => control.port.observeInvocation?.(sender, signal),
+        filterCatalog: (_sender, catalog) => control.filterCatalog(catalog),
+      }, name: control.name, role: 'lead',
       instructions: options.modelToolSurface === 'legacy'
         ? managedLeadInstructions(options) : leanLeadInstructions(options),
       ...(options.leadDescription === undefined ? {} : { description: options.leadDescription }),

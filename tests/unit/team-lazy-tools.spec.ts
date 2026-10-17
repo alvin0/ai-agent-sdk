@@ -8,7 +8,7 @@ import { ModelAdapter, ModelRegistry, ReasoningEffortId, ToolCallId } from '../.
 import type { GenerateOptions, ResolvedModelInfo, StreamChunk } from '../../packages/core/src/index.ts'
 
 const initial = ['spawn_agent', 'spawn_agents']
-const full = [...initial, 'close_agent', 'send_input', 'wait_agents', 'get_agent_result']
+const full = [...initial, 'close_agent', 'send_input', 'wait_agents', 'get_agent_result', 'progress_updates']
 const names = (request: GenerateOptions) => request.tools?.map(tool => tool.name) ?? []
 const answer = (text: string): StreamChunk[] => [
   { type: 'text-delta', index: 0, text },

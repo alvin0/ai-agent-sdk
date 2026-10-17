@@ -22,6 +22,8 @@ export async function* streamPrompt(state: PromptProjection, handles: RunHandles
   } catch (error) {
     yield* streamFailure(state, error)
   } finally {
+    handles.managedTeam?.stopProgressUpdates('run-ended')
+    state.stopProgressNotices?.()
     activity.close()
     await cleanupPrompt({ ...state.context, project: state.project, handles })
   }

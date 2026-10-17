@@ -67,7 +67,7 @@ function defaultWorkerTools(
   const excluded = new Set<string>([
     ...Object.values(TEAM_TOOL_NAMES), ...Object.values(AGENT_CONTROL_TOOLS),
     'spawn_agent', 'spawn_agents', 'close_agent', 'send_input', 'wait_agents', 'get_agent_result',
-    'request_user_input_async', 'ask_user', ...options.leadOnlyTools ?? [],
+    'progress_updates', 'request_user_input_async', 'ask_user', ...options.leadOnlyTools ?? [],
   ])
   const inherited = [...options.lead.tools, ...toolDefinitions(options.leadSessionOptions?.tools)]
     .filter(tool => !excluded.has(tool.name) && tool.awaitsPerson !== true)

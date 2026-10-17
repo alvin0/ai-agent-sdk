@@ -56,6 +56,8 @@ export interface TeamSessionPort {
 
 /** Session-facing surface of a team control plane. */
 export interface TeamPort {
+  /** Runtime invocation lifetime, including consumer cancellation; never the shorter step signal. */
+  observeInvocation?(sender: string, signal: AbortSignal): void
   attach(session: TeamSessionPort, options?: TeamMemberAttachmentOptions): void
   toolsFor(sender: string, access?: TeamToolAccess): readonly ToolDefinition<any>[]
   instructionsFor(name: string): string
