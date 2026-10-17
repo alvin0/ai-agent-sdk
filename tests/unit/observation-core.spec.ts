@@ -392,6 +392,17 @@ describe('core observation identities and model-call handles', () => {
     expect(safeErrorRecord(hostile)).toEqual({ type: 'Error', message: 'undefined' })
   })
 
+  it('keeps plain failure records instead of rendering [object Object]', () => {
+    expect(safeErrorRecord({ type: 'ToolError', message: 'spawn rejected', code: 'INVALID_ARGS' }))
+      .toEqual({ type: 'ToolError', message: 'spawn rejected', code: 'INVALID_ARGS' })
+    expect(safeErrorRecord({ message: 'plain' })).toEqual({ type: 'object', message: 'plain' })
+    const getter = vi.fn(() => 'secret')
+    const hostile = Object.defineProperty({ message: 'visible' }, 'type', { get: getter })
+    expect(safeErrorRecord(hostile)).toEqual({ type: 'object', message: 'visible' })
+    expect(getter).not.toHaveBeenCalled()
+    expect(safeErrorRecord({ detail: 1 })).toEqual({ type: 'object', message: '[object Object]' })
+  })
+
   it('normalizes foreign failure data without invoking outer or inner accessors', () => {
     const outerGetter = vi.fn(() => 'RATE_LIMIT')
     const innerGetter = vi.fn(() => 'RATE_LIMIT')

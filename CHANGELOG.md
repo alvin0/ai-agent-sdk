@@ -15,6 +15,11 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Fixed
 
+- `safeErrorRecord` now keeps the `type`/`name`, `message`, `code`, `retryable` and `status`
+  data fields of plain failure records (for example tool error results), so tool-call
+  operation errors no longer appear as `{ type: 'object', message: '[object Object]' }`.
+  Accessors are never invoked.
+
 - Add host `progressUpdates.stallFloorMs` (default 300,000 ms); stall after
   `max(stalledIntervals * intervalMs, stallFloorMs)` without lead/selected-worker activity,
   including a hung lead with no busy workers. `stalled` permits another request in the same
