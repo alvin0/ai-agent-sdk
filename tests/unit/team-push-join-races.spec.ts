@@ -141,7 +141,8 @@ describe('managed settlement handoff races', () => {
     const host = { signal: new AbortController().signal, workers, leadName: 'lead', options: {},
       invocationSignal: () => undefined, joining: () => true,
       lead: () => ({ get isRunning() { return running }, whenIdle: async () => { running = false } }),
-      team: { recordTimeline: vi.fn(), subscribe: () => () => {}, releaseSlot: () => {}, wake: () => {}, messageByteLimit: 65536,
+      team: { recordTimeline: vi.fn(), subscribe: () => () => {}, releaseSlot: () => {}, wake: () => {},
+        members: () => [], messageByteLimit: 65536,
         takeResults: (_: string, names: string[]) => {
           received.push(names)
           return names.map(worker => ({ worker, status: 'completed', text: 'finding' }))

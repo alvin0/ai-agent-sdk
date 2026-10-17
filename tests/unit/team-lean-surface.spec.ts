@@ -657,6 +657,28 @@ describe('managed settlement delivery audit regressions', () => {
     } finally { await team.dispose(); await team.team.dispose() }
   })
 
+  it('cancels busy owned workers when the lead run rejects instead of waking the lead later', async () => {
+    const { adapter, team } = fixture({ leadSessionOptions: { hooks: {
+      onTurnEnd: () => { throw new Error('host hook failed') } } } })
+    let worker = ''
+    adapter.leadReply = async () => {
+      worker = (await call(team, 'spawn_agent', { task: 'first' }) as { target: string }).target
+      await adapter.started(1)
+      return text('lead-done')
+    }
+    const leadRequests = () => adapter.requests.filter(request =>
+      request.tools?.some(tool => tool.name === 'spawn_agent')).length
+    try {
+      await expect(team.run('go')).rejects.toThrow('host hook failed')
+      const before = leadRequests()
+      expect(team.workers().find(member => member.name === worker)?.status).not.toBe('running')
+      adapter.finish(1, 'late-result')
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(leadRequests()).toBe(before)
+      expect(team.lead.isRunning).toBe(false)
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
   it('returns results claimed by a cancelled wait to later delivery', async () => {
     const { adapter, team } = fixture()
     try {

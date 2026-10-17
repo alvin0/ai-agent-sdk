@@ -257,6 +257,7 @@ export class ManagedAgentTeam {
     const owned = { signal: invocation.signal, workers: new Set<WorkerRuntime>() }
     const signal = combineSignals(invocation.signal, this.lifecycle.signal)
     let progressOwner: ReturnType<ManagedProgress['beginManagedInvocation']> | null = null
+    let failed = false, failure: unknown
     try {
       this.invocation = owned
       progressOwner = this.progress.beginManagedInvocation(signal)
@@ -273,9 +274,16 @@ export class ManagedAgentTeam {
       this.settlements.throwLeadFailure()
       this.finalBoundary('team-joined')
       return this.settlements.latestResponse ?? response
+    } catch (error: unknown) {
+      failed = true
+      failure = error
+      throw error
     } finally {
       this.invocation = undefined
-      this.finishingSignal = signal
+      // A failed run owes no synthesis: its busy workers must not outlive it and wake the lead later.
+      const finishing = signal.aborted || !failed ? signal
+        : AbortSignal.abort(new Error('managed lead run failed', { cause: failure }))
+      this.finishingSignal = finishing
       this.joining = false
       try {
         this.progress.finishInvocation(signal.aborted ? 'aborted' : 'run-ended', progressOwner)
@@ -283,8 +291,11 @@ export class ManagedAgentTeam {
       if (signal.aborted) {
         await Promise.allSettled([this.team.cancel(this.leadName, signal.reason),
           ...[...owned.workers].map(runtime => this.closeWorker(runtime.request.name, signal.reason))])
+      } else if (failed) {
+        await Promise.allSettled([...owned.workers].filter(runtime => this.workerBusy(runtime))
+          .map(runtime => this.closeWorker(runtime.request.name, finishing.reason)))
       }
-      if (this.finishingSignal === signal) this.finishingSignal = undefined
+      if (this.finishingSignal === finishing) this.finishingSignal = undefined
     }
   }
   private finalBoundary(kind: 'lead-returned' | 'team-joined'): void {
