@@ -84,7 +84,12 @@ export async function startBatchWorker(name: string, callbacks: BatchSpawnCallba
 }): Promise<BatchWorkerView> {
   try {
     const worker = await host.start()
-    const runtime = host.worker(name)!
+    const runtime = host.worker(name)
+    // Closed (and removed) before start returned: its slot settles as cancelled, never left pending.
+    if (runtime === undefined) {
+      callbacks.settled(name, 'cancelled', false)
+      return batchWorkerView(worker)
+    }
     void runtime.settled.then(() => {
       const completed = runtime.evidence.status === 'completed'
       let status: 'completed' | 'cancelled' | 'failed' = 'failed'

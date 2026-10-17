@@ -679,6 +679,32 @@ describe('managed settlement delivery audit regressions', () => {
     } finally { await team.dispose(); await team.team.dispose() }
   })
 
+  it('does not wake a yielded lead for a closed worker while other workers still run', async () => {
+    const { adapter, team } = fixture()
+    let round = 0
+    adapter.leadReply = async () => {
+      round++
+      if (round === 1) {
+        await call(team, 'spawn_agent', { task: 'a' })
+        await call(team, 'spawn_agent', { task: 'b' })
+        await adapter.started(2)
+      }
+      return text(`lead-${round}`)
+    }
+    try {
+      const running = team.run('go')
+      await vi.waitFor(() => expect(team.lead.lastOutcome()?.yielded).toBe(true))
+      await vi.waitFor(() => expect(team.lead.isRunning).toBe(false))
+      const leadTurns = round
+      await call(team, 'close_agent', { target: 'worker_1' })
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(round).toBe(leadTurns)
+      adapter.finish(2, 'b-result')
+      await running
+      expect(round).toBe(leadTurns + 1)
+    } finally { await team.dispose(); await team.team.dispose() }
+  })
+
   it('returns results claimed by a cancelled wait to later delivery', async () => {
     const { adapter, team } = fixture()
     try {
@@ -768,5 +794,18 @@ describe('long-lived managed team retention', () => {
       await team.dispose()
     }
     expect(() => new AgentTeam({ mailboxOverflow: 'drop' as never })).toThrow('mailboxOverflow')
+  })
+})
+
+describe('batch worker start races', () => {
+  it('settles a worker closed before its start returned as cancelled', async () => {
+    const { startBatchWorker } = await import('../../packages/core/src/agent/team/managed-batch-spawn.ts')
+    const settled = vi.fn()
+    const view = await startBatchWorker('gone', { settled } as never, {
+      start: async () => ({ name: 'gone', status: 'running' }) as never,
+      worker: () => undefined, cancelled: () => false, drain: () => {},
+    })
+    expect(settled).toHaveBeenCalledWith('gone', 'cancelled', false)
+    expect(JSON.stringify(view)).not.toContain('Cannot read')
   })
 })

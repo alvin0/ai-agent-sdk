@@ -340,7 +340,10 @@ export class ManagedAgentTeam {
     }).then(async previous => {
       this.spawning.drainQueue()
       if (previous === 'pending' || previous === 'running') this.settlements.pending(runtime)
-      if (await this.settlements.flushReports()) this.settlements.wakeForReport(runtime)
+      // A close is not news while other work is outstanding; the next settlement wake carries its evidence.
+      const others = this.preparing.size > 0
+        || [...this.workerRuntimes.values()].some(other => other !== runtime && this.workerBusy(other))
+      if (await this.settlements.flushReports() && !others) this.settlements.wakeForReport(runtime)
       return previous
     }).finally(() => { this.closingWorkers.delete(task) })
     this.closingWorkers.add(task)
