@@ -1,12 +1,12 @@
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, relative, resolve } from 'node:path'
-import { defineTool } from '@alvin0/ai-agent-sdk-core/agent'
+import { defineTool, validateJsonFileContent, type JsonWriteGuardOptions } from '@alvin0/ai-agent-sdk-core/agent'
 import type { DiffLine } from '../wire'
 import { json, card, requireString, optionalBoolean } from './values'
 import { inRoot } from './paths'
 import { currentText, replaceOnce, diffLines } from './text'
 
-export function writeFileTool(root: string) {
+export function writeFileTool(root: string, options: JsonWriteGuardOptions = {}) {
   return defineTool({
     name: 'write_file',
     description: 'Create a file or replace its entire content. Parent directories are created.',
@@ -19,8 +19,7 @@ export function writeFileTool(root: string) {
       required: ['path', 'content'],
       additionalProperties: false,
     },
-    // An empty file is a legitimate thing to write, so the content is read
-    // directly rather than through `requireString`.
+    // Empty non-JSON files are legitimate; the JSON guard runs on full content.
     parse: (raw) => {
       const content = (raw as { content?: unknown }).content
       if (typeof content !== 'string') throw new Error('"content" must be a string')
@@ -28,6 +27,7 @@ export function writeFileTool(root: string) {
     },
     execute: async ({ path, content }) => {
       const absolute = inRoot(root, path)
+      validateJsonFileContent(path, content, options)
       const before = await currentText(absolute)
       const existed = before !== '' || await stat(absolute).then(() => true, () => false)
       await mkdir(dirname(absolute), { recursive: true })
@@ -54,7 +54,7 @@ export function writeFileTool(root: string) {
   })
 }
 
-export function editFileTool(root: string) {
+export function editFileTool(root: string, options: JsonWriteGuardOptions = {}) {
   return defineTool({
     name: 'edit_file',
     description: 'Replace an exact string in an existing file. Fails when the string is absent or ambiguous.',
@@ -83,6 +83,7 @@ export function editFileTool(root: string) {
       const absolute = inRoot(root, path)
       const before = await readFile(absolute, 'utf8')
       const { content, count } = replaceOnce(before, oldText, newText, replaceAll)
+      validateJsonFileContent(path, content, options)
       await writeFile(absolute, content, 'utf8')
       return json({ path: relative(root, absolute), replaced: count, lines: diffLines(before, content) })
     },

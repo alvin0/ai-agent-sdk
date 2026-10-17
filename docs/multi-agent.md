@@ -4,6 +4,9 @@ Managed teams let a lead model delegate bounded work and synthesize worker resul
 The SDK supplies sessions, scheduling, tools and lifecycle hooks. The host still owns
 application tools, credentials, authorization, storage, workspace isolation and UI.
 
+The existing workspace file tools reject invalid `.json` writes before changing a file.
+See [workspace JSON writes](workspace-json-writes.md) for the portable core hook and host opt-out.
+
 Start with the [offline example](../samples/multi-agent-offline/README.md), which runs
 both modes without credentials. The [chat sample](../samples/chat-agents/README.md)
 shows streaming, approvals and a conversation-owned team. See the

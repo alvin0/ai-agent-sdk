@@ -488,6 +488,7 @@
           "InteractiveApprovalBrokerOptions",
           "InteractiveUserInputBroker",
           "InteractiveUserInputBrokerOptions",
+          "JsonWriteGuardOptions",
           "LinkAgentOptions",
           "LinkedAgentResult",
           "LinkedAgentSendInput",
@@ -697,12 +698,13 @@
           "toolFailure",
           "truncateMiddleToTokens",
           "validateCandidate",
+          "validateJsonFileContent",
           "validateSkillId",
           "validateSkillResourcePath",
           "validateSkillSource",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "91e67a69af104c169205797d7e6d5da233dcddd61e177a0502616ac1d5d3770f"
+        "declarationSha256": "807cd8bb64f6aad8b403880ecb01084bdbd70b3edc7dbc28607b0fa4816142b7"
       },
       "./memory": {
         "exports": [
@@ -879,6 +881,7 @@
           "InteractiveApprovalBrokerOptions",
           "JsonObject",
           "JsonValue",
+          "JsonWriteGuardOptions",
           "MemorySpillStoreLimits",
           "PostToolDecision",
           "PreToolDecision",
@@ -949,9 +952,10 @@
           "toolErrorDisposition",
           "toolFailure",
           "truncateMiddleToTokens",
+          "validateJsonFileContent",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "ed1a0ae1c23ca3a2583bc7ff5e9a6a5ec53c06d9c6ceaf4807ae1249178a5f23"
+        "declarationSha256": "129384fbfd610733d6b5b2c951919f1cd3c4de78b98fdb2146a351c919a58a59"
       },
       "./observability": {
         "exports": [

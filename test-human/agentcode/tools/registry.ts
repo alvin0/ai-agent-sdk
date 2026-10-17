@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
-import { defineTool, ToolRegistry } from '@alvin0/ai-agent-sdk-core/agent'
+import { defineTool, ToolRegistry, validateJsonFileContent } from '@alvin0/ai-agent-sdk-core/agent'
 import { ensureAgentCodeWorkspace, resolveExistingAgentCodePath, resolveWritableAgentCodePath } from '../workspace.ts'
 import { createWindowsCommandProcessCleanup } from '../process-cleanup.ts'
 import { DEFAULT_MAX_DIRECTORIES, DEFAULT_MAX_ENTRIES, DEFAULT_MAX_WRITE_BYTES, MAX_COMMAND_OUTPUT_CHARS, MAX_GREP_CHARS, MAX_READ_CHARS, SEARCH_EXCLUDES, type AgentCodeResolvedCommand, type AgentCodeToolRegistryOptions } from './types.ts'
@@ -138,11 +138,12 @@ export function createAgentCodeToolRegistry(
       }
     },
     async execute({ path, content, overwrite }) {
+      const bytes = Buffer.byteLength(content)
+      if (bytes > maxWriteBytes) throw new Error(`write_file content exceeds the ${maxWriteBytes}-byte limit`)
+      validateJsonFileContent(path, content, options)
       const target = await resolveWritableAgentCodePath(root, path)
       const relativePath = portableRelative(root, target)
       assertWriteAllowed(options, relativePath, 'write')
-      const bytes = Buffer.byteLength(content)
-      if (bytes > maxWriteBytes) throw new Error(`write_file content exceeds the ${maxWriteBytes}-byte limit`)
       await writeFile(target, content, { encoding: 'utf8', flag: overwrite ? 'w' : 'wx' })
       return { path: relativePath, bytes, overwritten: overwrite }
     },
@@ -183,6 +184,7 @@ export function createAgentCodeToolRegistry(
       if (Buffer.byteLength(updated) > maxWriteBytes) {
         throw new Error(`replace_in_file result exceeds the ${maxWriteBytes}-byte limit`)
       }
+      validateJsonFileContent(path, updated, options)
       await writeFile(target, updated, 'utf8')
       return { path: relativePath, replacements: replaceAll ? occurrences : 1 }
     },

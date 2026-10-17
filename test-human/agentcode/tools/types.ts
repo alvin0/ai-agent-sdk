@@ -1,4 +1,5 @@
 import type { ChildProcess } from 'node:child_process'
+import type { JsonWriteGuardOptions } from '@alvin0/ai-agent-sdk-core/agent'
 import type {
   AgentCodeCommandProcessCleanup,
   AgentCodeProcessCleanupResult,
@@ -21,7 +22,7 @@ export const SEARCH_EXCLUDES = [
   '!yarn.lock', '!bun.lock', '!bun.lockb', '!*.min.*',
 ]
 
-export interface AgentCodeToolRegistryOptions {
+export interface AgentCodeToolRegistryOptions extends JsonWriteGuardOptions {
   readonly commandProcessCleanup?: AgentCodeCommandProcessCleanup | false
   readonly maxWriteBytes?: number
   readonly canWrite?: (relativePath: string, operation: 'write' | 'replace') => boolean

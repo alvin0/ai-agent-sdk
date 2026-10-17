@@ -6,6 +6,12 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ### Changed
 
+- Workspace `write_file`, `edit_file` and agentcode `replace_in_file` now reject invalid
+  `.json` content before writing (case-insensitive; empty files are invalid). Valid bytes are
+  preserved, including an optional leading UTF-8 BOM. Hosts can set `validateJsonWrites: false`
+  on the chat sample tools, agentcode registry or benchmark workspace. The portable core
+  `validateJsonFileContent` hook supports custom host tools; see [workspace JSON writes](docs/workspace-json-writes.md).
+
 - Managed lead guidance now weighs worker context/startup/synthesis cost: do small or sequential
   work directly, use one worker for a worthwhile side task or fresh-context check, and fan out for
   many independent items when accuracy or time benefits justify the cost. Once justified, prefer
