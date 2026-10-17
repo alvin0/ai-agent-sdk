@@ -596,7 +596,7 @@ describe('what the app actually configures for a single agent', () => {
     expect(second).not.toContain('Re-run more narrowly')
   })
 
-  it('keeps a final report after the sample consumes all work steps', async () => {
+  it('runs past the old 32-step budget to its own final report', async () => {
     const { requests, events } = await appRun([
       ...Array.from({ length: 32 }, (_, index) => call(`read-${index}`, 'read_file', { path: `source-${index}.md` })),
       text('Report: sources compared; pending items remain unverified.'),
@@ -607,7 +607,8 @@ describe('what the app actually configures for a single agent', () => {
     const end = events.find(event => event.type === 'agent-end')
     expect(end?.type === 'agent-end' && end.outcome.text).toContain('Report: sources compared')
     expect(requests).toHaveLength(33)
-    expect(requests.at(-1)?.toolChoice).toBe('none')
+    // No step ceiling: the report is the model's own answer, not a forced tools-off finalizer.
+    expect(requests.at(-1)?.toolChoice).not.toBe('none')
     expect(requests[0]?.system).toContain('reconcile the plan')
   })
 

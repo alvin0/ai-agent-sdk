@@ -151,7 +151,8 @@ describe('declarative agent definitions', () => {
 
     expect(agent).toMatchObject({
       id: 'ada', name: 'ada', provider: 'codex', model: 'gpt-5.6-luna',
-      mode: 'basic', maxTurns: 16, maxToolCalls: 64, commentary: 'auto',
+      // Step and tool-call caps are opt-in: a prompt runs to completion unless a number is set.
+      mode: 'basic', maxTurns: 'auto', maxToolCalls: 'auto', commentary: 'auto',
     })
     // No effort unless the author asked for one. An invented default is
     // rejected outright by a model that declares no ladder, and silently
@@ -217,7 +218,7 @@ describe('declarative agent definitions', () => {
       id: 'reviewer', name: 'Reviewer', instructions: 'Review carefully.', provider: 'test', model: 'small',
       skillIds: ['typescript-review'],
     })
-    expect(base).toMatchObject({ id: 'ada', mode: 'basic', maxTurns: 16 })
+    expect(base).toMatchObject({ id: 'ada', mode: 'basic', maxTurns: 'auto' })
     expect(base.contextWindow).toBeUndefined()
     expect(base.inputModalities).toBeUndefined()
   })

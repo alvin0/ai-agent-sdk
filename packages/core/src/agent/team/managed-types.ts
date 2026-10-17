@@ -199,7 +199,7 @@ export interface ManagedAgentTeamOptions {
    * Defaults to 256.
    */
   readonly maxRetainedWorkers?: number
-  /** Active run deadline, excluding queued dependencies and setup. Defaults to 10 minutes. */
+  /** Opt-in active run deadline, excluding queued dependencies and setup. None by default. */
   readonly workerTimeoutMs?: number
   /** Maximum wait per worker event observer callback. Defaults to 1 second. */
   readonly observerTimeoutMs?: number

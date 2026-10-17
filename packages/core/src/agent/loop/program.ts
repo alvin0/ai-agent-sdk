@@ -29,7 +29,7 @@ export { validPrograms, describe, refuse, settleWithin } from './program-support
 /** What every slot of one step shares. */
 export interface StepRuntime {
   readonly admission: ToolAdmission
-  readonly maxDurationMs: number
+  readonly maxDurationMs: number | undefined
   readonly teardownTimeoutMs: number
   readonly maxResultBytes: number
   readonly programs: ReadonlyMap<string, ProgramGrant>

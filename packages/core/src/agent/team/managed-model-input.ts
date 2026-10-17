@@ -7,12 +7,13 @@ import type { AgentResponse } from '../define/session.ts'
 import type { AgentTeam } from './team.ts'
 import type { WorkerRuntime } from './managed-types.ts'
 import { abortable, combineSignals } from './managed-cancellation.ts'
+import { optionalDeadline } from './common.ts'
 import { messageContent } from './common.ts'
 
 interface InputHost {
   readonly team: AgentTeam
   readonly signal: AbortSignal
-  readonly timeoutMs: number
+  readonly timeoutMs: number | undefined
   readonly maxPendingInputs: number
   worker(name: string): WorkerRuntime | undefined
   run(runtime: WorkerRuntime, signal: AbortSignal): Promise<AgentResponse>
@@ -70,7 +71,7 @@ export class ManagedModelInput {
       this.redirect(runtime, replacingHeld)
     }
     const controller = !interrupt && previous !== undefined ? previous.controller : new AbortController()
-    const signal = combineSignals(controller.signal, this.host.signal, AbortSignal.timeout(this.host.timeoutMs))
+    const signal = combineSignals(controller.signal, this.host.signal, optionalDeadline(this.host.timeoutMs))
     const task = { runtime, from, message, replacingHeld, controller, signal }
     this.pendingInputs++
     const settled = Promise.resolve().then(async () => {

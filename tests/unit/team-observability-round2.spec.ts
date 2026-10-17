@@ -204,7 +204,6 @@ describe('reviewed team observability boundaries', () => {
     expect(guard.used).toBe(1)
     expect(guard.limit).toBe(1)
     expect(guard.exhausted).toBe(true)
-    expect(() => guard.wake()).toThrow('after 1 synthesis wakes')
     guard.observe(1, 0)
     expect(guard.exhausted).toBe(false)
   })

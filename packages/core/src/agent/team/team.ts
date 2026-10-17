@@ -39,7 +39,7 @@ export class AgentTeam implements TeamPort {
   private readonly maxLinkedResultBytes: number
   private readonly maxMessages: number
   private readonly disposeTimeoutMs: number
-  private readonly operationTimeoutMs: number
+  private readonly operationTimeoutMs: number | undefined
   private readonly observerTimeoutMs: number
   private readonly waitTimeoutMs: number
   private readonly minWaitTimeoutMs: number

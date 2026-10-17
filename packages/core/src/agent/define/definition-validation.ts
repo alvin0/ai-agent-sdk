@@ -61,9 +61,9 @@ function validateModalities(input: AgentDefinitionInput): void {
 }
 
 function validateToolCallLimit(input: AgentDefinitionInput): void {
-  if (input.maxToolCalls !== undefined
+  if (input.maxToolCalls !== undefined && input.maxToolCalls !== 'auto'
     && (!Number.isInteger(input.maxToolCalls) || input.maxToolCalls < 1)) {
-    throw new RangeError('agent maxToolCalls must be a positive integer')
+    throw new RangeError("agent maxToolCalls must be a positive integer or 'auto'")
   }
 }
 

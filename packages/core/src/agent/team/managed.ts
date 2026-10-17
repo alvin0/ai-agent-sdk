@@ -41,7 +41,7 @@ export type {
 import { memberName, positiveInteger } from './managed-validation.ts'
 import { mergeTools } from './managed-tool-input.ts'
 import { abortable, combineSignals } from './managed-cancellation.ts'
-import { DEFAULT_HOOK_TIMEOUT_MS } from '../loop/turn/hooks.ts'
+import { hookTimeout } from '../loop/turn/hooks.ts'
 import { managedLimits, managedRoles, managedControlPlane } from './managed-options.ts'
 export { completedHistoryPrefix } from './managed-support.ts'
 /** Dynamic worker harness. Dependencies retain producer identity across address closure. */
@@ -176,7 +176,7 @@ export class ManagedAgentTeam {
       : new ManagedTeamCollaboration(options.collaboration === true ? {} : options.collaboration, {
         team: this.team, basePort, lead: this.leadName, signal: this.lifecycle.signal,
         workerTimeoutMs: this.limits.workerTimeoutMs,
-        leadHookTimeoutMs: options.leadSessionOptions?.runtimeLimits?.hookTimeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS,
+        leadHookTimeoutMs: hookTimeout(options.leadSessionOptions?.runtimeLimits?.hookTimeoutMs),
         redirect: (sender, target, message) => this.modelInput.enqueue(sender, target, message, true),
         joinMembers: signal => this.joinMembers(signal),
         initialWork: () => [...[...this.workerRuntimes.values()].filter(runtime => this.workerBusy(runtime))

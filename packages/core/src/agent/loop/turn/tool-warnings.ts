@@ -24,7 +24,8 @@ export function warnDuplicateToolIds(
 export function warnToolCycle(
   options: RunTurnOptions, projectedCycle: ReturnType<typeof repeatedSuffixCycle>, warningAt: number,
 ): void {
-    if (projectedCycle?.repetitions === warningAt) {
+    // Without a hard cycle limit by default, the reminder repeats at each multiple of its threshold.
+    if (projectedCycle !== undefined && projectedCycle.repetitions % warningAt === 0) {
       options.history.append({ kind: 'user', message: createUserMessage({
         source: { kind: 'app', producer: 'tool-loop-cycle-guard' },
         content: [{

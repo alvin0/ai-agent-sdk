@@ -24,7 +24,6 @@ import {
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_MAX_RESPONSE_CHUNKS,
   DEFAULT_REQUEST_LOGGER_TIMEOUT_MS,
-  DEFAULT_REQUEST_TIMEOUT_MS,
   resolveTransportLimits,
 } from '../../../packages/provider-http/src/transport/limits.ts'
 
@@ -42,7 +41,8 @@ function connectionOf(overrides: Partial<HttpTransportConnection> = {}): HttpTra
 describe('resolveTransportLimits (Requirement 13.2)', () => {
   it('defaults every bound a connection leaves undeclared', () => {
     expect(resolveTransportLimits(connectionOf())).toEqual({
-      requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
+      // Opt-in: no end-to-end deadline unless the connection sets one.
+      requestTimeoutMs: Infinity,
       maxRequestBytes: DEFAULT_MAX_REQUEST_BYTES,
       maxResponseBytes: DEFAULT_MAX_RESPONSE_BYTES,
       maxResponseChunks: DEFAULT_MAX_RESPONSE_CHUNKS,

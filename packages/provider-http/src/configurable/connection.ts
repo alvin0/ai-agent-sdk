@@ -107,7 +107,7 @@ function configuredModel<Dialect extends object>(options: HttpProviderOptions<Di
 function connectionBounds<Dialect extends object>(options: HttpProviderOptions<Dialect>) {
   return {
       streamIdleTimeoutMs: options.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS,
-      requestTimeoutMs: options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+      ...options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs },
       maxRequestBytes: options.maxRequestBytes ?? DEFAULT_MAX_REQUEST_BYTES,
       maxResponseBytes: options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
       maxResponseChunks: options.maxResponseChunks ?? DEFAULT_MAX_RESPONSE_CHUNKS,

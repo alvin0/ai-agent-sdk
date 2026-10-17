@@ -169,7 +169,7 @@ export interface HttpProviderOptions<Dialect extends object> {
   defaultContextWindow?: number
   /** Idle bound while a stream read is outstanding. */
   streamIdleTimeoutMs?: number
-  /** End-to-end request/stream timeout. Defaults to ten minutes. */
+  /** Opt-in end-to-end request/stream timeout; none by default (streamIdleTimeoutMs still cuts a silent stream). */
   requestTimeoutMs?: number
   /** Maximum serialized outbound request bytes. Defaults to 32 MiB. */
   maxRequestBytes?: number

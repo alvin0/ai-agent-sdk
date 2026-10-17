@@ -1,7 +1,7 @@
 import type { LocalMemberRuntime, RemoteMemberRuntime, AddressableMember } from './team-runtime-types.ts'
 import type { AgentTeamEvent } from './types.ts'
 import type { AgentRunEvent } from '../mode/run-agent.ts'
-import { abortable, combineSignals, withTimeout } from './common.ts'
+import { abortable, combineSignals, optionalDeadline, withTimeout } from './common.ts'
 import { localMemberIdle } from './team-support.ts'
 import { runWakeLoop } from './team-wake.ts'
 import { AgentSdkError } from '../../errors/index.ts'
@@ -9,7 +9,7 @@ import { AgentSdkError } from '../../errors/index.ts'
 interface TeamWorkOptions {
   readonly id: string
   readonly disposeTimeoutMs: number
-  readonly operationTimeoutMs: number
+  readonly operationTimeoutMs: number | undefined
   localMembers(): Iterable<LocalMemberRuntime>
   remoteMembers(): Iterable<RemoteMemberRuntime>
   cancelMember(name: string, reason: unknown): Promise<void>
@@ -80,7 +80,7 @@ export class TeamWork {
     const controller = new AbortController()
     member.wakeController = controller
     const signal = combineSignals(
-      this.lifecycle.signal, controller.signal, AbortSignal.timeout(this.options.operationTimeoutMs),
+      this.lifecycle.signal, controller.signal, optionalDeadline(this.options.operationTimeoutMs),
     )
     const task = runWakeLoop(member, signal, this.options).finally(() => {
       if (member.wakeTask === task) member.wakeTask = undefined

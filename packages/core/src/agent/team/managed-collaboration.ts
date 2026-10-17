@@ -7,7 +7,9 @@ import type { AgentTeam } from './team.ts'
 import { CollaborationTaskBoard } from './collaboration-board.ts'
 import { collaborationBoardTools } from './collaboration-tools.ts'
 import { CollaborationNotifications } from './collaboration-notifications.ts'
-import { asJson, combineSignals, messageToolSchema, parseMessageTool, positiveInteger } from './common.ts'
+import {
+  asJson, combineSignals, deadlineOrNever, messageToolSchema, parseMessageTool, positiveInteger,
+} from './common.ts'
 import type { ManagedTeamCollaborationOptions } from './collaboration-types.ts'
 
 export const COLLABORATION_INSTRUCTIONS = [
@@ -26,9 +28,9 @@ interface CollaborationHost {
   readonly team: AgentTeam
   readonly lead: string
   readonly signal: AbortSignal
-  readonly workerTimeoutMs: number
-  /** The lead's onTurnEnd hook deadline; the join runs inside that hook. */
-  readonly leadHookTimeoutMs: number
+  readonly workerTimeoutMs: number | undefined
+  /** The lead's onTurnEnd hook deadline, if any; the join runs inside that hook. */
+  readonly leadHookTimeoutMs: number | undefined
   readonly basePort: TeamPort
   redirect(sender: string, target: string, message: string): void
   joinMembers(signal?: AbortSignal): Promise<void>
@@ -46,18 +48,14 @@ export class ManagedTeamCollaboration implements TeamPort {
   private readonly controllers = new Map<string, AbortController>()
   private readonly pairs = new Map<string, number>()
   private readonly maxPeerTurnsPerPair: number
-  private readonly joinTimeoutMs: number
+  private readonly joinTimeoutMs: number | undefined
   private readonly notifications: CollaborationNotifications
   private epoch = 0
   private joinedEpoch = 0
 
   constructor(options: ManagedTeamCollaborationOptions, private readonly host: CollaborationHost) {
     this.maxPeerTurnsPerPair = positiveInteger(options.maxPeerTurnsPerPair ?? 8, 'collaboration.maxPeerTurnsPerPair')
-    const requested = positiveInteger(options.joinTimeoutMs ?? host.workerTimeoutMs, 'collaboration.joinTimeoutMs')
-    // The join waits inside the lead's onTurnEnd hook. Expire it first, leaving time to cancel members
-    // and inject the recovery note, or the hook timeout fails the lead instead.
-    const margin = Math.min(30_000, Math.floor(host.leadHookTimeoutMs / 5))
-    this.joinTimeoutMs = Math.max(1, Math.min(requested, host.leadHookTimeoutMs - margin))
+    this.joinTimeoutMs = joinDeadline(options.joinTimeoutMs ?? host.workerTimeoutMs, host.leadHookTimeoutMs)
     this.notifications = new CollaborationNotifications(host.team, host.lead, this.sessions, () => { this.epoch++ })
     this.board = new CollaborationTaskBoard(options, { lead: host.lead, signal: host.signal,
       assertMember: name => this.assertMember(name), changed: (before, after, actor, { operation, task }) => {
@@ -197,7 +195,7 @@ export class ManagedTeamCollaboration implements TeamPort {
       return
     }
     if (!this.hasMembersToJoin()) return
-    const deadline = AbortSignal.timeout(this.joinTimeoutMs)
+    const deadline = deadlineOrNever(this.joinTimeoutMs)
     try {
       await this.whenMembersIdle(combineSignals(signal, this.host.signal, deadline))
     } catch (error: unknown) {
@@ -205,7 +203,7 @@ export class ManagedTeamCollaboration implements TeamPort {
       if (combineSignals(signal, this.host.signal).aborted) return
       if (!deadline.aborted) throw error
       recordTeamTimeline(this.host.team, { kind: 'budget', member: this.host.lead,
-        budget: 'collaboration-join', action: 'exhausted', limit: this.joinTimeoutMs })
+        budget: 'collaboration-join', action: 'exhausted', limit: this.joinTimeoutMs! })
       this.host.injectLead('Collaboration join deadline expired. '
         + 'Active members, including pending workers, were cancelled; '
         + 'read task_list and report unfinished work explicitly.')
@@ -233,4 +231,14 @@ export class ManagedTeamCollaboration implements TeamPort {
       if (signal.aborted) await this.host.cancelMembers(signal.reason)
     }
   }
+}
+
+/** No join deadline unless the caller set one (or a lead hook deadline it must expire before). */
+function joinDeadline(requestedMs: number | undefined, leadHookTimeoutMs: number | undefined): number | undefined {
+  const requested = requestedMs === undefined ? undefined : positiveInteger(requestedMs, 'collaboration.joinTimeoutMs')
+  if (leadHookTimeoutMs === undefined) return requested
+  // The join waits inside the lead's onTurnEnd hook. Expire it first, leaving time to cancel members
+  // and inject the recovery note, or the hook timeout fails the lead instead.
+  const margin = Math.min(30_000, Math.floor(leadHookTimeoutMs / 5))
+  return Math.max(1, Math.min(requested ?? Infinity, leadHookTimeoutMs - margin))
 }

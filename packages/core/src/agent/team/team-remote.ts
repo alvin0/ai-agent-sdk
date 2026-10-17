@@ -1,12 +1,12 @@
 import type { LinkedAgentResult } from './types.ts'
 import type { RemoteMemberRuntime } from './team-runtime-types.ts'
 import { AgentSdkError } from '../../errors/index.ts'
-import { byteLength, errorMessage, combineSignals, abortable } from './common.ts'
+import { byteLength, errorMessage, combineSignals, abortable, optionalDeadline } from './common.ts'
 
 interface RemoteDispatchHost {
   readonly maxMessages: number
   readonly maxLinkedResultBytes: number
-  readonly operationTimeoutMs: number
+  readonly operationTimeoutMs: number | undefined
   readonly lifecycle: AbortSignal
   readonly ownRemoteTask: ((signal: AbortSignal) => () => void) | undefined
   emit(event: any): void
@@ -22,7 +22,7 @@ export async function dispatchRemote(
     const controller = new AbortController()
     const signal = combineSignals(
       input.signal, host.lifecycle, controller.signal,
-      AbortSignal.timeout(host.operationTimeoutMs),
+      optionalDeadline(host.operationTimeoutMs),
     )
     signal.throwIfAborted()
     const releaseOwnership = host.ownRemoteTask?.(signal)

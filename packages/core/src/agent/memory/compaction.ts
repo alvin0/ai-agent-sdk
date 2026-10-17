@@ -157,7 +157,8 @@ export class ContextCompactor {
     emit?: (event: AgentMaintenanceEvent) => Promise<void>,
   ): Promise<CompactionResult | null> {
     if (this.active) return null
-    const deadline = AbortSignal.timeout(this.input.policy.summaryTimeoutMs)
+    const timeoutMs = this.input.policy.summaryTimeoutMs
+    const deadline = timeoutMs === undefined ? new AbortController().signal : AbortSignal.timeout(timeoutMs)
     const operationSignal = AbortSignal.any([signal, deadline])
     operationSignal.throwIfAborted()
     this.active = true
@@ -230,7 +231,7 @@ export class ContextCompactor {
       return await this.completeCompaction(plan, invocation, compactionId)
     } catch (error: unknown) {
       const failure = deadline.aborted && !signal.aborted && errorCode(error) !== 'MODEL_TEARDOWN_TIMEOUT'
-        ? modelTimeoutError(this.input.policy.summaryTimeoutMs, error)
+        ? modelTimeoutError(this.input.policy.summaryTimeoutMs!, error)
         : error
       const message = errorMessage(failure)
       try {

@@ -152,7 +152,7 @@ export interface AgentTeamOptions {
   readonly maxMetadataBytes?: number
   /** Maximum time dispose waits for cooperative transports/providers. Defaults to 30 seconds. */
   readonly disposeTimeoutMs?: number
-  /** End-to-end bound for one remote dispatch or local wake-up batch. Defaults to 10 minutes. */
+  /** Opt-in end-to-end bound for one remote dispatch or local wake-up batch; none by default. */
   readonly operationTimeoutMs?: number
   /** Maximum wait per asynchronous agent-event observer. Defaults to 1 second. */
   readonly observerTimeoutMs?: number

@@ -1,11 +1,11 @@
 import { createUserMessage } from '../../../message/index.ts'
 import type { ModelCallReport } from '../../../observation/index.ts'
 import { budgetTokenTotal, summarizeModelCallUsage } from '../../accounting/ledger.ts'
-import type { TurnBounds } from '../types.ts'
+import type { ResolvedTurnBounds } from '../types.ts'
 import type { RunTurnOptions } from './types.ts'
 
 export type BudgetReminderContext = {
-  options: RunTurnOptions; bounds: TurnBounds; maxTotalTokens: number; maxSteps: number
+  options: RunTurnOptions; bounds: ResolvedTurnBounds; maxTotalTokens: number; maxSteps: number
   modelCallReports: ModelCallReport[]; tokenRemindersSent: number; stepReminderSent: boolean
   finalizeUntil: number | undefined; workSteps: () => number
 }

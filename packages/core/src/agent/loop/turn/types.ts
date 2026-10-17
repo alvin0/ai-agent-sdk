@@ -71,7 +71,10 @@ export interface RunTurnOptions {
   /** Maximum wait for an uncooperative producer after the event consumer stops. Defaults to 30s. */
   readonly teardownTimeoutMs?: number
   /** Total wall-clock allowance for one model stream, including adapter preparation. Defaults to 10m. */
-  readonly modelTimeoutMs?: number
+  /** Total model-call cap; omitted or 'auto' (default) means none. */
+  readonly modelTimeoutMs?: number | 'auto'
+  /** Longest silence between model stream chunks before the call is cut; defaults to 10 minutes. */
+  readonly modelIdleTimeoutMs?: number
   /** Maximum serialized request bytes passed to a model adapter. Defaults to 32 MiB. */
   readonly maxModelRequestBytes?: number
   /** Maximum serialized response bytes accepted from one model stream. Defaults to 32 MiB. */
@@ -79,7 +82,8 @@ export interface RunTurnOptions {
   /** Maximum chunks accepted from one model stream. Defaults to 100,000. */
   readonly maxModelStreamEvents?: number
   /** Maximum wall time for one policy/lifecycle hook. Defaults to 10 minutes. */
-  readonly hookTimeoutMs?: number
+  /** Per-hook deadline; omitted or 'auto' (default) means none. */
+  readonly hookTimeoutMs?: number | 'auto'
   /** Maximum wait after a timed-out hook ignores cancellation. Defaults to 30 seconds. */
   readonly hookTeardownTimeoutMs?: number
   /** Ask the model for concise user-visible progress narration around tool use. */

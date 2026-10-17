@@ -42,21 +42,28 @@ export async function joinManagedTeam(host: JoinHost, signal?: AbortSignal): Pro
     const busy = host.preparing().length > 0 || host.hasInputs() || [...host.workers()]
       .some(runtime => host.workerBusy(runtime))
     if (!busy && !host.settlements.hasPending) {
-      if (!host.needsSynthesis()) return
-      wakeForSynthesis(host, synthesis)
+      if (!wakeForSynthesis(host, synthesis)) return
     }
   }
 }
 
-function wakeForSynthesis(host: JoinHost, synthesis: ManagedSynthesisGuard): void {
-  try { synthesis.wake() } catch (error) {
-    if (synthesis.exhausted) recordTeamTimeline(host.team, { kind: 'budget', member: host.leadName, budget: 'synthesis',
+/**
+ * False when no synthesis is owed, or once the lead keeps yielding without new reports;
+ * the join then ends with the lead's latest answer.
+ */
+function wakeForSynthesis(host: JoinHost, synthesis: ManagedSynthesisGuard): boolean {
+  if (!host.needsSynthesis()) return false
+  if (synthesis.exhausted) {
+    // Failing here would discard every worker report and lead turn already paid for.
+    recordTeamTimeline(host.team, { kind: 'budget', member: host.leadName, budget: 'synthesis',
       action: 'exhausted', used: synthesis.used, limit: synthesis.limit })
-    throw error
+    return false
   }
+  synthesis.wake()
   // A yield is provisional even when its last worker settled between the
   // hook and agent-end. Ensure there is input for the scheduler to read.
   host.lead().inject(createUserMessage({ source: { kind: 'app', producer: 'managed-team' },
     content: [{ type: 'text', text: 'All workers settled — synthesize now.' }] }))
   host.team.wake(host.leadName, 'synthesis')
+  return true
 }

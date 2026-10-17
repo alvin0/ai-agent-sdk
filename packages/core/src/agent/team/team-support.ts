@@ -104,7 +104,9 @@ export function localMemberIdle(member: LocalMemberRuntime, requested: number): 
 
 export function teamTimeouts(options: AgentTeamOptions, defaultWait: number, defaultMinWait: number) {
   const disposeTimeoutMs = timeoutValue(options.disposeTimeoutMs ?? 30_000)
-  const operationTimeoutMs = timeoutValue(options.operationTimeoutMs ?? 10 * 60_000)
+  // Opt-in: a default deadline would cut a long lead or member turn and discard its work.
+  const operationTimeoutMs = options.operationTimeoutMs === undefined
+    ? undefined : timeoutValue(options.operationTimeoutMs)
   const observerTimeoutMs = timeoutValue(options.observerTimeoutMs ?? 1_000)
   const waitTimeoutMs = timeoutValue(options.waitTimeoutMs ?? defaultWait)
   const minWaitTimeoutMs = Math.min(timeoutValue(options.minWaitTimeoutMs ?? defaultMinWait), waitTimeoutMs)

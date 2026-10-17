@@ -16,7 +16,7 @@ import { filterToolsByDepth } from './managed-capabilities.ts'
 interface ManagedToolsHost {
   options: ManagedAgentTeamOptions; team: AgentTeam; leadName: string; lazyTools: ManagedLazyTools
   spawning: ManagedWorkerSpawning; settlements: ManagedSettlements; roles: Map<string, ManagedAgentRole>
-  maxWorkers: number; maxQueued: number; spawnTimeoutMs: number; workerTimeoutMs: number
+  maxWorkers: number; maxQueued: number; spawnTimeoutMs: number; workerTimeoutMs: number | undefined
   workers: Map<string, WorkerRuntime>; progress: ManagedProgress
   owner(): Set<WorkerRuntime> | undefined
   signal(): AbortSignal
