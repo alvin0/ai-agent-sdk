@@ -33,16 +33,6 @@ export function parseMessageTool(raw: unknown): { target: string; message: strin
 }
 
 /**
- * How long `wait_agents` waits before reporting back instead.
- *
- * A bounded wait is what keeps a coordinator informed: it gets the roster
- * back and decides whether to wait again, message the agent, or close it. An
- * unbounded one made a slow agent indistinguishable from a hung one.
- */
-/** Former wait_agents default, kept for hosts that opt in to a bounded wait. */
-export const DEFAULT_WAIT_TIMEOUT_MS = 120_000
-
-/**
  * Shortest wait a `wait_agents` call can ask for.
  *
  * A tool call may ask for less than the default but not for a wait too short

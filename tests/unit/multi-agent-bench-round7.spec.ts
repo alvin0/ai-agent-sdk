@@ -61,7 +61,7 @@ describe('Round 7 team options and delegation evidence', () => {
         yield { type: 'finish', reason: { kind: index < 2 ? 'tool-calls' : 'stop' } }
       }
     }
-    const { result } = await execute({ ...job, teamOptions: { maxWorkers: 1, holdWaitMs: 10 } }, undefined,
+    const { result } = await execute({ ...job, teamOptions: { maxWorkers: 1 } }, undefined,
       { adapterFactory: (_job, task) => new SpawnTwice(task) })
     expect(result).toMatchObject({ pass: true, metrics: { spawnAttempts: 2, spawns: 1,
       spawnsAccepted: 1, spawnsRejected: 1, forkSpawns: 1, freshSpawns: 0, delegated: true } })

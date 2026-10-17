@@ -24,7 +24,7 @@ describe('collaboration shutdown regressions', () => {
       if (round === 3) heldIdle = team.team.whenIdle('b')
       return answer(round === 3 ? 'tentative answer' : 'final: dependency work unfinished')
     })
-    const team = managed(adapter, { collaboration: { joinTimeoutMs: 25 }, holdWaitMs: 1000 })
+    const team = managed(adapter, { collaboration: { joinTimeoutMs: 25 } })
     const response = await team.run('Solve')
     await team.whenQuiet(AbortSignal.timeout(1000))
     expect(response.text).toBe('final: dependency work unfinished')
@@ -43,7 +43,7 @@ describe('collaboration shutdown regressions', () => {
     const worker = defineAgent({ id: 'worker', provider: 'test', model: 'scripted',
       mode: 'basic', instructions: 'Work' })
     const adapter = new CollaborationAdapter(() => answer('lead final'))
-    const team = managed(adapter, { collaboration: { joinTimeoutMs: 25 }, holdWaitMs: 1000,
+    const team = managed(adapter, { collaboration: { joinTimeoutMs: 25 },
       workerFactory: async request => {
         if (request.name === 'preparing' && stage === 'definition') { entered.resolve(); await release.promise }
         return worker

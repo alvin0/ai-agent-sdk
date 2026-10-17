@@ -33,7 +33,7 @@ for (const model of [{ provider: 'codex', id: 'gpt-6-luna', effort: 'medium' }, 
     ...(model.effort ? { effort: core.ReasoningEffortId(model.effort) } : {}), mode: 'basic', maxTurns: 12, maxToolCalls: 24,
     instructions: 'Follow the assigned workflow and use evidence, not guesses. Return only the requested JSON. Workers must finish their assigned task and report; the lead synthesizes. No state-changing tools or writes are authorized.', tools })
   const facts = { source_a: { sourceId: 'native-a', observed: 155, baseline: 100 }, source_b: { sourceId: 'native-b', observed: 95, baseline: 100 } }
-  const team = agent.createManagedAgentTeam({ registry, lead: definition('lead'), maxWorkers: 3, workerTimeoutMs: 90000, holdWaitMs: 1000,
+  const team = agent.createManagedAgentTeam({ registry, lead: definition('lead'), maxWorkers: 3, workerTimeoutMs: 90000,
     leadSessionOptions: sessionOptions('lead'), workerSessionOptionsFactory: request => ({ ...sessionOptions(request.name), conversationId: conversations.get(request)! }),
     workerFactory: request => { const conversationId = `native-${model.provider}-${++sequence}`; conversations.set(request, conversationId); commissioned.push({ name: request.name, dependsOn: request.dependsOn, conversationId }); return definition(request.name, request.name in facts ? [core.defineTool({ name: 'read_measurement', description: 'Read this producer own original measurement.', parameters: { type: 'object', properties: {}, additionalProperties: false }, execute: () => facts[request.name as keyof typeof facts], isConcurrencySafe: () => true })] : []) },
   })

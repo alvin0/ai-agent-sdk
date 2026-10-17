@@ -429,7 +429,6 @@ function createAutoTeamSession(
       maxWorkers: config.maxAutoWorkers,
       workerTimeoutMs: config.autoWorkerTimeoutMs,
       spawnTimeoutMs: Math.min(20_000, config.autoWorkerTimeoutMs),
-      holdWaitMs: 5_000,
       allowModelWorkerCancellation: false,
       // A worker's assigned task is its objective; copy history only when the
       // caller explicitly needs shared facts. This also avoids paying for the

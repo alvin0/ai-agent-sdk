@@ -62,7 +62,7 @@ function fixture(options: Partial<ManagedAgentTeamOptions> = {}) {
   const adapter = new Controlled()
   const registry = new ModelRegistry()
   registry.registerAdapter(['test'], adapter)
-  const team = createManagedAgentTeam({ registry, holdWaitMs: 100, workerTimeoutMs: 2000,
+  const team = createManagedAgentTeam({ registry, workerTimeoutMs: 2000,
     team: { minWaitTimeoutMs: 10, waitTimeoutMs: 1000 },
     lead: defineAgent({ id: 'lead', provider: 'test', model: 'scripted', instructions: 'Solve it.' }),
     ...options,

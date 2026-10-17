@@ -234,7 +234,7 @@ Host methods include `spawn`, `workers`, `awaitWorker`, `steer`, `closeWorker`,
 remote links. Concurrent managed `run()` calls reject. Invocation abort cancels owned
 work and its synthesis wake without disposing the reusable team. Aborting a standalone
 wait only stops waiting. With `autoLeadCoordination: false`, reports are quiet and the
-host must drive later lead turns. Deprecated `holdWaitMs` is accepted but ignored.
+host must drive later lead turns.
 
 ## Budgets and cleanup
 

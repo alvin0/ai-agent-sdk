@@ -126,13 +126,6 @@ interface ConversationOptions {
   /** Let the researchers finish DURING the lead's final round. */
   readonly releaseOnLastLeadTurn?: boolean
   readonly leadTurns?: number
-  /**
-   * How long the lead's turn is held open waiting for news.
-   *
-   * Short by default so a test is not paced by a production-sized wait; the
-   * spin test raises it, because that is the behaviour it measures.
-   */
-  readonly holdWaitMs?: number
   /** Deadline for a worker's own run. */
   readonly workerTimeoutMs?: number
   /** Researchers that never finish, however long the test waits. */
@@ -221,7 +214,6 @@ async function conversation(options: ConversationOptions = {}): Promise<{
       maxTurns: options.leadTurns ?? 3,
     }),
     leadName: LEAD,
-    holdWaitMs: options.holdWaitMs ?? 50,
     ...options.workerTimeoutMs === undefined ? {} : { workerTimeoutMs: options.workerTimeoutMs },
     team: {
       id: 'research',
@@ -413,7 +405,7 @@ describe('the app keeps listening until the lead has synthesized', () => {
     // budget was gone. Codex's parent blocks inside its wait tool instead of
     // re-asking; the DeepSeek harness starts a new round only when the agent is
     // idle AND there is something to do.
-    const chat = await conversation({ leadTurns: 12, holdWaitMs: 1_000 })
+    const chat = await conversation({ leadTurns: 12 })
     const running = chat.run()
     await chat.adapter.allStarted
     // Long enough that a spinning lead would burn most of its budget.
