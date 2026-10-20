@@ -653,6 +653,7 @@
           "TruncatedText",
           "TurnBounds",
           "TurnEndContext",
+          "TurnEndDecision",
           "TurnEndReason",
           "TurnHooks",
           "TurnOutcome",
@@ -741,7 +742,7 @@
           "validateSkillSource",
           "withApprovalPersistence"
         ],
-        "declarationSha256": "63d03c217f47894ab931dba3d39a073cd65d7ca0bafb72c1927bd8da74362fe6"
+        "declarationSha256": "41b0ba96b9a45cc5a445480f22a84399b059bbfe407746a46bcb9582dd637bfd"
       },
       "./memory": {
         "exports": [

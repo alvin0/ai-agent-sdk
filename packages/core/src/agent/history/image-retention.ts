@@ -185,11 +185,22 @@ function mapEventMessage(
   if (event.kind !== 'tool-result') {
     return message === event.message ? event : Object.freeze({ ...event, message })
   }
+  return mapResultContext(event, message, policy, state)
+}
+
+function mapResultContext(
+  event: Extract<HistoryEvent, { kind: 'tool-result' }>, message: Message,
+  policy: ResolvedImageRetentionOptions, state: ImageMutation,
+): HistoryEvent {
   const duplicateState = createMutation(state.imagesPruned)
   const content = mapBlocks(event.result.content, policy, duplicateState)
   state.bytesSaved += duplicateState.bytesSaved
   state.serializedBytesDelta += duplicateState.serializedBytesDelta
-  const result = content === event.result.content ? event.result : Object.freeze({ ...event.result, content })
+  const additionalContext = event.result.additionalContext === undefined ? undefined
+    : mapBlocks(event.result.additionalContext, policy, state)
+  const result = content === event.result.content && additionalContext === event.result.additionalContext
+    ? event.result : Object.freeze({ ...event.result, content,
+      ...additionalContext === undefined ? {} : { additionalContext } })
   return message === event.message && result === event.result
     ? event : Object.freeze({ ...event, message, result })
 }
@@ -305,7 +316,15 @@ function visitImages(value: unknown, onImage: (image: ImageBlock) => void): void
     visitImages(content, onImage)
   } else if ('message' in block && block.message !== undefined) {
     visitImages(block.message, onImage)
+    // A tool's context is also retained in its result receipt, in addition to
+    // the separate app message. Account for both stored copies when pruning.
+    visitResultContext(block, onImage)
   }
+}
+
+function visitResultContext(value: unknown, onImage: (image: ImageBlock) => void): void {
+  const result = (value as { readonly result?: { readonly additionalContext?: unknown } }).result
+  if (Array.isArray(result?.additionalContext)) visitImages(result.additionalContext, onImage)
 }
 
 function serializedByteLength(value: ImageBlock | TextBlock): number {

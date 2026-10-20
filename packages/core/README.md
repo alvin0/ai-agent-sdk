@@ -51,6 +51,21 @@ The documented root plus `/agent`, `/memory`, `/observability`, `/provider`,
 `/skills`, `/tools`, `/embedding`, and `./package.json` are public. Internal source paths are
 not compatibility contracts.
 
+Session `hooks.beforeCompletion` may return `{ kind: 'continue', messages: [...] }`
+to finish pending application work after a model stops voluntarily. Use
+`createUserMessage` with `source: { kind: 'app', producer: 'your-workflow' }`.
+The SDK consumes this context inside the same turn and run, preserving usage,
+remaining budgets, cancellation, and raw history. Continuation is ignored when
+capacity is exhausted. This hook runs before empty-answer recovery, so it can
+continue a model that stopped after commentary without a final answer.
+Every message must be app-sourced; a mixed or
+human-sourced batch is rejected atomically. An empty batch does not itself
+continue the turn. Hosts should bound repeated completion objections and stop
+when the workflow no longer makes progress. `{ kind: 'yield' }` still pauses
+without a final completion or deep-mode polling.
+`onTurnEnd` retains its recovered-outcome semantics and also accepts continuation
+decisions; application completion gates should prefer `beforeCompletion`.
+
 `validateJsonFileContent` from `/tools` or `/agent` validates complete `.json`
 write/edit content before a host writes it. Validation defaults on, preserves accepted
 bytes and reports recoverable syntax errors. See [workspace JSON writes](../../docs/workspace-json-writes.md)

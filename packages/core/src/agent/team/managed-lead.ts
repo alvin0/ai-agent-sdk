@@ -39,10 +39,17 @@ export class ManagedLeadCoordination {
         if (decision?.kind === 'yield') {
           this.host.deferReports(); this.host.yielded('host'); return decision
         }
-        await this.host.onLeadEnd?.(context.canContinue)
+        if (decision?.kind === 'continue' && context.canContinue) return decision
+        return this.finish(context.canContinue)
+      },
+    }
+  }
+
+  private async finish(canContinue: boolean) {
+        await this.host.onLeadEnd?.(canContinue)
         // A spent turn may seal appended input with a terminal fallback. Deliver
         // after it goes idle so that fallback cannot consume the synthesis wake.
-        if (!context.canContinue) {
+        if (!canContinue) {
           this.host.deferReports()
           if (!this.host.shouldYield()) return undefined
           this.host.yielded('capacity')
@@ -56,7 +63,5 @@ export class ManagedLeadCoordination {
           return { kind: 'yield' as const }
         }
         return undefined
-      },
-    }
   }
 }

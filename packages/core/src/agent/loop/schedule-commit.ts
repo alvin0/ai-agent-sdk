@@ -32,7 +32,15 @@ export async function commit(
     const failure = renderToolError(toolFailure(messageOf(error), errorCode(error)), options.toolErrorRendering)
     result = immutableResult(await boundFailure(options, slot, failure), maxResultBytes)
   }
-  await publishResult(options, slot, result)
+  try { await publishResult(options, slot, result) }
+  catch (error: unknown) {
+    // A full history can reject the result before its span closes. Preserve
+    // the real publication failure instead of leaving an unknown operation.
+    await emitEvent(options, { type: 'span-end', trace: slot.trace, at: now(), status: 'error',
+      error: { type: 'ToolPublicationError', message: messageOf(error), code: errorCode(error) },
+    }).catch(() => undefined)
+    throw error
+  }
   if (hasFatal) throw fatal
   return result
 }

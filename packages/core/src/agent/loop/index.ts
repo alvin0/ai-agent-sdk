@@ -6,5 +6,5 @@ export { runToolCalls, type RunToolCallsOptions, type ToolCallsOutcome } from '.
 export type {
   AgentEvent, AssistantContentTiming, BeforeStepContext, CheckpointContext, CompactionBackoffReason, ExhaustedBudget,
   RequestErrorContext, StepDecision, StreamedAssistantTextPhase, StreamedReasoningKind, TurnBounds, TurnEndContext,
-  TurnEndReason, TurnHooks, TurnOutcome,
+  TurnEndDecision, TurnEndReason, TurnHooks, TurnOutcome,
 } from './types.ts'

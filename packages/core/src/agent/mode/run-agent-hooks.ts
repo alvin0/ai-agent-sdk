@@ -80,7 +80,7 @@ export function deepHooks(
       const draftSeq = history.entries().length
       const outcome = keptAnswerOutcome(context.outcome, state)
       const decision = await userHooks?.onTurnEnd?.(outcome === context.outcome ? context : { ...context, outcome })
-      if (decision?.kind === 'yield') return decision
+      if (decision && (decision.kind === 'yield' || decision.messages.length > 0)) return decision
       if (shouldNudgeOrphan(context, state)) {
         state.orphanMarkerNudged = true
         appendOrphanMarkerPrompt(history)

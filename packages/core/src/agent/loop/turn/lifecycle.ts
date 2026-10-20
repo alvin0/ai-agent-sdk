@@ -3,7 +3,7 @@ import type { TurnOutcome } from '../types.ts'
 import { runWorkSteps } from './work-step.ts'
 import { openFinalizeWindow } from './finalize-window.ts'
 import { preserveFinalizedAnswer } from './finalized-answer.ts'
-import { buildTurnOutcome, continueAfterTurnHook, turnOutcomeStatus } from './outcome.ts'
+import { buildTurnOutcome, continueAfterTurnHook, continueBeforeCompletion, turnOutcomeStatus } from './outcome.ts'
 import { emitTurnSpanStart, appendTurnInterruption } from './lifecycle-events.ts'
 import { now, errorCodeOf, messageOf } from './common.ts'
 import { ensureTerminalAnswer, hasUnansweredUserInput } from './terminal-answer.ts'
@@ -32,17 +32,34 @@ async function finalizedOutcome(state: TurnState) {
     state.text = finalized.text
     state.reason = finalized.reason
   }
-  await ensureTerminalAnswer(state)
   return buildTurnOutcome({ ...state, reason: state.reason })
+}
+
+function canContinueWork(state: TurnState): boolean {
+  return state.reason?.kind === 'completed'
+    && state.workSteps() < state.maxSteps && state.admissionStop() === undefined
+}
+
+async function completionCandidate(state: TurnState) {
+  const candidate = await finalizedOutcome(state)
+  const action = canContinueWork(state) && state.options.hooks?.beforeCompletion
+    ? await continueBeforeCompletion(state.options, state.signal, candidate) : 'end'
+  if (action === 'continue') state.reason = undefined
+  return { candidate, action }
 }
 
 async function runLifecycle(state: TurnState): Promise<TurnOutcome> {
   while (true) {
     await runWorkSteps(state)
     if (beginFinalizeWindow(state)) continue
-    const candidate = await finalizedOutcome(state)
-    const canContinue = candidate.reason.kind === 'completed'
-      && state.workSteps() < state.maxSteps && state.admissionStop() === undefined
+    const completion = await completionCandidate(state)
+    if (completion.action === 'yield') return { ...completion.candidate, yielded: true }
+    if (completion.action === 'continue') continue
+    // Preserve onTurnEnd's existing recovered-outcome semantics. Application
+    // gates use beforeCompletion to catch commentary-only voluntary stops.
+    await ensureTerminalAnswer(state)
+    const candidate = buildTurnOutcome({ ...state, reason: state.reason! })
+    const canContinue = canContinueWork(state)
     const action = await continueAfterTurnHook(state.options, state.signal, candidate, canContinue)
     if (action === 'yield') return { ...candidate, yielded: true }
     if (action === 'continue') {
@@ -72,6 +89,7 @@ async function finishTurn(state: TurnState, outcome: TurnOutcome) {
   if (state.turnOperationId !== undefined) {
     state.options.accounting?.endOperation(state.turnOperationId, turnOutcomeStatus(outcome), {
       data: { reason: outcome.reason.kind, steps: state.steps, toolCalls: state.toolCalls },
+      ...outcome.reason.kind === 'error' ? { error: outcome.reason.failure } : {},
     })
     state.turnOperationEnded = true
   }

@@ -86,6 +86,50 @@ function finalRound(): StreamChunk[] {
 }
 
 describe('image retention', () => {
+  it('prunes duplicated additional tool context on resume and during repeated captures', () => {
+    const source = new History()
+    const appendCapture = (history: History, index: number) => {
+      const callId = ToolCallId(`context-${index}`)
+      const block = imageBlock(`CAPTURE_${index}_` + 'A'.repeat(8_000))
+      history.append({ kind: 'tool-call', callId, name: 'capture', rawArguments: '{}' })
+      history.append({ kind: 'tool-result', callId,
+        message: createToolResultMessage({ callId, content: [{ type: 'text', text: 'Captured; source/frame.jpg' }], isError: false }),
+        result: { isError: false, value: 'Captured', content: [{ type: 'text', text: 'Captured; source/frame.jpg' }], additionalContext: [block] } })
+      history.append({ kind: 'user', message: { ...createTextMessage('Review frame'),
+        source: { kind: 'app', producer: 'tool:capture' }, content: [block] } })
+    }
+    appendCapture(source, 0)
+    appendCapture(source, 1)
+    const history = History.fromSnapshot(source.snapshot(), { maxBytes: 60_000, maxEntryBytes: 12_000 },
+      { keepLatest: 2, persist: 'drop-pruned' })
+    for (let index = 2; index < 30; index++) appendCapture(history, index)
+    const snapshot = JSON.stringify(history.snapshot())
+    expect(snapshot).not.toContain('CAPTURE_0_')
+    expect(snapshot).not.toContain('CAPTURE_28_')
+    expect(snapshot).toContain('CAPTURE_29_')
+    expect(snapshot).toContain('source/frame.jpg')
+    expect(countImages(history.snapshot().entries.map(entry => entry.event))).toBe(2)
+    expect(Buffer.byteLength(snapshot)).toBeLessThan(60_000)
+    expect(source.snapshot().entries.some(entry => JSON.stringify(entry).includes('CAPTURE_0_'))).toBe(true)
+  })
+
+  it('closes tool accounting and retains the actual failure when history rejects a capture result', async () => {
+    const adapter = new RetentionScriptedAdapter([toolRound('capture-overflow')])
+    const registry = new ModelRegistry()
+    registry.registerAdapter(['test'], adapter)
+    const capture = defineTool({ name: 'capture', description: 'Capture evidence.', parameters: { type: 'object' },
+      execute: () => 'RESULT'.repeat(1_000) })
+    const session = defineAgent({ id: 'capture-limit', provider: 'test', model: 'scripted',
+      instructions: 'Capture and review.', tools: [capture] }).createSession({ registry, compaction: false,
+      historyLimits: { maxEntryBytes: 12_000, maxBytes: 12_000 },
+      hooks: { onTerminalRecovery: () => 'Video remains unfinished.' } })
+    const response = await session.run('Review ' + 'X'.repeat(8_000))
+    expect(response.outcome.reason).toMatchObject({ kind: 'error', failure: { code: 'TURN_RUNTIME_ERROR' } })
+    expect(response.report.operationCounts.tool).toMatchObject({ error: 1, unknown: 0 })
+    expect(response.report.errors.some(error => error.code === 'OPERATION_TERMINAL_MISSING')).toBe(false)
+    expect(response.report.errors.some(error => error.code === 'TURN_RUNTIME_ERROR')).toBe(true)
+  })
+
   it('keeps the newest images and replaces old user and tool-result images with valid text blocks', () => {
     const { callId, messages } = toolConversation()
     const projected = retainLatestImagesInMessages(messages, resolveImageRetention({ keepLatest: 1 })!)
