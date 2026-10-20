@@ -84,6 +84,23 @@ elevated error rates, and degraded latency" beats "for incidents".
 heap, though only metadata enters initial context. For lazy network/IO, use a
 provider.
 
+### Candidate validation and diagnostics
+
+Catalog candidates are validated individually. By default, a malformed
+candidate is skipped while valid neighbors remain available. Set
+`strictSkillCandidates: true` in `createSession()` to fail discovery on the
+first rejected candidate. `onSkillDiagnostic` receives a typed
+`SkillCatalogDiagnostic` with a bounded optional candidate ID and a reason;
+observer exceptions do not stop discovery. Direct callers of `validateCandidate()`
+can inspect the stable `.reason` on `SkillCandidateValidationError`; discovery
+uses the same typed reason instead of parsing error text.
+
+The `SKILL_CANDIDATE_LIMITS` object and individual `MAX_SKILL_*` constants are
+public from `@alvin0/ai-agent-sdk-core/agent`. They cover bounded IDs, names,
+descriptions, triggers, instructions, provider/source labels, and candidate
+count. The list path checks lightweight metadata; instruction bounds are
+validated when a selected definition is loaded.
+
 ## Two custom-provider contracts — pick the right one
 
 They are **not** interchangeable, and the difference is what tsc will tell you

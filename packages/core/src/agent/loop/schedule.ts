@@ -10,6 +10,7 @@ import type { SdkLogger } from '../../logging/types.ts'
 import type { TraceRef } from '../trace/trace.ts'
 import type { ProgramGrant } from '../tool/nested.ts'
 import type { ProgramResultStore } from '../tool/program-results.ts'
+import type { ToolErrorRendering } from '../tool/errors.ts'
 import { createScheduleContext, applyProgress, scheduleOutcome, prepare, runExclusive, runParallel,
   immutableCall } from './schedule-impl.ts'
 import type { ScheduleState } from './schedule-impl.ts'
@@ -40,6 +41,8 @@ export interface RunToolCallsOptions {
   readonly spillStore?: SpillStore
   /** Maximum serialized bytes retained for one finalized result. Defaults to 4 MiB. */
   readonly maxResultBytes?: number
+  /** Error content sent back to the model; defaults to `[CODE] message`. */
+  readonly toolErrorRendering?: ToolErrorRendering
   /** End-to-end wall-clock allowance for one call. Defaults to 10 minutes. */
   readonly maxDurationMs?: number
   /** Maximum cancellation settlement wait. Defaults to 30 seconds. */

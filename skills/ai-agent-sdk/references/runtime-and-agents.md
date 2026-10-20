@@ -185,6 +185,7 @@ interface RuntimeAgentSession {
   runPending(options?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse>
   snapshot(): RuntimeAgentSessionSnapshot
   compact(options?): Promise<CompactionResult | null>
+  imageRetentionStats(): ImageRetentionSnapshot | undefined
   reset(): void
   whenIdle(signal?: AbortSignal): Promise<void>
 }
@@ -249,9 +250,21 @@ interface RuntimeAgentSessionOptions {
   readonly hooks?: TurnHooks
   readonly usagePolicy?: UsagePolicy
   readonly historyLimits?: HistoryLimits
+  readonly imageRetention?: ImageRetentionOptions
+  readonly toolErrorRendering?: ToolErrorRendering
+  readonly strictSkillCandidates?: boolean
+  readonly onSkillDiagnostic?: SkillDiagnosticObserver
   readonly ledgerLimits?: RunLedgerLimits
 }
 ```
+
+`imageRetention` bounds image blocks in requests; `persist: 'drop-pruned'` also
+removes aged-out image bytes from history and snapshots. `toolErrorRendering`
+defaults to `[CODE] message`; set it to `false` for legacy text or pass a
+renderer. Skill candidates are skipped individually by default and reported
+through `onSkillDiagnostic`; set `strictSkillCandidates: true` for strict
+all-or-nothing discovery. Full semantics and counters are in
+[`image-retention-and-diagnostics.md`](../../../docs/image-retention-and-diagnostics.md).
 
 Environment-dependent context sections belong here; sections that travel with
 the agent wherever it runs belong on the definition.

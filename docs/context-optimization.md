@@ -119,10 +119,13 @@ Observation defaults are **10 KiB**, two full prepared model requests, then an
 approximately **1 KiB** preview with a `read_tool_output` locator. The threshold
 uses UTF-8 bytes. Retrieval offsets and limits use Unicode code points, as in
 the existing spill API. The saved text is the finalized, post-policy text the
-model was allowed to see. Images and other blocks stay intact. Retrieval output
-is not packed recursively. Diagnostic/status lines and the complete failure
-tail are retained; if required evidence cannot fit the preview, output stays
-full. Failed/expired stores and controller capacity limits also leave text full.
+model was allowed to see. Images and other blocks stay intact through this
+optimizer. A session's separate `imageRetention` policy runs after the projection
+hooks and can replace older images in the prepared request; `persist: 'drop-pruned'`
+also removes those image bytes from history and snapshots. Retrieval output is
+not packed recursively. Diagnostic/status lines and the complete failure tail
+are retained; if required evidence cannot fit the preview, output stays full.
+Failed/expired stores and controller capacity limits also leave text full.
 
 Mount the returned retrieval tool yourself. Do not also expect the immediate
 output budget to preserve two full requests: that independent safety ceiling can

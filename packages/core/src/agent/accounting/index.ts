@@ -5,6 +5,7 @@ export {
 export {
   authoritativeTokenUsage,
   budgetTokenTotal,
+  getUsageTotals,
   summarizeModelCallUsage,
 } from './ledger.ts'
 
@@ -23,3 +24,4 @@ export type {
   UsageEstimator,
   UsagePolicy,
 } from './report.ts'
+export type { UsageTotals } from './ledger.ts'

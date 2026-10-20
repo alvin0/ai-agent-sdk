@@ -17,6 +17,9 @@ import type { ObservationPort, ObservationResource } from '../../../observation/
 import type { SpanId, TraceId } from '../../trace/trace.ts'
 import type { RunLedgerLimits, UsagePolicy } from '../../accounting/report.ts'
 import type { RunReport } from '../../accounting/delivery-types.ts'
+import type { ImageRetentionOptions } from '../../history/image-retention.ts'
+import type { ToolErrorRendering } from '../../tool/errors.ts'
+import type { SkillDiagnosticObserver } from '../../skill/catalog-diagnostics.ts'
 import { type SkillResourceBase, type SkillSource } from '../../skill/index.ts'
 import type { AgentSession } from '../session.ts'
 import type { JsonValue } from '../../../primitives/index.ts'
@@ -124,6 +127,14 @@ export interface AgentSessionOptions {
   readonly history?: History
   /** In-memory append-only history resource limits. */
   readonly historyLimits?: HistoryLimits
+  /** Bound image blocks sent to the model; optional persistence removes old image bytes from snapshots. */
+  readonly imageRetention?: ImageRetentionOptions
+  /** How tool failures are rendered to the model. Defaults to `[CODE] message`; false preserves legacy text. */
+  readonly toolErrorRendering?: ToolErrorRendering
+  /** Skip invalid provider candidates by default; true restores all-or-nothing discovery. */
+  readonly strictSkillCandidates?: boolean
+  /** Receives bounded diagnostics for skill candidates that discovery skips. */
+  readonly onSkillDiagnostic?: SkillDiagnosticObserver
   /** Per-session model/tool resource guards; safe defaults apply when omitted. */
   readonly runtimeLimits?: AgentRuntimeLimits
   /** Application tools added to the tools declared by the agent. */

@@ -13,12 +13,15 @@ import type { ModelTarget, ProviderSelection } from '../provider/types.ts'
 import { captureToolSources } from '../tool-source/definition.ts'
 import { captureMemoryBinding } from '../memory/definition.ts'
 import { captureRuntimeSkillSources } from '../skill-provider/definition.ts'
+import { resolveImageRetention } from '../../agent/history/image-retention.ts'
+import { resolveToolErrorRendering } from '../../agent/tool/errors.ts'
 
 const KEYS = new Set(['signal', 'additionalInstructions', 'onEvent', 'imagePolicy', 'documentPolicy',
   'structuredOutput', 'includeTraceEvents', 'model', 'maxTokens'])
 const SESSION_KEYS = new Set(['conversationId', 'tools', 'toolSources', 'skills', 'memory', 'skillCwd',
   'userInput', 'approvals', 'spillStore', 'experimentalPrograms', 'interceptors', 'contextSections', 'hooks',
     'usagePolicy', 'historyLimits',
+  'imageRetention', 'toolErrorRendering', 'strictSkillCandidates', 'onSkillDiagnostic',
   'ledgerLimits',
   'eventBufferLimits', 'runtimeLimits', 'compaction'])
 
@@ -57,6 +60,10 @@ export function captureRuntimeSessionOptions(input: unknown): RuntimeAgentSessio
   const contextSections = captureRuntimeContextSections(value.contextSections)
   const hooks = captureTurnHooks(value.hooks)
   const usagePolicy = captureUsagePolicy(value.usagePolicy)
+  const imageRetention = resolveImageRetention(value.imageRetention as RuntimeAgentSessionOptions['imageRetention'])
+  const toolErrorRendering = resolveToolErrorRendering(value.toolErrorRendering)
+  const strictSkillCandidates = captureStrictSkillCandidates(value.strictSkillCandidates)
+  const onSkillDiagnostic = captureSkillDiagnostic(value.onSkillDiagnostic)
   const memory = value.memory === false || value.memory === undefined
     ? value.memory
     : captureMemoryBinding(value.memory)
@@ -65,12 +72,28 @@ export function captureRuntimeSessionOptions(input: unknown): RuntimeAgentSessio
     conversationId: value.conversationId as string, tools, toolSources, skills, memory,
     skillCwd: value.skillCwd as string, userInput, approvals, spillStore, experimentalPrograms,
     interceptors, contextSections, hooks, usagePolicy,
+    imageRetention, toolErrorRendering,
+    strictSkillCandidates, onSkillDiagnostic,
     historyLimits: value.historyLimits as NonNullable<RuntimeAgentSessionOptions['historyLimits']>,
     ledgerLimits: value.ledgerLimits as NonNullable<RuntimeAgentSessionOptions['ledgerLimits']>,
     eventBufferLimits: value.eventBufferLimits as NonNullable<RuntimeAgentSessionOptions['eventBufferLimits']>,
     runtimeLimits: value.runtimeLimits as NonNullable<RuntimeAgentSessionOptions['runtimeLimits']>,
     compaction: value.compaction as NonNullable<RuntimeAgentSessionOptions['compaction']>,
   }))
+}
+
+function captureStrictSkillCandidates(value: unknown): boolean | undefined {
+  if (value !== undefined && typeof value !== 'boolean') {
+    throw new TypeError('strictSkillCandidates must be a boolean')
+  }
+  return value as boolean | undefined
+}
+
+function captureSkillDiagnostic(value: unknown): RuntimeAgentSessionOptions['onSkillDiagnostic'] {
+  if (value !== undefined && typeof value !== 'function') {
+    throw new TypeError('onSkillDiagnostic must be a function')
+  }
+  return value as RuntimeAgentSessionOptions['onSkillDiagnostic']
 }
 
 /**

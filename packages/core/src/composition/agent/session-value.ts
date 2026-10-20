@@ -199,6 +199,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
   }
 
   hasUnansweredInput(): boolean { return this.session.hasUnansweredInput() }
+  imageRetentionStats() { return this.session.imageRetentionStats() }
 
   async runPending(rawOptions?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse> {
     const options = captureInvocationOptions(rawOptions, this.host.selection)

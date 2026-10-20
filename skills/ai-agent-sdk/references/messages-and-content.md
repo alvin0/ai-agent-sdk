@@ -114,6 +114,33 @@ Sources are inline rather than handles into an attachment store, because an SDK
 cannot assume its host has one. A host with durable storage resolves its own
 reference into one of these before building the request.
 
+### Session image retention
+
+Vision sessions can bound model-facing image history with:
+
+```ts
+const session = agent.createSession({
+  imageRetention: { keepLatest: 2, persist: 'drop-pruned' },
+})
+```
+
+Images are counted in chronological message/block order across user content,
+tool results, and nested tool content. Images older than the newest `keepLatest`
+are replaced in place with text, so provider tool-result pairing stays valid.
+The policy applies to every prepared request, including mid-turn tool loops.
+`persist` defaults to `'keep'`: the snapshot keeps original bytes while each
+request is projected. `'drop-pruned'` also removes aged-out bytes from session
+history and snapshots. Pass the policy again to `resumeSession(snapshot, options)`
+to keep bounding requests after resume. An optional
+`placeholder(info)` factory returns a string or text block and sees image
+metadata and serialized size, not source bytes. The default placeholder is
+stable. The SDK caches placeholder text and serialized size per immutable image
+block and retention policy, so the factory runs once per pruned block. Use
+`session.imageRetentionStats()` to read request/persistence image
+counts and serialized byte savings. See
+[`docs/image-retention-and-diagnostics.md`](../../../docs/image-retention-and-diagnostics.md)
+for cache behavior and details.
+
 ```ts
 import { createUserMessage } from '@alvin0/ai-agent-sdk-core'
 

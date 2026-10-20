@@ -389,4 +389,5 @@ export class RunLedger implements RunAccountingPort {
   }
 }
 
-export { summarizeModelCallUsage, authoritativeTokenUsage, budgetTokenTotal } from './usage.ts'
+export { summarizeModelCallUsage, authoritativeTokenUsage, budgetTokenTotal, getUsageTotals } from './usage.ts'
+export type { UsageTotals } from './usage.ts'

@@ -352,6 +352,12 @@ needs live commentary, reasoning summaries, tool nodes, image deltas, and trace
 events. See [Creating an Agent](web-documents/en/02-agents/creating-an-agent.md) for modes,
 native tools, variants, and session ownership.
 
+For vision or long-running sessions, opt in to image retention on the session:
+`imageRetention: { keepLatest: 2, persist: 'drop-pruned' }` bounds each model request and
+removes aged-out image bytes from snapshots. The default is unchanged when this option is
+omitted. See [image retention and diagnostics](docs/image-retention-and-diagnostics.md) for
+custom placeholders, counters, skill-catalog diagnostics, and tool-error rendering.
+
 Agents can also own progressively disclosed skills. Web applications declare
 portable in-memory skills with `defineSkill()` or a custom `defineSkillProvider()`;
 Node CLIs discover `SKILL.md` folders through the separate

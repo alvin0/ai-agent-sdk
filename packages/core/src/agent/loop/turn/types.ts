@@ -16,6 +16,8 @@ import type { ContextSection } from '../../context/types.ts'
 import { type SpanId, type TraceId, type TraceRef } from '../../trace/trace.ts'
 import type { AssistantContentTiming, TurnBounds, TurnEndReason, TurnHooks } from '../types.ts'
 import type { SdkLogger } from '../../../logging/types.ts'
+import type { ImageRetentionOptions } from '../../history/image-retention.ts'
+import type { ToolErrorRendering } from '../../tool/errors.ts'
 
 /** How a mode confirms an answer its budget forced; see `RunTurnOptions.finalize`. */
 export interface TurnFinalize {
@@ -48,6 +50,10 @@ export interface RunTurnOptions {
   readonly validateOutput?: (value: unknown) => void
   /** strict rejects known text-only models when request history contains images; project permits lossy conversion. */
   readonly imagePolicy?: 'strict' | 'project'
+  /** Provider-neutral image count cap applied after hooks, to every model request. */
+  readonly imageRetention?: ImageRetentionOptions
+  /** Defaults to exposing stable tool error codes as `[CODE] message`. */
+  readonly toolErrorRendering?: ToolErrorRendering
   /** strict rejects document refusal; project permits lossy conversion. */
   readonly documentPolicy?: 'strict' | 'project'
   readonly registry: ModelRegistry

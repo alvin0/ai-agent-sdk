@@ -76,6 +76,25 @@ and `CONTEXT_WINDOW_EXCEEDED`.
 `CONTEXT_WINDOW_EXCEEDED` is special: when the provider **confirms** it,
 automatic compaction may compact and retry once (`maxOverflowRetries`).
 
+## Tool error text sent to the model
+
+Tool execution errors are tool results, so the model can correct its request.
+Session/run option `toolErrorRendering` defaults to the provider-neutral form
+`[CODE] message`. It applies to thrown failures, argument validation, policy or
+approval denials, and timeouts. A custom callback receives `{ code, message }`
+and returns the text block. `false` preserves legacy message-only rendering.
+Only the default `Error: message` content is rewritten; interceptor `block`
+feedback and `replace` content pass through unchanged, and the rendered text is
+still bounded by `maxResultTokens`.
+The callback does not receive causes, stack traces, or provider response objects;
+keep credentials and raw provider bodies out of model-facing tool messages.
+
+```ts
+const session = agent.createSession({
+  toolErrorRendering: ({ code }) => `Unable to use this tool (${code}).`,
+})
+```
+
 ## Registry-level rejections, before any provider I/O
 
 | Code | Cause |

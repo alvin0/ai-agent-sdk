@@ -2,7 +2,7 @@ import { boundOutput } from './schedule-output.ts'
 import { createToolResultMessage, createUserMessage } from '../../message/index.ts'
 import { waitForSettlement } from '../../async/index.ts'
 import type { ToolExecutionResult } from '../tool/definition.ts'
-import { TOOL_ERROR_CODES, ToolError, toolErrorDisposition } from '../tool/errors.ts'
+import { TOOL_ERROR_CODES, ToolError, renderToolError, toolErrorDisposition } from '../tool/errors.ts'
 import { finalizeToolCall, toolFailure } from '../tool/pipeline.ts'
 import { emitEvent, errorCode, immutableResult, messageOf, now, raceWithSignal, teardownFailure,
 } from './tool-call-support.ts'
@@ -22,16 +22,31 @@ export async function commit(
     await closeSlotProgram(slot)
     const finalized = slot.authorized === undefined ? pending
       : await settleSlot(slot, finalizeToolCall(slot.authorized, pending), 'finalization')
-    result = immutableResult(await boundOutput(options, slot.call, finalized), maxResultBytes)
+    // Render before bounding so the output budget applies to the text the model reads.
+    const rendered = renderToolError(finalized, options.toolErrorRendering)
+    result = immutableResult(await boundOutput(options, slot.call, rendered), maxResultBytes)
   } catch (error: unknown) {
     slot.program?.abort(error)
     hasFatal = toolErrorDisposition(error) === 'fatal'
     fatal = error
-    result = immutableResult(toolFailure(messageOf(error), errorCode(error)), maxResultBytes)
+    const failure = renderToolError(toolFailure(messageOf(error), errorCode(error)), options.toolErrorRendering)
+    result = immutableResult(await boundFailure(options, slot, failure), maxResultBytes)
   }
   await publishResult(options, slot, result)
   if (hasFatal) throw fatal
   return result
+}
+
+/**
+ * Bound a failure produced after the call broke. Truncation only: this path can
+ * follow a teardown timeout, so it must not wait on a caller-owned spill store.
+ */
+async function boundFailure(
+  options: RunToolCallsOptions, slot: Slot, failure: ToolExecutionResult,
+): Promise<ToolExecutionResult> {
+  const { spillStore: _spillStore, ...truncateOnly } = options
+  try { return await boundOutput(truncateOnly, slot.call, failure) }
+  catch { return failure }
 }
 
 async function settleSlot(

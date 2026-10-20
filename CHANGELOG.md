@@ -2,6 +2,24 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## Unreleased
+
+### Added
+
+- Added opt-in `imageRetention` for session histories and model requests. Old images become
+  provider-neutral text placeholders; `persist: 'drop-pruned'` also removes their bytes from
+  history and snapshots. Model-run policy resolution and per-image size/placeholder work are
+  cached across rounds; session counters report request and persisted pruning.
+- Tool failures now include their stable code in model-visible content by default. Configure
+  `toolErrorRendering` to customize the text or set it to `false` for legacy message-only text.
+  Interceptor-authored error content is left as written.
+- Skill discovery skips invalid candidates individually and emits bounded diagnostics through
+  `onSkillDiagnostic`. `strictSkillCandidates: true` restores all-or-nothing validation; public
+  candidate bounds are exported for providers. `validateCandidate()` reports typed
+  `SkillCandidateValidationError.reason` values.
+- Added the `getUsageTotals()` accessor for stable input, output, cached-input and reasoning
+  counters while preserving the complete `RunUsageReport` shape.
+
 ## 0.1.13 - 2026-10-17
 
 See [upgrading to 0.1.13](docs/upgrading-to-0.1.13.md).

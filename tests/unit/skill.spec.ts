@@ -3,13 +3,18 @@ import { defineAgent } from '@alvin0/ai-agent-sdk-core/agent'
 import { History } from '@alvin0/ai-agent-sdk-core/agent'
 import { runToolCalls } from '@alvin0/ai-agent-sdk-core/agent'
 import {
+  MAX_SKILL_DESCRIPTION_CHARS,
+  MAX_SKILL_NAME_CHARS,
   MAX_SKILL_RESOURCE_CHARS,
+  MAX_SKILL_WHEN_TO_USE_CHARS,
   SkillCatalog,
+  SkillCandidateValidationError,
   createSkillTools,
   defineSkill,
   defineSkillProvider,
   renderSkillCatalog,
   resolveSkillOptions,
+  validateCandidate,
   type SkillCandidate,
   type SkillProviderListOptions,
 } from '@alvin0/ai-agent-sdk-core/agent'
@@ -227,7 +232,7 @@ describe('environment-neutral skills', () => {
       }]),
       load: () => Promise.resolve(undefined),
     })
-    await expect(new SkillCatalog([skill(), provider]).discover()).rejects.toMatchObject({
+    await expect(new SkillCatalog([skill(), provider], { strictCandidates: true }).discover()).rejects.toMatchObject({
       code: 'SKILL_ID_CONFLICT',
       conflict: { namespace: 'skill-id', key: '[redacted]', firstIndex: 0, secondIndex: 1 },
     })
@@ -241,7 +246,69 @@ describe('environment-neutral skills', () => {
       }]),
       load: () => Promise.resolve(undefined),
     })
-    await expect(new SkillCatalog([provider]).discover()).rejects.toThrow(/expected 'trusted-provider'/)
+    await expect(new SkillCatalog([provider], { strictCandidates: true }).discover())
+      .rejects.toThrow(/expected 'trusted-provider'/)
+  })
+
+  it('reports stable typed reasons for invalid provider candidates and keeps valid candidates', async () => {
+    const providerId = 'reason-provider'
+    const candidate = { ...summary(skill()), provider: providerId }
+    const candidates = [
+      { ...candidate, id: 'Invalid ID' },
+      { ...candidate, id: 'invalid-name', name: 'n'.repeat(MAX_SKILL_NAME_CHARS + 1) },
+      { ...candidate, id: 'invalid-description', description: 'd'.repeat(MAX_SKILL_DESCRIPTION_CHARS + 1) },
+      { ...candidate, id: 'invalid-trigger', whenToUse: 't'.repeat(MAX_SKILL_WHEN_TO_USE_CHARS + 1) },
+      { ...candidate, id: 'invalid-provider', provider: 'other-provider' },
+      { ...candidate, id: 'invalid-invocation', invocation: {
+        modelInvocable: 'yes', userInvocable: true,
+      } as unknown as SkillCandidate['invocation'] },
+      null as unknown as SkillCandidate,
+      { ...candidate, id: 'valid-candidate' },
+    ]
+    const diagnostics: { reason: string }[] = []
+    const provider = defineSkillProvider({
+      kind: 'skill-provider', id: providerId,
+      list: () => Promise.resolve(candidates), load: () => Promise.resolve(undefined),
+    })
+    const catalog = new SkillCatalog([provider], { onDiagnostic: diagnostic => { diagnostics.push(diagnostic) } })
+
+    await expect(catalog.discover()).resolves.toMatchObject([{ id: 'valid-candidate' }])
+    expect(diagnostics.map(diagnostic => diagnostic.reason)).toEqual([
+      'id-invalid', 'name-invalid', 'description-invalid', 'trigger-invalid',
+      'provider-mismatch', 'invocation-invalid', 'candidate-invalid',
+    ])
+    expect(() => validateCandidate(candidates[0]!, providerId)).toThrow(SkillCandidateValidationError)
+    let validationError: unknown
+    try { validateCandidate(candidates[0]!, providerId) }
+    catch (error: unknown) {
+      validationError = error
+    }
+    expect(validationError).toBeInstanceOf(SkillCandidateValidationError)
+    expect((validationError as SkillCandidateValidationError).reason).toBe('id-invalid')
+  })
+
+  it('applies the legacy candidate limit to admitted skills, not list positions', async () => {
+    const providerId = 'limit-provider'
+    const candidate = { ...summary(skill()), provider: providerId }
+    const candidates = [
+      ...Array.from({ length: 3 }, (_, index) => ({ ...candidate, id: `Invalid ${index}` })),
+      ...Array.from({ length: 2 }, (_, index) => ({ ...candidate, id: `blocked-${index}` })),
+      ...Array.from({ length: 3 }, (_, index) => ({ ...candidate, id: `allowed-${index}` })),
+    ]
+    const provider = defineSkillProvider({
+      kind: 'skill-provider', id: providerId,
+      list: () => Promise.resolve(candidates), load: () => Promise.resolve(undefined),
+    })
+    const diagnostics: { reason: string }[] = []
+    const catalog = new SkillCatalog([provider], {
+      maxSkills: 3,
+      allowedSkillIds: ['allowed-0', 'allowed-1', 'allowed-2'],
+      onDiagnostic: diagnostic => { diagnostics.push(diagnostic) },
+    })
+
+    const discovered = await catalog.discover()
+    expect(discovered.map(entry => entry.id)).toEqual(['allowed-0', 'allowed-1', 'allowed-2'])
+    expect(diagnostics.map(diagnostic => diagnostic.reason)).not.toContain('candidate-limit')
   })
 
   it('keeps untrusted catalog metadata on one escaped line and inside its hard budget', () => {

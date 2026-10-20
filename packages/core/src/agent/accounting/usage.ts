@@ -12,6 +12,24 @@ export const COUNTER_KEYS = [
   'cacheWriteTokens', 'reasoningTokens',
 ] as const satisfies readonly (keyof UsageCounters)[]
 
+/** Stable consumer-facing token totals; absent provider counters stay undefined. */
+export interface UsageTotals {
+  readonly inputTokens: number | undefined
+  readonly outputTokens: number | undefined
+  readonly cachedInputTokens: number | undefined
+  readonly reasoningTokens: number | undefined
+}
+
+/** Read normalized reported usage without depending on the ledger's other report fields. */
+export function getUsageTotals(report: Pick<RunUsageReport, 'reported'>): UsageTotals {
+  return Object.freeze({
+    inputTokens: report.reported.inputTokens,
+    outputTokens: report.reported.outputTokens,
+    cachedInputTokens: report.reported.cacheReadTokens,
+    reasoningTokens: report.reported.reasoningTokens,
+  })
+}
+
 export function aggregateUsage(reports: readonly ModelCallReport[], errors: SafeErrorRecord[]): RunUsageReport {
   const coverage = {
     logicalCalls: reports.length,

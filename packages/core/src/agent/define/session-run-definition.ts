@@ -55,6 +55,8 @@ function sessionCommon(
     ...(definition.nativeTools.length === 0 ? {} : { nativeTools: definition.nativeTools }),
     ...optional('toolChoice', definition.toolChoice),
     ...optional('imagePolicy', invocation.imagePolicy),
+    ...optional('imageRetention', host.options.imageRetention),
+    ...optional('toolErrorRendering', host.options.toolErrorRendering),
     ...optional('documentPolicy', invocation.documentPolicy),
     ...(outputFormat === undefined ? {} : { outputFormat }),
     ...optional('validateOutput', invocation.validateOutput),

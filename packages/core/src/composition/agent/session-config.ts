@@ -73,6 +73,16 @@ function sessionExecutionFields(options: RuntimeAgentSessionOptions) {
     ...(options.hooks === undefined ? {} : { hooks: options.hooks }),
     ...(options.usagePolicy === undefined ? {} : { usagePolicy: options.usagePolicy }),
     ...(options.historyLimits === undefined ? {} : { historyLimits: options.historyLimits }),
+    ...sessionPolicyFields(options),
+  }
+}
+
+function sessionPolicyFields(options: RuntimeAgentSessionOptions) {
+  return {
+    ...(options.imageRetention === undefined ? {} : { imageRetention: options.imageRetention }),
+    ...(options.toolErrorRendering === undefined ? {} : { toolErrorRendering: options.toolErrorRendering }),
+    ...(options.strictSkillCandidates === undefined ? {} : { strictSkillCandidates: options.strictSkillCandidates }),
+    ...(options.onSkillDiagnostic === undefined ? {} : { onSkillDiagnostic: options.onSkillDiagnostic }),
   }
 }
 

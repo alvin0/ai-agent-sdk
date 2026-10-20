@@ -83,6 +83,18 @@ before stream delivery, so this retry cannot duplicate visible output.
 Authentication failures, model errors, and 400s naming another field are not
 swallowed by this mechanism. Normal retry policy remains a separate layer.
 
+## Image retention and prefix stability
+
+Session `imageRetention` is opt-in. It replaces images older than the configured
+newest-image count at their original positions with a stable text placeholder.
+The messages before the oldest image that ages out remain unchanged, while the
+suffix from that image changes once. This preserves as much of a cacheable
+prefix as possible; it cannot keep the previous cache identity for changed
+image content. With `persist: 'drop-pruned'`, the placeholder is permanent in
+snapshots and resumed histories too. Use `session.imageRetentionStats()` to
+measure projected image and byte savings; those counters do not imply a provider
+cache hit.
+
 ## Usage and verification
 
 Normalized generation usage exposes `cacheReadTokens` and `cacheWriteTokens`
