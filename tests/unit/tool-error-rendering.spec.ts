@@ -110,6 +110,17 @@ describe('tool error rendering', () => {
     expect(JSON.stringify(result.result)).not.toContain('do not expose this')
   })
 
+  it('falls back to the compact code rendering if a custom renderer returns blank text', async () => {
+    const scenario = {
+      code: 'CUSTOM_FAILURE',
+      execute: () => { throw ToolError.respondToModel('safe failure', 'CUSTOM_FAILURE') },
+    }
+    for (const blank of ['', '  \n']) {
+      const result = await runScenario(scenario, () => blank)
+      expect(result.result.content).toEqual([{ type: 'text', text: '[CUSTOM_FAILURE] safe failure' }])
+    }
+  })
+
   it('forwards the session compatibility setting through high-level tool rounds', async () => {
     const adapter = new SessionRenderingAdapter()
     const registry = new ModelRegistry()
@@ -195,5 +206,23 @@ describe('tool error rendering', () => {
     const text = event.result.content.map(block => block.type === 'text' ? block.text : '').join('')
     expect(text.startsWith('[BROKEN_CONTRACT] dump')).toBe(true)
     expect(text.length).toBeLessThan(5_000)
+  })
+
+  it('ends the tool span once when the context append fails after publication', async () => {
+    const registry = new ToolRegistry()
+    registry.register(defineTool({
+      name: 'run', description: 'Run a test tool.', parameters: { type: 'object' },
+      execute: (_args, context) => { context.addContext('more context'); return 'ok' },
+    }))
+    const events: { type: string }[] = []
+    const parentTrace = {
+      traceId: createTraceId(), spanId: createSpanId(), parentSpanId: null,
+    } as unknown as Parameters<typeof runToolCalls>[0]['parentTrace']
+    await expect(runToolCalls({
+      calls: [{ callId: ToolCallId('call-context-overflow'), toolName: 'run', rawArguments: '{}' }],
+      catalog: registry, history: new History({ maxEntries: 2 }), position: { turn: 1, step: 1 },
+      signal: new AbortController().signal, parentTrace, emit: event => { events.push(event); return Promise.resolve() },
+    })).rejects.toThrow(/entry limit/)
+    expect(events.filter(event => event.type === 'span-end')).toHaveLength(1)
   })
 })

@@ -235,6 +235,19 @@ describe('versioned skill provider authoring and catalog', () => {
     expect(JSON.stringify(diagnostics)).not.toContain('x'.repeat(MAX_SKILL_INSTRUCTIONS_CHARS + 1))
   })
 
+  it('bounds plugin candidate text in UTF-8 bytes as well as characters', async () => {
+    const fixture = skillProvider()
+    fixture.setCandidates([
+      { ...candidate(), id: 'wide-name', name: '\u754c'.repeat(200) },
+      { ...candidate(), id: 'narrow-name' },
+    ])
+    const diagnostics: { reason: string }[] = []
+    const catalog = new SkillCatalog([fixture.plugin], { onDiagnostic: diagnostic => { diagnostics.push(diagnostic) } })
+
+    await expect(catalog.discover()).resolves.toMatchObject([{ id: 'narrow-name' }])
+    expect(diagnostics.map(diagnostic => diagnostic.reason)).toEqual(['name-invalid'])
+  })
+
   it('skips candidates beyond a configured catalog limit with a diagnostic', async () => {
     const fixture = skillProvider()
     fixture.setCandidates([

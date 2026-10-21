@@ -2,7 +2,7 @@ import { UNCHANGED_ANSWER_MARKER } from '../loop/control-text.ts'
 import { AGENT_CONTROL_TOOLS } from './control-tools.ts'
 import { createUserMessage } from '../../message/index.ts'
 import { type RunAgentOptions, type DeepState } from './run-agent.ts'
-import type { TurnHooks } from '../loop/types.ts'
+import type { TurnEndDecision, TurnHooks } from '../loop/types.ts'
 import { keptAnswerOutcome } from './run-agent-support.ts'
 
 export const UNVERIFIED_ANSWER_LIMIT = 3
@@ -71,6 +71,12 @@ function recordDraft(
   state.draftSeq = draftSeq
 }
 
+/** A yield, or a continuation that adds context. An empty one keeps the deep-mode checks. */
+function overridesDeepChecks(decision: TurnEndDecision | void | undefined): decision is TurnEndDecision {
+  if (decision?.kind === 'yield') return true
+  return decision?.kind === 'continue' && (!Array.isArray(decision.messages) || decision.messages.length > 0)
+}
+
 export function deepHooks(
   userHooks: TurnHooks | undefined, history: RunAgentOptions['history'], state: DeepState,
 ): TurnHooks {
@@ -80,7 +86,7 @@ export function deepHooks(
       const draftSeq = history.entries().length
       const outcome = keptAnswerOutcome(context.outcome, state)
       const decision = await userHooks?.onTurnEnd?.(outcome === context.outcome ? context : { ...context, outcome })
-      if (decision && (decision.kind === 'yield' || decision.messages.length > 0)) return decision
+      if (overridesDeepChecks(decision)) return decision
       if (shouldNudgeOrphan(context, state)) {
         state.orphanMarkerNudged = true
         appendOrphanMarkerPrompt(history)

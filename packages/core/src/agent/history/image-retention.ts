@@ -1,5 +1,6 @@
 import type { ContentBlock, ImageBlock, ImageMediaType, Message, TextBlock } from '../../message/index.ts'
 import type { HistoryEvent } from './types.ts'
+import { serializedByteLength } from './image-retention-size.ts'
 
 export const MAX_IMAGE_RETENTION_KEEP_LATEST = 100_000
 export const MAX_IMAGE_RETENTION_PLACEHOLDER_CHARS = 512
@@ -66,6 +67,7 @@ export function resolveImageRetention(
   input: ImageRetentionOptions | undefined,
 ): ResolvedImageRetentionOptions | undefined {
   if (input === undefined) return undefined
+  if (typeof input !== 'object' || input === null) throw new TypeError('imageRetention must be an object')
   const cached = resolvedPolicies.get(input)
   // The cache is keyed by object identity, so a caller that mutates its options
   // object after first use must get a freshly validated policy, not the stale one.
@@ -283,7 +285,7 @@ function imageRetentionInfo(image: ImageBlock, serializedBytes: number): ImageRe
   return Object.freeze({
     sourceKind: image.source.kind,
     ...(image.source.kind === 'base64' ? { mediaType: image.source.mediaType } : {}),
-    ...(image.detail === undefined ? {} : { detail: image.detail }),
+    ...(typeof image.detail === 'string' ? { detail: image.detail } : {}),
     serializedBytes,
   })
 }
@@ -313,7 +315,7 @@ function visitImages(value: unknown, onImage: (image: ImageBlock) => void): void
   if (block.type === 'image') { onImage(block as ImageBlock); return }
   const content = (block as { readonly content?: unknown }).content
   if (Array.isArray(content)) {
-    visitImages(content, onImage)
+    if (replaceableContainer(block)) visitImages(content, onImage)
   } else if ('message' in block && block.message !== undefined) {
     visitImages(block.message, onImage)
     // A tool's context is also retained in its result receipt, in addition to
@@ -322,69 +324,16 @@ function visitImages(value: unknown, onImage: (image: ImageBlock) => void): void
   }
 }
 
+/**
+ * Descend only where mapBlocks can replace (messages, tool results, native tool
+ * calls). Counting an image inside an extension block would make pruning skip
+ * an old image and replace a newer one instead.
+ */
+function replaceableContainer(block: Partial<ContentBlock>): boolean {
+  return block.type === undefined || block.type === 'tool-result' || block.type === 'native-tool-call'
+}
+
 function visitResultContext(value: unknown, onImage: (image: ImageBlock) => void): void {
   const result = (value as { readonly result?: { readonly additionalContext?: unknown } }).result
   if (Array.isArray(result?.additionalContext)) visitImages(result.additionalContext, onImage)
 }
-
-function serializedByteLength(value: ImageBlock | TextBlock): number {
-  if (value.type === 'text') return jsonStringLength(value.text) + 22 // {"type":"text","text":...}
-  const source = value.source
-  let sourceFields: number[]
-  if (source.kind === 'base64') {
-    // ImageSource's base64 contract and ImageMediaType union are ASCII JSON-safe.
-    // Avoid walking large payloads; the projection cache computes this once per block.
-    sourceFields = [jsonProperty('kind', source.kind.length + 2),
-      jsonProperty('mediaType', source.mediaType.length + 2),
-      jsonProperty('data', source.data.length + 2)]
-  } else {
-    const key = source.kind === 'url' ? 'url' : 'fileId'
-    const locator = source.kind === 'url' ? source.url : source.fileId
-    sourceFields = [jsonProperty('kind', jsonStringLength(source.kind)), jsonProperty(key, jsonStringLength(locator))]
-  }
-  const sourceBytes = objectLength(sourceFields)
-  const imageFields = [jsonProperty('type', jsonStringLength('image')),
-    jsonProperty('source', sourceBytes),
-    ...(value.detail === undefined ? [] : [jsonProperty('detail', jsonStringLength(value.detail))])]
-  return objectLength(imageFields)
-}
-
-function objectLength(fields: readonly number[]): number {
-  return 2 + fields.reduce((total, field) => total + field, Math.max(0, fields.length - 1))
-}
-
-function jsonProperty(name: string, valueBytes: number): number {
-  return jsonStringLength(name) + 1 + valueBytes
-}
-
-/** UTF-8 bytes of JSON.stringify(text), computed without allocating a data-sized copy. */
-function jsonStringLength(value: string): number {
-  let bytes = 2
-  for (let index = 0; index < value.length; index++) {
-    const code = value.charCodeAt(index)
-    bytes += jsonCodeUnitLength(code, value.charCodeAt(index + 1))
-    if (isHighSurrogatePair(code, value.charCodeAt(index + 1))) index++
-  }
-  return bytes
-}
-
-function jsonCodeUnitLength(code: number, next: number): number {
-  if (JSON_ESCAPE_LENGTHS[code] !== undefined) return JSON_ESCAPE_LENGTHS[code]!
-  if (code < 0x20) return 6
-  return jsonUnicodeCodeUnitLength(code, next)
-}
-
-function jsonUnicodeCodeUnitLength(code: number, next: number): number {
-  if (code >= 0xd800 && code <= 0xdbff) return next >= 0xdc00 && next <= 0xdfff ? 4 : 6
-  if (code >= 0xdc00 && code <= 0xdfff) return 6
-  if (code < 0x80) return 1
-  return code < 0x800 ? 2 : 3
-}
-
-function isHighSurrogatePair(code: number, next: number): boolean {
-  return code >= 0xd800 && code <= 0xdbff && next >= 0xdc00 && next <= 0xdfff
-}
-
-const JSON_ESCAPE_LENGTHS: Readonly<Record<number, number>> = Object.freeze({
-  8: 2, 9: 2, 10: 2, 12: 2, 13: 2, 34: 2, 92: 2,
-})

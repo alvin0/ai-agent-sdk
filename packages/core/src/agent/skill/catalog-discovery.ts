@@ -35,20 +35,25 @@ class CatalogCollector {
   ): void {
     if (!this.config.isAllowed(id)) return
     if (candidate !== undefined) {
+      // Strict mode reports the same diagnostic, then fails with the legacy error.
       if (this.config.entries.has(id)) {
-        if (this.config.strictCandidates) addUnique(this.config.entries, id, entry)
-        this.reject(candidate.providerId, candidate.raw, 'duplicate-id')
+        this.reject(candidate.providerId, candidate.raw, 'duplicate-id',
+          () => addUnique(this.config.entries, id, entry))
         return
       }
       if (this.config.entries.size >= this.config.maxSkills) {
-        this.reject(candidate.providerId, candidate.raw, 'candidate-limit')
+        this.reject(candidate.providerId, candidate.raw, 'candidate-limit', () => {
+          throw new RangeError(`skill catalog exceeds ${this.config.maxSkills} entries`)
+        })
         return
       }
-      try { this.bytes = addCatalogBytes(this.bytes, value, this.config.maxCatalogBytes) }
-      catch {
-        this.reject(candidate.providerId, candidate.raw, 'catalog-byte-limit')
+      let bytes: number
+      try { bytes = addCatalogBytes(this.bytes, value, this.config.maxCatalogBytes) }
+      catch (error: unknown) {
+        this.reject(candidate.providerId, candidate.raw, 'catalog-byte-limit', () => { throw error })
         return
       }
+      this.bytes = bytes
       this.config.entries.set(id, entry)
       return
     }
@@ -82,6 +87,9 @@ class CatalogCollector {
     if (!Array.isArray(candidates)) {
       throw new TypeError(`skill provider '${source.id}' returned an invalid candidate list`)
     }
+    if (this.config.strictCandidates && candidates.length > this.config.maxSkills) {
+      throw new RangeError(`skill provider '${source.id}' exceeds the ${this.config.maxSkills}-candidate limit`)
+    }
     for (let index = 0; index < Math.min(candidates.length, MAX_SKILL_CANDIDATES); index++) {
       const candidate = candidates[index] as unknown
       try { validateCandidate(candidate as Parameters<typeof validateCandidate>[0], source.id) }
@@ -106,9 +114,11 @@ class CatalogCollector {
 
   private reject(
     providerId: string, candidate: unknown, reason: SkillCandidateRejectionReason,
+    strictFailure?: () => void,
   ): void {
     emitSkillCandidateDiagnostic(this.config.onDiagnostic, providerId, candidate, reason)
     if (this.config.strictCandidates) {
+      strictFailure?.()
       throw new TypeError(`skill provider '${providerId}' candidate was rejected: ${reason}`)
     }
   }

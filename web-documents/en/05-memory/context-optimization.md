@@ -80,6 +80,37 @@ no savings falls back to the full original. Unknown formats need a host parser;
 generic diagnostic rules cannot prove every log semantically complete.
 `reduceEvidence` and `diagnosticLineNumbers` also support deterministic extraction.
 
+## Bound images per request
+
+Vision sessions resend every earlier screenshot on every round. Since 0.1.14,
+`imageRetention` keeps only the newest images:
+
+```ts
+const session = agent.createSession({
+  imageRetention: { keepLatest: 2, persist: 'drop-pruned' },
+})
+console.log(session.imageRetentionStats())
+```
+
+Images are counted in message and block order across user content, tool results
+and nested native-tool content. Older ones are replaced in place by a stable
+text placeholder, so tool-call pairing stays valid on every provider. The policy
+runs on every prepared request, including rounds inside a tool loop, and
+compaction measures the same retained view.
+
+| `persist` | Requests | History and snapshots |
+| --- | --- | --- |
+| `'keep'` (default) | at most `keepLatest` images | original bytes kept |
+| `'drop-pruned'` | at most `keepLatest` images | old image bytes removed |
+
+An optional `placeholder(info)` returns a string or `{ type: 'text', text }` of
+at most 512 characters; it sees source kind, media type, detail and size, never
+image bytes. The policy is session configuration: pass it again to
+`resumeSession(snapshot, options)`. Counters from `imageRetentionStats()` belong
+to the live session and restart from zero after a resume. The first time an
+image ages out, the request suffix from that position changes once, so a
+provider prompt cache may reuse a shorter prefix.
+
 ## Conversation lifecycle
 
 Call `optimizer.dispose()` when the conversation ends. Reset/resume uses a

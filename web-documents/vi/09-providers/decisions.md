@@ -50,4 +50,4 @@ attempt. `typesafePlugin` trả evidence xác suất native. Confidence
 Evidence gate abstain khi không có evidence được chấp nhận.
 
 - [OpenAI generation](/vi/09-providers/openai)
-- [Nâng cấp hiện tại](/vi/01-introduction/upgrading-to-0-1-13)
+- [Nâng cấp hiện tại](/vi/01-introduction/upgrading-to-0-1-14)

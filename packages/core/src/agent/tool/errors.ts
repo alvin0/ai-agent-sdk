@@ -157,7 +157,8 @@ export function renderToolError(
   } catch {
     message = `[${view.code}] ${view.message}`
   }
-  if (typeof message !== 'string') message = `[${view.code}] ${view.message}`
+  // Empty text blocks are rejected by some providers and tell the model nothing.
+  if (typeof message !== 'string' || message.trim() === '') message = `[${view.code}] ${view.message}`
   return { ...result, content: [{ type: 'text', text: message }] }
 }
 

@@ -19,6 +19,28 @@ type ToolExecutionResult = ToolSuccess | ToolFailure
 | `additionalContext` | từ `ctx.addContext()` | từ `ctx.addContext()` |
 | `concludesTurn` | `true` nếu được yêu cầu | kiểu **`never`** |
 
+## Nội dung lỗi model đọc được
+
+Từ 0.1.14, một thất bại tới model dưới dạng `[CODE] message`, ví dụ
+`[TOOL_TIMEOUT] the tool exceeded its time limit`. Quy tắc này áp dụng cho lỗi
+ném ra, tham số không hợp lệ, interceptor từ chối, phê duyệt bị từ chối và
+timeout. Đặt `toolErrorRendering` trên session hoặc lượt chạy để thay đổi:
+
+```ts
+const session = agent.createSession({
+  toolErrorRendering: ({ code }) => `The tool failed (${code}). Try a different approach.`,
+})
+
+// Nội dung như 0.1.13, `Error: message`.
+const legacy = agent.createSession({ toolErrorRendering: false })
+```
+
+Hàm hiển thị chỉ nhận `code` và `message`, không bao giờ nhận cause, stack hay
+response của provider. Nếu hàm ném lỗi hoặc trả về giá trị không phải chuỗi hay
+chuỗi rỗng, SDK dùng dạng mặc định `[CODE] message`. Nội dung interceptor viết cho
+model (phản hồi `block`, kết quả `replace`) không bị viết lại. Việc hiển thị chạy
+trước ngân sách output, nên `maxResultTokens` vẫn giới hạn thông điệp dài.
+
 ## Thất bại không bao giờ kết thúc được lượt
 
 `concludesTurn` có kiểu `never` trên `ToolFailure` **theo thiết kế**. Nếu không,

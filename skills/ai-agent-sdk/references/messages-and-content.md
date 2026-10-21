@@ -138,7 +138,7 @@ stable. The SDK caches placeholder text and serialized size per immutable image
 block and retention policy, so the factory runs once per pruned block. Use
 `session.imageRetentionStats()` to read request/persistence image
 counts and serialized byte savings. See
-[`docs/image-retention-and-diagnostics.md`](../../../docs/image-retention-and-diagnostics.md)
+`docs/image-retention-and-diagnostics.md`
 for cache behavior and details.
 
 ```ts

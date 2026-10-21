@@ -266,7 +266,9 @@ function candidateText(value: unknown, max: number): string {
 }
 
 function candidateTextOk(value: unknown, max: number): boolean {
+  // Plugin text is bounded in UTF-8 bytes as well as characters, as `text` does.
   return typeof value === 'string' && value.trim().length > 0 && value.length <= max
+    && new TextEncoder().encode(value).byteLength <= max
 }
 
 function referenceFromCandidate(candidate: RuntimeSkillCandidate, revision: string): SkillReference {

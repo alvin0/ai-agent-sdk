@@ -80,6 +80,37 @@ parser của host; rule diagnostic chung không chứng minh được mọi log 
 về ngữ nghĩa. `reduceEvidence` và `diagnosticLineNumbers` cũng hỗ trợ extractor
 deterministic.
 
+## Giới hạn số ảnh mỗi request
+
+Session có thị giác gửi lại mọi ảnh chụp màn hình cũ ở mỗi vòng. Từ 0.1.14,
+`imageRetention` chỉ giữ những ảnh mới nhất:
+
+```ts
+const session = agent.createSession({
+  imageRetention: { keepLatest: 2, persist: 'drop-pruned' },
+})
+console.log(session.imageRetentionStats())
+```
+
+Ảnh được đếm theo thứ tự message và block, gồm nội dung user, tool result và nội
+dung native tool lồng nhau. Ảnh cũ hơn được thay tại chỗ bằng một placeholder văn
+bản ổn định, nên cặp tool-call vẫn hợp lệ với mọi provider. Chính sách chạy trên
+mọi request được chuẩn bị, kể cả các vòng bên trong vòng lặp tool, và compaction
+đo trên cùng góc nhìn đã giữ lại.
+
+| `persist` | Request | History và snapshot |
+| --- | --- | --- |
+| `'keep'` (mặc định) | tối đa `keepLatest` ảnh | giữ byte gốc |
+| `'drop-pruned'` | tối đa `keepLatest` ảnh | xóa byte ảnh cũ |
+
+`placeholder(info)` tùy chọn trả về một chuỗi hoặc `{ type: 'text', text }` tối đa
+512 ký tự; hàm chỉ thấy loại nguồn, media type, detail và kích thước, không bao giờ
+thấy byte ảnh. Chính sách là cấu hình của session: hãy truyền lại khi gọi
+`resumeSession(snapshot, options)`. Bộ đếm từ `imageRetentionStats()` thuộc về
+session đang chạy và bắt đầu lại từ 0 sau khi resume. Lần đầu một ảnh bị loại,
+phần đuôi request từ vị trí đó thay đổi một lần, nên prompt cache của provider có
+thể chỉ dùng lại được tiền tố ngắn hơn.
+
 ## Lifecycle hội thoại
 
 Gọi `optimizer.dispose()` khi kết thúc hội thoại. Reset/resume cần controller

@@ -1,4 +1,5 @@
 import type { ModelCallReport } from '../../../observation/index.ts'
+import type { UserMessage } from '../../../message/index.ts'
 import type { TraceRef } from '../../trace/trace.ts'
 import { authoritativeTokenUsage, summarizeModelCallUsage } from '../../accounting/ledger.ts'
 import type { TurnEndDecision, TurnOutcome } from '../types.ts'
@@ -20,10 +21,21 @@ function appendContinuation(options: RunTurnOptions, decision: TurnEndDecision |
   if (decision?.kind !== 'continue') return
   // Validate the whole batch before appending anything. A host continuation is
   // context, never a new human request or a fresh accounting/budget scope.
-  if (decision.messages.some(message => message.role !== 'user' || message.source.kind !== 'app')) {
+  const messages: unknown = decision.messages
+  if (!Array.isArray(messages) || messages.some(message => !isAppUserMessage(message))) {
     throw new TypeError('Turn continuation requires app-sourced user messages')
   }
-  for (const message of decision.messages) options.history.append({ kind: 'user', message })
+  // One batch: a history limit hit by a later message must not leave earlier ones appended.
+  options.history.appendBatch((messages as readonly UserMessage[]).map(message => ({
+    event: { kind: 'user' as const, message },
+  })))
+}
+
+function isAppUserMessage(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false
+  const message = value as Partial<UserMessage>
+  return message.role === 'user' && typeof message.source === 'object' && message.source !== null
+    && message.source.kind === 'app'
 }
 
 async function continueAfterHook(

@@ -19,6 +19,28 @@ type ToolExecutionResult = ToolSuccess | ToolFailure
 | `additionalContext` | from `ctx.addContext()` | from `ctx.addContext()` |
 | `concludesTurn` | `true` if requested | typed **`never`** |
 
+## The error text the model reads
+
+Since 0.1.14 a failure reaches the model as `[CODE] message`, for example
+`[TOOL_TIMEOUT] the tool exceeded its time limit`. This covers thrown errors,
+invalid arguments, interceptor denials, denied approvals and timeouts. Set
+`toolErrorRendering` on the session or run to change it:
+
+```ts
+const session = agent.createSession({
+  toolErrorRendering: ({ code }) => `The tool failed (${code}). Try a different approach.`,
+})
+
+// The 0.1.13 text, `Error: message`.
+const legacy = agent.createSession({ toolErrorRendering: false })
+```
+
+The renderer receives only `code` and `message`, never causes, stacks or
+provider responses. If it throws or returns a non-string or blank string, the
+default `[CODE] message` is used. Content an interceptor wrote for the model
+(`block` feedback, `replace` results) is not rewritten. Rendering runs before
+the output budget, so `maxResultTokens` still bounds a long message.
+
 ## A failure can never end the turn
 
 `concludesTurn` is typed `never` on `ToolFailure` **by design**. Otherwise a

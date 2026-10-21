@@ -82,7 +82,7 @@ const legacySession = agent.createSession({ toolErrorRendering: false })
 Messages explicitly created with `ToolError.respondToModel()` and interceptor
 reasons are intended for model feedback. Do not put credentials or raw provider
 bodies in those messages. A custom renderer can replace the message entirely;
-if it throws or returns a non-string, the default `[CODE] message` form is used.
+if it throws or returns a non-string or blank string, the default `[CODE] message` form is used.
 
 Rendering only rewrites the default `Error: message` text. Content an
 interceptor wrote for the model, such as `block` feedback or a `replace` result

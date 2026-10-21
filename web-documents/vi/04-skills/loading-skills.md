@@ -165,6 +165,29 @@ không bao giờ:          phần thân skill không liên quan, tài nguyên ch
 Chỉ dẫn đã chọn và các khối tài nguyên trả về vẫn nằm trong lịch sử **cho tới khi
 nén**. Sau một lần nén, model có thể gọi `load_skill` lại.
 
+## Candidate không hợp lệ và diagnostic
+
+Từ 0.1.14, mỗi candidate của provider được kiểm tra riêng. Candidate không hợp lệ
+bị bỏ qua và phần còn lại của catalog vẫn dùng được. Theo dõi các lần bỏ qua, hoặc
+khôi phục cách khám phá "tất cả hoặc không":
+
+```ts
+const session = agent.createSession({
+  onSkillDiagnostic: diagnostic => logger.warn('skill candidate rejected', diagnostic),
+  strictSkillCandidates: false, // mặc định; true làm lần khám phá thất bại ở candidate bị từ chối đầu tiên
+})
+```
+
+Mỗi diagnostic có `type: 'skill-candidate-rejected'`, `code:
+'SKILL_CANDIDATE_REJECTED'`, một `providerId`, một `candidateId` tùy chọn tối đa 128
+ký tự, và một `reason` có kiểu: `candidate-invalid`, `id-invalid`, `name-invalid`,
+`description-invalid`, `trigger-invalid`, `instructions-invalid`,
+`invocation-invalid`, `provider-mismatch`, `locator-invalid`, `duplicate-id`,
+`candidate-limit` hoặc `catalog-byte-limit`. Lỗi trong observer không bao giờ dừng
+việc khám phá. Provider có thể kiểm tra metadata theo `SKILL_CANDIDATE_LIMITS` từ
+`@alvin0/ai-agent-sdk-core/agent` trước khi trả về; `validateCandidate()` ném
+`SkillCandidateValidationError` với cùng `reason`.
+
 ## Đọc tiếp
 
 - [Skill Lifecycle](/vi/04-skills/skill-lifecycle)

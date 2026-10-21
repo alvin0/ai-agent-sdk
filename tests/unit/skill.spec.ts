@@ -311,6 +311,25 @@ describe('environment-neutral skills', () => {
     expect(diagnostics.map(diagnostic => diagnostic.reason)).not.toContain('candidate-limit')
   })
 
+  it('keeps legacy errors for strict candidate limits and duplicates, after a diagnostic', async () => {
+    const providerId = 'strict-provider'
+    const candidate = { ...summary(skill()), provider: providerId }
+    const providerOf = (candidates: readonly SkillCandidate[]) => defineSkillProvider({
+      kind: 'skill-provider', id: providerId,
+      list: () => Promise.resolve(candidates), load: () => Promise.resolve(undefined),
+    })
+    const overLimit = [1, 2, 3].map(index => ({ ...candidate, id: `strict-${index}` }))
+    await expect(new SkillCatalog([providerOf(overLimit)], { strictCandidates: true, maxSkills: 2 }).discover())
+      .rejects.toThrow(RangeError)
+
+    const diagnostics: { reason: string }[] = []
+    const duplicate = [{ ...candidate, id: 'strict-dup' }, { ...candidate, id: 'strict-dup' }]
+    await expect(new SkillCatalog([providerOf(duplicate)], {
+      strictCandidates: true, onDiagnostic: diagnostic => { diagnostics.push(diagnostic) },
+    }).discover()).rejects.toMatchObject({ code: 'SKILL_ID_CONFLICT' })
+    expect(diagnostics.map(diagnostic => diagnostic.reason)).toEqual(['duplicate-id'])
+  })
+
   it('keeps untrusted catalog metadata on one escaped line and inside its hard budget', () => {
     const suspicious = skill({
       id: 'prompt-boundary',

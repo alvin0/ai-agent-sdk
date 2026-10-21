@@ -2,7 +2,9 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
-## Unreleased
+## 0.1.14 - 2026-10-21
+
+See [upgrading to 0.1.14](docs/upgrading-to-0.1.14.md).
 
 ### Added
 
@@ -19,6 +21,38 @@ All notable changes to the AI Agent SDK are documented in this file.
   `SkillCandidateValidationError.reason` values.
 - Added the `getUsageTotals()` accessor for stable input, output, cached-input and reasoning
   counters while preserving the complete `RunUsageReport` shape.
+- Session `hooks.beforeCompletion` is an application completion gate. It runs after a voluntary
+  model stop and before empty-answer recovery; it and `onTurnEnd` may return
+  `{ kind: 'continue', messages }` with app-sourced user messages to continue the same turn and
+  run with the remaining budgets. The batch is validated and appended atomically. The type is
+  exported as `TurnEndDecision`.
+
+### Changed
+
+- Model-visible tool failures default to `[CODE] message` instead of `Error: message`. Set
+  `toolErrorRendering: false` to keep the earlier text.
+- Skill discovery no longer fails the whole catalog for one invalid provider candidate; the
+  candidate is skipped and reported through `onSkillDiagnostic`. Set
+  `strictSkillCandidates: true` for the earlier all-or-nothing behavior and errors.
+- Bun native transport errors (`ECONNRESET`, `ETIMEDOUT` and similar) without an SDK failure
+  envelope are classified as network failures instead of malformed foreign model errors.
+- Turn operations that end in an error now carry the failure in their accounting record.
+- `@modelcontextprotocol/server` and `@modelcontextprotocol/client` are 2.3.1, which fixes
+  high-severity advisories for shared transports and oversized request validation.
+
+### Fixed
+
+- `drop-pruned` image retention keeps the stored-byte total exact: the placeholder size was
+  undercounted by one byte per pruned image, and image blocks with extra fields, a non-string
+  `detail` or non-base64 data are now measured exactly instead of estimated or rejected.
+- Image retention counts only images it can replace, so an image inside an extension block no
+  longer causes a newer image to be pruned in its place.
+- A tool span is ended once when publishing a result fails after the span closed, for example
+  when the additional-context message no longer fits in history.
+- A custom `toolErrorRendering` that returns blank text falls back to `[CODE] message`.
+- An empty continuation no longer bypasses managed-lead settlement or deep-mode completion
+  checks.
+- Plugin skill candidate text is bounded in UTF-8 bytes as well as characters again.
 
 ## 0.1.13 - 2026-10-17
 

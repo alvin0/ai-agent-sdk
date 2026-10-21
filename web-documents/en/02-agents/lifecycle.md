@@ -80,7 +80,8 @@ const session = agent.createSession({
 | `beforeStep` | `(ctx) => StepDecision` | Gate or augment the next model step |
 | `onRequestError` | `(ctx) => 'retry' \| 'fail'` | Decide recovery for a model request failure |
 | `checkpoint` | `(ctx) => void` | Durability point — persist progress |
-| `onTurnEnd` | `(ctx) => void` | Terminal accounting for one turn |
+| `beforeCompletion` | `(ctx) => void \| TurnEndDecision` | Application gate before a voluntary stop completes |
+| `onTurnEnd` | `(ctx) => void \| TurnEndDecision` | Terminal accounting for one turn |
 
 Where the hooks sit inside one turn:
 
@@ -119,6 +120,40 @@ engine. See [Conditional Execution](/en/06-workflows/conditional-execution).
 
 Hook invocations are observed as `sdk.hook.call` events with a closed hook kind
 and a safe error only, and are bounded by their own time limits.
+
+### Completion gate and continuation
+
+`beforeCompletion` (since 0.1.14) runs when the model stops on its own while
+capacity remains, before empty-answer recovery and before `onTurnEnd`. It and
+`onTurnEnd` may return a `TurnEndDecision`:
+
+```ts
+type TurnEndDecision =
+  | { kind: 'yield' }                                         // pause without a final answer
+  | { kind: 'continue'; messages: readonly UserMessage[] }   // keep working in this turn
+```
+
+```ts
+import { createUserMessage } from '@alvin0/ai-agent-sdk-core'
+
+const session = agent.createSession({
+  hooks: {
+    beforeCompletion: ({ canContinue }) => {
+      if (!canContinue || reviewDone()) return
+      return { kind: 'continue', messages: [createUserMessage({
+        source: { kind: 'app', producer: 'review-gate' },
+        content: [{ type: 'text', text: 'The review is not done yet. Continue.' }],
+      })] }
+    },
+  },
+})
+```
+
+Continuation stays in the same run, with its usage, remaining budgets and
+cancellation. Every message must be a user message with `source.kind: 'app'`;
+otherwise the run fails and nothing is appended. An empty batch does not
+continue the turn, and continuation is ignored once the turn is exhausted,
+failed or cancelled. Bound repeated objections in your gate.
 
 ## Request projections, steering, and cancellation
 

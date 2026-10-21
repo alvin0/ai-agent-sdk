@@ -77,6 +77,7 @@ Load only the file the task needs. Each is self-contained.
 | --- | --- |
 | Pick packages, install profile, runtime tier, credentials | [references/packages.md](references/packages.md) |
 | `createAgentRuntime`, `runtime.agent`, `defineAgent`, sessions, hooks, close | [references/runtime-and-agents.md](references/runtime-and-agents.md) |
+| Upgrade to 0.1.14; `[CODE] message` tool errors, lenient skill discovery, image retention, completion gate | [references/upgrading-to-0.1.14.md](references/upgrading-to-0.1.14.md) |
 | Upgrade to 0.1.13; opt-in limits and deadlines, lean managed teams | [references/upgrading-to-0.1.13.md](references/upgrading-to-0.1.13.md) |
 | Upgrade to 0.1.12; reasoning labels, image search and history | [references/upgrading-to-0.1.12.md](references/upgrading-to-0.1.12.md) |
 | Upgrade an application from published 0.1.4 | [references/upgrading-from-0.1.4.md](references/upgrading-from-0.1.4.md) |
@@ -154,7 +155,7 @@ option type and protocol dialect before copying a gateway configuration.
 
 The context optimizer, evidence reducer, action fusion, and experimental program
 APIs described here were introduced in 0.1.5 and are absent from npm 0.1.4.
-The workspace targets 0.1.13. Merging into `main` triggers guarded npm publication.
+The workspace targets 0.1.14. Merging into `main` triggers guarded npm publication.
 Check installed package typings when applying these APIs.
 
 For 0.1.8 exact-repeat recovery limits and terminal embedding provider facts, read
@@ -164,3 +165,6 @@ For 0.1.11 retry hooks and terminal recovery, and 0.1.12 image and reasoning
 contracts, read [references/upgrading-to-0.1.12.md](references/upgrading-to-0.1.12.md).
 For 0.1.13 opt-in run limits, removed default deadlines and lean managed-team
 tools, read [references/upgrading-to-0.1.13.md](references/upgrading-to-0.1.13.md).
+For 0.1.14 tool error codes, skill candidate diagnostics, image retention,
+`beforeCompletion` continuation and usage totals, read
+[references/upgrading-to-0.1.14.md](references/upgrading-to-0.1.14.md).

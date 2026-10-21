@@ -59,6 +59,18 @@ describe('host-directed turn yield', () => {
     expect(recoveries).toBe(0)
   })
 
+  it('rejects a malformed continuation without appending any of its messages', async () => {
+    const adapter = new YieldAdapter(), registry = new ModelRegistry()
+    registry.registerAdapter(['test'], adapter)
+    const appContext = createUserMessage({ source: { kind: 'app', producer: 'quality-gate' },
+      content: [{ type: 'text', text: 'APP_CONTEXT_SHOULD_NOT_LAND' }] })
+    const session = defineAgent({ id: 'lead', provider: 'test', model: 'scripted', mode: 'basic',
+      instructions: 'Finish.', maxTurns: 4 }).createSession({ registry,
+      hooks: { onTurnEnd: () => ({ kind: 'continue', messages: [appContext, null as never] }) } })
+    await expect(session.run('Create the deliverable')).rejects.toThrow(/app-sourced user messages/)
+    expect(JSON.stringify(session.snapshot())).not.toContain('APP_CONTEXT_SHOULD_NOT_LAND')
+  })
+
   it('does not let an empty continuation bypass deep-mode completion checks', async () => {
     const adapter = new YieldAdapter(), registry = new ModelRegistry()
     registry.registerAdapter(['test'], adapter)

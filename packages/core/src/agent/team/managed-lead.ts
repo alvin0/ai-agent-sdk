@@ -39,29 +39,31 @@ export class ManagedLeadCoordination {
         if (decision?.kind === 'yield') {
           this.host.deferReports(); this.host.yielded('host'); return decision
         }
-        if (decision?.kind === 'continue' && context.canContinue) return decision
+        // An empty continuation appends nothing, so the lead must still settle its workers.
+        if (decision?.kind === 'continue' && context.canContinue
+          && (!Array.isArray(decision.messages) || decision.messages.length > 0)) return decision
         return this.finish(context.canContinue)
       },
     }
   }
 
   private async finish(canContinue: boolean) {
-        await this.host.onLeadEnd?.(canContinue)
-        // A spent turn may seal appended input with a terminal fallback. Deliver
-        // after it goes idle so that fallback cannot consume the synthesis wake.
-        if (!canContinue) {
-          this.host.deferReports()
-          if (!this.host.shouldYield()) return undefined
-          this.host.yielded('capacity')
-          return { kind: 'yield' as const }
-        }
-        // With no new information, simply yield. No timer and no polling prompt.
-        const delivered = await this.host.flushReports()
-        if (!delivered && this.host.shouldYield()) {
-          this.host.deferReports()
-          this.host.yielded('workers')
-          return { kind: 'yield' as const }
-        }
-        return undefined
+    await this.host.onLeadEnd?.(canContinue)
+    // A spent turn may seal appended input with a terminal fallback. Deliver
+    // after it goes idle so that fallback cannot consume the synthesis wake.
+    if (!canContinue) {
+      this.host.deferReports()
+      if (!this.host.shouldYield()) return undefined
+      this.host.yielded('capacity')
+      return { kind: 'yield' as const }
+    }
+    // With no new information, simply yield. No timer and no polling prompt.
+    const delivered = await this.host.flushReports()
+    if (!delivered && this.host.shouldYield()) {
+      this.host.deferReports()
+      this.host.yielded('workers')
+      return { kind: 'yield' as const }
+    }
+    return undefined
   }
 }

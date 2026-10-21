@@ -32,10 +32,13 @@ export async function commit(
     const failure = renderToolError(toolFailure(messageOf(error), errorCode(error)), options.toolErrorRendering)
     result = immutableResult(await boundFailure(options, slot, failure), maxResultBytes)
   }
-  try { await publishResult(options, slot, result) }
+  const publication = { spanEnded: false }
+  try { await publishResult(options, slot, result, publication) }
   catch (error: unknown) {
     // A full history can reject the result before its span closes. Preserve
     // the real publication failure instead of leaving an unknown operation.
+    // A failure after the span closed (e.g. the context append) must not end it twice.
+    if (publication.spanEnded) throw error
     await emitEvent(options, { type: 'span-end', trace: slot.trace, at: now(), status: 'error',
       error: { type: 'ToolPublicationError', message: messageOf(error), code: errorCode(error) },
     }).catch(() => undefined)
@@ -82,7 +85,7 @@ async function closeSlotProgram(slot: Slot): Promise<void> {
 }
 
 async function publishResult(
-  options: RunToolCallsOptions, slot: Slot, result: ToolExecutionResult,
+  options: RunToolCallsOptions, slot: Slot, result: ToolExecutionResult, publication: { spanEnded: boolean },
 ): Promise<void> {
   const message = createToolResultMessage({ callId: slot.call.callId, content: [...result.content],
     isError: result.isError })
@@ -91,6 +94,7 @@ async function publishResult(
     ...slot.declined === true ? { declined: true as const } : {},
     ...slot.recovered === true ? { recovered: true as const } : {},
     ...slot.dispatched ? {} : { dispatched: false as const } })
+  publication.spanEnded = true
   await emitEvent(options, {
     type: 'span-end', trace: slot.trace, at: now(), status: result.isError ? 'error' : 'success',
     output: result.isError ? { error: result.error } : result.value,

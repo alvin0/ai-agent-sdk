@@ -90,7 +90,7 @@ describe('image retention', () => {
     const source = new History()
     const appendCapture = (history: History, index: number) => {
       const callId = ToolCallId(`context-${index}`)
-      const block = imageBlock(`CAPTURE_${index}_` + 'A'.repeat(8_000))
+      const block = imageBlock(`FRAME_CAPTURE_${index}_` + 'A'.repeat(8_000))
       history.append({ kind: 'tool-call', callId, name: 'capture', rawArguments: '{}' })
       history.append({ kind: 'tool-result', callId,
         message: createToolResultMessage({ callId, content: [{ type: 'text', text: 'Captured; source/frame.jpg' }], isError: false }),
@@ -104,13 +104,13 @@ describe('image retention', () => {
       { keepLatest: 2, persist: 'drop-pruned' })
     for (let index = 2; index < 30; index++) appendCapture(history, index)
     const snapshot = JSON.stringify(history.snapshot())
-    expect(snapshot).not.toContain('CAPTURE_0_')
-    expect(snapshot).not.toContain('CAPTURE_28_')
-    expect(snapshot).toContain('CAPTURE_29_')
+    expect(snapshot).not.toContain('FRAME_CAPTURE_0_')
+    expect(snapshot).not.toContain('FRAME_CAPTURE_28_')
+    expect(snapshot).toContain('FRAME_CAPTURE_29_')
     expect(snapshot).toContain('source/frame.jpg')
     expect(countImages(history.snapshot().entries.map(entry => entry.event))).toBe(2)
     expect(Buffer.byteLength(snapshot)).toBeLessThan(60_000)
-    expect(source.snapshot().entries.some(entry => JSON.stringify(entry).includes('CAPTURE_0_'))).toBe(true)
+    expect(source.snapshot().entries.some(entry => JSON.stringify(entry).includes('FRAME_CAPTURE_0_'))).toBe(true)
   })
 
   it('closes tool accounting and retains the actual failure when history rejects a capture result', async () => {
@@ -384,5 +384,41 @@ describe('image retention', () => {
     const retained = await compactedTokens(2)
     expect(retained.before).toBeLessThan(unretained.before / 2)
     expect(retained.summarizedImages).toBeLessThanOrEqual(2)
+  })
+
+  it('keeps stored-byte accounting exact for non-canonical image blocks', () => {
+    const odd = {
+      type: 'image' as const, detail: null, label: 'extra "field" ü',
+      source: { kind: 'base64' as const, mediaType: 'image/png' as const, data: 'raw "quoted" ü data\n'.repeat(50) },
+    }
+    const history = new History()
+    history.configureImageRetention({ keepLatest: 1, persist: 'drop-pruned' })
+    const append = (image: unknown) => history.append({ kind: 'user', message: {
+      ...createTextMessage('Inspect.'), content: [{ type: 'text', text: 'Inspect.' }, image as never],
+    } })
+    expect(() => append(odd)).not.toThrow()
+    append({ ...odd, label: 'second' })
+    append(imageBlock('canonical-image'))
+    const live = (history as unknown as { storedBytes: number }).storedBytes
+    const rebuilt = History.fromSnapshot(history.snapshot()) as unknown as { storedBytes: number }
+    expect(live).toBe(rebuilt.storedBytes)
+    expect(history.imageRetentionSnapshot()?.persistedImagesPruned).toBe(2)
+  })
+
+  it('counts only images that retention can replace', () => {
+    const policy = resolveImageRetention({ keepLatest: 1 })!
+    const gallery = { type: 'x-gallery', content: [imageBlock('extension-image')] }
+    const messages = [
+      { ...createTextMessage('Gallery'), content: [gallery as never] },
+      imageMessage('latest-image'),
+    ]
+    const projected = retainLatestImagesInMessages(messages, policy)
+    expect(projected.metrics.imagesPruned).toBe(0)
+    expect(JSON.stringify(projected.messages)).toContain('latest-image')
+  })
+
+  it('rejects a non-object retention policy with a typed error', () => {
+    expect(() => resolveImageRetention(null as never)).toThrow(/imageRetention must be an object/)
+    expect(() => resolveImageRetention(5 as never)).toThrow(TypeError)
   })
 })

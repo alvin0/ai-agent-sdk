@@ -79,7 +79,8 @@ const session = agent.createSession({
 | `beforeStep` | `(ctx) => StepDecision` | Chặn hoặc bổ sung cho bước model kế tiếp |
 | `onRequestError` | `(ctx) => 'retry' \| 'fail'` | Quyết định cách phục hồi khi yêu cầu model thất bại |
 | `checkpoint` | `(ctx) => void` | Điểm bền vững — lưu lại tiến độ |
-| `onTurnEnd` | `(ctx) => void` | Hạch toán kết thúc cho một lượt |
+| `beforeCompletion` | `(ctx) => void \| TurnEndDecision` | Cổng của ứng dụng trước khi một lần dừng tự nguyện hoàn tất |
+| `onTurnEnd` | `(ctx) => void \| TurnEndDecision` | Hạch toán kết thúc cho một lượt |
 
 Hook nằm ở đâu trong một lượt:
 
@@ -119,6 +120,40 @@ workflow engine. Xem
 
 Việc gọi hook được quan sát dưới dạng sự kiện `sdk.hook.call`, chỉ mang loại hook
 đã đóng và lỗi đã làm sạch, và bị chặn bởi giới hạn thời gian riêng của chúng.
+
+### Cổng hoàn tất và tiếp tục lượt
+
+`beforeCompletion` (từ 0.1.14) chạy khi model tự dừng trong lúc vẫn còn dung
+lượng, trước bước khôi phục câu trả lời rỗng và trước `onTurnEnd`. Hook này và
+`onTurnEnd` có thể trả về một `TurnEndDecision`:
+
+```ts
+type TurnEndDecision =
+  | { kind: 'yield' }                                         // tạm dừng, không có câu trả lời cuối
+  | { kind: 'continue'; messages: readonly UserMessage[] }   // tiếp tục làm việc trong lượt này
+```
+
+```ts
+import { createUserMessage } from '@alvin0/ai-agent-sdk-core'
+
+const session = agent.createSession({
+  hooks: {
+    beforeCompletion: ({ canContinue }) => {
+      if (!canContinue || reviewDone()) return
+      return { kind: 'continue', messages: [createUserMessage({
+        source: { kind: 'app', producer: 'review-gate' },
+        content: [{ type: 'text', text: 'The review is not done yet. Continue.' }],
+      })] }
+    },
+  },
+})
+```
+
+Việc tiếp tục diễn ra trong cùng lần chạy, giữ nguyên usage, ngân sách còn lại và
+cancellation. Mọi message phải là user message có `source.kind: 'app'`; nếu không,
+lần chạy thất bại và không message nào được thêm vào. Lô rỗng không tiếp tục lượt,
+và việc tiếp tục bị bỏ qua khi lượt đã hết ngân sách, lỗi hoặc bị hủy. Hãy tự giới
+hạn số lần phản đối lặp lại trong cổng của bạn.
 
 ## Projection, steering và cancellation
 

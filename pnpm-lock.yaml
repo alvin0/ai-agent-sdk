@@ -13,14 +13,14 @@ catalogs:
       specifier: 0.18.5
       version: 0.18.5
     '@modelcontextprotocol/client':
-      specifier: 2.2.0
-      version: 2.2.0
+      specifier: 2.3.1
+      version: 2.3.1
     '@modelcontextprotocol/node':
       specifier: 2.0.0
       version: 2.0.0
     '@modelcontextprotocol/server':
-      specifier: 2.2.0
-      version: 2.2.0
+      specifier: 2.3.1
+      version: 2.3.1
     '@opentelemetry/api':
       specifier: 1.9.1
       version: 1.9.1
@@ -251,13 +251,13 @@ importers:
         version: 0.18.5
       '@modelcontextprotocol/client':
         specifier: 'catalog:'
-        version: 2.2.0
+        version: 2.3.1
       '@modelcontextprotocol/node':
         specifier: 'catalog:'
-        version: 2.0.0(@modelcontextprotocol/server@2.2.0)(hono@4.13.7)
+        version: 2.0.0(@modelcontextprotocol/server@2.3.1)(hono@4.13.7)
       '@modelcontextprotocol/server':
         specifier: 'catalog:'
-        version: 2.2.0
+        version: 2.3.1
       '@opentelemetry/api':
         specifier: 'catalog:'
         version: 1.9.1
@@ -441,7 +441,7 @@ importers:
     dependencies:
       '@modelcontextprotocol/client':
         specifier: 'catalog:'
-        version: 2.2.0
+        version: 2.3.1
     devDependencies:
       '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
@@ -478,7 +478,7 @@ importers:
         version: link:../mcp
       '@modelcontextprotocol/client':
         specifier: 'catalog:'
-        version: 2.2.0
+        version: 2.3.1
     devDependencies:
       '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
@@ -509,10 +509,10 @@ importers:
         version: link:../mcp-server
       '@modelcontextprotocol/node':
         specifier: 'catalog:'
-        version: 2.0.0(@modelcontextprotocol/server@2.2.0)(hono@4.13.7)
+        version: 2.0.0(@modelcontextprotocol/server@2.3.1)(hono@4.13.7)
       '@modelcontextprotocol/server':
         specifier: 'catalog:'
-        version: 2.2.0
+        version: 2.3.1
     devDependencies:
       '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
@@ -540,7 +540,7 @@ importers:
     dependencies:
       '@modelcontextprotocol/server':
         specifier: 'catalog:'
-        version: 2.2.0
+        version: 2.3.1
     devDependencies:
       '@alvin0/ai-agent-sdk-core':
         specifier: workspace:^
@@ -2258,12 +2258,12 @@ packages:
   '@loaderkit/resolve@1.0.6':
     resolution: {integrity: sha512-G8FdIoF5CypfwmD9rl8BXod5HDn8JqB0CCNBXDTaRZ+yRYhARrrSToX1zg1zy9jX3zLqigsELwhT4gNtkdQAUg==}
 
-  '@modelcontextprotocol/client@2.2.0':
-    resolution: {integrity: sha512-LxCou/CSYQ6dwEnjhLZY0KnEuc8V4UJ3IEQCl/uR2yHobSQIEdJKUlKLRYRF5i5FqRGHy1eK7une3aAWDHLtig==}
+  '@modelcontextprotocol/client@2.3.1':
+    resolution: {integrity: sha512-mIGZXpHsjnZ6lD+gD/WCMpR5k8yVQQ8nNFH1N0Srf7AvnwTUMYD6pvTY8ng2+He5FfV7YMZLmrjL7cLa/cc3dQ==}
     engines: {node: '>=20'}
 
-  '@modelcontextprotocol/core@2.2.0':
-    resolution: {integrity: sha512-iLhmprRmWI8EcosOA3wVvww22z02NkgqhV4fBH6f/odQBsi7xnJc0HGmi21yWO+/iKw2yzqVE127Zhna5/+JXw==}
+  '@modelcontextprotocol/core@2.3.1':
+    resolution: {integrity: sha512-laVmIhPGpWi7rG9q+0UigblRN0Hws/Yjlb6qLFtVqryXVLkc4h+yN8z731POD2LnAGQlFe7/tXhUm7Bi0YB91g==}
     engines: {node: '>=20'}
 
   '@modelcontextprotocol/node@2.0.0':
@@ -2276,8 +2276,8 @@ packages:
       hono:
         optional: true
 
-  '@modelcontextprotocol/server@2.2.0':
-    resolution: {integrity: sha512-qFnltjus6Gk8Lx6J1w2RXmr3YPN22MNT6qD6zjAkaiWIlFIFxWClz0rXHNuJF/KSUyn5YGhkSvXkWDbQHVLFEQ==}
+  '@modelcontextprotocol/server@2.3.1':
+    resolution: {integrity: sha512-e59MfWuSssj6DoQ96JCTqdW1AXT5/XtnTl0WWd6MU1Ka434fFUGGosCLJbGNySDhHGvxQWoRWK137FXYFkYNWw==}
     engines: {node: '>=20'}
 
   '@next/env@16.3.8':
@@ -5151,9 +5151,9 @@ snapshots:
     dependencies:
       '@braidai/lang': 1.1.2
 
-  '@modelcontextprotocol/client@2.2.0':
+  '@modelcontextprotocol/client@2.3.1':
     dependencies:
-      '@modelcontextprotocol/core': 2.2.0
+      '@modelcontextprotocol/core': 2.3.1
       cross-spawn: 7.0.6
       eventsource: 3.0.7
       eventsource-parser: 3.1.1
@@ -5161,20 +5161,20 @@ snapshots:
       pkce-challenge: 5.0.1
       zod: 4.5.4
 
-  '@modelcontextprotocol/core@2.2.0':
+  '@modelcontextprotocol/core@2.3.1':
     dependencies:
       zod: 4.5.4
 
-  '@modelcontextprotocol/node@2.0.0(@modelcontextprotocol/server@2.2.0)(hono@4.13.7)':
+  '@modelcontextprotocol/node@2.0.0(@modelcontextprotocol/server@2.3.1)(hono@4.13.7)':
     dependencies:
       '@hono/node-server': 1.19.17(hono@4.13.7)
-      '@modelcontextprotocol/server': 2.2.0
+      '@modelcontextprotocol/server': 2.3.1
     optionalDependencies:
       hono: 4.13.7
 
-  '@modelcontextprotocol/server@2.2.0':
+  '@modelcontextprotocol/server@2.3.1':
     dependencies:
-      '@modelcontextprotocol/core': 2.2.0
+      '@modelcontextprotocol/core': 2.3.1
       zod: 4.5.4
 
   '@next/env@16.3.8': {}
