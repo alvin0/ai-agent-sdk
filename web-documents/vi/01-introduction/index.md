@@ -103,4 +103,4 @@ Mọi thứ còn lại trong tài liệu này là biến thể của bốn bư�
 
 Đối với 0.1.8, xem [nâng cấp từ 0.1.7](/vi/01-introduction/upgrading-from-0-1-7).
 
-Thay đổi API hiện tại: [nâng cấp lên 0.1.13](/vi/01-introduction/upgrading-to-0-1-13).
+Thay đổi API hiện tại: [nâng cấp lên 0.1.14](/vi/01-introduction/upgrading-to-0-1-14).

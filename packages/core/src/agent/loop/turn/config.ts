@@ -1,5 +1,6 @@
 import type { ResolvedTurnBounds, TurnBounds } from '../types.ts'
 import { type RunTurnOptions } from './types.ts'
+import { captureRunImageRetention } from '../../history/image-retention.ts'
 
 export const DEFAULT_BOUNDS: TurnBounds = Object.freeze({
   // Nothing that counts work stops a turn by default. Hosts opt in to each ceiling.
@@ -130,7 +131,7 @@ function snapshotRunConfiguration(options: RunTurnOptions): RunTurnOptions['conf
 
 export function snapshotRunTurnOptions(options: RunTurnOptions): RunTurnOptions {
   const config = snapshotRunConfiguration(options)
-  return Object.freeze({
+  const snapshot = Object.freeze({
     ...options,
     config,
     ...(options.bounds === undefined ? {} : { bounds: Object.freeze({ ...options.bounds }) }),
@@ -139,4 +140,6 @@ export function snapshotRunTurnOptions(options: RunTurnOptions): RunTurnOptions 
     ...(options.hooks === undefined ? {} : { hooks: Object.freeze({ ...options.hooks }) }),
     ...(options.trace === undefined ? {} : { trace: Object.freeze({ ...options.trace }) }),
   })
+  captureRunImageRetention(snapshot, options.imageRetention)
+  return snapshot
 }

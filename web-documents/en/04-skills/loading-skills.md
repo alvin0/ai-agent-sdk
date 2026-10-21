@@ -165,6 +165,30 @@ never:                  unrelated skill bodies, unread resources
 Selected instructions and returned resource chunks remain in history **until
 compaction**. After a compaction the model can call `load_skill` again.
 
+## Invalid candidates and diagnostics
+
+Since 0.1.14 each provider candidate is validated on its own. An invalid one is
+skipped and the rest of the catalog stays available. Observe the skips, or
+restore all-or-nothing discovery:
+
+```ts
+const session = agent.createSession({
+  onSkillDiagnostic: diagnostic => logger.warn('skill candidate rejected', diagnostic),
+  strictSkillCandidates: false, // default; true fails discovery on the first rejected candidate
+})
+```
+
+A diagnostic has `type: 'skill-candidate-rejected'`, `code:
+'SKILL_CANDIDATE_REJECTED'`, a `providerId`, an optional `candidateId` capped at
+128 characters, and a typed `reason`: `candidate-invalid`, `id-invalid`,
+`name-invalid`, `description-invalid`, `trigger-invalid`,
+`instructions-invalid`, `invocation-invalid`, `provider-mismatch`,
+`locator-invalid`, `duplicate-id`, `candidate-limit` or `catalog-byte-limit`.
+Observer exceptions never stop discovery. Providers can check metadata against
+`SKILL_CANDIDATE_LIMITS` from `@alvin0/ai-agent-sdk-core/agent` before returning
+it; `validateCandidate()` throws `SkillCandidateValidationError` with the same
+`reason`.
+
 ## Read next
 
 - [Skill Lifecycle](/en/04-skills/skill-lifecycle)

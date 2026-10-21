@@ -8,6 +8,10 @@ import { HTTP_FOREIGN_FAILURE_LIMITS } from './config.ts'
 
 const ENCODER = new TextEncoder()
 const INVALID_FIELD = Symbol('invalid failure field')
+const NETWORK_ERROR_CODES = new Set([
+  'ECONNRESET', 'ECONNREFUSED', 'ECONNABORTED', 'EPIPE', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT',
+  'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT',
+])
 
 type EnvelopeProbe =
   | { readonly kind: 'absent' }
@@ -40,6 +44,21 @@ function optionalFailureField(source: object, key: PropertyKey): unknown {
   return field.data ? field.value : INVALID_FIELD
 }
 
+function nativeNetworkFailure(
+  value: unknown, outerCode: ReturnType<typeof ownDataProbe>, carried: ReturnType<typeof ownDataProbe>,
+): boolean {
+  try {
+    return !carried.present && outerCode.data && typeof outerCode.value === 'string'
+      && NETWORK_ERROR_CODES.has(outerCode.value) && value instanceof Error
+  } catch { return false }
+}
+
+function absentFailureEnvelope(
+  value: unknown, outerCode: ReturnType<typeof ownDataProbe>, carried: ReturnType<typeof ownDataProbe>,
+): boolean {
+  return (!outerCode.present && !carried.present) || nativeNetworkFailure(value, outerCode, carried)
+}
+
 /**
  * Validate the data twin carried by a ModelError from another core copy/realm.
  * A lone outer code is deliberately insufficient: retry policy may trust a code
@@ -52,7 +71,10 @@ function probeFailureEnvelope(value: unknown): EnvelopeProbe {
 
   const outerCode = ownDataProbe(value, 'code')
   const carried = ownDataProbe(value, 'failure')
-  if (!outerCode.present && !carried.present) return { kind: 'absent' }
+  // Bun fetch/body readers throw native Errors with errno codes and no SDK
+  // envelope. These are transport failures, not malformed foreign ModelErrors.
+  // Never trust an arbitrary lone SDK code or relax validation of a carried twin.
+  if (absentFailureEnvelope(value, outerCode, carried)) return { kind: 'absent' }
   if (!validCarriedFailure(outerCode, carried)) return { kind: 'invalid' }
 
   const message = optionalFailureField(carried.value, 'message')

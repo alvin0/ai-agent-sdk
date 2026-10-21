@@ -3,16 +3,24 @@ export {
   MAX_SKILL_ID_CHARS,
   MAX_SKILL_NAME_CHARS,
   MAX_SKILL_DESCRIPTION_CHARS,
+  MAX_SKILL_WHEN_TO_USE_CHARS,
+  MAX_SKILL_CANDIDATES,
+  MAX_SKILL_DIAGNOSTIC_ID_CHARS,
+  SKILL_CANDIDATE_DIAGNOSTIC_CODE,
+  SKILL_CANDIDATE_LIMITS,
   MAX_SKILL_RESOURCE_CHARS,
   MAX_SKILL_RESOURCE_PATH_CHARS,
   SKILL_ID_PATTERN,
   defineSkill,
   defineSkillProvider,
+  SkillCandidateValidationError,
   validateCandidate,
   validateSkillId,
   validateSkillResourcePath,
   validateSkillSource,
   type SkillCandidate,
+  type SkillCandidateRejectionReason,
+  type SkillCatalogDiagnostic,
   type SkillDefinition,
   type SkillDefinitionInput,
   type SkillInvocationPolicy,
@@ -24,6 +32,7 @@ export {
   type SkillSource,
   type SkillSummary,
 } from './definition.ts'
+export type { SkillDiagnosticObserver } from './catalog-diagnostics.ts'
 export { SkillCatalog, type SkillCatalogOptions } from './catalog.ts'
 export {
   SKILL_TOOL_NAMES,

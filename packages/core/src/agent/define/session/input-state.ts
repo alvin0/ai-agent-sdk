@@ -1,4 +1,7 @@
-import { History } from '../../history/history.ts'
+import { History, type HistoryLimits } from '../../history/history.ts'
+import { resolveHistoryLimits } from '../../history/config.ts'
+import type { ResolvedImageRetentionOptions } from '../../history/image-retention.ts'
+import { preRetentionLimits } from '../../history/image-retention-storage.ts'
 import { isManagedTeamNotice } from '../../history/input-work.ts'
 import { bindModelRequestBoundary, bindQueuedInput } from '../../loop/turn/model-request-boundary.ts'
 import type { AgentRunEvent, AgentRunOutcome } from '../../mode/run-agent.ts'
@@ -9,6 +12,13 @@ interface SessionInputHost {
   historyLimits(): AgentSessionOptions['historyLimits']
   isRunning(): boolean
 }
+function pendingLimits(
+  limits: AgentSessionOptions['historyLimits'],
+  retention: ResolvedImageRetentionOptions | undefined,
+): HistoryLimits | undefined {
+  return retention?.persist === 'drop-pruned' ? preRetentionLimits(resolveHistoryLimits(limits ?? {})) : limits
+}
+
 function isChatSpanStart(event: AgentRunEvent): boolean {
   return event.type === 'span-start' && event.kind === 'chat'
 }
@@ -34,12 +44,18 @@ export class SessionInputState {
   inject(input: AgentInput): number {
     const message = userMessage(input)
     if (this.host.isRunning() && this.roundInFlight) {
-      const candidate = History.fromSnapshot(this.host.history().snapshot(), this.host.historyLimits())
+      const history = this.host.history()
+      // Mirror the live retention policy so the trial prunes exactly like the real append will.
+      const candidate = History.fromSnapshot(history.snapshot(), this.host.historyLimits(),
+        history.imageRetentionPolicy())
       candidate.appendBatch([
         ...(this.pendingInjections?.entries() ?? []).map(entry => ({ event: entry.event })),
         { event: { kind: 'user' as const, message } },
       ])
-      const pending = this.pendingInjections ??= new History(this.host.historyLimits())
+      // The trial above enforced the live limits after retention. The buffer holds
+      // raw input that the live history may still prune, so it only needs a memory guard.
+      const pending = this.pendingInjections ??= new History(
+        pendingLimits(this.host.historyLimits(), history.imageRetentionPolicy()))
       pending.append({ kind: 'user', message })
       return this.host.history().entries().length + pending.entries().length
     }

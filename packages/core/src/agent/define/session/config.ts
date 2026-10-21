@@ -1,6 +1,8 @@
 import { type AgentRuntimeLimits, type AgentSessionOptions } from './types.ts'
 import { History } from '../../history/history.ts'
 import { timeoutValue } from '../../../platform/config.ts'
+import { resolveImageRetention } from '../../history/image-retention.ts'
+import { resolveToolErrorRendering } from '../../tool/errors.ts'
 
 export function resolveRuntimeLimits(input: AgentRuntimeLimits | undefined): Readonly<AgentRuntimeLimits> {
   if (input === undefined) return Object.freeze({})
@@ -100,6 +102,8 @@ function validateRepeatLimits(values: AgentRuntimeLimits): void {
 export function normalizeSessionOptions(options: AgentSessionOptions): AgentSessionOptions {
   const historyLimits = freezeObject(options.historyLimits)
   if (options.history !== undefined && historyLimits !== undefined) void new History(historyLimits)
+  const imageRetention = resolveImageRetention(options.imageRetention)
+  const toolErrorRendering = resolveToolErrorRendering(options.toolErrorRendering)
   const compaction = options.compaction === false ? false : freezeObject(options.compaction)
   const trace = freezeObject(options.trace)
   const team = freezeObject(options.team)
@@ -108,6 +112,7 @@ export function normalizeSessionOptions(options: AgentSessionOptions): AgentSess
   return Object.freeze({
     ...options,
     ...optional('historyLimits', historyLimits), ...optional('compaction', compaction),
+    ...optional('imageRetention', imageRetention), ...optional('toolErrorRendering', toolErrorRendering),
     ...optional('trace', trace), ...optional('team', team), ...optional('ledgerLimits', ledgerLimits),
     ...optional('eventBufferLimits', eventBufferLimits),
     ...(options.skills === undefined ? {} : { skills: Object.freeze([...options.skills]) }),

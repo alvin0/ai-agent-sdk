@@ -8,7 +8,51 @@ export const MAX_SKILL_RESOURCE_CHARS = 40_000
 export const MAX_SKILL_ID_CHARS = 128
 export const MAX_SKILL_NAME_CHARS = 256
 export const MAX_SKILL_DESCRIPTION_CHARS = 2_048
+export const MAX_SKILL_WHEN_TO_USE_CHARS = 2_048
 export const MAX_SKILL_RESOURCE_PATH_CHARS = 512
+export const MAX_SKILL_CANDIDATES = 1_024
+export const MAX_SKILL_DIAGNOSTIC_ID_CHARS = 128
+export const SKILL_CANDIDATE_LIMITS = Object.freeze({
+  idChars: MAX_SKILL_ID_CHARS,
+  nameChars: MAX_SKILL_NAME_CHARS,
+  descriptionChars: MAX_SKILL_DESCRIPTION_CHARS,
+  whenToUseChars: MAX_SKILL_WHEN_TO_USE_CHARS,
+  instructionsChars: MAX_SKILL_INSTRUCTIONS_CHARS,
+  sourceChars: MAX_SKILL_NAME_CHARS,
+  providerChars: MAX_SKILL_NAME_CHARS,
+  maxCandidates: MAX_SKILL_CANDIDATES,
+})
+
+export const SKILL_CANDIDATE_DIAGNOSTIC_CODE = 'SKILL_CANDIDATE_REJECTED'
+export type SkillCandidateRejectionReason =
+  | 'candidate-invalid'
+  | 'id-invalid'
+  | 'name-invalid'
+  | 'description-invalid'
+  | 'trigger-invalid'
+  | 'instructions-invalid'
+  | 'invocation-invalid'
+  | 'provider-mismatch'
+  | 'locator-invalid'
+  | 'duplicate-id'
+  | 'candidate-limit'
+  | 'catalog-byte-limit'
+
+/** A candidate validation failure with a stable, machine-readable reason. */
+export class SkillCandidateValidationError extends TypeError {
+  constructor(readonly reason: SkillCandidateRejectionReason, message: string) {
+    super(message)
+    this.name = 'SkillCandidateValidationError'
+  }
+}
+
+export interface SkillCatalogDiagnostic {
+  readonly type: 'skill-candidate-rejected'
+  readonly code: typeof SKILL_CANDIDATE_DIAGNOSTIC_CODE
+  readonly providerId: string
+  readonly candidateId?: string
+  readonly reason: SkillCandidateRejectionReason
+}
 
 export interface SkillInvocationPolicy {
   /** Whether the model may discover and load this skill. Defaults to true. */
@@ -184,20 +228,38 @@ export function validateSkillId(id: string, label = 'skill'): void {
 }
 
 export function validateCandidate(candidate: SkillCandidate, providerId: string): void {
-  validateIdentity(candidate.id, `skill from provider '${providerId}'`)
-  boundedNonEmpty(candidate.name, `skill '${candidate.id}' name`, MAX_SKILL_NAME_CHARS)
-  boundedNonEmpty(candidate.description, `skill '${candidate.id}' description`, MAX_SKILL_DESCRIPTION_CHARS)
-  if (candidate.whenToUse !== undefined) {
-    boundedNonEmpty(candidate.whenToUse, `skill '${candidate.id}' whenToUse`, MAX_SKILL_DESCRIPTION_CHARS)
+  if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) {
+    throw new SkillCandidateValidationError('candidate-invalid', 'skill candidate must be an object')
   }
-  boundedNonEmpty(candidate.source, `skill '${candidate.id}' source`, MAX_SKILL_NAME_CHARS)
-  boundedNonEmpty(candidate.provider, `skill '${candidate.id}' provider`, MAX_SKILL_NAME_CHARS)
+  validateCandidateField('id-invalid', () => validateIdentity(candidate.id, `skill from provider '${providerId}'`))
+  validateCandidateField('name-invalid', () =>
+    boundedNonEmpty(candidate.name, `skill '${candidate.id}' name`, MAX_SKILL_NAME_CHARS))
+  validateCandidateField('description-invalid', () =>
+    boundedNonEmpty(candidate.description, `skill '${candidate.id}' description`, MAX_SKILL_DESCRIPTION_CHARS))
+  if (candidate.whenToUse !== undefined) {
+    validateCandidateField('trigger-invalid', () =>
+      boundedNonEmpty(candidate.whenToUse, `skill '${candidate.id}' whenToUse`, MAX_SKILL_WHEN_TO_USE_CHARS))
+  }
+  validateCandidateField('candidate-invalid', () =>
+    boundedNonEmpty(candidate.source, `skill '${candidate.id}' source`, MAX_SKILL_NAME_CHARS))
+  validateCandidateField('candidate-invalid', () =>
+    boundedNonEmpty(candidate.provider, `skill '${candidate.id}' provider`, MAX_SKILL_NAME_CHARS))
   if (candidate.provider !== providerId) {
-    throw new TypeError(
+    throw new SkillCandidateValidationError('provider-mismatch',
       `skill '${candidate.id}' declares provider '${candidate.provider}', expected '${providerId}'`,
     )
   }
-  validateInvocation(candidate.invocation, `skill '${candidate.id}'`)
+  validateCandidateField('invocation-invalid', () =>
+    validateInvocation(candidate.invocation, `skill '${candidate.id}'`))
+}
+
+function validateCandidateField(reason: SkillCandidateRejectionReason, validate: () => void): void {
+  try { validate() }
+  catch (error: unknown) {
+    if (error instanceof SkillCandidateValidationError) throw error
+    const message = error instanceof Error ? error.message : 'invalid skill candidate'
+    throw new SkillCandidateValidationError(reason, message)
+  }
 }
 
 function validateSkillInput(input: SkillDefinitionInput): void {
@@ -205,7 +267,7 @@ function validateSkillInput(input: SkillDefinitionInput): void {
   if (input.name !== undefined) boundedNonEmpty(input.name, `skill '${input.id}' name`, MAX_SKILL_NAME_CHARS)
   boundedNonEmpty(input.description, `skill '${input.id}' description`, MAX_SKILL_DESCRIPTION_CHARS)
   if (input.whenToUse !== undefined) {
-    boundedNonEmpty(input.whenToUse, `skill '${input.id}' whenToUse`, MAX_SKILL_DESCRIPTION_CHARS)
+    boundedNonEmpty(input.whenToUse, `skill '${input.id}' whenToUse`, MAX_SKILL_WHEN_TO_USE_CHARS)
   }
   nonEmpty(input.instructions, `skill '${input.id}' instructions`)
   if (input.instructions.length > MAX_SKILL_INSTRUCTIONS_CHARS) {

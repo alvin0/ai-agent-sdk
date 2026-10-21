@@ -1,7 +1,7 @@
 import type { GenerateOptions } from '../../contract/index.ts'
 import type { ModelFailure } from '../../errors/index.ts'
 import type { AssistantTextPhase, ImageMediaType, NativeToolCallBlock, ReasoningKind } from '../../message/index.ts'
-import type { Message } from '../../message/index.ts'
+import type { Message, UserMessage } from '../../message/index.ts'
 import type { MessageId, ToolCallId } from '../../primitives/index.ts'
 import type { TokenUsage } from '../../stream/index.ts'
 import type { CompactionBackoffReason, HistorySnapshot } from '../history/history.ts'
@@ -231,7 +231,17 @@ export interface TurnEndContext {
   /** True when the loop still has capacity to consume context appended by this hook. */
   readonly canContinue: boolean
 }
+export type TurnEndDecision =
+  | { readonly kind: 'yield' }
+  /** Continue in the same turn with host-owned context and the remaining budgets.
+   * Every message must have source.kind 'app'; this does not create human input. */
+  | { readonly kind: 'continue'; readonly messages: readonly UserMessage[] }
 export interface TurnHooks {
+  /** Application completion gate, called only for a voluntary model stop while
+   * capacity remains, before empty-answer terminal recovery and onTurnEnd.
+   * Return app context to continue within this run, including a commentary-only stop. */
+  readonly beforeCompletion?: (ctx: TurnEndContext) => Promise<void | TurnEndDecision>
+    | void | TurnEndDecision
   /** Enables terminal recovery for a user-facing turn and synchronously formats
    * its provider-free report. A thrown or empty formatter uses the default.
    * Machine/structured consumers without this policy retain failure semantics. */
@@ -241,7 +251,8 @@ export interface TurnHooks {
   readonly beforeStep?: (ctx: BeforeStepContext) => Promise<StepDecision> | StepDecision
   readonly onRequestError?: (ctx: RequestErrorContext) => Promise<'retry' | 'fail'> | 'retry' | 'fail'
   readonly checkpoint?: (ctx: CheckpointContext) => Promise<void> | void
-  /** Return yield to end without a final answer or deep-mode self-check polling. */
-  readonly onTurnEnd?: (ctx: TurnEndContext) => Promise<void | { readonly kind: 'yield' }>
-    | void | { readonly kind: 'yield' }
+  /** Return yield to pause, or continue with app context when canContinue is true.
+   * Continuation cannot reopen an exhausted, failed, or cancelled turn. */
+  readonly onTurnEnd?: (ctx: TurnEndContext) => Promise<void | TurnEndDecision>
+    | void | TurnEndDecision
 }

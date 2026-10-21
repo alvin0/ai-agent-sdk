@@ -11,6 +11,10 @@ import { observeModelRequestBoundary } from './model-request-boundary.ts'
 import { accountingUsageStop } from './usage-stop.ts'
 import { recentToolResultIds, contentTiming, systemText, textOf } from './content.ts'
 import type { ModelRoundContext, ModelRoundInput } from './model-round-types.ts'
+import {
+  imageRetentionForRun, retainLatestImagesInMessages,
+  type ImageRetentionMetrics,
+} from '../../history/image-retention.ts'
 
 /** How much of one message the trace keeps. */
 const PREVIEW_CHARS = 600
@@ -64,7 +68,7 @@ function previewMessage(message: Message): Record<string, unknown> {
  * @param request - The request about to be dispatched.
  * @returns The summary for the span.
  */
-function requestSummary(request: GenerateOptions): Record<string, unknown> {
+function requestSummary(request: GenerateOptions, imageRetention?: ImageRetentionMetrics): Record<string, unknown> {
   const messages = request.messages ?? []
   const dropped = Math.max(0, messages.length - PREVIEW_MESSAGES)
   return {
@@ -79,6 +83,7 @@ function requestSummary(request: GenerateOptions): Record<string, unknown> {
       ? {}
       : { tools: request.tools.map(tool => tool.name) },
     ...request.toolChoice === undefined ? {} : { toolChoice: request.toolChoice },
+    ...(imageRetention === undefined ? {} : { imageRetention }),
     ...dropped === 0 ? {} : { earlierMessagesOmitted: dropped },
     messages: messages.slice(-PREVIEW_MESSAGES).map(previewMessage),
   }
@@ -119,7 +124,10 @@ function rejectedRound(context: ModelRoundContext, failure: ModelFailure): Round
 }
 
 export async function prepareModelRequest(context: ModelRoundContext): Promise<
-  { readonly result: RoundResult } | { readonly request: GenerateOptions }
+  { readonly result: RoundResult } | {
+    readonly request: GenerateOptions
+    readonly imageRetention?: ImageRetentionMetrics
+  }
 > {
   const { options, signal, turn, step, phase, position, emitMaintenance } = context
   const beforeMaintenance = stopped(context)
@@ -137,7 +145,8 @@ export async function prepareModelRequest(context: ModelRoundContext): Promise<
     return { result: rejectedRound(context, failure) }
   }
   const messages = projectDecision(context, decision)
-  const requestBase = createRequest(context, messages)
+  const projectedRequest = createProjectedRequest(context, messages)
+  const requestBase = projectedRequest.request
   const checkpointFailure = await checkpointRequest(context, requestBase)
   if (checkpointFailure !== undefined) return { result: checkpointFailure }
   const beforeDispatch = stopped(context)
@@ -145,7 +154,18 @@ export async function prepareModelRequest(context: ModelRoundContext): Promise<
     observeModelRequestBoundary(options.history, false)
     return { result: beforeDispatch }
   }
-  return { request: requestBase }
+  return { request: requestBase, ...optionalImageMetrics(projectedRequest.imageRetention) }
+}
+
+function createProjectedRequest(context: ModelRoundContext, messages: readonly Message[]) {
+  const retention = imageRetentionForRun(context.options, context.options.imageRetention)
+  if (retention === undefined) return { request: createRequest(context, messages) }
+  const projection = retainLatestImagesInMessages(messages, retention)
+  return { request: createRequest(context, projection.messages), imageRetention: projection.metrics }
+}
+
+function optionalImageMetrics(metrics: ImageRetentionMetrics | undefined) {
+  return metrics === undefined ? {} : { imageRetention: metrics }
 }
 
 type StepDecision = Exclude<
@@ -229,7 +249,11 @@ async function checkpointRequest(
   return undefined
 }
 
-export async function emitRoundStart(context: ModelRoundContext, requestBase: GenerateOptions): Promise<void> {
+export async function emitRoundStart(
+  context: ModelRoundContext,
+  requestBase: GenerateOptions,
+  imageRetention?: ImageRetentionMetrics,
+): Promise<void> {
   const { options, emit, trace, turn, step, forcedFinal, phase } = context
   await emit({ type: 'span-start', trace, at: now(), name: `chat ${options.config.model}`, kind: 'chat', attributes: {
     'gen_ai.operation.name': 'chat', 'gen_ai.request.model': options.config.model,
@@ -241,6 +265,6 @@ export async function emitRoundStart(context: ModelRoundContext, requestBase: Ge
       ? {}
       : { 'gen_ai.request.reasoning_effort': options.config.reasoningEffort },
     turn, step, forcedFinal, phase,
-  }, input: requestSummary(requestBase) })
+  }, input: requestSummary(requestBase, imageRetention) })
   await emit({ type: 'step-start', turn, step, trace, ...forcedFinal ? { forcedFinal: true as const } : {} })
 }

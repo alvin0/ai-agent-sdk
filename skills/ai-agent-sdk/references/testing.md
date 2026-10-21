@@ -296,7 +296,7 @@ the endpoint, not an SDK embedding adapter: there is no
 
 ## Repository CI and release gate
 
-The current workspace release line is `0.1.13`. Every
+The current workspace release line is `0.1.14`. Every
 `packages/*/package.json`, including the private testkit, must carry the same
 version before release. There are 28 top-level package manifests: 27 publishable packages
 and the private testkit. The Release workflow packs only non-private packages.

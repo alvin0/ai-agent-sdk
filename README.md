@@ -10,8 +10,8 @@ message.
 
 ## Setup
 
-For the 0.1.13 release, read the [release notes](CHANGELOG.md).
-For migration to 0.1.13, read [upgrading to 0.1.13](docs/upgrading-to-0.1.13.md).
+For the 0.1.14 release, read the [release notes](CHANGELOG.md).
+For migration to 0.1.14, read [upgrading to 0.1.14](docs/upgrading-to-0.1.14.md).
 For the managed-team API, read the [multi-agent guide](docs/multi-agent.md)
 and run the [offline delegation and collaboration example](samples/multi-agent-offline/README.md)
 with `pnpm sample:multi-agent`.
@@ -351,6 +351,12 @@ for project examples and live calls. Use `session.stream()` instead of `session.
 needs live commentary, reasoning summaries, tool nodes, image deltas, and trace
 events. See [Creating an Agent](web-documents/en/02-agents/creating-an-agent.md) for modes,
 native tools, variants, and session ownership.
+
+For vision or long-running sessions, opt in to image retention on the session:
+`imageRetention: { keepLatest: 2, persist: 'drop-pruned' }` bounds each model request and
+removes aged-out image bytes from snapshots. The default is unchanged when this option is
+omitted. See [image retention and diagnostics](docs/image-retention-and-diagnostics.md) for
+custom placeholders, counters, skill-catalog diagnostics, and tool-error rendering.
 
 Agents can also own progressively disclosed skills. Web applications declare
 portable in-memory skills with `defineSkill()` or a custom `defineSkillProvider()`;

@@ -185,6 +185,7 @@ interface RuntimeAgentSession {
   runPending(options?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse>
   snapshot(): RuntimeAgentSessionSnapshot
   compact(options?): Promise<CompactionResult | null>
+  imageRetentionStats(): ImageRetentionSnapshot | undefined
   reset(): void
   whenIdle(signal?: AbortSignal): Promise<void>
 }
@@ -249,9 +250,21 @@ interface RuntimeAgentSessionOptions {
   readonly hooks?: TurnHooks
   readonly usagePolicy?: UsagePolicy
   readonly historyLimits?: HistoryLimits
+  readonly imageRetention?: ImageRetentionOptions
+  readonly toolErrorRendering?: ToolErrorRendering
+  readonly strictSkillCandidates?: boolean
+  readonly onSkillDiagnostic?: SkillDiagnosticObserver
   readonly ledgerLimits?: RunLedgerLimits
 }
 ```
+
+`imageRetention` bounds image blocks in requests; `persist: 'drop-pruned'` also
+removes aged-out image bytes from history and snapshots. `toolErrorRendering`
+defaults to `[CODE] message`; set it to `false` for legacy text or pass a
+renderer. Skill candidates are skipped individually by default and reported
+through `onSkillDiagnostic`; set `strictSkillCandidates: true` for strict
+all-or-nothing discovery. Full semantics and counters are in
+`docs/image-retention-and-diagnostics.md`.
 
 Environment-dependent context sections belong here; sections that travel with
 the agent wherever it runs belong on the definition.
@@ -263,8 +276,13 @@ interface TurnHooks {
   readonly beforeStep?: (ctx: BeforeStepContext) => Promise<StepDecision> | StepDecision
   readonly onRequestError?: (ctx: RequestErrorContext) => Promise<'retry' | 'fail'> | 'retry' | 'fail'
   readonly checkpoint?: (ctx: CheckpointContext) => Promise<void> | void
-  readonly onTurnEnd?: (ctx: TurnEndContext) => Promise<void> | void
+  readonly beforeCompletion?: (ctx: TurnEndContext) => Promise<void | TurnEndDecision> | void | TurnEndDecision
+  readonly onTurnEnd?: (ctx: TurnEndContext) => Promise<void | TurnEndDecision> | void | TurnEndDecision
 }
+
+type TurnEndDecision =
+  | { readonly kind: 'yield' }
+  | { readonly kind: 'continue'; readonly messages: readonly UserMessage[] }
 
 const session = agent.createSession({
   hooks: { beforeStep: () => ({ kind: 'proceed' }) },   // or { kind: 'reject', reason }
@@ -278,6 +296,32 @@ The proceed decision may also supply `messages` to project this request without
 rewriting history/checkpoint snapshots. Forward callback `ctx.signal` to hook
 work: timeout cancellation is composed into that signal. Do not use signal
 object identity to infer run identity.
+
+`beforeCompletion` is the application completion gate. It runs only when the
+model stops on its own while capacity remains, before empty-answer terminal
+recovery and before `onTurnEnd`. Return `{ kind: 'continue', messages }` to keep
+working in the same turn and run with the remaining budgets:
+
+```ts
+import { createUserMessage } from '@alvin0/ai-agent-sdk-core'
+
+hooks: {
+  beforeCompletion: ({ canContinue }) => {
+    if (!canContinue || reviewDone()) return
+    return { kind: 'continue', messages: [createUserMessage({
+      source: { kind: 'app', producer: 'review-gate' },
+      content: [{ type: 'text', text: 'The review is not done yet. Continue.' }],
+    })] }
+  },
+}
+```
+
+Every message must be a user message with `source.kind: 'app'`; otherwise the
+run rejects with an `AgentRunError` caused by a `TypeError`, and nothing is
+appended. The batch is appended atomically. An empty batch does not continue the turn. `onTurnEnd` accepts the
+same decisions; continuation is ignored once the turn is exhausted, failed or
+cancelled, and `{ kind: 'yield' }` pauses without a final answer. Bound repeated
+objections in your gate so it stops when the work no longer progresses.
 
 ## Two session layers — do not mix them up
 

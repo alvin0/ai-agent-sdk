@@ -72,6 +72,12 @@ new ModelRegistry({ observation: observability })
 `MemoryObservationExporter` is for **test and local inspection only** — it never
 claims durability.
 
+Image-retention counters are available directly from a configured session via
+`session.imageRetentionStats()`. Request counters count images replaced in each
+prepared model request; persisted counters count images removed from in-memory
+history/snapshots. Per-round request metrics also appear in the model-call trace
+request summary. These are structural savings, not billed-token estimates.
+
 ## Three orthogonal knobs
 
 ```ts

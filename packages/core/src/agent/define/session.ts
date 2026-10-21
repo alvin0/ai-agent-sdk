@@ -79,6 +79,7 @@ export class AgentSession {
     this.contextSections = sessionContextSections(definition, options)
     this.currentConversationId = conversationId(options.conversationId)
     this.currentHistory = options.history ?? new History(options.historyLimits)
+    if (options.imageRetention !== undefined) this.currentHistory.configureImageRetention(options.imageRetention)
     this.skillCatalog = sessionSkills(definition, options)
     this.catalog = sessionCatalog(definition, options, this.skillCatalog, () => this.skillLookup())
     this.currentMemory = createSessionMemory(options.memory, definition)
@@ -101,7 +102,7 @@ export class AgentSession {
     const session = new AgentSession(definition, {
       ...runtime,
       conversationId: snapshot.conversationId,
-      history: History.fromSnapshot(snapshot.history, runtime.historyLimits),
+      history: History.fromSnapshot(snapshot.history, runtime.historyLimits, runtime.imageRetention),
       memory: AgentMemory.fromSnapshot(snapshot.memory, definition.memory),
     })
     session.pendingSkillActivations = captureResumedSkillActivations(snapshot.skills, session.skillCatalog)
@@ -112,6 +113,7 @@ export class AgentSession {
   get memory(): AgentMemory { return this.currentMemory }
   get skills(): SkillCatalog | undefined { return this.skillCatalog }
   get isRunning(): boolean { return this.active }
+  imageRetentionStats() { return this.currentHistory.imageRetentionSnapshot() }
   snapshot(): AgentSessionSnapshot {
     const activated = this.activationSnapshot()
     const persistedHistory = this.inputState.snapshotHistory()
@@ -133,6 +135,9 @@ export class AgentSession {
     if (this.active) throw new Error('cannot reset an agent session while a run is active')
     this.currentConversationId = newConversationId()
     this.currentHistory = new History(this.options.historyLimits)
+    if (this.options.imageRetention !== undefined) {
+      this.currentHistory.configureImageRetention(this.options.imageRetention)
+    }
     this.currentMemory = new AgentMemory(this.definition.memory.seed, this.definition.memory)
     this.inputState.reset()
     this.pendingSkillActivations = Object.freeze([])

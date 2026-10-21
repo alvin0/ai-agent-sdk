@@ -83,6 +83,20 @@ const session = agent.createSession({ usagePolicy: { onMissing: 'estimate', esti
 An estimate is labelled `coverage: 'estimated'` — it never masquerades as
 reported truth.
 
+`RuntimeAgentResponse.usage` is the full `RunUsageReport`; its provider counters
+remain optional because missing values are unknown. For a stable convenience
+shape, use the public agent-entry-point accessor:
+
+```ts
+import { getUsageTotals } from '@alvin0/ai-agent-sdk-core/agent'
+
+const totals = getUsageTotals(response.usage)
+// inputTokens/outputTokens/cachedInputTokens/reasoningTokens are each number | undefined
+```
+
+`cachedInputTokens` normalizes `reported.cacheReadTokens`. Keep the full report
+when coverage, estimates, or authority affect a billing or audit decision.
+
 ## Embedding accounts at three levels
 
 One call to `embed()` or `embedMany()` can become several requests, and a

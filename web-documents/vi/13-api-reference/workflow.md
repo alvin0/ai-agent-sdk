@@ -90,8 +90,13 @@ interface TurnHooks {
   beforeStep?:     (ctx: BeforeStepContext) => Promise<StepDecision> | StepDecision
   onRequestError?: (ctx: RequestErrorContext) => Promise<'retry' | 'fail'> | 'retry' | 'fail'
   checkpoint?:     (ctx: CheckpointContext) => Promise<void> | void
-  onTurnEnd?:      (ctx: TurnEndContext) => Promise<void> | void
+  beforeCompletion?: (ctx: TurnEndContext) => Promise<void | TurnEndDecision> | void | TurnEndDecision
+  onTurnEnd?:      (ctx: TurnEndContext) => Promise<void | TurnEndDecision> | void | TurnEndDecision
 }
+
+type TurnEndDecision =
+  | { readonly kind: 'yield' }
+  | { readonly kind: 'continue'; readonly messages: readonly UserMessage[] }
 ```
 
 Các kiểu context: `BeforeStepContext`, `RequestErrorContext`, `CheckpointContext`,

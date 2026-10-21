@@ -27,7 +27,15 @@ export function sessionSkills(
   return new SkillCatalog(sources, {
     ...(definition.skillIds === undefined ? {} : { allowedSkillIds: definition.skillIds }),
     maxSkills: definition.skillOptions.maxSkills, maxCatalogBytes: definition.skillOptions.maxDiscoveryBytes,
+    ...skillCandidateOptions(options),
   })
+}
+
+function skillCandidateOptions(options: AgentSessionOptions) {
+  return {
+    ...(options.strictSkillCandidates === undefined ? {} : { strictCandidates: options.strictSkillCandidates }),
+    ...(options.onSkillDiagnostic === undefined ? {} : { onDiagnostic: options.onSkillDiagnostic }),
+  }
 }
 
 export function sessionCatalog(

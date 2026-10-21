@@ -15,7 +15,10 @@ export {
 export {
   TOOL_ERROR_CODES,
   ToolError,
+  renderToolError,
   toolErrorDisposition,
+  type ToolErrorModelInput,
+  type ToolErrorRendering,
   type ToolErrorDisposition,
 } from './errors.ts'
 export {

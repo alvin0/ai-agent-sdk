@@ -185,6 +185,19 @@ An interrupted call in `sent` or `unknown` state that returned no usage
 increments `possiblyBilledAttemptsWithoutUsage` — the honest answer when exact
 billing is unknowable from the response.
 
+For a stable typed view, `getUsageTotals` (since 0.1.14) reads the reported
+counters without the rest of the report:
+
+```ts
+import { getUsageTotals } from '@alvin0/ai-agent-sdk-core/agent'
+
+const { inputTokens, outputTokens, cachedInputTokens, reasoningTokens } = getUsageTotals(response.usage)
+```
+
+Unreported counters are `undefined`, not zero. `cachedInputTokens` maps from
+`reported.cacheReadTokens`. Keep the full report when coverage or authority
+matters for billing.
+
 ### Budget contributions and partial attempts
 
 `budgetTokens` is an optional budget projection, not an invoice total. The SDK

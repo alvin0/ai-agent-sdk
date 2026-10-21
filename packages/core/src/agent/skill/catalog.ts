@@ -31,12 +31,17 @@ import {
 } from './catalog-entries.ts'
 import { sameCatalogEntry } from './catalog-equality.ts'
 import { collectCatalogEntries } from './catalog-discovery.ts'
+import type { SkillDiagnosticObserver } from './catalog-diagnostics.ts'
 
 export interface SkillCatalogOptions {
   /** When present, only these skill ids are visible or loadable. */
   readonly allowedSkillIds?: readonly string[]
   readonly maxSkills?: number
   readonly maxCatalogBytes?: number
+  /** Invalid provider candidates are skipped by default; strict mode rejects the discovery. */
+  readonly strictCandidates?: boolean
+  /** Receives bounded diagnostics for invalid or excluded provider candidates. */
+  readonly onDiagnostic?: SkillDiagnosticObserver
 }
 
 export class SkillCatalog {
@@ -45,6 +50,8 @@ export class SkillCatalog {
   private readonly allowedSkillIdSet: ReadonlySet<string> | undefined
   private readonly maxSkills: number
   private readonly maxCatalogBytes: number
+  private readonly strictCandidates: boolean
+  private readonly onDiagnostic: SkillDiagnosticObserver | undefined
   private entries = new Map<string, CatalogEntry>()
   private visible: readonly SkillSummary[] = Object.freeze([])
   private readonly activated = new Map<string, readonly SkillResourceSummary[]>()
@@ -56,6 +63,8 @@ export class SkillCatalog {
     this.maxSkills = positiveSafeInteger(options.maxSkills ?? 1_024, 'skill catalog maxSkills')
     this.maxCatalogBytes = positiveSafeInteger(options.maxCatalogBytes ?? 4 * 1024 * 1024,
       'skill catalog maxCatalogBytes')
+    this.strictCandidates = options.strictCandidates ?? false
+    this.onDiagnostic = options.onDiagnostic
     this.sources = captureCatalogSources(sources)
     if (options.allowedSkillIds === undefined) {
       this.allowedSkillIds = undefined
@@ -99,6 +108,8 @@ export class SkillCatalog {
       entries: next,
       maxSkills: this.maxSkills,
       maxCatalogBytes: this.maxCatalogBytes,
+      strictCandidates: this.strictCandidates,
+      onDiagnostic: this.onDiagnostic,
       isAllowed: id => this.isAllowed(id),
       legacyOptions: this.providerListOptions(options),
       runtimeOptions: this.runtimeProviderListOptions(options),

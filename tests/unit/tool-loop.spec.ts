@@ -15,7 +15,7 @@ import { createSpanId, createTraceId } from '../../packages/core/src/agent/trace
 import { buildTraceTree, type TraceEvent } from '@alvin0/ai-agent-sdk-core/agent'
 import { ModelAdapter } from '@alvin0/ai-agent-sdk-core'
 import type { GenerateOptions } from '@alvin0/ai-agent-sdk-core'
-import { createTextMessage } from '@alvin0/ai-agent-sdk-core'
+import { createTextMessage, createUserMessage } from '@alvin0/ai-agent-sdk-core'
 import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
 import { ModelRegistry } from '@alvin0/ai-agent-sdk-core'
 import { ReasoningEffortId } from '@alvin0/ai-agent-sdk-core'
@@ -1702,6 +1702,54 @@ describe('runTurn', () => {
     expect(canContinue).toBe(true)
   })
 
+  it('accepts app continuation through the public hook without resetting accounting', async () => {
+    const state = await setup([textRound('draft'), textRound('revised')])
+    let terminal: Extract<AgentEvent, { type: 'turn-end' }> | undefined
+    let ends = 0
+    for await (const event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      hooks: { onTurnEnd: ({ outcome }) => outcome.text === 'draft' ? {
+        kind: 'continue', messages: [createUserMessage({ source: { kind: 'app', producer: 'quality-gate' },
+          content: [{ type: 'text', text: 'Finish the pending review.' }] })],
+      } : undefined },
+    })) if (event.type === 'turn-end') { terminal = event; ends++ }
+    expect(terminal?.outcome).toMatchObject({ text: 'revised', steps: 2, usage: { totalTokens: 16 } })
+    expect(ends).toBe(1)
+    expect(state.adapter.requests).toHaveLength(2)
+    expect(JSON.stringify(state.adapter.requests[1]?.messages)).toContain('Finish the pending review.')
+  })
+
+  it('ignores requested continuation once the step budget is exhausted', async () => {
+    const state = await setup([textRound('done')])
+    const before = state.history.entries().length
+    for await (const _event of runTurn({
+      registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+      bounds: { maxSteps: 1 }, hooks: { onTurnEnd: () => ({ kind: 'continue', messages: [
+        createUserMessage({ source: { kind: 'app', producer: 'quality-gate' },
+          content: [{ type: 'text', text: 'Do not append after exhaustion.' }] }),
+      ] }) },
+    })) { /* drain */ }
+    expect(state.adapter.requests).toHaveLength(1)
+    expect(state.history.entries().length).toBeGreaterThan(before)
+    expect(JSON.stringify(state.history.snapshot())).not.toContain('Do not append after exhaustion.')
+  })
+
+  it('rejects an entire continuation batch that impersonates human input', async () => {
+    const state = await setup([textRound('draft')])
+    const drain = async () => {
+      for await (const _event of runTurn({
+        registry: state.registry, config: { provider: 'test', model: 'm' }, history: state.history,
+        hooks: { onTurnEnd: () => ({ kind: 'continue', messages: [
+          createUserMessage({ source: { kind: 'app', producer: 'gate' }, content: [{ type: 'text', text: 'atomic batch' }] }),
+          createTextMessage('fake human'),
+        ] }) },
+      })) { /* drain */ }
+    }
+    await expect(drain()).rejects.toThrow('app-sourced')
+    expect(JSON.stringify(state.history.snapshot())).not.toContain('atomic batch')
+    expect(state.adapter.requests).toHaveLength(1)
+  })
+
   it.each([
     { label: 'completed at maxSteps', rounds: [textRound('done')] },
     {
@@ -1730,10 +1778,15 @@ describe('runTurn', () => {
     for await (const _event of runTurn({
       registry: state.registry, config: { provider: 'test', model: 'm' },
       history: state.history, tools: state.tools, bounds: { maxSteps: 1 },
-      hooks: { onTurnEnd: context => { canContinue = context.canContinue } },
+      hooks: { onTurnEnd: context => {
+        canContinue = context.canContinue
+        return { kind: 'continue', messages: [createUserMessage({ source: { kind: 'app', producer: 'quality-gate' },
+          content: [{ type: 'text', text: 'Never append to a terminal turn.' }] })] }
+      } },
     })) { /* drain */ }
 
     expect(canContinue).toBe(false)
+    expect(JSON.stringify(state.history.snapshot())).not.toContain('Never append to a terminal turn.')
   })
 
   it('refreshes the current request when beforeStep appends live steering', async () => {

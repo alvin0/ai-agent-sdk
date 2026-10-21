@@ -7,6 +7,7 @@ import {
   type AttemptUsageReport,
 } from '@alvin0/ai-agent-sdk-core'
 import { createSpanId } from '@alvin0/ai-agent-sdk-core'
+import { getUsageTotals } from '@alvin0/ai-agent-sdk-core/agent'
 
 function attempt(overrides: Partial<AttemptUsageReport> = {}): AttemptUsageReport {
   return {
@@ -25,6 +26,17 @@ function attempt(overrides: Partial<AttemptUsageReport> = {}): AttemptUsageRepor
 }
 
 describe('usage validation and aggregation', () => {
+  it('provides stable normalized totals with undefined for unreported counters', () => {
+    expect(getUsageTotals({ reported: {
+      inputTokens: 12, outputTokens: 5, cacheReadTokens: 4, reasoningTokens: 2,
+    } })).toEqual({
+      inputTokens: 12, outputTokens: 5, cachedInputTokens: 4, reasoningTokens: 2,
+    })
+    expect(getUsageTotals({ reported: { inputTokens: 1 } })).toEqual({
+      inputTokens: 1, outputTokens: undefined, cachedInputTokens: undefined, reasoningTokens: undefined,
+    })
+  })
+
   it('omits invalid fields and rejects inconsistent totals/reasoning subsets', () => {
     const result = validateUsageCounters({
       inputTokens: 4,

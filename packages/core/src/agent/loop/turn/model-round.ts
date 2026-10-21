@@ -9,7 +9,8 @@ export async function modelRound(input: ModelRoundInput): Promise<RoundResult> {
   const context = createRoundContext(input)
   const prepared = await prepareModelRequest(context)
   if ('result' in prepared) return prepared.result
-  await emitRoundStart(context, prepared.request)
+  await emitRoundStart(context, prepared.request, prepared.imageRetention)
+  if (prepared.imageRetention !== undefined) context.options.history.recordImageRetention(prepared.imageRetention)
   const stream = await streamModelRound(context, prepared.request)
   return finishModelRound(context, stream)
 }

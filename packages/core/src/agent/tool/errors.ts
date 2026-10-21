@@ -19,6 +19,15 @@
  */
 
 import { AgentSdkError } from '../../errors/index.ts'
+import type { ToolExecutionResult } from './definition.ts'
+
+export interface ToolErrorModelInput {
+  readonly code: string
+  readonly message: string
+}
+
+/** `false` preserves legacy error text; a callback can render a custom neutral message. */
+export type ToolErrorRendering = false | ((error: ToolErrorModelInput) => string)
 
 /** What the loop should do with a tool failure. */
 export type ToolErrorDisposition =
@@ -127,4 +136,41 @@ export function toolErrorDisposition(value: unknown): ToolErrorDisposition {
   return value instanceof ToolError && value.disposition === 'fatal'
     ? 'fatal'
     : 'respond-to-model'
+}
+
+/**
+ * Render only the stable code and safe message into model-visible tool content.
+ *
+ * Only the default `Error: <message>` content is rewritten. Content a tool or
+ * interceptor wrote for the model (block feedback, replacements, images) is
+ * passed through as written.
+ */
+export function renderToolError(
+  result: ToolExecutionResult,
+  rendering: ToolErrorRendering | undefined,
+): ToolExecutionResult {
+  if (!result.isError || rendering === false || !hasDefaultErrorContent(result)) return result
+  const view = Object.freeze({ code: result.error.code, message: result.error.message })
+  let message: string
+  try {
+    message = rendering === undefined ? `[${view.code}] ${view.message}` : rendering(view)
+  } catch {
+    message = `[${view.code}] ${view.message}`
+  }
+  // Empty text blocks are rejected by some providers and tell the model nothing.
+  if (typeof message !== 'string' || message.trim() === '') message = `[${view.code}] ${view.message}`
+  return { ...result, content: [{ type: 'text', text: message }] }
+}
+
+function hasDefaultErrorContent(result: Extract<ToolExecutionResult, { readonly isError: true }>): boolean {
+  const [block, ...rest] = result.content
+  return rest.length === 0 && block?.type === 'text' && block.text === `Error: ${result.error.message}`
+}
+
+/** Validate a `toolErrorRendering` option at a configuration boundary. */
+export function resolveToolErrorRendering(value: unknown): ToolErrorRendering | undefined {
+  if (value !== undefined && value !== false && typeof value !== 'function') {
+    throw new TypeError('toolErrorRendering must be false or a function')
+  }
+  return value as ToolErrorRendering | undefined
 }

@@ -751,6 +751,58 @@ describe('createHttpProvider: adding an endpoint with no new code', () => {
     expect(innerGetter).not.toHaveBeenCalled()
   })
 
+  it('retries a native socket reset from an HTTP 200 SSE body before output', async () => {
+    const socketError = Object.assign(new Error('The socket connection was closed unexpectedly'), { code: 'ECONNRESET' })
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(new ReadableStream({ start(controller) { controller.error(socketError) } }), {
+        status: 200, headers: { 'content-type': 'text/event-stream' },
+      }))
+      .mockResolvedValueOnce(sseResponse(RESPONSES_OK))
+    const provider = withRetry(createHttpProvider({ displayName: 'Socket reset', protocol: openAiResponsesProtocol,
+      baseUrl: 'https://socket.invalid/v1', auth: { kind: 'none' }, fetch }), {
+      policy: { mode: 'normal', maxRetries: 1, backoff: { initialDelayMs: 1, maxDelayMs: 1, jitterRatio: 0 } },
+    })
+    const chunks = await drain(provider.stream({ provider: 'socket', model: 'm', messages: [createTextMessage('hello')] }))
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(chunks).toContainEqual(expect.objectContaining({ type: 'finish', reason: { kind: 'stop' } }))
+  })
+
+  it('does not treat forged or malformed network-code envelopes as native fetch failures', async () => {
+    for (const error of [{ code: 'ECONNRESET' }, Object.assign(new Error('bad twin'), {
+      code: 'ECONNRESET', failure: { code: 'AUTH', message: 'invalid twin' },
+    })]) {
+      const provider = createHttpProvider({ displayName: 'Bad network envelope', protocol: throwingProtocol(error),
+        baseUrl: 'https://socket.invalid/v1', auth: { kind: 'none' },
+        fetch: () => Promise.resolve(sseResponse(['data: ignored'])),
+      })
+      await expect(drain(provider.stream({ provider: 'socket', model: 'm', messages: [] })))
+        .rejects.toMatchObject({ code: 'UNKNOWN' })
+    }
+  })
+
+  it('retries a socket reset during buffered reasoning without leaking the failed prefix', async () => {
+    const frames = [
+      { type: 'response.output_item.added', item: { type: 'reasoning', id: 'rs_socket' } },
+      { type: 'response.reasoning_summary_text.delta', item_id: 'rs_socket', delta: 'Failed preliminary thought' },
+    ]
+    let index = 0
+    const encoder = new TextEncoder()
+    const fetch = vi.fn().mockResolvedValueOnce(new Response(new ReadableStream({ pull(controller) {
+      if (index < frames.length) controller.enqueue(encoder.encode(`data: ${JSON.stringify(frames[index++])}\n\n`))
+      else controller.error(Object.assign(new Error('socket closed during thinking'), { code: 'ECONNRESET' }))
+    } }), { status: 200, headers: { 'content-type': 'text/event-stream' } }))
+      .mockResolvedValueOnce(sseResponse(RESPONSES_OK))
+    const provider = withRetry(createHttpProvider({ displayName: 'Thinking socket', protocol: openAiResponsesProtocol,
+      baseUrl: 'https://socket.invalid/v1', auth: { kind: 'none' }, fetch }), {
+      bufferReasoningPrefix: true,
+      policy: { mode: 'normal', maxRetries: 1, backoff: { initialDelayMs: 1, maxDelayMs: 1, jitterRatio: 0 } },
+    })
+    const chunks = await drain(provider.stream({ provider: 'socket', model: 'm', messages: [] }))
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(JSON.stringify(chunks)).not.toContain('Failed preliminary thought')
+    expect(chunks).toContainEqual(expect.objectContaining({ type: 'finish', reason: { kind: 'stop' } }))
+  })
+
   it('uses an injected fetch implementation instead of the platform global', async () => {
     const platformFetch = vi.fn(() => Promise.reject(new Error('platform fetch must stay unused')))
     const injectedFetch = vi.fn(() => Promise.resolve(sseResponse(RESPONSES_OK)))

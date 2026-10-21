@@ -5,6 +5,7 @@ import type { AgentRunEvent } from '../../agent/mode/run-agent.ts'
 import type { CompactionResult } from '../../agent/memory/compaction.ts'
 import type { AgentCompactionOptions } from '../../agent/memory/compaction-config.ts'
 import type { AgentSessionSnapshot } from '../../agent/define/session/types.ts'
+import type { ImageRetentionSnapshot } from '../../agent/history/image-retention.ts'
 import type { ApprovalBroker, ApprovalRequest } from '../../agent/tool/approval.ts'
 import type { ToolDefinition } from '../../agent/tool/definition.ts'
 import type { ToolInterceptor } from '../../agent/tool/pipeline.ts'
@@ -23,6 +24,9 @@ import type { RuntimeSkillSource } from '../skill-provider/types.ts'
 import type { AgentRuntimeLimits, AgentRunEventBufferLimits } from '../../agent/define/session/types.ts'
 import type { HistoryLimits } from '../../agent/history/types.ts'
 import type { RunLedgerLimits } from '../../agent/accounting/report.ts'
+import type { ImageRetentionOptions } from '../../agent/history/image-retention.ts'
+import type { SkillDiagnosticObserver } from '../../agent/skill/index.ts'
+import type { ToolErrorRendering } from '../../agent/tool/errors.ts'
 
 export interface RuntimeAgentDefinitionInput {
   readonly id: string
@@ -112,6 +116,14 @@ export interface RuntimeAgentSessionOptions {
   readonly usagePolicy?: UsagePolicy
   /** In-memory append-only conversation history limits. */
   readonly historyLimits?: HistoryLimits
+  /** Bound image blocks in model requests and optionally prune old bytes from session snapshots. */
+  readonly imageRetention?: ImageRetentionOptions
+  /** Defaults to `[CODE] message`; set false to preserve legacy error text. */
+  readonly toolErrorRendering?: ToolErrorRendering
+  /** Skip invalid skill candidates by default; true restores all-or-nothing discovery. */
+  readonly strictSkillCandidates?: boolean
+  /** Receives bounded diagnostics for skill candidates that discovery skips. */
+  readonly onSkillDiagnostic?: SkillDiagnosticObserver
   /** Canonical per-run accounting ledger limits. */
   readonly ledgerLimits?: RunLedgerLimits
   /** Public run-event queue limits for slow or paused consumers. */
@@ -241,6 +253,7 @@ export interface RuntimeAgentResponse {
   readonly text: string
   readonly output?: JsonValue
   readonly message?: Message
+  /** Full usage provenance; use `getUsageTotals(response.usage)` for stable normalized counters. */
   readonly usage: RuntimeRunReport['usage']
   readonly report: RuntimeRunReport
 }
@@ -264,6 +277,8 @@ export interface RuntimeAgentSession {
   stream(input: AgentInput, options?: RuntimeAgentInvocationOptions): RuntimeAgentRunHandle
   inject(input: AgentInput): number
   hasUnansweredInput(): boolean
+  /** Request and persisted-history image retention counters, when configured. */
+  imageRetentionStats(): ImageRetentionSnapshot | undefined
   runPending(options?: RuntimeAgentInvocationOptions): Promise<RuntimeAgentResponse>
   snapshot(): RuntimeAgentSessionSnapshot
   compact(options?: RuntimeAgentInvocationOptions): Promise<CompactionResult | null>

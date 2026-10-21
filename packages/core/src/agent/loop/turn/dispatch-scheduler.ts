@@ -40,6 +40,7 @@ export async function dispatchRoundTools(ctx: SchedulerContext) {
       dispatchLimit: dispatchQuota(guardDeclined === true, budgetIsAWall, remaining, round.calls.length),
       declineReason,
       maxResultBytes: bounds.maxToolResultBytes,
+      ...optionalDispatch('toolErrorRendering', options.toolErrorRendering),
       maxResultTokens: bounds.maxToolResultTokens,
       resultOverflow: bounds.toolResultOverflow,
       ...optionalDispatch('spillStore', options.spillStore),

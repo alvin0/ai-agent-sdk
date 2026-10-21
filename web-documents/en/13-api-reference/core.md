@@ -132,6 +132,7 @@ interface RuntimeAgentSession {
   compact(options?: RuntimeAgentInvocationOptions): Promise<CompactionResult | null>
   reset(): void
   whenIdle(signal?: AbortSignal): Promise<void>
+  imageRetentionStats(): ImageRetentionSnapshot | undefined   // undefined without imageRetention
 }
 ```
 

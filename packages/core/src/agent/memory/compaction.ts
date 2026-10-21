@@ -15,6 +15,8 @@ import type { ModelRegistry } from '../../runtime/index.ts'
 import { waitForSettlement } from '../../async/index.ts'
 import type { TokenUsage } from '../../stream/index.ts'
 import type { History } from '../history/history.ts'
+import type { HistorySurfaceNode } from '../history/project.ts'
+import { retainLatestImagesInMessages } from '../history/image-retention.ts'
 import type {
   AgentMaintenanceEvent, BeforeStepContext, CompactionBackoffReason, CompactionTrigger, RequestErrorContext,
 } from '../loop/events.ts'
@@ -58,6 +60,25 @@ export interface ContextCompactorOptions {
   readonly pinnedMessages?: () => readonly Message[]
   readonly tools: () => readonly ModelToolSchema[]
   readonly policy: AgentCompactionConfig
+}
+
+/**
+ * The surface as the model request will see it, with the history's image
+ * retention applied, so pressure, selection, and summaries measure the same
+ * images the model actually receives.
+ */
+function modelView(
+  history: History, surface: readonly HistorySurfaceNode[], pinned: readonly Message[],
+): { pinned: readonly Message[]; surface: readonly HistorySurfaceNode[] } {
+  const policy = history.imageRetentionPolicy()
+  if (policy === undefined) return { pinned, surface }
+  const { messages } = retainLatestImagesInMessages([...pinned, ...surface.map(node => node.message)], policy)
+  return {
+    pinned: messages.slice(0, pinned.length),
+    surface: Object.freeze(surface.map((node, index) => Object.freeze({
+      seq: node.seq, message: messages[pinned.length + index]!,
+    }))),
+  }
 }
 
 export class ContextCompactor {
@@ -173,20 +194,25 @@ export class ContextCompactor {
 
   private async prepareCompaction(trigger: CompactionTrigger, operationSignal: AbortSignal) {
     const history = this.input.history()
-    let surface = history.surface()
-    if (surface.length < 2) return null
+    let raw = history.surface()
+    if (raw.length < 2) return null
     const tools = this.input.tools()
     const system = this.input.system()
-    const pinned = this.input.pinnedMessages?.() ?? []
+    let { pinned, surface } = modelView(history, raw, this.input.pinnedMessages?.() ?? [])
     let totalBefore = estimateContextTokens({
       system, messages: [...pinned, ...surface.map(node => node.message)], tools,
     })
     let budget = await this.resolveBudget(totalBefore, operationSignal)
     operationSignal.throwIfAborted()
     if (belowPressure(trigger, budget, totalBefore, true)) return null
-    const pruned = pruneToolResults(history, surface, this.input.policy.maxToolResultChars)
+    // Pruning rewrites stored entries, so it reads the raw surface; a retained
+    // view would persist image placeholders into history.
+    const pruned = pruneToolResults(history, raw, this.input.policy.maxToolResultChars)
     if (pruned > 0) {
-      surface = history.surface()
+      raw = history.surface()
+      const view = modelView(history, raw, this.input.pinnedMessages?.() ?? [])
+      pinned = view.pinned
+      surface = view.surface
       totalBefore = estimateContextTokens({
         system, messages: [...pinned, ...surface.map(node => node.message)], tools,
       })

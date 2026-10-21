@@ -186,6 +186,19 @@ lời gọi bị gián đoạn ở trạng thái `sent` hoặc `unknown` mà kh�
 làm tăng `possiblyBilledAttemptsWithoutUsage` — đây là câu trả lời trung thực khi
 không thể biết chính xác việc tính tiền từ phản hồi.
 
+Để có một góc nhìn có kiểu ổn định, `getUsageTotals` (từ 0.1.14) đọc các bộ đếm đã
+báo cáo mà không cần phần còn lại của báo cáo:
+
+```ts
+import { getUsageTotals } from '@alvin0/ai-agent-sdk-core/agent'
+
+const { inputTokens, outputTokens, cachedInputTokens, reasoningTokens } = getUsageTotals(response.usage)
+```
+
+Bộ đếm không được báo cáo là `undefined`, không phải 0. `cachedInputTokens` lấy từ
+`reported.cacheReadTokens`. Hãy giữ báo cáo đầy đủ khi độ phủ hoặc tính chính thức
+ảnh hưởng tới việc tính tiền.
+
 ### Contribution ngân sách và các attempt partial
 
 Mandatory usage stop áp dụng cả auto-compaction: summary trả `usageRequired`

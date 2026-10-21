@@ -20,6 +20,15 @@ function optionalTurnProperty(key: string, value: unknown): Record<string, unkno
   return value === undefined ? {} : { [key]: value }
 }
 
+function contentPolicies(options: RunAgentOptions): Record<string, unknown> {
+  return {
+    ...optionalTurnProperty('imagePolicy', options.imagePolicy),
+    ...optionalTurnProperty('imageRetention', options.imageRetention),
+    ...optionalTurnProperty('documentPolicy', options.documentPolicy),
+    ...optionalTurnProperty('toolErrorRendering', options.toolErrorRendering),
+  }
+}
+
 export function buildAgentTurnOptions(setup: AgentTurnSetup): RunTurnOptions {
   const { options, signal, mode, deep, broker, tools, hooks, state, maxTurns } = setup
   return {
@@ -29,8 +38,7 @@ export function buildAgentTurnOptions(setup: AgentTurnSetup): RunTurnOptions {
     ...optionalTurnProperty('tools', tools),
     ...optionalTurnProperty('nativeTools', options.nativeTools),
     ...optionalTurnProperty('toolChoice', options.toolChoice),
-    ...optionalTurnProperty('imagePolicy', options.imagePolicy),
-    ...optionalTurnProperty('documentPolicy', options.documentPolicy),
+    ...contentPolicies(options),
     ...optionalTurnProperty('validateOutput', options.validateOutput),
     ...optionalTurnProperty('outputFormat', options.outputFormat),
     system: joinSystem(options.system, modeSystem(mode, broker !== undefined)),

@@ -8,7 +8,10 @@ import type { StreamChunk } from '../../../packages/core/src/stream/chunk.ts'
 import type { ComposableModelProviderPlugin } from '../../../packages/core/src/composition/provider/types.ts'
 import { createRuntimeCompositionOwner } from '../../../packages/core/src/composition/runtime/owner.ts'
 import { defineSkillProviderPlugin } from '../../../packages/core/src/composition/skill-provider/definition.ts'
-import { defineSkill } from '../../../packages/core/src/agent/skill/definition.ts'
+import {
+  MAX_SKILL_INSTRUCTIONS_CHARS,
+  defineSkill,
+} from '../../../packages/core/src/agent/skill/definition.ts'
 import type {
   RuntimeSkillCandidate, RuntimeSkillLookupOptions, SkillProviderPlugin, SkillReference,
 } from '../../../packages/core/src/composition/skill-provider/types.ts'
@@ -204,15 +207,68 @@ describe('versioned skill provider authoring and catalog', () => {
       const load = vi.fn(async () => undefined)
       const plugin = defineSkillProviderPlugin({ id: 'research-skills',
         list: async () => ({ revision: 'r1', candidates: candidates as never }), load })
-      const catalog = new SkillCatalog([plugin])
+      const catalog = new SkillCatalog([plugin], { strictCandidates: true })
       await expect(catalog.discover()).rejects.toMatchObject({ code })
       expect(catalog.summaries()).toEqual([])
       expect(load).not.toHaveBeenCalled()
     }
   })
 
+  it('skips one invalid plugin candidate and emits a bounded typed diagnostic', async () => {
+    const fixture = skillProvider()
+    const bad = { ...candidate(), id: 'bad-candidate', name: 'x'.repeat(257) }
+    const badInstructions = { ...candidate(), id: 'bad-instructions',
+      instructions: 'x'.repeat(MAX_SKILL_INSTRUCTIONS_CHARS + 1) }
+    const good = { ...candidate(), id: 'good-candidate' }
+    fixture.setCandidates([bad as RuntimeSkillCandidate, badInstructions as RuntimeSkillCandidate, good])
+    const diagnostics: unknown[] = []
+    const catalog = new SkillCatalog([fixture.plugin], { onDiagnostic: diagnostic => diagnostics.push(diagnostic) })
+
+    await expect(catalog.discover()).resolves.toMatchObject([{ id: 'good-candidate' }])
+    expect(diagnostics).toEqual([
+      { type: 'skill-candidate-rejected', code: 'SKILL_CANDIDATE_REJECTED',
+        providerId: 'research-skills', candidateId: 'bad-candidate', reason: 'name-invalid' },
+      { type: 'skill-candidate-rejected', code: 'SKILL_CANDIDATE_REJECTED',
+        providerId: 'research-skills', candidateId: 'bad-instructions', reason: 'instructions-invalid' },
+    ])
+    expect(JSON.stringify(diagnostics)).not.toContain('x'.repeat(257))
+    expect(JSON.stringify(diagnostics)).not.toContain('x'.repeat(MAX_SKILL_INSTRUCTIONS_CHARS + 1))
+  })
+
+  it('bounds plugin candidate text in UTF-8 bytes as well as characters', async () => {
+    const fixture = skillProvider()
+    fixture.setCandidates([
+      { ...candidate(), id: 'wide-name', name: '\u754c'.repeat(200) },
+      { ...candidate(), id: 'narrow-name' },
+    ])
+    const diagnostics: { reason: string }[] = []
+    const catalog = new SkillCatalog([fixture.plugin], { onDiagnostic: diagnostic => { diagnostics.push(diagnostic) } })
+
+    await expect(catalog.discover()).resolves.toMatchObject([{ id: 'narrow-name' }])
+    expect(diagnostics.map(diagnostic => diagnostic.reason)).toEqual(['name-invalid'])
+  })
+
+  it('skips candidates beyond a configured catalog limit with a diagnostic', async () => {
+    const fixture = skillProvider()
+    fixture.setCandidates([
+      { ...candidate(), id: 'skill-one' },
+      { ...candidate(), id: 'skill-two' },
+      { ...candidate(), id: 'skill-three' },
+    ])
+    const diagnostics: unknown[] = []
+    const catalog = new SkillCatalog([fixture.plugin], {
+      maxSkills: 2, onDiagnostic: diagnostic => diagnostics.push(diagnostic),
+    })
+
+    await expect(catalog.discover()).resolves.toMatchObject([{ id: 'skill-one' }, { id: 'skill-two' }])
+    expect(diagnostics).toEqual([{
+      type: 'skill-candidate-rejected', code: 'SKILL_CANDIDATE_REJECTED',
+      providerId: 'research-skills', candidateId: 'skill-three', reason: 'candidate-limit',
+    }])
+  })
+
   it('reports skill-id collisions support-safely and preserves the last valid refresh', async () => {
-    const fixture = skillProvider(), catalog = new SkillCatalog([fixture.plugin])
+    const fixture = skillProvider(), catalog = new SkillCatalog([fixture.plugin], { strictCandidates: true })
     const valid = await catalog.discover()
     fixture.setRevision('catalog-r2')
     fixture.setCandidates([candidate({ generation: 2 }), candidate({ generation: 3 })])

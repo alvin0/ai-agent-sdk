@@ -1,7 +1,7 @@
 # Nâng cấp từ 0.1.4 lên 0.1.5
 
 Hướng dẫn này mô tả thay đổi từ **0.1.5**. Với workspace hiện tại, xem
-[nâng cấp lên 0.1.13](/vi/01-introduction/upgrading-to-0-1-13).
+[nâng cấp lên 0.1.14](/vi/01-introduction/upgrading-to-0-1-14).
 
 Các đường import, cấu hình provider/model/effort, tool thông thường,
 `run`/`stream` và snapshot/resume vẫn giữ. Thiết kế effort được ghi trong

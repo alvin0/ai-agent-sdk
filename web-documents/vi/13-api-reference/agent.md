@@ -116,6 +116,7 @@ interface RuntimeAgentSession {
   compact(options?: RuntimeAgentInvocationOptions): Promise<CompactionResult | null>
   reset(): void
   whenIdle(signal?: AbortSignal): Promise<void>
+  imageRetentionStats(): ImageRetentionSnapshot | undefined   // undefined without imageRetention
 }
 ```
 
@@ -137,6 +138,10 @@ interface RuntimeAgentSession {
   usagePolicy?: UsagePolicy
   runtimeLimits?: RuntimeAgentLimits
   compaction?: AgentCompactionOptions | false
+  imageRetention?: ImageRetentionOptions   // { keepLatest, persist?: 'keep' | 'drop-pruned', placeholder? }
+  toolErrorRendering?: false | ((error: { code: string; message: string }) => string)
+  strictSkillCandidates?: boolean          // default false: skip invalid skill candidates
+  onSkillDiagnostic?: (diagnostic: SkillCatalogDiagnostic) => void
 }
 ```
 
@@ -288,8 +293,13 @@ interface TurnHooks {
   beforeStep?:     (ctx: BeforeStepContext) => Promise<StepDecision> | StepDecision
   onRequestError?: (ctx: RequestErrorContext) => Promise<'retry' | 'fail'> | 'retry' | 'fail'
   checkpoint?:     (ctx: CheckpointContext) => Promise<void> | void
-  onTurnEnd?:      (ctx: TurnEndContext) => Promise<void> | void
+  beforeCompletion?: (ctx: TurnEndContext) => Promise<void | TurnEndDecision> | void | TurnEndDecision
+  onTurnEnd?:      (ctx: TurnEndContext) => Promise<void | TurnEndDecision> | void | TurnEndDecision
 }
+
+type TurnEndDecision =
+  | { readonly kind: 'yield' }
+  | { readonly kind: 'continue'; readonly messages: readonly UserMessage[] }
 
 type StepDecision =
   | { kind: 'proceed'; prepend?: readonly Message[] }
