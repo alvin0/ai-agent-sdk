@@ -24,7 +24,7 @@ export function mapUsage(usage: WireUsage): UsageCounters | undefined {
     ...omittedCounter(reasoning) ? {} : { reasoningTokens: reasoning },
   }
   if (rawInput !== undefined) {
-    normalized.inputTokens = disjointInput(rawInput, cacheRead)
+    normalized.inputTokens = disjointInput(rawInput, cacheRead, cacheWrite)
   }
   return normalized as UsageCounters
 }
@@ -35,9 +35,12 @@ function recordOrUndefined(value: unknown): Record<string, unknown> | undefined 
 
 function omittedCounter(value: unknown): boolean { return value === undefined || value === 0 }
 
-function disjointInput(rawInput: unknown, cacheRead: unknown): unknown {
+function disjointInput(rawInput: unknown, cacheRead: unknown, cacheWrite: unknown): unknown {
+  // Responses includes both cache buckets in input_tokens. The SDK accounts
+  // for them separately; do not count cache writes twice or clamp invalid data.
   return typeof rawInput === 'number' && (cacheRead === undefined || typeof cacheRead === 'number')
-    ? rawInput - (cacheRead ?? 0) : rawInput
+    && (cacheWrite === undefined || typeof cacheWrite === 'number')
+    ? rawInput - (cacheRead ?? 0) - (cacheWrite ?? 0) : rawInput
 }
 
 function reasoningCounter(source: Record<string, unknown>): unknown {

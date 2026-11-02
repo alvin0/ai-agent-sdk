@@ -45,10 +45,12 @@ describe('Responses assistant message phase', () => {
     expect(chunks).toContainEqual({ type: 'reasoning-delta', index: 0, text: 'Plan.', kind: 'summary' })
     expect(chunks).toContainEqual({ type: 'reasoning-delta', index: 1, text: 'raw step', kind: 'content' })
     expect(chunks).toContainEqual(expect.objectContaining({
-      type: 'block-end', index: 0, block: expect.objectContaining({ type: 'reasoning', text: 'Plan.', kind: 'summary' }),
+      type: 'block-end', index: 0,
+      block: expect.objectContaining({ type: 'reasoning', text: 'Plan.', kind: 'summary' }),
     }))
     expect(chunks).toContainEqual(expect.objectContaining({
-      type: 'block-end', index: 1, block: expect.objectContaining({ type: 'reasoning', text: 'raw step', kind: 'content' }),
+      type: 'block-end', index: 1,
+      block: expect.objectContaining({ type: 'reasoning', text: 'raw step', kind: 'content' }),
     }))
   })
 
@@ -65,7 +67,8 @@ describe('Responses assistant message phase', () => {
     expect(block?.type === 'block-end' && block.block).toMatchObject({ type: 'reasoning' })
     expect(block?.type === 'block-end' && 'kind' in block.block).toBe(false)
     // Each delta still says where it came from.
-    expect(chunks.filter(chunk => chunk.type === 'reasoning-delta').map(chunk => chunk.type === 'reasoning-delta' && chunk.kind))
+    expect(chunks.filter(chunk => chunk.type === 'reasoning-delta')
+      .map(chunk => chunk.type === 'reasoning-delta' && chunk.kind))
       .toEqual(['summary', 'content'])
   })
 
@@ -74,10 +77,13 @@ describe('Responses assistant message phase', () => {
     for await (const chunk of translateResponsesStream(events([
       { type: 'response.output_item.added', item: { id: 'rs_1', type: 'reasoning' } },
       { type: 'response.output_item.done', item: {
-        id: 'rs_1', type: 'reasoning', summary: [{ type: 'summary_text', text: 'A' }, { type: 'summary_text', text: 'B' }],
+        id: 'rs_1', type: 'reasoning',
+        summary: [{ type: 'summary_text', text: 'A' }, { type: 'summary_text', text: 'B' }],
       } },
       { type: 'response.output_item.added', item: { id: 'rs_2', type: 'reasoning' } },
-      { type: 'response.output_item.done', item: { id: 'rs_2', type: 'reasoning', summary: [], encrypted_content: 'x' } },
+      { type: 'response.output_item.done', item: {
+        id: 'rs_2', type: 'reasoning', summary: [], encrypted_content: 'x',
+      } },
       { type: 'response.completed', response: {} },
     ]), 'test')) chunks.push(chunk)
     const blocks = chunks.flatMap(chunk => chunk.type === 'block-end' ? [chunk.block] : [])
@@ -204,6 +210,51 @@ describe('Responses usage normalization', () => {
     expect(validateUsageCounters(usage, true).complete).toBe(false)
   })
 
+  it.each([
+    { name: 'live cache write', input: 4773, read: 0, write: 4770, output: 2012 },
+    { name: 'mixed cache read/write', input: 5000, read: 1000, write: 2000, output: 12 },
+    { name: 'fully cached input', input: 5000, read: 1000, write: 4000, output: 12 },
+  ])('keeps $name disjoint without changing provider totals', async ({ input, read, write, output }) => {
+    const usage = await translatedUsage({ input_tokens: input,
+      input_tokens_details: { cached_tokens: read, cache_write_tokens: write },
+      output_tokens: output, total_tokens: input + output })
+    expect(usage).toEqual({ inputTokens: input - read - write, outputTokens: output,
+      totalTokens: input + output, ...read === 0 ? {} : { cacheReadTokens: read }, cacheWriteTokens: write })
+    expect(validateUsageCounters(usage, true)).toMatchObject({ complete: true, invalidFields: [] })
+  })
+
+  it('subtracts cache writes when the cache-read detail is absent', async () => {
+    const usage = await translatedUsage({ input_tokens: 10,
+      input_tokens_details: { cache_write_tokens: 6 }, output_tokens: 2 })
+    expect(usage).toEqual({ inputTokens: 4, cacheWriteTokens: 6, outputTokens: 2 })
+    expect(validateUsageCounters(usage, true)).toMatchObject({ complete: true, reported: { totalTokens: 12 } })
+  })
+
+  it.each([
+    { cached_tokens: 4, cache_write_tokens: 8 },
+    { cached_tokens: 0, cache_write_tokens: -1 },
+    { cached_tokens: 0, cache_write_tokens: 0.5 },
+    { cached_tokens: 0, cache_write_tokens: 'invalid' },
+    { cached_tokens: 0, cache_write_tokens: null },
+  ])('leaves invalid cache-write counters rejectable: %j', async (details) => {
+    const usage = await translatedUsage({ input_tokens: 10, input_tokens_details: details,
+      output_tokens: 2, total_tokens: 12 })
+    expect(usage?.cacheWriteTokens).toBe(details.cache_write_tokens)
+    expect(validateUsageCounters(usage, true).complete).toBe(false)
+  })
+
+  it.each(['response.incomplete', 'response.failed'])('normalizes cache writes on %s before stopping', async (type) => {
+    const stream = translateResponsesStream(events([{ type, response: {
+      incomplete_details: { reason: 'max_output_tokens' }, error: { code: 'server_error', message: 'Failed' },
+      usage: { input_tokens: 10, input_tokens_details: { cache_write_tokens: 6 },
+        output_tokens: 2, total_tokens: 12 },
+    } }]), 'test')[Symbol.asyncIterator]()
+    const first = await stream.next()
+    expect(first).toMatchObject({ value: { type: 'usage',
+      usage: { inputTokens: 4, cacheWriteTokens: 6, outputTokens: 2, totalTokens: 12 } } })
+    await stream.return(undefined)
+  })
+
   it('retains malformed counters for the accounting boundary to reject', async () => {
     const usage = await translatedUsage({
       input_tokens: 10,
@@ -253,7 +304,8 @@ describe('Responses failed response', () => {
   })
 
   it('keeps the provider message when there is one and classifies its code', async () => {
-    const error = await failure({ id: 'resp_1', status: 'failed', error: { code: 'rate_limit_exceeded', message: 'Slow down' } })
+    const error = await failure({ id: 'resp_1', status: 'failed',
+      error: { code: 'rate_limit_exceeded', message: 'Slow down' } })
     expect(error).toMatchObject({ code: 'RATE_LIMIT', message: 'Slow down' })
   })
 

@@ -10,7 +10,7 @@ message.
 
 ## Setup
 
-For the 0.1.14 release, read the [release notes](CHANGELOG.md).
+For the 0.1.15 release, read the [release notes](CHANGELOG.md).
 For migration to 0.1.14, read [upgrading to 0.1.14](docs/upgrading-to-0.1.14.md).
 For the managed-team API, read the [multi-agent guide](docs/multi-agent.md)
 and run the [offline delegation and collaboration example](samples/multi-agent-offline/README.md)
