@@ -2,6 +2,22 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## 0.1.15 - 2026-11-02
+
+### Fixed
+
+- Responses usage normalization subtracts both cache-read and cache-write subsets from input
+  tokens before accounting for separate buckets. Nonzero cache writes no longer double count
+  against the provider's total or incorrectly trigger `USAGE_INVALID`. Malformed and overlapping
+  counters remain subject to accounting validation, including on incomplete and failed responses.
+
+### Security
+
+- MCP packages depend on `@modelcontextprotocol/client` and `@modelcontextprotocol/server` 2.4.0
+  and `@modelcontextprotocol/node` 2.1.2, which resolve patched `zod`, `hono` and
+  `@hono/node-server` releases for the reported memory-exhaustion and HTTP transport advisories.
+- The Next.js samples use `next` 16.4.3 and the Hono samples use `hono` 4.13.14.
+
 ## 0.1.14 - 2026-10-21
 
 See [upgrading to 0.1.14](docs/upgrading-to-0.1.14.md).
