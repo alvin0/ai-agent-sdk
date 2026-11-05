@@ -26,7 +26,7 @@ export function generationModel(id: string, entry: WireCopilotModel): CopilotGen
       // image input that the endpoint never made.
       ...(vision ? { inputModalities: TEXT_AND_IMAGE } : {}),
     }),
-    declaredEndpoint: declaredEndpointOf(supports),
+    declaredEndpoint: declaredEndpointOf(supports, entry.supported_endpoints),
   })
 }
 
@@ -51,16 +51,23 @@ export function embeddingModel(id: string, entry: WireCopilotModel): CopilotEmbe
  * Read the endpoint disclosure, and only a disclosure.
  *
  * `supports.responses === true` says `/responses`; `false` says `/chat/completions`
- * — the endpoint stated something either way. Anything else, including the field
- * being absent or holding a non-boolean, is UNKNOWN and stays `undefined`, which
- * is a different state from "not supported" (Requirement 8.6).
+ * — the endpoint stated something either way. When that flag is absent, the
+ * top-level `supported_endpoints` list (the shape the live catalog sends) is read:
+ * a list naming `/responses` says `/responses`, one naming only `/chat/completions`
+ * says `/chat/completions`. Anything else — no disclosure, a non-boolean flag, or a
+ * list naming neither (e.g. only `/v1/messages`) — is UNKNOWN and stays
+ * `undefined`, which is a different state from "not supported" (Requirement 8.6).
  */
 export function declaredEndpointOf(
   supports: Readonly<Record<string, unknown>> | undefined,
+  supportedEndpoints?: unknown,
 ): CopilotEndpoint | undefined {
   const responses = supports?.responses
   if (responses === true) return 'responses'
   if (responses === false) return 'chat-completions'
+  if (!Array.isArray(supportedEndpoints)) return undefined
+  if (supportedEndpoints.includes('/responses')) return 'responses'
+  if (supportedEndpoints.includes('/chat/completions')) return 'chat-completions'
   return undefined
 }
 

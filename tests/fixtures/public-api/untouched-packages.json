@@ -6,6 +6,7 @@
         "exports": [
           "A2AMessageSource",
           "APP_IDENTITY",
+          "AbortRace",
           "ActivatedSkillSnapshot",
           "AdapterRegistrationHandle",
           "AgentCompactionConfig",
@@ -265,6 +266,7 @@
           "StreamChunk",
           "StreamMiddleware",
           "SupportSafeError",
+          "TextAccumulator",
           "TextAnnotation",
           "TextAnnotationMap",
           "TextBlock",
@@ -389,7 +391,7 @@
           "withRetry",
           "withoutRunReport"
         ],
-        "declarationSha256": "af5f7677b07bf059001a63c0debef870dd9325b1bc122cdace5940121c38c40a"
+        "declarationSha256": "37e12f8f8bba6407e180ebb40ea814cd63f25da905673f5dee8dd9a54b973c0b"
       },
       "./agent": {
         "exports": [

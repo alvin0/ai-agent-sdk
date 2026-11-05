@@ -4,11 +4,14 @@ import { createRuntimePlatform } from '../../../packages/core/src/platform/adapt
 import { RuntimeResources } from '../../../packages/core/src/platform/resources.ts'
 import { createRuntimeResource } from '../../../packages/core/src/composition/delivery/resource.ts'
 import { RuntimeObservationPort, type RuntimeObservationPortOptions } from '../../../packages/core/src/composition/observation/port.ts'
+import type { RuntimeObservationExporterRegistration } from '../../../packages/core/src/composition/exporter/types.ts'
 import { event } from './delivery-fixtures.ts'
+import { registration } from './exporter-fixtures.ts'
 
-function fixture(options: RuntimeObservationPortOptions = {}) {
+function fixture(options: RuntimeObservationPortOptions = {},
+  registrations: readonly RuntimeObservationExporterRegistration[] = []) {
   const platform = createRuntimePlatform(), resources = new RuntimeResources(platform), resource = createRuntimeResource(undefined, platform)
-  const port = new RuntimeObservationPort(resource, [], { platform, resources }, { mode: 'operational', ...options })
+  const port = new RuntimeObservationPort(resource, registrations, { platform, resources }, { mode: 'operational', ...options })
   return { platform, resources, resource, port }
 }
 
@@ -103,7 +106,8 @@ describe('runtime-bound logger', () => {
   })
 
   it('keeps accepted cumulative evidence when the queue later evicts that log', () => {
-    const { resources, port } = fixture({ maxEvents: 1 }), logger = port.logger()
+    // Only a runtime with an exporter retains a queue that capacity can evict from.
+    const { resources, port } = fixture({ maxEvents: 1 }, [registration()]), logger = port.logger()
     logger.info('integration start', integration())
     logger.info('ordinary replacement')
     expect(port.integrationEvidenceSnapshot()).toEqual({ accepted: 1, filtered: 0, dropped: 1, rejected: 0 })
@@ -112,7 +116,7 @@ describe('runtime-bound logger', () => {
   })
 
   it('counts a valid critical integration log rejected by queue capacity', () => {
-    const { resources, port } = fixture({ maxEvents: 1 })
+    const { resources, port } = fixture({ maxEvents: 1 }, [registration()])
     port.capture({ ...event('full'), priority: 'critical' })
     port.logger().error('integration terminal', integration('logical-terminal'))
     expect(port.integrationEvidenceSnapshot()).toEqual({ accepted: 0, filtered: 0, dropped: 0, rejected: 1 })

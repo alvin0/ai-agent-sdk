@@ -17,6 +17,7 @@ import {
   type CodexProviderOptions,
 } from '@alvin0/ai-agent-sdk-provider-codex'
 import { fileCodexAuthStore, fileCodexCredentialStore } from './codex-store.ts'
+import { withDefaultNodeFetch } from './http2/default.ts'
 
 export { CODEX_BASE_URL, CODEX_CLIENT_VERSION, CODEX_ORIGINATOR }
 
@@ -34,7 +35,7 @@ export function codexNodeAdapter(
   options: CodexNodeAdapterOptions = {},
 ): ReturnType<typeof universalCodexAdapter> {
   return universalCodexAdapter({
-    ...options,
+    ...withDefaultNodeFetch(options),
     authStore: options.authStore ?? fileCodexAuthStore(),
   })
 }
@@ -53,12 +54,16 @@ export interface CodexNodeProviderOptions extends Omit<CodexProviderOptions, 'au
   readonly authStore?: CodexCredentialStore
 }
 
-/** Preferred Node composition plugin backed by revision-safe file credentials by default. */
+/**
+ * Preferred Node composition plugin backed by revision-safe file credentials by default.
+ * Without a caller `fetch`, requests multiplex over the shared HTTP/2 transport
+ * (unless a proxy is configured in the environment).
+ */
 export function codexNodeProviderPlugin(
   options: CodexNodeProviderOptions = {},
 ): ComposableModelProviderPlugin & { readonly family: 'codex' } {
   return universalCodexPlugin({
-    ...options,
+    ...withDefaultNodeFetch(options),
     authStore: options.authStore ?? fileCodexCredentialStore(),
   })
 }

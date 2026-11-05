@@ -2,6 +2,84 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## Unreleased
+
+### Added
+
+- `createNodeHttp2Fetch()` from `@alvin0/ai-agent-sdk-auth-node/http2` is a provider `fetch` that
+  multiplexes concurrent requests as HTTP/2 streams on shared `node:http2` sessions. Node 26's
+  built-in `fetch` serializes POSTs on an established HTTP/2 session (nodejs/undici#5390), so
+  concurrent streamed model calls to one provider ran one after another; in a live check, 20
+  concurrent streamed runs took 11 s instead of 186 s. Origins without h2, `http:` URLs and
+  connection failures fall back to the global `fetch`; an origin that does not negotiate h2 or
+  fails to connect is sent straight to the fallback for `fallbackTtlMs` (default 5 min). An abort
+  while a session is still connecting rejects at once, a response that the server completes
+  before stopping the upload is still readable, and requests after `close()` reject instead of
+  using the fallback.
+- Core exports `TextAccumulator`, an append-only text builder for stream translators that keeps
+  memory near the text size instead of retaining one string node per streamed delta.
+- Core exports `AbortRace`, which races every read of a stream loop against one abort signal
+  with a single listener; the agent loop and the HTTP provider transport share it.
+
+### Changed
+
+- `codexNodeProviderPlugin()` and `copilotNodeProviderPlugin()` (and the deprecated Codex Node
+  adapter and plugin) use a shared `createNodeHttp2Fetch()` transport when no `fetch` is passed.
+  They keep the platform `fetch` when a caller supplies one (`fetch: globalThis.fetch` opts out) or
+  when `HTTPS_PROXY`, `HTTP_PROXY` or `ALL_PROXY` is set, since the transport does not use proxies.
+  Each request also uses the platform `fetch` while the application has installed its own global
+  dispatcher with `setGlobalDispatcher` (a `ProxyAgent`, `EnvHttpProxyAgent`, `MockAgent`, or an
+  `Agent` with custom `connect` options such as a CA), which the transport would otherwise bypass.
+
+### Fixed
+
+- Copilot endpoint routing now reads the catalog's top-level `supported_endpoints` list (the shape
+  `/models` currently returns) when `supports.responses` is absent, so models such as `gpt-6-luna`
+  that only serve `/responses` are no longer sent to `/chat/completions`.
+- The HTTP/2 transport sends a default `user-agent` like Node's `fetch`; GitHub's API rejected the
+  Copilot token exchange without one.
+- The HTTP/2 transport resets an aborted request or a cancelled body with `CANCEL` instead of
+  `INTERNAL_ERROR`, and no longer resets an exchange that already finished when its signal is
+  aborted afterwards (as the Copilot stream reader does on cleanup).
+- Reading a streamed model response costs less than half the CPU per delta on long streams and
+  far less memory (in-process benchmark, 20 streams × 20,000 deltas: about 37 → 17 µs per delta
+  and a heap peak of about 258 → 65 MB). Every event was structured-cloned and deep-frozen twice;
+  plain event data is now copied and frozen in one pass and an existing snapshot is not copied
+  again. The provider idle deadline no longer races each read against one long-lived promise,
+  which accumulated a reaction per read for the life of the stream, and no longer resets a timer
+  per chunk; abort races register one listener per stream instead of one per chunk; byte limits
+  are measured without encoding each event; and raw SSE frames are retained only when a
+  `responseLogger` is configured.
+- A long streamed response no longer holds several times its own text in memory. The block
+  assembler and the Anthropic Messages, Responses, Gemini Interactions and Chat Completions stream
+  translators built text and tool arguments with `+=`, which kept one string node per delta; they
+  now use the new `TextAccumulator` from core, which joins deltas into flat strings in batches.
+  One 90,000-delta stream retained about 6.5 MB before and 2 MB after (about 75 → 16 bytes per
+  6-byte delta).
+- Runtime observation and the legacy observation bus no longer grow slower or hold more memory
+  under high concurrency. Operational runtimes previously retained every event until close, so
+  the queue filled to its limits, eviction scanned the whole queue on each admission, and
+  critical evidence was then rejected. Delivery now drains in the background once a full batch
+  is queued and drains each finished run, without awaiting it on capture. A background step
+  yields to a checkpoint, flush or shutdown queued behind it between batches, so their deadlines
+  wait for at most one batch in flight. A failing exporter pauses background drains with
+  exponential backoff (250 ms to 30 s) on the monotonic clock.
+- A failing reliable or audit exporter now also pauses background drains when run checkpoints
+  fail, not only when a background step fails. Checkpoints still attempt delivery, but a finished
+  run no longer re-sends every failed batch to a sink that is down.
+- HTTP providers share one in-flight model-catalog discovery between concurrent cold callers.
+  Many runs starting at once, or a catalog TTL expiring under load, previously sent one catalog
+  request per run. A cancelled leader hands discovery to the next caller without recording a
+  failure.
+- Queue admission, eviction choice, lookup and removal are O(1). Each event is serialized once
+  for its size, and batch packing uses exact wire sizes. Health reads no longer copy the queue.
+
+### Changed
+
+- A runtime or bus with no exporter registrations still validates and counts admitted events
+  but does not retain them, since they have nowhere to be delivered. A runtime still reports a
+  repeated event or terminal record as `existing` within its last `maxEvents` admissions.
+
 ## 0.1.15 - 2026-11-02
 
 ### Fixed

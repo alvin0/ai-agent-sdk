@@ -3,6 +3,7 @@ import {
   type JsonObject,
   type JsonValue,
 } from '../primitives/index.ts'
+import { utf8ByteLength } from '../primitives/utf8.ts'
 import {
   isSpanId,
   isTraceId,
@@ -190,8 +191,10 @@ function requiredString(value: unknown, field: string): string {
   return value.slice(0, MAX_STRING_LENGTH)
 }
 
+/** Serialized UTF-8 size, counted without encoding: this runs for every captured event. */
 function eventBytes(event: ObservationEvent): number {
-  return new TextEncoder().encode(JSON.stringify(event)).byteLength
+  const serialized = JSON.stringify(event) as string | undefined
+  return serialized === undefined ? 0 : utf8ByteLength(serialized)
 }
 
 /** Validate, privacy-process, bound, and deeply freeze one untrusted event. */

@@ -1,4 +1,5 @@
 import { AgentSdkError } from '../../errors/index.ts'
+import { utf8ByteLength } from '../../primitives/utf8.ts'
 import { OBSERVATION_ERROR_CODES } from '../../observation/index.ts'
 
 interface BufferedValue<T> { readonly value: T; readonly bytes: number }
@@ -80,7 +81,7 @@ function positiveLimit(value: number, name: string): number {
 function serializedBytes(value: unknown): number {
   try {
     const serialized = JSON.stringify(value)
-    return serialized === undefined ? 0 : new TextEncoder().encode(serialized).byteLength
+    return serialized === undefined ? 0 : utf8ByteLength(serialized)
   } catch {
     throw new AgentSdkError(
       'public run event is not lossless JSON',

@@ -5,10 +5,15 @@ import { createRuntimeResource } from '../../../packages/core/src/composition/de
 import { DeliveryStaging } from '../../../packages/core/src/composition/delivery/staging.ts'
 import { defineObservationExporter } from '../../../packages/core/src/composition/exporter/definition.ts'
 import { DeliveryQueueStore } from '../../../packages/core/src/composition/queue/store.ts'
-import { deliveryBatchItemBytes } from '../../../packages/core/src/composition/delivery/batch.ts'
+import type { RuntimeObservationResource } from '../../../packages/core/src/composition/delivery/resource.ts'
 import { createRunTerminalRecord } from '../../../packages/core/src/composition/delivery/terminal.ts'
 import type { ObservationExportItem } from '../../../packages/core/src/composition/exporter/delivery-types.ts'
 import { event, ledgerReport } from './delivery-fixtures.ts'
+
+/** Independent oracle: the exact wire size of a one-event batch (batch ids are 32 hex chars). */
+function oneItemBatchBytes(resource: RuntimeObservationResource, item: ObservationEvent): number {
+  return new TextEncoder().encode(JSON.stringify({ id: '0'.repeat(32), resource, events: [item], runRecords: [] })).byteLength
+}
 
 function context(options: ConstructorParameters<typeof DeliveryQueueStore>[2] = {}, stage?: (item: ObservationExportItem) => void) {
   const platform = createRuntimePlatform(), resource = createRuntimeResource(undefined, platform), failed = vi.fn()
@@ -65,7 +70,7 @@ describe('delivery queue admission and priority eviction', () => {
 
   it('enforces serialized byte capacity independently and counts exact evicted bytes', () => {
     const probe = context(), prepared = probe.store.admitEvent(withPriority(1, 'normal')).entry!
-    const wire = deliveryBatchItemBytes(probe.resource, prepared.item as ObservationEvent)
+    const wire = oneItemBatchBytes(probe.resource, prepared.item as ObservationEvent)
     const { store } = context({ maxEvents: 10, maxBytes: wire, maxBatchBytes: wire })
     const first = store.admitEvent(withPriority(1, 'normal')).entry!
     const second = store.admitEvent(withPriority(2, 'normal')).entry!
@@ -76,7 +81,7 @@ describe('delivery queue admission and priority eviction', () => {
 
   it('rejects an item that cannot fit a single exact batch before queue eviction or staging', () => {
     const staged = vi.fn(), probe = context(), prepared = probe.store.admitEvent(withPriority(1, 'normal')).entry!
-    const wire = deliveryBatchItemBytes(probe.resource, prepared.item as ObservationEvent)
+    const wire = oneItemBatchBytes(probe.resource, prepared.item as ObservationEvent)
     const { store } = context({ maxEvents: 10, maxBytes: wire, maxBatchBytes: wire - 1 }, staged)
     expect(store.admitEvent(withPriority(1, 'critical'))).toEqual({ status: 'rejected', reason: 'batch-capacity' })
     expect(store.snapshot()).toMatchObject({ queuedItems: 0, criticalRejected: 1 })
@@ -92,6 +97,22 @@ describe('delivery queue admission and priority eviction', () => {
     expect(runDuplicate).toMatchObject({ status: 'existing', entry: runFirst.entry })
     expect(staged).toHaveBeenCalledTimes(2)
     expect(store.snapshot().queuedItems).toBe(2)
+  })
+
+  it('reports duplicates as existing without retaining anything when it holds no entries', async () => {
+    const staged = vi.fn(), probe = context({}, staged)
+    const store = new DeliveryQueueStore(probe.resource, probe.staging, { maxEvents: 2 }, { retain: false })
+    const input = event('unretained')
+    const first = store.admitEvent(input)
+    expect(store.admitEvent(input)).toMatchObject({ status: 'existing', entry: first.entry })
+    const record = createRunTerminalRecord(await ledgerReport('unretained'))
+    const runFirst = store.admitRunRecord(record)
+    expect(store.admitRunRecord(record)).toMatchObject({ status: 'existing', entry: runFirst.entry })
+    expect(staged).toHaveBeenCalledTimes(2)
+    expect(store.snapshot()).toMatchObject({ queuedItems: 0, accepted: 2 })
+    // The identity window is bounded by maxEvents: an id that left it is new again.
+    store.admitEvent(event('unretained', 2)); store.admitEvent(event('unretained', 3))
+    expect(store.admitEvent(input).status).toBe('accepted')
   })
 
   it('keeps event and run-record identity namespaces independent', async () => {
@@ -121,6 +142,33 @@ describe('delivery queue admission and priority eviction', () => {
     store.remove(entries.slice(0, 400))
     expect(store.snapshot().entries).toEqual(entries.slice(400))
     expect(store.snapshot()).toMatchObject({ queuedItems: 200, evictedNormal: 300 })
+  })
+
+  it('admits, counts and stages without retaining when retention is off', () => {
+    const staged = vi.fn(), { resource, staging } = context({}, staged)
+    const store = new DeliveryQueueStore(resource, staging, { maxEvents: 1 }, { retain: false })
+    for (let sequence = 1; sequence <= 3; sequence++) {
+      expect(store.admitEvent(withPriority(sequence, 'critical')).status).toBe('accepted')
+    }
+    expect(store.snapshot()).toMatchObject({ queuedItems: 0, queuedBytes: 0, accepted: 3, criticalRejected: 0 })
+    expect(store.hasNoBacklog()).toBe(true)
+    // Staging is still capture-time local write initiation, retained or not.
+    expect(staged).toHaveBeenCalledTimes(3)
+  })
+
+  it('tracks unassigned backlog separately from entries already protected by an export task', () => {
+    const { store } = context({ maxBatchEvents: 2 })
+    const first = store.admitEvent(withPriority(1, 'normal')).entry!
+    expect(store.hasBatchBacklog()).toBe(false)
+    const second = store.admitEvent(withPriority(2, 'normal')).entry!
+    expect(store.hasBatchBacklog()).toBe(true)
+    store.protect([first, second, first])
+    expect(store.hasBatchBacklog()).toBe(false)
+    expect(store.hasNoBacklog()).toBe(true)
+    store.remove([first])
+    store.unprotect([second])
+    expect(store.hasNoBacklog()).toBe(false)
+    expect(store.stats()).toMatchObject({ queuedItems: 1 })
   })
 
   it('seals admission and staging idempotently', () => {

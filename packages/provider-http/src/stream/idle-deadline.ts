@@ -1,5 +1,8 @@
 import { MODEL_ERROR_CODES, ModelError, waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 
+/** Longest delay a timer honors; Node fires a longer one after 1 ms. */
+const MAX_TIMER_MS = 2_147_483_647
+
 /** One resettable deadline shared by every body read in one physical attempt. */
 export interface StreamIdleDeadline {
   /** Reset the deadline after a non-empty response-body read or SSE heartbeat. */
@@ -12,7 +15,7 @@ export interface StreamIdleDeadline {
  * Create one idle timer for a physical provider attempt.
  *
  * The parser calls `activity` while one `iterator.next()` is pending. Resetting
- * the same timer lets comment-only heartbeats keep that read alive without
+ * the same deadline lets comment-only heartbeats keep that read alive without
  * manufacturing protocol events. A primary timeout is never replaced by a
  * secondary iterator-cancellation failure.
  */
@@ -21,39 +24,16 @@ export function createStreamIdleDeadline(
   displayName: string,
   teardownTimeoutMs: number,
 ): StreamIdleDeadline {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  let expired = false
-  let rejectExpiry: ((error: Error) => void) | undefined
-  const expiry = new Promise<never>((_resolve, reject) => { rejectExpiry = reject })
-  // The deadline may expire while the consumer is between reads. Keep that
-  // rejection observed; the next guarded read still receives the same error.
-  void expiry.catch(() => undefined)
-
-  const activity = () => {
-    if (expired) return
-    if (timer !== undefined) clearTimeout(timer)
-    timer = setTimeout(() => {
-      expired = true
-      rejectExpiry?.(new ModelError(
-        `${displayName} stream idle for more than ${timeoutMs}ms`,
-        MODEL_ERROR_CODES.TIMEOUT,
-      ))
-    }, timeoutMs)
-  }
-
-  const dispose = () => {
-    if (timer !== undefined) clearTimeout(timer)
-    timer = undefined
-  }
+  const expiry = new IdleExpiry(timeoutMs, displayName)
 
   const guard = async function* <T>(source: AsyncIterable<T>): AsyncGenerator<T> {
     const iterator = source[Symbol.asyncIterator]()
     let exhausted = false
     let primaryFailure: unknown
-    activity()
+    expiry.touch()
     try {
       while (true) {
-        const result = await Promise.race([iterator.next(), expiry])
+        const result = await expiry.race(iterator.next())
         if (result.done === true) {
           exhausted = true
           return
@@ -64,14 +44,75 @@ export function createStreamIdleDeadline(
       primaryFailure = error
       throw error
     } finally {
-      dispose()
+      expiry.dispose()
       if (!exhausted) {
         await closeIdleIterator(iterator, { teardownTimeoutMs, displayName, primaryFailure })
       }
     }
   }
 
-  return Object.freeze({ activity, guard })
+  return Object.freeze({ activity: expiry.touch, guard })
+}
+
+/**
+ * The deadline itself. Both halves run once per streamed chunk, so neither
+ * allocates per call: `touch` only stamps the time, and the single pending timer
+ * re-checks the elapsed idle span when it fires. Each read races a promise of its
+ * own rather than one long-lived expiry promise, which would collect one reaction
+ * per read for the life of the stream.
+ */
+class IdleExpiry {
+  private timer: ReturnType<typeof setTimeout> | undefined
+  private lastActivity = 0
+  private disposed = false
+  // Set once the deadline passes; a read that starts afterwards fails with it.
+  private expired: ModelError | undefined
+  private rejectPending: ((error: ModelError) => void) | undefined
+
+  constructor(private readonly timeoutMs: number, private readonly displayName: string) {}
+
+  readonly touch = (): void => {
+    if (this.disposed || this.expired !== undefined) return
+    this.lastActivity = performance.now()
+    this.timer ??= setTimeout(this.fire, Math.min(this.timeoutMs, MAX_TIMER_MS))
+  }
+
+  race<T>(pending: Promise<T>): Promise<T> {
+    if (this.expired !== undefined) {
+      void pending.catch(() => undefined)
+      return Promise.reject(this.expired)
+    }
+    return new Promise<T>((resolve, reject) => {
+      this.rejectPending = reject
+      pending.then(
+        value => { this.rejectPending = undefined; resolve(value) },
+        (error: unknown) => { this.rejectPending = undefined; reject(error) },
+      )
+    })
+  }
+
+  dispose(): void {
+    this.disposed = true
+    this.rejectPending = undefined
+    if (this.timer !== undefined) clearTimeout(this.timer)
+    this.timer = undefined
+  }
+
+  private readonly fire = (): void => {
+    this.timer = undefined
+    if (this.disposed || this.expired !== undefined) return
+    const idle = performance.now() - this.lastActivity
+    if (idle < this.timeoutMs) {
+      // Clamped: a huge or infinite timeout re-checks rarely instead of spinning.
+      this.timer = setTimeout(this.fire, Math.min(this.timeoutMs - idle, MAX_TIMER_MS))
+      return
+    }
+    this.expired = new ModelError(
+      `${this.displayName} stream idle for more than ${this.timeoutMs}ms`,
+      MODEL_ERROR_CODES.TIMEOUT,
+    )
+    this.rejectPending?.(this.expired)
+  }
 }
 
 async function closeIdleIterator(iterator: AsyncIterator<unknown>, cleanup: {

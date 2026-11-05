@@ -6,15 +6,18 @@ import { RuntimeObservationPort, type RuntimeObservationPortOptions } from '../.
 import { assessIntegrationCompleteness,
   type IntegrationCompletenessInput } from '../../../packages/core/src/composition/logging/completeness.ts'
 import type { SdkLogger } from '../../../packages/core/src/observability/types.ts'
+import type { RuntimeObservationExporterRegistration } from '../../../packages/core/src/composition/exporter/types.ts'
 import { event } from './delivery-fixtures.ts'
+import { registration } from './exporter-fixtures.ts'
 
 const EXPECTED = Object.freeze([{
   family: 'fixture-client', operation: 'request', logicalOperations: 1, attempts: 1,
 }])
 
-function fixture(options: RuntimeObservationPortOptions = {}) {
+function fixture(options: RuntimeObservationPortOptions = {},
+  registrations: readonly RuntimeObservationExporterRegistration[] = []) {
   const platform = createRuntimePlatform(), resources = new RuntimeResources(platform)
-  const port = new RuntimeObservationPort(createRuntimeResource(undefined, platform), [], { platform, resources }, { mode: 'operational', ...options })
+  const port = new RuntimeObservationPort(createRuntimeResource(undefined, platform), registrations, { platform, resources }, { mode: 'operational', ...options })
   return { resources, port }
 }
 
@@ -60,13 +63,14 @@ describe('integration trace completeness reconciliation', () => {
     expect(filtered.port.health().integrationEvidence.filtered).toBe(4)
     filtered.resources.close()
 
-    const evicted = fixture({ maxEvents: 1 })
+    // Queue eviction and rejection need a retaining queue, which only exists with an exporter.
+    const evicted = fixture({ maxEvents: 1 }, [registration()])
     emitComplete(evicted.port.logger())
     expect(evicted.port.health().integrationEvidence.dropped).toBeGreaterThan(0)
     expect(assessIntegrationCompleteness(input(evicted.port))).toEqual({ status: 'incomplete', reason: 'evidence-loss' })
     evicted.resources.close()
 
-    const rejected = fixture({ maxEvents: 1 })
+    const rejected = fixture({ maxEvents: 1 }, [registration()])
     rejected.port.capture({ ...event('occupied'), priority: 'critical' })
     rejected.port.logger().error('SDK integration operation failed', {
       integrationSchemaVersion: 1, integrationFamily: 'fixture-client', integrationOperation: 'request',

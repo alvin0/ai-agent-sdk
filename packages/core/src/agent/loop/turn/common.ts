@@ -1,9 +1,10 @@
 import type { StreamChunk } from '../../../stream/index.ts'
+import { utf8ByteLength } from '../../../primitives/utf8.ts'
 
 export function serializedBytes(value: unknown): number {
   const serialized = JSON.stringify(value)
   if (serialized === undefined) throw new TypeError('value is not JSON serializable')
-  return new TextEncoder().encode(serialized).byteLength
+  return utf8ByteLength(serialized)
 }
 export function modelFailureFinish(message: string, code: string): StreamChunk {
   return { type: 'finish', reason: { kind: 'error', failure: { message, code } } }

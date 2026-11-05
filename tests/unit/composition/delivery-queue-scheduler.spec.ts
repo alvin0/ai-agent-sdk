@@ -9,6 +9,7 @@ import { DeliveryQueueScheduler } from '../../../packages/core/src/composition/q
 import type { ObservationDeliveryAck, ObservationDeliveryBatch } from '../../../packages/core/src/composition/exporter/delivery-types.ts'
 import type { RuntimeObservationExporterRegistration } from '../../../packages/core/src/composition/exporter/types.ts'
 import { createRunTerminalRecord } from '../../../packages/core/src/composition/delivery/terminal.ts'
+import type { ObservationEvent } from '../../../packages/core/src/observation/index.ts'
 import { deferred } from './exporter-fixtures.ts'
 import { event, ledgerReport } from './delivery-fixtures.ts'
 
@@ -156,6 +157,157 @@ describe('queue to stable batch scheduling', () => {
     expect(await scheduler.flush(platform.monotonicNow() + 10_000)).toMatchObject({ status: 'closed' })
     expect(store.snapshot().queuedItems).toBe(1)
     resources.close()
+  })
+
+  it('packs batches to the exact serialized byte limit without re-serializing candidates', async () => {
+    for (const slack of [0, -1]) {
+      const platform = createRuntimePlatform(), resource = createRuntimeResource(undefined, platform)
+      const probe = new DeliveryQueueStore(resource, new DeliveryStaging([], vi.fn()))
+      const items = Array.from({ length: 7 }, (_, index) => probe.admitEvent(event('exact', index + 1)).entry!.item as ObservationEvent)
+      // Independent oracle: serialize the batch shape itself (batch ids are 32 hex chars).
+      const exact = new TextEncoder().encode(JSON.stringify({ id: '0'.repeat(32), resource,
+        events: items.slice(0, 3), runRecords: [] })).byteLength
+      const batches: ObservationDeliveryBatch[] = []
+      const registration = target('exact', 'required', batch => { batches.push(batch); return fullAck(batch) })
+      const resources = new RuntimeResources(platform)
+      const store = new DeliveryQueueStore(resource, new DeliveryStaging([registration], vi.fn()), { maxBatchBytes: exact + slack })
+      const scheduler = new DeliveryQueueScheduler(store, resource, [registration], resources)
+      for (const item of items) store.admitEvent(item)
+      expect(await scheduler.flush(platform.monotonicNow() + 10_000)).toMatchObject({ complete: true })
+      // At the exact limit three events fit; one byte less and only two do.
+      expect(batches[0]!.events).toHaveLength(slack === 0 ? 3 : 2)
+      expect(batches.flatMap(batch => batch.events).map(value => value.sequence)).toEqual([1, 2, 3, 4, 5, 6, 7])
+      resources.close()
+    }
+  })
+
+  it('exports a full-batch backlog in the background without an explicit flush', async () => {
+    const send = vi.fn(fullAck), registration = target('optional', 'best-effort', send)
+    const { resources, store, scheduler } = fixture([registration], { maxBatchEvents: 2 })
+    store.admitEvent(event('background', 1))
+    scheduler.requestDrain()
+    await Promise.resolve()
+    expect(send).not.toHaveBeenCalled()
+    store.admitEvent(event('background', 2))
+    scheduler.requestDrain()
+    await vi.waitFor(() => expect(store.snapshot().queuedItems).toBe(0))
+    expect(send).toHaveBeenCalledOnce()
+    expect(scheduler.health()).toMatchObject({ exported: 2, exporterFailures: 0 })
+    resources.close()
+  })
+
+  it('forces a below-threshold drain and keeps going past one step until the backlog is empty', async () => {
+    const send = vi.fn(fullAck), registration = target('optional', 'best-effort', send)
+    const { resources, store, scheduler } = fixture([registration], { maxBatchEvents: 1 })
+    for (let sequence = 1; sequence <= 10; sequence++) store.admitEvent(event('forced', sequence))
+    scheduler.requestDrain({ force: true })
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(store.snapshot().queuedItems).toBe(0))
+    // Ten one-event batches: more than one background step, and no batch sent twice.
+    expect(send).toHaveBeenCalledTimes(10)
+    resources.close()
+  })
+
+  it('backs off background drains after a step that does not deliver', async () => {
+    const send = vi.fn(() => { throw new Error('PRIVATE_EXPORT/BODY~SENTINEL%') })
+    const { resources, store, scheduler } = fixture([target('optional', 'best-effort', send)], { maxBatchEvents: 1 })
+    store.admitEvent(event('backoff', 1))
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(store.snapshot().queuedItems).toBe(0))
+    store.admitEvent(event('backoff', 2))
+    scheduler.requestDrain({ force: true })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(send).toHaveBeenCalledOnce()
+    expect(store.snapshot().queuedItems).toBe(1)
+    // An explicit flush is never subject to background backoff.
+    await scheduler.flush(createRuntimePlatform().monotonicNow() + 10_000)
+    expect(send).toHaveBeenCalledTimes(2)
+    resources.close()
+  })
+
+  it('pauses background drains while run checkpoints fail and resumes after one succeeds', async () => {
+    let down = true
+    const send = vi.fn((batch: ObservationDeliveryBatch) => {
+      if (down) throw new Error('PRIVATE_EXPORT/BODY~SENTINEL%')
+      return fullAck(batch)
+    })
+    const { platform, resources, store, scheduler } = fixture([target('required', 'required', send)], { maxBatchEvents: 1 })
+    store.admitEvent({ ...event('down', 1), priority: 'critical' })
+    expect(await scheduler.checkpointRun('down', 1, platform.monotonicNow() + 10_000)).toMatchObject({ requiredComplete: false })
+    expect(send).toHaveBeenCalledOnce()
+    // A finished run would otherwise re-send every failed batch to the sink that just failed.
+    store.admitEvent({ ...event('other', 1), priority: 'critical' })
+    scheduler.requestDrain({ force: true })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(send).toHaveBeenCalledOnce()
+    // Checkpoints are never paused: their callers wait for the durable boundary.
+    down = false
+    expect(await scheduler.checkpointRun('down', 1, platform.monotonicNow() + 10_000)).toMatchObject({ complete: true })
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(store.snapshot().queuedItems).toBe(0))
+    expect(send).toHaveBeenCalledTimes(3)
+    resources.close()
+  })
+
+  it('keeps a forced request that arrives while a threshold drain is already queued', async () => {
+    const gate = deferred<void>()
+    let first = true
+    const send = vi.fn(async (batch: ObservationDeliveryBatch) => {
+      if (first) { first = false; await gate.promise }
+      return fullAck(batch)
+    })
+    const { platform, resources, store, scheduler } = fixture([target('optional', 'best-effort', send)], { maxBatchEvents: 2 })
+    store.admitEvent(event('held', 1))
+    const held = scheduler.flush(platform.monotonicNow() + 10_000)
+    // Nine more: one step exports four batches (eight), leaving one below the threshold.
+    for (let sequence = 1; sequence <= 9; sequence++) store.admitEvent(event('late', sequence))
+    scheduler.requestDrain()
+    // A run just finished: the queued step must now drain everything.
+    scheduler.requestDrain({ force: true })
+    gate.resolve()
+    await held
+    await vi.waitFor(() => expect(store.snapshot().queuedItems).toBe(0))
+    resources.close()
+  })
+
+  it('yields a background step to a checkpoint queued behind it between batches', async () => {
+    const send = vi.fn(async (batch: ObservationDeliveryBatch) => {
+      await new Promise(resolve => setTimeout(resolve, 50))
+      return fullAck(batch)
+    })
+    const { platform, resources, store, scheduler } = fixture([target('required', 'required', send)], { maxBatchEvents: 1 })
+    for (let sequence = 1; sequence <= 6; sequence++) store.admitEvent(event('backlog', sequence))
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    store.admitEvent(event('finished', 1))
+    // Four 50 ms batches would outlast this deadline; one in flight plus its own does not.
+    const checkpoint = await scheduler.checkpointRun('finished', 1, platform.monotonicNow() + 180)
+    expect(checkpoint).toMatchObject({ status: 'complete', requiredComplete: true })
+    // The yielded step resumes afterwards and empties the backlog without backing off.
+    await vi.waitFor(() => expect(store.snapshot().queuedItems).toBe(0), { timeout: 2_000 })
+    expect(send).toHaveBeenCalledTimes(7)
+    resources.close()
+  })
+
+  it('never starts a background drain without exporters or after admission stops', async () => {
+    const empty = fixture([])
+    empty.store.admitEvent(event('none'))
+    empty.scheduler.requestDrain({ force: true })
+    await new Promise(resolve => setTimeout(resolve, 5))
+    expect(empty.store.snapshot().queuedItems).toBe(1)
+    empty.resources.close()
+
+    const send = vi.fn(fullAck), stopped = fixture([target('optional', 'best-effort', send)])
+    stopped.store.admitEvent(event('stopped'))
+    stopped.scheduler.stopAdmission()
+    stopped.scheduler.requestDrain({ force: true })
+    await new Promise(resolve => setTimeout(resolve, 5))
+    expect(send).not.toHaveBeenCalled()
+    // The owner's final close drain still delivers what was captured.
+    expect(await stopped.scheduler.flush(stopped.platform.monotonicNow() + 10_000)).toMatchObject({ complete: true })
+    expect(send).toHaveBeenCalledOnce()
+    stopped.resources.close()
   })
 
   it('drains immediately without exporters but never invents a durable boundary', async () => {

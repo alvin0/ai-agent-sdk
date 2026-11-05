@@ -32,6 +32,8 @@ import {
   safeFailure, receipt, requiredBoundary, deadlineSignal, raceAbort, publicFlushResult, sameEnvelope,
 } from './bus-helpers.ts'
 import { flushBus } from './bus-delivery.ts'
+import { BACKGROUND_DRAIN, BackgroundDrain } from './bus-drain.ts'
+import { BusQueue } from './bus-queue.ts'
 import type { FlushOutcome } from './bus-types.ts'
 
 class ObservationBus implements Observability {
@@ -40,8 +42,20 @@ class ObservationBus implements Observability {
   private readonly registrations: readonly ObservationExporterRegistration[]
   private readonly processors: readonly ObservationProcessor[]
   private readonly options: BusOptions
-  private readonly queue: QueueEntry[] = []
-  private queueBytes = 0
+  // FIFO with O(1) lookup/removal; capture never scans the whole queue.
+  private readonly queue = new BusQueue()
+  private readonly drain = new BackgroundDrain({
+    canDrain: () => this.registrations.length > 0 && !this.closing && !this.closed,
+    hasBatchBacklog: () => this.queue.size >= this.options.maxBatchEvents
+      || this.queue.bytes >= this.options.maxBatchBytes,
+    stepTargets: () => this.queue.ids(this.options.maxBatchEvents * BACKGROUND_DRAIN.batchesPerStep),
+    flush: (targetIds, yieldBeforeBatch) =>
+      this.flushInternal(targetIds, this.options.flushTimeoutMs, undefined, yieldBeforeBatch),
+    foregroundWaiting: () => this.foregroundFlushes > 0,
+    enqueue: task => { this.flushChain = this.flushChain.then(task, task) },
+  })
+  /** Explicit flushes and shutdown queued on the chain; background steps yield to them. */
+  private foregroundFlushes = 0
   private closing = false
   private closed = false
   private shutdownPromise: Promise<FlushResult> | undefined
@@ -97,18 +111,23 @@ class ObservationBus implements Observability {
       this.recordFailure('processor:capture', error, 'observation processor failed', true)
       return receipt(eventId, 'rejected', 'none', 'processor-failed')
     }
-    const captured = this.enqueue(processed, false)
-    if (captured.status !== 'accepted') return captured
-    return this.stageExporters(processed, captured)
+    const { captured, entry } = this.enqueue(processed, false)
+    if (captured.status !== 'accepted') {
+      this.requestDrain()
+      return captured
+    }
+    const staged = entry === undefined ? captured : this.stageExporters(entry, captured)
+    this.requestDrain()
+    return staged
   }
 
   async checkpoint(event: ObservationEvent, signal?: AbortSignal): Promise<CaptureReceipt> {
     const captured = this.capture(event)
     if (captured.status !== 'accepted') return captured
     if (this.mode === 'operational') return captured
-    const terminal = this.queue.find(entry => entry.event.eventId === captured.eventId)?.event
+    const terminal = this.queue.get(captured.eventId)?.event
     if (terminal === undefined) return receipt(captured.eventId, 'rejected', 'none', 'exporter-unavailable')
-    const targetIds = new Set(this.queue
+    const targetIds = new Set([...this.queue]
       .filter(entry => entry.event.priority === 'critical'
         && entry.event.correlation.runId === terminal.correlation.runId
         && entry.event.sequence <= terminal.sequence)
@@ -130,8 +149,8 @@ class ObservationBus implements Observability {
     const state = busHealthState(this.counters, this.closed)
     return deepFreeze({
       state,
-      queuedEvents: this.queue.length,
-      queuedBytes: this.queueBytes,
+      queuedEvents: this.queue.size,
+      queuedBytes: this.queue.bytes,
       accepted: this.counters.accepted,
       exported: this.counters.exported,
       droppedVerbose: this.counters.droppedVerbose,
@@ -147,15 +166,13 @@ class ObservationBus implements Observability {
 
   flush(signal?: AbortSignal): Promise<FlushResult> {
     if (this.closed || this.closing) throw new TypeError('observability is closed')
-    return this.scheduleFlush(
-      new Set(this.queue.map(entry => entry.event.eventId)), this.options.flushTimeoutMs, signal,
-    ).then(publicFlushResult)
+    return this.scheduleFlush(this.queue.ids(), this.options.flushTimeoutMs, signal).then(publicFlushResult)
   }
 
   shutdown(signal?: AbortSignal): Promise<FlushResult> {
     if (this.shutdownPromise !== undefined) return this.shutdownPromise
     this.closing = true
-    const targetIds = new Set(this.queue.map(entry => entry.event.eventId))
+    const targetIds = this.queue.ids()
     this.shutdownPromise = (async () => {
       const deadline = deadlineSignal(this.options.shutdownTimeoutMs, signal)
       let result: FlushResult
@@ -203,30 +220,40 @@ class ObservationBus implements Observability {
     return current
   }
 
-  private enqueue(event: ObservationEvent, protectedPath: boolean): CaptureReceipt {
+  private enqueue(event: ObservationEvent, protectedPath: boolean): {
+    readonly captured: CaptureReceipt; readonly entry?: QueueEntry
+  } {
     const bytes = serializedEventBytes(event)
+    // Without an exporter there is nowhere to deliver a queued event; retaining it
+    // would only pin memory until shutdown. Admission is still validated and counted.
+    const retain = this.registrations.length > 0
     if (bytes > this.options.maxBatchBytes || bytes > this.options.maxQueueBytes
-      || !this.makeCapacity(bytes, protectedPath)) {
+      || (retain && !this.makeCapacity(bytes, protectedPath))) {
       if (!protectedPath && event.priority === 'critical') this.counters.criticalRejected++
       if (!protectedPath) {
         this.counters.lastFailure = safeFailure(new RangeError('capacity'), 'observation queue capacity exhausted')
         this.notifyHealth()
       }
-      return receipt(event.eventId, 'rejected', 'none', 'capacity')
+      return { captured: receipt(event.eventId, 'rejected', 'none', 'capacity') }
     }
-    this.queue.push({
+    this.counters.accepted++
+    if (!retain) {
+      this.notifyHealth()
+      return { captured: receipt(event.eventId, 'accepted') }
+    }
+    const entry: QueueEntry = {
       event, bytes, protected: protectedPath,
       pending: new Set(this.registrations.map(registration => registration.exporter.id)),
-    })
-    this.queueBytes += bytes
-    this.counters.accepted++
+    }
+    this.queue.add(entry)
     this.notifyHealth()
-    return receipt(event.eventId, 'accepted')
+    return { captured: receipt(event.eventId, 'accepted'), entry }
   }
 
-  private stageExporters(event: ObservationEvent, captured: CaptureReceipt): CaptureReceipt {
-    const entry = this.queue.find(candidate => candidate.event.eventId === event.eventId)
-    if (entry === undefined) return receipt(event.eventId, 'rejected', 'none', 'exporter-unavailable')
+  private requestDrain(): void { this.drain.request() }
+
+  private stageExporters(entry: QueueEntry, captured: CaptureReceipt): CaptureReceipt {
+    const event = entry.event
     let removedPending = false
     for (const registration of this.registrations) {
       const stage = registration.exporter.stage
@@ -258,14 +285,11 @@ class ObservationBus implements Observability {
   }
 
   private makeCapacity(incomingBytes: number, protectedPath: boolean): boolean {
-    while (this.queue.length + 1 > this.options.maxQueueEvents
-      || this.queueBytes + incomingBytes > this.options.maxQueueBytes) {
-      let index = this.queue.findIndex(entry => entry.event.priority === 'verbose')
-      if (index === -1) index = this.queue.findIndex(entry => entry.event.priority === 'normal')
-      if (index === -1) return false
-      const [removed] = this.queue.splice(index, 1)
+    while (this.queue.size + 1 > this.options.maxQueueEvents
+      || this.queue.bytes + incomingBytes > this.options.maxQueueBytes) {
+      const removed = this.queue.evictionCandidate()
       if (removed === undefined) return false
-      this.queueBytes -= removed.bytes
+      this.removeEntry(removed, false)
       if (!protectedPath) {
         if (removed.event.priority === 'verbose') this.counters.droppedVerbose++
         else this.counters.droppedNormal++
@@ -279,7 +303,9 @@ class ObservationBus implements Observability {
     let resolveResult!: (result: FlushOutcome) => void
     let rejectResult!: (error: unknown) => void
     const result = new Promise<FlushOutcome>((resolve, reject) => { resolveResult = resolve; rejectResult = reject })
+    this.foregroundFlushes++
     const task = async () => {
+      this.foregroundFlushes--
       try { resolveResult(await this.flushInternal(targetIds, timeoutMs, signal)) }
       catch (error) { rejectResult(error) }
     }
@@ -291,20 +317,18 @@ class ObservationBus implements Observability {
     targetIds: ReadonlySet<string>,
     timeoutMs: number,
     external?: AbortSignal,
+    yieldBeforeBatch?: () => boolean,
   ): Promise<FlushOutcome> {
     return await flushBus({
       queue: this.queue, registrations: this.registrations, counters: this.counters, options: this.options,
       removeEntry: (entry, exported) => this.removeEntry(entry, exported),
       recordExporterFailure: (registration, error) => this.recordExporterFailure(registration, error, true),
       notifyHealth: () => this.notifyHealth(),
-    }, targetIds, timeoutMs, external)
+    }, targetIds, timeoutMs, { external, yieldBeforeBatch })
   }
 
   private removeEntry(entry: QueueEntry, exported: boolean): void {
-    const index = this.queue.indexOf(entry)
-    if (index === -1) return
-    this.queue.splice(index, 1)
-    this.queueBytes -= entry.bytes
+    if (!this.queue.delete(entry)) return
     if (exported) this.counters.exported++
   }
 
@@ -356,6 +380,7 @@ class ObservationBus implements Observability {
     try { callback(this.health()) } catch { /* emergency callback is separately contained */ }
   }
 }
+
 
 /** Create one Universal observation bus. Construction validates every durability claim. */
 export function createObservability(options: ObservabilityOptions = {}): Observability {

@@ -6,7 +6,8 @@ import type { BusOptions, FlushOutcome, MutableHealth, QueueEntry } from './bus-
 import { deadlineSignal, isTimeoutAbort, raceAbort, safeFailure } from './bus-helpers.ts'
 
 interface DeliveryResources {
-  readonly queue: QueueEntry[]
+  /** Insertion-ordered (FIFO) queue owned by the bus. */
+  readonly queue: Iterable<QueueEntry>
   readonly registrations: readonly ObservationExporterRegistration[]
   readonly counters: MutableHealth
   readonly options: BusOptions
@@ -21,21 +22,37 @@ interface DeliveryState {
   readonly signal: AbortSignal
   failed: boolean
   timedOut: boolean
+  /** Checked before each batch; true stops the flush there. */
+  readonly yieldBeforeBatch: (() => boolean) | undefined
+  yielded: boolean
+}
+
+/** How a flush may be cut short: the caller's signal, and a background step's yield check. */
+export interface FlushControl {
+  readonly external?: AbortSignal | undefined
+  /** Checked before each batch; true stops the flush there. */
+  readonly yieldBeforeBatch?: (() => boolean) | undefined
 }
 
 export async function flushBus(
-  resources: DeliveryResources, targetIds: ReadonlySet<string>, timeoutMs: number, external?: AbortSignal,
+  resources: DeliveryResources, targetIds: ReadonlySet<string>, timeoutMs: number, control: FlushControl = {},
 ): Promise<FlushOutcome> {
+  const { external, yieldBeforeBatch } = control
   const beforeExported = resources.counters.exported
   const deadline = deadlineSignal(timeoutMs, external)
-  const state: DeliveryState = { resources, targetIds, signal: deadline.signal, failed: false, timedOut: false }
+  const state: DeliveryState = {
+    resources, targetIds, signal: deadline.signal, failed: false, timedOut: false, yieldBeforeBatch, yielded: false,
+  }
   try {
     if (resources.registrations.length === 0) {
       for (const entry of [...resources.queue]) {
         if (targetIds.has(entry.event.eventId)) resources.removeEntry(entry, false)
       }
     }
-    for (const registration of resources.registrations) await flushExporter(state, registration)
+    for (const registration of resources.registrations) {
+      await flushExporter(state, registration)
+      if (state.yielded) break
+    }
   } finally {
     if (isTimeoutAbort(deadline.signal)) {
       state.timedOut = true
@@ -52,6 +69,10 @@ async function flushExporter(state: DeliveryState, registration: ObservationExpo
   while (true) {
     const entries = nextEntries(state, registration.exporter.id)
     if (entries.length === 0) break
+    if (state.yieldBeforeBatch?.() === true) {
+      state.yielded = true
+      break
+    }
     if (!await exportEntries(state, registration, entries)) break
     state.resources.counters.lastExportAt = new Date().toISOString()
     settleEntries(state.resources, registration.exporter.id, entries, true)
@@ -61,12 +82,10 @@ async function flushExporter(state: DeliveryState, registration: ObservationExpo
 
 function nextEntries(state: DeliveryState, exporterId: string): QueueEntry[] {
   const { resources, targetIds } = state
-  const candidates = resources.queue.filter(entry => (
-    targetIds.has(entry.event.eventId) && entry.pending.has(exporterId)
-  ))
   const entries: QueueEntry[] = []
   let bytes = 0
-  for (const entry of candidates) {
+  for (const entry of resources.queue) {
+    if (!targetIds.has(entry.event.eventId) || !entry.pending.has(exporterId)) continue
     if (entries.length >= resources.options.maxBatchEvents || bytes + entry.bytes > resources.options.maxBatchBytes) {
       break
     }
@@ -111,7 +130,7 @@ function settleEntries(
 
 function deliveryOutcome(state: DeliveryState, beforeExported: number): FlushOutcome {
   const { resources, targetIds, failed, timedOut } = state
-  const pendingEntries = resources.queue.filter(entry => targetIds.has(entry.event.eventId))
+  const pendingEntries = [...resources.queue].filter(entry => targetIds.has(entry.event.eventId))
   const requiredIds = resources.registrations
     .filter(registration => registration.requirement === 'required')
     .map(registration => registration.exporter.id)

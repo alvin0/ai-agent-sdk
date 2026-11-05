@@ -6,7 +6,7 @@ import { DELIVERY_LIMITS } from './config.ts'
 import { bytes, count, DeliveryDataError } from './data.ts'
 import { isRuntimeResource, type RuntimeObservationResource } from './resource.ts'
 import { isPreparedTerminal } from './terminal.ts'
-import { isPreparedEvent, prepareDeliveryEvent } from './event.ts'
+import { prepareDeliveryEvent } from './event.ts'
 
 const prepared = new WeakSet<ObservationDeliveryBatch>()
 export function isPreparedBatch(batch: ObservationDeliveryBatch): boolean { return prepared.has(batch) }
@@ -17,22 +17,15 @@ export interface DeliveryBatchOptions {
   readonly maxBytes?: number
 }
 
-/** Exact one-item wire size without allocating an ID; generated batch IDs have this fixed width. */
-export function deliveryBatchItemBytes(resource: RuntimeObservationResource,
-  item: ObservationEvent | RunTerminalRecord): number {
+/**
+ * Wire size of a batch with no items; generated batch IDs have a fixed width. A
+ * batch serializes as `{...,"events":[e1,e2],"runRecords":[r1]}`, so any batch's
+ * exact size is this envelope plus each item's own serialized size plus one comma
+ * between siblings.
+ */
+export function deliveryBatchEnvelopeBytes(resource: RuntimeObservationResource): number {
   if (!isRuntimeResource(resource)) throw new DeliveryDataError()
-  const event = isPreparedTerminal(item as RunTerminalRecord) ? undefined : item as ObservationEvent
-  if (event !== undefined && (!isPreparedEvent(event) || event.resource !== resource)) throw new DeliveryDataError()
-  return bytes({ id: '0'.repeat(32), resource,
-    events: event === undefined ? [] : [event], runRecords: event === undefined ? [item] : [] })
-}
-
-export function deliveryBatchItemsBytes(
-  resource: RuntimeObservationResource, events: readonly ObservationEvent[], records: readonly RunTerminalRecord[],
-): number {
-  if (!isRuntimeResource(resource) || events.some(event => !isPreparedEvent(event) || event.resource !== resource)
-    || records.some(record => !isPreparedTerminal(record))) throw new DeliveryDataError()
-  return bytes({ id: '0'.repeat(32), resource, events, runRecords: records })
+  return bytes({ id: '0'.repeat(32), resource, events: [], runRecords: [] })
 }
 
 function batchLimits(options: DeliveryBatchOptions) {

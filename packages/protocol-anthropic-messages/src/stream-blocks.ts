@@ -1,4 +1,4 @@
-import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { ToolCallId, type TextAccumulator } from '@alvin0/ai-agent-sdk-core'
 import { isJsonValue, type JsonValue } from '@alvin0/ai-agent-sdk-core'
 import type { ContentBlock, TextAnnotation } from '@alvin0/ai-agent-sdk-core'
 import type { AnthropicReasoningState } from './serialize.ts'
@@ -8,8 +8,8 @@ export type BlockKind = 'text' | 'reasoning' | 'tool-call' | 'native-tool-call'
 
 export interface OpenBlock {
   readonly kind: BlockKind
-  text: string
-  args: string
+  text: TextAccumulator
+  args: TextAccumulator
   callId: string
   name: string
   signature: string | undefined
@@ -35,7 +35,7 @@ export function closedBlock(open: OpenBlock): ContentBlock | undefined {
   switch (open.kind) {
     case 'text':
       return {
-        type: 'text', text: open.text,
+        type: 'text', text: open.text.text,
         ...open.annotations.length === 0 ? {} : { annotations: open.annotations },
       }
     case 'reasoning': return closedReasoning(open)
@@ -44,7 +44,7 @@ export function closedBlock(open: OpenBlock): ContentBlock | undefined {
         type: 'tool-call',
         id: ToolCallId(open.callId),
         name: open.name,
-        arguments: open.args.length > 0 ? open.args : '{}',
+        arguments: open.args.length > 0 ? open.args.text : '{}',
       }
     case 'native-tool-call': return closedNativeTool(open)
     default:
@@ -80,11 +80,11 @@ function closedReasoning(open: OpenBlock): ContentBlock {
       kind: 'thinking',
       ...open.signature === undefined ? {} : { signature: open.signature },
     }
-  return { type: 'reasoning', text: open.text, providerState: state }
+  return { type: 'reasoning', text: open.text.text, providerState: state }
 }
 
 function closedNativeTool(open: OpenBlock): ContentBlock {
-  const parsed = parsedArguments(open.args, open.nativeCall?.input)
+  const parsed = parsedArguments(open.args.text, open.nativeCall?.input)
   const call: WireServerToolUseBlock = open.nativeCall ?? {
     type: 'server_tool_use', id: open.callId, name: 'web_search', input: parsed,
   }

@@ -24,6 +24,7 @@
     "./env": { "types": "./dist/env.d.mts", "import": "./dist/env.mjs", "default": "./dist/env.mjs" },
     "./codex": { "types": "./dist/codex.d.mts", "import": "./dist/codex.mjs", "default": "./dist/codex.mjs" },
     "./copilot": { "types": "./dist/copilot.d.mts", "import": "./dist/copilot.mjs", "default": "./dist/copilot.mjs" },
+    "./http2": { "types": "./dist/http2.d.mts", "import": "./dist/http2.mjs", "default": "./dist/http2.mjs" },
     "./package.json": "./package.json"
   },
   "bin": {

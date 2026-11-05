@@ -15,6 +15,7 @@
  */
 
 import {
+  AbortRace,
   MODEL_ERROR_CODES,
   ModelError,
   waitForSettlement,
@@ -147,10 +148,12 @@ export async function* withAbortSignal<T>(
   signal: AbortSignal,
 ): AsyncGenerator<T> {
   const iterator = iterable[Symbol.asyncIterator]()
+  // One abort listener for the whole loop, not one per read.
+  const race = new AbortRace(signal)
   let exhausted = false
   try {
     while (true) {
-      const next = await raceWithSignal(iterator.next(), signal)
+      const next = await race.next(iterator.next())
       if (next.done === true) {
         exhausted = true
         return
@@ -158,6 +161,7 @@ export async function* withAbortSignal<T>(
       yield next.value
     }
   } finally {
+    race.dispose()
     if (!exhausted) {
       const close = iterator.return?.bind(iterator)
       if (close !== undefined) {

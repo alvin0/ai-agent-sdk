@@ -1,6 +1,6 @@
 import type { ObservationBoundary, ObservationEvent } from '../../observation/index.ts'
 import { RuntimeResources } from '../../platform/resources.ts'
-import { createDeliveryBatch, deliveryBatchItemsBytes } from '../delivery/batch.ts'
+import { createDeliveryBatch } from '../delivery/batch.ts'
 import { DeliveryCheckpoint, type BatchCheckpointReport } from '../delivery/checkpoint.ts'
 import type { RuntimeObservationResource } from '../delivery/resource.ts'
 import type { RunTerminalRecord } from '../exporter/delivery-types.ts'
@@ -8,6 +8,7 @@ import type { RuntimeObservationExporterRegistration } from '../exporter/types.t
 import { DeliveryQueueStore } from './store.ts'
 import type { DeliveryQueueEntry } from './types.ts'
 import { saturatingCounterAdd } from '../common/counter.ts'
+import { DRAIN_POLICY, DrainBackoff } from '../../primitives/drain-backoff.ts'
 
 interface QueueTask {
   readonly entries: readonly DeliveryQueueEntry[]
@@ -33,7 +34,32 @@ export interface DeliverySchedulerHealth {
   readonly lastExportAt?: string
 }
 
-/** Serial snapshot-drain scheduler. A required incomplete batch retains its exact identity for retry. */
+/** Background drain tuning. Internal; capture never waits on any of it. */
+export const DELIVERY_DRAIN_POLICY = Object.freeze({
+  ...DRAIN_POLICY,
+  /** Default per-step export deadline when the owner supplies none. */
+  timeoutMs: 10_000,
+})
+
+export interface DeliverySchedulerRuntime {
+  readonly resources: RuntimeResources
+  /** Deadline for one background export step; the owner passes its flush timeout. */
+  readonly drainTimeoutMs?: number
+}
+
+export interface DrainRequest {
+  /** Drain even when less than one batch is queued (a run just finished). */
+  readonly force?: boolean
+}
+
+/**
+ * Serial snapshot-drain scheduler. A required incomplete batch retains its exact identity for retry.
+ *
+ * Besides explicit flushes and run checkpoints, the owner requests coalesced
+ * background drains so a long-lived runtime does not hold every event until
+ * close. Without them the queue fills to capacity, evicts, and then rejects
+ * critical evidence for every later run.
+ */
 export class DeliveryQueueScheduler {
   private readonly tasks = new Set<QueueTask>()
   private readonly assigned = new WeakSet<DeliveryQueueEntry>()
@@ -48,13 +74,58 @@ export class DeliveryQueueScheduler {
   private flushTimeouts = 0
   private requiredFailure = false
   private lastExportAt: string | undefined
+  private drainQueued = false
+  /** A forced request arrived while a step was already queued; that step drains fully. */
+  private drainForce = false
+  /** Flushes and checkpoints queued on the serial chain; a background step yields to them. */
+  private foregroundWaiting = 0
+  private readonly backoff = new DrainBackoff(() => this.resources.platform.monotonicNow())
+
+  private readonly resources: RuntimeResources
+  private readonly drainTimeoutMs: number
 
   constructor(
     private readonly store: DeliveryQueueStore,
     private readonly resource: RuntimeObservationResource,
     private readonly registrations: readonly RuntimeObservationExporterRegistration[],
-    private readonly resources: RuntimeResources,
-  ) {}
+    runtime: RuntimeResources | DeliverySchedulerRuntime,
+  ) {
+    if (runtime instanceof RuntimeResources) {
+      this.resources = runtime
+      this.drainTimeoutMs = DELIVERY_DRAIN_POLICY.timeoutMs
+    } else {
+      this.resources = runtime.resources
+      this.drainTimeoutMs = runtime.drainTimeoutMs ?? DELIVERY_DRAIN_POLICY.timeoutMs
+    }
+  }
+
+  /**
+   * Schedule one background export step if there is work worth sending. Requests
+   * coalesce into a single queued step that reads the store when it runs (a forced
+   * request upgrades an already-queued step); a step that does not fully deliver
+   * pauses further background requests with backoff. A step yields the serial
+   * chain between batches to any flush or checkpoint queued behind it, so their
+   * deadlines wait for at most one batch in flight.
+   * Synchronous and non-throwing: safe to call from capture.
+   */
+  requestDrain(request: DrainRequest = {}): void {
+    const force = request.force === true
+    if (this.drainQueued) {
+      if (force) this.drainForce = true
+      return
+    }
+    if (!this.canDrain() || !(force ? !this.store.hasNoBacklog() : this.store.hasBatchBacklog())) return
+    this.drainQueued = true
+    this.drainForce = force
+    const run = this.tail.then(() => this.drainStep())
+    this.tail = run.then(() => undefined, () => undefined)
+  }
+
+  private canDrain(): boolean {
+    return !this.sealed && !this.store.isClosed && !this.resources.isClosed
+      && this.registrations.length > 0
+      && !this.backoff.paused
+  }
 
   flush(deadlineAt: number, caller?: AbortSignal): Promise<QueueFlushReport> {
     return this.schedule(this.store.activeEntries(), deadlineAt, caller)
@@ -83,13 +154,59 @@ export class DeliveryQueueScheduler {
 
   private schedule(targets: readonly DeliveryQueueEntry[], deadlineAt: number,
     caller?: AbortSignal): Promise<QueueFlushReport> {
-    const run = this.tail.then(() => this.flushOnce(targets, deadlineAt, caller))
+    this.foregroundWaiting++
+    const run = this.tail.then(() => {
+      this.foregroundWaiting--
+      return this.flushOnce(targets, deadlineAt, caller)
+    })
     this.tail = run.then(() => undefined, () => undefined)
     return run
   }
 
+  private async drainStep(): Promise<void> {
+    const force = this.drainForce
+    this.drainQueued = false
+    this.drainForce = false
+    if (this.sealed || this.store.isClosed || this.resources.isClosed) return
+    const targets = this.store.activeEntries(this.store.maxBatchEvents * DELIVERY_DRAIN_POLICY.batchesPerStep)
+    if (targets.length === 0) return
+    let yielded = false
+    const report = await this.flushOnce(targets, this.resources.platform.monotonicNow() + this.drainTimeoutMs,
+      undefined, () => (yielded = this.foregroundWaiting > 0))
+    if (yielded) {
+      // Queued again behind the waiting flush or checkpoint; not a failure.
+      this.requestDrain({ force })
+      return
+    }
+    if (report.status !== 'complete') {
+      // flushOnce already backed off when an exporter failed; an otherwise
+      // incomplete step (e.g. a partial acknowledgment) must not spin either.
+      if (!this.backoff.paused) this.backoff.fail()
+      return
+    }
+    // Keep going while work remains: a forced drain empties the backlog, a
+    // threshold drain continues only while another full batch is waiting.
+    this.requestDrain({ force })
+  }
+
+  /**
+   * Every flush is evidence about the sink, not only background steps. Reliable
+   * checkpoints still attempt delivery (their callers wait for the boundary), but
+   * while they fail the background drain stays paused, so a sink that is down is
+   * not also re-sent every failed batch each time a run finishes.
+   */
+  private noteDelivery(reports: readonly BatchCheckpointReport[]): void {
+    if (reports.length === 0) return
+    if (reports.some(report => report.exporters.some(row =>
+      row.delivery.status === 'failed' || row.delivery.status === 'timed-out'))) {
+      this.backoff.fail()
+    } else if (reports.every(report => report.complete)) {
+      this.backoff.succeed()
+    }
+  }
+
   private async flushOnce(targets: readonly DeliveryQueueEntry[], deadlineAt: number,
-    caller?: AbortSignal): Promise<QueueFlushReport> {
+    caller?: AbortSignal, yieldBeforeBatch?: () => boolean): Promise<QueueFlushReport> {
     if (this.sealed || this.resources.isClosed) return this.report('closed', targets, [])
     if (caller?.aborted) return this.report('aborted', targets, [])
     if (!Number.isFinite(deadlineAt) || this.resources.platform.monotonicNow() >= deadlineAt) {
@@ -97,16 +214,26 @@ export class DeliveryQueueScheduler {
     }
     const activeTargets = targets.filter(entry => this.store.contains(entry))
     this.createTasks(activeTargets.filter(entry => !this.assigned.has(entry)))
-    const relevant = [...this.tasks].filter(task => task.entries.some(entry => targets.includes(entry)))
+    const targetSet = new Set(targets)
+    const relevant = [...this.tasks].filter(task => task.entries.some(entry => targetSet.has(entry)))
+    const reports = await this.runTasks(relevant, deadlineAt, caller, yieldBeforeBatch)
+    this.noteDelivery(reports)
+    const state = this.flushState(caller, deadlineAt)
+    if (state === 'timed-out') this.flushTimeouts = saturatingCounterAdd(this.flushTimeouts, 1)
+    return this.report(state, targets, reports)
+  }
+
+  /** Export each task in order; a background step stops before a batch once asked to yield. */
+  private async runTasks(tasks: readonly QueueTask[], deadlineAt: number, caller: AbortSignal | undefined,
+    yieldBeforeBatch: (() => boolean) | undefined): Promise<BatchCheckpointReport[]> {
     const reports: BatchCheckpointReport[] = []
-    for (const task of relevant) {
+    for (const task of tasks) {
+      if (yieldBeforeBatch?.() === true) break
       const report = await task.checkpoint.run(deadlineAt, caller)
       reports.push(report)
       this.apply(task, report)
     }
-    const state = this.flushState(caller, deadlineAt)
-    if (state === 'timed-out') this.flushTimeouts = saturatingCounterAdd(this.flushTimeouts, 1)
-    return this.report(state, targets, reports)
+    return reports
   }
 
   private flushState(caller: AbortSignal | undefined, deadlineAt: number): QueueFlushReport['status'] | undefined {
@@ -116,18 +243,12 @@ export class DeliveryQueueScheduler {
   }
 
   private createTasks(entries: readonly DeliveryQueueEntry[]): void {
+    if (entries.length === 0) return
+    const emptyBytes = this.store.batchEnvelopeBytes
     let cursor = 0
     while (cursor < entries.length) {
-      const selected: DeliveryQueueEntry[] = []
-      while (cursor < entries.length && selected.length < this.store.maxBatchEvents) {
-        const candidate = entries[cursor]!
-        if (selected.length > 0 && this.batchBytes([...selected, candidate]) > this.store.maxBatchBytes) break
-        if (this.batchBytes([candidate]) > this.store.maxBatchBytes) {
-          throw new Error('Queue admitted an undeliverable item')
-        }
-        selected.push(candidate)
-        cursor++
-      }
+      const selected = this.selectBatch(entries, cursor, emptyBytes)
+      cursor += selected.length
       const events = selected.filter(entry => entry.kind === 'event').map(entry => entry.item as ObservationEvent)
       const records = selected.filter(entry => entry.kind === 'run-record')
         .map(entry => entry.item as RunTerminalRecord)
@@ -144,10 +265,29 @@ export class DeliveryQueueScheduler {
     }
   }
 
-  private batchBytes(entries: readonly DeliveryQueueEntry[]): number {
-    return deliveryBatchItemsBytes(this.resource,
-      entries.filter(entry => entry.kind === 'event').map(entry => entry.item as ObservationEvent),
-      entries.filter(entry => entry.kind === 'run-record').map(entry => entry.item as RunTerminalRecord))
+  /**
+   * Take the longest prefix from `start` that fits one batch. A batch serializes as
+   * `{...,"events":[e1,e2],"runRecords":[r1]}`, so its wire size is the empty envelope
+   * plus each item's own size (`entry.bytes`, measured once at admission) plus one
+   * comma between siblings. Summing is exact and avoids re-serializing the growing
+   * batch for every candidate, which was quadratic in `maxBatchEvents`.
+   */
+  private selectBatch(entries: readonly DeliveryQueueEntry[], start: number,
+    emptyBytes: number): DeliveryQueueEntry[] {
+    const selected: DeliveryQueueEntry[] = []
+    const siblings = { event: 0, 'run-record': 0 }
+    let size = emptyBytes
+    for (let cursor = start; cursor < entries.length && selected.length < this.store.maxBatchEvents; cursor++) {
+      const candidate = entries[cursor]!
+      const itemBytes = candidate.bytes
+      const next = size + itemBytes + (siblings[candidate.kind] > 0 ? 1 : 0)
+      if (selected.length > 0 && next > this.store.maxBatchBytes) break
+      if (emptyBytes + itemBytes > this.store.maxBatchBytes) throw new Error('Queue admitted an undeliverable item')
+      selected.push(candidate)
+      siblings[candidate.kind]++
+      size = next
+    }
+    return selected
   }
 
   private apply(task: QueueTask, report: BatchCheckpointReport): void {

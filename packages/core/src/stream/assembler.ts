@@ -15,17 +15,18 @@ import { createMessage, type Message, type MessageSource } from '../message/mess
 import { ToolCallId } from '../primitives/brand.ts'
 import { assertNever } from '../primitives/never.ts'
 import type { FinishReason, ReplayEnvelope, StreamChunk, TokenUsage } from './chunk.ts'
+import { TextAccumulator } from './text-accumulator.ts'
 
 interface PartialBlock {
   blockType: string
-  text: string
+  text: TextAccumulator
   textPhase?: AssistantTextPhase
   /** Label shared by every reasoning delta; `mixed` once two disagree or one has none. */
   reasoningKind?: ReasoningKind | 'mixed'
   reasoningSeen?: boolean
   toolCallId?: ToolCallId
   toolCallName?: string
-  toolCallArguments: string
+  toolCallArguments: TextAccumulator
   /** Set by `block-end`  Eauthoritative, and freezes this partial against further deltas. */
   block?: ContentBlock
 }
@@ -101,8 +102,8 @@ export class BlockAssembler {
       this.order.push(chunk.index)
       this.partials.set(chunk.index, {
         blockType: chunk.blockType,
-        text: '',
-        toolCallArguments: '',
+        text: new TextAccumulator(),
+        toolCallArguments: new TextAccumulator(),
       })
     }
   }
@@ -110,7 +111,7 @@ export class BlockAssembler {
   private appendText(chunk: Extract<StreamChunk, { type: 'text-delta' | 'reasoning-delta' }>): void {
     const partial = this.ensure(chunk.index, chunk.type === 'text-delta' ? 'text' : 'reasoning')
     if (partial.block !== undefined) return // closed by block-end; ignore stragglers
-    partial.text += chunk.text
+    partial.text.append(chunk.text)
     if (chunk.type === 'text-delta' && chunk.phase !== undefined) partial.textPhase = chunk.phase
     if (chunk.type === 'reasoning-delta') {
       partial.reasoningKind = mergeReasoningKind(partial, chunk.kind)
@@ -123,7 +124,7 @@ export class BlockAssembler {
     if (partial.block !== undefined) return // closed by block-end; ignore stragglers
     partial.toolCallId = chunk.id
     if (chunk.name !== undefined && chunk.name.length > 0) partial.toolCallName = chunk.name
-    partial.toolCallArguments += chunk.argumentsDelta
+    partial.toolCallArguments.append(chunk.argumentsDelta)
   }
 
   private closeBlock(chunk: Extract<StreamChunk, { type: 'block-end' }>): void {
@@ -137,7 +138,7 @@ export class BlockAssembler {
   private ensure(index: number, blockType: string): PartialBlock {
     let partial = this.partials.get(index)
     if (partial === undefined) {
-      partial = { blockType, text: '', toolCallArguments: '' }
+      partial = { blockType, text: new TextAccumulator(), toolCallArguments: new TextAccumulator() }
       this.partials.set(index, partial)
       this.order.push(index)
     }
@@ -149,12 +150,12 @@ export class BlockAssembler {
     switch (partial.blockType) {
       case 'text': return {
         type: 'text',
-        text: partial.text,
+        text: partial.text.text,
         ...partial.textPhase === undefined ? {} : { phase: partial.textPhase },
       }
       case 'reasoning': return {
         type: 'reasoning',
-        text: partial.text,
+        text: partial.text.text,
         ...partial.reasoningKind === undefined || partial.reasoningKind === 'mixed'
           ? {}
           : { kind: partial.reasoningKind },
@@ -165,7 +166,7 @@ export class BlockAssembler {
         // that only sent the id on a chunk we never received.
         id: partial.toolCallId ?? ToolCallId(`call-${index}`),
         name: partial.toolCallName ?? '',
-        arguments: partial.toolCallArguments,
+        arguments: partial.toolCallArguments.text,
       }
       default:
         // An extension block type that never received its authoritative

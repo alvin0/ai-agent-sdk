@@ -1,4 +1,5 @@
 import {
+  TextAccumulator,
   ToolCallId,
   type ContentBlock,
   type TextAnnotation,
@@ -17,8 +18,8 @@ type StepKind = 'text' | 'reasoning' | 'tool-call'
 export interface OpenStep {
   readonly index: number
   readonly kind: StepKind
-  text: string
-  arguments: string
+  text: TextAccumulator
+  arguments: TextAccumulator
   readonly initialArguments: unknown
   callId: string
   name: string
@@ -75,8 +76,8 @@ export function createOpenStep(step: WireStepData, index: number): OpenStep | un
   return {
     index,
     kind,
-    text: initialStepText(kind, content, summary),
-    arguments: '',
+    text: new TextAccumulator(initialStepText(kind, content, summary)),
+    arguments: new TextAccumulator(),
     initialArguments: step.arguments,
     callId: step.id ?? `call-${index}`,
     name: step.name ?? '',
@@ -89,7 +90,7 @@ export function createOpenStep(step: WireStepData, index: number): OpenStep | un
 export function blockOf(step: OpenStep): ContentBlock {
   if (step.kind === 'text') {
     return {
-      type: 'text', text: step.text,
+      type: 'text', text: step.text.text,
       ...(step.annotations.length === 0 ? {} : { annotations: step.annotations }),
     }
   }
@@ -99,10 +100,10 @@ export function blockOf(step: OpenStep): ContentBlock {
       ...(step.summary.length === 0 ? {} : { summary: step.summary }),
     }
     // The API returns thought summaries, never the thoughts themselves.
-    return { type: 'reasoning', text: step.text, kind: 'summary', providerState: state }
+    return { type: 'reasoning', text: step.text.text, kind: 'summary', providerState: state }
   }
   const argumentsText = step.arguments.length > 0
-    ? step.arguments
+    ? step.arguments.text
     : jsonArguments(step.initialArguments)
   return {
     type: 'tool-call', id: ToolCallId(step.callId), name: step.name,
@@ -129,7 +130,7 @@ function initialStepText(kind: StepKind, content: WireContent[], summary: WireCo
 
 function* textDelta(step: OpenStep, delta: NonNullable<WireStreamEvent['delta']>): Generator<ProtocolStreamChunk> {
   if (delta.type === 'text' && typeof delta.text === 'string') {
-    step.text += delta.text
+    step.text.append(delta.text)
     yield { type: 'text-delta', index: step.index, text: delta.text }
   } else if (delta.type === 'text_annotation_delta') {
     step.annotations.push(...annotationsOf(delta.annotations))
@@ -144,7 +145,7 @@ function* reasoningDelta(step: OpenStep, delta: NonNullable<WireStreamEvent['del
     const content = thoughtSummaryContent(delta.content)
     const text = textOf(content)
     step.summary.push(...content)
-    step.text += text
+    step.text.append(text)
     if (text.length > 0) yield { type: 'reasoning-delta', index: step.index, text, kind: 'summary' }
   }
 }
@@ -154,7 +155,7 @@ export function* translateStepDelta(step: OpenStep, delta: NonNullable<WireStrea
   if (step.kind === 'text') { yield* textDelta(step, delta); return }
   if (step.kind === 'reasoning') { yield* reasoningDelta(step, delta); return }
   if (delta.type !== 'arguments_delta' || typeof delta.arguments !== 'string') return
-  step.arguments += delta.arguments
+  step.arguments.append(delta.arguments)
   yield { type: 'tool-call-delta', index: step.index, id: ToolCallId(step.callId),
     ...(step.name.length === 0 ? {} : { name: step.name }), argumentsDelta: delta.arguments }
 }

@@ -13,24 +13,36 @@ import {
   DEFAULT_MAX_CATALOG_BYTES,
 } from './configuration-support.ts'
 
+interface CatalogRequest {
+  readonly provider: string
+  readonly baseUrl: string
+  readonly headers: Record<string, string>
+  readonly signal: AbortSignal | undefined
+  readonly context: ModelInvocationContext | undefined
+}
+
 export class HttpCatalog<Dialect extends object> {
   private catalog: { models: readonly ProviderCatalogModel[]; fetchedAt: number } | undefined
   private catalogFailureAt: number | undefined
+  private inflight: Promise<readonly ProviderCatalogModel[]> | undefined
 
   constructor(private readonly options: HttpProviderOptions<Dialect>) {}
 
   get failed(): boolean { return this.catalogFailureAt !== undefined }
 
-  /** Run the discovery hook, memoized, tolerating failure. */
+  /** Run the discovery hook, memoized and single-flight, tolerating failure. */
   async resolve(
     provider: string,
     baseUrl: string,
     headers: Record<string, string>,
     operation: { signal: AbortSignal | undefined; context: ModelInvocationContext | undefined },
   ): Promise<readonly ProviderCatalogModel[]> {
-    const { signal, context } = operation
-    const discover = this.options.discoverModels
-    if (discover === undefined) return []
+    if (this.options.discoverModels === undefined) return []
+    const request: CatalogRequest = { provider, baseUrl, headers, ...operation }
+    return await this.resolveRequest(request)
+  }
+
+  private async resolveRequest(request: CatalogRequest): Promise<readonly ProviderCatalogModel[]> {
     const { ttl, staleTtl, failureBackoff } = this.policy()
     const now = Date.now()
     const cached = this.catalog
@@ -38,7 +50,39 @@ export class HttpCatalog<Dialect extends object> {
     if (this.catalogFailureAt !== undefined && now - this.catalogFailureAt < failureBackoff) {
       return staleCatalog(cached, now, ttl, staleTtl)
     }
+    // Concurrent cold calls (many runs starting at once, or a TTL expiring under
+    // load) share one discovery instead of each sending its own catalog request.
+    const shared = this.inflight
+    if (shared !== undefined) return await this.follow(shared, request)
+    const leader = this.discover(request, cached)
+    this.inflight = leader
+    try {
+      return await leader
+    } finally {
+      if (this.inflight === leader) this.inflight = undefined
+    }
+  }
 
+  private async follow(
+    shared: Promise<readonly ProviderCatalogModel[]>, request: CatalogRequest,
+  ): Promise<readonly ProviderCatalogModel[]> {
+    const { signal } = request
+    try {
+      return await (signal === undefined ? shared : raceAbort(shared, signal))
+    } catch (error: unknown) {
+      if (signal?.aborted === true) throw signal.reason ?? error
+    }
+    // Only the leader's own cancellation rejects the shared discovery: take over.
+    return await this.resolveRequest(request)
+  }
+
+  private async discover(
+    request: CatalogRequest,
+    cached: { models: readonly ProviderCatalogModel[]; fetchedAt: number } | undefined,
+  ): Promise<readonly ProviderCatalogModel[]> {
+    const { provider, baseUrl, headers, signal, context } = request
+    const discover = this.options.discoverModels!
+    const { ttl, staleTtl } = this.policy()
     try {
       const discovered = await observeModelCatalogOperation(
         context,

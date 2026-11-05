@@ -20,18 +20,23 @@ import {
   type CopilotProviderOptions,
 } from '@alvin0/ai-agent-sdk-provider-copilot'
 import { fileCopilotCredentialStore } from './copilot-store.ts'
+import { withDefaultNodeFetch } from './http2/default.ts'
 
 export interface CopilotNodeProviderOptions extends Omit<CopilotProviderOptions, 'authStore'> {
   /** Omit to use the project-local file credential store. */
   readonly authStore?: CopilotCredentialStore
 }
 
-/** Preferred Node composition plugin backed by revision-safe file credentials by default. */
+/**
+ * Preferred Node composition plugin backed by revision-safe file credentials by default.
+ * Without a caller `fetch`, requests multiplex over the shared HTTP/2 transport
+ * (unless a proxy is configured in the environment).
+ */
 export function copilotNodeProviderPlugin(
   options: CopilotNodeProviderOptions = {},
 ): ComposableModelProviderPlugin & { readonly family: 'copilot' } {
   return universalCopilotPlugin({
-    ...options,
+    ...withDefaultNodeFetch(options),
     authStore: options.authStore ?? fileCopilotCredentialStore(),
   })
 }

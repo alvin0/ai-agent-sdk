@@ -4,7 +4,7 @@ import { BlockAssembler, type StreamChunk } from '../../../stream/index.ts'
 import { positiveFinite, positiveSafeInteger, timerMs } from './config.ts'
 import { serializedBytes, modelFailureFinish, modelAbortedFinish, messageOf } from './common.ts'
 import { validateStreamChunk } from './validation.ts'
-import { StreamAbortError, nextWithAbort, closeIterator } from './cancellation.ts'
+import { StreamAbortError, StreamAbortRace, closeIterator } from './cancellation.ts'
 import type { ModelRoundContext, ModelStreamResult } from './model-round-types.ts'
 
 function abortedStreamFinish(
@@ -105,7 +105,7 @@ async function consumeModelStream(
     assembler.push(abortedStreamFinish(signal, timedOut, error))
   } finally {
     clearTimeout(timeout)
-    idle.stop()
+    idle.dispose()
     if (!exhausted) await teardownStream(iterator, state)
   }
   const report = await handle.report
@@ -134,13 +134,20 @@ async function teardownStream(iterator: AsyncIterator<StreamChunk>, state: Strea
 async function pumpStream(
   context: ModelRoundContext, iterator: AsyncIterator<StreamChunk>, state: StreamState,
 ): Promise<boolean> {
-  while (true) {
-    // Only the wait on the adapter counts as idle; slow event consumers never trip it.
-    state.idle.arm()
-    const next = await nextWithAbort(iterator.next(), state.signal).finally(() => { state.idle.stop() })
-    if (next.done === true) return true
-    if (!validateChunk(next.value, state)) return false
-    await publishChunk(next.value, context, state)
+  const race = new StreamAbortRace(state.signal)
+  try {
+    while (true) {
+      // Only the wait on the adapter counts as idle; slow event consumers never trip it.
+      state.idle.arm()
+      let next: IteratorResult<StreamChunk>
+      try { next = await race.next(iterator.next()) }
+      finally { state.idle.stop() }
+      if (next.done === true) return true
+      if (!validateChunk(next.value, state)) return false
+      await publishChunk(next.value, context, state)
+    }
+  } finally {
+    race.dispose()
   }
 }
 
@@ -220,9 +227,36 @@ async function publishVisibleChunk(chunk: StreamChunk, context: ModelRoundContex
   else if (chunk.type === 'usage-progress') await emit({ ...chunk, trace })
 }
 
+/**
+ * Idle deadline for the adapter wait, re-armed on every chunk without touching a
+ * timer: `arm`/`stop` only record state, and the single pending timer re-checks
+ * the elapsed wait when it fires. `dispose` clears it so nothing outlives the round.
+ */
 class IdleTimer {
   private timer: ReturnType<typeof setTimeout> | undefined
+  private armedAt = 0
+  private armed = false
   constructor(private readonly ms: number, private readonly onIdle: () => void) {}
-  arm(): void { this.stop(); this.timer = setTimeout(this.onIdle, this.ms) }
-  stop(): void { if (this.timer !== undefined) clearTimeout(this.timer); this.timer = undefined }
+  arm(): void {
+    this.armed = true
+    this.armedAt = performance.now()
+    this.timer ??= setTimeout(this.fire, this.ms)
+  }
+  stop(): void { this.armed = false }
+  dispose(): void {
+    this.armed = false
+    if (this.timer !== undefined) clearTimeout(this.timer)
+    this.timer = undefined
+  }
+  private readonly fire = (): void => {
+    this.timer = undefined
+    if (!this.armed) return
+    const waited = performance.now() - this.armedAt
+    if (waited >= this.ms) {
+      this.armed = false
+      this.onIdle()
+      return
+    }
+    this.timer = setTimeout(this.fire, this.ms - waited)
+  }
 }
