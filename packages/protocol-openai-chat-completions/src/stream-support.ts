@@ -1,4 +1,4 @@
-import { MODEL_ERROR_CODES, ModelError, ToolCallId  } from '@alvin0/ai-agent-sdk-core'
+import { MODEL_ERROR_CODES, ModelError, TextAccumulator, ToolCallId  } from '@alvin0/ai-agent-sdk-core'
 import type { ContentBlock, FinishReason, UsageCounters  } from '@alvin0/ai-agent-sdk-core'
 import type {
   WireErrorBody,
@@ -19,13 +19,13 @@ export interface OpenToolCall {
   id: string | undefined
   name: string | undefined
   /** Fragments joined verbatim. Never parsed until the terminal finish. */
-  args: string
+  readonly args: TextAccumulator
 }
 
 /** One in-flight text or reasoning block. */
 export interface OpenTextBlock {
   readonly index: number
-  text: string
+  readonly content: TextAccumulator
 }
 
 export function malformed(displayName: string, detail: string, cause?: unknown): ModelError {
@@ -135,7 +135,7 @@ export function absorbToolCall(
   const key = typeof fragment.index === 'number' ? fragment.index : 0
   let entry = open.get(key)
   if (entry === undefined) {
-    entry = { order: nextOrder(), id: undefined, name: undefined, args: '' }
+    entry = { order: nextOrder(), id: undefined, name: undefined, args: new TextAccumulator() }
     open.set(key, entry)
   }
   // `id` and `name` arrive once. A later fragment repeating them is harmless;
@@ -146,7 +146,7 @@ export function absorbToolCall(
   const args = fragment.function?.arguments
   // Concatenation only. The joined string is the model's own bytes, replayed
   // verbatim on the next turn, so no reformatting happens anywhere on this path.
-  if (typeof args === 'string') entry.args += args
+  if (typeof args === 'string') entry.args.append(args)
 }
 
 /**
@@ -175,7 +175,7 @@ export function toolCallBlocks(
           `tool call at index ${wireIndex} never carried an id and a name`,
         )
       }
-      const args = entry.args.length > 0 ? entry.args : EMPTY_ARGUMENTS
+      const args = entry.args.length > 0 ? entry.args.text : EMPTY_ARGUMENTS
       try {
         JSON.parse(args)
       } catch (error: unknown) {

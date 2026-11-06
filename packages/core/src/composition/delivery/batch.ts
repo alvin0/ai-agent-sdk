@@ -5,8 +5,8 @@ import type { ObservationDeliveryBatch, RunTerminalRecord } from '../exporter/de
 import { DELIVERY_LIMITS } from './config.ts'
 import { bytes, count, DeliveryDataError } from './data.ts'
 import { isRuntimeResource, type RuntimeObservationResource } from './resource.ts'
-import { isPreparedTerminal } from './terminal.ts'
-import { isPreparedEvent, prepareDeliveryEvent } from './event.ts'
+import { preparedTerminalBytes } from './terminal.ts'
+import { prepareDeliveryEvent, preparedEventBytes } from './event.ts'
 
 const prepared = new WeakSet<ObservationDeliveryBatch>()
 export function isPreparedBatch(batch: ObservationDeliveryBatch): boolean { return prepared.has(batch) }
@@ -17,23 +17,27 @@ export interface DeliveryBatchOptions {
   readonly maxBytes?: number
 }
 
-/** Exact one-item wire size without allocating an ID; generated batch IDs have this fixed width. */
-export function deliveryBatchItemBytes(resource: RuntimeObservationResource,
-  item: ObservationEvent | RunTerminalRecord): number {
+/**
+ * Wire size of a batch with no items; generated batch IDs have a fixed width. A
+ * batch serializes as `{...,"events":[e1,e2],"runRecords":[r1]}`, so any batch's
+ * exact size is this envelope plus each item's own serialized size plus one comma
+ * between siblings.
+ */
+export function deliveryBatchEnvelopeBytes(resource: RuntimeObservationResource): number {
   if (!isRuntimeResource(resource)) throw new DeliveryDataError()
-  const event = isPreparedTerminal(item as RunTerminalRecord) ? undefined : item as ObservationEvent
-  if (event !== undefined && (!isPreparedEvent(event) || event.resource !== resource)) throw new DeliveryDataError()
-  return bytes({ id: '0'.repeat(32), resource,
-    events: event === undefined ? [] : [event], runRecords: event === undefined ? [item] : [] })
+  let size = envelopeSizes.get(resource)
+  if (size === undefined) {
+    size = bytes({ id: '0'.repeat(BATCH_ID_HEX_CHARS), resource, events: [], runRecords: [] })
+    envelopeSizes.set(resource, size)
+  }
+  return size
 }
 
-export function deliveryBatchItemsBytes(
-  resource: RuntimeObservationResource, events: readonly ObservationEvent[], records: readonly RunTerminalRecord[],
-): number {
-  if (!isRuntimeResource(resource) || events.some(event => !isPreparedEvent(event) || event.resource !== resource)
-    || records.some(record => !isPreparedTerminal(record))) throw new DeliveryDataError()
-  return bytes({ id: '0'.repeat(32), resource, events, runRecords: records })
-}
+/** Batch IDs are `randomHex(16)`: always 32 hex characters, so the envelope size is fixed per resource. */
+const BATCH_ID_HEX_CHARS = 32
+/** Runtime resources are frozen, so their envelope size never changes. */
+const envelopeSizes = new WeakMap<RuntimeObservationResource, number>()
+const BATCH_ID = /^[0-9a-f]{32}$/
 
 function batchLimits(options: DeliveryBatchOptions) {
   const maxItems = count(options.maxItems ?? DELIVERY_LIMITS.batchItems)
@@ -63,25 +67,28 @@ export function createDeliveryBatch(
     const rawEvents = arrayData(events, maxItems), rawRecords = arrayData(records, maxItems)
     if (rawEvents.length + rawRecords.length === 0 || rawEvents.length
       + rawRecords.length > maxItems) throw new DeliveryDataError()
-    let usedBytes = bytes(resource)
-    const consume = (value: unknown): void => {
-      usedBytes += bytes(value)
+    // Exact wire size without serializing the batch: the empty envelope, each item's
+    // size measured once when it was prepared, and one comma between siblings.
+    let usedBytes = deliveryBatchEnvelopeBytes(resource)
+    const consume = (itemBytes: number, index: number): void => {
+      usedBytes += itemBytes + (index > 0 ? 1 : 0)
       if (usedBytes > maxBytes) throw new DeliveryDataError()
     }
-    const safeEvents = rawEvents.map(value => {
+    const safeEvents = rawEvents.map((value, index) => {
       const event = prepareDeliveryEvent(value as ObservationEvent, resource, content)
-      consume(event)
+      consume(preparedEventBytes(event), index)
       return event
     })
-    const runRecords = rawRecords.map(value => {
-      if (!isPreparedTerminal(value as RunTerminalRecord)) throw new DeliveryDataError()
-      consume(value)
+    const runRecords = rawRecords.map((value, index) => {
+      consume(preparedTerminalBytes(value as RunTerminalRecord), index)
       return value as RunTerminalRecord
     })
     assertUniqueEntries(safeEvents, runRecords)
-    const batch: ObservationDeliveryBatch = Object.freeze({ id: platform.randomHex(16), resource,
+    const id = platform.randomHex(16)
+    const batch: ObservationDeliveryBatch = Object.freeze({ id, resource,
       events: Object.freeze(safeEvents), runRecords: Object.freeze(runRecords) })
-    if (bytes(batch) > maxBytes) throw new DeliveryDataError()
+    // A platform whose IDs differ from the envelope's fixed shape gets an exact recount.
+    if (!BATCH_ID.test(id) && bytes(batch) > maxBytes) throw new DeliveryDataError()
     prepared.add(batch)
     return batch
   } catch { throw new DeliveryDataError() }

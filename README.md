@@ -10,7 +10,7 @@ message.
 
 ## Setup
 
-For the 0.1.15 release, read the [release notes](CHANGELOG.md).
+For the 0.1.16 release, read the [release notes](CHANGELOG.md).
 For migration to 0.1.14, read [upgrading to 0.1.14](docs/upgrading-to-0.1.14.md).
 For the managed-team API, read the [multi-agent guide](docs/multi-agent.md)
 and run the [offline delegation and collaboration example](samples/multi-agent-offline/README.md)
@@ -273,6 +273,55 @@ excluded by default because they fail identically on every attempt.
 The opt-in `mode: 'always'` is accepted only when the request carries an
 `AbortSignal`; normal agent turns provide one through their model deadline, while
 direct callers must supply their own cancellation boundary.
+
+## Failover across accounts and providers
+
+Retry cannot help when the failure is the account itself: an expired or revoked
+login, an exhausted usage limit, a provider outage. `failoverProviderPlugin`
+serves one route from several provider plugins in priority order — more Codex or
+Copilot logins, an API-key provider, or a mix — so such a failure moves the call
+to the next member instead of stopping the system.
+
+```ts
+import { createAgentRuntime, failoverProviderPlugin } from '@alvin0/ai-agent-sdk-core'
+import { codexNodeProviderPlugin } from '@alvin0/ai-agent-sdk-auth-node/codex'
+import { copilotNodeProviderPlugin } from '@alvin0/ai-agent-sdk-auth-node/copilot'
+import { envCredential } from '@alvin0/ai-agent-sdk-auth-node/env'
+import { openAiPlugin } from '@alvin0/ai-agent-sdk-provider-openai'
+
+const runtime = await createAgentRuntime({ providers: [failoverProviderPlugin({
+  id: 'llm',
+  defaultModel: 'gpt-6-luna',
+  members: [
+    { plugin: codexNodeProviderPlugin({ id: 'codex-main' }) },
+    // Signed in with `ai-agent-sdk-codex-login --browser --account backup`.
+    { plugin: codexNodeProviderPlugin({ id: 'codex-backup', account: 'backup' }) },
+    { plugin: copilotNodeProviderPlugin({ id: 'copilot' }) },
+    { plugin: openAiPlugin({ id: 'openai', apiKey: envCredential('OPENAI_API_KEY') }) },
+  ],
+  onFailover: event => console.warn(`${event.from} -> ${event.to ?? 'none'}: ${event.failure.code}`),
+})] })
+```
+
+Agents select the `llm` route; member routes stay private. A call moves on only
+while nothing but provisional usage has been streamed (as with retry), and on
+every failure except cancellation, `INVALID_REQUEST` and `CONTEXT_WINDOW_EXCEEDED`
+(override with `shouldFailover`). The failed member is skipped by later calls for
+a cooldown (`FAILOVER_POLICY`: credentials 5 min, quota 15 min or the provider's
+`retry-after`, rate limit 30 s or `retry-after`, anything else 10 s; override with
+`cooldownMs`), and calls return to the first member once its cooldown ends. When
+every member is cooling down a call still tries them, soonest-recovering first.
+A member can ask for its own model id with `model`; members should serve
+equivalent models, since a call keeps the request it was built for (tools,
+context and output limits come from the first member prepared). If a later member
+rejects that request (`INVALID_REQUEST`, `CONTEXT_WINDOW_EXCEEDED`), it is skipped
+without a cooldown and the earlier failure is reported. Replay state, such as a
+provider's encrypted reasoning, goes back only to the member that produced it;
+other members get the history without it, as does every member for history
+recorded before the route was a failover route. Member ids (`id`, else the
+route, else the plugin id) must be distinct: they key the replay state. Member `setup` must be synchronous, and
+middleware a member installs with `use` applies to the whole runtime. For a manual
+registry, `withFailover([{ adapter, provider }, …])` is the adapter-level form.
 
 ## Architecture
 

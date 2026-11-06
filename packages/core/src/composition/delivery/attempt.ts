@@ -10,7 +10,8 @@ import { DELIVERY_ERROR_CODES } from './config.ts'
 import { DeliveryDataError } from './data.ts'
 
 export interface DeliveryAttemptReport {
-  readonly status: 'complete' | 'partial' | 'failed' | 'timed-out' | 'aborted' | 'closed'
+  /** `deferred`: not sent this time (its exporter is paused); what it already accepted still counts. */
+  readonly status: 'complete' | 'partial' | 'failed' | 'timed-out' | 'aborted' | 'closed' | 'deferred'
   readonly complete: boolean
   readonly boundary: ObservationBoundary
   readonly acceptedEventIds: readonly string[]
@@ -50,6 +51,12 @@ export class DeliveryAttempt {
     if (this.complete()) return Promise.resolve(this.report('complete'))
     this.inFlight = this.exportOnce(deadlineAt, caller).finally(() => { this.inFlight = undefined })
     return this.inFlight
+  }
+
+  /** Where the attempt stands, without sending: `complete` once everything was accepted, else `deferred`. */
+  current(): DeliveryAttemptReport {
+    if (this.sealed || this.resources.isClosed) return this.report('closed', DELIVERY_ERROR_CODES.CLOSED)
+    return this.report(this.complete() ? 'complete' : 'deferred')
   }
 
   seal(): void {

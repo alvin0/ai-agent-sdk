@@ -18,8 +18,23 @@ import type {
 import { credentialOperation, readStore, commitStore, storeLabel } from './oauth-store.ts'
 import { requestDeviceCode, pollForAuthorization, exchangeCodeForTokens, authFileFor } from './oauth-device.ts'
 import { refreshCodexTokensWithOperation } from './oauth-refresh.ts'
+import {
+  authorizationCodeFrom,
+  type CodexBrowserAuthorization,
+  type CodexBrowserCallback,
+} from './oauth-browser.ts'
+import type { CapturedCodexStore } from './common/store-capture.ts'
+import type { CredentialOperationOptions } from '@alvin0/ai-agent-sdk-core/provider'
 export { refreshCodexTokensWithOperation } from './oauth-refresh.ts'
 export { requestDeviceCode } from './oauth-device.ts'
+export {
+  CODEX_BROWSER_CALLBACK_PATH,
+  CODEX_BROWSER_CALLBACK_PORT,
+  createBrowserAuthorization,
+  type CodexBrowserAuthorization,
+  type CodexBrowserAuthorizationOptions,
+  type CodexBrowserCallback,
+} from './oauth-browser.ts'
 export { CodexRefreshError } from './oauth-errors.ts'
 export type { RefreshFailureKind } from './oauth-errors.ts'
 export { DEFAULT_CODEX_ISSUER, CODEX_CLIENT_ID } from './oauth-types.ts'
@@ -81,9 +96,51 @@ export async function runDeviceCodeLogin(
   try { progress.onPrompt?.(code) } catch { /* progress observers do not own authentication */ }
   const grant = await pollForAuthorization(code, options, progress)
   const tokens = await exchangeCodeForTokens(grant, options)
-  const file = authFileFor(tokens)
-  await commitStore(captured, file, initial.revision, operation)
+  return await persistLogin(captured, tokens, initial.revision, operation)
+}
 
+/**
+ * Finish a browser login started with {@link createBrowserAuthorization}: check
+ * the callback's `state`, exchange its code with the PKCE verifier, and persist
+ * the tokens. Pass the same issuer/client options the authorization used.
+ * @param store - where to write the credentials.
+ * @param authorization - the pending login the callback belongs to.
+ * @param callback - the callback URL, its query string, or its parameters.
+ * @param options - issuer, client id, cancellation.
+ * @returns a summary of who signed in and where it was stored.
+ */
+export function completeBrowserLogin(
+  store: CodexCredentialStore,
+  authorization: CodexBrowserAuthorization,
+  callback: CodexBrowserCallback,
+  options?: CodexOAuthOptions,
+): Promise<CodexLoginResult>
+export function completeBrowserLogin(
+  store: CodexAuthStore,
+  authorization: CodexBrowserAuthorization,
+  callback: CodexBrowserCallback,
+  options?: CodexOAuthOptions,
+): Promise<CodexLoginResult>
+export async function completeBrowserLogin(
+  store: AnyCodexStore,
+  authorization: CodexBrowserAuthorization,
+  callback: CodexBrowserCallback,
+  options: CodexOAuthOptions = {},
+): Promise<CodexLoginResult> {
+  const authorizationCode = authorizationCodeFrom(authorization, callback)
+  const captured = captureCodexStore(store)
+  const operation = credentialOperation(options.signal)
+  const initial = await readStore(captured, operation)
+  const tokens = await exchangeCodeForTokens(
+    { authorizationCode, codeVerifier: authorization.codeVerifier }, options, authorization.redirectUri)
+  return await persistLogin(captured, tokens, initial.revision, operation)
+}
+
+async function persistLogin(
+  captured: CapturedCodexStore, tokens: CodexTokens, revision: string | null, operation: CredentialOperationOptions,
+): Promise<CodexLoginResult> {
+  const file = authFileFor(tokens)
+  await commitStore(captured, file, revision, operation)
   const claims = readJwtClaims(tokens.id_token)
   return {
     location: storeLabel(captured),

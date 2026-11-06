@@ -101,11 +101,18 @@ export class RuntimeObservationPort implements ObservationPort {
       }
       this.stagingFailures.push(failure)
     })
-    this.store = new DeliveryQueueStore(resource, staging, options, entry => {
-      if (entry.kind === 'event'
-        && eventHasIntegrationEvidence(entry.item as ObservationEvent)) this.integration('dropped')
+    // With no exporter there is nowhere to deliver queued items, so retaining them
+    // only pins every run's events in memory until close. Admission still
+    // validates, sizes and counts each item; diagnostics keep their own ring.
+    this.store = new DeliveryQueueStore(resource, staging, options, {
+      onEvict: entry => {
+        if (entry.kind === 'event'
+          && eventHasIntegrationEvidence(entry.item as ObservationEvent)) this.integration('dropped')
+      },
+      retain: registrations.length > 0,
     })
-    this.scheduler = new DeliveryQueueScheduler(this.store, resource, registrations, resources)
+    this.scheduler = new DeliveryQueueScheduler(this.store, resource, registrations,
+      { resources, drainTimeoutMs: this.flushTimeoutMs })
     this.diagnosticsRing = new DiagnosticRing(diagnosticOptions(options))
   }
 
@@ -121,17 +128,24 @@ export class RuntimeObservationPort implements ObservationPort {
 
   capture(event: ObservationEvent): CaptureReceipt {
     const admission = this.admitEvent(event)
+    this.scheduler.requestDrain()
     return eventReceipt(event.eventId, admission)
   }
 
   async checkpoint(event: ObservationEvent, signal?: AbortSignal): Promise<CaptureReceipt> {
     const admission = this.admitEvent(event)
     const captured = eventReceipt(event.eventId, admission)
-    if (captured.status !== 'accepted' || this.mode === 'operational') return captured
+    if (captured.status !== 'accepted' || this.mode === 'operational') {
+      this.scheduler.requestDrain()
+      return captured
+    }
     const entry = admission.entry
     if (entry === undefined) return rejectedEvent(event.eventId, 'exporter-unavailable')
-    const delivery = await this.scheduler.checkpointRun(entry.runId, entry.sequence,
-      this.deadline(), signal)
+    // Enqueued before this call's own drain request; a background step already
+    // queued yields to it between batches, so it waits for at most one batch.
+    const pending = this.scheduler.checkpointRun(entry.runId, entry.sequence, this.deadline(), signal)
+    this.scheduler.requestDrain()
+    const delivery = await pending
     return delivery.requiredComplete && delivery.reachedBoundary !== 'none'
       ? acceptedEvent(event.eventId, delivery.reachedBoundary)
       : rejectedEvent(event.eventId, this.sealed ? 'closed' : 'exporter-unavailable')
@@ -142,10 +156,19 @@ export class RuntimeObservationPort implements ObservationPort {
   async checkpointTerminal(record: RunTerminalRecord, signal?: AbortSignal): Promise<TerminalCheckpointResult> {
     const admission = this.admitTerminal(record)
     if (admission.status === 'closed') return terminalResult(record.runId, 'closed', 'none', { reason: 'closed' })
-    if (admission.status === 'rejected') return terminalResult(record.runId, 'rejected', 'none', { reason: 'capacity' })
-    if (this.mode === 'operational') return terminalResult(record.runId, 'accepted', 'none')
-    const delivery = await this.scheduler.checkpointRun(record.runId, undefined,
-      this.deadline(), signal)
+    if (admission.status === 'rejected') {
+      this.scheduler.requestDrain()
+      return terminalResult(record.runId, 'rejected', 'none', { reason: 'capacity' })
+    }
+    // A finished run is the natural export boundary: drain its remaining events
+    // (and any other backlog) in the background instead of holding them until close.
+    if (this.mode === 'operational') {
+      this.scheduler.requestDrain({ force: true })
+      return terminalResult(record.runId, 'accepted', 'none')
+    }
+    const pending = this.scheduler.checkpointRun(record.runId, undefined, this.deadline(), signal)
+    this.scheduler.requestDrain({ force: true })
+    const delivery = await pending
     return delivery.requiredComplete && delivery.reachedBoundary !== 'none'
       ? terminalResult(record.runId, 'accepted', delivery.reachedBoundary, { delivery })
       : terminalResult(record.runId, this.sealed ? 'closed' : 'rejected', 'none',
@@ -167,7 +190,7 @@ export class RuntimeObservationPort implements ObservationPort {
   }
 
   health(): RuntimeObservationHealthSnapshot {
-    const queue = this.store.snapshot(), delivery = this.scheduler.health()
+    const queue = this.store.stats(), delivery = this.scheduler.health()
     const state = observationHealthState({ queue, delivery, processorFailures: this.processorFailures,
       stagingFailures: this.stagingFailureCount, sealed: this.sealed })
     const lastFailure = observationLastFailure({ queue, delivery, processorFailures: this.processorFailures,
@@ -314,7 +337,7 @@ function frozenCopy<Value>(input: readonly Value[] | undefined): readonly Value[
 }
 
 interface HealthEvidence {
-  readonly queue: ReturnType<DeliveryQueueStore['snapshot']>
+  readonly queue: ReturnType<DeliveryQueueStore['stats']>
   readonly delivery: ReturnType<DeliveryQueueScheduler['health']>
   readonly processorFailures: number
   readonly stagingFailures: number

@@ -1,4 +1,5 @@
 import { waitForSettlement } from '../../../async/index.ts'
+import { AbortRace } from '../../../stream/abort-race.ts'
 
 export class StreamAbortError extends Error {
   constructor(override readonly cause: unknown) {
@@ -6,32 +7,14 @@ export class StreamAbortError extends Error {
     this.name = 'StreamAbortError'
   }
 }
-export async function nextWithAbort<T>(
-  pending: Promise<IteratorResult<T>>,
-  signal: AbortSignal,
-): Promise<IteratorResult<T>> {
-  if (signal.aborted) {
-    void pending.catch(() => undefined)
-    throw new StreamAbortError(signal.reason)
+
+/** Races each read of one stream against the run signal, rejecting with {@link StreamAbortError}. */
+export class StreamAbortRace extends AbortRace {
+  constructor(signal: AbortSignal) {
+    super(signal, reason => new StreamAbortError(reason))
   }
-  return await new Promise<IteratorResult<T>>((resolve, reject) => {
-    const onAbort = () => {
-      signal.removeEventListener('abort', onAbort)
-      reject(new StreamAbortError(signal.reason))
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-    void pending.then(
-      value => {
-        signal.removeEventListener('abort', onAbort)
-        resolve(value)
-      },
-      error => {
-        signal.removeEventListener('abort', onAbort)
-        reject(error)
-      },
-    )
-  })
 }
+
 export async function closeIterator<T>(iterator: AsyncIterator<T>, timeoutMs: number): Promise<boolean> {
   const close = iterator.return?.bind(iterator)
   if (close === undefined) return true

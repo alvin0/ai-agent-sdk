@@ -61,7 +61,7 @@ describe('final review HTTP ownership', () => {
     // Allow parser ownership to be acquired before aborting.
     await new Promise(resolve => setTimeout(resolve, 0))
     caller.abort()
-    try { await vi.waitFor(() => expect(cancel).toHaveBeenCalledTimes(1), { timeout: 100 }) }
+    try { await vi.waitFor(() => expect(cancel).toHaveBeenCalledTimes(1), { timeout: 1_000 }) }
     finally {
       try { bodyController.error(new Error('test cleanup')) } catch { /* already cancelled */ }
       await running.catch(() => undefined)

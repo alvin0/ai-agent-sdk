@@ -50,6 +50,8 @@ export interface WireCopilotModel {
   }
   readonly vision?: unknown
   readonly model_picker_enabled?: unknown
+  /** Endpoint paths the model serves, e.g. `['/responses', 'ws:/responses']`. */
+  readonly supported_endpoints?: unknown
 }
 
 /** Why an entry was left out of both catalogs. */

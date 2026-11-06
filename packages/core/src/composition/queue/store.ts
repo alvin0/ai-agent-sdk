@@ -1,10 +1,9 @@
 import type { ObservationEvent } from '../../observation/index.ts'
-import { serializedEventBytes } from '../../observation/privacy.ts'
 import type { RuntimeObservationResource } from '../delivery/resource.ts'
-import { prepareDeliveryEvent } from '../delivery/event.ts'
-import { bytes, count, DeliveryDataError } from '../delivery/data.ts'
-import { isPreparedTerminal } from '../delivery/terminal.ts'
-import { deliveryBatchItemBytes } from '../delivery/batch.ts'
+import { prepareDeliveryEvent, preparedEventBytes } from '../delivery/event.ts'
+import { count, DeliveryDataError } from '../delivery/data.ts'
+import { preparedTerminalBytes } from '../delivery/terminal.ts'
+import { deliveryBatchEnvelopeBytes } from '../delivery/batch.ts'
 import type { RunTerminalRecord } from '../exporter/delivery-types.ts'
 import { DeliveryStaging } from '../delivery/staging.ts'
 import { DELIVERY_QUEUE_DEFAULTS } from './config.ts'
@@ -19,6 +18,20 @@ export interface DeliveryQueueOptions {
   readonly maxBatchBytes?: number
 }
 
+/** Internal store wiring; never part of the public runtime option grammar. */
+export interface DeliveryQueueStoreHooks {
+  readonly onEvict?: (entry: DeliveryQueueEntry) => void
+  /**
+   * Retain admitted items for a later export (default true). A runtime without
+   * exporters has nowhere to deliver them, so it admits (validates, sizes, counts)
+   * without holding every event of every run in memory until close. It still
+   * remembers the most recent `maxEvents` identities, so a repeated event or
+   * terminal record is reported as `existing`, as a retaining store reports it
+   * while the original is queued. Capacity limits do not apply: nothing is held.
+   */
+  readonly retain?: boolean
+}
+
 /** Bounded admission owner. Export/checkpoint scheduling is deliberately separate from storage policy. */
 export class DeliveryQueueStore {
   readonly maxBatchEvents: number
@@ -26,13 +39,22 @@ export class DeliveryQueueStore {
   readonly content: 'none' | 'metadata'
   private readonly maxEvents: number
   private readonly maxBytes: number
-  private readonly entries: DeliveryQueueEntry[] = []
+  private readonly retain: boolean
+  // Insertion order is admission (ordinal) order, so iterating `active` yields FIFO.
   private readonly active = new Set<DeliveryQueueEntry>()
+  // Active, unprotected evictable entries per priority, in admission order. An
+  // entry leaves its set while an export task protects it, so the first member is
+  // exactly the oldest candidate: eviction never scans critical or protected entries.
+  private readonly activeVerbose = new Set<DeliveryQueueEntry>()
+  private readonly activeNormal = new Set<DeliveryQueueEntry>()
   private readonly protectedEntries = new WeakSet<DeliveryQueueEntry>()
   private readonly eventIds = new Map<string, DeliveryQueueEntry>()
   private readonly runIds = new Map<string, DeliveryQueueEntry>()
+  private envelopeBytes: number | undefined
   private ordinal = 0
   private queuedBytes = 0
+  private protectedCount = 0
+  private protectedBytes = 0
   private evictedVerbose = 0
   private evictedNormal = 0
   private evictedBytes = 0
@@ -40,87 +62,162 @@ export class DeliveryQueueStore {
   private accepted = 0
   private closed = false
 
+  private readonly onEvict: ((entry: DeliveryQueueEntry) => void) | undefined
+
   constructor(
     private readonly resource: RuntimeObservationResource,
     private readonly staging: DeliveryStaging,
     options: DeliveryQueueOptions = {},
-    private readonly onEvict?: (entry: DeliveryQueueEntry) => void,
+    hooks: DeliveryQueueStoreHooks = {},
   ) {
-    try {
-      this.content = options.content ?? 'none'
-      if (this.content !== 'none' && this.content !== 'metadata') throw new DeliveryDataError()
-      this.maxEvents = positive(options.maxEvents ?? DELIVERY_QUEUE_DEFAULTS.maxEvents)
-      this.maxBytes = positive(options.maxBytes ?? DELIVERY_QUEUE_DEFAULTS.maxBytes)
-      this.maxBatchEvents = positive(options.maxBatchEvents ?? DELIVERY_QUEUE_DEFAULTS.maxBatchEvents)
-      this.maxBatchBytes = positive(options.maxBatchBytes ?? DELIVERY_QUEUE_DEFAULTS.maxBatchBytes)
-    } catch { throw new DeliveryDataError() }
+    const limits = queueLimits(options)
+    this.content = limits.content
+    this.maxEvents = limits.maxEvents
+    this.maxBytes = limits.maxBytes
+    this.maxBatchEvents = limits.maxBatchEvents
+    this.maxBatchBytes = limits.maxBatchBytes
+    this.onEvict = hooks.onEvict
+    this.retain = hooks.retain !== false
   }
+
+  get isClosed(): boolean { return this.closed }
+
+  /** Exact wire size of an empty batch for this store's resource. */
+  get batchEnvelopeBytes(): number {
+    this.envelopeBytes ??= deliveryBatchEnvelopeBytes(this.resource)
+    return this.envelopeBytes
+  }
+
+  /**
+   * True when enough unassigned work is queued to fill one batch. Entries already
+   * assigned to an export task are protected and do not count as new backlog.
+   */
+  hasBatchBacklog(): boolean {
+    return this.active.size - this.protectedCount >= this.maxBatchEvents
+      || this.queuedBytes - this.protectedBytes >= this.maxBatchBytes
+  }
+
+  /** At least `fraction` of the event or byte capacity is in use, assigned entries included. */
+  underPressure(fraction: number): boolean {
+    return this.active.size >= this.maxEvents * fraction || this.queuedBytes >= this.maxBytes * fraction
+  }
+
+  /** True when no unassigned entry is waiting for an export task. */
+  hasNoBacklog(): boolean { return this.active.size === this.protectedCount }
 
   admitEvent(input: ObservationEvent): QueueAdmission {
     if (this.closed) return outcome('closed', 'closed')
     const event = prepareDeliveryEvent(input, this.resource, this.content)
     const previous = this.eventIds.get(event.eventId)
     if (previous !== undefined) return outcome('existing', undefined, previous)
+    const size = preparedEventBytes(event)
     return this.admit({ kind: 'event', id: event.eventId, runId: event.correlation.runId,
-      sequence: event.sequence, priority: event.priority, bytes: serializedEventBytes(event), item: event },
-    deliveryBatchItemBytes(this.resource, event), this.eventIds)
+      sequence: event.sequence, priority: event.priority, bytes: size, item: event }, this.eventIds)
   }
 
   admitRunRecord(record: RunTerminalRecord): QueueAdmission {
     if (this.closed) return outcome('closed', 'closed')
-    if (!isPreparedTerminal(record)) throw new DeliveryDataError()
+    const size = preparedTerminalBytes(record)
     const previous = this.runIds.get(record.runId)
     if (previous !== undefined) return outcome('existing', undefined, previous)
     return this.admit({ kind: 'run-record', id: record.runId, runId: record.runId,
-      priority: 'critical', bytes: bytes(record), item: record }, deliveryBatchItemBytes(this.resource, record),
-        this.runIds)
+      priority: 'critical', bytes: size, item: record }, this.runIds)
   }
 
   remove(entries: readonly DeliveryQueueEntry[]): void {
     for (const entry of entries) {
       if (!this.active.delete(entry)) continue
+      this.release(entry)
+      this.evictableSet(entry)?.delete(entry)
       this.queuedBytes -= entry.bytes
       if (entry.kind === 'event') this.eventIds.delete(entry.id)
       else this.runIds.delete(entry.id)
     }
-    this.compact()
   }
 
-  activeEntries(): readonly DeliveryQueueEntry[] {
-    return Object.freeze(this.entries.filter(entry => this.active.has(entry)))
+  /** The oldest `limit` entries no export task holds yet (protected entries are skipped). */
+  unprotectedEntries(limit: number): readonly DeliveryQueueEntry[] {
+    const selected: DeliveryQueueEntry[] = []
+    if (this.active.size === this.protectedCount) return selected
+    for (const entry of this.active) {
+      if (selected.length >= limit) break
+      if (!this.protectedEntries.has(entry)) selected.push(entry)
+    }
+    return selected
+  }
+
+  activeEntries(limit?: number): readonly DeliveryQueueEntry[] {
+    if (limit === undefined) return Object.freeze([...this.active])
+    const selected: DeliveryQueueEntry[] = []
+    for (const entry of this.active) {
+      if (selected.length >= limit) break
+      selected.push(entry)
+    }
+    return Object.freeze(selected)
   }
 
   contains(entry: DeliveryQueueEntry): boolean { return this.active.has(entry) }
 
   protect(entries: readonly DeliveryQueueEntry[]): void {
-    for (const entry of entries) if (this.active.has(entry)) this.protectedEntries.add(entry)
+    for (const entry of entries) {
+      if (!this.active.has(entry) || this.protectedEntries.has(entry)) continue
+      this.protectedEntries.add(entry)
+      this.evictableSet(entry)?.delete(entry)
+      this.protectedCount++
+      this.protectedBytes += entry.bytes
+    }
   }
 
   unprotect(entries: readonly DeliveryQueueEntry[]): void {
-    for (const entry of entries) this.protectedEntries.delete(entry)
+    const rejoined = new Set<Set<DeliveryQueueEntry>>()
+    for (const entry of entries) {
+      if (!this.release(entry) || !this.active.has(entry)) continue
+      const evictable = this.evictableSet(entry)
+      if (evictable === undefined) continue
+      evictable.add(entry)
+      rejoined.add(evictable)
+    }
+    // Settled entries are removed right after; only an entry that stays queued
+    // rejoins, and its set is re-sorted so eviction remains oldest-first.
+    for (const evictable of rejoined) sortByOrdinal(evictable)
   }
 
   runEntries(runId: string, throughSequence?: number): readonly DeliveryQueueEntry[] {
-    return Object.freeze(this.entries.filter(entry => this.active.has(entry) && entry.runId === runId
-      && entry.priority === 'critical' && (entry.sequence === undefined || throughSequence === undefined
-        || entry.sequence <= throughSequence)))
+    const selected: DeliveryQueueEntry[] = []
+    for (const entry of this.active) {
+      if (entry.runId === runId && entry.priority === 'critical' && (entry.sequence === undefined
+        || throughSequence === undefined || entry.sequence <= throughSequence)) selected.push(entry)
+    }
+    return Object.freeze(selected)
+  }
+
+  /** Counters only; avoids copying every retained entry for a health read. */
+  stats(): Omit<DeliveryQueueSnapshot, 'entries'> {
+    return Object.freeze({ queuedItems: this.active.size, queuedBytes: this.queuedBytes,
+      evictedVerbose: this.evictedVerbose, evictedNormal: this.evictedNormal,
+      evictedBytes: this.evictedBytes, criticalRejected: this.criticalRejected, accepted: this.accepted })
   }
 
   snapshot(): DeliveryQueueSnapshot {
-    const entries = this.activeEntries()
-    return Object.freeze({ queuedItems: entries.length, queuedBytes: this.queuedBytes,
-      evictedVerbose: this.evictedVerbose, evictedNormal: this.evictedNormal,
-      evictedBytes: this.evictedBytes, criticalRejected: this.criticalRejected, accepted: this.accepted, entries })
+    return Object.freeze({ ...this.stats(), entries: this.activeEntries() })
   }
 
   seal(): void { this.closed = true; this.staging.seal() }
 
   private admit(
-    input: Omit<DeliveryQueueEntry, 'ordinal'>, wireBytes: number, identities: Map<string, DeliveryQueueEntry>,
+    input: Omit<DeliveryQueueEntry, 'ordinal'>, identities: Map<string, DeliveryQueueEntry>,
   ): QueueAdmission {
-    if (wireBytes > this.maxBatchBytes) {
+    // A single-item batch is the envelope plus the item; both sizes are exact.
+    if (this.batchEnvelopeBytes + input.bytes > this.maxBatchBytes) {
       if (input.priority === 'critical') this.criticalRejected = saturatingCounterAdd(this.criticalRejected, 1)
       return outcome('rejected', 'batch-capacity')
+    }
+    const entry: DeliveryQueueEntry = Object.freeze({ ordinal: ++this.ordinal, ...input })
+    if (!this.retain) {
+      this.remember(identities, entry)
+      this.accepted = saturatingCounterAdd(this.accepted, 1)
+      this.staging.stage(entry.item)
+      return outcome('accepted', undefined, entry)
     }
     while (this.active.size >= this.maxEvents || this.queuedBytes + input.bytes > this.maxBytes) {
       const candidate = this.evictionCandidate()
@@ -130,9 +227,8 @@ export class DeliveryQueueStore {
       }
       this.evict(candidate)
     }
-    const entry: DeliveryQueueEntry = Object.freeze({ ordinal: ++this.ordinal, ...input })
-    this.entries.push(entry)
     this.active.add(entry)
+    this.evictableSet(entry)?.add(entry)
     identities.set(entry.id, entry)
     this.queuedBytes += entry.bytes
     this.accepted = saturatingCounterAdd(this.accepted, 1)
@@ -140,11 +236,30 @@ export class DeliveryQueueStore {
     return outcome('accepted', undefined, entry)
   }
 
+  /** Bounded identity window for a store that holds no entries. */
+  private remember(identities: Map<string, DeliveryQueueEntry>, entry: DeliveryQueueEntry): void {
+    identities.set(entry.id, entry)
+    if (identities.size > this.maxEvents) {
+      const oldest = identities.keys().next()
+      if (oldest.done !== true) identities.delete(oldest.value)
+    }
+  }
+
+  /** Drop protection; true when the entry was protected. */
+  private release(entry: DeliveryQueueEntry): boolean {
+    if (!this.protectedEntries.delete(entry)) return false
+    this.protectedCount--
+    this.protectedBytes -= entry.bytes
+    return true
+  }
+
   private evictionCandidate(): DeliveryQueueEntry | undefined {
-    return this.entries.find(entry => this.active.has(entry) && !this.protectedEntries.has(entry)
-      && entry.priority === 'verbose')
-      ?? this.entries.find(entry => this.active.has(entry) && !this.protectedEntries.has(entry)
-        && entry.priority === 'normal')
+    return first(this.activeVerbose) ?? first(this.activeNormal)
+  }
+
+  private evictableSet(entry: DeliveryQueueEntry): Set<DeliveryQueueEntry> | undefined {
+    if (entry.priority === 'verbose') return this.activeVerbose
+    return entry.priority === 'normal' ? this.activeNormal : undefined
   }
 
   private evict(entry: DeliveryQueueEntry): void {
@@ -154,14 +269,31 @@ export class DeliveryQueueStore {
     this.evictedBytes = saturatingCounterAdd(this.evictedBytes, entry.bytes)
     try { this.onEvict?.(entry) } catch { /* Queue capacity must not depend on a health observer. */ }
   }
+}
 
-  private compact(): void {
-    const dead = this.entries.length - this.active.size
-    if (dead < 256 || dead * 2 < this.entries.length) return
-    let target = 0
-    for (const entry of this.entries) if (this.active.has(entry)) this.entries[target++] = entry
-    this.entries.length = target
-  }
+function first(entries: ReadonlySet<DeliveryQueueEntry>): DeliveryQueueEntry | undefined {
+  const next = entries.values().next()
+  return next.done === true ? undefined : next.value
+}
+
+function sortByOrdinal(entries: Set<DeliveryQueueEntry>): void {
+  const ordered = [...entries].sort((left, right) => left.ordinal - right.ordinal)
+  entries.clear()
+  for (const entry of ordered) entries.add(entry)
+}
+
+function queueLimits(options: DeliveryQueueOptions) {
+  try {
+    const content = options.content ?? 'none'
+    if (content !== 'none' && content !== 'metadata') throw new DeliveryDataError()
+    return {
+      content,
+      maxEvents: positive(options.maxEvents ?? DELIVERY_QUEUE_DEFAULTS.maxEvents),
+      maxBytes: positive(options.maxBytes ?? DELIVERY_QUEUE_DEFAULTS.maxBytes),
+      maxBatchEvents: positive(options.maxBatchEvents ?? DELIVERY_QUEUE_DEFAULTS.maxBatchEvents),
+      maxBatchBytes: positive(options.maxBatchBytes ?? DELIVERY_QUEUE_DEFAULTS.maxBatchBytes),
+    }
+  } catch { throw new DeliveryDataError() }
 }
 
 function positive(value: number): number {

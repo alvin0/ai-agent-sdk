@@ -86,4 +86,35 @@ describe('immutable mixed event/run delivery batches', () => {
     expect(() => createDeliveryBatch(resource, { events: [], records: [{ ...record }] }, platform)).toThrow()
     expect(() => createDeliveryBatch({ ...resource }, { events: [item], records: [] }, platform)).toThrow()
   })
+
+  it('sizes a batch exactly from prepared item sizes without serializing it again', async () => {
+    const platform = createRuntimePlatform(), resource = createRuntimeResource(undefined, platform)
+    const events = [event('a', 1), { ...event('a', 2), data: { status: 'success', note: 'ünïcødé ✓' } }, event('b', 1)]
+    const records = [createRunTerminalRecord(await ledgerReport())]
+    const first = createDeliveryBatch(resource, { events, records }, platform)
+    const exact = bytes(first)
+    const stringify = vi.spyOn(JSON, 'stringify')
+    try {
+      // Prepared events and records: no item and no batch is serialized again.
+      const again = createDeliveryBatch(resource, { events: first.events, records }, platform, { maxBytes: exact })
+      expect(stringify).not.toHaveBeenCalled()
+      expect(again.events).toEqual(first.events)
+    } finally {
+      stringify.mockRestore()
+    }
+    expect(() => createDeliveryBatch(resource, { events: first.events, records }, platform,
+      { maxBytes: exact - 1 })).toThrow()
+  })
+
+  it('recounts the batch when a custom platform generates IDs of another shape', async () => {
+    const platform = createRuntimePlatform(), resource = createRuntimeResource(undefined, platform)
+    const item = event(), record = createRunTerminalRecord(await ledgerReport())
+    const exact = bytes(createDeliveryBatch(resource, { events: [item], records: [record] }, platform))
+    const longIds = { ...platform, randomHex: () => 'f'.repeat(40) }
+    expect(() => createDeliveryBatch(resource, { events: [item], records: [record] }, longIds,
+      { maxBytes: exact })).toThrow()
+    expect(() => createDeliveryBatch(resource, { events: [item], records: [record] }, longIds,
+      { maxBytes: exact + 8 })).not.toThrow()
+  })
 })
+

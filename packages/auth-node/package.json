@@ -4,7 +4,7 @@
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
   },
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Node environment credentials and project-local Codex authentication for ai-agent-sdk",
   "license": "MIT",
   "repository": {
@@ -24,6 +24,7 @@
     "./env": { "types": "./dist/env.d.mts", "import": "./dist/env.mjs", "default": "./dist/env.mjs" },
     "./codex": { "types": "./dist/codex.d.mts", "import": "./dist/codex.mjs", "default": "./dist/codex.mjs" },
     "./copilot": { "types": "./dist/copilot.d.mts", "import": "./dist/copilot.mjs", "default": "./dist/copilot.mjs" },
+    "./http2": { "types": "./dist/http2.d.mts", "import": "./dist/http2.mjs", "default": "./dist/http2.mjs" },
     "./package.json": "./package.json"
   },
   "bin": {

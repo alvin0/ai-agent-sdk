@@ -59,6 +59,32 @@ describe('runtime observation port', () => {
     resources.close()
   })
 
+  it('retains nothing without an exporter while still counting admitted events', () => {
+    const { resources, port } = fixture('operational', [], { maxEvents: 2 })
+    for (let sequence = 1; sequence <= 5; sequence++) {
+      expect(port.capture(event('no-exporter', sequence)).status).toBe('accepted')
+    }
+    expect(port.health()).toMatchObject({ state: 'healthy', queuedEvents: 0, queuedBytes: 0, accepted: 5,
+      criticalRejected: 0 })
+    expect(port.diagnostics()).toMatchObject({ retainedEvents: 5 })
+    resources.close()
+  })
+
+  it('exports a finished operational run in the background instead of holding it until close', async () => {
+    const sent: ObservationDeliveryBatch[] = [], target = registration('best-effort', batch => { sent.push(batch); return ack(batch) })
+    const { resources, port } = fixture('operational', [target])
+    port.capture(event('finished-run', 1))
+    port.capture(event('finished-run', 2))
+    expect(sent).toHaveLength(0)
+    const record = createRunTerminalRecord(await ledgerReport('finished-run'))
+    expect(await port.checkpointTerminal(record)).toMatchObject({ status: 'accepted', durable: false })
+    await vi.waitFor(() => expect(port.health().queuedEvents).toBe(0))
+    expect(sent.flatMap(batch => batch.events).map(value => value.sequence)).toEqual([1, 2])
+    expect(sent.flatMap(batch => batch.runRecords)).toEqual([record])
+    expect(port.health()).toMatchObject({ state: 'healthy', exported: 3 })
+    resources.close()
+  })
+
   it('checkpoints one reliable run through the terminal event sequence', async () => {
     const sent: ObservationDeliveryBatch[] = [], target = registration('required', batch => { sent.push(batch); return ack(batch) })
     const { resources, port } = fixture('reliable', [target])
@@ -217,7 +243,7 @@ describe('runtime observation port', () => {
     expect(degraded.port.health().state).toBe('closed')
     degraded.resources.close()
 
-    const failed = fixture('operational', [], { maxEvents: 1 })
+    const failed = fixture('operational', [registration('best-effort')], { maxEvents: 1 })
     failed.port.capture({ ...event('failed-health', 1), priority: 'critical' })
     failed.port.capture({ ...event('failed-health', 2), priority: 'critical' })
     expect(failed.port.health()).toMatchObject({ state: 'failed', criticalRejected: 1,

@@ -16,6 +16,12 @@ interface SseDecodeOwner {
   readonly displayName: string
   translate(events: AsyncIterable<SseEvent>, request: ProviderRequest): AsyncIterable<ProviderProtocolChunk>
   emitResponseLog(request: ProviderRequest, session: HttpTransportSession, frames: readonly SseEvent[]): Promise<void>
+  /**
+   * Whether anything receives the response log. When nothing does, the raw
+   * frames are not retained: holding every frame of every concurrent stream
+   * until it ends is memory spent on a record nobody reads.
+   */
+  readonly logsResponses: boolean
 }
 
 export async function* decodeProviderSse(
@@ -32,14 +38,15 @@ export async function* decodeProviderSse(
     owner.displayName,
     30_000,
   )
-  const rawFrames: SseEvent[] = []
-  const events = tapSseEvents(parseSseBounded(boundedResponseBody(
+  const rawFrames: SseEvent[] | undefined = owner.logsResponses ? [] : undefined
+  const parsed = parseSseBounded(boundedResponseBody(
     response.body, { maxBytes: maxResponseBytes, maxChunks: session.limits.maxResponseChunks },
     owner.displayName, session.signal,
   ), idleDeadline.activity, 30_000, {
     maxEvents: sse.maxEvents,
     maxEventChars: sse.maxEventChars,
-  }), rawFrames)
+  })
+  const events = rawFrames === undefined ? parsed : tapSseEvents(parsed, rawFrames)
   const translated = requireTerminalFinish(owner.translate(events, request), owner.displayName)
   try {
     for await (const chunk of idleDeadline.guard(translated)) {
@@ -48,7 +55,7 @@ export async function* decodeProviderSse(
   } finally {
     // Fired after the consumer has already seen everything real; a slow or
     // failing sink here can no longer delay or break the call it describes.
-    void owner.emitResponseLog(request, session, rawFrames)
+    if (rawFrames !== undefined) void owner.emitResponseLog(request, session, rawFrames)
   }
 }
 

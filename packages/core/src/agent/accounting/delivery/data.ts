@@ -1,6 +1,7 @@
 import { COMPOSITION_LIMITS } from '../../../capability/common/config.ts'
 import { boundedText, objectValue, ownData } from '../../../capability/common/data.ts'
 import { DELIVERY_ERROR_CODES } from './config.ts'
+import { utf8ByteLength } from '../../../primitives/utf8.ts'
 
 export class DeliveryDataError extends Error {
   readonly code = DELIVERY_ERROR_CODES.DATA_INVALID
@@ -53,6 +54,8 @@ export function numericFields<const Key extends string>(
   return Object.freeze(Object.fromEntries(entries)) as Readonly<Record<Key, number>>
 }
 
+/** Serialized UTF-8 size, counted without encoding: this runs for every admitted event. */
 export function bytes(value: unknown): number {
-  return new TextEncoder().encode(JSON.stringify(value)).byteLength
+  const serialized = JSON.stringify(value) as string | undefined
+  return serialized === undefined ? 0 : utf8ByteLength(serialized)
 }

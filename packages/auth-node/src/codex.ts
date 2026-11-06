@@ -16,7 +16,8 @@ import {
   type CodexCredentialStore,
   type CodexProviderOptions,
 } from '@alvin0/ai-agent-sdk-provider-codex'
-import { fileCodexAuthStore, fileCodexCredentialStore } from './codex-store.ts'
+import { codexAccountAuthPath, fileCodexAuthStore, fileCodexCredentialStore } from './codex-store.ts'
+import { withDefaultNodeFetch } from './http2/default.ts'
 
 export { CODEX_BASE_URL, CODEX_CLIENT_VERSION, CODEX_ORIGINATOR }
 
@@ -34,7 +35,7 @@ export function codexNodeAdapter(
   options: CodexNodeAdapterOptions = {},
 ): ReturnType<typeof universalCodexAdapter> {
   return universalCodexAdapter({
-    ...options,
+    ...withDefaultNodeFetch(options),
     authStore: options.authStore ?? fileCodexAuthStore(),
   })
 }
@@ -51,15 +52,26 @@ export function codexNodePlugin(options: CodexNodePluginOptions = {}): ModelProv
 
 export interface CodexNodeProviderOptions extends Omit<CodexProviderOptions, 'authStore'> {
   readonly authStore?: CodexCredentialStore
+  /**
+   * Use the named account's project-local credentials
+   * (`.providers/.codex/accounts/<name>.json`, from `--account <name>` at login)
+   * instead of the default file. Ignored when `authStore` is given.
+   */
+  readonly account?: string
 }
 
-/** Preferred Node composition plugin backed by revision-safe file credentials by default. */
+/**
+ * Preferred Node composition plugin backed by revision-safe file credentials by default.
+ * Without a caller `fetch`, requests multiplex over the shared HTTP/2 transport
+ * (unless a proxy is configured in the environment).
+ */
 export function codexNodeProviderPlugin(
   options: CodexNodeProviderOptions = {},
 ): ComposableModelProviderPlugin & { readonly family: 'codex' } {
   return universalCodexPlugin({
-    ...options,
-    authStore: options.authStore ?? fileCodexCredentialStore(),
+    ...withDefaultNodeFetch(options),
+    authStore: options.authStore
+      ?? fileCodexCredentialStore(options.account === undefined ? undefined : codexAccountAuthPath(options.account)),
   })
 }
 
@@ -87,6 +99,13 @@ export {
   requireTokens,
   resolveAccountId,
   runDeviceCodeLogin,
+  CODEX_BROWSER_CALLBACK_PATH,
+  CODEX_BROWSER_CALLBACK_PORT,
+  createBrowserAuthorization,
+  completeBrowserLogin,
+  type CodexBrowserAuthorization,
+  type CodexBrowserAuthorizationOptions,
+  type CodexBrowserCallback,
   shouldRefresh,
   type CodexAuthFile,
   type CodexAuthStore,
@@ -99,9 +118,11 @@ export {
   type CodexTokens,
   type RefreshFailureKind,
 } from '@alvin0/ai-agent-sdk-provider-codex'
+export { runBrowserLogin, type CodexBrowserLoginOptions, type CodexBrowserLoginProgress } from './codex-browser.ts'
 export {
   CODEX_AUTH_PATH_ENV,
   DEFAULT_CODEX_AUTH_PATH,
+  codexAccountAuthPath,
   fileCodexAuthStore,
   fileCodexCredentialStore,
   resolveCodexAuthPath,

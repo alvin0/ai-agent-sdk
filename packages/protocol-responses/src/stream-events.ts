@@ -1,7 +1,7 @@
 import type { WireOutputItem } from './wire.ts'
 import type { ItemKind } from './stream-items.ts'
 import { MODEL_ERROR_CODES, ModelError } from '@alvin0/ai-agent-sdk-core'
-import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { TextAccumulator, ToolCallId } from '@alvin0/ai-agent-sdk-core'
 import type { ImageMediaType } from '@alvin0/ai-agent-sdk-core'
 import type { FinishReason } from '@alvin0/ai-agent-sdk-core'
 import type { ProtocolStreamChunk } from './contract.ts'
@@ -46,7 +46,7 @@ function* itemAdded(state: StreamState, event: WireStreamEvent): Generator<Proto
 function* textDelta(state: StreamState, event: WireStreamEvent): Generator<ProtocolStreamChunk> {
   const entry = event.item_id === undefined ? undefined : state.open.get(event.item_id)
   if (entry === undefined || event.delta === undefined) return
-  entry.text += event.delta
+  entry.text.append(event.delta)
   yield {
     type: 'text-delta', index: entry.index, text: event.delta,
     ...entry.phase === undefined ? {} : { phase: entry.phase },
@@ -65,7 +65,7 @@ function* summaryDelta(state: StreamState, event: WireStreamEvent): Generator<Pr
     : ''
   entry.summaryIndex = event.summary_index
   const text = `${separator}${event.delta}`
-  entry.text += text
+  entry.text.append(text)
   entry.reasoningKind = mergeKind(entry.reasoningKind, 'summary')
   yield { type: 'reasoning-delta', index: entry.index, text, kind: 'summary' }
 }
@@ -73,7 +73,7 @@ function* summaryDelta(state: StreamState, event: WireStreamEvent): Generator<Pr
 function* reasoningDelta(state: StreamState, event: WireStreamEvent): Generator<ProtocolStreamChunk> {
   const entry = event.item_id === undefined ? undefined : state.open.get(event.item_id)
   if (entry === undefined || event.delta === undefined) return
-  entry.text += event.delta
+  entry.text.append(event.delta)
   entry.reasoningKind = mergeKind(entry.reasoningKind, 'content')
   yield { type: 'reasoning-delta', index: entry.index, text: event.delta, kind: 'content' }
 }
@@ -85,7 +85,7 @@ function mergeKind(current: OpenItem['reasoningKind'], next: 'summary' | 'conten
 function* toolDelta(state: StreamState, event: WireStreamEvent): Generator<ProtocolStreamChunk> {
   const entry = event.item_id === undefined ? undefined : state.open.get(event.item_id)
   if (entry === undefined || event.delta === undefined) return
-  entry.args += event.delta
+  entry.args.append(event.delta)
   yield {
     type: 'tool-call-delta',
     index: entry.index,
@@ -183,8 +183,8 @@ function createOpenItem(
   return {
     index: state.nextIndex++,
     kind,
-    text: '',
-    args: '',
+    text: new TextAccumulator(),
+    args: new TextAccumulator(),
     callId: item.call_id ?? id,
     name: item.name ?? '',
     nativeName: nativeName(item.type),

@@ -8,3 +8,12 @@ export {
   type StreamMiddleware,
 } from './registry.ts'
 export { withRetry, type RetryAttempt, type WithRetryOptions } from './with-retry.ts'
+export {
+  FAILOVER_POLICY,
+  defaultFailoverCooldownMs,
+  defaultShouldFailover,
+  withFailover,
+  type FailoverEvent,
+  type FailoverMember,
+  type WithFailoverOptions,
+} from './with-failover.ts'

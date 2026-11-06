@@ -1,4 +1,5 @@
 import { decodeProviderSse } from './sse-decode.ts'
+import { isResponseLogUnread } from './response-log.ts'
 import {
   resolveSseLimits,
   type HttpConnection,
@@ -348,6 +349,9 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       get displayName() { return adapter.displayName },
       translate: (events, request) => this.translate(events, request),
       emitResponseLog: (request, session, frames) => this.emitResponseLog(request, session, frames),
+      // Only an override can read the record, and an override may forward to an unset sink.
+      logsResponses: this.observeResponse !== HttpModelAdapter.prototype.observeResponse
+        && !isResponseLogUnread(this),
     })
   }
 

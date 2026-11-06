@@ -2,7 +2,7 @@ import {
   CONTEXT_WINDOW_EXCEEDED_CODE, MODEL_ERROR_CODES, ModelError, QUOTA_EXCEEDED_CODE,
   isContextWindowExceededError, isQuotaExceededError,
 } from '@alvin0/ai-agent-sdk-core'
-import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { TextAccumulator, ToolCallId } from '@alvin0/ai-agent-sdk-core'
 import type { ProtocolStreamChunk } from './contract.ts'
 import type { WireStopReason, WireStreamEvent } from './wire.ts'
 import { blockKind, closedBlock, citationAnnotation, type OpenBlock } from './stream-blocks.ts'
@@ -50,8 +50,8 @@ function* contentStart(
   const block = event.content_block
   const entry: OpenBlock = {
     kind,
-    text: initialText(block),
-    args: '',
+    text: new TextAccumulator(initialText(block)),
+    args: new TextAccumulator(),
     callId: block.type === 'tool_use' ? block.id : `block-${event.index}`,
     name: block.type === 'tool_use' || block.type === 'server_tool_use' ? block.name : '',
     signature: block.type === 'thinking' ? block.signature : undefined,
@@ -61,10 +61,7 @@ function* contentStart(
     nativeResult: undefined,
     closed: false,
   }
-  if (block.type === 'server_tool_use') {
-    entry.callId = block.id
-    entry.args = ''
-  }
+  if (block.type === 'server_tool_use') entry.callId = block.id
   state.open.set(event.index, entry)
   state.emittedBlocks += 1
   yield { type: 'block-start', index: event.index, blockType: kind }
@@ -78,11 +75,11 @@ function* contentDelta(
   const delta = event.delta
   switch (delta.type) {
     case 'text_delta':
-      entry.text += delta.text
+      entry.text.append(delta.text)
       yield { type: 'text-delta', index: event.index, text: delta.text }
       return
     case 'thinking_delta':
-      entry.text += delta.thinking
+      entry.text.append(delta.thinking)
       yield { type: 'reasoning-delta', index: event.index, text: delta.thinking }
       return
     case 'signature_delta':
@@ -92,7 +89,7 @@ function* contentDelta(
       entry.signature = delta.signature
       return
     case 'input_json_delta':
-      entry.args += delta.partial_json
+      entry.args.append(delta.partial_json)
       if (entry.kind === 'tool-call') {
         yield {
           type: 'tool-call-delta',

@@ -5,6 +5,9 @@ export {
 export { defineEmbeddingProviderPlugin } from './composition/embedding/definition.ts'
 export { EMBEDDING_PROVIDER_PLUGIN_API_VERSION } from './composition/embedding/plugin-types.ts'
 export { defineModelProviderPlugin } from './composition/provider/definition.ts'
+export {
+  failoverProviderPlugin, type FailoverProviderMember, type FailoverProviderOptions,
+} from './composition/provider/failover.ts'
 export { PROVIDER_PLUGIN_API_VERSION } from './composition/provider/types.ts'
 export type {
   CredentialCommitInput, CredentialCommitResult, CredentialInput, CredentialOperationOptions,

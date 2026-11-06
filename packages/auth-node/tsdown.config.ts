@@ -8,6 +8,7 @@ export default libraryBuild({
     cli: 'src/cli.ts',
     copilot: 'src/copilot.ts',
     'copilot-cli': 'src/copilot-cli.ts',
+    http2: 'src/http2.ts',
   },
   runtime: 'node',
 })

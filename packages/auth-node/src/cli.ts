@@ -1,8 +1,10 @@
 import { openBrowser } from './common/browser.ts'
 /**
- * `npm run provider:codex:login-device`
+ * `npm run provider:codex:login-device` / `npm run provider:codex:login-browser`
  *
- * Signs in to Codex with the OAuth device-code flow and stores the tokens in this
+ * Signs in to Codex with the OAuth device-code flow (default) or, with
+ * `--browser`, straight through the browser with a loopback callback on
+ * `localhost:1455` (no device authorization needed), and stores the tokens in this
  * PROJECT, at `.providers/.codex/auth.json`, rather than touching the Codex CLI's
  * own `~/.codex/auth.json`.
  *
@@ -13,18 +15,25 @@ import { openBrowser } from './common/browser.ts'
  * cause that.
  *
  * Flags:
+ *   --browser        sign in through the browser instead of with a device code
+ *   --port <n>       loopback port for --browser (default 1455)
  *   --force          sign in again even if valid credentials already exist
  *   --status         report the current credential state and exit
+ *   --account <name> sign in a named extra account (`.providers/.codex/accounts/<name>.json`),
+ *                    e.g. a backup for `failoverProviderPlugin`
  *   --path <file>    write somewhere other than the default
  *   --issuer <url>   use a non-production auth issuer
  */
 
 import {
+  codexAccountAuthPath,
   fileCodexAuthStore,
   readJwtClaims,
   resolveCodexAuthPath,
+  runBrowserLogin,
   runDeviceCodeLogin,
   shouldRefresh,
+  type CodexLoginResult,
   type CodexDeviceCode,
   type CodexAuthFile,
 } from './codex.ts'
@@ -35,6 +44,8 @@ const BOLD = '\u001B[1m'
 const RESET = '\u001B[0m'
 
 interface Flags {
+  browser: boolean
+  port: number | undefined
   force: boolean
   status: boolean
   path: string | undefined
@@ -42,21 +53,47 @@ interface Flags {
 }
 
 function parseFlags(argv: readonly string[]): Flags {
-  const flags: Flags = { force: false, status: false, path: undefined, issuer: undefined }
+  const flags: Flags = { browser: false, port: undefined, force: false, status: false, path: undefined,
+    issuer: undefined }
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index]
     switch (arg) {
+      case '--browser': flags.browser = true; break
       case '--force': flags.force = true; break
       case '--status': flags.status = true; break
-      case '--path': flags.path = argv[++index]; break
-      case '--issuer': flags.issuer = argv[++index]; break
       default:
-        if (arg !== undefined && arg.startsWith('-')) {
-          throw new Error(`unknown flag "${arg}"`)
-        }
+        if (arg !== undefined && VALUE_FLAGS.has(arg)) setValueFlag(flags, arg, argv[++index])
+        else if (arg !== undefined && arg.startsWith('-')) throw new Error(`unknown flag "${arg}"`)
     }
   }
   return flags
+}
+
+const VALUE_FLAGS = new Set(['--port', '--path', '--account', '--issuer'])
+
+function setValueFlag(flags: Flags, arg: string, value: string | undefined): void {
+  // A missing value must not silently fall back to a default, nor swallow the next flag as its value.
+  if (value === undefined || value === '' || value.startsWith('--')) throw new Error(`${arg} requires a value`)
+  switch (arg) {
+    case '--port': flags.port = parsePort(value); break
+    case '--path': flags.path = value; break
+    case '--account': flags.path = codexAccountAuthPath(value); break
+    default: flags.issuer = value
+  }
+}
+
+function parsePort(value: string | undefined): number {
+  const port = Number(value)
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error(`invalid --port "${value ?? ''}"`)
+  return port
+}
+
+function renderBrowserPrompt(url: string): void {
+  process.stdout.write(
+    `\n${BOLD}Sign in to Codex${RESET} ${GRAY}(browser)${RESET}\n`
+    + `\n  Opening your browser. If it does not open, visit:\n     ${BLUE}${url}${RESET}\n`
+    + `\n${GRAY}  waiting for the browser to return to localhost… (Ctrl-C to cancel)${RESET}\n`,
+  )
 }
 
 function renderPrompt(code: CodexDeviceCode): void {
@@ -100,35 +137,48 @@ async function signIn(flags: Flags, store: ReturnType<typeof fileCodexAuthStore>
   }
   process.once('SIGINT', onSigint)
 
-  let lastReport = 0
   try {
-    const result = await runDeviceCodeLogin(
-      store,
-      { signal: cancel.signal, ...flags.issuer === undefined ? {} : { issuer: flags.issuer } },
-      {
-        onPrompt: (code) => {
-          renderPrompt(code)
-          void openBrowser(code.verificationUrl)
+    const options = { signal: cancel.signal, ...flags.issuer === undefined ? {} : { issuer: flags.issuer } }
+    const result = flags.browser
+      ? await runBrowserLogin(store, { ...options, ...flags.port === undefined ? {} : { port: flags.port } }, {
+        onPrompt: ({ url }) => {
+          renderBrowserPrompt(url)
+          void openBrowser(url)
         },
-        onPoll: (elapsedMs) => {
-          // Throttle to one line per 15s so a long wait does not spam the log.
-          if (elapsedMs - lastReport < 15_000 && elapsedMs !== 0) return
-          lastReport = elapsedMs
-          process.stdout.write(`${GRAY}  waiting for approval… ${Math.round(elapsedMs / 1000)}s${RESET}\n`)
-        },
-      },
-    )
-    process.stdout.write(
-      `\n${BOLD}codex: signed in${RESET}\n`
-      + `  account : ${result.accountId ?? '<none>'}\n`
-      + `  email   : ${result.email ?? '<undisclosed>'}\n`
-      + `  plan    : ${result.planType ?? '<undisclosed>'}\n`
-      + `  stored  : ${result.location} ${GRAY}(git-ignored)${RESET}\n`,
-    )
+      })
+      : await deviceLogin(store, options)
+    renderSignedIn(result)
     return 0
   } finally {
     process.removeListener('SIGINT', onSigint)
   }
+}
+
+function renderSignedIn(result: CodexLoginResult): void {
+  process.stdout.write(
+    `\n${BOLD}codex: signed in${RESET}\n`
+    + `  account : ${result.accountId ?? '<none>'}\n`
+    + `  email   : ${result.email ?? '<undisclosed>'}\n`
+    + `  plan    : ${result.planType ?? '<undisclosed>'}\n`
+    + `  stored  : ${result.location} ${GRAY}(git-ignored)${RESET}\n`,
+  )
+}
+
+async function deviceLogin(store: ReturnType<typeof fileCodexAuthStore>,
+  options: { signal: AbortSignal; issuer?: string }): Promise<CodexLoginResult> {
+  let lastReport = 0
+  return await runDeviceCodeLogin(store, options, {
+    onPrompt: (code) => {
+      renderPrompt(code)
+      void openBrowser(code.verificationUrl)
+    },
+    onPoll: (elapsedMs) => {
+      // Throttle to one line per 15s so a long wait does not spam the log.
+      if (elapsedMs - lastReport < 15_000 && elapsedMs !== 0) return
+      lastReport = elapsedMs
+      process.stdout.write(`${GRAY}  waiting for approval… ${Math.round(elapsedMs / 1000)}s${RESET}\n`)
+    },
+  })
 }
 
 function reportExistingSignIn(flags: Flags, existing: CodexAuthFile | undefined, location: string): boolean {

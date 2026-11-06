@@ -1,4 +1,4 @@
-import { ToolCallId } from '@alvin0/ai-agent-sdk-core'
+import { ToolCallId, type TextAccumulator } from '@alvin0/ai-agent-sdk-core'
 import { isJsonValue } from '@alvin0/ai-agent-sdk-core'
 import type {
   AssistantTextPhase, ContentBlock, ImageMediaType, ReasoningKind, TextAnnotation,
@@ -12,8 +12,8 @@ export type ItemKind = 'text' | 'reasoning' | 'tool-call' | 'native-tool-call'
 export interface OpenItem {
   readonly index: number
   readonly kind: ItemKind
-  text: string
-  args: string
+  text: TextAccumulator
+  args: TextAccumulator
   callId: string
   name: string
   nativeName: string
@@ -112,7 +112,7 @@ function doneText(item: WireOutputItem, open: OpenItem): ContentBlock {
   const phase = textPhase(item.phase) ?? open.phase
   return {
     type: 'text',
-    text: text.length > 0 ? text : open.text,
+    text: text.length > 0 ? text : open.text.text,
     ...phase === undefined ? {} : { phase },
     ...textAnnotations(item).length === 0 ? {} : { annotations: textAnnotations(item) },
   }
@@ -131,7 +131,7 @@ function doneReasoning(item: WireOutputItem, open: OpenItem): ContentBlock {
   const kind = summary.length > 0 ? 'summary' : streamed
   return {
     type: 'reasoning',
-    text: summary.length > 0 ? summary.join('\n\n') : open.text,
+    text: summary.length > 0 ? summary.join('\n\n') : open.text.text,
     ...kind === undefined ? {} : { kind },
     providerState: state,
   }
@@ -140,7 +140,7 @@ function doneReasoning(item: WireOutputItem, open: OpenItem): ContentBlock {
 function doneTool(item: WireOutputItem, open: OpenItem): ContentBlock {
   const args = typeof item.arguments === 'string' && item.arguments.length > 0
     ? item.arguments
-    : open.args
+    : open.args.text
   return {
     type: 'tool-call',
     id: ToolCallId(item.call_id ?? open.callId),

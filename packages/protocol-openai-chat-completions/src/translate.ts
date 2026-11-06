@@ -29,7 +29,7 @@
  * @module ai-agent-sdk/protocols/openai-chat-completions/translate
  */
 
-import { MODEL_ERROR_CODES, ModelError, ToolCallId  } from '@alvin0/ai-agent-sdk-core'
+import { MODEL_ERROR_CODES, ModelError, TextAccumulator, ToolCallId  } from '@alvin0/ai-agent-sdk-core'
 import type { UsageCounters  } from '@alvin0/ai-agent-sdk-core'
 import type { ProtocolSseEvent, ProtocolStreamChunk  } from './contract.ts'
 import type {
@@ -71,10 +71,10 @@ function* reasoningDelta(state: StreamState, delta: WireStreamChoice['delta']): 
   const text = delta?.reasoning_content
   if (typeof text !== 'string' || text.length === 0) return
   if (state.reasoning === undefined) {
-    state.reasoning = { index: state.nextIndex++, text: '' }
+    state.reasoning = { index: state.nextIndex++, content: new TextAccumulator() }
     yield { type: 'block-start', index: state.reasoning.index, blockType: 'reasoning' }
   }
-  state.reasoning.text += text
+  state.reasoning.content.append(text)
   yield { type: 'reasoning-delta', index: state.reasoning.index, text, kind: 'content' }
 }
 
@@ -82,10 +82,10 @@ function* textDelta(state: StreamState, delta: WireStreamChoice['delta']): Gener
   const content = contentOf(delta)
   if (content === undefined) return
   if (state.text === undefined) {
-    state.text = { index: state.nextIndex++, text: '' }
+    state.text = { index: state.nextIndex++, content: new TextAccumulator() }
     yield { type: 'block-start', index: state.text.index, blockType: 'text' }
   }
-  state.text.text += content
+  state.text.content.append(content)
   yield { type: 'text-delta', index: state.text.index, text: content }
 }
 
@@ -102,10 +102,10 @@ function* closeBlocks(state: StreamState, reason: WireFinishReason, displayName:
   state.finish = reason
   if (state.reasoning !== undefined) {
     yield { type: 'block-end', index: state.reasoning.index,
-      block: { type: 'reasoning', text: state.reasoning.text, kind: 'content' } }
+      block: { type: 'reasoning', text: state.reasoning.content.text, kind: 'content' } }
   }
   if (state.text !== undefined) {
-    yield { type: 'block-end', index: state.text.index, block: { type: 'text', text: state.text.text } }
+    yield { type: 'block-end', index: state.text.index, block: { type: 'text', text: state.text.content.text } }
   }
   if (releasesToolCalls(reason)) {
     for (const call of toolCallBlocks(state.toolCalls, displayName)) {

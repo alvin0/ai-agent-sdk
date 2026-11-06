@@ -132,16 +132,19 @@ export async function pollForAuthorization(
  *
  * Form-encoded, not JSON — the token endpoint differs from the device-auth
  * endpoints in this respect, and sending JSON here fails.
+ * @param redirectUri - the redirect URI the code was issued for; defaults to the device flow's.
  */
 export async function exchangeCodeForTokens(
   grant: AuthorizationGrant,
   options: CodexOAuthOptions,
+  redirectUri?: string,
 ): Promise<CodexTokens> {
   const issuer = issuerOf(options)
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     code: grant.authorizationCode,
-    redirect_uri: `${issuer}/deviceauth/callback`,
+    // The device flow's grant is bound to the issuer's own callback; a browser login repeats its redirect URI.
+    redirect_uri: redirectUri ?? `${issuer}/deviceauth/callback`,
     client_id: clientIdOf(options),
     code_verifier: grant.codeVerifier,
   })

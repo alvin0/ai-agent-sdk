@@ -212,6 +212,30 @@ describe('Copilot catalog fixtures', () => {
     expect(generation[4]?.model).toEqual({ id: 'claude-sonnet-4' })
   })
 
+  it('reads the endpoint from top-level supported_endpoints when supports.responses is absent', () => {
+    const entry = (id: string, supported_endpoints: unknown, supports: Record<string, unknown> = {}) =>
+      ({ id, capabilities: { type: 'chat', supports }, supported_endpoints })
+    const snapshot = partitionCopilotCatalog({
+      data: [
+        entry('gpt-6-luna', ['/responses', 'ws:/responses']),
+        entry('gemini-4-argon', ['/chat/completions']),
+        entry('both', ['/chat/completions', '/responses']),
+        entry('claude-sonnet-5.5', ['/v1/messages']),
+        entry('odd', '/responses'),
+        // An explicit `supports.responses` flag still wins over the list.
+        entry('flagged', ['/responses'], { responses: false }),
+      ],
+    }, 8)
+    expect(snapshot.generation.map(model => [model.model.id, model.declaredEndpoint])).toEqual([
+      ['gpt-6-luna', 'responses'],
+      ['gemini-4-argon', 'chat-completions'],
+      ['both', 'responses'],
+      ['claude-sonnet-5.5', undefined],
+      ['odd', undefined],
+      ['flagged', 'chat-completions'],
+    ])
+  })
+
   it('partitions models-mixed-types.json into two chat and two embedding models', async () => {
     const { snapshot } = await discoverFixture('models-mixed-types.json')
     expect(snapshot?.generation.map(entry => entry.model.id)).toEqual(['gpt-4o', 'o3-mini'])

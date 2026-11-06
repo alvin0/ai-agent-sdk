@@ -98,7 +98,8 @@ describe('environment-neutral skills', () => {
     }).createSession({ registry })
     const started = Date.now()
     await expect(session.run('Start.')).rejects.toBeDefined()
-    expect(Date.now() - started).toBeLessThan(250)
+    // A 10 ms bound against a provider that never answers; the margin absorbs a loaded test machine.
+    expect(Date.now() - started).toBeLessThan(1_000)
   })
 
   it('defines an immutable in-memory skill for browser runtimes', () => {

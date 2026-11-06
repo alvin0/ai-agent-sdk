@@ -4,7 +4,7 @@
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
   },
-  "version": "0.1.15",
+  "version": "0.1.16",
   "private": true,
   "packageManager": "pnpm@11.25.0",
   "description": "Private workspace orchestration for ai-agent-sdk packages",
@@ -68,6 +68,7 @@
     "test:budget-live": "node --env-file=.env node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/budget-edge-recovery-live.spec.ts",
     "test:decision-live": "node --env-file=.env node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/decision-accounting-live.spec.ts",
     "provider:codex:login-device": "pnpm --filter @alvin0/ai-agent-sdk-auth-node build --silent && node packages/auth-node/bin/ai-agent-sdk-codex-login.mjs",
+    "provider:codex:login-browser": "pnpm --filter @alvin0/ai-agent-sdk-auth-node build --silent && node packages/auth-node/bin/ai-agent-sdk-codex-login.mjs --browser",
     "provider:codex:status": "pnpm --filter @alvin0/ai-agent-sdk-auth-node build --silent && node packages/auth-node/bin/ai-agent-sdk-codex-login.mjs --status",
     "provider:copilot:login-device": "pnpm --filter @alvin0/ai-agent-sdk-auth-node build --silent && node packages/auth-node/bin/ai-agent-sdk-copilot-login.mjs",
     "provider:copilot:status": "pnpm --filter @alvin0/ai-agent-sdk-auth-node build --silent && node packages/auth-node/bin/ai-agent-sdk-copilot-login.mjs --status",

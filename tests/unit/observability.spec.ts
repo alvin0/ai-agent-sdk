@@ -18,6 +18,7 @@ import {
   projectLog,
   projectMetrics,
   projectTrace,
+  type ObservationBatch,
   type ObservationExporter,
 } from '@alvin0/ai-agent-sdk-core/observability'
 
@@ -228,7 +229,9 @@ describe('Universal observation bus', () => {
   })
 
   it('evicts verbose then normal events and never evicts critical events', () => {
-    const observation = createObservability({ maxQueueEvents: 2, maxQueueBytes: 1_000_000 })
+    // Only a bus with an exporter retains a queue for capacity to act on.
+    const observation = createObservability({ maxQueueEvents: 2, maxQueueBytes: 1_000_000,
+      exporters: [{ exporter: new MemoryObservationExporter(), requirement: 'best-effort', boundary: 'none' }] })
     observation.capture(event(1, 'verbose'))
     observation.capture(event(2, 'normal'))
     observation.capture(event(3, 'critical'))
@@ -398,6 +401,219 @@ describe('Universal observation bus', () => {
     expect(serialized).not.toContain('sensitive-tool')
     expect(serialized).not.toContain('private.invalid')
     expect(serialized).not.toContain(terminal.correlation.traceId)
+  })
+
+  it('retains nothing without an exporter while counting every accepted event', () => {
+    const observation = createObservability({ maxQueueEvents: 2 })
+    for (let sequence = 1; sequence <= 5; sequence++) {
+      expect(observation.capture(event(sequence, 'critical'))).toMatchObject({ status: 'accepted' })
+    }
+    expect(observation.health()).toMatchObject({ state: 'healthy', queuedEvents: 0, queuedBytes: 0,
+      accepted: 5, criticalRejected: 0 })
+  })
+
+  it('exports a full batch in the background without an explicit flush', async () => {
+    const memory = new MemoryObservationExporter()
+    const observation = createObservability({ maxBatchEvents: 2,
+      exporters: [{ exporter: memory, requirement: 'best-effort', boundary: 'none' }] })
+    observation.capture(event(1))
+    await Promise.resolve()
+    expect(memory.events()).toHaveLength(0)
+    observation.capture(event(2))
+    observation.capture(event(3))
+    await vi.waitFor(() => expect(observation.health().queuedEvents).toBe(0))
+    expect(memory.batches().map(batch => batch.events.length)).toEqual([2, 1])
+    expect(observation.health()).toMatchObject({ state: 'healthy', exported: 3 })
+  })
+
+  it('backs off background export after a failed attempt instead of retrying per capture', async () => {
+    const exportBatch = vi.fn(async () => { throw new Error('PRIVATE_EXPORT/BODY~SENTINEL%') })
+    const exporter: ObservationExporter = { id: 'failing', supportedBoundaries: ['none'], export: exportBatch }
+    const observation = createObservability({ maxBatchEvents: 1,
+      exporters: [{ exporter, requirement: 'best-effort', boundary: 'none' }] })
+    observation.capture(event(1))
+    await vi.waitFor(() => expect(exportBatch).toHaveBeenCalledOnce())
+    await new Promise(resolve => setTimeout(resolve, 20))
+    // A background attempt is tentative: the event stays queued and health is untouched.
+    expect(observation.health()).toMatchObject({ state: 'healthy', queuedEvents: 1, exporterFailures: 0 })
+    for (let sequence = 2; sequence <= 20; sequence++) observation.capture(event(sequence))
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(exportBatch).toHaveBeenCalledOnce()
+    expect(observation.health()).toMatchObject({ queuedEvents: 20, exporterFailures: 0 })
+    // An explicit flush records the failure and settles the best-effort events.
+    await observation.flush()
+    expect(exportBatch).toHaveBeenCalledTimes(2)
+    expect(observation.health()).toMatchObject({ state: 'degraded', exporterFailures: 1 })
+  })
+
+  it('delivers events a background attempt failed once a best-effort sink recovers', async () => {
+    let down = true
+    const memory = new MemoryObservationExporter()
+    const exporter: ObservationExporter = {
+      id: 'flaky', supportedBoundaries: ['none'],
+      export: async (batch, signal) => {
+        if (down) throw new Error('PRIVATE_EXPORT/BODY~SENTINEL%')
+        return await memory.export(batch, signal)
+      },
+    }
+    const observation = createObservability({ maxBatchEvents: 1,
+      exporters: [{ exporter, requirement: 'best-effort', boundary: 'none' }] })
+    observation.capture(event(1))
+    await new Promise(resolve => setTimeout(resolve, 20))
+    down = false
+    await new Promise(resolve => setTimeout(resolve, 300))
+    observation.capture(event(2))
+    await vi.waitFor(() => expect(observation.health().queuedEvents).toBe(0))
+    expect(memory.events().map(value => value.sequence)).toEqual([1, 2])
+    expect(observation.health()).toMatchObject({ state: 'healthy', exported: 2, exporterFailures: 0 })
+  })
+
+  it('paces a down exporter on its own, sheds its events only under queue pressure, and drains them once it is back',
+    async () => {
+    const memory = new MemoryObservationExporter()
+    const recovered: number[] = []
+    let up = false
+    const down = vi.fn(async (batch: ObservationBatch) => {
+      if (!up) throw new Error('PRIVATE_EXPORT/BODY~SENTINEL%')
+      recovered.push(...batch.events.map(value => value.sequence))
+      return { batchId: batch.batchId, accepted: true, retryable: false }
+    })
+    // Pressure starts at half of 40 queued events.
+    const observation = createObservability({ maxBatchEvents: 1, maxQueueEvents: 40, exporters: [
+      { exporter: memory, requirement: 'best-effort', boundary: 'none' },
+      { exporter: { id: 'down', supportedBoundaries: ['none'], export: down }, requirement: 'best-effort', boundary: 'none' },
+    ] })
+    const sequences = () => memory.events().map(value => value.sequence)
+    for (let sequence = 1; sequence <= 6; sequence++) observation.capture(event(sequence))
+    // The healthy exporter does not wait out the down one's pause (250 ms).
+    await vi.waitFor(() => expect(sequences()).toEqual([1, 2, 3, 4, 5, 6]), { timeout: 200 })
+    expect(down).toHaveBeenCalledTimes(1)
+    // A first failure is tentative: its events stay queued for it and nothing is reported.
+    expect(observation.health()).toMatchObject({ state: 'healthy', exporterFailures: 0, queuedEvents: 6 })
+    await new Promise(resolve => setTimeout(resolve, 300))
+    observation.capture(event(7))
+    await vi.waitFor(() => expect(down).toHaveBeenCalledTimes(2))
+    expect(observation.health()).toMatchObject({ state: 'healthy', exporterFailures: 0 })
+    // The third consecutive failure counts: it is recorded, and the exporter is down.
+    await new Promise(resolve => setTimeout(resolve, 550))
+    observation.capture(event(8))
+    await vi.waitFor(() => expect(down).toHaveBeenCalledTimes(3))
+    expect(observation.health()).toMatchObject({ state: 'degraded', exporterFailures: 1 })
+    // While it is paused and down it is not called; below the pressure its events stay queued for it.
+    for (let sequence = 9; sequence <= 12; sequence++) observation.capture(event(sequence))
+    // (The recorded failure also emits a protected failure event, which the healthy exporter receives too.)
+    await vi.waitFor(() => expect(sequences()).toEqual(expect.arrayContaining([7, 8, 9, 10, 11, 12])))
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(observation.health().queuedEvents).toBeGreaterThanOrEqual(12)
+    // Above it, its share is settled as failed instead of filling the queue, still without calling it.
+    for (let sequence = 13; sequence <= 30; sequence++) observation.capture(event(sequence))
+    await vi.waitFor(() => expect(sequences()).toEqual(expect.arrayContaining([30])))
+    await vi.waitFor(() => expect(observation.health().queuedEvents).toBeLessThan(20))
+    expect(down).toHaveBeenCalledTimes(3)
+    // Once its pause (1 s after the third failure) ends, the probe succeeds and the kept events drain.
+    up = true
+    await new Promise(resolve => setTimeout(resolve, 1_050))
+    observation.capture(event(31))
+    await vi.waitFor(() => expect(observation.health().queuedEvents).toBe(0))
+    expect(recovered).toEqual(expect.arrayContaining([30, 31]))
+    await observation.shutdown()
+  }, 8_000)
+
+  it('does not call or charge an exporter whose turn comes after a hanging one used up the step deadline',
+    async () => {
+    const hang: ObservationExporter = {
+      id: 'hang', supportedBoundaries: ['none'],
+      export: async (_batch, signal) => await new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => { reject(signal.reason) }, { once: true })
+      }),
+    }
+    const memory = new MemoryObservationExporter()
+    const good = vi.fn(memory.export.bind(memory))
+    const observation = createObservability({ maxBatchEvents: 1, maxQueueEvents: 10, flushTimeoutMs: 30,
+      shutdownTimeoutMs: 50, exporters: [
+      { exporter: hang, requirement: 'best-effort', boundary: 'none' },
+      { exporter: { id: 'healthy-after-hang', supportedBoundaries: ['none'], export: good }, requirement: 'best-effort', boundary: 'none' },
+    ] })
+    for (let sequence = 1; sequence <= 4; sequence++) {
+      observation.capture(event(sequence))
+      await new Promise(resolve => setTimeout(resolve, sequence === 1 ? 100 : sequence === 2 ? 300 : 600))
+    }
+    // Every event reaches the healthy exporter exactly once, and no failure is charged to it.
+    // (The hanging exporter's recorded failure also emits a bus event, under its own sequence.)
+    const delivered = memory.events().filter(value => value.name === 'sdk.model.call').map(value => value.sequence)
+    expect(delivered).toEqual([1, 2, 3, 4])
+    for (const call of good.mock.results) await expect(call.value).resolves.toMatchObject({ accepted: true })
+    // At most the hanging exporter's own third failure is recorded; the healthy one is never charged.
+    expect(observation.health().exporterFailures).toBeLessThanOrEqual(1)
+    await observation.shutdown()
+  }, 5_000)
+
+  it('sheds events that share one id under pressure without spinning the drain', async () => {
+    let up = false
+    const down = vi.fn(async (batch: ObservationBatch) => {
+      if (!up) throw new Error('down')
+      return { batchId: batch.batchId, accepted: true, retryable: false }
+    })
+    const observation = createObservability({ maxBatchEvents: 1, maxQueueEvents: 40, exporters: [
+      { exporter: { id: 'down', supportedBoundaries: ['none'], export: down }, requirement: 'best-effort', boundary: 'none' },
+    ] })
+    // Three failures, each after the previous pause, take it down.
+    observation.capture(event(1))
+    await new Promise(resolve => setTimeout(resolve, 300))
+    observation.capture(event(2))
+    await new Promise(resolve => setTimeout(resolve, 550))
+    observation.capture(event(3))
+    await vi.waitFor(() => expect(down).toHaveBeenCalledTimes(3))
+    const shared = event(10)
+    let ticks = 0
+    const timer = setInterval(() => { ticks++ }, 5)
+    for (let index = 0; index < 25; index++) observation.capture({ ...shared, sequence: 10 + index })
+    await new Promise(resolve => setTimeout(resolve, 200))
+    clearInterval(timer)
+    // The event loop keeps turning, and the down exporter's share is shed below the pressure line.
+    expect(ticks).toBeGreaterThan(10)
+    expect(observation.health().queuedEvents).toBeLessThan(20)
+    expect(down).toHaveBeenCalledTimes(3)
+    up = true
+    await observation.shutdown()
+  }, 5_000)
+
+  it('retries a paused exporter by itself once its pause ends, without another capture', async () => {
+    let down = true
+    const delivered: number[] = []
+    const exporter: ObservationExporter = {
+      id: 'wakes', supportedBoundaries: ['none'],
+      export: async (batch) => {
+        if (down) throw new Error('down')
+        delivered.push(...batch.events.map(value => value.sequence))
+        return { batchId: batch.batchId, accepted: true, retryable: false }
+      },
+    }
+    const observation = createObservability({ maxBatchEvents: 1,
+      exporters: [{ exporter, requirement: 'best-effort', boundary: 'none' }] })
+    observation.capture(event(1))
+    await new Promise(resolve => setTimeout(resolve, 20))
+    down = false
+    await vi.waitFor(() => expect(observation.health().queuedEvents).toBe(0), { timeout: 1_000 })
+    expect(delivered).toEqual([1])
+    await observation.shutdown()
+  })
+
+  it('does not report a background step deadline as a flush timeout', async () => {
+    const exporter: ObservationExporter = {
+      id: 'slow', supportedBoundaries: ['none'],
+      export: async (_batch, signal) => await new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => { reject(signal.reason) }, { once: true })
+      }),
+    }
+    const observation = createObservability({ maxBatchEvents: 1, flushTimeoutMs: 20,
+      exporters: [{ exporter, requirement: 'best-effort', boundary: 'none' }] })
+    observation.capture(event(1))
+    await new Promise(resolve => setTimeout(resolve, 80))
+    expect(observation.health()).toMatchObject({ state: 'healthy', flushTimeouts: 0, exporterFailures: 0 })
+    expect(observation.health().lastFailure).toBeUndefined()
+    await observation.flush()
+    expect(observation.health()).toMatchObject({ state: 'failed', flushTimeouts: 1 })
   })
 
   it('splits batches by event count and safely clears a bus with no exporters', async () => {

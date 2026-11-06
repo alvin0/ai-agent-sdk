@@ -1,5 +1,6 @@
 import { configuredConnection } from './connection.ts'
 import { HttpCatalog } from './catalog.ts'
+import { markResponseLogUnread } from '../base/response-log.ts'
 import { snapshotConfiguration } from './configuration-snapshot.ts'
 import type { HttpProviderOptions } from './http-options.ts'
 /**
@@ -77,6 +78,7 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
     this.dialect = resolveDialect(options.protocol, options.dialect)
     this.retry = resolveRetryPolicy(options.retryPolicy, `${options.displayName}.retryPolicy`)
     this.catalogCache = new HttpCatalog(this.options)
+    if (this.options.responseLogger === undefined) markResponseLogUnread(this)
   }
 
   override providerRetryPolicy(): ResolvedRetryPolicy {
