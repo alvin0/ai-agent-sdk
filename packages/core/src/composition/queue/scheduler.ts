@@ -246,22 +246,14 @@ export class DeliveryQueueScheduler {
    */
   private async flushOnce(targets: readonly DeliveryQueueEntry[], deadlineAt: number,
     caller?: AbortSignal, mode: FlushMode = { background: false, failures: new Set() }): Promise<QueueFlushReport> {
-    if (this.sealed || this.resources.isClosed) return this.report('closed', targets, [])
-    if (caller?.aborted) return this.report('aborted', targets, [])
-    if (!Number.isFinite(deadlineAt) || this.resources.platform.monotonicNow() >= deadlineAt) {
-      return this.report('timed-out', targets, [])
-    }
+    const before = this.flushState(caller, deadlineAt, [], mode)
+    if (before !== undefined) return this.report(before, targets, [])
     const activeTargets = targets.filter(entry => this.store.contains(entry))
     this.createTasks(activeTargets.filter(entry => !this.assigned.has(entry)))
     const targetSet = new Set(targets)
     const relevant = [...this.tasks].filter(task => task.entries.some(entry => targetSet.has(entry)))
     const reports = await this.runTasks(relevant, deadlineAt, caller, mode)
-    const state = this.flushState(caller, deadlineAt)
-    // Only a caller's flush can time out; a background step's own deadline is pacing.
-    if (state === 'timed-out' && !mode.background) {
-      this.flushTimeouts = saturatingCounterAdd(this.flushTimeouts, 1)
-    }
-    return this.report(state, targets, reports)
+    return this.report(this.flushState(caller, deadlineAt, reports, mode), targets, reports)
   }
 
   /** Export each task in order; a background step stops before a batch once asked to yield. */
@@ -288,10 +280,16 @@ export class DeliveryQueueScheduler {
     return reports
   }
 
-  private flushState(caller: AbortSignal | undefined, deadlineAt: number): QueueFlushReport['status'] | undefined {
+  /** How a flush ended (`undefined`: ran to the end). A row cut off by the deadline counts even if the clock
+   * reads a hair short of it. Only a caller's flush (also one that waited out its deadline) counts a timeout. */
+  private flushState(caller: AbortSignal | undefined, deadlineAt: number, reports: readonly BatchCheckpointReport[],
+    mode: FlushMode): QueueFlushReport['status'] | undefined {
     if (this.sealed || this.resources.isClosed) return 'closed'
     if (caller?.aborted) return 'aborted'
-    return this.resources.platform.monotonicNow() >= deadlineAt ? 'timed-out' : undefined
+    if (Number.isFinite(deadlineAt) && this.resources.platform.monotonicNow() < deadlineAt
+      && !reports.some(report => report.exporters.some(row => row.delivery.status === 'timed-out'))) return undefined
+    if (!mode.background) this.flushTimeouts = saturatingCounterAdd(this.flushTimeouts, 1)
+    return 'timed-out'
   }
 
   private createTasks(entries: readonly DeliveryQueueEntry[]): void {

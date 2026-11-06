@@ -411,9 +411,25 @@ describe('queue to stable batch scheduling', () => {
     await new Promise(resolve => setTimeout(resolve, 60))
     expect(scheduler.health()).toMatchObject({ flushTimeouts: 0, exporterFailures: 0, requiredFailure: false })
     expect(store.snapshot().queuedItems).toBe(1)
-    // A caller's own flush that times out is still recorded.
-    await scheduler.flush(platform.monotonicNow() + 20)
+    // A caller's own flush that times out is still recorded. Its deadline outlasts a background
+    // probe it may queue behind (the paused exporter is woken up once its pause ends).
+    await expect(scheduler.flush(platform.monotonicNow() + 200)).resolves.toMatchObject({ status: 'timed-out' })
     expect(scheduler.health()).toMatchObject({ flushTimeouts: 1, requiredFailure: true })
+    resources.close()
+  })
+
+  it('records a caller\'s flush whose deadline ran out while it waited its turn as timed out', async () => {
+    const send = vi.fn((_batch: ObservationDeliveryBatch, signal: AbortSignal) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => { reject(signal.reason) }, { once: true })
+    }))
+    const { platform, resources, store, scheduler } = fixture([target('required', 'required', send)])
+    store.admitEvent({ ...event('queued', 1), priority: 'critical' })
+    // The first flush holds the chain for 100 ms; the second one's 20 ms run out behind it.
+    const first = scheduler.flush(platform.monotonicNow() + 100)
+    const second = await scheduler.flush(platform.monotonicNow() + 20)
+    expect(second).toMatchObject({ status: 'timed-out' })
+    await first
+    expect(scheduler.health().flushTimeouts).toBe(2)
     resources.close()
   })
 
