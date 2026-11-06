@@ -27,6 +27,8 @@ import { openBrowser } from './common/browser.ts'
  *   --force              sign in again even when a credential already exists
  *   --status             report credential state plus one trial token exchange
  *   --models             list the catalog with the endpoint chosen for each model
+ *   --account <name>     use a named extra account (`.providers/.copilot/accounts/<name>.json`),
+ *                        e.g. a backup for `failoverProviderPlugin`
  *   --path <file>        read/write somewhere other than the default
  *   --issuer <url>       use a non-production OAuth issuer
  *   --github-api <url>   use a non-production GitHub API base for the exchange
@@ -42,6 +44,7 @@ import {
   COPILOT_DEVICE_LOGIN_WARNING,
   createCopilotEndpointRouter,
   discoverCopilotModels,
+  copilotAccountAuthPath,
   exchangeCopilotToken,
   fileCopilotCredentialStore,
   requireGitHubToken,
@@ -93,16 +96,25 @@ function parseFlags(argv: readonly string[]): Flags {
       case '--force': flags.force = true; break
       case '--status': flags.status = true; break
       case '--models': flags.models = true; break
-      case '--path': flags.path = argv[++index]; break
-      case '--issuer': flags.issuer = argv[++index]; break
-      case '--github-api': flags.githubApi = argv[++index]; break
       default:
-        if (arg !== undefined && arg.startsWith('-')) {
-          throw new Error(`unknown flag "${arg}"`)
-        }
+        if (arg !== undefined && VALUE_FLAGS.has(arg)) setValueFlag(flags, arg, argv[++index])
+        else if (arg !== undefined && arg.startsWith('-')) throw new Error(`unknown flag "${arg}"`)
     }
   }
   return flags
+}
+
+const VALUE_FLAGS = new Set(['--path', '--account', '--issuer', '--github-api'])
+
+function setValueFlag(flags: Flags, arg: string, value: string | undefined): void {
+  // A missing value must not silently fall back to a default, nor swallow the next flag as its value.
+  if (value === undefined || value === '' || value.startsWith('--')) throw new Error(`${arg} requires a value`)
+  switch (arg) {
+    case '--path': flags.path = value; break
+    case '--account': flags.path = copilotAccountAuthPath(value); break
+    case '--issuer': flags.issuer = value; break
+    default: flags.githubApi = value
+  }
 }
 
 function renderPrompt(code: CopilotDeviceCode): void {

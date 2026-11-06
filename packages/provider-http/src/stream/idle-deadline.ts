@@ -1,7 +1,4 @@
-import { MODEL_ERROR_CODES, ModelError, waitForSettlement } from '@alvin0/ai-agent-sdk-core'
-
-/** Longest delay a timer honors; Node fires a longer one after 1 ms. */
-const MAX_TIMER_MS = 2_147_483_647
+import { IdleTimer, MODEL_ERROR_CODES, ModelError, waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 
 /** One resettable deadline shared by every body read in one physical attempt. */
 export interface StreamIdleDeadline {
@@ -56,25 +53,29 @@ export function createStreamIdleDeadline(
 
 /**
  * The deadline itself. Both halves run once per streamed chunk, so neither
- * allocates per call: `touch` only stamps the time, and the single pending timer
- * re-checks the elapsed idle span when it fires. Each read races a promise of its
- * own rather than one long-lived expiry promise, which would collect one reaction
- * per read for the life of the stream.
+ * allocates per call: `touch` re-arms the shared core {@link IdleTimer}, which
+ * only stamps the time. Each read races a promise of its own rather than one
+ * long-lived expiry promise, which would collect one reaction per read for the
+ * life of the stream.
  */
 class IdleExpiry {
-  private timer: ReturnType<typeof setTimeout> | undefined
-  private lastActivity = 0
-  private disposed = false
+  private readonly timer: IdleTimer
   // Set once the deadline passes; a read that starts afterwards fails with it.
   private expired: ModelError | undefined
   private rejectPending: ((error: ModelError) => void) | undefined
 
-  constructor(private readonly timeoutMs: number, private readonly displayName: string) {}
+  constructor(timeoutMs: number, displayName: string) {
+    this.timer = new IdleTimer(timeoutMs, () => {
+      this.expired = new ModelError(
+        `${displayName} stream idle for more than ${timeoutMs}ms`,
+        MODEL_ERROR_CODES.TIMEOUT,
+      )
+      this.rejectPending?.(this.expired)
+    })
+  }
 
   readonly touch = (): void => {
-    if (this.disposed || this.expired !== undefined) return
-    this.lastActivity = performance.now()
-    this.timer ??= setTimeout(this.fire, Math.min(this.timeoutMs, MAX_TIMER_MS))
+    if (this.expired === undefined) this.timer.arm()
   }
 
   race<T>(pending: Promise<T>): Promise<T> {
@@ -92,26 +93,8 @@ class IdleExpiry {
   }
 
   dispose(): void {
-    this.disposed = true
     this.rejectPending = undefined
-    if (this.timer !== undefined) clearTimeout(this.timer)
-    this.timer = undefined
-  }
-
-  private readonly fire = (): void => {
-    this.timer = undefined
-    if (this.disposed || this.expired !== undefined) return
-    const idle = performance.now() - this.lastActivity
-    if (idle < this.timeoutMs) {
-      // Clamped: a huge or infinite timeout re-checks rarely instead of spinning.
-      this.timer = setTimeout(this.fire, Math.min(this.timeoutMs - idle, MAX_TIMER_MS))
-      return
-    }
-    this.expired = new ModelError(
-      `${this.displayName} stream idle for more than ${this.timeoutMs}ms`,
-      MODEL_ERROR_CODES.TIMEOUT,
-    )
-    this.rejectPending?.(this.expired)
+    this.timer.dispose()
   }
 }
 

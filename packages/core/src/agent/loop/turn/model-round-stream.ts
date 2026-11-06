@@ -1,6 +1,6 @@
 import type { ModelCallReport } from '../../../observation/index.ts'
 import type { GenerateOptions } from '../../../contract/index.ts'
-import { BlockAssembler, type StreamChunk } from '../../../stream/index.ts'
+import { BlockAssembler, IdleTimer, type StreamChunk } from '../../../stream/index.ts'
 import { positiveFinite, positiveSafeInteger, timerMs } from './config.ts'
 import { serializedBytes, modelFailureFinish, modelAbortedFinish, messageOf } from './common.ts'
 import { validateStreamChunk } from './validation.ts'
@@ -225,38 +225,4 @@ async function publishVisibleChunk(chunk: StreamChunk, context: ModelRoundContex
   })
   else if (chunk.type === 'usage') await emit({ type: 'usage', usage: chunk.usage, trace })
   else if (chunk.type === 'usage-progress') await emit({ ...chunk, trace })
-}
-
-/**
- * Idle deadline for the adapter wait, re-armed on every chunk without touching a
- * timer: `arm`/`stop` only record state, and the single pending timer re-checks
- * the elapsed wait when it fires. `dispose` clears it so nothing outlives the round.
- */
-class IdleTimer {
-  private timer: ReturnType<typeof setTimeout> | undefined
-  private armedAt = 0
-  private armed = false
-  constructor(private readonly ms: number, private readonly onIdle: () => void) {}
-  arm(): void {
-    this.armed = true
-    this.armedAt = performance.now()
-    this.timer ??= setTimeout(this.fire, this.ms)
-  }
-  stop(): void { this.armed = false }
-  dispose(): void {
-    this.armed = false
-    if (this.timer !== undefined) clearTimeout(this.timer)
-    this.timer = undefined
-  }
-  private readonly fire = (): void => {
-    this.timer = undefined
-    if (!this.armed) return
-    const waited = performance.now() - this.armedAt
-    if (waited >= this.ms) {
-      this.armed = false
-      this.onIdle()
-      return
-    }
-    this.timer = setTimeout(this.fire, this.ms - waited)
-  }
 }

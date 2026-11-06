@@ -184,4 +184,34 @@ describe('delivery queue admission and priority eviction', () => {
       expect(() => context(options)).toThrow(expect.objectContaining({ code: 'OBSERVATION_DELIVERY_DATA_INVALID' }))
     }
   })
+
+  it('evicts the oldest unprotected entry without scanning protected ones, and keeps order on unprotect', () => {
+    // Membership checks per admission must not grow with the number of protected entries.
+    const checksFor = (protectedCount: number): { store: DeliveryQueueStore; entries: ReturnType<DeliveryQueueStore['admitEvent']>['entry'][]; checks: number } => {
+      const { store } = context({ maxEvents: 6 })
+      const entries = Array.from({ length: 6 }, (_, index) => store.admitEvent(withPriority(index + 1, 'verbose')).entry)
+      store.protect(entries.slice(0, protectedCount).map(entry => entry!))
+      const has = vi.spyOn(WeakSet.prototype, 'has')
+      try {
+        expect(store.admitEvent(withPriority(7, 'verbose')).status).toBe('accepted')
+        return { store, entries, checks: has.mock.calls.length }
+      } finally {
+        has.mockRestore()
+      }
+    }
+    expect(checksFor(4).checks).toBe(checksFor(0).checks)
+    // An export task holds the oldest four: eviction takes the fifth.
+    const { store, entries: admitted } = checksFor(4)
+    const entries = admitted.map(entry => entry!)
+    expect(store.contains(entries[4]!)).toBe(false)
+    // Released while still queued, an entry rejoins in admission order: the oldest goes first.
+    store.unprotect([entries[1]!, entries[0]!])
+    expect(store.admitEvent(withPriority(8, 'verbose')).status).toBe('accepted')
+    expect(store.contains(entries[0]!)).toBe(false)
+    expect(store.contains(entries[1]!)).toBe(true)
+    expect(store.admitEvent(withPriority(9, 'verbose')).status).toBe('accepted')
+    expect(store.contains(entries[1]!)).toBe(false)
+    expect(store.contains(entries[2]!)).toBe(true)
+  })
 })
+

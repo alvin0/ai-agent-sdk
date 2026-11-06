@@ -14,6 +14,7 @@ import {
   replaceCredentialText,
   withCredentialFileLock,
 } from './common/credential-file.ts'
+import { accountAuthPath } from './common/account-path.ts'
 
 export const DEFAULT_CODEX_AUTH_PATH = '.providers/.codex/auth.json'
 export const CODEX_AUTH_PATH_ENV = 'AI_AGENT_SDK_CODEX_AUTH'
@@ -24,6 +25,12 @@ export interface CodexAuthPathOptions {
   /** Environment source. Defaults to `process.env`. */
   readonly env?: Readonly<Record<string, string | undefined>>
 }
+
+/**
+ * Credential path for an additional named Codex account (e.g. a backup login):
+ * `.providers/.codex/accounts/<name>.json`, relative to the project.
+ */
+export function codexAccountAuthPath(name: string): string { return accountAuthPath('codex', name) }
 
 export function resolveCodexAuthPath(
   explicitPath?: string,

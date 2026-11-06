@@ -1,3 +1,4 @@
+import type { DrainStepOutcome } from '../primitives/background-drain.ts'
 import type { ObservationEvent, SafeErrorRecord } from '../observation/index.ts'
 import type { FlushResult, ObservabilityOptions } from './types.ts'
 
@@ -24,6 +25,8 @@ export interface MutableHealth {
 
 export interface FlushOutcome extends FlushResult {
   readonly requiredComplete: boolean
+  /** How a background step went, for its pacing; never part of a public result. */
+  readonly step: DrainStepOutcome
 }
 
 export type BusOptions = Required<Pick<ObservabilityOptions,

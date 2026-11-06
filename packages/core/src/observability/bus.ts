@@ -31,8 +31,9 @@ import {
   busResource, busProcessors, busOptions, busHealthState, validateRegistrations, eventIdOf,
   safeFailure, receipt, requiredBoundary, deadlineSignal, raceAbort, publicFlushResult, sameEnvelope,
 } from './bus-helpers.ts'
-import { flushBus } from './bus-delivery.ts'
-import { BACKGROUND_DRAIN, BackgroundDrain } from './bus-drain.ts'
+import { flushBus, pausedResumeAt, stepExporterIds, type FlushControl } from './bus-delivery.ts'
+import { BackgroundDrain, DRAIN_POLICY, ExporterPacing } from '../primitives/background-drain.ts'
+import { systemMonotonicNow } from '../platform/adapter.ts'
 import { BusQueue } from './bus-queue.ts'
 import type { FlushOutcome } from './bus-types.ts'
 
@@ -44,16 +45,25 @@ class ObservationBus implements Observability {
   private readonly options: BusOptions
   // FIFO with O(1) lookup/removal; capture never scans the whole queue.
   private readonly queue = new BusQueue()
-  private readonly drain = new BackgroundDrain({
+  private readonly drain = new BackgroundDrain<ReadonlySet<string>>({
     canDrain: () => this.registrations.length > 0 && !this.closing && !this.closed,
-    hasBatchBacklog: () => this.queue.size >= this.options.maxBatchEvents
-      || this.queue.bytes >= this.options.maxBatchBytes,
-    stepTargets: () => this.queue.ids(this.options.maxBatchEvents * BACKGROUND_DRAIN.batchesPerStep),
-    flush: (targetIds, yieldBeforeBatch) =>
-      this.flushInternal(targetIds, this.options.flushTimeoutMs, undefined, yieldBeforeBatch),
+    hasBacklog: force => this.stepExporters().some((id) => {
+      const backlog = this.queue.backlog(id)
+      return force ? backlog.events > 0
+        : backlog.events >= this.options.maxBatchEvents || backlog.bytes >= this.options.maxBatchBytes
+    }),
+    stepTargets: () => {
+      const ids = this.queue.stepIds(
+        this.options.maxBatchEvents * DRAIN_POLICY.batchesPerStep, new Set(this.stepExporters()))
+      return ids.size === 0 ? undefined : ids
+    },
+    flush: async (targetIds, yieldBeforeBatch) =>
+      (await this.flushInternal(targetIds, this.options.flushTimeoutMs, { background: true, yieldBeforeBatch })).step,
     foregroundWaiting: () => this.foregroundFlushes > 0,
     enqueue: task => { this.flushChain = this.flushChain.then(task, task) },
-  })
+    resumeAt: () => pausedResumeAt(this.registrations, this.pacing, this.queue),
+  }, systemMonotonicNow)
+  private readonly pacing = new ExporterPacing<string>(systemMonotonicNow)
   /** Explicit flushes and shutdown queued on the chain; background steps yield to them. */
   private foregroundFlushes = 0
   private closing = false
@@ -252,6 +262,9 @@ class ObservationBus implements Observability {
 
   private requestDrain(): void { this.drain.request() }
 
+  private stepExporters(): string[] { return stepExporterIds(this.registrations, this.pacing, this.underPressure()) }
+  private underPressure(): boolean { return this.queue.holds(DRAIN_POLICY.shedPressure, this.options) }
+
   private stageExporters(entry: QueueEntry, captured: CaptureReceipt): CaptureReceipt {
     const event = entry.event
     let removedPending = false
@@ -276,7 +289,7 @@ class ObservationBus implements Observability {
   ): CaptureReceipt | undefined {
     const event = entry.event
     this.recordExporterFailure(registration, error, false)
-    entry.pending.delete(registration.exporter.id)
+    this.queue.settle(entry, registration.exporter.id)
     if (registration.requirement !== 'required') return undefined
     this.removeEntry(entry, false)
     if (event.priority === 'critical') this.counters.criticalRejected++
@@ -306,7 +319,7 @@ class ObservationBus implements Observability {
     this.foregroundFlushes++
     const task = async () => {
       this.foregroundFlushes--
-      try { resolveResult(await this.flushInternal(targetIds, timeoutMs, signal)) }
+      try { resolveResult(await this.flushInternal(targetIds, timeoutMs, { external: signal })) }
       catch (error) { rejectResult(error) }
     }
     this.flushChain = this.flushChain.then(task, task)
@@ -316,15 +329,14 @@ class ObservationBus implements Observability {
   private async flushInternal(
     targetIds: ReadonlySet<string>,
     timeoutMs: number,
-    external?: AbortSignal,
-    yieldBeforeBatch?: () => boolean,
+    control: FlushControl,
   ): Promise<FlushOutcome> {
     return await flushBus({
       queue: this.queue, registrations: this.registrations, counters: this.counters, options: this.options,
       removeEntry: (entry, exported) => this.removeEntry(entry, exported),
       recordExporterFailure: (registration, error) => this.recordExporterFailure(registration, error, true),
-      notifyHealth: () => this.notifyHealth(),
-    }, targetIds, timeoutMs, { external, yieldBeforeBatch })
+      notifyHealth: () => this.notifyHealth(), pacing: this.pacing, underPressure: () => this.underPressure(),
+    }, targetIds, timeoutMs, control)
   }
 
   private removeEntry(entry: QueueEntry, exported: boolean): void {

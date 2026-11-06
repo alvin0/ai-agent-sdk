@@ -35,6 +35,7 @@ import {
   withCredentialFileLock,
 } from './common/credential-file.ts'
 
+import { accountAuthPath } from './common/account-path.ts'
 export const DEFAULT_COPILOT_AUTH_PATH = '.providers/.copilot/auth.json'
 export const COPILOT_AUTH_PATH_ENV = 'AI_AGENT_SDK_COPILOT_AUTH'
 
@@ -54,6 +55,12 @@ export interface CopilotAuthPathOptions {
   /** Environment source. Defaults to `process.env`. */
   readonly env?: Readonly<Record<string, string | undefined>>
 }
+
+/**
+ * Credential path for an additional named Copilot account (e.g. a backup login):
+ * `.providers/.copilot/accounts/<name>.json`, relative to the project.
+ */
+export function copilotAccountAuthPath(name: string): string { return accountAuthPath('copilot', name) }
 
 /**
  * Resolve the credential file path: `explicitPath` → environment → default.

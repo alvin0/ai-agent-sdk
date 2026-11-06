@@ -9,7 +9,7 @@
  */
 import { pipeline, Readable } from 'node:stream'
 import type { ClientHttp2Stream, SecureClientSessionOptions } from 'node:http2'
-import { Http2ClosedError, Http2SessionPool, type Http2Lease } from './pool.ts'
+import { Http2ClosedError, Http2SessionPool, Http2UnsupportedError, type Http2Lease } from './pool.ts'
 import {
   outgoingHeaders, prepareRequest, type FetchBody, type FetchInit, type FetchInput, type PreparedRequest,
 } from './request.ts'
@@ -23,15 +23,25 @@ export interface NodeHttp2FetchOptions {
   /** Give up connecting a session after this long (default 10 s). */
   readonly connectTimeoutMs?: number
   /**
-   * How long an origin that does not negotiate h2, or whose h2 connect failed, is
-   * sent straight through `fallback` (default 5 min).
+   * Fail a response body whose server sends nothing for this long while the body
+   * waits for data (default 5 min, as undici's `bodyTimeout`), so a stream the
+   * server leaves open releases its slot. Time a body waits on a reader that is not
+   * reading does not count.
+   */
+  readonly bodyTimeoutMs?: number
+  /**
+   * How long an origin that does not negotiate h2 is sent straight through
+   * `fallback` (default 5 min). A connect that failed for another reason (DNS,
+   * refused, timed out) is remembered for at most 5 s, so one transient failure
+   * does not move the origin off HTTP/2 for long.
    */
   readonly fallbackTtlMs?: number
   /** TLS options for new sessions, e.g. a private `ca`. */
   readonly tls?: SecureClientSessionOptions
   /**
    * Used for `http:` URLs, origins without h2, and connection failures (default:
-   * global `fetch`). Never used after `close()`: requests then reject.
+   * global `fetch`, or the one it replaced when this transport is installed as the
+   * global). Never used after `close()`: requests then reject.
    */
   readonly fallback?: typeof globalThis.fetch
 }
@@ -41,7 +51,10 @@ export type NodeHttp2Fetch = typeof globalThis.fetch & { close(): Promise<void> 
 
 const DEFAULTS = Object.freeze({
   maxStreamsPerSession: 100, idleTimeoutMs: 30_000, connectTimeoutMs: 10_000, fallbackTtlMs: 300_000,
+  bodyTimeoutMs: 300_000,
 })
+/** How long a transient connect failure (DNS, refused, timeout) keeps an origin on the fallback. */
+const CONNECT_FAILURE_TTL_MS = 5_000
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 const MAX_REDIRECTS = 20
 /** Session-level failures where the server provably did not process the stream. */
@@ -57,7 +70,15 @@ interface DispatchState {
  * `openAiPlugin({ apiKey, fetch: createNodeHttp2Fetch() })`.
  */
 export function createNodeHttp2Fetch(options: NodeHttp2FetchOptions = {}): NodeHttp2Fetch {
-  const client = new Http2FetchClient(options)
+  // The default fallback is the global `fetch` at call time, unless the application
+  // installed this transport as the global itself; calling it would loop back here,
+  // so the `fetch` it replaced is used instead.
+  const replaced = globalThis.fetch
+  const fallback = options.fallback ?? (async (input, init) => {
+    const current = globalThis.fetch
+    return await (current === fetchImpl ? replaced : current)(input, init)
+  })
+  const client = new Http2FetchClient(options, fallback)
   const fetchImpl = (async (input: FetchInput, init?: FetchInit) =>
     await client.fetch(input, init)) as NodeHttp2Fetch
   fetchImpl.close = async () => { await client.close() }
@@ -69,17 +90,19 @@ class Http2FetchClient {
   private readonly fallbackUntil = new Map<string, number>()
   private readonly fallback: typeof globalThis.fetch
   private readonly fallbackTtlMs: number
+  private readonly bodyTimeoutMs: number
   private closed = false
 
-  constructor(options: NodeHttp2FetchOptions) {
+  constructor(options: NodeHttp2FetchOptions, fallback: typeof globalThis.fetch) {
     this.pool = new Http2SessionPool({
       maxStreamsPerSession: positive(options.maxStreamsPerSession ?? DEFAULTS.maxStreamsPerSession),
       idleTimeoutMs: positive(options.idleTimeoutMs ?? DEFAULTS.idleTimeoutMs),
       connectTimeoutMs: positive(options.connectTimeoutMs ?? DEFAULTS.connectTimeoutMs),
       ...(options.tls === undefined ? {} : { connect: options.tls }),
     })
-    this.fallback = options.fallback ?? (async (input, init) => await globalThis.fetch(input, init))
+    this.fallback = fallback
     this.fallbackTtlMs = positive(options.fallbackTtlMs ?? DEFAULTS.fallbackTtlMs)
+    this.bodyTimeoutMs = positive(options.bodyTimeoutMs ?? DEFAULTS.bodyTimeoutMs)
   }
 
   async fetch(input: FetchInput, init: FetchInit | undefined): Promise<Response> {
@@ -105,15 +128,20 @@ class Http2FetchClient {
     } catch (error: unknown) {
       if (prepared.signal.aborted) throw prepared.signal.reason
       if (error instanceof Http2ClosedError) throw fetchFailed(error)
-      // No h2, or the connect failed: remember it, so later requests to this origin
-      // do not each wait for a failing connect before the fallback. The platform
-      // fetch then reports a real connection failure in its own terms.
-      this.fallbackUntil.set(prepared.url.origin, Date.now() + this.fallbackTtlMs)
+      // No h2: remember it for the full window. Any other connect failure may be a
+      // blip (DNS, refused, timeout), so it is remembered only briefly — long enough
+      // that a burst does not each wait on a failing connect, short enough that the
+      // origin soon gets HTTP/2 back. The platform fetch reports a real connection
+      // failure in its own terms.
+      const ttl = error instanceof Http2UnsupportedError
+        ? this.fallbackTtlMs
+        : Math.min(this.fallbackTtlMs, CONNECT_FAILURE_TTL_MS)
+      this.fallbackUntil.set(prepared.url.origin, Date.now() + ttl)
       return await this.viaFallback(prepared)
     }
     let response: Response
     try {
-      response = await exchange(lease, prepared, state.redirects > 0)
+      response = await exchange(lease, prepared, state.redirects > 0, this.bodyTimeoutMs)
     } catch (error: unknown) {
       if (state.retried || !retryable(error, prepared)) throw error
       return await this.dispatch(prepared, { ...state, retried: true })
@@ -141,8 +169,14 @@ class Http2FetchClient {
   }
 }
 
-/** Send one request as one stream; resolves at response headers, releases the slot when the stream closes. */
-function exchange(lease: Http2Lease, prepared: PreparedRequest, redirected: boolean): Promise<Response> {
+/**
+ * Send one request as one stream; resolves at response headers, releases the slot
+ * when the stream closes. While the body waits on a reader that is not reading,
+ * the stream keeps its slot but no longer keeps the process alive.
+ */
+function exchange(
+  lease: Http2Lease, prepared: PreparedRequest, redirected: boolean, bodyTimeoutMs: number,
+): Promise<Response> {
   const { signal } = prepared
   if (signal.aborted) {
     lease.release()
@@ -167,11 +201,16 @@ function exchange(lease: Http2Lease, prepared: PreparedRequest, redirected: bool
   writeBody(stream, prepared)
   return new Promise<Response>((resolve, reject) => {
     const fail = (error: unknown) => { reject(signal.aborted ? signal.reason : fetchFailed(error)) }
+    const closed = () => { fail(new Error(`HTTP/2 stream closed (code ${stream.rstCode})`)) }
     stream.once('error', fail)
-    stream.once('close', () => { fail(new Error(`HTTP/2 stream closed (code ${stream.rstCode})`)) })
+    stream.once('close', closed)
     stream.once('response', (headers) => {
+      // Detach both: a listener that can still reach this promise would keep the
+      // Response, and so its body, alive for as long as the stream stays open.
       stream.off('error', fail)
-      resolve(createResponse(stream, headers, { method: prepared.method, url: prepared.url, redirected }))
+      stream.off('close', closed)
+      resolve(createResponse(stream, headers, { method: prepared.method, url: prepared.url, redirected },
+        { waiting: lease.unhold, reading: lease.hold, timeoutMs: bodyTimeoutMs }))
     })
   })
 }

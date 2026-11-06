@@ -10,7 +10,7 @@ vi.mock('../../packages/provider-copilot/dist/index.js', async (original) => ({
   copilotPlugin: vi.fn((options: unknown) => options),
 }))
 
-const { customGlobalDispatcher, defaultNodeFetch } = await import('../../packages/auth-node/src/http2/default.ts')
+const { customGlobalDispatcher, defaultNodeFetch, globalFetchReplaced, isBuiltinFetch } = await import('../../packages/auth-node/src/http2/default.ts')
 const { codexNodeProviderPlugin } = await import('../../packages/auth-node/src/codex.ts')
 const { copilotNodeProviderPlugin } = await import('../../packages/auth-node/src/copilot.ts')
 
@@ -78,6 +78,51 @@ describe('an application-installed global dispatcher', () => {
       expect(platform).toHaveBeenCalledWith('https://example.invalid/v1/models', undefined)
     } finally {
       ;(globalThis as Record<symbol, unknown>)[V2] = previous
+      vi.unstubAllGlobals()
+    }
+  })
+})
+
+describe('an application-replaced global fetch', () => {
+  it('recognizes only the runtime\'s own fetch as built in', () => {
+    expect(isBuiltinFetch(globalThis.fetch)).toBe(true)
+    expect(isBuiltinFetch(vi.fn(globalThis.fetch))).toBe(false)
+    expect(isBuiltinFetch(new Proxy(globalThis.fetch, {}))).toBe(false)
+    expect(isBuiltinFetch(globalThis.fetch.bind(globalThis))).toBe(false)
+    expect(isBuiltinFetch(async function fetch(input: unknown) { return input })).toBe(false)
+    expect(isBuiltinFetch(undefined)).toBe(false)
+  })
+
+  it('treats a fetch replaced before or after load as replaced', () => {
+    const builtin = globalThis.fetch
+    expect(globalFetchReplaced(builtin, { fetch: builtin, builtin: true })).toBe(false)
+    expect(globalFetchReplaced(vi.fn(), { fetch: builtin, builtin: true })).toBe(true)
+    // A mock or instrumentation installed before this module loaded.
+    const early = vi.fn()
+    expect(globalFetchReplaced(early, { fetch: early, builtin: false })).toBe(true)
+  })
+
+  it('does not loop when installed as the global fetch itself', async () => {
+    const shared = defaultNodeFetch({})!
+    vi.stubGlobal('fetch', shared)
+    try {
+      // Plain HTTP leaves the transport through its fallback; neither path may call `shared` again.
+      await expect(shared('http://127.0.0.1:1/unreachable')).rejects.toThrow(TypeError)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('routes requests through a stubbed fetch with no custom dispatcher', async () => {
+    const shared = defaultNodeFetch({})!
+    const stub = vi.fn(async () => new Response('via stub'))
+    vi.stubGlobal('fetch', stub)
+    try {
+      expect(customGlobalDispatcher()).toBe(false)
+      const response = await shared('https://example.invalid/v1/responses', { method: 'POST', body: '{}' })
+      expect(await response.text()).toBe('via stub')
+      expect(stub).toHaveBeenCalledWith('https://example.invalid/v1/responses', { method: 'POST', body: '{}' })
+    } finally {
       vi.unstubAllGlobals()
     }
   })

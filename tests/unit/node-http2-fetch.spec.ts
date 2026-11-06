@@ -22,6 +22,23 @@ interface H2Fixture {
   close(): Promise<void>
 }
 
+/** Run an ES module script in a child Node process with `gc()` exposed; resolves when it exits. */
+async function runWithGc(script: string, url: string): Promise<{ output: string; code: number | null }> {
+  const { spawn } = await import('node:child_process')
+  const child = spawn(process.execPath, ['--expose-gc', '--experimental-transform-types', '--no-warnings', '--input-type=module', '-e', script], {
+    env: { ...process.env, H2_CA: cert.toString(), H2_URL: url },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  let output = ''
+  child.stdout.on('data', (chunk: Buffer) => { output += chunk.toString() })
+  child.stderr.on('data', (chunk: Buffer) => { output += chunk.toString() })
+  const code = await new Promise<number | null>((resolve) => {
+    const timer = setTimeout(() => { child.kill(); resolve(null) }, 8_000)
+    child.on('exit', (exitCode) => { clearTimeout(timer); resolve(exitCode) })
+  })
+  return { output, code }
+}
+
 const cleanups: (() => Promise<void> | void)[] = []
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup() })
 
@@ -288,6 +305,193 @@ describe('createNodeHttp2Fetch', () => {
     expect(stalled.connections()).toBe(1)
     expect(fallback).toHaveBeenCalledTimes(2)
   }, 10_000)
+
+  it('remembers a transient connect failure only briefly, unlike an origin without h2', async () => {
+    const stalled = await stalledOrigin()
+    const fallback = vi.fn(async () => new Response('via fallback'))
+    const fetchImpl = client({ connectTimeoutMs: 100, fallback })
+    const realNow = Date.now
+    let skew = 0
+    const now = vi.spyOn(Date, 'now').mockImplementation(() => realNow() + skew)
+    try {
+      expect(await (await fetchImpl(`${stalled.origin}/a`)).text()).toBe('via fallback')
+      expect(stalled.connections()).toBe(1)
+      // Well inside the default 5 min no-h2 window, but past the 5 s transient one.
+      skew = 6_000
+      expect(await (await fetchImpl(`${stalled.origin}/b`)).text()).toBe('via fallback')
+      await vi.waitFor(() => expect(stalled.connections()).toBe(2))
+    } finally {
+      now.mockRestore()
+    }
+  }, 10_000)
+
+  it('lets the process exit with an unread body and cancels a body that was dropped', async () => {
+    let cancelled = 0
+    const fixture = await h2Server((stream, headers) => {
+      if (headers[':path'] === '/cancelled') {
+        stream.respond({ ':status': 200 })
+        stream.end(String(cancelled))
+        return
+      }
+      stream.on('close', () => { if (stream.rstCode === constants.NGHTTP2_CANCEL) cancelled++ })
+      stream.respond({ ':status': 500, 'content-type': 'text/plain' })
+      // Far more than the body's high-water mark; the stream never ends on its own.
+      stream.write(Buffer.alloc(1024 * 1024, 120))
+    })
+    const script = `
+      import { createNodeHttp2Fetch } from ${JSON.stringify(new URL('../../packages/auth-node/src/http2.ts', import.meta.url).href)}
+      const fetchImpl = createNodeHttp2Fetch({ tls: { ca: process.env.H2_CA } })
+      let response = await fetchImpl(process.env.H2_URL)
+      if (response.ok) throw new Error('expected an error status')
+      // Dropped without reading or cancelling the body, as an \`if (!res.ok) throw\` does.
+      response = undefined
+      // The Response is collected first; its unread, unreferenced body on the next collection.
+      for (let round = 0; round < 3; round++) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+        globalThis.gc()
+      }
+      await new Promise(resolve => setTimeout(resolve, 50))
+      // Asked while this process is still alive, so the reset came from collection, not exit.
+      console.log('cancelled=' + await (await fetchImpl(new URL('/cancelled', process.env.H2_URL))).text())
+      console.log('exiting')
+    `
+    const { output, code } = await runWithGc(script, `${fixture.origin}/large`)
+    expect(output).toContain('cancelled=1')
+    expect(output).toContain('exiting')
+    expect(code).toBe(0)
+    expect(cancelled).toBe(1)
+  }, 15_000)
+
+  it('cancels an unread body whose stream stays open with less than its high-water mark', async () => {
+    let cancelled = 0
+    const fixture = await h2Server((stream, headers) => {
+      if (headers[':path'] === '/cancelled') {
+        stream.respond({ ':status': 200 })
+        stream.end(String(cancelled))
+        return
+      }
+      stream.on('close', () => { if (stream.rstCode === constants.NGHTTP2_CANCEL) cancelled++ })
+      stream.respond({ ':status': 200, 'content-type': 'text/plain' })
+      // Far below the body's high-water mark, so it never pauses; the stream never ends.
+      stream.write('partial')
+    })
+    const script = `
+      import { createNodeHttp2Fetch } from ${JSON.stringify(new URL('../../packages/auth-node/src/http2.ts', import.meta.url).href)}
+      const fetchImpl = createNodeHttp2Fetch({ tls: { ca: process.env.H2_CA } })
+      let response = await fetchImpl(process.env.H2_URL)
+      await new Promise(resolve => setTimeout(resolve, 50))
+      response = undefined
+      // The Response is collected first; its unread, unreferenced body on the next collection.
+      for (let round = 0; round < 3; round++) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+        globalThis.gc()
+      }
+      await new Promise(resolve => setTimeout(resolve, 50))
+      console.log('cancelled=' + await (await fetchImpl(new URL('/cancelled', process.env.H2_URL))).text())
+      console.log('exiting')
+    `
+    const { output, code } = await runWithGc(script, `${fixture.origin}/idle`)
+    expect(output).toContain('cancelled=1')
+    expect(output).toContain('exiting')
+    // With its stream cancelled the slot is released, so nothing holds the process open.
+    expect(code).toBe(0)
+  }, 15_000)
+
+  it('keeps a body the caller holds readable after its Response was collected', async () => {
+    let cancelled = 0
+    const fixture = await h2Server((stream) => {
+      stream.on('close', () => { if (stream.rstCode === constants.NGHTTP2_CANCEL) cancelled++ })
+      stream.respond({ ':status': 200, 'content-type': 'text/plain' })
+      stream.write('first;')
+      setTimeout(() => { if (!stream.destroyed) stream.end('second;') }, 400)
+    })
+    const script = `
+      import { createNodeHttp2Fetch } from ${JSON.stringify(new URL('../../packages/auth-node/src/http2.ts', import.meta.url).href)}
+      const fetchImpl = createNodeHttp2Fetch({ tls: { ca: process.env.H2_CA } })
+      // Only the body is kept; its Response is dropped at once.
+      const body = (await fetchImpl(process.env.H2_URL)).body
+      for (let round = 0; round < 3; round++) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+        globalThis.gc()
+      }
+      console.log('text=' + await new Response(body).text())
+    `
+    const { output, code } = await runWithGc(script, `${fixture.origin}/kept`)
+    expect(output).toContain('text=first;second;')
+    expect(code).toBe(0)
+    expect(cancelled).toBe(0)
+  }, 15_000)
+
+  it('keeps the body timeout working after the reader paused the body, and not while it is paused', async () => {
+    let cancelled = 0
+    const fixture = await h2Server((stream) => {
+      stream.on('close', () => { if (stream.rstCode === constants.NGHTTP2_CANCEL) cancelled++ })
+      stream.respond({ ':status': 200, 'content-type': 'application/octet-stream' })
+      // More than the body queue holds, so it pauses until the reader catches up; then the server stalls.
+      stream.write(Buffer.alloc(1024 * 1024))
+    })
+    const fetchImpl = client({ bodyTimeoutMs: 150 })
+    const response = await fetchImpl(`${fixture.origin}/paused-then-stalled`)
+    // Waiting on a reader that does not read is not the server's silence.
+    await new Promise(resolve => setTimeout(resolve, 400))
+    const started = Date.now()
+    await expect(response.arrayBuffer()).rejects.toThrow(/no data for 150 ms/)
+    expect(Date.now() - started).toBeLessThan(2_000)
+    await vi.waitFor(() => expect(cancelled).toBe(1))
+    await expect(fetchImpl.close()).resolves.toBeUndefined()
+  }, 10_000)
+
+  it('fails a body whose server sends nothing for bodyTimeoutMs and resets its stream', async () => {
+    let cancelled = 0
+    const fixture = await h2Server((stream) => {
+      stream.on('close', () => { if (stream.rstCode === constants.NGHTTP2_CANCEL) cancelled++ })
+      stream.respond({ ':status': 200, 'content-type': 'text/plain' })
+      stream.write('partial')
+    })
+    const fetchImpl = client({ bodyTimeoutMs: 150 })
+    const response = await fetchImpl(`${fixture.origin}/stalled`)
+    await expect(response.text()).rejects.toThrow(/no data for 150 ms/)
+    await vi.waitFor(() => expect(cancelled).toBe(1))
+    await expect(fetchImpl.close()).resolves.toBeUndefined()
+  }, 10_000)
+
+  it('keeps a body that is being read alive across garbage collections between chunks', async () => {
+    let cancelled = 0
+    const fixture = await h2Server((stream) => {
+      stream.on('close', () => { if (stream.rstCode === constants.NGHTTP2_CANCEL) cancelled++ })
+      stream.respond({ ':status': 200, 'content-type': 'text/plain' })
+      let sent = 0
+      const timer = setInterval(() => {
+        if (stream.destroyed) { clearInterval(timer); return }
+        stream.write(`chunk${sent};`)
+        if (++sent === 6) { clearInterval(timer); stream.end() }
+      }, 40)
+    })
+    // Nothing but the pending read keeps the caller's promise chain reachable, and
+    // a full collection runs between every chunk.
+    const script = `
+      import { createNodeHttp2Fetch } from ${JSON.stringify(new URL('../../packages/auth-node/src/http2.ts', import.meta.url).href)}
+      const fetchImpl = createNodeHttp2Fetch({ tls: { ca: process.env.H2_CA } })
+      setInterval(() => globalThis.gc(), 5).unref()
+      const read = async () => await (await fetchImpl(process.env.H2_URL)).text()
+      void read().then(text => console.log('text=' + text), error => console.log('error=' + error?.message))
+    `
+    const { output, code } = await runWithGc(script, `${fixture.origin}/slow`)
+    expect(output).toContain('text=chunk0;chunk1;chunk2;chunk3;chunk4;chunk5;')
+    expect(code).toBe(0)
+    expect(cancelled).toBe(0)
+  }, 15_000)
+
+  it('falls back to the replaced fetch, not itself, when installed as the global fetch', async () => {
+    const fetchImpl = client()
+    vi.stubGlobal('fetch', fetchImpl)
+    try {
+      // Plain HTTP goes to the fallback; calling the global would loop back into this transport.
+      await expect(fetchImpl('http://127.0.0.1:1/unreachable')).rejects.toThrow(TypeError)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 
   it('rejects every request after close() instead of using the fallback', async () => {
     const fallback = vi.fn(async () => new Response('via fallback'))

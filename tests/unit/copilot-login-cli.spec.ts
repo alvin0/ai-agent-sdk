@@ -382,4 +382,16 @@ describe('Copilot_Login_Cli argument handling', () => {
     expect(run.requests).toEqual([])
     expect(run.exitCode).toBe(1)
   })
+
+  it.each([
+    [['--path', '--status']],
+    [['--status', '--path']],
+    [['--account']],
+  ])('refuses a value flag without its value (%j) instead of taking the next flag or a default', async (args) => {
+    const run = await runCli(args, noNetwork)
+
+    expect(run.output).toMatch(/copilot: --(path|account) requires a value/)
+    expect(run.requests).toEqual([])
+    expect(run.exitCode).toBe(1)
+  })
 })

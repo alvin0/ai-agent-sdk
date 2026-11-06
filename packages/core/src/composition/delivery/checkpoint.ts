@@ -43,10 +43,12 @@ export class DeliveryCheckpoint {
     } catch { throw new DeliveryDataError() }
   }
 
-  run(deadlineAt: number, caller?: AbortSignal): Promise<BatchCheckpointReport> {
+  /** @param defer - exporter indexes not to send to this time; their rows report where they stand. */
+  run(deadlineAt: number, caller?: AbortSignal, defer?: (exporterIndex: number) => boolean,
+  ): Promise<BatchCheckpointReport> {
     if (this.inFlight !== undefined) return this.inFlight
     if (this.sealed) return Promise.resolve(this.closedReport())
-    this.inFlight = this.runOnce(deadlineAt, caller).finally(() => { this.inFlight = undefined })
+    this.inFlight = this.runOnce(deadlineAt, caller, defer).finally(() => { this.inFlight = undefined })
     return this.inFlight
   }
 
@@ -56,11 +58,13 @@ export class DeliveryCheckpoint {
     for (const attempt of this.attempts) attempt.seal()
   }
 
-  private async runOnce(deadlineAt: number, caller?: AbortSignal): Promise<BatchCheckpointReport> {
+  private async runOnce(deadlineAt: number, caller: AbortSignal | undefined,
+    defer: ((exporterIndex: number) => boolean) | undefined): Promise<BatchCheckpointReport> {
     const reports: ExporterCheckpointReport[] = []
     for (let index = 0; index < this.attempts.length; index++) {
       const registration = this.registrations[index]!
-      const delivery = await this.attempts[index]!.send(deadlineAt, caller)
+      const attempt = this.attempts[index]!
+      const delivery = defer?.(index) === true ? attempt.current() : await attempt.send(deadlineAt, caller)
       reports.push(Object.freeze({ exporterIndex: index, requirement: registration.requirement,
         selectedBoundary: registration.boundary, delivery }))
     }

@@ -10,10 +10,18 @@ import {
 } from './data.ts'
 import { supportSafeErrors } from './support-errors.ts'
 
-const prepared = new WeakSet<RunTerminalRecord>()
+/** Prepared records and their serialized UTF-8 size, measured once at creation. */
+const prepared = new WeakMap<RunTerminalRecord, number>()
 const COUNT_KEYS = Object.freeze(['total', 'success', 'error', 'aborted', 'rejected', 'unknown'] as const)
 
 export function isPreparedTerminal(record: RunTerminalRecord): boolean { return prepared.has(record) }
+
+/** Serialized size of a prepared (frozen) record, so queueing and batching never re-serialize it. */
+export function preparedTerminalBytes(record: RunTerminalRecord): number {
+  const size = prepared.get(record)
+  if (size === undefined) throw new DeliveryDataError()
+  return size
+}
 
 export function createRunTerminalRecord(
   report: LegacyRunReport | RunReport,
@@ -59,8 +67,9 @@ export function createRunTerminalRecord(
       usage, modelCalls: Object.freeze(calls), operationCounts,
       toolSourceSnapshots: Object.freeze(toolSourceSnapshots), errors: Object.freeze(errors),
     })
-    if (bytes(record) > DELIVERY_LIMITS.recordBytes) throw new DeliveryDataError()
-    prepared.add(record)
+    const size = bytes(record)
+    if (size > DELIVERY_LIMITS.recordBytes) throw new DeliveryDataError()
+    prepared.set(record, size)
     return record
   } catch { throw new DeliveryDataError() }
 }

@@ -11,3 +11,4 @@ export type {
   TokenUsage,
 } from './chunk.ts'
 export { withIdleTimeout } from './idle-timeout.ts'
+export { IdleTimer, MAX_TIMER_MS } from './idle-timer.ts'

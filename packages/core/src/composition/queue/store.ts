@@ -1,8 +1,8 @@
 import type { ObservationEvent } from '../../observation/index.ts'
 import type { RuntimeObservationResource } from '../delivery/resource.ts'
 import { prepareDeliveryEvent, preparedEventBytes } from '../delivery/event.ts'
-import { bytes, count, DeliveryDataError } from '../delivery/data.ts'
-import { isPreparedTerminal } from '../delivery/terminal.ts'
+import { count, DeliveryDataError } from '../delivery/data.ts'
+import { preparedTerminalBytes } from '../delivery/terminal.ts'
 import { deliveryBatchEnvelopeBytes } from '../delivery/batch.ts'
 import type { RunTerminalRecord } from '../exporter/delivery-types.ts'
 import { DeliveryStaging } from '../delivery/staging.ts'
@@ -42,8 +42,9 @@ export class DeliveryQueueStore {
   private readonly retain: boolean
   // Insertion order is admission (ordinal) order, so iterating `active` yields FIFO.
   private readonly active = new Set<DeliveryQueueEntry>()
-  // Active evictable entries per priority. The first unprotected member is exactly
-  // the oldest candidate, found without scanning the (mostly critical) queue.
+  // Active, unprotected evictable entries per priority, in admission order. An
+  // entry leaves its set while an export task protects it, so the first member is
+  // exactly the oldest candidate: eviction never scans critical or protected entries.
   private readonly activeVerbose = new Set<DeliveryQueueEntry>()
   private readonly activeNormal = new Set<DeliveryQueueEntry>()
   private readonly protectedEntries = new WeakSet<DeliveryQueueEntry>()
@@ -96,6 +97,11 @@ export class DeliveryQueueStore {
       || this.queuedBytes - this.protectedBytes >= this.maxBatchBytes
   }
 
+  /** At least `fraction` of the event or byte capacity is in use, assigned entries included. */
+  underPressure(fraction: number): boolean {
+    return this.active.size >= this.maxEvents * fraction || this.queuedBytes >= this.maxBytes * fraction
+  }
+
   /** True when no unassigned entry is waiting for an export task. */
   hasNoBacklog(): boolean { return this.active.size === this.protectedCount }
 
@@ -111,22 +117,33 @@ export class DeliveryQueueStore {
 
   admitRunRecord(record: RunTerminalRecord): QueueAdmission {
     if (this.closed) return outcome('closed', 'closed')
-    if (!isPreparedTerminal(record)) throw new DeliveryDataError()
+    const size = preparedTerminalBytes(record)
     const previous = this.runIds.get(record.runId)
     if (previous !== undefined) return outcome('existing', undefined, previous)
     return this.admit({ kind: 'run-record', id: record.runId, runId: record.runId,
-      priority: 'critical', bytes: bytes(record), item: record }, this.runIds)
+      priority: 'critical', bytes: size, item: record }, this.runIds)
   }
 
   remove(entries: readonly DeliveryQueueEntry[]): void {
     for (const entry of entries) {
       if (!this.active.delete(entry)) continue
-      this.evictableSet(entry)?.delete(entry)
       this.release(entry)
+      this.evictableSet(entry)?.delete(entry)
       this.queuedBytes -= entry.bytes
       if (entry.kind === 'event') this.eventIds.delete(entry.id)
       else this.runIds.delete(entry.id)
     }
+  }
+
+  /** The oldest `limit` entries no export task holds yet (protected entries are skipped). */
+  unprotectedEntries(limit: number): readonly DeliveryQueueEntry[] {
+    const selected: DeliveryQueueEntry[] = []
+    if (this.active.size === this.protectedCount) return selected
+    for (const entry of this.active) {
+      if (selected.length >= limit) break
+      if (!this.protectedEntries.has(entry)) selected.push(entry)
+    }
+    return selected
   }
 
   activeEntries(limit?: number): readonly DeliveryQueueEntry[] {
@@ -145,13 +162,24 @@ export class DeliveryQueueStore {
     for (const entry of entries) {
       if (!this.active.has(entry) || this.protectedEntries.has(entry)) continue
       this.protectedEntries.add(entry)
+      this.evictableSet(entry)?.delete(entry)
       this.protectedCount++
       this.protectedBytes += entry.bytes
     }
   }
 
   unprotect(entries: readonly DeliveryQueueEntry[]): void {
-    for (const entry of entries) this.release(entry)
+    const rejoined = new Set<Set<DeliveryQueueEntry>>()
+    for (const entry of entries) {
+      if (!this.release(entry) || !this.active.has(entry)) continue
+      const evictable = this.evictableSet(entry)
+      if (evictable === undefined) continue
+      evictable.add(entry)
+      rejoined.add(evictable)
+    }
+    // Settled entries are removed right after; only an entry that stays queued
+    // rejoins, and its set is re-sorted so eviction remains oldest-first.
+    for (const evictable of rejoined) sortByOrdinal(evictable)
   }
 
   runEntries(runId: string, throughSequence?: number): readonly DeliveryQueueEntry[] {
@@ -217,19 +245,16 @@ export class DeliveryQueueStore {
     }
   }
 
-  private release(entry: DeliveryQueueEntry): void {
-    if (!this.protectedEntries.delete(entry)) return
+  /** Drop protection; true when the entry was protected. */
+  private release(entry: DeliveryQueueEntry): boolean {
+    if (!this.protectedEntries.delete(entry)) return false
     this.protectedCount--
     this.protectedBytes -= entry.bytes
+    return true
   }
 
   private evictionCandidate(): DeliveryQueueEntry | undefined {
-    return this.firstUnprotected(this.activeVerbose) ?? this.firstUnprotected(this.activeNormal)
-  }
-
-  private firstUnprotected(entries: ReadonlySet<DeliveryQueueEntry>): DeliveryQueueEntry | undefined {
-    for (const entry of entries) if (!this.protectedEntries.has(entry)) return entry
-    return undefined
+    return first(this.activeVerbose) ?? first(this.activeNormal)
   }
 
   private evictableSet(entry: DeliveryQueueEntry): Set<DeliveryQueueEntry> | undefined {
@@ -244,6 +269,17 @@ export class DeliveryQueueStore {
     this.evictedBytes = saturatingCounterAdd(this.evictedBytes, entry.bytes)
     try { this.onEvict?.(entry) } catch { /* Queue capacity must not depend on a health observer. */ }
   }
+}
+
+function first(entries: ReadonlySet<DeliveryQueueEntry>): DeliveryQueueEntry | undefined {
+  const next = entries.values().next()
+  return next.done === true ? undefined : next.value
+}
+
+function sortByOrdinal(entries: Set<DeliveryQueueEntry>): void {
+  const ordered = [...entries].sort((left, right) => left.ordinal - right.ordinal)
+  entries.clear()
+  for (const entry of ordered) entries.add(entry)
 }
 
 function queueLimits(options: DeliveryQueueOptions) {

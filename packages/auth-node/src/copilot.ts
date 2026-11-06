@@ -19,12 +19,18 @@ import {
   type CopilotCredentialStore,
   type CopilotProviderOptions,
 } from '@alvin0/ai-agent-sdk-provider-copilot'
-import { fileCopilotCredentialStore } from './copilot-store.ts'
+import { copilotAccountAuthPath, fileCopilotCredentialStore } from './copilot-store.ts'
 import { withDefaultNodeFetch } from './http2/default.ts'
 
 export interface CopilotNodeProviderOptions extends Omit<CopilotProviderOptions, 'authStore'> {
   /** Omit to use the project-local file credential store. */
   readonly authStore?: CopilotCredentialStore
+  /**
+   * Use the named account's project-local credentials
+   * (`.providers/.copilot/accounts/<name>.json`, from `--account <name>` at login)
+   * instead of the default file. Ignored when `authStore` is given.
+   */
+  readonly account?: string
 }
 
 /**
@@ -37,7 +43,8 @@ export function copilotNodeProviderPlugin(
 ): ComposableModelProviderPlugin & { readonly family: 'copilot' } {
   return universalCopilotPlugin({
     ...withDefaultNodeFetch(options),
-    authStore: options.authStore ?? fileCopilotCredentialStore(),
+    authStore: options.authStore ?? fileCopilotCredentialStore(
+      options.account === undefined ? undefined : copilotAccountAuthPath(options.account)),
   })
 }
 
@@ -137,6 +144,7 @@ export {
 export {
   COPILOT_AUTH_PATH_ENV,
   DEFAULT_COPILOT_AUTH_PATH,
+  copilotAccountAuthPath,
   fileCopilotAuthStore,
   fileCopilotCredentialStore,
   resolveCopilotAuthPath,

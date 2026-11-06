@@ -13,6 +13,13 @@ export interface Http2PoolOptions {
 
 export interface Http2Lease {
   readonly session: ClientHttp2Session
+  /**
+   * Stop keeping the process alive for this stream while it waits on its reader
+   * (a response body nobody is reading). The slot stays taken. Idempotent.
+   */
+  unhold(): void
+  /** Keep the process alive for this stream again (its reader is waiting for data). Idempotent. */
+  hold(): void
   /** Return the stream slot. Idempotent. */
   release(): void
 }
@@ -39,7 +46,10 @@ interface PooledSession {
   /** The server's SETTINGS frame has arrived, so `remoteSettings` is real. */
   settled: boolean
   readonly ready: Promise<void>
+  /** Leased stream slots. */
   active: number
+  /** Leases that keep the process alive; the session is ref'd while this is above zero. */
+  holds: number
   idle: ReturnType<typeof setTimeout> | undefined
   open: boolean
 }
@@ -74,16 +84,30 @@ export class Http2SessionPool {
     try {
       await (signal === undefined ? pooled.ready : abortable(pooled.ready, signal))
     } catch (error: unknown) {
-      this.release(pooled)
+      this.unhold(pooled)
+      this.releaseSlot(pooled)
       throw error
     }
     let released = false
+    let held = true
     return {
       session: pooled.session,
+      unhold: () => {
+        if (released || !held) return
+        held = false
+        this.unhold(pooled)
+      },
+      hold: () => {
+        if (released || held) return
+        held = true
+        this.hold(pooled)
+      },
       release: () => {
         if (released) return
         released = true
-        this.release(pooled)
+        if (held) this.unhold(pooled)
+        held = false
+        this.releaseSlot(pooled)
       },
     }
   }
@@ -115,7 +139,7 @@ export class Http2SessionPool {
     const session = connect(origin, this.options.connect ?? {})
     const pooled: PooledSession = {
       origin, session, settled: false, ready: this.whenConnected(origin, session),
-      active: 0, idle: undefined, open: true,
+      active: 0, holds: 0, idle: undefined, open: true,
     }
     session.on('remoteSettings', (settings) => {
       pooled.settled = true
@@ -163,13 +187,21 @@ export class Http2SessionPool {
     pooled.active++
     if (pooled.idle !== undefined) clearTimeout(pooled.idle)
     pooled.idle = undefined
-    pooled.session.ref()
+    this.hold(pooled)
   }
 
-  private release(pooled: PooledSession): void {
+  private hold(pooled: PooledSession): void {
+    if (pooled.holds++ === 0 && !pooled.session.destroyed) pooled.session.ref()
+  }
+
+  private unhold(pooled: PooledSession): void {
+    pooled.holds = Math.max(0, pooled.holds - 1)
+    if (pooled.holds === 0 && !pooled.session.destroyed) pooled.session.unref()
+  }
+
+  private releaseSlot(pooled: PooledSession): void {
     pooled.active = Math.max(0, pooled.active - 1)
     if (pooled.active > 0 || pooled.session.destroyed) return
-    pooled.session.unref()
     if (!pooled.open) {
       void closeSession(pooled)
       return

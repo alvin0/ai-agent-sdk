@@ -208,21 +208,212 @@ describe('queue to stable batch scheduling', () => {
     resources.close()
   })
 
-  it('backs off background drains after a step that does not deliver', async () => {
+  it('backs off background drains after a step that does not deliver, keeping best-effort items queued', async () => {
     const send = vi.fn(() => { throw new Error('PRIVATE_EXPORT/BODY~SENTINEL%') })
     const { resources, store, scheduler } = fixture([target('optional', 'best-effort', send)], { maxBatchEvents: 1 })
     store.admitEvent(event('backoff', 1))
     scheduler.requestDrain({ force: true })
     await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
-    await vi.waitFor(() => expect(store.snapshot().queuedItems).toBe(0))
+    await new Promise(resolve => setTimeout(resolve, 20))
+    // A background attempt is tentative: the item stays for the next attempt and
+    // nothing is recorded against the exporter yet.
+    expect(store.snapshot().queuedItems).toBe(1)
+    expect(scheduler.health()).toMatchObject({ exporterFailures: 0, flushTimeouts: 0, requiredFailure: false })
     store.admitEvent(event('backoff', 2))
     scheduler.requestDrain({ force: true })
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(send).toHaveBeenCalledOnce()
-    expect(store.snapshot().queuedItems).toBe(1)
-    // An explicit flush is never subject to background backoff.
+    expect(store.snapshot().queuedItems).toBe(2)
+    // An explicit flush is never subject to background backoff, and it settles the failures.
     await scheduler.flush(createRuntimePlatform().monotonicNow() + 10_000)
+    expect(send).toHaveBeenCalledTimes(3)
+    expect(store.snapshot().queuedItems).toBe(0)
+    expect(scheduler.health()).toMatchObject({ exporterFailures: 2 })
+    resources.close()
+  })
+
+  it('delivers best-effort items a background step failed once the sink recovers', async () => {
+    let down = true
+    const delivered: string[] = []
+    const send = vi.fn((batch: ObservationDeliveryBatch) => {
+      if (down) throw new Error('PRIVATE_EXPORT/BODY~SENTINEL%')
+      delivered.push(...batch.events.map(value => value.eventId))
+      return fullAck(batch)
+    })
+    const { resources, store, scheduler } = fixture([target('optional', 'best-effort', send)], { maxBatchEvents: 1 })
+    const first = store.admitEvent(event('recover', 1)).entry!
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    down = false
+    // After the first backoff pause (250 ms) the next request retries the same item.
+    await new Promise(resolve => setTimeout(resolve, 300))
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(store.snapshot().queuedItems).toBe(0))
+    expect(delivered).toEqual([first.id])
+    expect(scheduler.health()).toMatchObject({ exported: 1, exporterFailures: 0 })
+    resources.close()
+  })
+
+  it('retries a paused exporter by itself once its pause ends, without another request', async () => {
+    let down = true
+    const send = vi.fn((batch: ObservationDeliveryBatch) => {
+      if (down) throw new Error('PRIVATE_EXPORT/BODY~SENTINEL%')
+      return fullAck(batch)
+    })
+    const { resources, store, scheduler } = fixture([target('optional', 'best-effort', send)], { maxBatchEvents: 1 })
+    store.admitEvent(event('wake', 1))
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    down = false
+    await vi.waitFor(() => expect(store.snapshot().queuedItems).toBe(0), { timeout: 1_000 })
     expect(send).toHaveBeenCalledTimes(2)
+    resources.close()
+  })
+
+  it('paces a down exporter on its own, sheds its items only under queue pressure, and drains them once it is back',
+    async () => {
+    const delivered: string[] = [], recovered: string[] = []
+    let up = false
+    const healthy = vi.fn((batch: ObservationDeliveryBatch) => {
+      delivered.push(...batch.events.map(value => value.eventId))
+      return fullAck(batch)
+    })
+    const down = vi.fn((batch: ObservationDeliveryBatch) => {
+      if (!up) throw new Error('PRIVATE_EXPORT/BODY~SENTINEL%')
+      recovered.push(...batch.events.map(value => value.eventId))
+      return fullAck(batch)
+    })
+    // Pressure starts at half of 20 queued items.
+    const { resources, store, scheduler } = fixture(
+      [target('healthy', 'best-effort', healthy), target('down', 'best-effort', down)], { maxBatchEvents: 1, maxEvents: 20 })
+    const admit = (sequence: number) => store.admitEvent(event('pace', sequence)).entry!.id
+    const first = [1, 2, 3, 4].map(admit)
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(delivered).toEqual(first))
+    // One probe per step: after its first failure the step does not call it for the remaining batches.
+    expect(down).toHaveBeenCalledTimes(1)
+    // Within the down exporter's pause (250 ms) the healthy one still takes new items, and the down one is not called.
+    const second = [5, 6].map(admit)
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(delivered).toEqual([...first, ...second]), { timeout: 200 })
+    expect(down).toHaveBeenCalledTimes(1)
+    // Tentative so far: everything the down exporter has not taken stays queued, nothing is reported.
+    expect(scheduler.health()).toMatchObject({ exporterFailures: 0 })
+    expect(store.snapshot().queuedItems).toBe(6)
+    // After the pause it is probed (second failure, still tentative), then after the next one it counts as down.
+    await new Promise(resolve => setTimeout(resolve, 300))
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(down).toHaveBeenCalledTimes(2))
+    expect(scheduler.health()).toMatchObject({ exporterFailures: 0 })
+    await new Promise(resolve => setTimeout(resolve, 550))
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(scheduler.health().exporterFailures).toBeGreaterThan(0))
+    const calls = down.mock.calls.length
+    // Down and paused: not called. Below the pressure its items stay queued for its next probe.
+    const third = [7, 8].map(admit)
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(delivered).toEqual(expect.arrayContaining(third)))
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(store.snapshot().queuedItems).toBe(8)
+    // Above it, its share is settled as failed instead of filling the queue, still without calling it.
+    const fourth = [9, 10, 11, 12, 13, 14].map(admit)
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(delivered).toEqual(expect.arrayContaining(fourth)))
+    await vi.waitFor(() => expect(store.snapshot().queuedItems).toBeLessThan(10))
+    expect(down).toHaveBeenCalledTimes(calls)
+    // Once its pause (1 s after the third failure) ends, the probe succeeds and every kept item drains,
+    // more than one step's worth (4 batches).
+    const kept = store.snapshot().queuedItems
+    expect(kept).toBeGreaterThan(4)
+    up = true
+    await new Promise(resolve => setTimeout(resolve, 1_050))
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(store.snapshot().queuedItems).toBe(0))
+    expect(recovered).toHaveLength(kept)
+    resources.close()
+  }, 8_000)
+
+  /** A scheduler whose monotonic clock a test can move forward. */
+  function skewedFixture(registrations: readonly RuntimeObservationExporterRegistration[],
+    options: ConstructorParameters<typeof DeliveryQueueStore>[2]) {
+    const base = createRuntimePlatform()
+    let skew = 0
+    const platform = { ...base, monotonicNow: () => base.monotonicNow() + skew }
+    const resources = new RuntimeResources(platform), resource = createRuntimeResource(undefined, platform)
+    const store = new DeliveryQueueStore(resource, new DeliveryStaging(registrations, vi.fn()), options)
+    const scheduler = new DeliveryQueueScheduler(store, resource, registrations, { resources, drainTimeoutMs: 1_000 })
+    return { platform, resources, store, scheduler, advance: (ms: number) => { skew += ms } }
+  }
+
+  it('resumes the batches a yielded step created but had not reached, with no other backlog left', async () => {
+    const send = vi.fn(async (batch: ObservationDeliveryBatch) => {
+      await new Promise(resolve => setTimeout(resolve, 50))
+      return fullAck(batch)
+    })
+    const { platform, resources, store, scheduler } = fixture([target('required', 'required', send)], { maxBatchEvents: 1 })
+    // Exactly one step's worth: once the step assigns them, no unassigned backlog remains.
+    for (let sequence = 1; sequence <= 4; sequence++) store.admitEvent(event('backlog', sequence))
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    store.admitEvent(event('finished', 1))
+    await expect(scheduler.checkpointRun('finished', 1, platform.monotonicNow() + 180))
+      .resolves.toMatchObject({ status: 'complete' })
+    // The three batches the step had created are not stranded behind the checkpoint.
+    await vi.waitFor(() => expect(store.snapshot().queuedItems).toBe(0), { timeout: 2_000 })
+    expect(send).toHaveBeenCalledTimes(5)
+    resources.close()
+  })
+
+  it('does not shed a down exporter\'s items when it was skipped only because another used up the step', async () => {
+    const probed: string[] = []
+    let burn = false
+    let advance = (_ms: number) => {}
+    const required = vi.fn((batch: ObservationDeliveryBatch) => {
+      if (burn) advance(10_000)
+      burn = false
+      return fullAck(batch)
+    })
+    const down = vi.fn((batch: ObservationDeliveryBatch) => {
+      probed.push(...batch.events.map(value => value.eventId))
+      throw new Error('PRIVATE_EXPORT/BODY~SENTINEL%')
+    })
+    const state = skewedFixture([target('required', 'required', required), target('down', 'best-effort', down)],
+      { maxBatchEvents: 1, maxEvents: 20 })
+    advance = state.advance
+    // Three failed flushes: the best-effort exporter counts as down.
+    for (let sequence = 1; sequence <= 3; sequence++) {
+      state.store.admitEvent(event('down', sequence))
+      await state.scheduler.flush(state.platform.monotonicNow() + 10_000)
+    }
+    expect(down).toHaveBeenCalledTimes(3)
+    // Its pause is over; the queue is under pressure; the required exporter uses up the next step's time.
+    state.advance(5_000)
+    const ids = Array.from({ length: 12 }, (_value, index) => state.store.admitEvent(event('pressure', 10 + index)).entry!.id)
+    burn = true
+    state.scheduler.requestDrain({ force: true })
+    // Its first item was not shed unseen: the next step probes it with that item.
+    await vi.waitFor(() => expect(probed).toContain(ids[0]), { timeout: 500 })
+    state.resources.close()
+  })
+
+  it('does not count a background step deadline as a flush timeout or a required failure', async () => {
+    const send = vi.fn((_batch: ObservationDeliveryBatch, signal: AbortSignal) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => { reject(signal.reason) }, { once: true })
+    }))
+    const registrations = [target('required', 'required', send)]
+    const platform = createRuntimePlatform(), resources = new RuntimeResources(platform)
+    const resource = createRuntimeResource(undefined, platform)
+    const store = new DeliveryQueueStore(resource, new DeliveryStaging(registrations, vi.fn()), { maxBatchEvents: 1 })
+    const scheduler = new DeliveryQueueScheduler(store, resource, registrations, { resources, drainTimeoutMs: 20 })
+    store.admitEvent({ ...event('slow', 1), priority: 'critical' })
+    scheduler.requestDrain({ force: true })
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    await new Promise(resolve => setTimeout(resolve, 60))
+    expect(scheduler.health()).toMatchObject({ flushTimeouts: 0, exporterFailures: 0, requiredFailure: false })
+    expect(store.snapshot().queuedItems).toBe(1)
+    // A caller's own flush that times out is still recorded.
+    await scheduler.flush(platform.monotonicNow() + 20)
+    expect(scheduler.health()).toMatchObject({ flushTimeouts: 1, requiredFailure: true })
     resources.close()
   })
 

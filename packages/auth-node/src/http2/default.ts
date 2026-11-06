@@ -13,6 +13,9 @@ const DISPATCHER_WRAPPER = 'Dispatcher1Wrapper'
 let shared: NodeHttp2Fetch | undefined
 let routed: typeof globalThis.fetch | undefined
 
+/** The global `fetch` as this module first saw it, and whether it was the runtime's own. */
+const LOADED_FETCH = Object.freeze({ fetch: globalThis.fetch as unknown, builtin: isBuiltinFetch(globalThis.fetch) })
+
 /**
  * One process-wide HTTP/2 transport, like the platform's global dispatcher: every
  * Node plugin shares its per-origin sessions, idle sessions close themselves and
@@ -20,18 +23,33 @@ let routed: typeof globalThis.fetch | undefined
  *
  * Returns `undefined` (keep the platform `fetch`) when a proxy is configured in the
  * environment, because requests through this transport would bypass the proxy.
- * Each request also goes through the platform `fetch` while the application has
- * installed a global dispatcher of its own (`setGlobalDispatcher` with a proxy,
- * custom TLS, a mock, …), which this transport would otherwise bypass.
+ * Each request also goes through the global `fetch` while the application has
+ * replaced it (MSW, `vi.stubGlobal`, nock, fetch instrumentation, …) or installed
+ * a global dispatcher of its own (`setGlobalDispatcher` with a proxy, custom TLS,
+ * a mock, …), which this transport would otherwise bypass.
  */
 export function defaultNodeFetch(env: NodeJS.ProcessEnv = process.env): typeof globalThis.fetch | undefined {
   if (PROXY_ENV.some(name => (env[name] ?? '').trim() !== '')) return undefined
-  shared ??= createNodeHttp2Fetch()
+  shared ??= createNodeHttp2Fetch({ fallback: async (input, init) => await platformFetch()(input, init) })
   const transport = shared
-  routed ??= (async (input, init) => await (customGlobalDispatcher()
-    ? globalThis.fetch(input, init)
-    : transport(input, init))) as typeof globalThis.fetch
+  routed ??= (async (input, init) => {
+    const platform = platformFetch()
+    return await (globalFetchReplaced(platform) || customGlobalDispatcher()
+      ? platform(input, init)
+      : transport(input, init))
+  }) as typeof globalThis.fetch
   return routed
+}
+
+/**
+ * The `fetch` that requests leaving this transport go through: the global one,
+ * unless the application installed this transport as the global itself
+ * (`globalThis.fetch = defaultNodeFetch()`), where calling the global would loop
+ * back here; then the one the global replaced.
+ */
+function platformFetch(): typeof globalThis.fetch {
+  const current = globalThis.fetch
+  return current === routed ? LOADED_FETCH.fetch as typeof globalThis.fetch : current
 }
 
 /** Fill `fetch` with {@link defaultNodeFetch} unless the caller chose one. */
@@ -41,6 +59,32 @@ export function withDefaultNodeFetch<Options extends { readonly fetch?: typeof g
   if (options.fetch !== undefined) return options
   const fetch = defaultNodeFetch()
   return fetch === undefined ? options : { ...options, fetch }
+}
+
+/**
+ * Whether the global `fetch` is no longer the runtime's own: replaced since this
+ * module loaded, or already replaced when it loaded (a mock or an instrumentation
+ * set up first). Requests then go through it, so mocks match and spans are kept.
+ */
+export function globalFetchReplaced(
+  current: unknown = globalThis.fetch,
+  loaded: { readonly fetch: unknown; readonly builtin: boolean } = LOADED_FETCH,
+): boolean {
+  return current !== loaded.fetch || !loaded.builtin
+}
+
+/**
+ * Whether `value` is the runtime's built-in `fetch`: Node's lazily loads undici
+ * from JavaScript source; Bun's is native. A wrapper (`Proxy`, bound function,
+ * `vi.fn`, an instrumentation's closure) has neither shape.
+ */
+export function isBuiltinFetch(value: unknown): boolean {
+  if (typeof value !== 'function') return false
+  let source: string
+  try { source = Function.prototype.toString.call(value) }
+  catch { return false }
+  return (source.startsWith('function fetch(input, init') && source.includes('undici'))
+    || /^function fetch\(\) \{\s*\[native code\]\s*\}$/.test(source)
 }
 
 /**
