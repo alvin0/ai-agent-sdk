@@ -54,11 +54,13 @@ jobs:
             label: linux x64 (bubblewrap, older kernel policy)
           - os: ubuntu-22.04-arm
             label: linux arm64 (bubblewrap, older kernel policy)
-          - os: macos-15
+          # GitHub retires macOS images (macos-14 went in November 2026): the
+          # current one leads, the previous one is the "older" policy check.
+          - os: macos-26
             label: macos arm64 (seatbelt)
           - os: macos-15-intel
             label: macos x64 (seatbelt)
-          - os: macos-14
+          - os: macos-15
             label: macos arm64 (seatbelt, older)
           - os: windows-2025
             label: windows x64 (fence only, fails closed)
