@@ -21,11 +21,18 @@ import type { ProtocolSseEvent, ProtocolStreamChunk } from './contract.ts'
 import type { WireStreamEvent } from './wire.ts'
 import { translateEvent, type StreamState } from './stream-events.ts'
 
+/** Options the translator reads from the request. */
+export interface AnthropicTranslateOptions {
+  /** The request asked for JSON output (`outputFormat: json_schema`). */
+  readonly jsonOutput?: boolean
+}
+
 export async function* translateAnthropicStream(
-  events: AsyncIterable<ProtocolSseEvent>, displayName: string,
+  events: AsyncIterable<ProtocolSseEvent>, displayName: string, options: AnthropicTranslateOptions = {},
 ): AsyncGenerator<ProtocolStreamChunk> {
   const state: StreamState = {
     open: new Map(), emittedBlocks: 0, stop: undefined,
+    jsonOutput: options.jsonOutput === true, sawAnswer: false, lastThinking: undefined,
     usage: { input: undefined, output: undefined, cacheRead: undefined, cacheWrite: undefined, seen: false },
   }
   for await (const raw of events) {

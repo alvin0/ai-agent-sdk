@@ -106,7 +106,8 @@ Usage:
 Options:
   --workdir <path>                         Default: test-human/workspaces/agentcode
   --skills-root <path>                     Prepared skills.sh root; repeatable
-  --provider <codex|openai|anthropic>      Default: codex
+  --provider <codex|openai|anthropic|fpt|fpt-responses|fpt-messages>
+                                           Default: codex
   --model <id>                             Codex default: gpt-5.6-luna
   --effort <id>                            Default: medium
   --max-turns <number>                     Default: 32

@@ -22,5 +22,5 @@ export {
   type AnthropicSerializeOptions,
   type ThinkingBudgets,
 } from './serialize.ts'
-export { translateAnthropicStream } from './translate.ts'
+export { translateAnthropicStream, type AnthropicTranslateOptions } from './translate.ts'
 export type * from './wire.ts'

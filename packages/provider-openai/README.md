@@ -75,8 +75,57 @@ openAiPlugin({
 `'deepseek'`, or `false` to send no effort field at all), `maxTokensField`
 (`'max_tokens'` default, or `'max_completion_tokens'`, or `false`),
 `systemRole`, `structuredOutputs`, `tools`, `parallelToolCalls`, `streamUsage`,
-`stop`, `seed`, `promptCacheKey`. Unset knobs keep the protocol's own
-conservative defaults.
+`stop`, `seed`, `promptCacheKey`, `reasoningReplay`, `thinkTags`. Unset knobs keep the
+protocol's own conservative defaults.
+
+### Reasoning from open-weight and local models
+
+Reasoning is read on both wires whatever the server calls it:
+
+- Chat Completions: `reasoning_content` (DeepSeek, vLLM, llama.cpp, LM Studio),
+  `reasoning` (OpenRouter, Ollama, newer vLLM), or a `<think>…</think>` block
+  that opens `content` (a server running without a reasoning parser). A tag
+  that does not open the content is left as text.
+- Responses: OpenAI's summaries and encrypted reasoning, and the raw
+  `reasoning_text` parts that vLLM, gpt-oss and gateways in front of
+  DeepSeek or Qwen return instead.
+
+Thinking models lose their chain of thought between tool calls unless it is
+sent back. On Responses, reasoning returns the way it arrived: encrypted
+content and summaries as before, raw reasoning as `reasoning_text`. On Chat
+Completions, `compat.reasoningReplay` decides, and it only ever touches the
+assistant messages of the tool loop in progress (after the latest user
+message):
+
+- `'auto'` (default) replays reasoning this same model produced on this same
+  endpoint, the way it arrived: on `reasoning_content` or `reasoning`, or inside
+  `<think>` tags at the start of `content`. Reasoning from another model,
+  provider or failover member (even one serving the same model id) is not sent,
+  so a strict endpoint never sees a field it did not offer.
+- `'reasoning_content'` or `'reasoning'` forces that field for every reasoning
+  block of the current turn, e.g. after switching providers mid-session.
+- `false` never sends reasoning back.
+
+Messages the application injects mid-loop (budget reminders, tool context) do
+not end the current turn; the next message from the user does. Tag reading is
+on for custom `baseUrl`s and off for `api.openai.com`; set `compat.thinkTags`
+to override, e.g. `false` for an endpoint whose answers may legitimately start
+with a `<think>` tag, or for OpenAI models reached through Azure or a proxy. A template that puts the opening `<think>` in the prompt,
+so the output carries only `</think>`, is not recognised: run that server with
+its reasoning parser.
+
+```ts
+openAiPlugin({
+  id: 'local',
+  displayName: 'vLLM',
+  baseUrl: 'http://localhost:8000/v1',
+  allowInsecureHttp: true,
+  api: 'chat-completions',
+  apiKey: 'unused',
+  // Defaults shown; set `reasoningReplay: false` for a server that rejects unknown message fields.
+  compat: { reasoningReplay: 'auto' },
+})
+```
 
 ## Prompt caching
 

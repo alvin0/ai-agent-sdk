@@ -6,7 +6,8 @@ import { ModelCallObservationError, OBSERVATION_ERROR_CODES, type ModelCallHandl
   type ModelCallReport } from '../observation/report.ts'
 import { addUsageCounters, validateUsageCounters,
   type UsageCoverage, type UsageCounters } from '../observation/usage.ts'
-import { nowMonotonic, safeFailureFromFinish, applyReceipt, deliverySummary } from './model-call-support.ts'
+import { elapsedWithin, nowMonotonic, safeFailureFromFinish, applyReceipt,
+  deliverySummary } from './model-call-support.ts'
 import { modelCallCoverage, usageValidationError,
   billedAttemptsWithoutUsage, finishStatus } from './model-call-usage.ts'
 import type { captureModelCall } from './model-call-config.ts'
@@ -30,6 +31,7 @@ export class ModelCallRuntime {
   private finishReason: string | undefined
   private error: SafeErrorRecord | undefined
   private usage: TokenUsage | undefined
+  private firstOutputMonotonic: number | undefined
 
   constructor(private readonly host: ModelCallHost) {}
 
@@ -140,6 +142,19 @@ export class ModelCallRuntime {
 
   }
 
+  private recordOutputTime(): void {
+    const { accounting } = this.host
+    const at = nowMonotonic()
+    this.firstOutputMonotonic ??= at
+    accounting.markFirstOutput(at)
+  }
+
+  private firstOutputMs(durationMs: number): { firstOutputMs?: number } {
+    if (this.firstOutputMonotonic === undefined) return {}
+    const firstOutputMs = elapsedWithin(this.host.startedMonotonic, this.firstOutputMonotonic, durationMs)
+    return { firstOutputMs }
+  }
+
   private summarizeUsage(endedMonotonic: number): UsageSummary {
     const { input, accounting, startedMonotonic } = this.host
     const { attempts } = accounting
@@ -209,6 +224,7 @@ export class ModelCallRuntime {
       startedAt,
       endedAt,
       durationMs,
+      ...this.firstOutputMs(durationMs),
       ...this.finishReason === undefined ? {} : { finishReason: this.finishReason },
       dispatchState: attempts.at(-1)?.dispatchState
         ?? (input.dispatchState() === 'not-sent' ? 'not-sent' : 'unknown'),
@@ -241,6 +257,8 @@ export class ModelCallRuntime {
 
   private recordChunk(chunk: StreamChunk): void {
     const { input } = this.host
+    if ((this.firstOutputMonotonic === undefined || this.host.accounting.awaitingFirstOutput)
+      && isOutputChunk(chunk)) this.recordOutputTime()
     if (chunk.type === 'usage') this.usage = chunk.usage
     if (chunk.type === 'finish') {
       this.finishReason = chunk.reason.kind
@@ -257,6 +275,16 @@ export class ModelCallRuntime {
 
   private recordCloseError(closeError: unknown): void {
     this.error ??= safeErrorRecord(closeError)
+  }
+}
+
+/** Chunks that carry model output; `block-start` is excluded because it precedes any content. */
+function isOutputChunk(chunk: StreamChunk): boolean {
+  switch (chunk.type) {
+    case 'text-delta': case 'reasoning-delta': case 'image-delta': case 'tool-call-delta': case 'block-end':
+      return true
+    default:
+      return false
   }
 }
 

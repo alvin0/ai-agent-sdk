@@ -50,6 +50,21 @@ export {
   type RefreshFailureKind,
 } from './oauth.ts'
 export {
+  CodexUsageError,
+  codexUsageUrl,
+  getCodexUsage,
+} from './usage.ts'
+export { parseCodexUsageBody, parseCodexUsageHeaders } from './usage-parse.ts'
+export type {
+  CodexAdditionalRateLimit,
+  CodexCredits,
+  CodexModelAvailability,
+  CodexRateLimit,
+  CodexUsage,
+  CodexUsageWindow,
+  GetCodexUsageOptions,
+} from './usage-types.ts'
+export {
   openAiResponsesProtocol,
   type ResponsesDialect,
 } from '@alvin0/ai-agent-sdk-protocol-responses'

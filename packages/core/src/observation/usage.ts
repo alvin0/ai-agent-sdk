@@ -21,6 +21,14 @@ export interface AttemptUsageReport {
   readonly startedAt: string
   readonly endedAt: string
   readonly durationMs: number
+  /**
+   * Milliseconds from this attempt's start until its first output chunk (text,
+   * reasoning, image or tool-call delta, or a completed block) reached the caller.
+   * Omitted when the attempt produced no output. `durationMs - firstOutputMs` is
+   * the streaming window, so `reported.outputTokens` over it approximates output
+   * throughput.
+   */
+  readonly firstOutputMs?: number
   readonly dispatchState: DispatchState
   readonly coverage: UsageCoverage
   readonly reported: UsageCounters

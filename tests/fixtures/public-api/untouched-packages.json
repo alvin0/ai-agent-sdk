@@ -1202,7 +1202,7 @@
           "serializeResponsesRequest",
           "translateResponsesStream"
         ],
-        "declarationSha256": "8ce4c775514c63c3a7357a20f7831ad981f500eeb26be698f64d3f348c13cdf1"
+        "declarationSha256": "390a5669fbf852d74899f6366b934edbef70dd5d9719d4ccd3dd184545b85628"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-anthropic-messages": {
@@ -1215,6 +1215,7 @@
           "AnthropicReasoningFormat",
           "AnthropicReasoningState",
           "AnthropicSerializeOptions",
+          "AnthropicTranslateOptions",
           "DEFAULT_MAX_TOKENS",
           "DEFAULT_THINKING_BUDGETS",
           "ProtocolDefinition",
@@ -1250,7 +1251,7 @@
           "serializeAnthropicRequest",
           "translateAnthropicStream"
         ],
-        "declarationSha256": "6d73c144d981252c04eee16e50ea534c26171022a94b2c54c8e2357bd32cb27f"
+        "declarationSha256": "50ffe01da531e086f6d3a57c5858a267301a6953e7c40e9e555f246b7e769873"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-gemini-interactions": {
@@ -1311,7 +1312,7 @@
           "openAiPlugin",
           "openAiResponsesProtocol"
         ],
-        "declarationSha256": "89268d74c27a1022ef71742f9c39ef718b9ca0f39d8eec725520a76acc51328f"
+        "declarationSha256": "a7ded45babf7e7559f8df1806b9d3f129dca9f1801c63381e51208a70ada02dd"
       }
     },
     "@alvin0/ai-agent-sdk-provider-gemini": {

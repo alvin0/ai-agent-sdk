@@ -50,7 +50,7 @@ export async function discoverCodexModels(
   })
   await rejectCodexRedirect(response, url, 'model catalog', 30_000)
   if (!response.ok) return []
-  const body = await readCatalogJson(response, limits.maxBytes, limits.maxChunks, signal)
+  const body = await readCatalogJson(response, limits, signal)
   const models = Array.isArray(body.models) ? body.models as WireCatalogModel[] : []
   if (models.length > limits.maxModels) {
     throw new RangeError(`Codex model catalog exceeds the ${limits.maxModels}-model limit`)
@@ -58,14 +58,22 @@ export async function discoverCodexModels(
   return models.flatMap(catalogModel)
 }
 
+/** Bounds for one JSON read; `what` names the response in errors (default `model catalog`). */
+export interface JsonReadLimits {
+  readonly maxBytes: number
+  readonly maxChunks: number
+  readonly what?: string
+}
+
+/** Read a bounded JSON-object body from a Codex backend response. */
 export async function readCatalogJson(
   response: Response,
-  maxBytes: number,
-  maxChunks: number,
+  limits: JsonReadLimits,
   signal: AbortSignal,
 ): Promise<Record<string, unknown>> {
-  await checkDeclaredSize(response, maxBytes)
-  if (response.body === null) throw new TypeError('Codex model catalog returned no body')
+  const { maxBytes, maxChunks, what = 'model catalog' } = limits
+  await checkDeclaredSize(response, maxBytes, what)
+  if (response.body === null) throw new TypeError(`Codex ${what} returned no body`)
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
   let bytes = 0
@@ -78,19 +86,19 @@ export async function readCatalogJson(
       chunkCount++
       if (chunkCount > maxChunks) {
         await waitForSettlement(reader.cancel().catch(() => undefined), 30_000)
-        throw new RangeError(`Codex model catalog exceeds the ${maxChunks}-chunk limit`)
+        throw new RangeError(`Codex ${what} exceeds the ${maxChunks}-chunk limit`)
       }
       bytes += next.value.byteLength
       if (bytes > maxBytes) {
         await waitForSettlement(reader.cancel().catch(() => undefined), 30_000)
-        throw new RangeError(`Codex model catalog exceeds the ${maxBytes}-byte limit`)
+        throw new RangeError(`Codex ${what} exceeds the ${maxBytes}-byte limit`)
       }
       chunks.push(next.value)
     }
   } finally {
     reader.releaseLock()
   }
-  return parseCatalogChunks(chunks, bytes)
+  return parseCatalogChunks(chunks, bytes, what)
 }
 
 export function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -150,21 +158,21 @@ function catalogCapacity(entry: WireCatalogModel) {
   }
 }
 
-async function checkDeclaredSize(response: Response, maxBytes: number) {
+async function checkDeclaredSize(response: Response, maxBytes: number, what: string) {
   const declared = Number(response.headers.get('content-length'))
   if (Number.isFinite(declared) && declared > maxBytes) {
     if (response.body !== null) await waitForSettlement(response.body.cancel().catch(() => undefined), 30_000)
-    throw new RangeError(`Codex model catalog exceeds the ${maxBytes}-byte limit`)
+    throw new RangeError(`Codex ${what} exceeds the ${maxBytes}-byte limit`)
   }
 }
 
-function parseCatalogChunks(chunks: readonly Uint8Array[], bytes: number): Record<string, unknown> {
+function parseCatalogChunks(chunks: readonly Uint8Array[], bytes: number, what: string): Record<string, unknown> {
   const merged = new Uint8Array(bytes)
   let offset = 0
   for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.byteLength }
   const parsed: unknown = JSON.parse(new TextDecoder().decode(merged))
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new TypeError('Codex model catalog must be a JSON object')
+    throw new TypeError(`Codex ${what} must be a JSON object`)
   }
   return parsed as Record<string, unknown>
 }

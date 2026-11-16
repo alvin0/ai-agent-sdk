@@ -2,6 +2,96 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## 0.1.17 - 2026-11-16
+
+### Added
+
+- Reasoning from OpenAI-compatible endpoints other than OpenAI. Chat Completions now reads
+  reasoning from `reasoning` (OpenRouter, Ollama, newer vLLM) as well as `reasoning_content`, and
+  splits a `<think>…</think>` block that opens `content` into a reasoning block (a local server
+  without a reasoning parser); a tag later in the content stays text. Reasoning is sent back on
+  the assistant messages of the tool loop in progress, so thinking models such as DeepSeek keep
+  their chain of thought across tool calls. Content held back while a tag is undecided is
+  released before a refusal, and a `</think>` cut off by the token limit is dropped rather than
+  kept as reasoning. The new `compat.reasoningReplay` option
+  (`ChatCompletionsDialect.reasoningReplay`, optional) controls this: `'auto'` (default, also
+  when absent) replays only reasoning the same model produced on the same endpoint, the way it
+  arrived (`reasoning_content`, `reasoning`, or `<think>` tags back inside `content`), so a
+  failover (even to a member serving the same model id) or model switch never sends a field the
+  new endpoint did not offer; `'reasoning_content'` or `'reasoning'` forces a field; `false`
+  turns replay off. The endpoint is recognised by a `replayState` marker the translator now puts
+  on the `finish` chunk of a response that produced reasoning, which core already drops for
+  another adapter or failover member. Application-injected notes mid-loop do not end the turn. `compat.thinkTags:
+  false` (or `createOpenAiChatCompletionsProtocol({ thinkTags: false })`) disables tag reading;
+  the Copilot provider and an OpenAI adapter pointed at `api.openai.com` disable it by default.
+
+- Structured output from servers that misfile it as reasoning. When a request asks for JSON
+  (`outputFormat: json_schema`) and a vLLM-style reasoning parser returns the whole JSON answer
+  as reasoning with no text (seen live on DeepSeek V4 behind FPT AI Marketplace), the Chat
+  Completions, Responses and Anthropic Messages translators also emit it as the answer text.
+  Reasoning read from `<think>` tags is the model's own scratch work and is never recovered.
+
+- Codex remaining usage. `getCodexUsage({ authStore })` in `@alvin0/ai-agent-sdk-provider-codex`
+  reads the account's usage from the endpoint the Codex CLI's `/status` uses, without spending
+  any: per plan window (`rateLimit.primary`, five hours; `rateLimit.secondary`, one week on
+  current plans) the used and remaining percentage, window length and reset time, plus
+  credits, separately metered and code-review limits, and per-model availability. Tokens are
+  refreshed when due; redirects are refused, the body is size- and time-bounded, and the
+  email, user and account ids the endpoint returns are dropped. A failed request throws
+  `CodexUsageError` (`CODEX_USAGE_UNAUTHORIZED`, `_HTTP`, `_TIMEOUT`, `_NETWORK`, `_REDIRECT`,
+  `_TOO_LARGE`, `_MALFORMED`); credential and refresh errors keep their own types.
+  `parseCodexUsageHeaders()` reads the same figures from the `x-codex-*` headers of any model
+  response, and `codexUsageUrl()` derives the endpoint from a custom `baseUrl`. In
+  `@alvin0/ai-agent-sdk-auth-node/codex`, `getCodexNodeUsage({ account? })` uses the
+  project-local credentials, and `ai-agent-sdk-codex-login --usage` (`pnpm
+  provider:codex:usage`) prints them.
+
+- `ModelCallReport.firstOutputMs` and `AttemptUsageReport.firstOutputMs` record the time from
+  the call (or physical attempt) start to its first output chunk — a text, reasoning, image or
+  tool-call delta, or a completed block. Together with `durationMs` and `reported.outputTokens`
+  they give time to first output and output throughput:
+  `outputTokens / ((durationMs - firstOutputMs) / 1000)` tokens per second. The field is omitted
+  when a call produced no output, is truncated to whole microseconds, never exceeds `durationMs`,
+  and is kept on `RunReport.modelCalls`. Times are taken when the caller pulls each chunk, so a
+  slow consumer lowers the measured rate. Treat throughput as unknown when the streaming window
+  is near zero (a buffered, non-streaming response delivers everything at once) or when
+  `reported.outputTokens` is missing (`estimated` may hold an estimate). `reasoningTokens` is a
+  subset of `outputTokens`; a model that reasons without streaming reasoning content spends
+  those tokens before its first chunk, so subtract them for a visible-output rate. After a
+  retry, the call-level window can start in a failed attempt while `reported` sums every
+  attempt; use the successful attempt's `firstOutputMs`, `durationMs` and `reported` instead.
+  The delivery sanitizer rejects a `firstOutputMs` above `durationMs`.
+
+### Fixed
+
+- Responses: raw reasoning (`reasoning_text` parts, as vLLM, gpt-oss and DeepSeek gateways
+  return it) was sent back on the next request as a `summary_text`, so the model read its own
+  thoughts as a summary. It is now replayed as `reasoning_text` with an empty summary, and the
+  done item's `reasoning_text` is used when a server sends no reasoning deltas. Raw reasoning
+  known only from deltas (the done item carried just its id and `encrypted_content`) or from an
+  item without an id is no longer resent as a summary either.
+
+- Error messages from gateways that put the real reason in `description` beside a generic
+  `message: "Bad request"` (FPT AI Marketplace and similar fronts) now read
+  `Bad request: Invalid image URL` instead of `Bad request`, in both the shared and the Chat
+  Completions error parsers, and for errors a Chat Completions endpoint inlines into a 200
+  stream.
+
+- The shared error mapping and the Chat Completions error helpers now agree exactly. A
+  `{"error": "plain string"}` body keeps that string as the message on every provider instead of
+  a generic `HTTP 4xx` one. A content-filter rejection (`content_filter`, `content_policy`) is
+  `INVALID_REQUEST` on every path (HTTP 400/422, an error inlined into a stream, and a
+  `content_filter` finish), so it is not retried, does not fail over, and does not put the member
+  in cooldown; `chatCompletionsErrorCode` previously returned `UNSUPPORTED_CONTENT` for it, and
+  `isContentFilteredError` remains available for callers that want to tell it apart. An error
+  inlined into a Chat Completions stream is now classified by its wording (quota and context
+  window are terminal, so a context overflow reported mid-stream triggers compaction rather than
+  five retries), reads `detail` and plain-string payloads like the HTTP parser (a plain string is
+  classified by its wording too, since there is no status to go by), and is otherwise
+  `SERVER` (retryable); `chatCompletionsStreamError` is the function the translator raises, and
+  its residual code is `SERVER` instead of `MALFORMED_RESPONSE`. `chatCompletionsHttpError` names
+  only the endpoint's origin in its fallback message, never the path or query.
+
 ## 0.1.16 - 2026-11-06
 
 ### Added

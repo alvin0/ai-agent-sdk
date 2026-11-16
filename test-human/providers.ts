@@ -47,6 +47,22 @@ export function createHumanModelRegistry(
 
   if (config.provider === 'codex') {
     registry.registerAdapter(['codex'], codexAdapter(logging))
+  } else if (config.provider === 'fpt-messages') {
+    // Same gateway, Anthropic Messages wire: the protocol appends `/v1/messages`.
+    registry.registerAdapter([config.provider], anthropicAdapter({
+      ...logging,
+      apiKey: envCredential('FPT_CLOUD_API_KEY'),
+      baseUrl: fptBaseUrl().replace(/\/v1$/, ''),
+      displayName: 'FPT Cloud',
+    }))
+  } else if (config.provider === 'fpt' || config.provider === 'fpt-responses') {
+    registry.registerAdapter([config.provider], openAiAdapter({
+      ...logging,
+      apiKey: envCredential('FPT_CLOUD_API_KEY'),
+      baseUrl: fptBaseUrl(),
+      displayName: 'FPT Cloud',
+      api: config.provider === 'fpt' ? 'chat-completions' : 'responses',
+    }))
   } else if (config.provider === 'openai') {
     registry.registerAdapter(['openai'], openAiAdapter({
       ...logging,
@@ -59,6 +75,17 @@ export function createHumanModelRegistry(
     }))
   }
   return registry
+}
+
+/** `FPT_CLOUD_API_URL`, tolerating a pasted endpoint URL: each protocol appends its own path. */
+function fptBaseUrl(): string {
+  return requiredEnv('FPT_CLOUD_API_URL').replace(/\/+$/, '').replace(/\/(chat\/completions|responses|messages)$/, '')
+}
+
+function requiredEnv(name: string): string {
+  const value = process.env[name]
+  if (value === undefined || value.length === 0) throw new Error(`${name} is required`)
+  return value
 }
 
 function samePath(left: string, right: string): boolean {

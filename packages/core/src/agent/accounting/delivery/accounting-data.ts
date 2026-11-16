@@ -72,6 +72,14 @@ export function deliverySummary(value: unknown): ObservationDeliverySummary {
   })
 }
 
+/** `durationMs` plus an optional `firstOutputMs` that must fall inside it. */
+function timing(source: object): { durationMs: number; firstOutputMs?: number } {
+  const durationMs = duration(ownData(source, 'durationMs'))
+  const first = optional(source, 'firstOutputMs', duration)
+  if (first.firstOutputMs !== undefined && first.firstOutputMs > durationMs) throw new DeliveryDataError()
+  return { durationMs, ...first }
+}
+
 function attempt(value: unknown): AttemptUsageReport {
   const source = objectValue(value)
   const attemptNumber = count(ownData(source, 'attemptNumber'))
@@ -80,7 +88,7 @@ function attempt(value: unknown): AttemptUsageReport {
     attemptId: identity(ownData(source, 'attemptId')), spanId: span(ownData(source, 'spanId')), attemptNumber,
     status: choice(ownData(source, 'status'), OPERATION_STATUSES),
     startedAt: timestamp(ownData(source, 'startedAt')), endedAt: timestamp(ownData(source, 'endedAt')),
-    durationMs: duration(ownData(source, 'durationMs')),
+    ...timing(source),
     dispatchState: choice(ownData(source, 'dispatchState'), ['not-sent', 'sent', 'unknown']),
     coverage: choice(ownData(source, 'coverage'), COVERAGE), reported: counters(ownData(source, 'reported')),
     ...optional(source, 'estimated', counters), ...optional(source, 'origin', identity),
@@ -115,7 +123,7 @@ export function modelCall(
     model: boundedText(ownData(source, 'model'), COMPOSITION_LIMITS.modelIdBytes),
     status: choice(ownData(source, 'status'), OPERATION_STATUSES),
     startedAt: timestamp(ownData(source, 'startedAt')), endedAt: timestamp(ownData(source, 'endedAt')),
-    durationMs: duration(ownData(source, 'durationMs')),
+    ...timing(source),
     ...optional(source, 'finishReason', identity),
     ...optional(source, 'dispatchState', value => choice(value, ['not-sent', 'sent', 'unknown'])),
     coverage: choice(ownData(source, 'coverage'), COVERAGE),

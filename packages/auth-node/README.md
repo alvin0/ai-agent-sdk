@@ -60,6 +60,11 @@ with `codexNodeProviderPlugin({ id, account: '<name>' })` /
 `copilotNodeProviderPlugin({ id, account: '<name>' })` — for example as a backup
 member of core's `failoverProviderPlugin`, which moves calls to the next account
 or provider when one is expired, rate-limited, out of quota or down.
+`ai-agent-sdk-codex-login --usage [--account <name>]` (`pnpm provider:codex:usage`)
+prints the remaining share of each plan window, when it resets, credits and model
+availability; in code, `getCodexNodeUsage({ account? })` from
+`@alvin0/ai-agent-sdk-auth-node/codex` returns it (see `getCodexUsage` in the
+provider package). Reading usage does not consume any.
 By default it signs in with a device code, which the ChatGPT account must allow
 (device code authorization in its security settings). `ai-agent-sdk-codex-login
 --browser` signs in straight through the browser instead, as the Codex CLI does:

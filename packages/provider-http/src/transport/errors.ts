@@ -107,8 +107,10 @@ function stringField(source: unknown, key: string): string | undefined {
  * Reduce a provider error body to a message and a classifier detail string.
  *
  * Handles the two shapes both providers use — `{error: {...}}` and a bare
- * `{type, message}` — and tolerates a body that is not JSON at all, which is what
- * a gateway or load balancer in front of the provider will return.
+ * `{type, message}` — plus `{error: "plain string"}`, and tolerates a body that
+ * is not JSON at all, which is what a gateway or load balancer in front of the
+ * provider will return. A plain-string `error` is a message only: it never
+ * enters `detail`, so it cannot change the classification.
  * @param raw - the response body as text.
  * @returns the message and joined detail.
  */
@@ -121,10 +123,7 @@ export function parseErrorBody(raw: string): ParsedErrorBody {
     // and the raw text is still the best classifier input available.
     return { message: undefined, detail: raw.slice(0, 2_048) }
   }
-  const error = typeof parsed === 'object' && parsed !== null
-    && 'error' in (parsed as Record<string, unknown>)
-    ? (parsed as Record<string, unknown>).error
-    : parsed
+  const error = errorPayload(parsed)
   const code = stringField(error, 'code')
   const type = stringField(error, 'type')
   const message = stringField(error, 'message')
@@ -133,12 +132,27 @@ export function parseErrorBody(raw: string): ParsedErrorBody {
   // `message`. Without this, a perfectly clear "that model is not supported"
   // would surface as an opaque "HTTP 400".
   const detailField = stringField(error, 'detail') ?? stringField(parsed, 'detail')
-  const parts = [code, type, message ?? detailField]
+  // Some gateways (FPT AI Marketplace, other Kong-style fronts) put a generic
+  // `message: "Bad request"` beside the real reason in `description`.
+  const description = stringField(error, 'description') ?? stringField(parsed, 'description')
+  const parts = [code, type, message ?? detailField, description]
     .filter((part): part is string => part !== undefined)
   return {
-    message: message ?? detailField,
+    message: withDescription(message ?? detailField, description) ?? bareError(error),
     detail: parts.join(' '),
   }
+}
+
+/** The `error` member when there is one, else the body itself. */
+function errorPayload(parsed: unknown): unknown {
+  return typeof parsed === 'object' && parsed !== null && 'error' in (parsed as Record<string, unknown>)
+    ? (parsed as Record<string, unknown>).error
+    : parsed
+}
+
+/** A `{"error": "plain string"}` body: a message, never classifier input. */
+function bareError(error: unknown): string | undefined {
+  return typeof error === 'string' && error.length > 0 ? error : undefined
 }
 
 function requestOrServerErrorCode(status: number, detail: string): string {
@@ -152,4 +166,11 @@ function requestOrServerErrorCode(status: number, detail: string): string {
   if (status === 404) return MODEL_ERROR_CODES.INVALID_REQUEST
   if (status >= 500) return MODEL_ERROR_CODES.SERVER
   return `HTTP_${status}`
+}
+
+/** Join a generic message and a more specific description, without repeating either. */
+function withDescription(message: string | undefined, description: string | undefined): string | undefined {
+  if (description === undefined || message === description) return message ?? description
+  if (message === undefined) return description
+  return `${message}: ${description}`
 }

@@ -21,6 +21,12 @@ export interface ModelCallReport {
   readonly startedAt: string
   readonly endedAt: string
   readonly durationMs: number
+  /**
+   * Milliseconds from this call's start until its first output chunk reached the
+   * caller (time to first output), including any failed attempts before it.
+   * Omitted when the call produced no output.
+   */
+  readonly firstOutputMs?: number
   readonly finishReason?: string
   /** Logical dispatch state, retained even when an adapter did not expose physical attempts. */
   readonly dispatchState?: DispatchState

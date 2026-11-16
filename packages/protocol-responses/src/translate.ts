@@ -29,6 +29,8 @@ export async function* translateResponsesStream(
 ): AsyncGenerator<ProtocolStreamChunk> {
   const state: StreamState = {
     open: new Map(), nextIndex: 0, sawToolCall: false, imageMediaType: requestedImageMediaType(request),
+    sawText: false, lastReasoning: undefined,
+    jsonOutput: request?.options.outputFormat?.type === 'json_schema',
   }
   for await (const raw of events) {
     const event = parseEvent(raw, displayName)

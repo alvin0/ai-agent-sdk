@@ -60,33 +60,58 @@ export interface ChatCompletionsProtocolDefinition {
   ) => AsyncGenerator<ProtocolStreamChunk>
 }
 
-/** The OpenAI Chat Completions wire protocol. */
+/** Behaviour of a Chat Completions protocol instance that the dialect cannot carry. */
+export interface ChatCompletionsProtocolOptions {
+  /**
+   * Read a `<think>…</think>` block that opens `content` as reasoning (local
+   * servers without a reasoning parser). Defaults to true; turn it off for an
+   * endpoint whose answers may legitimately start with that tag.
+   */
+  readonly thinkTags?: boolean
+}
+
+/**
+ * Build a Chat Completions protocol. The translator does not see the dialect,
+ * so stream-reading choices travel here instead.
+ */
+export function createOpenAiChatCompletionsProtocol(
+  options: ChatCompletionsProtocolOptions = {},
+): ProtocolDefinition<ChatCompletionsDialect> & ChatCompletionsProtocolDefinition {
+  const thinkTags = options.thinkTags !== false
+  return Object.freeze({
+    kind: 'http-wire-protocol' as const,
+    apiVersion: 1 as const,
+    id: OPENAI_CHAT_COMPLETIONS_PROTOCOL_ID,
+    // Flat and finite, so the runtime's config snapshot survives it unchanged.
+    defaultDialect: DEFAULT_DIALECT,
+    // The path is a dialect knob: a gateway is free to mount the endpoint
+    // elsewhere, and hard-coding it would make such a gateway unreachable.
+    endpointPath: (_request: ProtocolRequest, dialect: ChatCompletionsDialect): string =>
+      dialect.path,
+    serialize(
+      request: ProtocolRequest,
+      dialect: ChatCompletionsDialect,
+    ): Readonly<Record<string, unknown>> {
+      return serializeChatCompletionsRequest(request, dialect) as unknown as Readonly<
+        Record<string, unknown>
+      >
+    },
+    // Params are annotated because `Object.freeze` erases the contextual typing the
+    // `ProtocolDefinition` annotation would otherwise supply.
+    translate: (
+      events: AsyncIterable<ProtocolSseEvent>,
+      request: ProtocolRequest,
+      displayName: string,
+    ): AsyncGenerator<ProtocolStreamChunk> => translateChatCompletionsStream(events, displayName, {
+      jsonOutput: request.options.outputFormat?.type === 'json_schema',
+      thinkTags,
+      model: request.options.model,
+    }),
+  })
+}
+
+/** The OpenAI Chat Completions wire protocol, with default options. */
 export const openAiChatCompletionsProtocol: ProtocolDefinition<ChatCompletionsDialect>
-  & ChatCompletionsProtocolDefinition = Object.freeze({
-  kind: 'http-wire-protocol' as const,
-  apiVersion: 1 as const,
-  id: OPENAI_CHAT_COMPLETIONS_PROTOCOL_ID,
-  // Flat and finite, so the runtime's config snapshot survives it unchanged.
-  defaultDialect: DEFAULT_DIALECT,
-  // The path is a dialect knob: a gateway is free to mount the endpoint
-  // elsewhere, and hard-coding it would make such a gateway unreachable.
-  endpointPath: (_request: ProtocolRequest, dialect: ChatCompletionsDialect): string =>
-    dialect.path,
-  serialize(
-    request: ProtocolRequest,
-    dialect: ChatCompletionsDialect,
-  ): Readonly<Record<string, unknown>> {
-    return serializeChatCompletionsRequest(request, dialect) as unknown as Readonly<
-      Record<string, unknown>
-    >
-  },
-  // Params are annotated because `Object.freeze` erases the contextual typing the
-  // `ProtocolDefinition` annotation would otherwise supply.
-  translate: (
-    events: AsyncIterable<ProtocolSseEvent>,
-    _request: ProtocolRequest,
-    displayName: string,
-  ): AsyncGenerator<ProtocolStreamChunk> => translateChatCompletionsStream(events, displayName),
-})
+  & ChatCompletionsProtocolDefinition = createOpenAiChatCompletionsProtocol()
 
 export type { ChatCompletionsDialect }

@@ -412,7 +412,9 @@ describe('Universal OpenAI provider plugin', () => {
       })) chunks.push(chunk)
       expect(chunks).toContainEqual(expect.objectContaining({ type: 'reasoning-delta', text: 'let me think' }))
       expect(chunks).toContainEqual(expect.objectContaining({ type: 'text-delta', text: 'the answer is 4' }))
-      expect(chunks.at(-1)).toEqual({ type: 'finish', reason: { kind: 'stop' } })
+      // The replay marker lets the reasoning go back to this endpoint, and only this one.
+      expect(chunks.at(-1)).toEqual({ type: 'finish', reason: { kind: 'stop' },
+        replayState: { response: { protocol: 'openai-chat-completions' } } })
     })
 
     it('reaches Ollama (no real auth, `max_tokens`, no reasoning field) with defaults alone', async () => {

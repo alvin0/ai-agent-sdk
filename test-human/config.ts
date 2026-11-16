@@ -2,7 +2,7 @@
 
 import { resolve } from 'node:path'
 
-export type HumanProvider = 'codex' | 'openai' | 'anthropic'
+export type HumanProvider = 'codex' | 'openai' | 'anthropic' | 'fpt' | 'fpt-responses' | 'fpt-messages'
 export type HumanMode = 'basic' | 'deep' | 'deep-human-in-loop'
 export type HumanScenario = 'chat' | 'web' | 'deep-research' | 'vision' | 'image-gen'
 
@@ -68,7 +68,7 @@ export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
     trailing.push(token)
   }
 
-  const provider = enumValue(values.get('--provider') ?? 'codex', ['codex', 'openai', 'anthropic'], '--provider')
+  const provider = enumValue(values.get('--provider') ?? 'codex', ['codex', 'openai', 'anthropic', 'fpt', 'fpt-responses', 'fpt-messages'], '--provider')
   const mode = enumValue(values.get('--mode') ?? 'basic', ['basic', 'deep', 'deep-human-in-loop'], '--mode')
   const scenario = enumValue(values.get('--scenario') ?? 'chat', ['chat', 'web', 'deep-research', 'vision', 'image-gen'], '--scenario')
   const rawTurns = values.get('--max-turns') ?? '8'
@@ -105,6 +105,10 @@ export function parseHumanCliArgs(argv: readonly string[]): HumanCliConfig {
   }
 }
 
+export function isFptProvider(provider: HumanProvider): provider is 'fpt' | 'fpt-responses' | 'fpt-messages' {
+  return provider === 'fpt' || provider === 'fpt-responses' || provider === 'fpt-messages'
+}
+
 function enumValue<const T extends string>(value: string, allowed: readonly T[], flag: string): T {
   if ((allowed as readonly string[]).includes(value)) return value as T
   throw new Error(`${flag} must be one of: ${allowed.join(', ')}`)
@@ -114,6 +118,7 @@ export function resolveHumanModel(config: HumanCliConfig, env: NodeJS.ProcessEnv
   const model = config.model ?? env.AI_AGENT_MODEL
   if (model !== undefined && model.length > 0) return model
   if (config.provider === 'codex') return 'gpt-5.6-luna'
+  if (isFptProvider(config.provider) && env.FPT_CLOUD_MODEL) return env.FPT_CLOUD_MODEL
   throw new Error(`--model or AI_AGENT_MODEL is required for provider '${config.provider}'`)
 }
 
@@ -124,7 +129,8 @@ Usage:
   pnpm human -- [options] [prompt]
 
 Options:
-  --provider <codex|openai|anthropic>       Default: codex
+  --provider <codex|openai|anthropic|fpt|fpt-responses|fpt-messages>
+                                             Default: codex
   --model <id>                              Codex default: gpt-5.6-luna
   --mode <basic|deep|deep-human-in-loop>    Default: basic
   --scenario <chat|web|deep-research|vision|image-gen>
@@ -143,5 +149,6 @@ Options:
   --help
 
 REPL commands: /new, /history, /memory, /remember, /forget, /compact, /quit
-Environment: OPENAI_API_KEY, ANTHROPIC_API_KEY, AI_AGENT_MODEL, NO_COLOR`
+Environment: OPENAI_API_KEY, ANTHROPIC_API_KEY, FPT_CLOUD_API_URL, FPT_CLOUD_API_KEY,
+  FPT_CLOUD_MODEL, AI_AGENT_MODEL, NO_COLOR`
 }

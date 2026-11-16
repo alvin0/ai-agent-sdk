@@ -20,10 +20,17 @@ export {
 } from './errors.ts'
 export {
   OPENAI_CHAT_COMPLETIONS_PROTOCOL_ID,
+  createOpenAiChatCompletionsProtocol,
   openAiChatCompletionsProtocol,
+  type ChatCompletionsProtocolOptions,
   type ChatCompletionsDialect,
   type ChatCompletionsProtocolDefinition,
 } from './protocol.ts'
+export type { ChatCompletionsReasoningField, ChatCompletionsReasoningState } from './reasoning.ts'
 export { serializeChatCompletionsRequest } from './serialize.ts'
-export { translateChatCompletionsStream } from './translate.ts'
+export {
+  jsonAnswerFromReasoning,
+  translateChatCompletionsStream,
+  type ChatCompletionsTranslateOptions,
+} from './translate.ts'
 export type * from './wire.ts'

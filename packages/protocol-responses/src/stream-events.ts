@@ -15,6 +15,12 @@ export interface StreamState {
   nextIndex: number
   sawToolCall: boolean
   imageMediaType: ImageMediaType
+  /** An answer text block was completed. */
+  sawText: boolean
+  /** Text of the latest completed reasoning block. */
+  lastReasoning: string | undefined
+  /** The caller asked for JSON output. */
+  jsonOutput: boolean
 }
 
 export function* translateEvent(
@@ -73,9 +79,17 @@ function* summaryDelta(state: StreamState, event: WireStreamEvent): Generator<Pr
 function* reasoningDelta(state: StreamState, event: WireStreamEvent): Generator<ProtocolStreamChunk> {
   const entry = event.item_id === undefined ? undefined : state.open.get(event.item_id)
   if (entry === undefined || event.delta === undefined) return
-  entry.text.append(event.delta)
+  // A new raw-reasoning part: separate it the way the done item's parts are joined.
+  const separator = entry.contentIndex !== undefined
+    && event.content_index !== undefined
+    && event.content_index !== entry.contentIndex
+    ? '\n\n'
+    : ''
+  if (event.content_index !== undefined) entry.contentIndex = event.content_index
+  const text = `${separator}${event.delta}`
+  entry.text.append(text)
   entry.reasoningKind = mergeKind(entry.reasoningKind, 'content')
-  yield { type: 'reasoning-delta', index: entry.index, text: event.delta, kind: 'content' }
+  yield { type: 'reasoning-delta', index: entry.index, text, kind: 'content' }
 }
 
 function mergeKind(current: OpenItem['reasoningKind'], next: 'summary' | 'content'): OpenItem['reasoningKind'] {
@@ -117,10 +131,14 @@ function* itemDone(state: StreamState, event: WireStreamEvent): Generator<Protoc
   const entry = id === undefined ? undefined : state.open.get(id)
   if (item === undefined || entry === undefined) return
   const block = doneBlock(item, entry, state.imageMediaType)
-  if (block !== undefined) yield { type: 'block-end', index: entry.index, block }
+  if (block === undefined) return
+  if (block.type === 'text' && block.text.length > 0) state.sawText = true
+  if (block.type === 'reasoning') state.lastReasoning = block.text
+  yield { type: 'block-end', index: entry.index, block }
 }
 
 function* completed(state: StreamState, event: WireStreamEvent): Generator<ProtocolStreamChunk> {
+  if (state.jsonOutput && !state.sawText && !state.sawToolCall) yield* recoveredJsonAnswer(state)
   const usage = event.response?.usage ?? undefined
   const mapped = usage === undefined ? undefined : mapUsage(usage)
   if (mapped !== undefined) yield { type: 'usage', usage: mapped }
@@ -129,6 +147,25 @@ function* completed(state: StreamState, event: WireStreamEvent): Generator<Proto
   // branches on.
   const reason: FinishReason = state.sawToolCall ? { kind: 'tool-calls' } : { kind: 'stop' }
   yield { type: 'finish', reason }
+}
+
+/**
+ * Recover a structured answer that a reasoning parser misfiled.
+ *
+ * vLLM-style servers running a reasoning parser alongside guided decoding can
+ * put the whole JSON answer in the reasoning item and emit no message at all
+ * (seen live on DeepSeek V4 behind FPT AI Marketplace). The caller asked for
+ * JSON and is about to parse the text, so when the reasoning IS a JSON
+ * document it is also emitted as the answer.
+ */
+function* recoveredJsonAnswer(state: StreamState): Generator<ProtocolStreamChunk> {
+  const trimmed = state.lastReasoning?.trim()
+  if (trimmed === undefined || !/^[[{]/.test(trimmed)) return
+  try { JSON.parse(trimmed) } catch { return }
+  const index = state.nextIndex++
+  yield { type: 'block-start', index, blockType: 'text' }
+  yield { type: 'text-delta', index, text: trimmed }
+  yield { type: 'block-end', index, block: { type: 'text', text: trimmed } }
 }
 
 function* incomplete(event: WireStreamEvent, displayName: string): Generator<ProtocolStreamChunk> {
@@ -189,6 +226,7 @@ function createOpenItem(
     name: item.name ?? '',
     nativeName: nativeName(item.type),
     summaryIndex: undefined,
+    contentIndex: undefined,
     phase: textPhase(item.phase),
     reasoningKind: undefined,
   }

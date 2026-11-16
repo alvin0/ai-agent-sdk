@@ -4,7 +4,7 @@ import {
   createRuntimeHttpProvider, type HttpModelAdapter, type ProviderCatalogModel,
   type RuntimeModelDiscoveryContext,
 } from '@alvin0/ai-agent-sdk-provider-http'
-import { openAiChatCompletionsProtocol } from '@alvin0/ai-agent-sdk-protocol-openai-chat-completions'
+import { createOpenAiChatCompletionsProtocol } from '@alvin0/ai-agent-sdk-protocol-openai-chat-completions'
 import { openAiResponsesProtocol } from '@alvin0/ai-agent-sdk-protocol-responses'
 import { requireGitHubToken } from './auth.ts'
 import { copilotCatalogCacheOptions, discoverCopilotModels, resolveCopilotCatalogLimits } from './catalog.ts'
@@ -18,6 +18,9 @@ import type { CopilotProviderOptions, CopilotLegacyProviderOptions } from './ada
 import { COPILOT_ROUTE_ID, COPILOT_DISPLAY_NAME } from './adapter-types.ts'
 import { NULL_LOGGER, createCopilotSecrets, readCopilotSnapshot, randomId } from './adapter-auth.ts'
 import { copilotProviderFetch, isMissingEditorHeaderFailure } from './adapter-fetch.ts'
+
+/** Copilot serves first-party models that never answer in `<think>` tags. */
+const COPILOT_CHAT_PROTOCOL = createOpenAiChatCompletionsProtocol({ thinkTags: false })
 
 /**
  * The one adapter body, shared by both store variants and by the plugin.
@@ -71,7 +74,7 @@ export function buildCopilotAdapter(
     protocol: copilotDualProtocol({
       router,
       responses: openAiResponsesProtocol,
-      chat: openAiChatCompletionsProtocol,
+      chat: COPILOT_CHAT_PROTOCOL,
       ...(options.onEndpointDecision === undefined
         ? {}
         : { onDecision: options.onEndpointDecision }),

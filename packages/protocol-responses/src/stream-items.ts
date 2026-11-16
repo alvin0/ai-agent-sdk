@@ -19,6 +19,8 @@ export interface OpenItem {
   nativeName: string
   /** Last `summary_index` seen, so a new paragraph gets a separator. */
   summaryIndex: number | undefined
+  /** Last reasoning `content_index` seen, joined the same way as the done item's parts. */
+  contentIndex: number | undefined
   phase: AssistantTextPhase | undefined
   /**
    * Which reasoning stream filled `text`; `mixed` when both did, which leaves
@@ -120,21 +122,50 @@ function doneText(item: WireOutputItem, open: OpenItem): ContentBlock {
 
 function doneReasoning(item: WireOutputItem, open: OpenItem): ContentBlock {
   const summary = itemSummary(item)
+  const content = itemReasoningContent(item)
   const state: ResponsesReasoningState = {
     ...typeof item.id === 'string' ? { id: item.id } : {},
     ...typeof item.encrypted_content === 'string'
       ? { encryptedContent: item.encrypted_content }
       : {},
     ...summary.length > 0 ? { summary } : {},
+    ...content.length > 0 ? { content } : {},
   }
-  const streamed = open.reasoningKind === 'mixed' ? undefined : open.reasoningKind
-  const kind = summary.length > 0 ? 'summary' : streamed
+  const kind = reasoningKindOf(open, summary, content)
   return {
     type: 'reasoning',
-    text: summary.length > 0 ? summary.join('\n\n') : open.text.text,
+    text: reasoningTextOf(open, summary, content),
     ...kind === undefined ? {} : { kind },
     providerState: state,
   }
+}
+
+function reasoningKindOf(open: OpenItem, summary: readonly string[], content: readonly string[])
+  : ReasoningKind | undefined {
+  if (summary.length > 0) return 'summary'
+  if (open.reasoningKind === 'mixed') return undefined
+  if (open.reasoningKind !== undefined) return open.reasoningKind
+  return content.length > 0 ? 'content' : undefined
+}
+
+/** A server that skips the delta events still puts the thoughts on the done item. */
+function reasoningTextOf(open: OpenItem, summary: readonly string[], content: readonly string[]): string {
+  if (summary.length > 0) return summary.join('\n\n')
+  if (open.text.length > 0) return open.text.text
+  return content.join('\n\n')
+}
+
+/** `reasoning_text` parts of a done reasoning item, in order. */
+export function itemReasoningContent(item: WireOutputItem): string[] {
+  const content = item.content
+  if (!Array.isArray(content)) return []
+  return content.flatMap((part) => {
+    if (typeof part !== 'object' || part === null) return []
+    const record = part as Record<string, unknown>
+    return record.type === 'reasoning_text' && typeof record.text === 'string' && record.text.length > 0
+      ? [record.text]
+      : []
+  })
 }
 
 function doneTool(item: WireOutputItem, open: OpenItem): ContentBlock {

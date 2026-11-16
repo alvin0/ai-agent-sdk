@@ -135,9 +135,11 @@ export const anthropicMessagesProtocol: ProtocolDefinition<AnthropicDialect>
   // `WireProtocol` annotation would otherwise supply.
   translate: (
     events: AsyncIterable<ProtocolSseEvent>,
-    _request: ProtocolRequest,
+    request: ProtocolRequest,
     displayName: string,
-  ): AsyncGenerator<ProtocolStreamChunk> => translateAnthropicStream(events, displayName),
+  ): AsyncGenerator<ProtocolStreamChunk> => translateAnthropicStream(events, displayName, {
+    jsonOutput: request.options.outputFormat?.type === 'json_schema',
+  }),
 })
 
 export type { ThinkingBudgets }
