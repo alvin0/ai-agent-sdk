@@ -24,12 +24,14 @@
     "./env": { "types": "./dist/env.d.mts", "import": "./dist/env.mjs", "default": "./dist/env.mjs" },
     "./codex": { "types": "./dist/codex.d.mts", "import": "./dist/codex.mjs", "default": "./dist/codex.mjs" },
     "./copilot": { "types": "./dist/copilot.d.mts", "import": "./dist/copilot.mjs", "default": "./dist/copilot.mjs" },
+    "./antigravity": { "types": "./dist/antigravity.d.mts", "import": "./dist/antigravity.mjs", "default": "./dist/antigravity.mjs" },
     "./http2": { "types": "./dist/http2.d.mts", "import": "./dist/http2.mjs", "default": "./dist/http2.mjs" },
     "./package.json": "./package.json"
   },
   "bin": {
     "ai-agent-sdk-codex-login": "./bin/ai-agent-sdk-codex-login.mjs",
-    "ai-agent-sdk-copilot-login": "./bin/ai-agent-sdk-copilot-login.mjs"
+    "ai-agent-sdk-copilot-login": "./bin/ai-agent-sdk-copilot-login.mjs",
+    "ai-agent-sdk-antigravity-login": "./bin/ai-agent-sdk-antigravity-login.mjs"
   },
   "publishConfig": { "access": "public", "provenance": true },
   "scripts": {
@@ -44,15 +46,18 @@
   },
   "peerDependencies": {
     "@alvin0/ai-agent-sdk-core": "workspace:^",
+    "@alvin0/ai-agent-sdk-provider-antigravity": "workspace:^",
     "@alvin0/ai-agent-sdk-provider-codex": "workspace:^",
     "@alvin0/ai-agent-sdk-provider-copilot": "workspace:^"
   },
   "peerDependenciesMeta": {
+    "@alvin0/ai-agent-sdk-provider-antigravity": { "optional": true },
     "@alvin0/ai-agent-sdk-provider-codex": { "optional": true },
     "@alvin0/ai-agent-sdk-provider-copilot": { "optional": true }
   },
   "devDependencies": {
     "@alvin0/ai-agent-sdk-core": "workspace:^",
+    "@alvin0/ai-agent-sdk-provider-antigravity": "workspace:^",
     "@alvin0/ai-agent-sdk-provider-codex": "workspace:^",
     "@alvin0/ai-agent-sdk-provider-copilot": "workspace:^",
     "@arethetypeswrong/cli": "catalog:",

@@ -32,6 +32,30 @@ const registry = new ModelRegistry()
 registry.install(codexPlugin({ authStore: mySecretManagerStore }))
 ```
 
+### Standalone image generation (experimental)
+
+`generateCodexImage({ authStore, model, prompt })` calls the standalone
+`<baseUrl>/images/generations` route with the connected account's OAuth credentials
+and returns `{ images: ImageBlock[] }` (inline base64 with detected media type).
+The image model is required and independent of the agent's text model.
+`codexImageTool({ authStore, model })` exposes this as the opt-in host tool
+`codex_generate_image`; image blocks appear in tool-result events and history.
+
+The Node entry `@alvin0/ai-agent-sdk-auth-node/codex` provides
+`generateCodexNodeImage` and `codexNodeImageTool`, defaulting to project-local
+credentials with optional named `account`. No separate login is needed.
+
+Backend access is not guaranteed: the 2026-11-17 project OAuth live check returned
+HTTP 403 with a specialized image model. Offline image delivery passes; live
+generation through this connection is unverified. Route 403 using
+`CodexImageError.code === 'CODEX_IMAGE_FORBIDDEN'`, not as a demand to log in again.
+There is no automatic retry or model/API-key fallback. Cancellation, deadlines,
+redirect rejection and response-size bounds apply. The host tool defaults to a
+2,000,000-byte encoded response limit to fit the core's 4-MiB tool-result default;
+larger outputs require aligned tool-result/history limits. The standalone helper
+defaults to 32 MiB. See the
+[image generation guide](../../web-documents/en/09-providers/codex.md#standalone-image-generation-experimental).
+
 ### Remaining usage
 
 `getCodexUsage({ authStore })` reads the account's remaining Codex usage without

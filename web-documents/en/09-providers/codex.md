@@ -72,6 +72,75 @@ import { memoryCodexCredentialStore } from '@alvin0/ai-agent-sdk-provider-codex'
 codexPlugin({ authStore: memoryCodexCredentialStore(tokens) })
 ```
 
+## Standalone image generation (experimental)
+
+Image generation has a separate transport from Codex Responses. The opt-in
+`generateCodexNodeImage()` helper sends one request to
+`<baseUrl>/images/generations`, reusing the project-local OAuth store and its
+revision-safe token refresh. `account` selects the same named login as
+`codexNodeProviderPlugin({ account })`; a custom `authStore` takes precedence.
+
+```ts
+import { generateCodexNodeImage } from '@alvin0/ai-agent-sdk-auth-node/codex'
+
+// Supply an image model enabled for this connection, independently of the text model.
+async function draw(prompt: string, imageModel: string) {
+  const { images } = await generateCodexNodeImage({ model: imageModel, prompt })
+  return images // ImageBlock[] with inline base64 and detected mediaType
+}
+```
+
+To let an agent request images, explicitly register the host tool:
+
+```ts
+import { codexNodeImageTool } from '@alvin0/ai-agent-sdk-auth-node/codex'
+
+function imageAgent(imageModel: string) {
+  return runtime.agent({
+    id: 'image-assistant',
+    instructions: 'Use codex_generate_image when the user requests a new image.',
+    model: { provider: 'codex', id: 'gpt-6-luna' },
+    tools: [codexNodeImageTool({ model: imageModel })],
+  })
+}
+```
+
+The tool's only model-controlled argument is `prompt`. Credentials, endpoint,
+image model and output settings stay in host configuration. Image blocks appear
+in `tool-result` events (`event.output.content`) and tool-result history;
+the final assistant message can be text only. Render or persist the image blocks
+from those results. This does not enable the Responses native
+`image-generation` tool or add image models to the chat catalog.
+
+**A connected Codex account does not guarantee access to this endpoint.**
+The project OAuth live check on 2026-11-17 returned HTTP 403 even with a
+specialized image model. Image delivery is covered by offline transport and
+agent-loop tests; successful live generation through this connection remains
+unverified. This result does not establish a restriction on image generation in
+the Codex app, whose runtime authorization can differ.
+
+`CodexImageError.code` distinguishes `CODEX_IMAGE_FORBIDDEN` (403),
+`CODEX_IMAGE_UNAUTHORIZED` (401), `CODEX_IMAGE_HTTP`, `CODEX_IMAGE_REDIRECT`,
+`CODEX_IMAGE_TIMEOUT`, `CODEX_IMAGE_NETWORK`, `CODEX_IMAGE_TOO_LARGE` and
+`CODEX_IMAGE_MALFORMED`. Missing credentials and refresh failures keep their
+original errors; caller cancellation preserves its reason. There is no automatic
+retry, model fallback or switch to API-key billing. The defaults are a 180-second
+deadline and a 32-MiB encoded response limit; use `timeoutMs`, `maxBytes`, `quality`,
+`size` and `background` to configure them. Overrides of `baseUrl` must be trusted
+HTTPS endpoints because they receive the selected account's credentials.
+
+The host tool defaults to a smaller **2,000,000-byte JSON response limit** so its
+JSON value and rendered image together fit the core's 4-MiB tool-result limit.
+For larger images, configure `maxBytes` together with `maxToolResultBytes` and
+history entry limits, or use the standalone helper and save the image as an artifact.
+
+Universal hosts use `generateCodexImage({ authStore, model, prompt })` or
+`codexImageTool({ authStore, model })` from
+`@alvin0/ai-agent-sdk-provider-codex`. The standalone route follows the
+[Codex Images client](https://github.com/openai/codex/blob/main/codex-rs/codex-api/src/endpoint/images.rs)
+and its
+[image extension backend](https://github.com/openai/codex/blob/main/codex-rs/ext/image-generation/src/backend.rs).
+
 ## Exports
 
 ```ts

@@ -4,7 +4,7 @@ import { waitForSettlement } from '@alvin0/ai-agent-sdk-core'
 export async function rejectCodexRedirect(
   response: Response,
   requestedUrl: string,
-  operation: 'OAuth' | 'model catalog' | 'usage',
+  operation: 'OAuth' | 'model catalog' | 'usage' | 'Images',
   teardownTimeoutMs: number,
 ): Promise<void> {
   const redirectStatus = response.status >= 300 && response.status < 400

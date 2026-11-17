@@ -33,6 +33,55 @@ const NULL_LOGGER: SdkLogger = Object.freeze({
   warn: () => undefined, error: () => undefined, fatal: () => undefined,
 })
 
+describe('Codex generated image delivery', () => {
+  it('keeps an image-only native result in the public reply, stream and session history', async () => {
+    const data = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII='
+    let generations = 0
+    const deltas: string[] = []
+    const runtime = await createAgentRuntime({ providers: [codexPlugin({
+      authStore: memoryCodexCredentialStore({ tokens: {
+        id_token: jwt({}), access_token: jwt({ exp: Math.floor(Date.now() / 1000) + 3600 }),
+        refresh_token: 'fixture-refresh',
+      } }),
+      models: [{ id: 'gpt-6-luna', nativeTools: ['image-generation'], outputModalities: ['text', 'image'] }],
+      fetch: async (_input, init) => {
+        generations++
+        expect(JSON.parse(String(init?.body))).toMatchObject({ tools: [{ type: 'image_generation' }] })
+        const frames = [
+          { type: 'response.output_item.added', item: { id: 'ig_fixture', type: 'image_generation_call' } },
+          { type: 'response.image_generation_call.partial_image', item_id: 'ig_fixture',
+            partial_image_b64: data, partial_image_index: 0 },
+          { type: 'response.output_item.done', item: { id: 'ig_fixture', type: 'image_generation_call',
+            status: 'completed', result: data } },
+          { type: 'response.completed', response: {
+            usage: { input_tokens: 10, output_tokens: 2, total_tokens: 12 },
+          } },
+        ]
+        return new Response(frames.map(frame => `data: ${JSON.stringify(frame)}\n\n`).join(''), {
+          headers: { 'content-type': 'text/event-stream' },
+        })
+      },
+    })] })
+    try {
+      const session = runtime.agent({ id: 'codex-image-fixture', instructions: 'Draw an icon.',
+        model: { provider: 'codex', id: 'gpt-6-luna' }, compaction: false, maxTurns: 1,
+        nativeTools: [{ type: 'native', name: 'image-generation', format: 'png' }],
+      }).createSession()
+      const result = await session.run('Draw.', { onEvent(event) {
+        if (event.type === 'image-delta') deltas.push(event.data)
+      } })
+      expect(result.completed).toBe(true)
+      expect(result.text).toBe('')
+      expect(result.message?.content).toContainEqual(expect.objectContaining({ type: 'native-tool-call',
+        name: 'image-generation', content: [{ type: 'image',
+          source: { kind: 'base64', mediaType: 'image/png', data } }] }))
+      expect(deltas).toEqual([data])
+      expect(generations).toBe(1)
+      expect(JSON.stringify(session.snapshot())).toContain(data)
+    } finally { await runtime.close() }
+  })
+})
+
 function jwt(payload: Record<string, unknown>): string {
   const encoded = btoa(JSON.stringify(payload))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
