@@ -32,6 +32,36 @@ const registry = new ModelRegistry()
 registry.install(codexPlugin({ authStore: mySecretManagerStore }))
 ```
 
+### Remaining usage
+
+`getCodexUsage({ authStore })` reads the account's remaining Codex usage without
+spending any: the share left in each rolling plan window (five hours and one week
+on current plans) and when it resets, credits, any separately metered limits, and
+which models are available. It calls the same usage endpoint as the Codex CLI's
+`/status`, derived from `baseUrl` by `codexUsageUrl()`, and refreshes tokens when
+due. Email, user and account ids in the response are not returned.
+
+```ts
+import { getCodexUsage } from '@alvin0/ai-agent-sdk-provider-codex'
+
+const usage = await getCodexUsage({ authStore: mySecretManagerStore })
+const week = usage.rateLimit?.secondary
+if (week !== undefined && week.remainingPercent < 10) {
+  console.warn(`Codex: ${week.remainingPercent}% of the weekly limit left, resets ${week.resetsAt}`)
+}
+```
+
+A failed usage request throws `CodexUsageError`; route on `code`:
+`CODEX_USAGE_UNAUTHORIZED` (HTTP 401/403, sign in again), `CODEX_USAGE_HTTP`,
+`CODEX_USAGE_TIMEOUT`, `CODEX_USAGE_NETWORK`, `CODEX_USAGE_REDIRECT`,
+`CODEX_USAGE_TOO_LARGE` or `CODEX_USAGE_MALFORMED`. Missing credentials and refresh
+failures keep the credential store's and `CodexRefreshError`'s own errors, and caller
+cancellation rethrows the signal's reason. Every model response also carries
+`x-codex-*` usage headers; `parseCodexUsageHeaders(headers)` turns a `Headers`
+object or a `responseLogger` record's headers into the same `CodexUsage` shape
+(primary/secondary windows, plan, credits) with `source: 'response-headers'`.
+Usage is reported by the service as percentages, not tokens.
+
 Use `codexAdapter()` for manual route registration. The store contract is
 Universal; a browser, Worker, secret manager, or Node package owns persistence.
 Credential and catalog observation excludes OAuth tokens, account details, store

@@ -37,6 +37,22 @@ export interface OpenAiChatCompletionsCompat {
    * unless told not to. `false` sends nothing regardless of agent effort.
    */
   reasoningFormat?: ChatCompletionsDialect['reasoningFormat']
+  /**
+   * Send the model's own reasoning back on the assistant messages of the
+   * current tool loop. Defaults to `'auto'`: reasoning this endpoint emitted
+   * (on `reasoning_content`, `reasoning`, or in `<think>` tags) for the same
+   * model goes back the same way, and never to another failover member.
+   * DeepSeek-style thinking models need this to keep their chain of thought
+   * across tool calls. Name a field to force it, or `false` to never replay.
+   */
+  reasoningReplay?: ChatCompletionsDialect['reasoningReplay']
+  /**
+   * Read a `<think>…</think>` block that opens `content` as reasoning, for
+   * local servers running without a reasoning parser. Defaults to true, except
+   * on `api.openai.com`; set false for an endpoint whose answers may
+   * legitimately start with that tag.
+   */
+  thinkTags?: boolean
   /** Name of the output-length field; `false` sends none. */
   maxTokensField?: ChatCompletionsDialect['maxTokensField']
   /** Role the system prompt travels under. */

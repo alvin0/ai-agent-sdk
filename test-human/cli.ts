@@ -10,6 +10,7 @@ import { HumanArtifactRecorder } from './artifacts.ts'
 import { createHumanAgent } from './agent.ts'
 import {
   humanCliHelp,
+  isFptProvider,
   parseHumanCliArgs,
   resolveHumanModel,
   type HumanCliConfig,
@@ -260,10 +261,22 @@ function printConfig(config: HumanCliConfig, model: string): void {
 }
 
 function validateScenario(config: HumanCliConfig): boolean {
-  if (config.scenario !== 'vision' || config.image !== undefined) return true
-  console.error(paint(31, 'vision scenario requires --image <path|url|file-id:ID>'))
+  const problem = scenarioProblem(config)
+  if (problem === undefined) return true
+  console.error(paint(31, problem))
   process.exitCode = 2
   return false
+}
+
+function scenarioProblem(config: HumanCliConfig): string | undefined {
+  if (config.scenario === 'vision' && config.image === undefined) {
+    return 'vision scenario requires --image <path|url|file-id:ID>'
+  }
+  // FPT serves plain models: no provider-hosted web search or image generation.
+  if (isFptProvider(config.provider) && ['web', 'deep-research', 'image-gen'].includes(config.scenario)) {
+    return `--provider ${config.provider} has no provider-native tools; scenario '${config.scenario}' needs them`
+  }
+  return undefined
 }
 
 await main()

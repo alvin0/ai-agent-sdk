@@ -1,7 +1,6 @@
 import { MODEL_ERROR_CODES, ModelError, TextAccumulator, ToolCallId  } from '@alvin0/ai-agent-sdk-core'
 import type { ContentBlock, FinishReason, UsageCounters  } from '@alvin0/ai-agent-sdk-core'
 import type {
-  WireErrorBody,
   WireFinishReason,
   WireToolCallDelta,
   WireUsage,
@@ -112,18 +111,6 @@ export function finishReasonOf(reason: WireFinishReason): FinishReason {
 /** Whether this finish reason is the one that releases accumulated tool calls. */
 export function releasesToolCalls(reason: WireFinishReason): boolean {
   return reason === 'tool_calls' || reason === 'function_call'
-}
-
-/** Turn an inline stream error into a typed failure. */
-export function inlineError(error: WireErrorBody, displayName: string): ModelError {
-  const message = error.message ?? `${displayName} reported an error mid-stream`
-  const code = error.code ?? error.type
-  // An unrecognized inline error defaults to SERVER, which IS retryable: the
-  // turn produced nothing usable, so repeating it is safe and often works.
-  return new ModelError(
-    code === undefined ? message : `${message} (${String(code)})`,
-    MODEL_ERROR_CODES.SERVER,
-  )
 }
 
 /** Fold one tool-call fragment into the accumulator. */

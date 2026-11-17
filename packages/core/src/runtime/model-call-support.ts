@@ -10,6 +10,16 @@ import { OBSERVATION_ERROR_CODES } from '../observation/report.ts'
 
 const scopes = new WeakMap<object, Map<string, ObservationRunScope>>()
 
+/**
+ * Milliseconds from `start` to `at`, truncated to whole microseconds and clamped into
+ * `[0, durationMs]`. Truncating keeps a report field to a few bytes instead of a
+ * 17-digit float (run records have a fixed byte budget); rounding UP could pass
+ * `durationMs` and fall back to the unrounded value.
+ */
+export function elapsedWithin(start: number, at: number, durationMs: number): number {
+  return Math.min(durationMs, Math.max(0, Math.floor((at - start) * 1000) / 1000))
+}
+
 export function nowMonotonic(): number {
   return globalThis.performance?.now() ?? Date.now()
 }

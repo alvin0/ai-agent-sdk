@@ -430,6 +430,7 @@ describe('Feature: github-copilot-provider, Property 40: Cờ dialect tắt ⇒ 
         stop: bool(rng),
         seed: bool(rng),
         reasoningFormat: pick(rng, ['openai', 'deepseek', false] as const),
+        reasoningReplay: pick(rng, ['auto', 'reasoning_content', 'reasoning', false] as const),
         ...promptCacheKey === undefined ? {} : { promptCacheKey },
         path: '/chat/completions',
       }

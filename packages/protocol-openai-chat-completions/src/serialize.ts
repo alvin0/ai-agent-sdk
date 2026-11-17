@@ -26,6 +26,9 @@ import type {
   ToolSchema,
 } from '@alvin0/ai-agent-sdk-core'
 import type { ProtocolRequest } from './contract.ts'
+import {
+  currentTurnStart, replayField, replaysFrom, type ReplayContext, type ReplayedReasoning,
+} from './reasoning.ts'
 import type {
   ChatCompletionsDialect,
   WireContentPart,
@@ -103,24 +106,20 @@ function toolCall(block: Extract<ContentBlock, { type: 'tool-call' }>): WireTool
  * top-level message, which is what keeps "spoke, called a tool, got a result,
  * spoke again" in the order the model produced it.
  */
-function appendMessage(message: Message, messages: WireMessage[]): void {
+function appendMessage(
+  message: Message,
+  messages: WireMessage[],
+  replay: ReplayContext | undefined,
+): void {
   const role = message.role === 'assistant' ? 'assistant' : 'user'
   let parts: WireContentPart[] = []
   let calls: WireToolCall[] = []
+  let reasoning: ReplayedReasoning | undefined
 
   const flush = (): void => {
     if (parts.length === 0 && calls.length === 0) return
     if (role === 'assistant') {
-      const text = parts
-        .flatMap(part => part.type === 'text' ? [part.text] : [])
-        .join(TEXT_JOINER)
-      messages.push({
-        role: 'assistant',
-        // Absent on a turn that only called tools; an empty string there reads
-        // to the model as "I said nothing out loud", which is a different claim.
-        ...text.length === 0 ? {} : { content: text },
-        ...calls.length === 0 ? {} : { tool_calls: calls },
-      })
+      messages.push(assistantMessage(parts, calls, reasoning))
     } else if (parts.length > 0) {
       const onlyText = parts.every(part => part.type === 'text')
       messages.push({
@@ -132,6 +131,7 @@ function appendMessage(message: Message, messages: WireMessage[]): void {
     }
     parts = []
     calls = []
+    reasoning = undefined
   }
 
   for (const block of message.content) {
@@ -157,14 +157,50 @@ function appendMessage(message: Message, messages: WireMessage[]): void {
         })
         break
       }
+      case 'reasoning': {
+        reasoning = collectReasoning(reasoning, block, replay)
+        break
+      }
       default:
-        // `reasoning`, `native-tool-call`, and any block added by declaration
-        // merging. Skipping is correct: this API has no field to replay them
-        // into, and inventing one would corrupt the turn.
+        // `native-tool-call`, and any block added by declaration merging.
+        // Skipping is correct: this API has no field to replay them into, and
+        // inventing one would corrupt the turn.
         break
     }
   }
   flush()
+}
+
+function assistantMessage(
+  parts: readonly WireContentPart[],
+  calls: WireToolCall[],
+  reasoning: ReplayedReasoning | undefined,
+): WireMessage {
+  const spoken = parts
+    .flatMap(part => part.type === 'text' ? [part.text] : [])
+    .join(TEXT_JOINER)
+  const thought = reasoning?.texts.join(TEXT_JOINER)
+  // Tag-borne reasoning goes back exactly where the model wrote it.
+  const text = reasoning?.field === 'think-tag' ? `<think>${thought ?? ''}</think>\n\n${spoken}` : spoken
+  return {
+    role: 'assistant',
+    ...reasoning === undefined || reasoning.field === 'think-tag' ? {} : { [reasoning.field]: thought },
+    // Absent on a turn that only called tools; an empty string there reads
+    // to the model as "I said nothing out loud", which is a different claim.
+    ...text.length === 0 ? {} : { content: text },
+    ...calls.length === 0 ? {} : { tool_calls: calls },
+  }
+}
+
+/** Fold one reasoning block into what the next assistant wire message replays. */
+function collectReasoning(
+  pending: ReplayedReasoning | undefined,
+  block: Extract<ContentBlock, { type: 'reasoning' }>,
+  replay: ReplayContext | undefined,
+): ReplayedReasoning | undefined {
+  const field = replay === undefined ? undefined : replayField(block, replay)
+  if (field === undefined || block.text.length === 0) return pending
+  return { field: pending?.field ?? field, texts: [...pending?.texts ?? [], block.text] }
 }
 
 /** The system prompt, plus any system-role messages, in order. */
@@ -277,10 +313,17 @@ export function serializeChatCompletionsRequest(
   // The system prompt leads the array under whichever role this endpoint reads.
   if (system.length > 0) messages.push({ role: dialect.systemRole, content: system })
 
-  for (const message of options.messages) {
-    if (message.role === 'system') continue // already folded in above
-    appendMessage(message, messages)
-  }
+  const replay: ReplayContext | undefined = dialect.reasoningReplay === false
+    ? undefined
+    : { replay: dialect.reasoningReplay ?? 'auto', model: options.model }
+  const turnStart = currentTurnStart(options.messages)
+  options.messages.forEach((message, index) => {
+    if (message.role === 'system') return // already folded in above
+    // Only assistant messages of the tool loop in progress carry reasoning back.
+    const replayHere = message.role === 'assistant' && index >= turnStart
+      && replay !== undefined && replaysFrom(message, replay.replay) ? replay : undefined
+    appendMessage(message, messages, replayHere)
+  })
 
   const responseFormat = responseFormatOf(options.outputFormat, dialect.structuredOutputs)
 

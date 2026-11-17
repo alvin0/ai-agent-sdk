@@ -1,4 +1,5 @@
 import { sharedOptions, chatCompletionsDialectOf   } from './adapter-options.ts'
+import { OPENAI_BASE_URL } from './constants.ts'
 import type { OpenAiAdapterOptions, OpenAiProviderOptions, OpenAiPluginOptions,
   OpenAiCatalogModel,
 } from './adapter-types.ts'
@@ -36,8 +37,28 @@ import {
   type ResponsesDialect,
 } from '@alvin0/ai-agent-sdk-protocol-responses'
 import {
+  createOpenAiChatCompletionsProtocol,
   openAiChatCompletionsProtocol,
 } from '@alvin0/ai-agent-sdk-protocol-openai-chat-completions'
+
+/**
+ * The shared default protocol, or a dedicated one when `<think>` reading is off.
+ * OpenAI itself never wraps reasoning in tags, so its own endpoint opts out by
+ * default: an answer that merely starts with `<think>` stays an answer.
+ */
+function chatCompletionsProtocolOf(
+  options: { readonly baseUrl?: string; readonly compat?: OpenAiAdapterOptions['compat'] },
+) {
+  const thinkTags = options.compat?.thinkTags ?? !isOpenAiEndpoint(options.baseUrl)
+  return thinkTags ? openAiChatCompletionsProtocol : createOpenAiChatCompletionsProtocol({ thinkTags: false })
+}
+
+function isOpenAiEndpoint(baseUrl: string | undefined): boolean {
+  if (baseUrl === undefined) return true
+  // `URL` lower-cases the host; a fully qualified `api.openai.com.` is the same host.
+  try { return new URL(baseUrl).hostname.replace(/\.$/, '') === new URL(OPENAI_BASE_URL).hostname }
+  catch { return false }
+}
 
 /** The OpenAI API base. */
 export { OPENAI_BASE_URL } from './constants.ts'
@@ -140,7 +161,7 @@ function buildOpenAiApiAdapter(
   if (api === 'chat-completions') {
     return createHttpProvider({
       displayName: options.displayName ?? 'OpenAI',
-      protocol: openAiChatCompletionsProtocol,
+      protocol: chatCompletionsProtocolOf(options),
       dialect: chatCompletionsDialectOf(options.compat, promptCacheKey),
       ...shared,
     })
@@ -237,7 +258,7 @@ function buildRuntimeOpenAiApiAdapter(
   if (api === 'chat-completions') {
     return createRuntimeHttpProvider({
       displayName: options.displayName ?? 'OpenAI',
-      protocol: openAiChatCompletionsProtocol,
+      protocol: chatCompletionsProtocolOf(options),
       dialect: chatCompletionsDialectOf(options.compat, promptCacheKey),
       ...shared,
     })

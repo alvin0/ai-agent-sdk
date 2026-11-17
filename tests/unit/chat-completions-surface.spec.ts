@@ -180,8 +180,10 @@ describe('protocol-openai-chat-completions carries nothing Copilot-specific', ()
       'errors.ts',
       'index.ts',
       'protocol.ts',
+      'reasoning.ts',
       'serialize.ts',
       'stream-support.ts',
+      'think-tags.ts',
       'translate.ts',
       'wire.ts',
     ])

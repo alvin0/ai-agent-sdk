@@ -10,17 +10,13 @@
  * side, the other keeps the old answer, and the same `(status, body)` pair then
  * means two different things depending on which provider took the call. This
  * spec is the pin. It drives both implementations over the same generated
- * situations and requires them to agree on the error code, the retryable flag,
- * the delay read from `retry-after`, and the provider request id.
- *
- * Two divergences are DELIBERATE and are asserted as exact, narrow exceptions
- * rather than tolerated by weakening the comparison:
- *   1. a moderation rejection at 400/422 is `UNSUPPORTED_CONTENT` here and
- *      `INVALID_REQUEST` in the shared table;
- *   2. a body carrying `{"error": "plain string"}` yields that string as the
- *      message here, where the shared parser falls back to the status.
- * Neither changes `detail`, the retryable flag, the delay, or the request id —
- * and that is exactly what the assertions below say.
+ * situations and requires them to agree on the error code, the message, the
+ * retryable flag, the delay read from `retry-after`, and the provider request
+ * id. There are no sanctioned divergences: a moderation rejection at 400/422 is
+ * `INVALID_REQUEST` on both sides (as is a `content_filter` finish), and a
+ * `{"error": "plain string"}` body yields that string as the message on both.
+ * The same payload inlined into a 200 stream reads the same fields too; with no
+ * status there, a plain-string payload is also the classifier input.
  *
  * Inputs come from a SEEDED generator, not `Math.random`, so a failure
  * reproduces from the printed seed. The repository carries no property-testing
@@ -40,6 +36,7 @@ import type { ProviderRequestId, ResolvedRetryPolicy } from '@alvin0/ai-agent-sd
 import {
   chatCompletionsErrorCode,
   chatCompletionsHttpError,
+  chatCompletionsStreamError,
   chatCompletionsRequestId,
   chatCompletionsRetryAfterMs,
   parseChatCompletionsErrorBody,
@@ -279,7 +276,7 @@ function referenceFailure(situation: Situation, displayName: string, url: string
   const { message, detail } = parseErrorBody(situation.body)
   return {
     code: httpErrorCode(situation.status, detail),
-    message: message ?? `${displayName} error (HTTP ${String(situation.status)}) from ${url}`,
+    message: message ?? `${displayName} error (HTTP ${String(situation.status)}) from ${new URL(url).origin}`,
     detail,
     delay: retryAfterMs(situation.headers.get('retry-after')),
     id: requestIdFrom(situation.headers),
@@ -328,17 +325,8 @@ describe('Feature: github-copilot-provider, Property 41: Cùng tình huống l�
       // codes can drift even while both tables look correct in isolation.
       expect(parsed.detail, `${trace} detail`).toBe(reference.detail)
 
-      // The one sanctioned code divergence, stated as an equality rather than
-      // as a skip: moderation wording inside a request-rejected status.
-      const moderation = (situation.status === 400 || situation.status === 422)
-        && reference.code === MODEL_ERROR_CODES.INVALID_REQUEST
-        && WORDING.filter.some(phrase => parsed.detail.includes(phrase))
-      const expectedCode = moderation ? MODEL_ERROR_CODES.UNSUPPORTED_CONTENT : reference.code
+      const expectedCode = reference.code
       expect(code, `${trace} code`).toBe(expectedCode)
-
-      // Retryability is what the caller actually acts on, and it must agree
-      // even where the codes deliberately differ — a filtered prompt and a
-      // malformed request are both hopeless to repeat.
       expect(retryable(code), `${trace} retryable`).toBe(retryable(reference.code))
 
       expectSameDelay(
@@ -371,21 +359,14 @@ describe('Feature: github-copilot-provider, Property 41: Cùng tình huống l�
         `${trace} failure`,
       )
 
-      // The second sanctioned divergence: a bare-string `error` body is a
-      // message the shared parser drops. It changes the message only.
-      if (situation.shape === 'bare-error-string' && situation.body.length > 0) {
-        expect(parsed.message, `${trace} bare message`)
-          .toBe((JSON.parse(situation.body) as { error: string }).error)
-      } else {
-        expect(error.message, `${trace} message`).toBe(reference.message)
-      }
+      expect(error.message, `${trace} message`).toBe(reference.message)
     }
   })
 
   it('classifies the shared situation set identically for every status, wording, and body shape', () => {
     // The generator is random-ish; this walks the full cross product so no
     // (status, wording, shape) combination can be missed by sampling luck.
-    let divergences = 0
+    let moderations = 0
     for (const status of STATUSES) {
       for (const wording of Object.keys(WORDING) as WordingKind[]) {
         for (const phrase of WORDING[wording]) {
@@ -398,22 +379,24 @@ describe('Feature: github-copilot-provider, Property 41: Cùng tình huống l�
             expect(mine.detail, `${trace} detail`).toBe(shared.detail)
             const sharedCode = httpErrorCode(status, shared.detail)
             const mineCode = chatCompletionsErrorCode(status, mine.detail)
-            const moderation = (status === 400 || status === 422)
-              && wording === 'filter'
-              && sharedCode === MODEL_ERROR_CODES.INVALID_REQUEST
-              && mine.detail.length > 0
-            expect(mineCode, `${trace} code`)
-              .toBe(moderation ? MODEL_ERROR_CODES.UNSUPPORTED_CONTENT : sharedCode)
+            expect(mineCode, `${trace} code`).toBe(sharedCode)
+            expect(mine.message, `${trace} message`).toBe(shared.message)
+            if (shape === 'bare-error-string' && phrase.length > 0) {
+              expect(shared.message, `${trace} bare message`).toBe(phrase)
+            }
             expect(retryable(mineCode), `${trace} retryable`).toBe(retryable(sharedCode))
-            if (moderation) divergences += 1
+            const moderation = (status === 400 || status === 422) && wording === 'filter' && mine.detail.length > 0
+            if (moderation) {
+              expect(sharedCode, `${trace} moderation`).toBe(MODEL_ERROR_CODES.INVALID_REQUEST)
+              moderations += 1
+            }
           }
         }
       }
     }
-    // Guards the comparison against passing vacuously: if the moderation branch
-    // were deleted from either side, the loop above would still agree
-    // everywhere unless the divergent cases are known to be reached.
-    expect(divergences).toBeGreaterThan(0)
+    // Guards against passing vacuously: the moderation cases must be reached,
+    // and both sides must have classified them as filtered content.
+    expect(moderations).toBeGreaterThan(0)
   })
 
   it('keeps the terminal buckets out of the retryable set on both sides', () => {
@@ -431,5 +414,76 @@ describe('Feature: github-copilot-provider, Property 41: Cùng tình huống l�
     const detail = parseChatCompletionsErrorBody(quota).detail
     expect(chatCompletionsErrorCode(429, detail)).toBe(httpErrorCode(429, detail))
     expect(chatCompletionsErrorCode(429, detail)).toBe(QUOTA_EXCEEDED_CODE)
+  })
+})
+
+describe('errors inlined into a 200 stream read the same fields as an HTTP error body', () => {
+  // Classification without a status: only the wording can decide.
+  const INLINE_CODE: Record<WordingKind, string> = {
+    neutral: MODEL_ERROR_CODES.SERVER,
+    quota: QUOTA_EXCEEDED_CODE,
+    context: CONTEXT_WINDOW_EXCEEDED_CODE,
+    filter: MODEL_ERROR_CODES.INVALID_REQUEST,
+  }
+  const JSON_SHAPES = ['canonical', 'bare', 'nested-detail', 'bare-error-string'] as const
+
+  it('agrees on message text and classifier input for every wording and JSON shape', () => {
+    let reached = 0
+    for (const wording of Object.keys(WORDING) as WordingKind[]) {
+      for (const phrase of WORDING[wording]) {
+        for (const shape of JSON_SHAPES) {
+          const body = bodyOf(shape, phrase, rngOf(11))
+          const parsed = JSON.parse(body) as { error?: unknown }
+          const payload = (parsed.error ?? parsed) as Parameters<typeof chatCompletionsStreamError>[0]
+          const shared = parseErrorBody(body)
+          const error = chatCompletionsStreamError(payload, 'Test Provider')
+          const trace = `${shape} ${wording} "${phrase}"`
+          const label = typeof payload === 'object' ? payload.code ?? payload.type : undefined
+          const expected = shared.message ?? 'Test Provider reported an error mid-stream'
+          expect(error.message, `${trace} message`)
+            .toBe(label === undefined ? expected : `${expected} (${String(label)})`)
+          // A plain-string payload is the only wording mid-stream, so it joins the
+          // classifier input there; over HTTP the status decides instead.
+          const detail = shape === 'bare-error-string' ? phrase : shared.detail
+          expect((error.cause as Error).message, `${trace} detail`).toBe(detail.length > 0 ? detail : 'stream error')
+          expect(error.code, `${trace} code`).toBe(detail.length > 0 ? INLINE_CODE[wording] : MODEL_ERROR_CODES.SERVER)
+          reached += 1
+        }
+      }
+    }
+    expect(reached).toBeGreaterThan(0)
+  })
+
+  it('reads `description`, `detail`, numeric and empty codes the way the HTTP path does', () => {
+    const cases: readonly [object | string, string, string][] = [
+      [{ message: 'Bad request', description: 'Invalid image URL', code: 400 }, 'Bad request: Invalid image URL (400)', MODEL_ERROR_CODES.SERVER],
+      [{ detail: 'insufficient_quota' }, 'insufficient_quota', QUOTA_EXCEEDED_CODE],
+      [{ code: '', type: 'server_error', message: '' }, 'Test Provider reported an error mid-stream (server_error)', MODEL_ERROR_CODES.SERVER],
+      ['upstream timeout', 'upstream timeout', MODEL_ERROR_CODES.SERVER],
+      ['You exceeded your current quota', 'You exceeded your current quota', QUOTA_EXCEEDED_CODE],
+      ["This model's maximum context length is 8192 tokens", "This model's maximum context length is 8192 tokens",
+        CONTEXT_WINDOW_EXCEEDED_CODE],
+      ['content_filter triggered', 'content_filter triggered', MODEL_ERROR_CODES.INVALID_REQUEST],
+      ['', 'Test Provider reported an error mid-stream', MODEL_ERROR_CODES.SERVER],
+      [{ message: 'prompt blocked by content_filter' }, 'prompt blocked by content_filter', MODEL_ERROR_CODES.INVALID_REQUEST],
+    ]
+    for (const [payload, message, code] of cases) {
+      const error = chatCompletionsStreamError(payload as Parameters<typeof chatCompletionsStreamError>[0], 'Test Provider')
+      expect({ message: error.message, code: error.code }, JSON.stringify(payload)).toEqual({ message, code })
+      const body = JSON.stringify({ error: payload })
+      if (typeof payload === 'object') {
+        // Same classifier input as the HTTP parser builds from the same payload.
+        const detail = parseErrorBody(body).detail
+        expect((error.cause as Error).message).toBe(detail.length > 0 ? detail : 'stream error')
+      }
+    }
+  })
+
+  it('names only the origin in the fallback message, never a path or query', () => {
+    const error = chatCompletionsHttpError({
+      status: 502, body: '', headers: new Headers(), displayName: 'Gateway',
+      url: 'https://gw.invalid/deployments/secret/chat/completions?api-key=hidden',
+    })
+    expect(error.message).toBe('Gateway error (HTTP 502) from https://gw.invalid')
   })
 })

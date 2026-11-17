@@ -8,7 +8,8 @@ import { OBSERVATION_ERROR_CODES, type EndProviderAttemptInput, type ProviderAtt
   type ProviderRetryScheduledInput, type StartProviderAttemptInput } from '../observation/report.ts'
 import { validateUsageCounters, type AttemptUsageReport } from '../observation/usage.ts'
 import type { CreateModelCallHandleOptions } from './model-call-handle.ts'
-import { nowMonotonic, openContainedSpan, applyReceipt, type DeliveryTracker } from './model-call-support.ts'
+import { elapsedWithin, nowMonotonic, openContainedSpan, applyReceipt,
+  type DeliveryTracker } from './model-call-support.ts'
 import { attemptCoverage, invalidAttemptUsage } from './model-call-usage.ts'
 
 interface AttemptHost {
@@ -32,6 +33,11 @@ interface AttemptState {
   readonly attemptSpan: ObservationSpan
 }
 
+/** Monotonic time of an attempt's first output, filled in while the attempt is open. */
+interface OutputMark {
+  firstOutputMonotonic?: number
+}
+
 interface AttemptEndSummary {
   readonly endedAt: string
   readonly durationMs: number
@@ -43,10 +49,23 @@ interface AttemptEndSummary {
 export class ModelCallAttempts {
   readonly attempts: AttemptUsageReport[] = []
   readonly openAttempts = new Set<(input: EndProviderAttemptInput) => AttemptUsageReport>()
+  /** Open attempts that have not produced output yet; empty on the hot path after the first chunk. */
+  private readonly awaitingOutput = new Set<OutputMark>()
   private nextAttemptNumber = 1
   declared = false
 
   constructor(private readonly host: AttemptHost) {}
+
+  /** True while an open attempt still lacks its first-output time. */
+  get awaitingFirstOutput(): boolean {
+    return this.awaitingOutput.size > 0
+  }
+
+  /** Stamp every open attempt still waiting for output with this monotonic time. */
+  markFirstOutput(at: number): void {
+    for (const mark of this.awaitingOutput) mark.firstOutputMonotonic = at
+    this.awaitingOutput.clear()
+  }
 
   recordProviderRetry(retry: ProviderRetryScheduledInput): void {
     const { input, scope, span, capture } = this.host
@@ -144,8 +163,11 @@ export class ModelCallAttempts {
     const { scope } = this.host
     const { attemptInput, attemptNumber, attemptId, attemptStartedAt, attemptStartedMonotonic, attemptSpan } = state
     let finalReport: AttemptUsageReport | undefined
+    const mark: OutputMark = {}
+    this.awaitingOutput.add(mark)
     const end = (endInput: EndProviderAttemptInput): AttemptUsageReport => {
       if (finalReport !== undefined) return finalReport
+      this.awaitingOutput.delete(mark)
       const endedAt = new Date().toISOString()
       const endedMonotonic = nowMonotonic()
       const validated = validateUsageCounters(endInput.reported, true)
@@ -161,6 +183,10 @@ export class ModelCallAttempts {
         attemptNumber,
         status: endInput.status,
         startedAt: attemptStartedAt, endedAt, durationMs,
+        ...mark.firstOutputMonotonic === undefined ? {} : {
+          firstOutputMs: elapsedWithin(attemptStartedMonotonic, mark.firstOutputMonotonic,
+            durationMs),
+        },
         dispatchState: endInput.dispatchState,
         coverage,
         reported: validated.reported,

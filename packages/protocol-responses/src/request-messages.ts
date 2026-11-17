@@ -73,18 +73,46 @@ function appendControl(block: ContentBlock, state: MessageState): void {
 
 function appendReasoning(block: Extract<ContentBlock, { type: 'reasoning' }>, items: WireInputItem[]): void {
   const state = reasoningStateOf(block.providerState)
+  const content = reasoningContent(state, block)
   // Unfinished reasoning has no replay identity and cannot be sent back.
   if (state.id === undefined && state.encryptedContent === undefined) return
-  const summary = reasoningSummary(state, block.text)
+  const summary = reasoningSummary(state, block, content)
   items.push({
     type: 'reasoning',
     ...state.id === undefined ? {} : { id: state.id },
     summary: summary.map(text => ({ type: 'summary_text' as const, text })),
+    ...content === undefined
+      ? {}
+      : { content: content.map(text => ({ type: 'reasoning_text' as const, text })) },
     ...state.encryptedContent === undefined ? {} : { encrypted_content: state.encryptedContent },
   })
 }
 
-function reasoningSummary(state: ResponsesReasoningState, text: string): readonly string[] {
+/**
+ * Raw reasoning to replay as `reasoning_text`, never relabelled as a summary.
+ *
+ * A block read before raw content was tracked still says `kind: 'content'`,
+ * which is enough to put its text back where it came from.
+ */
+function reasoningContent(
+  state: ResponsesReasoningState,
+  block: Extract<ContentBlock, { type: 'reasoning' }>,
+): readonly string[] | undefined {
+  // Raw content needs the item id it belongs to; without one it is not a replay.
+  if (state.content !== undefined) return state.id === undefined ? undefined : state.content
+  if (state.encryptedContent !== undefined || state.summary !== undefined) return undefined
+  if (state.id === undefined || block.kind !== 'content' || block.text.length === 0) return undefined
+  return [block.text]
+}
+
+function reasoningSummary(
+  state: ResponsesReasoningState,
+  block: Extract<ContentBlock, { type: 'reasoning' }>,
+  content: readonly string[] | undefined,
+): readonly string[] {
   if (state.summary !== undefined && state.summary.length > 0) return state.summary
-  return text.length > 0 ? [text] : []
+  // Raw content — tracked, or only known from `reasoning_text` deltas — is never
+  // relabelled as a summary, even when it cannot be replayed.
+  if (content !== undefined || state.content !== undefined || block.kind === 'content') return []
+  return block.text.length > 0 ? [block.text] : []
 }

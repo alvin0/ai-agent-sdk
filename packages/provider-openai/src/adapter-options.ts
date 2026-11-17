@@ -47,12 +47,13 @@ function modelOptions(options: Omit<OpenAiAdapterOptions, 'apiKey'>) {
 }
 
 const CHAT_COMPLETIONS_REASONING_FORMATS = new Set(['openai', 'deepseek', false])
+const CHAT_COMPLETIONS_REASONING_REPLAYS = new Set(['auto', 'reasoning_content', 'reasoning', false])
 
 export function chatCompletionsDialectOf(
   compat: OpenAiChatCompletionsCompat | undefined,
   promptCacheKey: string | undefined,
 ): Partial<ChatCompletionsDialect> {
-  validateReasoningFormat(compat)
+  validateReasoningOptions(compat)
   return {
     // A JS caller (or one that fought past TypeScript with `as any`) mistyping
     // a value from a DIFFERENT protocol — Anthropic's `'thinking-budget'`, for
@@ -68,11 +69,17 @@ export function chatCompletionsDialectOf(
   }
 }
 
-function validateReasoningFormat(compat: OpenAiChatCompletionsCompat | undefined) {
+function validateReasoningOptions(compat: OpenAiChatCompletionsCompat | undefined) {
   if (compat?.reasoningFormat !== undefined && !CHAT_COMPLETIONS_REASONING_FORMATS.has(compat.reasoningFormat)) {
     throw new TypeError(
       `Chat Completions reasoningFormat must be 'openai', 'deepseek', or false, received `
       + `${JSON.stringify(compat.reasoningFormat)}`,
+    )
+  }
+  if (compat?.reasoningReplay !== undefined && !CHAT_COMPLETIONS_REASONING_REPLAYS.has(compat.reasoningReplay)) {
+    throw new TypeError(
+      `Chat Completions reasoningReplay must be 'auto', 'reasoning_content', 'reasoning', or false, received `
+      + `${JSON.stringify(compat.reasoningReplay)}`,
     )
   }
 }
@@ -87,6 +94,7 @@ function chatFields(compat: OpenAiChatCompletionsCompat) {
     ...compat.streamUsage === undefined ? {} : { streamUsage: compat.streamUsage },
     ...compat.stop === undefined ? {} : { stop: compat.stop },
     ...compat.seed === undefined ? {} : { seed: compat.seed },
+    ...compat.reasoningReplay === undefined ? {} : { reasoningReplay: compat.reasoningReplay },
 
   }
 }

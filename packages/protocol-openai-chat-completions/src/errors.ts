@@ -38,9 +38,7 @@ const MAX_DETAIL_LENGTH = 2_048
 /**
  * Wording that identifies a moderation rejection rather than a bad request.
  *
- * Narrow on purpose. A false positive would tell the caller their prompt was
- * filtered when in fact their JSON schema was wrong, and the two have opposite
- * fixes. Endpoints in this family are consistent about the token
+ * Narrow on purpose: endpoints in this family are consistent about the token
  * `content_filter` / `content_policy`, so nothing looser is needed.
  */
 const CONTENT_FILTER_WORDING = new RegExp(
@@ -52,10 +50,10 @@ const CONTENT_FILTER_WORDING = new RegExp(
 /**
  * Recognize a moderation rejection in provider error text.
  *
- * Classified as `UNSUPPORTED_CONTENT` rather than as a new `CONTENT_FILTERED`
- * code: the existing code already says exactly this — the request carried
- * content the selected model will not accept — and it is already outside the
- * default retryable set, which is the behaviour a filtered prompt needs.
+ * A diagnostic aid, not a separate code: a filtered request is
+ * `INVALID_REQUEST` everywhere in the SDK — over HTTP, inlined into a stream,
+ * and as a `content_filter` finish — so failover and retry treat it the same
+ * way whichever path reported it. The member that refused stays healthy.
  * @param detail - provider error code/type/message text joined into one string.
  * @returns true when the wording names content filtering or a content policy.
  */
@@ -166,11 +164,10 @@ function stringField(source: unknown, key: string): string | undefined {
  * returns. In the last case the status stays authoritative and the raw text,
  * truncated, is still the best classifier input available.
  *
- * A bare-string `error` contributes to the MESSAGE only, never to `detail`.
- * That asymmetry is deliberate: `detail` is what decides the code, and it is
- * held byte-identical to the shared provider mapping so the same
- * `(status, body)` pair cannot classify differently here than it does for an
- * existing provider.
+ * A bare-string `error` contributes to the MESSAGE only, never to `detail`:
+ * `detail` is what decides the code. Message and detail are both held
+ * identical to the shared provider mapping, so the same `(status, body)` pair
+ * cannot read differently here than it does for an existing provider.
  * @param raw - the response body as text.
  * @returns the message and the joined detail.
  */
@@ -186,11 +183,15 @@ export function parseChatCompletionsErrorBody(raw: string): ParsedChatCompletion
   const type = stringField(error, 'type')
   const message = stringField(error, 'message')
   const detailField = stringField(error, 'detail') ?? stringField(parsed, 'detail')
-  const parts = [code, type, message ?? detailField]
+  // Some gateways (FPT AI Marketplace, other Kong-style fronts) put a generic
+  // `message: "Bad request"` beside the real reason in `description`.
+  const description = stringField(error, 'description') ?? stringField(parsed, 'description')
+  const parts = [code, type, message ?? detailField, description]
     .filter((part): part is string => part !== undefined)
+  const primary = withDescription(message ?? detailField, description)
   const bareError = typeof error === 'string' && error.length > 0 ? error : undefined
   return {
-    message: message ?? detailField ?? bareError,
+    message: primary ?? bareError,
     detail: parts.join(' '),
   }
 }
@@ -205,7 +206,7 @@ export interface ChatCompletionsHttpFailure {
   readonly headers: Headers
   /** Name used in the fallback message, e.g. the provider display name. */
   readonly displayName: string
-  /** Request URL, included in the fallback message for diagnosis. */
+  /** Request URL; its origin is included in the fallback message for diagnosis. */
   readonly url?: string
 }
 
@@ -223,7 +224,9 @@ export function chatCompletionsHttpError(failure: ChatCompletionsHttpFailure): M
   const { message, detail } = parseChatCompletionsErrorBody(failure.body)
   const delay = chatCompletionsRetryAfterMs(failure.headers.get('retry-after'))
   const id = chatCompletionsRequestId(failure.headers)
-  const location = failure.url === undefined ? '' : ` from ${failure.url}`
+  // The origin only, as the shared mapping does: a path or query can carry
+  // deployment names or credentials that have no place in an error message.
+  const location = failure.url === undefined ? '' : ` from ${originOf(failure.url)}`
   return new ModelError(
     message ?? `${failure.displayName} error (HTTP ${failure.status})${location}`,
     chatCompletionsErrorCode(failure.status, detail),
@@ -240,26 +243,40 @@ export function chatCompletionsHttpError(failure: ChatCompletionsHttpFailure): M
  * Map an error the endpoint inlined into a 200 stream onto the same taxonomy.
  *
  * Some gateways answer a rejected request with HTTP 200 and an `error` object
- * inside a `data:` frame. There is no status to classify from, so the wording
- * classifiers carry the whole decision, and the residual case is
- * `MALFORMED_RESPONSE`: an error arriving where content was promised is a
- * broken response, not a server fault to be retried.
+ * (or a plain string) inside a `data:` frame. The fields are read exactly as
+ * {@link parseChatCompletionsErrorBody} reads them, so the same payload yields
+ * the same message and classifier input on either path. There is no status to
+ * classify from, so the wording classifiers decide: an exhausted quota, an
+ * overflowing context window, and a content-filter rejection (`INVALID_REQUEST`,
+ * as everywhere else) are terminal; anything else is `SERVER`, which IS
+ * retryable, because the turn produced nothing usable and a gateway relaying an
+ * upstream hiccup mid-stream usually succeeds on retry. With no status to name
+ * the failure, the endpoint's `code` (or `type`) is appended to the message.
+ * The streaming translator raises exactly this error.
  * @param body - the `error` payload of a stream chunk.
  * @param displayName - name used when the payload carries no message.
  * @returns a ModelError with no `status`, since the HTTP call itself succeeded.
  */
 export function chatCompletionsStreamError(
-  body: WireErrorBody,
+  body: WireErrorBody | string,
   displayName: string,
 ): ModelError {
-  const code = typeof body.code === 'string' ? body.code : undefined
-  const detail = [code, body.type, body.message]
-    .filter((part): part is string => typeof part === 'string' && part.length > 0)
+  const fields: WireErrorBody = typeof body === 'object' && body !== null ? body : {}
+  const message = nonEmptyString(fields.message) ?? nonEmptyString(fields.detail)
+  const description = nonEmptyString(fields.description)
+  // With no status to fall back on, a plain-string payload is the only wording
+  // there is, so it feeds the classifiers too (unlike an HTTP body's bare string).
+  const detail = [nonEmptyString(fields.code), nonEmptyString(fields.type), message, description, nonEmptyString(body)]
+    .filter((part): part is string => part !== undefined)
     .join(' ')
-  const classified = inlineFailureCode(detail)
+  const label = typeof fields.code === 'number'
+    ? String(fields.code)
+    : nonEmptyString(fields.code) ?? nonEmptyString(fields.type)
+  const text = withDescription(message, description) ?? nonEmptyString(body)
+    ?? `${displayName} reported an error mid-stream`
   return new ModelError(
-    body.message ?? `${displayName} inlined an error into the stream`,
-    classified,
+    label === undefined ? text : `${text} (${label})`,
+    inlineFailureCode(detail),
     { cause: new Error(detail.length > 0 ? detail : 'stream error') },
   )
 }
@@ -292,11 +309,9 @@ export function chatCompletionsTransportError(
 function authenticationStatus(status: number): boolean { return status === 401 || status === 403 }
 
 function rejectedRequestCode(detail: string): string {
-    if (isContextWindowExceededError(detail)) return CONTEXT_WINDOW_EXCEEDED_CODE
-    // Only inside the request-rejected statuses: the same wording in a 500 body
-    // describes what the endpoint was doing, not why it refused the caller.
-    if (isContentFilteredError(detail)) return MODEL_ERROR_CODES.UNSUPPORTED_CONTENT
-    return MODEL_ERROR_CODES.INVALID_REQUEST
+  // A content-filter rejection is INVALID_REQUEST like any other refusal; see
+  // {@link isContentFilteredError}.
+  return isContextWindowExceededError(detail) ? CONTEXT_WINDOW_EXCEEDED_CODE : MODEL_ERROR_CODES.INVALID_REQUEST
 }
 
 function errorPayload(parsed: unknown): unknown {
@@ -310,12 +325,28 @@ function errorPayload(parsed: unknown): unknown {
 function inlineFailureCode(detail: string): string {
   if (isQuotaExceededError(detail)) return QUOTA_EXCEEDED_CODE
   if (isContextWindowExceededError(detail)) return CONTEXT_WINDOW_EXCEEDED_CODE
-  if (isContentFilteredError(detail)) return MODEL_ERROR_CODES.UNSUPPORTED_CONTENT
-  return MODEL_ERROR_CODES.MALFORMED_RESPONSE
+  // Same code as a `content_filter` finish and a filtered HTTP 400: terminal.
+  if (isContentFilteredError(detail)) return MODEL_ERROR_CODES.INVALID_REQUEST
+  return MODEL_ERROR_CODES.SERVER
 }
 
 function transportFailureCode(name: string): string {
   if (name === 'TimeoutError') return MODEL_ERROR_CODES.TIMEOUT
   if (name === 'AbortError') return MODEL_ERROR_CODES.ABORTED
   return MODEL_ERROR_CODES.TRANSPORT
+}
+
+/** Join a generic message and a more specific description, without repeating either. */
+function withDescription(message: string | undefined, description: string | undefined): string | undefined {
+  if (description === undefined || message === description) return message ?? description
+  if (message === undefined) return description
+  return `${message}: ${description}`
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function originOf(url: string): string {
+  try { return new URL(url).origin } catch { return 'the endpoint' }
 }

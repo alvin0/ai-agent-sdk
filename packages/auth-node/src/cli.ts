@@ -1,4 +1,5 @@
 import { openBrowser } from './common/browser.ts'
+import { reportUsage } from './cli-usage.ts'
 /**
  * `npm run provider:codex:login-device` / `npm run provider:codex:login-browser`
  *
@@ -19,6 +20,7 @@ import { openBrowser } from './common/browser.ts'
  *   --port <n>       loopback port for --browser (default 1455)
  *   --force          sign in again even if valid credentials already exist
  *   --status         report the current credential state and exit
+ *   --usage          fetch the account's remaining usage (plan windows, credits) and exit
  *   --account <name> sign in a named extra account (`.providers/.codex/accounts/<name>.json`),
  *                    e.g. a backup for `failoverProviderPlugin`
  *   --path <file>    write somewhere other than the default
@@ -48,19 +50,21 @@ interface Flags {
   port: number | undefined
   force: boolean
   status: boolean
+  usage: boolean
   path: string | undefined
   issuer: string | undefined
 }
 
 function parseFlags(argv: readonly string[]): Flags {
-  const flags: Flags = { browser: false, port: undefined, force: false, status: false, path: undefined,
-    issuer: undefined }
+  const flags: Flags = { browser: false, port: undefined, force: false, status: false, usage: false,
+    path: undefined, issuer: undefined }
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index]
     switch (arg) {
       case '--browser': flags.browser = true; break
       case '--force': flags.force = true; break
       case '--status': flags.status = true; break
+      case '--usage': flags.usage = true; break
       default:
         if (arg !== undefined && VALUE_FLAGS.has(arg)) setValueFlag(flags, arg, argv[++index])
         else if (arg !== undefined && arg.startsWith('-')) throw new Error(`unknown flag "${arg}"`)
@@ -202,6 +206,10 @@ async function main(): Promise<number> {
   const existing = await store.read()
 
   if (flags.status) return reportStatus(existing, location)
+  if (flags.usage) {
+    if (existing?.tokens === undefined || existing.tokens === null) return reportStatus(existing, location)
+    return reportUsage(store, location, { issuer: flags.issuer })
+  }
 
   if (reportExistingSignIn(flags, existing, location)) return 0
 
@@ -211,6 +219,7 @@ async function main(): Promise<number> {
 try {
   process.exitCode = await main()
 } catch (error: unknown) {
-  process.stdout.write(`\ncodex: login failed — ${error instanceof Error ? error.message : String(error)}\n`)
+  const what = process.argv.includes('--usage') ? 'usage request' : 'login'
+  process.stdout.write(`\ncodex: ${what} failed — ${error instanceof Error ? error.message : String(error)}\n`)
   process.exitCode = 1
 }

@@ -70,6 +70,9 @@ export type WireMessage =
     /** Absent or null on a turn that only called tools. */
     content?: string | null
     tool_calls?: WireToolCall[]
+    /** Earlier reasoning, replayed per `dialect.reasoningReplay` (non-standard). */
+    reasoning_content?: string
+    reasoning?: string
   }
   | {
     role: 'tool'
@@ -215,6 +218,8 @@ export interface WireChoiceDelta {
   refusal?: string | null
   /** Non-standard but widely emitted by reasoning-capable endpoints. */
   reasoning_content?: string | null
+  /** The same thing under the spelling OpenRouter, Ollama and newer vLLM emit. */
+  reasoning?: string | null
   tool_calls?: WireToolCallDelta[]
 }
 
@@ -270,6 +275,10 @@ export interface WireErrorBody {
   type?: string
   code?: string | number
   message?: string
+  /** FastAPI-style reason, read when there is no `message`. */
+  detail?: string
+  /** Gateway-specific reason beside a generic `message` (e.g. FPT AI Marketplace). */
+  description?: string
   param?: string | null
 }
 
@@ -341,6 +350,14 @@ export interface ChatCompletionsDialect {
    * shipping an unverified shape under a name that promises otherwise.
    */
   readonly reasoningFormat: 'openai' | 'deepseek' | false
+  /**
+   * Whether, and how, the model's own reasoning is sent back on assistant
+   * messages of the CURRENT turn (after the latest user message). `'auto'` (also when absent)
+   * replays only reasoning this protocol read from the same model and endpoint, the way it
+   * arrived (`reasoning_content`, `reasoning`, or `<think>` tags in `content`).
+   * A field name forces that field for any reasoning; `false` never replays. See `reasoning.ts`.
+   */
+  readonly reasoningReplay?: 'auto' | 'reasoning_content' | 'reasoning' | false
   /** Prompt-cache key, sent when the endpoint accepts one. */
   readonly promptCacheKey?: string
   /**
@@ -377,5 +394,6 @@ export const DEFAULT_DIALECT: ChatCompletionsDialect = Object.freeze({
   stop: true,
   seed: false,
   reasoningFormat: false,
+  reasoningReplay: 'auto',
   path: '/chat/completions',
 } as const satisfies ChatCompletionsDialect)

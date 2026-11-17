@@ -11,7 +11,10 @@ import {
   CODEX_ORIGINATOR,
   codexAdapter as universalCodexAdapter,
   codexPlugin as universalCodexPlugin,
+  getCodexUsage,
   type CodexAdapterOptions as UniversalCodexAdapterOptions,
+  type CodexUsage,
+  type GetCodexUsageOptions,
   type CodexAuthStore,
   type CodexCredentialStore,
   type CodexProviderOptions,
@@ -75,6 +78,29 @@ export function codexNodeProviderPlugin(
   })
 }
 
+export interface CodexNodeUsageOptions extends Omit<GetCodexUsageOptions, 'authStore'> {
+  /** Defaults to the project-local file credentials. */
+  readonly authStore?: GetCodexUsageOptions['authStore']
+  /**
+   * Read the named account's credentials (`.providers/.codex/accounts/<name>.json`)
+   * instead of the default file. Ignored when `authStore` is given.
+   */
+  readonly account?: string
+}
+
+/**
+ * Fetch the remaining Codex usage of the project-local (or named) account.
+ * Reading usage does not consume any. See `getCodexUsage` for the result and errors.
+ */
+export async function getCodexNodeUsage(options: CodexNodeUsageOptions = {}): Promise<CodexUsage> {
+  const { account, authStore, ...rest } = options
+  return getCodexUsage({
+    ...withDefaultNodeFetch(rest),
+    authStore: authStore
+      ?? fileCodexCredentialStore(account === undefined ? undefined : codexAccountAuthPath(account)),
+  })
+}
+
 /** Compatibility alias for the former `ai-agent-sdk/codex` entry. */
 export const codexAdapter = codexNodeAdapter
 /** Compatibility alias for the former `ai-agent-sdk/codex` entry. */
@@ -86,7 +112,11 @@ export {
   ACCESS_TOKEN_REFRESH_WINDOW_MS,
   CODEX_CLIENT_ID,
   CodexRefreshError,
+  CodexUsageError,
+  codexUsageUrl,
   DEFAULT_CODEX_ISSUER,
+  parseCodexUsageBody,
+  parseCodexUsageHeaders,
   LAST_REFRESH_MAX_AGE_MS,
   isFedrampAccount,
   memoryCodexAuthStore,
@@ -116,6 +146,13 @@ export {
   type CodexLoginResult,
   type CodexOAuthOptions,
   type CodexTokens,
+  type CodexAdditionalRateLimit,
+  type CodexCredits,
+  type CodexModelAvailability,
+  type CodexRateLimit,
+  type CodexUsage,
+  type CodexUsageWindow,
+  type GetCodexUsageOptions,
   type RefreshFailureKind,
 } from '@alvin0/ai-agent-sdk-provider-codex'
 export { runBrowserLogin, type CodexBrowserLoginOptions, type CodexBrowserLoginProgress } from './codex-browser.ts'

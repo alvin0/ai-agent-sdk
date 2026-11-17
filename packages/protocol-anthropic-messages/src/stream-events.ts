@@ -13,6 +13,12 @@ export interface StreamState {
   usage: UsageAccumulator
   stop: WireStopReason | null | undefined
   emittedBlocks: number
+  /** The caller asked for JSON output; see {@link recoveredJsonAnswer}. */
+  jsonOutput: boolean
+  /** An answer text block or a tool call was completed. */
+  sawAnswer: boolean
+  /** Text of the latest completed thinking block. */
+  lastThinking: string | undefined
 }
 
 export function* translateEvent(
@@ -119,8 +125,30 @@ function* contentStop(
   const block = closedBlock(entry)
   if (block !== undefined && !entry.closed) {
     entry.closed = true
+    if ((block.type === 'text' && block.text.length > 0) || block.type === 'tool-call') state.sawAnswer = true
+    if (block.type === 'reasoning') state.lastThinking = block.text
     yield { type: 'block-end', index: event.index, block }
   }
+}
+
+/**
+ * Recover a structured answer that a reasoning parser misfiled.
+ *
+ * OpenAI-compatible servers that also expose this API (vLLM-style, e.g. FPT AI
+ * Marketplace in front of DeepSeek V4) can return a guided-decoding JSON answer
+ * as a thinking block with no text block at all. The caller asked for JSON and
+ * is about to parse the text, so a thinking block that IS a JSON document is
+ * also emitted as the answer.
+ */
+function* recoveredJsonAnswer(state: StreamState): Generator<ProtocolStreamChunk> {
+  if (!state.jsonOutput || state.sawAnswer || state.stop !== 'end_turn') return
+  const trimmed = state.lastThinking?.trim()
+  if (trimmed === undefined || !/^[[{]/.test(trimmed)) return
+  try { JSON.parse(trimmed) } catch { return }
+  const index = Math.max(-1, ...state.open.keys()) + 1
+  yield { type: 'block-start', index, blockType: 'text' }
+  yield { type: 'text-delta', index, text: trimmed }
+  yield { type: 'block-end', index, block: { type: 'text', text: trimmed } }
 }
 
 function* messageDelta(
@@ -141,6 +169,7 @@ function* messageStop(
     if (block !== undefined) yield { type: 'block-end', index, block }
     entry.closed = true
   }
+  yield* recoveredJsonAnswer(state)
   const mapped = finalUsage(state.usage)
   if (mapped !== undefined) yield { type: 'usage', usage: mapped }
   if (state.emittedBlocks === 0) {

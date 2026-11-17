@@ -15,7 +15,15 @@ export function reasoningStateOf(value: unknown): ResponsesReasoningState {
       ? { encryptedContent: state.encryptedContent }
       : {},
     ...Array.isArray(state.summary) ? { summary: state.summary } : {},
+    ...nonEmptyStrings(state.content),
   }
+}
+
+/** Raw reasoning parts that are usable on the wire; persisted state is not trusted. */
+function nonEmptyStrings(value: unknown): { content?: readonly string[] } {
+  if (!Array.isArray(value)) return {}
+  const content = value.filter((part): part is string => typeof part === 'string' && part.length > 0)
+  return content.length === 0 ? {} : { content }
 }
 
 export function textAnnotations(block: TextBlock) {
