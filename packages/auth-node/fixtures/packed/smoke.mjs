@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { envCredential } from '@alvin0/ai-agent-sdk-auth-node/env'
 import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
 import {
-  codexNodeAdapter,
+  codexNodeAdapter, codexNodeImageTool, generateCodexNodeImage,
   codexNodeProviderPlugin,
   fileCodexAuthStore,
   fileCodexCredentialStore,
@@ -144,8 +144,15 @@ const antigravityRuntime = await createAgentRuntime({
 })
 await antigravityRuntime.close()
 const antigravityCli = resolve('node_modules/@alvin0/ai-agent-sdk-auth-node/bin/ai-agent-sdk-antigravity-login.mjs')
+if (typeof codexNodeImageTool !== 'function' || typeof generateCodexNodeImage !== 'function') {
+  throw new Error('Packed Codex Images helpers are missing')
+}
+const antigravityHelp = spawnSync(process.execPath, [antigravityCli, '--help'], {
+  cwd: 'node_modules', encoding: 'utf8',
+})
+if (antigravityHelp.status !== 0 || !antigravityHelp.stdout.includes('--force')) throw new Error('Packaged help failed')
 const antigravityStatus = spawnSync(process.execPath, [antigravityCli, '--status', '--path', antigravityPath], {
-  encoding: 'utf8', env: process.env,
+  cwd: 'node_modules', encoding: 'utf8', env: process.env,
 })
 if (antigravityStatus.status !== 0 || !antigravityStatus.stdout.includes('packed-project')) {
   throw new Error('Antigravity packaged CLI could not read its credential file')

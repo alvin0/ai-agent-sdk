@@ -136,3 +136,9 @@ Image models use a 12 MiB SSE event default; `maxSseEventChars` still overrides
 it. Contradictory catalog output limits are omitted instead of increasing the
 advertised context window. Model-native tools remain separate: Antigravity image
 models do not require `nativeTools: [{ name: 'image-generation', ... }]`.
+
+Agent `providerOptions.body` extends the inner GenerateContent request. Nested
+objects merge and a null value removes a field. The provider owns the outer
+routing envelope and the session ID. Tool declarations use `parametersJsonSchema`
+and structured output uses `responseSchema` with bounded expansion of local
+`$defs` references.

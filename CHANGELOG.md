@@ -2,6 +2,11 @@
 
 All notable changes to the AI Agent SDK are documented in this file.
 
+## 0.1.18 - 2026-11-19
+
+- Added the Antigravity OAuth provider and Node login CLI.
+- Added experimental Codex Images generation and an image tool for agent sessions.
+
 ## 0.1.17 - 2026-11-16
 
 ### Added

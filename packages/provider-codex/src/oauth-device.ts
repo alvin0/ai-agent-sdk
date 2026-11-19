@@ -172,7 +172,7 @@ export async function exchangeCodeForTokens(
 export function authFileFor(tokens: CodexTokens): CodexAuthFile {
   const accountId = resolveAccountId(tokens)
   return {
-    auth_mode: 'chatgpt',
+    auth_mode: 'chatgpt', loginId: crypto.randomUUID(),
     OPENAI_API_KEY: null,
     tokens: { ...tokens, account_id: accountId ?? null },
     last_refresh: new Date().toISOString(),

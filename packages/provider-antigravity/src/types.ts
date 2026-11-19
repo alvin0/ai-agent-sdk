@@ -10,6 +10,7 @@ export interface AntigravityAuthFile {
   readonly projectId: string
   readonly account?: { readonly email?: string }
   readonly clientId: string
+  readonly loginId?: string
   readonly obtainedAt: string
 }
 

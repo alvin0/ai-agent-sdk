@@ -22,13 +22,17 @@ export async function readCredentialText(
   location: string,
   signal?: AbortSignal,
 ): Promise<string | undefined> {
+  return (await readCredentialBytes(location, signal))?.toString('utf8')
+}
+
+export async function readCredentialBytes(location: string, signal?: AbortSignal): Promise<Buffer | undefined> {
   signal?.throwIfAborted()
   let handle: FileHandle | undefined
   try {
     handle = await openNoFollow(location, constants.O_RDONLY)
     signal?.throwIfAborted()
     await validateOpenedCredential(handle, location)
-    const raw = await handle.readFile({ encoding: 'utf8', ...(signal === undefined ? {} : { signal }) })
+    const raw = await handle.readFile({ signal })
     signal?.throwIfAborted()
     return raw
   } catch (error: unknown) {

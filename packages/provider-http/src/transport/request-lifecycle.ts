@@ -60,7 +60,8 @@ export class TransportRequest {
     this.displayName = displayName
     this.model = model
     this.provider = provider
-    this.callerSignal = input.signal
+    this.callerSignal = connection.signal && input.signal
+      ? AbortSignal.any([connection.signal, input.signal]) : connection.signal ?? input.signal
     this.consumer = new AbortController()
     this.limits = resolveTransportLimits(connection)
     this.timeout = Number.isFinite(this.limits.requestTimeoutMs)

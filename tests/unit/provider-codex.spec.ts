@@ -315,9 +315,10 @@ describe('Universal Codex provider plugin', () => {
 
     const first = refreshCodexTokens(store, { fetch })
     const second = refreshCodexTokens(store, { fetch })
-    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1))
     release()
     const [a, b] = await Promise.all([first, second])
+    expect(fetch).toHaveBeenCalledTimes(1)
     expect(a).toEqual(b)
     expect((await store.read({ signal: new AbortController().signal, logger: NULL_LOGGER }))?.value.tokens)
       .toEqual(a)

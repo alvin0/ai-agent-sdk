@@ -120,6 +120,9 @@ export interface ToolDefinition<Args = unknown> extends ToolSchema {
     readonly ContentBlock[]
   >
 
+  /** Discard the raw return value after rendering, so inline media follows content retention. */
+  readonly omitResultValue?: true
+
   /**
    * Metadata for a UI, kept out of what the model sees.
    *

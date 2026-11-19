@@ -57,6 +57,12 @@ function checkRedirect(response: Response): void {
   }
 }
 
+export class AntigravityHttpError extends AgentSdkError {
+  constructor(readonly status: number, code: string) {
+    super(`Antigravity request failed (HTTP ${status})`, code)
+  }
+}
+
 function checkResponse(response: Response): void {
   checkRedirect(response)
   if (!response.ok) {
@@ -64,8 +70,7 @@ function checkResponse(response: Response): void {
     const codes: Record<number, string> = {
       401: 'ANTIGRAVITY_AUTH_REVOKED', 403: 'ANTIGRAVITY_ACCESS_DENIED', 429: 'RATE_LIMIT',
     }
-    throw new AgentSdkError(`Antigravity request failed (HTTP ${response.status})`,
-      codes[response.status] ?? 'ANTIGRAVITY_HTTP_ERROR')
+    throw new AntigravityHttpError(response.status, codes[response.status] ?? 'ANTIGRAVITY_HTTP_ERROR')
   }
   const mediaType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
   if (mediaType !== 'application/json') {

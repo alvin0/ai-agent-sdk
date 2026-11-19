@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   CodexImageError, codexImageUrl, generateCodexImage, getCodexTokens, memoryCodexCredentialStore,
 } from '@alvin0/ai-agent-sdk-provider-codex'
-import { generateCodexNodeImage } from '@alvin0/ai-agent-sdk-auth-node/codex'
 import { authFile, hangingFetch, jwt, NOW_SECONDS, usageFetch } from './fixtures/codex-usage.ts'
 
-const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII='
+import { JPEG, largePng, PNG, WEBP } from './fixtures/codex-images.ts'
+
 const body = () => ({ created: 1, data: [{ b64_json: PNG, generation_id: 'generation-test' }] })
 const defaults = () => ({
   authStore: memoryCodexCredentialStore(authFile()), model: 'fixture-image-model', prompt: 'Draw a circle.',
@@ -24,6 +24,45 @@ describe('standalone Codex Images transport', () => {
     expect(JSON.parse(String(init?.body))).toEqual({ model: 'fixture-image-model', prompt: 'Draw a circle.',
       n: 1, quality: 'auto', size: 'auto', background: 'opaque' })
     expect(JSON.stringify(result)).not.toContain('acct-private-1')
+  })
+
+  it.each([[JPEG, 'image/jpeg'], [WEBP, 'image/webp'], [PNG, 'image/png']])(
+    'accepts a complete container and rejects its truncated prefix', async (data, mediaType) => {
+      const run = (payload: string) => generateCodexImage({ ...defaults(),
+        fetch: usageFetch(() => Response.json({ data: [{ b64_json: payload }] })) })
+      expect((await run(data!)).images[0]?.source).toMatchObject({ mediaType })
+      await expect(run(data!.slice(0, 16))).rejects.toMatchObject({ code: 'CODEX_IMAGE_MALFORMED' })
+    })
+
+  it.each([200, 400])('keeps a concurrent login and stops the previous image request after issuer HTTP %i', async status => {
+    const authStore = memoryCodexCredentialStore(authFile(-60))
+    const operation = { signal: new AbortController().signal,
+      logger: { child() { return this }, trace() {}, debug() {}, info() {}, warn() {}, error() {}, fatal() {} } }
+    const freshLogin = { ...authFile(), loginId: 'other-login' }
+    const refresh = async () => {
+      const revision = (await authStore.read(operation))!.revision
+      await authStore.commit({ expectedRevision: revision, value: freshLogin }, operation)
+      return Response.json(status === 200 ? { access_token: 'old-grant', refresh_token: 'rotated' } : { error: 'invalid_grant' }, { status })
+    }
+    const fetch = usageFetch(() => Response.json(body()))
+    await expect(generateCodexImage({ ...defaults(), authStore, fetch, oauth: { fetch: refresh } }))
+      .rejects.toMatchObject({ code: 'CODEX_REFRESH_TRANSIENT' })
+    expect(fetch).not.toHaveBeenCalled()
+    expect((await authStore.read(operation))?.value).toEqual(freshLogin)
+  })
+
+  it('shares a rotating grant between concurrent image requests', async () => {
+    const authStore = memoryCodexCredentialStore(authFile(-60))
+    const refresh = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({
+      access_token: jwt({ exp: NOW_SECONDS + 3600 }), refresh_token: 'rotated',
+    })).mockImplementation(async () => Response.json({ error: 'invalid_grant' }, { status: 400 }))
+    const options = { ...defaults(), authStore, oauth: { fetch: refresh }, fetch: usageFetch(() => Response.json(body())) }
+    await Promise.all([generateCodexImage(options), generateCodexImage({ ...options, authStore: { ...authStore } })])
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(options.fetch).toHaveBeenCalledTimes(2)
+    await expect(generateCodexImage({ ...options, oauth: { signal: AbortSignal.abort('stopped') } }))
+      .rejects.toBe('stopped')
+    expect(options.fetch).toHaveBeenCalledTimes(2)
   })
 
   it('uses revision-safe refresh before sending and keeps explicit image settings', async () => {
@@ -153,13 +192,8 @@ describe('standalone Codex Images transport', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('works through the Node entry with injected credentials', async () => {
-    const result = await generateCodexNodeImage({ ...defaults(), fetch: usageFetch(() => Response.json(body())) })
-    expect(result.images[0]?.type).toBe('image')
-  })
-
   it('handles a multi-megabyte image without a recursive base64 regex', async () => {
-    const data = PNG.slice(0, 16) + 'A'.repeat(4 * 1024 * 1024)
+    const data = largePng(3 * 1024 * 1024)
     const result = await generateCodexImage({ ...defaults(), fetch: usageFetch(() => Response.json({
       data: [{ b64_json: data }],
     })) })

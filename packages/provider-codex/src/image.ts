@@ -113,6 +113,11 @@ function imageFailure(error: unknown, timeout: AbortSignal, caller?: AbortSignal
   return new CodexImageError('Codex Images request failed before a complete response', 'CODEX_IMAGE_NETWORK')
 }
 
+function imageCaller(options: GenerateCodexImageOptions): AbortSignal | undefined {
+  const oauth = options.oauth?.signal
+  return oauth && options.signal ? AbortSignal.any([oauth, options.signal]) : oauth ?? options.signal
+}
+
 function imageTimeout(value: number): number {
   const timeoutMs = positiveSafeInteger(value, 'Images timeoutMs')
   if (timeoutMs > 2_147_483_647) throw new RangeError('Codex Images timeoutMs exceeds the supported timer range')
@@ -132,13 +137,14 @@ export async function generateCodexImage(options: GenerateCodexImageOptions): Pr
   const fetchImpl = options.fetch ?? globalThis.fetch
   if (typeof fetchImpl !== 'function') throw new TypeError('Codex Images requires fetch')
   const timeout = AbortSignal.timeout(timeoutMs)
-  const signal = options.signal === undefined ? timeout : AbortSignal.any([timeout, options.signal])
+  const caller = imageCaller(options)
+  const signal = caller === undefined ? timeout : AbortSignal.any([timeout, caller])
   let tokens: CodexTokens
   try {
     signal.throwIfAborted()
     tokens = await raceAbort(getCodexTokens(options.authStore, { ...options.oauth, signal }), signal)
   } catch (error: unknown) {
-    if (signal.aborted) throw imageFailure(error, timeout, options.signal)
+    if (signal.aborted) throw imageFailure(error, timeout, caller)
     throw error
   }
   try {
@@ -147,6 +153,6 @@ export async function generateCodexImage(options: GenerateCodexImageOptions): Pr
       method: 'POST', headers: imageHeaders(tokens, options.originator ?? CODEX_ORIGINATOR), body,
     }, fetch: fetchImpl, maxBytes }, signal), signal)
   } catch (error: unknown) {
-    throw imageFailure(error, timeout, options.signal)
+    throw imageFailure(error, timeout, caller)
   }
 }

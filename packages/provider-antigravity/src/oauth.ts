@@ -3,7 +3,7 @@ import {
   ANTIGRAVITY_AUTHORIZATION_URL, ANTIGRAVITY_BASE_URL,
   ANTIGRAVITY_SCOPES, ANTIGRAVITY_TOKEN_URL, ANTIGRAVITY_USER_AGENT,
 } from './config.ts'
-import { endpoint, NULL_LOGGER, object, requestJson, requiredString } from './http.ts'
+import { AntigravityHttpError, abortable, endpoint, NULL_LOGGER, object, requestJson, requiredString } from './http.ts'
 import type {
   AntigravityAuthorization, AntigravityAuthFile, AntigravityCredentialStore,
   AntigravityLoginResult, AntigravityOAuthOptions,
@@ -118,17 +118,23 @@ export async function resolveAntigravityProject(
 async function onboardProject(
   baseUrl: string, headers: Record<string, string>, input: Record<string, unknown>, options: AntigravityOAuthOptions,
 ): Promise<string> {
-  for (let attempt = 0; attempt < 10; attempt++) {
-    options.signal?.throwIfAborted()
-    const onboarded = await requestJson(`${baseUrl}/v1internal:onboardUser`, {
-      method: 'POST', headers, body: JSON.stringify(input),
-    }, options)
-    if (onboarded.done === true) {
-      const id = projectId(object(onboarded.response).cloudaicompanionProject)
-      if (id !== undefined) return id
-      break
+  let status = await requestJson(`${baseUrl}/v1internal:onboardUser`, {
+    method: 'POST', headers, body: JSON.stringify(input),
+  }, options)
+  if (status.done !== true) {
+    const name = requiredString(status.name, 'onboarding operation name')
+    // Resource names are paths relative to the version, never callback URLs.
+    if (!/^(?:[\w-]+\/)*operations\/[\w-]+$/.test(name)) {
+      throw new AgentSdkError('Antigravity returned an invalid operation name', 'MALFORMED_RESPONSE')
     }
-    await delay(options.signal)
+    for (let attempt = 0; attempt < 10 && status.done !== true; attempt++) {
+      await delay(options.signal)
+      status = await requestJson(`${baseUrl}/v1internal/${name}`, { method: 'GET', headers }, options)
+    }
+  }
+  if (status.done === true && status.response !== undefined) {
+    const id = projectId(object(status.response).cloudaicompanionProject)
+    if (id !== undefined) return id
   }
   throw new AgentSdkError(
     'Antigravity project setup did not complete; finish setup in Antigravity and retry',
@@ -161,25 +167,36 @@ function validateCallback(authorization: AntigravityAuthorization, params: URLSe
 /** Validate one callback and commit credentials only after token exchange and project discovery succeed. */
 export async function completeAntigravityLogin(
   store: AntigravityCredentialStore, authorization: AntigravityAuthorization,
-  params: URLSearchParams, options: AntigravityOAuthOptions = {},
+  params: URLSearchParams, options: AntigravityOAuthOptions & { readonly expectedRevision?: string | null } = {},
 ): Promise<AntigravityLoginResult> {
   options.signal?.throwIfAborted()
   validateCallback(authorization, params)
   const code = requiredString(params.get('code'), 'authorization code')
   const operation = { signal: options.signal ?? new AbortController().signal, logger: NULL_LOGGER }
-  const previous = await store.read(operation)
+  const revision = options.expectedRevision === undefined
+    ? (await abortable(store.read(operation), operation.signal))?.revision ?? null : options.expectedRevision
   const tokens = await exchangeAntigravityToken({ code, grant_type: 'authorization_code',
     redirect_uri: authorization.redirectUri, code_verifier: authorization.verifier }, {
     ...options, clientId: authorization.clientId,
   })
   const resolvedProjectId = await resolveAntigravityProject(tokens.access_token, options)
-  const identity = await requestJson(options.userInfoUrl ?? 'https://www.googleapis.com/oauth2/v1/userinfo?alt=json', {
-    headers: { authorization: `Bearer ${tokens.access_token}` },
-  }, options)
-  const account = typeof identity.email === 'string' ? { email: identity.email } : undefined
-  const file: AntigravityAuthFile = { version: 1, tokens, projectId: resolvedProjectId,
+  const account = await accountInfo(tokens.access_token, options)
+  const file: AntigravityAuthFile = { version: 1, loginId: crypto.randomUUID(), tokens, projectId: resolvedProjectId,
     clientId: authorization.clientId, obtainedAt: new Date().toISOString(),
     ...(account === undefined ? {} : { account }) }
-  await store.commit({ value: file, expectedRevision: previous?.revision ?? null }, operation)
+  operation.signal.throwIfAborted()
+  await abortable(store.commit({ value: file, expectedRevision: revision }, operation), operation.signal)
   return { projectId: resolvedProjectId, ...(account === undefined ? {} : { account }) }
+}
+
+async function accountInfo(accessToken: string, options: AntigravityOAuthOptions) {
+  const identity = await requestJson(options.userInfoUrl ?? 'https://www.googleapis.com/oauth2/v1/userinfo?alt=json', {
+    headers: { authorization: `Bearer ${accessToken}` },
+  }, options).catch((error: unknown) => {
+    options.signal?.throwIfAborted()
+    if (error instanceof AntigravityHttpError && error.status >= 500) return {}
+    if (error instanceof AgentSdkError && error.code === 'TRANSPORT') return {}
+    throw error
+  }) as Record<string, unknown>
+  return typeof identity.email === 'string' ? { email: identity.email } : undefined
 }

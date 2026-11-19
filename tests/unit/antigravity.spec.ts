@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { createAgentRuntime, createAssistantMessage, createUserMessage, ToolCallId } from '@alvin0/ai-agent-sdk-core'
 import {
   antigravityAdapter, antigravityPlugin, completeAntigravityLogin, createAntigravityAuthorization,
-  createAntigravityCredentialResolver, memoryAntigravityCredentialStore,
+  createAntigravityCredentialResolver, memoryAntigravityCredentialStore, resolveAntigravityProject,
   serializeAntigravityRequest, translateAntigravityStream, type AntigravityAuthFile,
 } from '../../packages/provider-antigravity/src/index.ts'
 import { NULL_LOGGER, requestJson } from '../../packages/provider-antigravity/src/http.ts'
-import type { ProtocolRequest } from '@alvin0/ai-agent-sdk-provider-http'
+import type { ProtocolRequest, ProtocolStreamChunk } from '@alvin0/ai-agent-sdk-provider-http'
 
 const operation = () => ({ signal: new AbortController().signal, logger: NULL_LOGGER })
 const file = (extra: Partial<AntigravityAuthFile> = {}): AntigravityAuthFile => ({
@@ -29,6 +29,18 @@ const request = (overrides: Partial<ProtocolRequest['options']> = {}): ProtocolR
 })
 
 describe('Antigravity OAuth', () => {
+  it('starts onboarding once and polls the returned operation on the same service', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(json({ allowedTiers: [{ isDefault: true, id: 'tier' }] }))
+      .mockResolvedValueOnce(json({ name: 'operations/fixture' }))
+      .mockResolvedValueOnce(json({ done: true, response: { cloudaicompanionProject: { id: 'created' } } }))
+    await expect(resolveAntigravityProject('test', { fetch, baseUrl: 'https://fixture.test' })).resolves.toBe('created')
+    expect(fetch.mock.calls.map(([url, init]) => [String(url), init?.method])).toEqual([
+      ['https://fixture.test/v1internal:loadCodeAssist', 'POST'], ['https://fixture.test/v1internal:onboardUser', 'POST'],
+      ['https://fixture.test/v1internal/operations/fixture', 'GET'],
+    ])
+  })
+
   it('requires an externally supplied client instead of selecting an embedded client', async () => {
     await expect(createAntigravityAuthorization({ redirectUri: 'http://localhost:51121/oauth-callback' }))
       .rejects.toMatchObject({ code: 'ANTIGRAVITY_CLIENT_REQUIRED' })
@@ -111,8 +123,8 @@ describe('Antigravity OAuth', () => {
   it('serializes refreshes and preserves refresh tokens omitted by Google', async () => {
     const store = memoryAntigravityCredentialStore(file({ tokens: { ...file().tokens, expires_at: 0 } }))
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(json({ access_token: 'fresh', expires_in: 3600 }))
-    const resolve = createAntigravityCredentialResolver(store, { fetch: fetcher })
-    const results = await Promise.all(Array.from({ length: 8 }, () => resolve(operation())))
+    const results = await Promise.all(Array.from({ length: 8 }, () =>
+      createAntigravityCredentialResolver({ ...store }, { fetch: fetcher })(operation())))
     expect(fetcher).toHaveBeenCalledTimes(1)
     expect(results.every(value => value.tokens.access_token === 'fresh')).toBe(true)
     expect((await store.read(operation()))?.value.tokens.refresh_token).toBe('test-refresh-secret')
@@ -127,7 +139,7 @@ describe('Antigravity OAuth', () => {
     const previous = await store.read(operation())
     await store.commit({ expectedRevision: previous!.revision, value: file({ projectId: 'new-login-project' }) }, operation())
     release(json({ access_token: 'stale-result', expires_in: 3600 }))
-    expect((await pending).projectId).toBe('new-login-project')
+    await expect(pending).rejects.toMatchObject({ code: 'ANTIGRAVITY_AUTH_INVALID' })
     expect((await store.read(operation()))?.value.tokens.access_token).not.toBe('stale-result')
   })
 })
@@ -219,6 +231,97 @@ describe('Antigravity provider', () => {
       .rejects.toMatchObject({ code: 'INVALID_REQUEST' })
     await expect(collect(translateAntigravityStream((async function* () { yield { event: undefined, data: 'not json' } })())))
       .rejects.toMatchObject({ code: 'MALFORMED_RESPONSE' })
+  })
+
+  it('retains cumulative usage on EOF and classifies an empty blocked candidate list', async () => {
+    const data = { candidates: [], usageMetadata: { promptTokenCount: 50, candidatesTokenCount: 1 } }
+    const chunks: ProtocolStreamChunk[] = []
+    const read = async () => {
+      for await (const chunk of translateAntigravityStream(events(data, data))) chunks.push(chunk)
+    }
+    await expect(read()).rejects.toMatchObject({ code: 'STREAM_CLOSED' })
+    expect(chunks).toEqual(Array(2).fill({ type: 'usage-progress', usage: { inputTokens: 50, outputTokens: 1 } }))
+    await expect(collect(translateAntigravityStream(events({ candidates: [], promptFeedback: { blockReason: 'SAFETY' } }))))
+      .rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+  })
+
+  it('reports the usage observed before a truncated response through the public runtime', async () => {
+    const incomplete = { candidates: [{ content: { parts: [{ text: 'partial' }] } }],
+      usageMetadata: { promptTokenCount: 50, candidatesTokenCount: 1 } }
+    const runtime = await createAgentRuntime({ providers: [antigravityPlugin({ authStore: memoryAntigravityCredentialStore(file()),
+      models: [{ id: 'm' }], fetch: async () => stream(incomplete, { usageMetadata: incomplete.usageMetadata }) })] })
+    try {
+      const result = runtime.agent({ id: 'eof', instructions: 'Answer.', model: { provider: 'antigravity', id: 'm' } })
+        .createSession().run('Hello.')
+      await expect(result).rejects.toMatchObject({ code: 'STREAM_CLOSED',
+        report: { usage: { reported: { inputTokens: 50, outputTokens: 1 } } } })
+    } finally { await runtime.close() }
+  })
+
+  it('uses a stable upstream id per agent session and respects provider cancellation', async () => {
+    const ids: string[] = []
+    const controller = new AbortController()
+    const runtime = await createAgentRuntime({ providers: [antigravityPlugin({ authStore: memoryAntigravityCredentialStore(file()),
+      models: [{ id: 'm' }], signal: controller.signal, fetch: async (_url, init) => {
+        ids.push(JSON.parse(String(init?.body)).request.sessionId)
+        return stream(frame())
+      } })] })
+    try {
+      const agent = runtime.agent({ id: 'sessions', instructions: 'Answer.', model: { provider: 'antigravity', id: 'm' } })
+      const one = agent.createSession()
+      await one.run('First.')
+      await one.run('Next.')
+      await agent.createSession().run('New.')
+      expect(ids).toHaveLength(3)
+      expect(ids[1]).toBe(ids[0])
+      expect(ids[2]).not.toBe(ids[0])
+      controller.abort()
+      await agent.createSession().run('Cancelled.').catch(() => undefined)
+      expect(ids).toHaveLength(3)
+    } finally { await runtime.close() }
+  })
+
+  it('keeps routing fields private and merges agent options on individual requests', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => stream(frame()))
+    const adapter = antigravityAdapter({ authStore: memoryAntigravityCredentialStore(file()), models: [], fetch })
+    const options = request({ temperature: 0.7, topP: 0.9 }).options
+    await collect(adapter.stream(options, { providerOptions: { headers: { 'X-Trace': 'trace' },
+      body: { labels: { fixture: 'one' }, generationConfig: { temperature: 0.2, topP: null } } } }))
+    await collect(adapter.stream(options))
+    const [one, two] = fetch.mock.calls.map(([, init]) => JSON.parse(String(init?.body)).request)
+    expect(one).toMatchObject({ labels: { fixture: 'one' }, generationConfig: { temperature: 0.2 } })
+    expect(one.generationConfig).not.toHaveProperty('topP')
+    expect(new Headers(fetch.mock.calls[0]?.[1]?.headers).get('x-trace')).toBe('trace')
+    expect(two).not.toHaveProperty('labels')
+    expect(two.generationConfig).toMatchObject({ temperature: 0.7, topP: 0.9 })
+    await expect(collect(adapter.stream(options, { providerOptions: { headers: { 'x-api-key': 'private' } } })))
+      .rejects.toThrow(/credential headers/i)
+    await expect(collect(adapter.stream(options, { providerOptions: { body: { project: 'other' } } }))).rejects.toThrow()
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('replays the signature on its original empty text part', async () => {
+    const parts = [{ text: 'answer' }, { text: '', thoughtSignature: 'signature' }]
+    const chunks = await collect(translateAntigravityStream(events({ candidates: [{ content: { parts }, finishReason: 'STOP' }] })))
+    const content = chunks.flatMap(chunk => chunk.type === 'block-end' ? [chunk.block] : [])
+    const finish = chunks.find(chunk => chunk.type === 'finish')!
+    const assistant = createAssistantMessage({ content, source: { provider: 'antigravity', model: 'm', replayState: finish.replayState } })
+    expect(serializeAntigravityRequest(request({ messages: [assistant] })).contents).toEqual([{ role: 'model', parts }])
+  })
+
+  it('preserves tool JSON Schema and expands structured output references in nested schema positions', () => {
+    const schema = { type: 'object', additionalProperties: false, required: ['items'],
+      properties: { items: { type: 'array', items: { $ref: '#/$defs/entry' } } }, $defs: { entry: { type: 'string' } } }
+    const format = { type: 'json_schema' as const, name: 'answer', schema }
+    const wire = serializeAntigravityRequest(request({ tools: [{ name: 'record', description: 'Record', parameters: schema }],
+      outputFormat: format }))
+    expect(wire.tools).toMatchObject([{ functionDeclarations: [{ parametersJsonSchema: schema }] }])
+    expect(wire.generationConfig).toMatchObject({ responseSchema: { type: 'object', additionalProperties: false,
+      required: ['items'], properties: { items: { type: 'array', items: { type: 'string' } } } } })
+    for (const ref of ['https://external.test/schema', '#/$defs/missing', '#/$defs/loop']) {
+      expect(() => serializeAntigravityRequest(request({ outputFormat: { ...format,
+        schema: { $ref: ref, $defs: { loop: { $ref: '#/$defs/loop' } } } } }))).toThrow(/response schema/)
+    }
   })
 
   it('sends function declarations, tool choice, system and JSON output; rejects unsupported content', () => {

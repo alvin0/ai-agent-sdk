@@ -10,6 +10,7 @@ export interface CodexTokens {
 
 /** Persisted Codex authentication document. */
 export interface CodexAuthFile {
+  loginId?: string
   auth_mode?: string
   OPENAI_API_KEY?: string | null
   tokens?: CodexTokens | null

@@ -20,6 +20,7 @@ export interface AntigravityBrowserLoginOptions extends AntigravityOAuthOptions 
    * Loopback port to listen on. Defaults to 51121, the port the Antigravity OAuth
    * client registers; another port only works with an issuer that accepts it.
    */
+  readonly expectedRevision?: string | null
   readonly port?: number
   /** Give up when no sign-in completes within this long. Defaults to 15 minutes. */
   readonly timeoutMs?: number

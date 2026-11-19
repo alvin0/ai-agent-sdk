@@ -94,3 +94,8 @@ locations, and raw authentication errors.
 Composition: `runtime.providers`. Lifecycle: `inert-runtime-owned-registration`;
 the runtime owns registration while the injected credential store remains
 caller-owned.
+
+The image helper checks base64 and image container boundaries for PNG, JPEG,
+GIF and WebP. Applications that need pixel-level validation should decode the
+returned bytes. The host tool puts image blocks in `event.output.content` so
+the session's image retention policy also applies to persisted results.

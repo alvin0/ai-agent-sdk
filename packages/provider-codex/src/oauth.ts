@@ -62,7 +62,7 @@ export async function getCodexTokens(
   operation.signal.throwIfAborted()
   const tokens = requireTokens(snapshot.file, captured.label)
   if (options.refreshIfNeeded !== false && snapshot.file !== undefined && shouldRefresh(snapshot.file)) {
-    return refreshCodexTokensWithOperation(store, options, operation)
+    return refreshCodexTokensWithOperation(store, options, operation, snapshot)
   }
   return tokens
 }

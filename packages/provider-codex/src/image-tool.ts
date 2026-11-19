@@ -1,6 +1,8 @@
+import type { ImageMediaType } from '@alvin0/ai-agent-sdk-core'
 import { defineTool, ToolError, type JsonValue } from '@alvin0/ai-agent-sdk-core/tools'
 import { generateCodexImage } from './image.ts'
-import { CodexImageError, parseCodexImageBody } from './image-response.ts'
+import { CodexImageError } from './image-response.ts'
+import { CodexRefreshError } from './oauth-errors.ts'
 import type { CodexImageOptions } from './image-types.ts'
 
 interface ImageArgs { prompt: string }
@@ -15,7 +17,7 @@ function parseArgs(raw: unknown): ImageArgs {
 
 /** Opt-in host tool. Configure the image model and credentials outside model-controlled arguments. */
 export function codexImageTool(options: CodexImageOptions) {
-  // value + rendered content both retain base64; leave headroom below the core's 4-MiB result default.
+  // Render the image once and let core retain only its policy-managed content block.
   const captured = { ...options, maxBytes: options.maxBytes ?? 2_000_000,
     ...(options.oauth === undefined ? {} : { oauth: { ...options.oauth } }) }
   return defineTool<ImageArgs>({
@@ -27,18 +29,27 @@ export function codexImageTool(options: CodexImageOptions) {
     },
     parse: parseArgs,
     timeoutMs: options.timeoutMs ?? 180_000,
+    omitResultValue: true,
     execute: async ({ prompt }, context): Promise<JsonValue> => {
       const result = await generateCodexImage({ ...captured, prompt, signal: context.signal })
         .catch((error: unknown) => {
+          context.signal.throwIfAborted()
+          if (captured.oauth?.signal?.aborted) {
+            throw ToolError.respondToModel('Image generation was cancelled', 'ABORTED')
+          }
+          if (error instanceof CodexRefreshError) {
+            throw ToolError.respondToModel('Codex credential refresh failed', error.code, { cause: error })
+          }
           if (error instanceof CodexImageError) throw ToolError.respondToModel(error.message, error.code)
-          throw error
+          throw ToolError.respondToModel('Codex image credentials are unavailable',
+            'CODEX_IMAGE_CREDENTIAL', { cause: error })
         })
-      // Keep the persisted value JSON, and render actual image blocks for history and UI events.
-      return { data: result.images.map(image => {
-        if (image.source.kind !== 'base64') throw new TypeError('Codex Images requires inline image output')
-        return { b64_json: image.source.data }
-      }) }
+      return result.images.map(image => {
+        if (image.source.kind !== 'base64') throw new TypeError('Codex Images requires inline output')
+        return { mediaType: image.source.mediaType, data: image.source.data }
+      })
     },
-    render: value => parseCodexImageBody(value).images,
+    render: value => (value as { mediaType: ImageMediaType; data: string }[])
+      .map(source => ({ type: 'image', source: { kind: 'base64', ...source } })),
   })
 }

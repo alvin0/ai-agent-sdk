@@ -1,6 +1,7 @@
 import {
   AgentSdkError, defineCredentialStore, type CredentialOperationOptions,
 } from '@alvin0/ai-agent-sdk-core/provider'
+import { credentialLoginId, withCredentialRefresh } from '@alvin0/ai-agent-sdk-provider-http'
 import { abortable, object, requiredString } from './http.ts'
 import { exchangeAntigravityToken } from './oauth.ts'
 import type { AntigravityAuthFile, AntigravityCredentialStore, AntigravityOAuthOptions } from './types.ts'
@@ -45,40 +46,55 @@ function assertClient(file: AntigravityAuthFile, options: AntigravityOAuthOption
   }
 }
 
-/** Serialize refreshes on this adapter. No cached token can outlive a changed store revision. */
+async function resolveRefresh(store: AntigravityCredentialStore, options: AntigravityOAuthOptions,
+  operation: CredentialOperationOptions, snapshot: { value: AntigravityAuthFile; revision: string; loginId: string },
+): Promise<AntigravityAuthFile> {
+  const { value: current, revision, loginId } = snapshot
+  const latest = await abortable(store.read(operation), operation.signal)
+  if (latest?.revision !== revision) return refreshWinner(current, loginId, latest?.value, options)
+  try {
+    const tokens = await exchangeAntigravityToken({ grant_type: 'refresh_token',
+      refresh_token: current.tokens.refresh_token },
+    { ...options, clientId: current.clientId, signal: operation.signal })
+    const updated = { ...current, loginId, tokens }
+    await abortable(store.commit({ expectedRevision: revision, value: updated }, operation), operation.signal)
+    return updated
+  } catch (error) {
+    operation.signal.throwIfAborted()
+    const winner = await abortable(store.read(operation), operation.signal)
+    if (winner?.revision === revision) throw error
+    return refreshWinner(current, loginId, winner?.value, options)
+  }
+}
+
+function refreshWinner(current: AntigravityAuthFile, loginId: string, value: AntigravityAuthFile | undefined,
+  options: AntigravityOAuthOptions): AntigravityAuthFile {
+  if (value !== undefined) {
+    const winner = validateAntigravityAuthFile(value)
+    assertClient(winner, options)
+    if (winner.loginId === loginId && winner.obtainedAt === current.obtainedAt
+      && winner.clientId === current.clientId && winner.projectId === current.projectId
+      && winner.account?.email === current.account?.email
+      && winner.tokens.expires_at > Date.now() + 60_000) return winner
+  }
+  throw new AgentSdkError('Antigravity credentials changed during refresh', 'ANTIGRAVITY_AUTH_INVALID')
+}
+
 export function createAntigravityCredentialResolver(
   store: AntigravityCredentialStore, options: AntigravityOAuthOptions,
 ) {
-  let tail: Promise<unknown> = Promise.resolve()
-  return (operation: CredentialOperationOptions): Promise<AntigravityAuthFile> => {
-    const pending = tail.catch(() => undefined).then(async () => {
-      operation.signal.throwIfAborted()
-      const snapshot = await abortable(store.read(operation), operation.signal)
-      if (snapshot === undefined) throw new AgentSdkError(
-        'No Antigravity credentials; run ai-agent-sdk-antigravity-login to sign in', 'MISSING_CREDENTIAL')
-      const current = validateAntigravityAuthFile(snapshot.value)
-      assertClient(current, options)
-      if (current.tokens.expires_at > Date.now() + 60_000) return current
-      const tokens = await exchangeAntigravityToken({ grant_type: 'refresh_token',
-        refresh_token: current.tokens.refresh_token }, {
-        ...options, clientId: current.clientId, signal: operation.signal,
-      })
-      const updated = { ...current, tokens }
-      try { await abortable(store.commit({ expectedRevision: snapshot.revision, value: updated }, operation),
-        operation.signal) }
-      catch (error) {
-        if (!(error instanceof AgentSdkError) || error.code !== 'ANTIGRAVITY_CREDENTIAL_REVISION_CONFLICT') throw error
-        // A login or another process won the race. Use only the winner's current credential.
-        const winner = await abortable(store.read(operation), operation.signal)
-        if (winner === undefined) throw error
-        const file = validateAntigravityAuthFile(winner.value)
-        assertClient(file, options)
-        if (file.tokens.expires_at <= Date.now() + 60_000) throw error
-        return file
-      }
-      return updated
-    })
-    tail = pending
-    return pending
+  return async (operation: CredentialOperationOptions): Promise<AntigravityAuthFile> => {
+    const signal = options.signal ? AbortSignal.any([operation.signal, options.signal]) : operation.signal
+    operation = { ...operation, signal }
+    signal.throwIfAborted()
+    const snapshot = await abortable(store.read(operation), signal)
+    if (!snapshot) throw new AgentSdkError(
+      'No Antigravity credentials; run ai-agent-sdk-antigravity-login to sign in', 'MISSING_CREDENTIAL')
+    const current = validateAntigravityAuthFile(snapshot.value)
+    assertClient(current, options)
+    if (current.tokens.expires_at > Date.now() + 60_000) return current
+    const loginId = await credentialLoginId(current.loginId, current.tokens.refresh_token)
+    return withCredentialRefresh(`antigravity:${loginId}`, signal, () =>
+      resolveRefresh(store, options, operation, { ...snapshot, value: current, loginId }))
   }
 }

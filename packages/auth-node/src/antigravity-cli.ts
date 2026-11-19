@@ -4,6 +4,7 @@ import {
   resolveAntigravityAuthPath, runAntigravityBrowserLogin, type AntigravityAuthFile,
   type AntigravityCredentialStore,
 } from './antigravity.ts'
+import { antigravityFileRevision } from './antigravity-store.ts'
 import { openBrowser } from './common/browser.ts'
 
 interface Flags {
@@ -62,13 +63,22 @@ async function action(flags: Flags, store: AntigravityCredentialStore, path: str
     for (const model of models) process.stdout.write(`${model.id}\t${model.name}\n`)
     return
   }
-  const current = await store.read({ signal, logger })
-  if (flags.status || (current !== undefined && !flags.force)) {
-    showStatus(current?.value, path)
-    if (flags.status && current === undefined) process.exitCode = 1
-    return
+  if (!flags.force || flags.status) {
+    const current = await store.read({ signal, logger })
+    if (flags.status || current !== undefined) {
+      showStatus(current?.value, path)
+      if (current === undefined) process.exitCode = 1
+      return
+    }
   }
+  const revision = flags.force ? await antigravityFileRevision(path, signal) : null
+  await login(flags, store, { path, signal, revision })
+}
+
+async function login(flags: Flags, store: AntigravityCredentialStore,
+  { path, signal, revision }: { path: string; signal: AbortSignal; revision: string | null }) {
   await runAntigravityBrowserLogin(store, {
+    expectedRevision: revision,
     signal, ...(flags.projectId === undefined ? {} : { projectId: flags.projectId }),
   }, { onPrompt({ url }) {
     process.stdout.write(`Open this URL to sign in with Google:\n${url}\n`)

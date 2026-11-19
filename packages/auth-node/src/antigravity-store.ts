@@ -4,7 +4,7 @@ import { defineCredentialStore } from '@alvin0/ai-agent-sdk-core/provider'
 import { validateAntigravityAuthFile, type AntigravityCredentialStore } from '@alvin0/ai-agent-sdk-provider-antigravity'
 import { accountAuthPath } from './common/account-path.ts'
 import {
-  credentialFileError, readCredentialText, replaceCredentialText, withCredentialFileLock,
+  credentialFileError, readCredentialBytes, replaceCredentialText, withCredentialFileLock,
 } from './common/credential-file.ts'
 
 export const DEFAULT_ANTIGRAVITY_AUTH_PATH = '.providers/.antigravity/auth.json'
@@ -24,18 +24,25 @@ export function resolveAntigravityAuthPath(path?: string, options: AntigravityAu
   return isAbsolute(selected) ? resolve(selected) : resolve(options.cwd ?? process.cwd(), selected)
 }
 
+const revisionOf = (raw: Buffer | string): string => createHash('sha256').update(raw).digest('hex')
+
+export async function antigravityFileRevision(path: string, signal: AbortSignal): Promise<string | null> {
+  const raw = await readCredentialBytes(path, signal)
+  return raw === undefined ? null : revisionOf(raw)
+}
+
 /** Project-local, private, symlink-refusing file store with an atomic compare-and-swap commit. */
 export function fileAntigravityCredentialStore(
   path?: string, options: AntigravityAuthPathOptions = {},
 ): AntigravityCredentialStore {
   const location = resolveAntigravityAuthPath(path, options)
-  const revisionOf = (raw: string): string => createHash('sha256').update(raw, 'utf8').digest('hex')
   return defineCredentialStore({ id: 'antigravity-file-credentials', label: location,
     async read({ signal }) {
-      const raw = await readCredentialText(location, signal)
+      const raw = await readCredentialBytes(location, signal)
       if (raw === undefined) return undefined
       try {
-        return { value: validateAntigravityAuthFile(JSON.parse(raw) as unknown), revision: revisionOf(raw) }
+        const value = validateAntigravityAuthFile(JSON.parse(raw.toString('utf8')) as unknown)
+        return { value, revision: revisionOf(raw) }
       }
       catch {
         throw credentialFileError('Antigravity credential file is invalid; sign in again',
@@ -49,7 +56,7 @@ export function fileAntigravityCredentialStore(
       }
       const payload = `${JSON.stringify(validateAntigravityAuthFile(input.value), null, 2)}\n`
       return withCredentialFileLock(location, signal, async () => {
-        const raw = await readCredentialText(location, signal)
+        const raw = await readCredentialBytes(location, signal)
         if ((raw === undefined ? null : revisionOf(raw)) !== input.expectedRevision) {
           throw credentialFileError('Antigravity credential revision changed before commit',
             undefined, 'ANTIGRAVITY_CREDENTIAL_REVISION_CONFLICT')

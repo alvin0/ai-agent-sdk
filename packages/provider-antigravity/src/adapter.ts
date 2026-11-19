@@ -2,7 +2,7 @@ import { AgentSdkError, defineModelProviderPlugin, type ModelInvocationContext, 
   type CredentialCommitInput, type CredentialOperationOptions } from '@alvin0/ai-agent-sdk-core/provider'
 import { resolveRetryPolicy } from '@alvin0/ai-agent-sdk-core'
 import {
-  HttpModelAdapter, observeCredentialOperation, observeModelCatalogOperation,
+  HttpModelAdapter, endpointHeaders, mergeRequestBody, observeCredentialOperation, observeModelCatalogOperation,
   type HttpConnection, type ProviderCatalogModel, type ProviderRequest,
   type ProtocolSseEvent, type RuntimeHttpProviderOptions,
 } from '@alvin0/ai-agent-sdk-provider-http'
@@ -32,7 +32,7 @@ export interface AntigravityPluginOptions extends AntigravityProviderOptions {
   readonly defaultModel?: string | ModelTarget
 }
 
-interface AntigravityConnection extends HttpConnection { readonly projectId: string }
+interface AntigravityConnection extends HttpConnection { readonly projectId: string; readonly sessionId: string }
 
 /** Capture a revisioned store without invoking user accessors or storage during construction. */
 function captureStore(store: AntigravityCredentialStore): AntigravityCredentialStore {
@@ -71,12 +71,12 @@ function validIdentity(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 1_024
 }
 
-function operationSignal(timeout: number, signal?: AbortSignal): AbortSignal {
+function operationSignal(timeout: number, ...signals: (AbortSignal | undefined)[]): AbortSignal {
   if (!Number.isInteger(timeout) || timeout < 1 || timeout > 2_147_483_647) {
     throw new TypeError('Invalid requestTimeoutMs')
   }
   const deadline = AbortSignal.timeout(timeout)
-  return signal === undefined ? deadline : AbortSignal.any([signal, deadline])
+  return AbortSignal.any([deadline, ...signals.filter(signal => signal !== undefined)])
 }
 
 function catalogModel([id, value]: [string, unknown]): ProviderCatalogModel[] {
@@ -107,11 +107,12 @@ class AntigravityAdapter extends HttpModelAdapter {
   protected readonly displayName = 'Antigravity'
   private readonly credentials: ReturnType<typeof createAntigravityCredentialResolver>
   private readonly baseUrl: string
-  private readonly sessionId = crypto.randomUUID()
   private catalog: { key: string; expiresAt: number; models: readonly ProviderCatalogModel[] } | undefined
 
   constructor(private readonly options: AntigravityProviderOptions) {
     super()
+    const responseLogger = options.responseLogger
+    if (responseLogger !== undefined) this.observeResponse = responseLogger
     this.baseUrl = endpoint(options.baseUrl ?? ANTIGRAVITY_BASE_URL, options.allowInsecureHttp).href.replace(/\/$/, '')
     this.credentials = createAntigravityCredentialResolver(captureStore(options.authStore), options)
   }
@@ -119,17 +120,20 @@ class AntigravityAdapter extends HttpModelAdapter {
   protected override async connect(
     provider: string, signal?: AbortSignal, context?: ModelInvocationContext, model?: string,
   ): Promise<AntigravityConnection> {
-    const bounded = operationSignal(this.options.requestTimeoutMs ?? 30_000, signal)
+    const bounded = operationSignal(this.options.requestTimeoutMs ?? 30_000, signal, this.options.signal)
+    bounded.throwIfAborted()
+    const customHeaders = endpointHeaders(context?.providerOptions?.headers)({ provider })
     const file = await observeCredentialOperation(context, provider, 'resolve', () =>
       abortable(this.credentials({ signal: bounded, logger: context?.logger ?? NULL_LOGGER }), bounded))
     const headers = antigravityHeaders(file.tokens.access_token, this.options)
     const models = await this.catalogModels(file, headers, { signal: bounded, provider, context })
     return {
       ...this.options, baseUrl: this.baseUrl, models, projectId: file.projectId,
+      sessionId: context?.correlation?.sessionId ?? crypto.randomUUID(),
       retryPolicy: resolveRetryPolicy(undefined, 'Antigravity.retryPolicy'),
       streamIdleTimeoutMs: this.options.streamIdleTimeoutMs ?? 300_000,
       ...this.imageStreamLimit(model, models),
-      headers: { ...context?.providerOptions?.headers, ...headers },
+      endpointHeaders: customHeaders, headers,
     }
   }
 
@@ -166,11 +170,17 @@ class AntigravityAdapter extends HttpModelAdapter {
   protected override endpointPath(): string { return '/v1internal:streamGenerateContent?alt=sse' }
 
   protected override buildBody(request: ProviderRequest): unknown {
+    const body = request.providerOptionsBody ?? {}
+    const reserved = ['project', 'model', 'requestId', 'requestType', 'userAgent', 'request', 'sessionId']
+    if (reserved.some(field => Object.hasOwn(body, field))) {
+      throw new AgentSdkError('Antigravity routing and session fields are provider-owned', 'INVALID_REQUEST')
+    }
     return {
       project: (request.connection as AntigravityConnection).projectId,
       model: request.options.model, requestType: 'agent', userAgent: 'antigravity',
       requestId: `agent-${crypto.randomUUID()}`,
-      request: { ...serializeAntigravityRequest(request), sessionId: this.sessionId },
+      request: { ...mergeRequestBody(serializeAntigravityRequest(request), body),
+        sessionId: (request.connection as AntigravityConnection).sessionId },
     }
   }
 
@@ -180,10 +190,6 @@ class AntigravityAdapter extends HttpModelAdapter {
 
   protected override observeRequest(record: Parameters<NonNullable<TransportOptions['requestLogger']>>[0]) {
     return this.options.requestLogger?.(record)
-  }
-
-  protected override observeResponse(record: Parameters<NonNullable<TransportOptions['responseLogger']>>[0]) {
-    return this.options.responseLogger?.(record)
   }
 }
 

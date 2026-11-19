@@ -11,7 +11,7 @@ import {
   CODEX_AUTH_PATH_ENV,
   DEFAULT_CODEX_AUTH_PATH,
   codexAdapter,
-  codexNodeAdapter,
+  codexNodeAdapter, codexNodeImageTool, generateCodexNodeImage, memoryCodexCredentialStore,
   codexNodeProviderPlugin,
   codexNodePlugin,
   codexPlugin,
@@ -19,6 +19,9 @@ import {
   fileCodexCredentialStore,
   resolveCodexAuthPath,
 } from '@alvin0/ai-agent-sdk-auth-node/codex'
+
+import { authFile } from './fixtures/codex-usage.ts'
+import { PNG } from './fixtures/codex-images.ts'
 
 const cleanup: string[] = []
 const changedEnvironment = new Map<string, string | undefined>()
@@ -42,6 +45,14 @@ afterEach(async () => {
 })
 
 describe('Node credentials', () => {
+  it('provides the Node image tool and runs the image helper with injected credentials', async () => {
+    const options = { authStore: memoryCodexCredentialStore(authFile()), model: 'fixture',
+      fetch: async () => Response.json({ data: [{ b64_json: PNG }] }) }
+    expect(codexNodeImageTool(options).name).toBe('codex_generate_image')
+    const result = await generateCodexNodeImage({ ...options, prompt: 'Draw.' })
+    expect(result.images[0]?.source).toMatchObject({ mediaType: 'image/png', data: PNG })
+  })
+
   it('resolves explicit, environment, and project-local Codex paths against an explicit cwd', () => {
     const cwd = resolve('/tmp', 'auth-node-path-fixture')
     expect(resolveCodexAuthPath(undefined, { cwd, env: {} })).toBe(resolve(cwd, DEFAULT_CODEX_AUTH_PATH))

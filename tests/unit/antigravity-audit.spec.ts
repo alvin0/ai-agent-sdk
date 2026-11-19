@@ -3,7 +3,7 @@ import { defineCredentialStore } from '@alvin0/ai-agent-sdk-core/provider'
 import { createAssistantMessage, createTextMessage, ToolCallId } from '@alvin0/ai-agent-sdk-core'
 import type { ProtocolRequest } from '@alvin0/ai-agent-sdk-provider-http'
 import {
-  createAntigravityCredentialResolver, memoryAntigravityCredentialStore, serializeAntigravityRequest,
+  completeAntigravityLogin, createAntigravityAuthorization, createAntigravityCredentialResolver, memoryAntigravityCredentialStore, serializeAntigravityRequest,
   type AntigravityAuthFile,
 } from '../../packages/provider-antigravity/src/index.ts'
 import { abortable, NULL_LOGGER, requestJson } from '../../packages/provider-antigravity/src/http.ts'
@@ -56,6 +56,38 @@ describe('Antigravity cancellation and credential boundaries', () => {
     await rejected
     await expect(resolve(operation())).resolves.toMatchObject({ projectId: 'fixture-project' })
     expect(reads).toBe(2)
+  })
+
+  it('cancels a queued resolver independently of the request holding the refresh queue', async () => {
+    const current = file()
+    const store = memoryAntigravityCredentialStore({ ...current, tokens: { ...current.tokens, expires_at: 0 } })
+    const owner = new AbortController()
+    const fetch = vi.fn<typeof globalThis.fetch>(() => new Promise(() => {}))
+    const resolve = createAntigravityCredentialResolver(store, { fetch })
+    const first = resolve(operation(owner.signal))
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1))
+    const waiter = new AbortController()
+    const second = resolve(operation(waiter.signal))
+    waiter.abort('waiting cancelled')
+    await expect(second).rejects.toBe('waiting cancelled')
+    owner.abort('owner cancelled')
+    await expect(first).rejects.toBe('owner cancelled')
+  })
+
+  it.each(['read', 'commit'])('cancels login when the custom store hangs in %s', async phase => {
+    let markStarted!: () => void
+    const started = new Promise<void>(resolve => { markStarted = resolve })
+    const hang = () => { markStarted(); return new Promise<never>(() => {}) }
+    const store = defineCredentialStore<AntigravityAuthFile>({ id: 'login-test', label: 'test',
+      read: async () => phase === 'read' ? hang() : undefined, commit: hang })
+    const auth = await createAntigravityAuthorization({ clientId: 'fixture', redirectUri: 'http://localhost:51121/' })
+    const controller = new AbortController()
+    const pending = completeAntigravityLogin(store, auth, new URLSearchParams({ state: auth.state, code: 'fixture' }), {
+      signal: controller.signal, fetch: async url => Response.json(String(url).includes('/token')
+        ? { access_token: 'a', refresh_token: 'r', expires_in: 3600 } : { cloudaicompanionProject: 'p' }) })
+    await started
+    controller.abort('cancel login')
+    await expect(pending).rejects.toBe('cancel login')
   })
 
   it('rejects a winning concurrent login under another explicitly configured OAuth client', async () => {

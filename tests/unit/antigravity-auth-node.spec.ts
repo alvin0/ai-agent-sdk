@@ -4,8 +4,10 @@ import { request as httpRequest } from 'node:http'
 import { promisify } from 'node:util'
 import { mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import {
+  antigravityFileRevision, completeAntigravityLogin, createAntigravityAuthorization,
   antigravityAccountAuthPath, fileAntigravityCredentialStore, resolveAntigravityAuthPath,
   runAntigravityBrowserLogin, memoryAntigravityCredentialStore, type AntigravityAuthFile,
 } from '@alvin0/ai-agent-sdk-auth-node/antigravity'
@@ -64,9 +66,28 @@ describe('Antigravity Node credentials', () => {
     expect(await readFile(target, 'utf8')).toBe('invalid-secret-content')
   })
 
+  it.each([false, true])('recovers a malformed file by its original bytes and preserves a competing login: %s', async race => {
+    const path = join(await temporary(), 'auth.json')
+    await writeFile(path, Buffer.from([123, 255]))
+    const store = fileAntigravityCredentialStore(path)
+    const expectedRevision = await antigravityFileRevision(path, operation().signal)
+    const authorization = await createAntigravityAuthorization({ clientId: 'client', redirectUri: 'http://localhost:51121/' })
+    const login = completeAntigravityLogin(store, authorization, new URLSearchParams({ state: authorization.state, code: 'code' }), {
+      expectedRevision, fetch: async url => {
+        if (String(url).includes('/token')) return json({ access_token: 'fresh', refresh_token: 'grant', expires_in: 3600 })
+        if (String(url).includes('loadCodeAssist')) return json({ cloudaicompanionProject: 'fresh-project' })
+        if (race) await store.commit({ value: file(), expectedRevision }, operation())
+        return new Response(null, { status: 503 })
+      },
+    })
+    if (race) await expect(login).rejects.toMatchObject({ code: 'ANTIGRAVITY_CREDENTIAL_REVISION_CONFLICT' })
+    else await expect(login).resolves.toEqual({ projectId: 'fresh-project' })
+    expect((await store.read(operation()))?.value.projectId).toBe(race ? 'project' : 'fresh-project')
+  })
+
   it('executes the installed CLI help and local status without contacting a provider', async () => {
     const directory = await temporary()
-    const cli = resolve('packages/auth-node/bin/ai-agent-sdk-antigravity-login.mjs')
+    const cli = fileURLToPath(new URL('../../packages/auth-node/bin/ai-agent-sdk-antigravity-login.mjs', import.meta.url))
     const run = promisify(execFile)
     const help = await run(process.execPath, [cli, '--help'], { cwd: directory })
     expect(help.stdout).toContain('localhost:51121')

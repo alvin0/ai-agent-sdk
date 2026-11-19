@@ -30,12 +30,16 @@ export interface HttpTransportConnection {
    * will be sent to. The transport adds attribution and `accept` on top.
    */
   readonly headers: Readonly<Record<string, string>>
+  /** Agent headers validated as endpoint configuration, before applying authentication. */
+  readonly endpointHeaders?: Readonly<Record<string, string>>
   /** Auth-produced names that must be redacted regardless of spelling. */
   readonly sensitiveHeaderNames?: readonly string[]
   /** Auth-produced query-string parameters (`auth: [{ kind: 'query', ... }]`), merged onto the request path. */
   readonly queryOverrides?: Readonly<Record<string, string>>
   /** Names in {@link queryOverrides} that must be redacted in logs. */
   readonly sensitiveQueryParamNames?: readonly string[]
+  /** Optional provider lifetime signal. */
+  readonly signal?: AbortSignal
   /** End-to-end request/stream timeout. */
   readonly requestTimeoutMs?: number
   /** Maximum serialized outbound request bytes. */
@@ -79,6 +83,7 @@ export function captureTransportConnection<T extends HttpTransportConnection>(
   const merged = mergeHeaderLayers([
     { layer: 'transport', headers: transportHeaders },
     { layer: 'sdk-attribution', headers: attributionHeaders() },
+    { layer: 'endpoint', headers: connection.endpointHeaders ?? {} },
     { layer: 'auth', headers: connection.headers },
   ])
   return Object.freeze({

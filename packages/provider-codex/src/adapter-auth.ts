@@ -79,7 +79,7 @@ export function runtimeAuth(
           async () => await refreshCodexTokensWithOperation(
             store,
             { ...(options.oauth ?? {}), signal },
-            operation,
+            operation, { file, revision: record!.revision },
           ),
         )
       }

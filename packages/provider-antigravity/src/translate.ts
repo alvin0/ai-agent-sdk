@@ -49,9 +49,12 @@ class AntigravityStream {
     if (envelope.error !== undefined || data.error !== undefined) {
       throw new ModelError('Antigravity reported a streaming error', 'SERVER')
     }
-    if (data.usageMetadata !== undefined) this.usage = mapUsage(data.usageMetadata)
+    if (data.usageMetadata !== undefined) {
+      this.usage = { ...this.usage, ...mapUsage(data.usageMetadata) }
+      yield { type: 'usage-progress', usage: this.usage }
+    }
+    this.promptFeedback(data.promptFeedback)
     if (data.candidates !== undefined) yield* this.candidates(data.candidates)
-    else this.promptFeedback(data.promptFeedback)
   }
 
   private promptFeedback(value: unknown): void {
@@ -106,7 +109,8 @@ class AntigravityStream {
 
   private *text(part: Record<string, unknown>, text: string): ChunkGenerator {
     const kind = part.thought === true ? 'reasoning' : 'text'
-    if (this.open?.kind !== kind || this.open.signature !== undefined) {
+    if (this.open?.kind !== kind || this.open.signature !== undefined
+      || (text === '' && part.thoughtSignature !== undefined)) {
       yield* this.close()
       this.open = { index: this.nextIndex++, kind, text: '' }
       yield { type: 'block-start', index: this.open.index, blockType: kind }

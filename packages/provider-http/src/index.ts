@@ -12,6 +12,8 @@ export type * from './configurable/runtime-types.ts'
 export * from './observation/operations.ts'
 export * from './protocol/protocol.ts'
 export * from './stream/sse.ts'
+export { withCredentialRefresh, credentialLoginId } from './transport/credential-refresh.ts'
+export { mergeRequestBody } from './common/body-merge.ts'
 export { endpointHeaders, type HeaderContext } from './common/endpoint-headers.ts'
 /** Embedding route configuration; the provider embedding adapters declare against it. */
 export * from './transport/embedding-connection.ts'

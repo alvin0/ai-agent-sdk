@@ -1,6 +1,7 @@
 import { ModelError, isNativeToolSchema, type ContentBlock, type Message } from '@alvin0/ai-agent-sdk-core'
 import type { ProtocolRequest } from '@alvin0/ai-agent-sdk-provider-http'
 import { object } from './http.ts'
+import { antigravityResponseSchema } from './response-schema.ts'
 import { isAntigravityImageModel } from './image.ts'
 
 type Part = Record<string, unknown>
@@ -60,10 +61,14 @@ function toolResult(
 ): Part {
   const name = toolNames.get(block.toolCallId)
   if (name === undefined) return invalid('tool result has no matching function call')
-  if (block.content.some(part => part.type !== 'text')) return invalid('tool results currently require text content')
+  const parts = block.content.flatMap(part => {
+    if (part.type === 'text') return []
+    if (part.type !== 'image' || part.source.kind !== 'base64') return invalid('tool media requires inline images')
+    return [{ inlineData: { mimeType: part.source.mediaType, data: part.source.data } }]
+  })
   const output = block.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
   return { functionResponse: { id: block.toolCallId, name,
-    response: block.isError ? { error: output } : { output } } }
+    ...(parts.length ? { parts } : {}), response: block.isError ? { error: output } : { output } } }
 }
 
 function contentsOf(request: ProtocolRequest): Part[] {
@@ -73,8 +78,12 @@ function contentsOf(request: ProtocolRequest): Part[] {
     for (const block of message.content) if (block.type === 'tool-call') toolNames.set(block.id, block.name)
     if (message.role === 'system') continue
     const parts = message.content.flatMap((block, index) => {
+      const signature = replaySignature(message, index)
+      if (block.type === 'text' && block.text === '' && signature.thoughtSignature !== undefined) {
+        return [{ text: '', ...signature }]
+      }
       const part = partOf(block, toolNames)
-      return part === undefined ? [] : [{ ...part, ...replaySignature(message, index) }]
+      return part === undefined ? [] : [{ ...part, ...signature }]
     })
     if (!parts.length) continue
     const role = message.role === 'assistant' ? 'model' : 'user'
@@ -103,7 +112,7 @@ function generationConfig(request: ProtocolRequest): Part {
       thinkingConfig: { thinkingLevel: String(options.reasoningEffort).toUpperCase(), includeThoughts: true },
     }),
     ...(options.outputFormat?.type !== 'json_schema' ? {} : {
-      responseMimeType: 'application/json', responseSchema: options.outputFormat.schema,
+      responseMimeType: 'application/json', responseSchema: antigravityResponseSchema(options.outputFormat.schema),
     }),
   }
 }
@@ -126,7 +135,7 @@ export function serializeAntigravityRequest(request: ProtocolRequest): Part {
     .filter(Boolean).join('\n\n')
   const declarations = options.tools?.map(tool => {
     if (isNativeToolSchema(tool)) return invalid('provider-native tools are not supported on this route')
-    return { name: tool.name, description: tool.description, parameters: tool.parameters }
+    return { name: tool.name, description: tool.description, parametersJsonSchema: tool.parameters }
   })
   const toolConfig = toolChoiceConfig(options.toolChoice)
   return {
