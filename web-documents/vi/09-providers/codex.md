@@ -79,6 +79,8 @@ Tạo ảnh dùng transport riêng, tách khỏi Codex Responses. Hàm
 lại kho OAuth của dự án và cơ chế làm mới token có revision.
 `account` chọn cùng tài khoản đã đăng nhập như
 `codexNodeProviderPlugin({ account })`; nếu truyền `authStore`, kho đó được ưu tiên.
+Kho `CodexAuthStore` kiểu cũ dùng được khi token còn mới. Khi đến hạn làm mới, hàm trả
+`CODEX_REAUTH_REQUIRED`. Dùng kho có revision để SDK tự động làm mới token.
 
 ```ts
 import { generateCodexNodeImage } from '@alvin0/ai-agent-sdk-auth-node/codex'

@@ -142,6 +142,36 @@ describe('Antigravity browser sign-in', () => {
     expect(JSON.stringify(saved)).not.toContain('env-browser-secret')
   })
 
+  it.each([false, true])('preserves a login saved after the browser prompt (existing=%s)', async existing => {
+    const path = join(await temporary(), 'auth.json')
+    const store = fileAntigravityCredentialStore(path)
+    const other = fileAntigravityCredentialStore(path)
+    const revision = existing ? (await store.commit({ expectedRevision: null, value: file() }, operation())).revision : null
+    const winner = { ...file(), projectId: 'newer' }
+    let callback!: Promise<Response>
+    const login = runAntigravityBrowserLogin(store, { port: 0, clientId: 'client', fetch: async input => {
+      if (String(input).includes('/token')) return json({ access_token: 'access', refresh_token: 'refresh', expires_in: 3600 })
+      return json({ cloudaicompanionProject: 'older' })
+    } }, { onPrompt({ url }) {
+      const auth = new URL(url)
+      const redirect = new URL(auth.searchParams.get('redirect_uri')!)
+      redirect.hostname = '127.0.0.1'
+      redirect.search = new URLSearchParams({ state: auth.searchParams.get('state')!, code: 'good' }).toString()
+      callback = other.commit({ expectedRevision: revision, value: winner }, operation()).then(() => fetch(redirect))
+    } })
+    await expect(login).rejects.toMatchObject({ code: 'ANTIGRAVITY_CREDENTIAL_REVISION_CONFLICT' })
+    expect((await callback).status).toBe(400)
+    expect((await store.read(operation()))?.value).toEqual(winner)
+  })
+
+  it('times out before showing the prompt when the initial credential read stalls', async () => {
+    const store = { ...memoryAntigravityCredentialStore(), read: () => new Promise<never>(() => {}) }
+    const onPrompt = vi.fn()
+    await expect(runAntigravityBrowserLogin(store, { port: 0, timeoutMs: 20 }, { onPrompt }))
+      .rejects.toMatchObject({ code: 'ANTIGRAVITY_AUTH_TIMEOUT' })
+    expect(onPrompt).not.toHaveBeenCalled()
+  })
+
   it('times out and releases the listener without creating credentials', async () => {
     const store = memoryAntigravityCredentialStore()
     let redirect: URL | undefined

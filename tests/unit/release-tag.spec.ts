@@ -7,7 +7,7 @@ const TAG_OBJECT = 'c'.repeat(40)
 const ref = (sha: string, type: 'commit' | 'tag' = 'commit') => ({ object: { type, sha } })
 const response = (status: number, value: unknown = {}) => new Response(JSON.stringify(value), { status })
 
-function fixture(replies: Response[], publishedAny = true) {
+function fixture(replies: Response[], publishedAny = true, canCreateTag = true) {
   const calls: { url: string; method: string; body?: unknown }[] = []
   const fetchImpl = async (url: string, init: RequestInit) => {
     calls.push({ url, method: init.method ?? 'GET', ...init.body === undefined ? {} : { body: JSON.parse(String(init.body)) } })
@@ -18,7 +18,7 @@ function fixture(replies: Response[], publishedAny = true) {
   return {
     calls,
     run: () => ensureReleaseTag({ repository: 'owner/sdk', sha: SHA, version: '0.1.6',
-      token: 'fixture-token', publishedAny, fetchImpl }),
+      token: 'fixture-token', publishedAny, canCreateTag, fetchImpl }),
   }
 }
 
@@ -36,6 +36,12 @@ describe('release tag after npm publication', () => {
     expect((await api.run()).status).toBe('created')
   })
 
+  it('refuses to recreate a historical tag that disappeared after preflight', async () => {
+    const api = fixture([response(404)], false, false)
+    await expect(api.run()).rejects.toThrow(/disappeared/)
+    expect(api.calls).toHaveLength(1)
+  })
+
   it('does not recreate a lightweight tag already pointing at this commit', async () => {
     const api = fixture([response(200, ref(SHA))])
     expect((await api.run()).status).toBe('already-current')
@@ -49,8 +55,14 @@ describe('release tag after npm publication', () => {
   })
 
   it('preserves the older tag when a later main commit has no new package upload', async () => {
-    const api = fixture([response(200, ref(OTHER))], false)
+    const api = fixture([response(200, ref(OTHER))], false, false)
     expect(await api.run()).toEqual({ tag: 'v0.1.6', sha: OTHER, status: 'already-tagged' })
+    expect(api.calls).toHaveLength(1)
+  })
+
+  it('rejects a different tag created during recovery even when all tarballs were already uploaded', async () => {
+    const api = fixture([response(200, ref(OTHER))], false, true)
+    await expect(api.run()).rejects.toThrow(/already points to/)
     expect(api.calls).toHaveLength(1)
   })
 

@@ -4,6 +4,7 @@ import type { CodexOAuthOptions } from './oauth-types.ts'
 
 /** Experimental standalone Images transport; separate from Responses native tools. */
 export interface CodexImageOptions {
+  /** Automatic refresh requires a revisioned store. A legacy store can supply fresh credentials. */
   readonly authStore: CodexAuthStore | CodexCredentialStore
   /** Required image model. Never inferred from the agent's text model or silently replaced. */
   readonly model: string

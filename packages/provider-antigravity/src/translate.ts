@@ -17,8 +17,10 @@ function combine(left: unknown, right: unknown, sign: number): unknown {
   return typeof right === 'number' ? left + sign * right : right
 }
 
-function mapUsage(value: unknown): UsageCounters {
-  const usage = object(value)
+const USAGE_FIELDS = ['promptTokenCount', 'cachedContentTokenCount', 'candidatesTokenCount',
+  'thoughtsTokenCount', 'totalTokenCount'] as const
+
+function mapUsage(usage: Record<string, unknown>): UsageCounters {
   const mapped: Record<string, unknown> = {
     inputTokens: combine(usage.promptTokenCount, usage.cachedContentTokenCount, -1),
     outputTokens: combine(usage.candidatesTokenCount, usage.thoughtsTokenCount, 1),
@@ -41,6 +43,7 @@ class AntigravityStream {
   private nextIndex = 0
   private finish: string | undefined
   private sawTool = false
+  private readonly usageMetadata: Record<string, unknown> = {}
   private usage: UsageCounters | undefined
   private readonly blocks: Record<string, unknown>[] = [];
 
@@ -50,7 +53,11 @@ class AntigravityStream {
       throw new ModelError('Antigravity reported a streaming error', 'SERVER')
     }
     if (data.usageMetadata !== undefined) {
-      this.usage = { ...this.usage, ...mapUsage(data.usageMetadata) }
+      const update = object(data.usageMetadata)
+      for (const field of USAGE_FIELDS) {
+        if (Object.hasOwn(update, field)) this.usageMetadata[field] = update[field]
+      }
+      this.usage = mapUsage(this.usageMetadata)
       yield { type: 'usage-progress', usage: this.usage }
     }
     this.promptFeedback(data.promptFeedback)

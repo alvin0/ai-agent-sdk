@@ -7,6 +7,7 @@ interface TagOptions {
   readonly sha: string
   readonly version: string
   readonly token: string
+  readonly canCreateTag: boolean
   readonly publishedAny: boolean
   readonly fetchImpl?: (url: string, init: RequestInit) => Promise<Response>
 }
@@ -76,10 +77,11 @@ export async function ensureReleaseTag(options: TagOptions): Promise<TagResult> 
     // A later main-branch push at the same version must retain the original
     // release tag. If this run actually uploaded packages, that mismatch is a
     // release conflict rather than permission to move a historical tag.
-    if (!publishedAny) return { tag, sha: committed, status: 'already-tagged' }
-    throw new Error(`Release tag ${tag} already points to ${committed}, not uploaded commit ${sha}`)
+    if (!publishedAny && !options.canCreateTag) return { tag, sha: committed, status: 'already-tagged' }
+    throw new Error(`Release tag ${tag} already points to ${committed}, not planned commit ${sha}`)
   }
 
+  if (!options.canCreateTag) throw new Error(`Tag ${tag} disappeared after release preflight`)
   const created = await request('refs', 'POST', { ref: `refs/tags/${tag}`, sha })
   if (created.status === 201) return { tag, sha, status: 'created' }
   if (created.status === 422) {
@@ -99,6 +101,7 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(
     sha: process.env.GITHUB_SHA ?? '',
     version: manifest.version,
     token: process.env.GH_TOKEN ?? '',
+    canCreateTag: process.env.CAN_CREATE_TAG === 'true',
     publishedAny: published === 'true',
   })
   console.log(`Release tag ${result.tag}: ${result.status} at ${result.sha}`)

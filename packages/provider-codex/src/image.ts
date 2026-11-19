@@ -142,7 +142,9 @@ export async function generateCodexImage(options: GenerateCodexImageOptions): Pr
   let tokens: CodexTokens
   try {
     signal.throwIfAborted()
-    tokens = await raceAbort(getCodexTokens(options.authStore, { ...options.oauth, signal }), signal)
+    tokens = await raceAbort(getCodexTokens(options.authStore, {
+      ...options.oauth, signal, refreshIfNeeded: true, requireVersionedRefresh: true,
+    }), signal)
   } catch (error: unknown) {
     if (signal.aborted) throw imageFailure(error, timeout, caller)
     throw error

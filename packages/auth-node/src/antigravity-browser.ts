@@ -5,7 +5,7 @@ import { AgentSdkError, MAX_TIMER_MS } from '@alvin0/ai-agent-sdk-core'
 import {
   ANTIGRAVITY_BROWSER_CALLBACK_PATH,
   ANTIGRAVITY_BROWSER_CALLBACK_PORT,
-  completeAntigravityLogin,
+  completeAntigravityLogin, readAntigravityCredentialRevision,
   createAntigravityAuthorization,
   type AntigravityAuthorization,
   type AntigravityCredentialStore,
@@ -20,8 +20,9 @@ export interface AntigravityBrowserLoginOptions extends AntigravityOAuthOptions 
    * Loopback port to listen on. Defaults to 51121, the port the Antigravity OAuth
    * client registers; another port only works with an issuer that accepts it.
    */
-  readonly expectedRevision?: string | null
   readonly port?: number
+  /** Credential revision at login start, or null if the store was empty. Defaults to reading the store. */
+  readonly expectedRevision?: string | null
   /** Give up when no sign-in completes within this long. Defaults to 15 minutes. */
   readonly timeoutMs?: number
 }
@@ -60,7 +61,9 @@ export async function runAntigravityBrowserLogin(
   options.signal?.throwIfAborted()
   const resolved = withAntigravityOAuthEnvironment(options)
   const timeoutMs = boundedInteger(options.timeoutMs ?? DEFAULT_TIMEOUT_MS, 1, MAX_TIMER_MS, 'timeoutMs')
-  const login = new LoopbackLogin(store, resolved)
+  const deadline = Date.now() + timeoutMs
+  const expectedRevision = await loginRevision(store, options, timeoutMs)
+  const login = new LoopbackLogin(store, { ...resolved, expectedRevision })
   const port = await login.listen(boundedInteger(options.port ?? ANTIGRAVITY_BROWSER_CALLBACK_PORT, 0, 65_535, 'port'))
   try {
     const authorization = await createAntigravityAuthorization({
@@ -68,9 +71,23 @@ export async function runAntigravityBrowserLogin(
     })
     login.authorization = authorization
     try { progress.onPrompt?.({ url: authorization.url }) } catch { /* progress observers do not own authentication */ }
-    return await login.result(timeoutMs, options.signal)
+    return await login.result(Math.max(1, deadline - Date.now()), options.signal)
   } finally {
     login.close()
+  }
+}
+
+async function loginRevision(store: AntigravityCredentialStore, options: AntigravityBrowserLoginOptions,
+  timeoutMs: number): Promise<string | null> {
+  if (options.expectedRevision !== undefined) return options.expectedRevision
+  const timeout = AbortSignal.timeout(timeoutMs)
+  const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout
+  try { return await readAntigravityCredentialRevision(store, signal) }
+  catch (error) {
+    if (timeout.aborted) {
+      throw new AgentSdkError('browser login timed out reading credentials', 'ANTIGRAVITY_AUTH_TIMEOUT')
+    }
+    throw error
   }
 }
 

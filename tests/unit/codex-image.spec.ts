@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  CodexImageError, codexImageUrl, generateCodexImage, getCodexTokens, memoryCodexCredentialStore,
+  CodexImageError, codexImageUrl, generateCodexImage, getCodexTokens, memoryCodexAuthStore, memoryCodexCredentialStore,
 } from '@alvin0/ai-agent-sdk-provider-codex'
 import { authFile, hangingFetch, jwt, NOW_SECONDS, usageFetch } from './fixtures/codex-usage.ts'
 
@@ -33,6 +33,22 @@ describe('standalone Codex Images transport', () => {
       expect((await run(data!)).images[0]?.source).toMatchObject({ mediaType })
       await expect(run(data!.slice(0, 16))).rejects.toMatchObject({ code: 'CODEX_IMAGE_MALFORMED' })
     })
+
+  it('uses fresh legacy credentials but never rotates a grant without an atomic commit', async () => {
+    const stale = authFile(-60)
+    const store = memoryCodexAuthStore(stale)
+    const refresh = usageFetch(() => Response.json({ access_token: 'rotated' }))
+    const fetch = usageFetch(() => Response.json(body()))
+    const options = { ...defaults(), authStore: store, fetch, oauth: { fetch: refresh } }
+    await expect(generateCodexImage(options)).rejects.toMatchObject({ code: 'CODEX_REAUTH_REQUIRED' })
+    expect(refresh).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
+    expect(await store.read()).toEqual(stale)
+    await store.write(authFile())
+    await expect(generateCodexImage(options)).resolves.toHaveProperty('images')
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(refresh).not.toHaveBeenCalled()
+  })
 
   it.each([200, 400])('keeps a concurrent login and stops the previous image request after issuer HTTP %i', async status => {
     const authStore = memoryCodexCredentialStore(authFile(-60))

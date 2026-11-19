@@ -223,6 +223,21 @@ describe('Antigravity provider', () => {
     } })
   })
 
+  it.each([false, true])('normalizes counters split across SSE frames in either order (reverse=%s)', async reverse => {
+    const counts = [{ promptTokenCount: 50, candidatesTokenCount: 3 },
+      { cachedContentTokenCount: 10, thoughtsTokenCount: 2, totalTokenCount: 55 }]
+    const frames = (reverse ? counts.reverse() : counts).map(usageMetadata => ({ usageMetadata }))
+    const chunks = await collect(translateAntigravityStream(events(...frames, {
+      usageMetadata: { candidatesTokenCount: 4, totalTokenCount: 56 }, candidates: [{ finishReason: 'STOP' }],
+    })))
+    expect(chunks.filter(chunk => chunk.type === 'usage-progress')[1]).toMatchObject({ usage: {
+      inputTokens: 40, outputTokens: 5, cacheReadTokens: 10, reasoningTokens: 2, totalTokens: 55,
+    } })
+    expect(chunks.find(chunk => chunk.type === 'usage')).toMatchObject({ usage: {
+      inputTokens: 40, outputTokens: 6, cacheReadTokens: 10, reasoningTokens: 2, totalTokens: 56,
+    } })
+  })
+
   it('rejects truncated, malformed, blocked, and late-content streams', async () => {
     await expect(collect(translateAntigravityStream(events({ response: { candidates: [{ content: { parts: [{ text: 'partial' }] } }] } }))))
       .rejects.toMatchObject({ code: 'STREAM_CLOSED' })

@@ -73,7 +73,8 @@ For Workers or other hosts, inject an `AntigravityCredentialStore` into
 for tests. `createAntigravityAuthorization()` and `completeAntigravityLogin()`
 expose the host-independent OAuth steps; the host owns callback storage and routing.
 Keep the authorization object, including its verifier, server-side and use each
-object once. All stores stay caller-owned.
+object once. Before showing the URL, call `readAntigravityCredentialRevision(store, signal)`.
+Pass that value as `expectedRevision` when completing the callback so a newer login wins.
 
 ## Protocol and limits
 

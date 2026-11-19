@@ -164,6 +164,12 @@ function validateCallback(authorization: AntigravityAuthorization, params: URLSe
   }
 }
 
+/** Read the revision to bind an interactive login to the credential it is replacing. */
+export async function readAntigravityCredentialRevision(store: AntigravityCredentialStore, signal: AbortSignal) {
+  signal.throwIfAborted()
+  return (await abortable(store.read({ signal, logger: NULL_LOGGER }), signal))?.revision ?? null
+}
+
 /** Validate one callback and commit credentials only after token exchange and project discovery succeed. */
 export async function completeAntigravityLogin(
   store: AntigravityCredentialStore, authorization: AntigravityAuthorization,
@@ -174,7 +180,7 @@ export async function completeAntigravityLogin(
   const code = requiredString(params.get('code'), 'authorization code')
   const operation = { signal: options.signal ?? new AbortController().signal, logger: NULL_LOGGER }
   const revision = options.expectedRevision === undefined
-    ? (await abortable(store.read(operation), operation.signal))?.revision ?? null : options.expectedRevision
+    ? await readAntigravityCredentialRevision(store, operation.signal) : options.expectedRevision
   const tokens = await exchangeAntigravityToken({ code, grant_type: 'authorization_code',
     redirect_uri: authorization.redirectUri, code_verifier: authorization.verifier }, {
     ...options, clientId: authorization.clientId,

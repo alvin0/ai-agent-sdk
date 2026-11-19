@@ -34,6 +34,10 @@ registry.install(codexPlugin({ authStore: mySecretManagerStore }))
 
 ### Standalone image generation (experimental)
 
+Use a revisioned credential store for automatic refresh. A legacy `CodexAuthStore`
+can serve a fresh token. When refresh is due, Images returns `CODEX_REAUTH_REQUIRED`
+before contacting the issuer or sending the prompt.
+
 `generateCodexImage({ authStore, model, prompt })` calls the standalone
 `<baseUrl>/images/generations` route with the connected account's OAuth credentials
 and returns `{ images: ImageBlock[] }` (inline base64 with detected media type).

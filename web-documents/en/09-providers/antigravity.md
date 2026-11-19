@@ -65,6 +65,8 @@ fixtures; production persistence belongs to your host.
 `createAntigravityAuthorization()` and `completeAntigravityLogin()` expose the
 OAuth steps without Node APIs. Keep the authorization object server-side; it
 contains the PKCE verifier and must be used once. The host owns callback handling.
+Before showing the URL, read the store revision with `readAntigravityCredentialRevision(store, signal)`.
+Pass it as `expectedRevision` when completing the callback. Node browser login does this automatically.
 
 ## Supported behavior
 

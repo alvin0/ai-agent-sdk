@@ -79,6 +79,8 @@ Image generation has a separate transport from Codex Responses. The opt-in
 `<baseUrl>/images/generations`, reusing the project-local OAuth store and its
 revision-safe token refresh. `account` selects the same named login as
 `codexNodeProviderPlugin({ account })`; a custom `authStore` takes precedence.
+A legacy `CodexAuthStore` can supply a fresh token. When refresh is due, the helper returns
+`CODEX_REAUTH_REQUIRED`. Use a revisioned store for automatic rotation.
 
 ```ts
 import { generateCodexNodeImage } from '@alvin0/ai-agent-sdk-auth-node/codex'

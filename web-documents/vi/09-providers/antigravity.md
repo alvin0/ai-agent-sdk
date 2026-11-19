@@ -64,6 +64,8 @@ chịu trách nhiệm lưu trữ credential khi triển khai.
 `createAntigravityAuthorization()` và `completeAntigravityLogin()` cung cấp hai
 bước OAuth không phụ thuộc Node. Giữ đối tượng authorization ở phía server vì nó
 chứa PKCE verifier; chỉ dùng mỗi đối tượng một lần. Host phụ trách nhận callback.
+Trước khi hiển thị URL, lấy revision bằng `readAntigravityCredentialRevision(store, signal)`.
+Truyền giá trị này qua `expectedRevision` khi xử lý callback. Hàm đăng nhập trình duyệt trên Node tự thực hiện hai bước này.
 
 ## Phạm vi hỗ trợ
 

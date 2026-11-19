@@ -18,8 +18,8 @@ env:
   TURBO_TELEMETRY_DISABLED: '1'
 
 concurrency:
-  group: release-${{ github.sha }}
-  cancel-in-progress: false
+  group: npm-release
+  queue: max
 
 jobs:
   publish:
@@ -27,6 +27,7 @@ jobs:
     timeout-minutes: 30
     outputs:
       published_any: ${{ steps.publish.outputs.published_any }}
+      can_create_tag: ${{ steps.plan.outputs.can_create_tag }}
     permissions:
       contents: read
       id-token: write
@@ -126,6 +127,7 @@ jobs:
           done
 
       - name: Check all npm versions and the release tag before uploading
+        id: plan
         run: node scripts/plan-npm-release.mts artifacts > "$RUNNER_TEMP/pending-tarballs"
 
       - name: Publish to npm with provenance
@@ -164,5 +166,6 @@ jobs:
       - name: Tag the published source commit
         env:
           GH_TOKEN: ${{ github.token }}
+          CAN_CREATE_TAG: ${{ needs.publish.outputs.can_create_tag }}
           PUBLISHED_ANY: ${{ needs.publish.outputs.published_any }}
         run: node scripts/create-release-tag.mts
