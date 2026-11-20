@@ -1,114 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ModelAdapter } from '../../../packages/core/src/contract/adapter.ts'
-import type { GenerateOptions } from '../../../packages/core/src/contract/generate-options.ts'
 import type { ModelProviderRegistrar } from '../../../packages/core/src/plugin/provider-plugin.ts'
-import type { StreamChunk } from '../../../packages/core/src/stream/chunk.ts'
-import { ToolCallId } from '../../../packages/core/src/primitives/brand.ts'
 import { defineTool } from '../../../packages/core/src/agent/tool/definition.ts'
 import type { ComposableModelProviderPlugin } from '../../../packages/core/src/composition/provider/types.ts'
 import { createRuntimeCompositionOwner } from '../../../packages/core/src/composition/runtime/owner.ts'
 import type { ObservationExporterPlugin } from '../../../packages/core/src/composition/exporter/types.ts'
-
-class BlockingAdapter extends ModelAdapter {
-  readonly entered: Promise<void>
-  private enter!: () => void
-  aborts = 0
-
-  constructor() {
-    super()
-    this.entered = new Promise(resolve => { this.enter = resolve })
-  }
-
-  async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    this.enter()
-    await new Promise<void>((_resolve, reject) => {
-      if (options.signal?.aborted) { reject(options.signal.reason); return }
-      options.signal?.addEventListener('abort', () => { this.aborts++; reject(options.signal?.reason) }, { once: true })
-    })
-    yield { type: 'finish', reason: { kind: 'stop' } }
-  }
-}
-
-class UncooperativeAdapter extends ModelAdapter {
-  readonly entered: Promise<void>
-  private enter!: () => void
-  private readonly blocked: Promise<void>
-  private resume!: () => void
-  continued = false
-
-  constructor() {
-    super()
-    this.entered = new Promise(resolve => { this.enter = resolve })
-    this.blocked = new Promise(resolve => { this.resume = resolve })
-  }
-
-  release(): void { this.resume() }
-
-  async * stream(): AsyncIterable<StreamChunk> {
-    this.enter()
-    await this.blocked
-    this.continued = true
-    yield { type: 'text-delta', index: 0, text: 'PRIVATE_LATE/RESULT~SENTINEL%' }
-    yield { type: 'block-end', index: 0, block: { type: 'text', text: 'PRIVATE_LATE/RESULT~SENTINEL%' } }
-    yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } }
-    yield { type: 'finish', reason: { kind: 'stop' } }
-  }
-}
-
-class EarlyReturnAdapter extends ModelAdapter {
-  readonly blocked: Promise<void>
-  private block!: () => void
-  aborts = 0
-
-  constructor() {
-    super()
-    this.blocked = new Promise(resolve => { this.block = resolve })
-  }
-
-  async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    yield { type: 'text-delta', index: 0, text: 'first' }
-    this.block()
-    await new Promise<void>((_resolve, reject) => {
-      if (options.signal?.aborted) { this.aborts++; reject(options.signal.reason); return }
-      options.signal?.addEventListener('abort', () => { this.aborts++; reject(options.signal?.reason) }, { once: true })
-    })
-  }
-}
-
-class CompleteAdapter extends ModelAdapter {
-  lateAborts = 0
-  async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    options.signal?.addEventListener('abort', () => { this.lateAborts++ })
-    yield { type: 'text-delta', index: 0, text: 'complete' }
-    yield { type: 'block-end', index: 0, block: { type: 'text', text: 'complete' } }
-    yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } }
-    yield { type: 'finish', reason: { kind: 'stop' } }
-  }
-}
-
-class FailingAdapter extends ModelAdapter {
-  async * stream(): AsyncIterable<StreamChunk> {
-    yield { type: 'finish', reason: { kind: 'error', failure: {
-      code: 'PROVIDER_SCRIPT_FAILED', message: 'scripted safe failure',
-    } } }
-  }
-}
-
-class OversizedEventAdapter extends ModelAdapter {
-  async * stream(): AsyncIterable<StreamChunk> {
-    yield { type: 'text-delta', index: 0, text: 'x'.repeat(16 * 1024 * 1024 + 1) }
-    yield { type: 'finish', reason: { kind: 'stop' } }
-  }
-}
-
-class ToolCallAdapter extends ModelAdapter {
-  async * stream(): AsyncIterable<StreamChunk> {
-    yield { type: 'block-end', index: 0, block: {
-      type: 'tool-call', id: ToolCallId('parked-tool-call'), name: 'park', arguments: '{}',
-    } }
-    yield { type: 'finish', reason: { kind: 'tool-calls' } }
-  }
-}
+import { BlockingAdapter, UncooperativeAdapter, EarlyReturnAdapter, CompleteAdapter, FailingAdapter,
+  OversizedEventAdapter, ToolCallAdapter } from './runtime-agent-handle-fixtures.ts'
 
 function provider(adapter: ModelAdapter): ComposableModelProviderPlugin {
   return {
@@ -138,7 +36,8 @@ describe('runtime agent run handle', () => {
       observability: { mode: 'reliable', exporters: [{
         exporter: sink, ownership: 'borrowed', requirement: 'required', boundary: 'local-durable',
       }] } })
-    const session = runtime.agent({ id: 'generation-guard', instructions: 'Complete', compaction: false }).createSession()
+    const session = runtime.agent({ id: 'generation-guard', instructions: 'Complete', compaction: false })
+      .createSession()
     const first = session.stream('first')
     await terminalStarted
     expect(session.isRunning).toBe(true)
@@ -174,7 +73,8 @@ describe('runtime agent run handle', () => {
       observability: { mode: 'reliable', exporters: [{
         exporter: sink, ownership: 'borrowed', requirement: 'required', boundary: 'local-durable',
       }] } })
-    const session = runtime.agent({ id: 'compaction-guard', instructions: 'Complete', compaction: false }).createSession()
+    const session = runtime.agent({ id: 'compaction-guard', instructions: 'Complete', compaction: false })
+      .createSession()
     const compacting = session.compact()
     await terminalStarted
     expect(session.isRunning).toBe(true)
@@ -287,9 +187,8 @@ describe('runtime agent run handle', () => {
   it('does not invoke an observer more than once per event and preserves callback order', async () => {
     const runtime = await createRuntimeCompositionOwner({ providers: [provider(new CompleteAdapter())] })
     const observed: number[] = []
-    const response = await runtime.agent({ id: 'observer-order', instructions: 'Complete', compaction: false }).generate('go', {
-      onEvent: async event => { await Promise.resolve(); observed.push(event.sequence) },
-    })
+    const response = await runtime.agent({ id: 'observer-order', instructions: 'Complete', compaction: false })
+      .generate('go', { onEvent: async event => { await Promise.resolve(); observed.push(event.sequence) } })
     expect(observed).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
     expect(response.report.status).toBe('success')
     await runtime.close()
@@ -298,24 +197,33 @@ describe('runtime agent run handle', () => {
   it.each(['reject', 'timeout'] as const)(
     'aborts active work on observer %s and retains a support-safe canonical report',
     async mode => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
       const adapter = new EarlyReturnAdapter()
       const runtime = await createRuntimeCompositionOwner({ providers: [provider(adapter)] })
-      const session = runtime.agent({ id: `observer-${mode}`, instructions: 'Observe', compaction: false })
-        .createSession({ runtimeLimits: { observerTimeoutMs: 5 } })
-      let rejected: unknown
       try {
-        await session.run('go', { onEvent: event => {
+        const session = runtime.agent({ id: `observer-${mode}`, instructions: 'Observe', compaction: false })
+          .createSession({ runtimeLimits: { observerTimeoutMs: 5 } })
+        let entered!: () => void
+        const observerEntered = new Promise<void>(resolve => { entered = resolve })
+        const result = session.run('go', { onEvent: async event => {
           if (event.type !== 'assistant-delta') return
-          return mode === 'reject' ? Promise.reject(new Error('OBSERVER_PRIVATE/DETAIL~SENTINEL%'))
-            : new Promise<void>(() => undefined)
-        } })
-      } catch (error) { rejected = error }
-      expect(rejected).toMatchObject({ code: 'RUN_EVENT_OBSERVER_FAILED', report: { status: 'aborted' } })
-      const report = (rejected as { report: unknown }).report
-      expect(JSON.stringify(report)).not.toContain('OBSERVER_PRIVATE/DETAIL~SENTINEL%')
-      expect(adapter.aborts).toBe(1)
-      await session.whenIdle()
-      await runtime.close()
+          // Resume the provider past its first yield before exercising active-work cancellation.
+          await adapter.blocked
+          entered()
+          if (mode === 'reject') throw new Error('OBSERVER_PRIVATE/DETAIL~SENTINEL%')
+          await new Promise<void>(() => undefined)
+        } }).catch((error: unknown) => error)
+        await observerEntered
+        if (mode === 'timeout') await vi.advanceTimersByTimeAsync(5)
+        const rejected = await result
+        expect(rejected).toMatchObject({ code: 'RUN_EVENT_OBSERVER_FAILED', report: { status: 'aborted' } })
+        const report = (rejected as { report: unknown }).report
+        expect(JSON.stringify(report)).not.toContain('OBSERVER_PRIVATE/DETAIL~SENTINEL%')
+        expect(adapter.aborts).toBe(1)
+        await session.whenIdle()
+      } finally {
+        try { await runtime.close() } finally { vi.useRealTimers() }
+      }
     },
   )
 
@@ -358,9 +266,11 @@ describe('runtime agent run handle', () => {
     await runtime.close()
   })
 
-  it('contains an oversized public-event enqueue failure and still publishes one canonical terminal event', async () => {
+  it('contains an oversized public-event enqueue failure '
+    + 'and still publishes one canonical terminal event', async () => {
     const runtime = await createRuntimeCompositionOwner({ providers: [provider(new OversizedEventAdapter())] })
-    const session = runtime.agent({ id: 'enqueue-failure', instructions: 'Bound events', compaction: false }).createSession()
+    const session = runtime.agent({ id: 'enqueue-failure', instructions: 'Bound events', compaction: false })
+      .createSession()
     const handle = session.stream('go')
     const events = []
     for await (const event of handle) events.push(event)
@@ -377,7 +287,8 @@ describe('runtime agent run handle', () => {
 
   it('settles a successful eager run even when its event iterator is never acquired', async () => {
     const runtime = await createRuntimeCompositionOwner({ providers: [provider(new CompleteAdapter())] })
-    const session = runtime.agent({ id: 'dropped-iteration', instructions: 'Complete', compaction: false }).createSession()
+    const session = runtime.agent({ id: 'dropped-iteration', instructions: 'Complete', compaction: false })
+      .createSession()
     const handle = session.stream('go')
     const [response, report] = await Promise.all([handle.result, handle.report])
     expect(response.report).toBe(report)

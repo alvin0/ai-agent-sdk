@@ -54,6 +54,17 @@ try {
   JSON is bounded to 2 MiB, 100,000 nodes and depth 64.
 - Model catalogs are advisory. Unknown model IDs remain callable.
 
+## Native OpenAI Decisions
+
+`openAiDecisionPlugin` from `@alvin0/ai-agent-sdk-provider-openai/decisions` calls
+`https://api.openai.com/v1/decisions` and supplies provider probability evidence.
+Install it alongside this package and configure `gpt-6-luna`. It accepts an injected
+API key or credential source. Live checks on 2026-11-19 also succeeded using the
+current Codex OAuth access tokens. Account access must be verified with a live
+request. Hosts can use `getCodexTokens(store)` with a revisioned Codex credential
+store and inject the refresh-aware source into the universal adapter.
+See the [native provider setup](../provider-openai/README.md#native-decisions-api).
+
 ## OpenAI, Anthropic and Gemini decisions
 
 `llmDecisionAdapter({ adapter })` wraps an existing SDK `ModelAdapter`.
@@ -247,13 +258,18 @@ decision plugins in the core provider list.
 
 Run `pnpm --filter @alvin0/ai-agent-sdk-decision-adapter test` for offline contract
 tests and `test:pack` for installed-tarball verification.
-For live acceptance with workspace `.env` keys, run `pnpm human:decision:all` after
-building. It covers TypeSafe and OpenAI JSON Schema/tool mode, English/Vietnamese,
-batches, model-generated evidence and a core agent tool. Unconfigured providers
-are skipped. OpenAI defaults to `gpt-6-luna`. `OPENAI_DECISION_MODEL` (or
-`OPENAI_MODEL`) may select it or a newer model; `TYPESAFE_MODEL` pins the TypeSafe
-model. The runner emits safe status/usage/latency diagnostics without keys or raw
-errors.
+After building, run `pnpm human:decision:all` for native OpenAI Decisions,
+TypeSafe, and OpenAI JSON Schema and tool modes. The smoke covers English and
+Vietnamese inputs, batches, model-generated evidence, and a core agent tool. It
+reads `.env`, uses the project-local Codex login when `OPENAI_API_KEY` is absent,
+and skips unconfigured providers. Set `AI_AGENT_SDK_CODEX_AUTH` to choose a
+Codex credential store.
+
+Native Decisions uses `gpt-6-luna`. For generation checks, use
+`OPENAI_DECISION_MODEL` or `OPENAI_MODEL` to select `gpt-6-luna` or a newer
+model. `TYPESAFE_MODEL` pins the TypeSafe model. To run only the native checks,
+use `DECISION_SMOKE_FOCUS=openai-native pnpm human:decision:all`. Output includes
+status, usage, and latency.
 
 ## Reusable tasks and batches
 

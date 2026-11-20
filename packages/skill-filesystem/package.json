@@ -4,7 +4,7 @@
     "name": "alvin0 - chaulamdinhai",
     "email": "chaulamdinhai@gmail.com"
   },
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "Node filesystem-backed skill provider for ai-agent-sdk",
   "license": "MIT",
   "repository": {

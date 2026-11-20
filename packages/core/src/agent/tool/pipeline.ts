@@ -187,10 +187,20 @@ export async function finalizeToolCall(call: AuthorizedToolCall,
 }
 
 /** Opt-in like the scheduler: no default deadline for a tool call. */
-function facadeDeadline(value: number | undefined): { timeoutMs: number | undefined; deadline: AbortSignal } {
-  if (value === undefined) return { timeoutMs: undefined, deadline: new AbortController().signal }
+function facadeDeadline(parent: AbortSignal, value: number | undefined): {
+  timeoutMs: number | undefined; signal: AbortSignal; expired(): boolean; dispose(): void
+} {
+  if (value === undefined) return { timeoutMs: undefined, signal: AbortSignal.any([parent]),
+    expired: () => false, dispose: () => {} }
   const timeoutMs = positiveSafeInteger(value, 'defaultTimeoutMs')
-  return { timeoutMs, deadline: AbortSignal.timeout(timeoutMs) }
+  if (timeoutMs > 0xffff_ffff) throw new RangeError('defaultTimeoutMs exceeds the supported timeout range')
+  const controller = new AbortController()
+  const timer = setTimeout(() => {
+    controller.abort(new DOMException('The operation was aborted due to timeout', 'TimeoutError'))
+  }, timeoutMs)
+  if (typeof timer === 'object' && 'unref' in timer) (timer as { unref(): void }).unref()
+  return { timeoutMs, signal: AbortSignal.any([parent, controller.signal]),
+    expired: () => controller.signal.aborted && !parent.aborted, dispose: () => clearTimeout(timer) }
 }
 
 /** Compatibility facade for callers that do not need scheduling. */
@@ -198,29 +208,33 @@ export async function dispatchToolCall(options: DispatchToolCallOptions): Promis
   if (options.signal.aborted) {
     return toolFailure('the call was cancelled before it started', TOOL_ERROR_CODES.ABORTED_BEFORE_DISPATCH)
   }
-  const { timeoutMs, deadline } = facadeDeadline(options.defaultTimeoutMs)
   const teardownTimeoutMs = positiveSafeInteger(options.teardownTimeoutMs ?? 30_000, 'teardownTimeoutMs')
-  const signal = AbortSignal.any([options.signal, deadline])
-  const pending = dispatchToolCallInternal({
-    ...options, signal, ...timeoutMs === undefined ? {} : { defaultTimeoutMs: timeoutMs }, teardownTimeoutMs,
-  })
+  const deadline = facadeDeadline(options.signal, options.defaultTimeoutMs)
+  const { timeoutMs, signal } = deadline
   try {
-    return await raceWithSignal(pending, signal)
-  } catch (error: unknown) {
-    if (!signal.aborted) throw error
-    const settled = await waitForSettlement(pending, teardownTimeoutMs)
-    if (!settled) {
-      throw ToolError.fatal(
-        `tool pipeline ignored cancellation for more than ${teardownTimeoutMs}ms; `
-          + 'the in-process operation may still be running',
-        TOOL_ERROR_CODES.TEARDOWN_TIMEOUT,
-        { cause: error },
-      )
+    const pending = dispatchToolCallInternal({
+      ...options, signal, ...timeoutMs === undefined ? {} : { defaultTimeoutMs: timeoutMs }, teardownTimeoutMs,
+    })
+    try {
+      return await raceWithSignal(pending, signal)
+    } catch (error: unknown) {
+      if (!signal.aborted) throw error
+      const settled = await waitForSettlement(pending, teardownTimeoutMs)
+      if (!settled) {
+        throw ToolError.fatal(
+          `tool pipeline ignored cancellation for more than ${teardownTimeoutMs}ms; `
+            + 'the in-process operation may still be running',
+          TOOL_ERROR_CODES.TEARDOWN_TIMEOUT,
+          { cause: error },
+        )
+      }
+      if (deadline.expired()) {
+        return toolFailure(`the tool pipeline exceeded its ${timeoutMs}ms time limit`, TOOL_ERROR_CODES.TIMEOUT)
+      }
+      return await pending
     }
-    if (deadline.aborted && !options.signal.aborted) {
-      return toolFailure(`the tool pipeline exceeded its ${timeoutMs}ms time limit`, TOOL_ERROR_CODES.TIMEOUT)
-    }
-    return await pending
+  } finally {
+    deadline.dispose()
   }
 }
 

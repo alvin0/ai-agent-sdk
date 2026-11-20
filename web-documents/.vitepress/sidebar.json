@@ -285,6 +285,10 @@
           "link": "/en/09-providers/copilot"
         },
         {
+          "text": "Antigravity",
+          "link": "/en/09-providers/antigravity"
+        },
+        {
           "text": "Embeddings",
           "link": "/en/09-providers/embeddings"
         },
@@ -739,6 +743,10 @@
         {
           "text": "Copilot",
           "link": "/vi/09-providers/copilot"
+        },
+        {
+          "text": "Antigravity",
+          "link": "/vi/09-providers/antigravity"
         },
         {
           "text": "Embeddings",

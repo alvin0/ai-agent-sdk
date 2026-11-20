@@ -5,6 +5,9 @@ import type { OpenAiDecisionAdapterOptions } from './types.ts'
 
 export const CAPABILITIES = Object.freeze({
   questionTypes: Object.freeze(['choice', 'score', 'boolean'] as const),
+  maxQuestions: 400,
+  maxChoiceOptions: 255,
+  maxScoreLevels: 10,
 })
 export function bound(value: number | undefined, fallback: number, name: string): number {
   const result = value ?? fallback

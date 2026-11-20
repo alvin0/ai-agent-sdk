@@ -72,6 +72,77 @@ import { memoryCodexCredentialStore } from '@alvin0/ai-agent-sdk-provider-codex'
 codexPlugin({ authStore: memoryCodexCredentialStore(tokens) })
 ```
 
+## Tạo ảnh qua endpoint riêng (thử nghiệm)
+
+Tạo ảnh dùng transport riêng, tách khỏi Codex Responses. Hàm
+`generateCodexNodeImage()` gọi một lần tới `<baseUrl>/images/generations`, dùng
+lại kho OAuth của dự án và cơ chế làm mới token có revision.
+`account` chọn cùng tài khoản đã đăng nhập như
+`codexNodeProviderPlugin({ account })`; nếu truyền `authStore`, kho đó được ưu tiên.
+Kho `CodexAuthStore` kiểu cũ dùng được khi token còn mới. Khi đến hạn làm mới, hàm trả
+`CODEX_REAUTH_REQUIRED`. Dùng kho có revision để SDK tự động làm mới token.
+
+```ts
+import { generateCodexNodeImage } from '@alvin0/ai-agent-sdk-auth-node/codex'
+
+// Truyền model ảnh được kết nối này cho phép dùng, cấu hình riêng với model text.
+async function draw(prompt: string, imageModel: string) {
+  const { images } = await generateCodexNodeImage({ model: imageModel, prompt })
+  return images // ImageBlock[] chứa base64 và mediaType nhận diện từ dữ liệu
+}
+```
+
+Để agent có thể yêu cầu tạo ảnh, đăng ký host tool một cách tường minh:
+
+```ts
+import { codexNodeImageTool } from '@alvin0/ai-agent-sdk-auth-node/codex'
+
+function imageAgent(imageModel: string) {
+  return runtime.agent({
+    id: 'image-assistant',
+    instructions: 'Dùng codex_generate_image khi người dùng yêu cầu tạo ảnh mới.',
+    model: { provider: 'codex', id: 'gpt-6-luna' },
+    tools: [codexNodeImageTool({ model: imageModel })],
+  })
+}
+```
+
+Model chỉ điều khiển tham số `prompt` của tool. Thông tin xác thực, endpoint,
+model ảnh và thiết lập đầu ra do ứng dụng cấu hình. Ảnh xuất hiện ở sự kiện
+`tool-result` (`event.output.content`) và lịch sử kết quả tool; tin nhắn assistant
+cuối cùng có thể chỉ chứa text. Ứng dụng lấy các image block ở đó để hiển thị hoặc
+lưu. Đường này không bật native tool `image-generation` của Responses và không
+thêm model ảnh vào danh mục chat.
+
+**Kết nối được Codex không đảm bảo endpoint này chấp nhận yêu cầu tạo ảnh.**
+Thử trực tiếp OAuth của dự án ngày 2026-11-17 vẫn nhận HTTP 403 khi dùng model ảnh
+chuyên dụng. Các test offline đã kiểm tra việc trả ảnh qua transport và vòng lặp
+agent; chưa xác minh được một lần tạo ảnh thật thành công qua kết nối này.
+Kết quả đó không xác định giới hạn tạo ảnh của ứng dụng Codex, vì xác thực runtime
+của ứng dụng có thể khác.
+
+`CodexImageError.code` phân biệt `CODEX_IMAGE_FORBIDDEN` (403),
+`CODEX_IMAGE_UNAUTHORIZED` (401), `CODEX_IMAGE_HTTP`, `CODEX_IMAGE_REDIRECT`,
+`CODEX_IMAGE_TIMEOUT`, `CODEX_IMAGE_NETWORK`, `CODEX_IMAGE_TOO_LARGE` và
+`CODEX_IMAGE_MALFORMED`. Lỗi thiếu thông tin xác thực và lỗi làm mới token giữ
+nguyên loại; hủy yêu cầu giữ nguyên lý do từ caller. Không tự retry, đổi model hay
+chuyển sang tính phí bằng API key. Mặc định deadline 180 giây và giới hạn JSON
+response 32 MiB; có thể cấu hình `timeoutMs`, `maxBytes`, `quality`, `size`,
+`background`. Chỉ đặt `baseUrl` tới endpoint HTTPS đáng tin vì endpoint sẽ nhận
+thông tin xác thực của tài khoản đã chọn.
+
+Host tool mặc định giới hạn JSON response **2.000.000 byte** để giá trị JSON và
+ảnh đã render cùng nằm trong giới hạn kết quả tool 4 MiB của core. Muốn nhận ảnh
+lớn hơn, cần cấu hình đồng thời `maxBytes`, `maxToolResultBytes` và giới hạn entry
+lịch sử, hoặc dùng hàm gọi trực tiếp rồi lưu ảnh vào kho artifact của ứng dụng.
+
+Host Universal dùng `generateCodexImage({ authStore, model, prompt })` hoặc
+`codexImageTool({ authStore, model })` từ
+`@alvin0/ai-agent-sdk-provider-codex`. Route này dựa trên
+[Images client của Codex](https://github.com/openai/codex/blob/main/codex-rs/codex-api/src/endpoint/images.rs)
+và
+[backend extension tạo ảnh](https://github.com/openai/codex/blob/main/codex-rs/ext/image-generation/src/backend.rs).
+
 ## Export
 
 ```ts

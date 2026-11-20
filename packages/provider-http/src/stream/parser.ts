@@ -50,9 +50,10 @@ export async function* parseSseBounded(
     primaryFailure = error
     throw error
   } finally {
-    if (drained) reader.releaseLock()
-    else {
-      await cancelParserReader(reader, teardownTimeoutMs, primaryFailure)
+    try {
+      if (!drained) await cancelParserReader(reader, teardownTimeoutMs, primaryFailure)
+    } finally {
+      reader.releaseLock()
     }
   }
 }

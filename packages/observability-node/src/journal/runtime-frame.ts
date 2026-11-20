@@ -1,6 +1,7 @@
 import { isTraceId, type ObservationEvent, type RunTerminalRecord } from '@alvin0/ai-agent-sdk-core'
 import type { ObservationExportItem } from '@alvin0/ai-agent-sdk-core/observability'
 import { journalChecksum, validObservationEvent } from './frame.ts'
+import { journalFailure } from './errors.ts'
 
 export type RuntimeFrameKind = 'event' | 'run-terminal-record'
 
@@ -14,6 +15,29 @@ export interface RuntimeJournalRecord {
   readonly payloadJson: string
 }
 
+export interface CapturedRuntimeItem {
+  readonly kind: RuntimeFrameKind
+  readonly id: string
+  readonly key: string
+  readonly priority: ObservationEvent['priority']
+  readonly payloadJson: string
+  readonly payloadHash: string
+  readonly line: string
+}
+
+export function captureRuntimeJournalItem(item: ObservationExportItem): CapturedRuntimeItem {
+  const payloadJson = JSON.stringify(item)
+  const captured = JSON.parse(payloadJson) as ObservationExportItem
+  if (!objectRecord(captured)) throw journalFailure('corrupt', 'invalid runtime journal item')
+  const identity = runtimeItemIdentity(captured)
+  const valid = identity.kind === 'event'
+    ? validObservationEvent(captured, identity.id) : validTerminalRecord(captured, identity.id)
+  if (!valid) throw journalFailure('corrupt', 'invalid runtime journal item')
+  const payloadHash = journalChecksum(payloadJson)
+  return { ...identity, payloadJson, payloadHash, line: runtimeJournalLine(captured, payloadJson, payloadHash),
+    priority: identity.kind === 'run-terminal-record' ? 'critical' : (captured as ObservationEvent).priority }
+}
+
 export function runtimeItemIdentity(item: ObservationExportItem): {
   readonly kind: RuntimeFrameKind
   readonly id: string
@@ -24,14 +48,16 @@ export function runtimeItemIdentity(item: ObservationExportItem): {
   return { kind, id, key: `${kind}:${id}` }
 }
 
-export function runtimeJournalLine(item: ObservationExportItem, payloadJson: string): string {
+export function runtimeJournalLine(
+  item: ObservationExportItem, payloadJson: string, payloadHash = journalChecksum(payloadJson),
+): string {
   const identity = runtimeItemIdentity(item)
   return `${JSON.stringify({
     schemaVersion: 1,
     itemKind: identity.kind,
     itemId: identity.id,
     payloadJson,
-    sha256: journalChecksum(payloadJson),
+    sha256: payloadHash,
   })}\n`
 }
 
@@ -59,7 +85,7 @@ export function parseRuntimeJournalLine(line: string, segment: string, lineNumbe
 }
 
 function validTerminalRecord(value: unknown, runId: string): value is RunTerminalRecord {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  if (typeof runId !== 'string' || !objectRecord(value)) return false
   try {
     const startedAt = Reflect.get(value, 'startedAt')
     const endedAt = Reflect.get(value, 'endedAt')

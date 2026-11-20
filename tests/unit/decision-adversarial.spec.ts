@@ -20,6 +20,49 @@ function accounting(end: (value: EndProviderAttemptInput) => unknown): ModelInvo
 afterEach(() => vi.useRealTimers())
 
 describe('adversarial decision lifecycle', () => {
+  it('releases the response body reader after a successful native decision', async () => {
+    const response = wire()
+    const adapter = typesafeAdapter({ apiKey: 'fake', fetch: async () => response })
+    await expect(adapter.evaluate(request())).resolves.toMatchObject({ model: 'm' })
+    expect(response.body!.locked).toBe(false)
+  })
+  it.each(['invalid-json', 'oversized'] as const)('releases the response body reader after %s', async failure => {
+    const response = new Response(failure === 'invalid-json' ? 'invalid' : 'x'.repeat(1_025))
+    const adapter = typesafeAdapter({ apiKey: 'fake', fetch: async () => response,
+      ...(failure === 'oversized' ? { maxResponseBytes: 1_024 } : {}) })
+    await expect(adapter.evaluate(request())).rejects.toMatchObject({ code: 'MALFORMED_RESPONSE' })
+    expect(response.body!.locked).toBe(false)
+  })
+  it('releases a stalled body reader while cancellation remains pending', async () => {
+    vi.useFakeTimers()
+    const cancellation = deferred<void>()
+    const cancel = vi.fn(() => cancellation.promise)
+    const response = new Response(new ReadableStream({ cancel }))
+    const adapter = typesafeAdapter({ apiKey: 'fake', fetch: async () => response, requestTimeoutMs: 10 })
+    const checked = expect(adapter.evaluate(request())).rejects.toMatchObject({ code: 'TIMEOUT' })
+    try {
+      await vi.advanceTimersByTimeAsync(11)
+      await checked
+      expect(cancel).toHaveBeenCalledTimes(1)
+      expect(response.body!.locked).toBe(false)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      cancellation.resolve()
+    }
+  })
+  it('bounds an empty-chunk response before its producer can starve the deadline', async () => {
+    const cancel = vi.fn()
+    const response = new Response(new ReadableStream<Uint8Array>({
+      pull(controller) { controller.enqueue(new Uint8Array()) },
+      cancel,
+    }))
+    const adapter = typesafeAdapter({ apiKey: 'fake', fetch: async () => response })
+    await expect(adapter.evaluate(request())).rejects.toMatchObject({
+      code: 'MALFORMED_RESPONSE', message: 'TypeSafe response exceeds chunk limit',
+    })
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(response.body!.locked).toBe(false)
+  })
   it('never closes the same physical attempt twice when successful accounting throws', async () => {
     const failure = new ModelError('audit terminal rejected', 'OBSERVABILITY_AUDIT_UNAVAILABLE')
     const end = vi.fn(() => { throw failure })

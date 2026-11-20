@@ -16,19 +16,24 @@ export const MAX_CREDENTIAL_FILE_BYTES = 1024 * 1024
 const LOCK_RETRY_MS = 10
 const LOCK_TIMEOUT_MS = 30_000
 const WINDOWS_DELETE_PENDING_RETRIES = 3
+const localWriters = new Map<string, Promise<void>>()
 
 /** Read one stable regular file without following its final symlink. */
 export async function readCredentialText(
   location: string,
   signal?: AbortSignal,
 ): Promise<string | undefined> {
+  return (await readCredentialBytes(location, signal))?.toString('utf8')
+}
+
+export async function readCredentialBytes(location: string, signal?: AbortSignal): Promise<Buffer | undefined> {
   signal?.throwIfAborted()
   let handle: FileHandle | undefined
   try {
     handle = await openNoFollow(location, constants.O_RDONLY)
     signal?.throwIfAborted()
     await validateOpenedCredential(handle, location)
-    const raw = await handle.readFile({ encoding: 'utf8', ...(signal === undefined ? {} : { signal }) })
+    const raw = await handle.readFile({ signal })
     signal?.throwIfAborted()
     return raw
   } catch (error: unknown) {
@@ -54,6 +59,49 @@ async function validateOpenedCredential(handle: FileHandle, location: string): P
 export async function withCredentialFileLock<T>(
   location: string,
   signal: AbortSignal | undefined,
+  task: () => Promise<T>,
+): Promise<T> {
+  signal?.throwIfAborted()
+  const previous = localWriters.get(location) ?? Promise.resolve()
+  let release!: () => void
+  const finished = new Promise<void>(resolve => { release = resolve })
+  const tail = previous.then(() => finished)
+  localWriters.set(location, tail)
+  const deadline = new AbortController()
+  const timer = setTimeout(() => deadline.abort(credentialFileError(
+    'Codex credential writer lock did not become available', undefined, 'CODEX_CREDENTIAL_LOCK_TIMEOUT',
+  )), LOCK_TIMEOUT_MS)
+  const waitingSignal = signal === undefined ? deadline.signal : AbortSignal.any([signal, deadline.signal])
+  try {
+    await waitForLocalWriter(previous, waitingSignal)
+    return await withDiskCredentialFileLock(location, waitingSignal, task)
+  } finally {
+    clearTimeout(timer)
+    // A cancelled waiter must stay behind its predecessor until that writer is
+    // done, otherwise a later caller could race the owner for the sidecar lock.
+    void previous.then(() => {
+      release()
+      if (localWriters.get(location) === tail) localWriters.delete(location)
+    })
+  }
+}
+
+function waitForLocalWriter(previous: Promise<void>, signal: AbortSignal): Promise<void> {
+  signal.throwIfAborted()
+  return new Promise<void>((resolve, reject) => {
+    const abort = () => { signal.removeEventListener('abort', abort); reject(signal.reason) }
+    signal.addEventListener('abort', abort, { once: true })
+    void previous.then(() => {
+      signal.removeEventListener('abort', abort)
+      if (signal.aborted) reject(signal.reason)
+      else resolve()
+    })
+  })
+}
+
+async function withDiskCredentialFileLock<T>(
+  location: string,
+  signal: AbortSignal,
   task: () => Promise<T>,
 ): Promise<T> {
   const directory = dirname(location)

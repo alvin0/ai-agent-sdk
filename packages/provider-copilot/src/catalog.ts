@@ -197,8 +197,8 @@ export function parseCatalogBody(text: string): Record<string, unknown> {
   let parsed: unknown
   try {
     parsed = JSON.parse(text)
-  } catch (error: unknown) {
-    throw malformed('Copilot model catalog is not valid JSON', error)
+  } catch {
+    throw malformed('Copilot model catalog is not valid JSON')
   }
   if (!isRecord(parsed)) {
     throw malformed('Copilot model catalog must be a JSON object')

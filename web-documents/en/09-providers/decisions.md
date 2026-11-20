@@ -8,9 +8,12 @@ Install `@alvin0/ai-agent-sdk-decision-adapter` alongside the selected provider.
 `openAiDecisionPlugin` and `openAiDecisionAdapter` are exported from
 `@alvin0/ai-agent-sdk-provider-openai/decisions`. This is a native `/v1/decisions`
 transport with `provider` probability evidence, distinct from the LLM bridge's
-Responses or Chat Completions calls. Use a separate OpenAI API key; ChatGPT OAuth
-for Codex Responses alone does not provide Decisions access. There is no fallback
-to Responses on error. A custom API root includes `/v1`.
+Responses or Chat Completions calls. Official examples use an OpenAI API key.
+Live checks on 2026-11-19 also succeeded using the current Codex CLI and
+project-local OAuth access tokens with `gpt-6-luna` at `api.openai.com/v1/decisions`.
+Access depends on the account. Supply an API key or current OAuth access token
+through `apiKey`, preferably with a credential source that resolves per attempt.
+The application selects the Codex store explicitly. A custom API root includes `/v1`.
 
 ```ts
 import { createDecisionRuntime, choiceQuestion }

@@ -142,7 +142,7 @@ class RuntimeTeamValue implements RuntimeTeamRegistration {
       void draining.then(() => this.onClosed(this), () => undefined)
       void atDeadline(
         this.host.resources, this.host.resources.platform.monotonicNow() + RUNTIME_TEAM_LIMITS.closeTimeoutMs,
-        () => draining, signal,
+        () => draining, { caller: signal },
       ).then(resolve, error => {
         const aborted = error instanceof BoundaryFailure && error.reason === 'aborted'
         reject(new AgentSdkError(

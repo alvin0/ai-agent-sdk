@@ -6,6 +6,7 @@ import { serializedBytes, modelFailureFinish, modelAbortedFinish, messageOf } fr
 import { validateStreamChunk } from './validation.ts'
 import { StreamAbortError, StreamAbortRace, closeIterator } from './cancellation.ts'
 import type { ModelRoundContext, ModelStreamResult } from './model-round-types.ts'
+import { snapshotUnsettledModelCall } from '../../../runtime/model-call-runtime.ts'
 
 function abortedStreamFinish(
   signal: AbortSignal, timeout: string | undefined, error: StreamAbortError,
@@ -99,6 +100,7 @@ async function consumeModelStream(
   const state: StreamState = { assembler, owned, signal: roundSignal, limits,
     closedBlockIndexes: new Set(), idle, events: 0, responseBytes: 0, sawFinish: false }
   let exhausted = false
+  let settled = true
   try { exhausted = await pumpStream(context, iterator, state) }
   catch (error: unknown) {
     if (!(error instanceof StreamAbortError)) throw error
@@ -106,7 +108,15 @@ async function consumeModelStream(
   } finally {
     clearTimeout(timeout)
     idle.dispose()
-    if (!exhausted) await teardownStream(iterator, state)
+    if (!exhausted) settled = await teardownStream(iterator, state)
+  }
+  // A stuck iterator cannot finalize its call report. Preserve the bounded
+  // teardown failure instead of waiting again on that same unfinished work.
+  if (!settled) {
+    const report = snapshotUnsettledModelCall(iterator)
+    return report === undefined
+      ? { assembler, usageRequired: false, usageUnavailable: false }
+      : { assembler, ...await recordReport(context, requestBase, report) }
   }
   const report = await handle.report
   return { assembler, ...await recordReport(context, requestBase, report) }
@@ -120,7 +130,7 @@ async function recordReport(context: ModelRoundContext, requestBase: GenerateOpt
     usageRequired: decision?.usageRequired ?? false, usageUnavailable: decision?.usageUnavailable ?? false }
 }
 
-async function teardownStream(iterator: AsyncIterator<StreamChunk>, state: StreamState): Promise<void> {
+async function teardownStream(iterator: AsyncIterator<StreamChunk>, state: StreamState): Promise<boolean> {
   state.owned.abort(new Error('model stream closed before exhaustion'))
   const settled = await closeIterator(iterator, state.limits.teardownTimeoutMs)
   if (!settled) {
@@ -129,6 +139,7 @@ async function teardownStream(iterator: AsyncIterator<StreamChunk>, state: Strea
       + 'the adapter operation may still be running', 'MODEL_TEARDOWN_TIMEOUT',
     ))
   }
+  return settled
 }
 
 async function pumpStream(

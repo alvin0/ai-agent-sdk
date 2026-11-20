@@ -8,9 +8,12 @@ Companion runtime decision trả lời các câu hỏi choice, score và boolean
 Import `openAiDecisionPlugin` hoặc `openAiDecisionAdapter` từ
 `@alvin0/ai-agent-sdk-provider-openai/decisions`. Transport này gọi
 `/v1/decisions` và giữ evidence xác suất có nguồn `provider`, khác với LLM bridge
-gọi Responses hoặc Chat Completions. Cần OpenAI API key riêng; OAuth ChatGPT của
-Codex Responses không tự cấp quyền Decisions. Không fallback sang Responses khi
-lỗi. API root tùy chỉnh phải bao gồm `/v1`.
+gọi Responses hoặc Chat Completions. Ví dụ chính thức dùng OpenAI API key.
+Kiểm tra live ngày 19-11-2026 cũng gọi thành công bằng OAuth access token hiện tại
+của Codex CLI và dự án với `gpt-6-luna` tại `api.openai.com/v1/decisions`.
+Quyền truy cập phụ thuộc tài khoản. Truyền API key hoặc OAuth access token hiện tại
+qua `apiKey`, ưu tiên credential source phân giải lại cho mỗi attempt. Ứng dụng
+chọn kho lưu credential Codex. API root tùy chỉnh phải bao gồm `/v1`.
 
 ```ts
 import { createDecisionRuntime, choiceQuestion }

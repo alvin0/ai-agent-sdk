@@ -12,6 +12,7 @@ import type {
 } from '@alvin0/ai-agent-sdk-core'
 import type { AgentRunEvent, AgentRunHandle, AgentSession } from '@alvin0/ai-agent-sdk-core/agent'
 import { readConfig } from './config'
+import { providerErrorDetail, resetProviderError } from './provider-error'
 import {
   SessionBusyError, SessionCapacityError, acquireSession, activeSessions, dropSession, findSession, findTrace, leadName,
   type WarmSession,
@@ -142,7 +143,7 @@ export function createEdgeChatApp(basePath = '/api') {
 
     // A failure recorded during an earlier run must not be offered as the
     // explanation for this one.
-    entry.providerError.message = undefined
+    resetProviderError(entry.providerError)
     // Events queued by an earlier turn describe that turn, not this one.
     entry.teamEvents.length = 0
     entry.teamRawEvents.length = 0
@@ -432,7 +433,7 @@ async function pumpAuto(
     const report = await handle.report.catch(() => undefined)
     const last = report?.errors.at(-1)
     const call = report?.modelCalls.findLast(entry => entry.error !== undefined)
-    const detail = context.entry.providerError.message
+    const detail = providerErrorDetail(context.entry.providerError, call)
     send({
       t: 'error',
       code: last?.code ?? 'RUN_FAILED',
@@ -504,7 +505,7 @@ async function pump(
     // together they are what makes a wrong model id or an exhausted quota
     // diagnosable from the page instead of from a log nobody has.
     const call = report?.modelCalls.findLast(entry => entry.error !== undefined)
-    const detail = providerError.message
+    const detail = providerErrorDetail(providerError, call)
     send({
       t: 'error',
       code: last?.code ?? 'RUN_FAILED',

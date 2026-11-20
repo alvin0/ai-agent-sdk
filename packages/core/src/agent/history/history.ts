@@ -56,7 +56,7 @@ export class History {
     },
   ): History {
     const history = new History(limits)
-    history.log.push(...entries)
+    entries.forEach(entry => history.log.push(entry))
     history.replacementGeneration = entries.filter(entry => entry.surfaceOp !== 'append').length
     history.validationState = validationState
     history.storedBytes = storage.storedBytes
@@ -159,7 +159,7 @@ export class History {
       if (surfaceOp !== 'append') replacements++
     }
     this.commitStoredImageUpdates(retentionPlan.updates)
-    this.log.push(...candidates)
+    candidates.forEach(entry => this.log.push(entry))
     this.validationState = state
     this.storedBytes = totalBytes
     this.replacementGeneration += replacements

@@ -35,10 +35,7 @@ export async function executeMcpClosePlan(plan: McpClosePlan): Promise<McpCloseR
       removeAbort = () => plan.signal?.removeEventListener('abort', observe)
       if (plan.signal?.aborted === true) observe()
     })
-  await Promise.race([
-    waitForSettlement(Promise.all(tasks), plan.timeoutMs),
-    abortObserved,
-  ])
+  await waitForSettlement(Promise.race([Promise.all(tasks), abortObserved]), plan.timeoutMs)
   removeAbort()
   const unsettledOperations = states.filter(state => state === 'pending').length
   const failed = states.includes('failed')

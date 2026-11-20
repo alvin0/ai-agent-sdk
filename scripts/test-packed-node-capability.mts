@@ -9,7 +9,7 @@ const capability = process.argv[2]
 const dependencyNames: Readonly<Record<string, readonly string[]>> = {
   'auth-node': [
     'core', 'provider-http', 'protocol-responses', 'protocol-openai-chat-completions',
-    'provider-codex', 'provider-copilot', 'auth-node',
+    'provider-codex', 'provider-copilot', 'provider-antigravity', 'auth-node',
   ],
   'skill-filesystem': ['core', 'skill-filesystem'],
   'instructions-node': ['core', 'instructions-node'],
@@ -51,10 +51,10 @@ function testAuthEnvOnly(packages: ReadonlyMap<string, string>): void {
       required(packages, 'core'), required(packages, 'auth-node'),
     ], temporary)
     run(process.execPath, ['smoke.mjs'], temporary)
-    // Both providers are OPTIONAL peers, so an `/env`-only closure must pull in
-    // neither of them; a required peer would make the smallest install drag a
+    // Provider peers are OPTIONAL, so an `/env`-only closure must pull in
+    // none of them; a required peer would make the smallest install drag a
     // whole provider along.
-    for (const provider of ['provider-codex', 'provider-copilot'] as const) {
+    for (const provider of ['provider-codex', 'provider-copilot', 'provider-antigravity'] as const) {
       const providerPath = join(temporary, 'node_modules', '@alvin0', `ai-agent-sdk-${provider}`)
       if (existsSync(providerPath)) throw new Error(`env-only auth closure installed ${provider}`)
     }

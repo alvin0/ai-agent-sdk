@@ -1,6 +1,5 @@
 import {
   McpServer,
-  fromJsonSchema,
 } from '@modelcontextprotocol/server'
 import type { ToolCatalog } from '@alvin0/ai-agent-sdk-core/tools'
 import { preferredState, type PreferredServerAgent } from '../common/preferred-state.ts'
@@ -10,6 +9,20 @@ import type {
 import type { SdkMcpServerOptions } from './advanced-types.ts'
 import { assertIdentity, serializedBytes, type ResolvedMcpServerLimits } from './advanced-support.ts'
 import { callAgent, callRuntimeAgent, callSdkTool } from './advanced-calls.ts'
+import { captureInputSchema } from './input-schema.ts'
+
+const agentInputSchema = {
+  type: 'object' as const,
+  properties: {
+    input: { type: 'string' as const, minLength: 1 },
+    conversationId: { type: 'string' as const, minLength: 1 },
+  },
+  required: ['input'], additionalProperties: false,
+}
+const runtimeAgentInputSchema = {
+  type: 'object' as const, properties: { input: { type: 'string' as const, minLength: 1 } },
+  required: ['input'], additionalProperties: false,
+}
 
 interface RegistrationContext {
   server: McpServer; names: Set<string>; options: SdkMcpServerOptions; request: SdkMcpRequestContext;
@@ -34,10 +47,9 @@ function registerTools(ctx: RegistrationContext, schemas: ReturnType<ToolCatalog
       schema.name,
       {
         description: schema.description,
-        // The Worker/browser validator dereferences by attaching private
-        // metadata. SDK tool schemas are intentionally frozen, so give the
-        // protocol boundary an isolated mutable copy.
-        inputSchema: fromJsonSchema<Record<string, unknown>>(structuredClone(schema.parameters)),
+        inputSchema: captureInputSchema<Record<string, unknown>>(
+          schema.parameters, options.tools?.get(schema.name) ?? schema.parameters,
+        ),
       },
       async (args, context) => await callSdkTool(options, schema.name, args, context),
     )
@@ -56,15 +68,7 @@ function registerAgents(ctx: RegistrationContext): void {
         description: agent.description
           ?? agent.agent.description
           ?? `Run the ${agent.agent.name} agent for one conversational turn.`,
-        inputSchema: fromJsonSchema<{ input: string; conversationId?: string }>({
-          type: 'object',
-          properties: {
-            input: { type: 'string', minLength: 1 },
-            conversationId: { type: 'string', minLength: 1 },
-          },
-          required: ['input'],
-          additionalProperties: false,
-        }),
+        inputSchema: captureInputSchema<{ input: string; conversationId?: string }>(agentInputSchema),
       },
       async (args, context) => await callAgent(options, { definition: agent, request }, args, context),
     )
@@ -81,10 +85,7 @@ function registerRuntimeAgents(
     names.add(name)
     server.registerTool(name, {
       description: `Run the ${name} agent for one turn.`,
-      inputSchema: fromJsonSchema<{ input: string }>({
-        type: 'object', properties: { input: { type: 'string', minLength: 1 } },
-        required: ['input'], additionalProperties: false,
-      }),
+      inputSchema: captureInputSchema<{ input: string }>(runtimeAgentInputSchema),
     }, async (args, context) => await callRuntimeAgent(options, { name, agent }, args, context))
   }
 }

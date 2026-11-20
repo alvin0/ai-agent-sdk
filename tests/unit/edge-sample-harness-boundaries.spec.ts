@@ -106,6 +106,24 @@ describe('Edge sample actual harness admission and terminal boundaries', () => {
     expect(terminals[0]).toMatchObject({ t: 'error', status: 400, detail: 'Fixture model unavailable' })
   })
 
+  it.each(['single', 'team', 'team-auto'])('redacts echoed credentials in %s UI errors', async mode => {
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({
+      error: { message: `Invalid API key ${KEY}` },
+    }), { status: 401 }))
+    const events = await wire(await chat(`edge-private-${mode}`, { mode }))
+    const terminal = events.find(event => event.t === 'error')
+    expect(terminal).toMatchObject({ status: 401, detail: 'Invalid API key [REDACTED]' })
+    expect(JSON.stringify(events)).not.toContain(KEY)
+    const runId = events.find(event => event.t === 'start')?.runId
+    const saved = await createEdgeChatApp().fetch(new Request(`https://edge.test/api/traces/${String(runId)}`, {
+      headers: { 'x-openai-key': KEY },
+    }))
+    expect(saved.status).toBe(200)
+    const trace = await saved.json() as { spans: unknown[] }
+    expect(trace.spans.length).toBeGreaterThan(0)
+    expect(JSON.stringify(trace)).not.toContain(KEY)
+  })
+
   it('does not dispatch a request that arrived already aborted', async () => {
     const abort = new AbortController(); abort.abort('fixture disconnected')
     const events = await wire(await chat('edge-pre-abort', {}, KEY, abort.signal))

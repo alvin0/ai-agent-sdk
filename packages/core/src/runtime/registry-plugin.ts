@@ -4,6 +4,7 @@ import { PLUGIN_ERROR_CODES, PluginError, type AdapterRegistrationHandle,
   type ModelProviderPlugin, type ModelProviderRegistrar,
   type PluginRegistrationHandle, type StreamMiddleware } from '../plugin/provider-plugin.ts'
 import type { RuntimeAdapterRegistration } from './model-stream.ts'
+import { releaseOnce } from '../primitives/release.ts'
 
 type AdapterRegistration = RuntimeAdapterRegistration
 interface PluginOwner { readonly pluginId: string; readonly family: string }
@@ -223,10 +224,7 @@ class PluginInstallation {
 
   private disposer(installed: InstalledPlugin): PluginRegistrationHandle {
     const pluginId = this.pluginId
-    let disposed = false
-    const dispose = (() => {
-      if (disposed) return
-      disposed = true
+    const dispose = releaseOnce(() => {
       this.host.plugins.delete(pluginId)
       for (const registration of installed.registrations) {
         if (this.host.adapters.get(registration.provider.id) === registration) {

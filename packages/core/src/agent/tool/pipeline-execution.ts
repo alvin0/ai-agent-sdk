@@ -45,6 +45,7 @@ function renderToolResult(call: AuthorizedToolCall, state: {
 }): ToolSuccess {
   const { tool, context } = call
   const { value, extraContext, concludes } = state
+  const retained = tool.omitResultValue ? undefined : value
   let content: readonly ContentBlock[]
   let meta: JsonObject | undefined
   try {
@@ -52,14 +53,14 @@ function renderToolResult(call: AuthorizedToolCall, state: {
     meta = tool.meta?.(value, context.args as never)
   } catch (error: unknown) {
     return {
-      isError: false, value, content: renderJsonValue(value),
+      isError: false, value: retained, content: renderJsonValue(retained),
       ...extraContext.length === 0 ? {} : { additionalContext: extraContext },
       ...concludes() ? { concludesTurn: true as const } : {},
       meta: { renderError: messageOf(error) },
     } satisfies ToolSuccess
   }
   return {
-    isError: false, value, content,
+    isError: false, value: retained, content,
     ...meta === undefined ? {} : { meta },
     ...extraContext.length === 0 ? {} : { additionalContext: extraContext },
     ...concludes() ? { concludesTurn: true as const } : {},

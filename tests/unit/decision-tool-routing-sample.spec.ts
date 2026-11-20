@@ -77,6 +77,21 @@ describe('decision tool-routing sample benchmark', () => {
     const s = structuredClone(scenarios[0]!); s.demand.critical = 20; s.suppliers.expressCost = 200
     expect(oracle(s)).toEqual(['P2', 'P3', 'P4'])
   })
+  it('exposes executor availability without substituting grader choices', () => {
+    const scenario = scenarios[0]!, workspace = createWorkspace()
+    const available = () => (publicState(scenario, workspace) as { availableTools: ToolName[] }).availableTools
+    expect(available()).toEqual(['read_demand', 'read_inventory', 'read_policy', 'read_suppliers', 'read_lanes'])
+    expect(available()).not.toContain('build_plans')
+    expect(available()).not.toContain('read_temperature')
+    expect(available()).not.toContain('place_order')
+    expect(available()).not.toContain('contact_vendor')
+    executeTool(scenario, workspace, 'read_inventory')
+    expect(available()).not.toContain('read_inventory')
+    expect(available()).toContain('read_temperature')
+    // This read is permitted by the executor, even when the scorer considers it unnecessary.
+    expect(expectedNext(scenario, workspace)).not.toContain('read_temperature')
+    expect(executeTool(scenario, workspace, 'read_inventory')).toMatchObject({ ok: false })
+  })
   it('rejects an infeasible model proposal without silently choosing the oracle', () => {
     const s = scenarios[2]!, w = createWorkspace()
     for (const name of [...requiredSources(s), 'build_plans', 'simulate_plans'] as const) executeTool(s, w, name as keyof typeof w.observations)

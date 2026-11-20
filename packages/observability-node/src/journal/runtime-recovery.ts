@@ -1,8 +1,37 @@
-import { rename } from 'node:fs/promises'
+import { readdir, rename } from 'node:fs/promises'
+import { deepFreeze } from '@alvin0/ai-agent-sdk-core'
 import { join } from 'node:path'
 import { journalFailure } from './errors.ts'
 import { parseRuntimeJournalLine, type RuntimeJournalRecord } from './runtime-frame.ts'
 import { readSegmentLines } from './segment-reader.ts'
+
+export interface RuntimeJournalRecoveryResult {
+  readonly records: readonly RuntimeJournalRecord[]
+  readonly truncatedSegments: readonly string[]
+  readonly quarantinedSegments: readonly string[]
+}
+
+export async function recoverRuntimeJournal(root: string): Promise<RuntimeJournalRecoveryResult> {
+  return deepFreeze(await readRuntimeJournal(root))
+}
+
+export async function readRuntimeJournal(root: string): Promise<RuntimeJournalRecoveryResult> {
+  const names = (await readdir(root)).filter(name => name.endsWith('.jsonl')).sort()
+  const records: RuntimeJournalRecord[] = []
+  const payloads = new Map<string, string>()
+  const truncatedSegments: string[] = []
+  const quarantinedSegments: string[] = []
+  for (const name of names) {
+    const segmentRecords = await recoverRuntimeSegment(root, name, {
+      payloads, truncatedSegments, quarantinedSegments,
+    })
+    for (const record of segmentRecords) {
+      payloads.set(record.key, record.payloadJson)
+      records.push(record)
+    }
+  }
+  return { records, truncatedSegments, quarantinedSegments }
+}
 
 export async function recoverRuntimeSegment(root: string, name: string, state: {
   payloads: ReadonlyMap<string, string>; truncatedSegments: string[]; quarantinedSegments: string[]

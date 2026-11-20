@@ -75,7 +75,10 @@ function contentMetadata(value: unknown): JsonObject {
 function redactContent(value: string, path: readonly string[], redactors: readonly ContentRedactor[]): string {
   let current = value
   for (const redactor of redactors) {
-    try { current = redactor.redact(current, path) } catch { return '[REDACTION_FAILED]' }
+    try {
+      current = redactor.redact(current, path)
+      if (typeof current !== 'string') return '[REDACTION_FAILED]'
+    } catch { return '[REDACTION_FAILED]' }
   }
   return current
 }
@@ -113,7 +116,7 @@ export function sanitizeObservationData(value: unknown, options: PrivacyOptions)
 function cloneValue(value: unknown, path: readonly string[], depth: number, state: CloneState): JsonValue {
   if (value === null) return null
   switch (typeof value) {
-    case 'string': return cloneString(value, state)
+    case 'string': return cloneString(value, path, state)
     case 'number': return Number.isFinite(value) ? value : String(value)
     case 'boolean': return value
     case 'object': return cloneObject(value, path, depth, state)
@@ -123,8 +126,11 @@ function cloneValue(value: unknown, path: readonly string[], depth: number, stat
   }
 }
 
-function cloneString(value: string, state: CloneState): string {
-  const redacted = redactInlineSecrets(value)
+function cloneString(value: string, path: readonly string[], state: CloneState): string {
+  const content = state.options.content === 'redacted'
+    && path.some(key => CONTENT_KEYS.has(normalizedKey(key)))
+  const filtered = content ? redactContent(value, path, state.options.redactors) : value
+  const redacted = redactInlineSecrets(filtered)
   if (redacted.length > MAX_STRING_LENGTH) state.truncated = true
   return redacted.slice(0, MAX_STRING_LENGTH)
 }
@@ -175,15 +181,7 @@ function cloneRecordEntry(value: object, originalKey: string, context: {
   const contentKey = CONTENT_KEYS.has(normalizedKey(originalKey))
   if (contentKey && state.options.content === 'none') return undefined
   if (contentKey && state.options.content === 'metadata') return contentMetadata(child)
-  if (shouldRedactContent(contentKey, child, state.options)) {
-    return cloneValue(redactContent(child, [...path, originalKey], state.options.redactors),
-      [...path, originalKey], depth + 1, state)
-  }
   return cloneValue(child, [...path, originalKey], depth + 1, state)
-}
-
-function shouldRedactContent(contentKey: boolean, child: unknown, options: PrivacyOptions): child is string {
-  return contentKey && options.content === 'redacted' && typeof child === 'string'
 }
 
 function requiredString(value: unknown, field: string): string {

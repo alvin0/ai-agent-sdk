@@ -1,4 +1,5 @@
-import { recoverRuntimeSegment } from './runtime-recovery.ts'
+import { readRuntimeJournal, recoverRuntimeJournal } from './runtime-recovery.ts'
+export { recoverRuntimeJournal, type RuntimeJournalRecoveryResult } from './runtime-recovery.ts'
 import { randomBytes } from 'node:crypto'
 import {
   lstat,
@@ -9,7 +10,6 @@ import {
   type FileHandle,
 } from 'node:fs/promises'
 import { join } from 'node:path'
-import { deepFreeze, type ObservationEvent } from '@alvin0/ai-agent-sdk-core'
 import type {
   ObservationDeliveryAck,
   ObservationDeliveryBatch,
@@ -19,11 +19,15 @@ import { atomicWriteJson, ensureSafeRoot, openExclusiveFile } from '../common/sa
 import { JOURNAL_FILES, JOURNAL_LIMITS, safeSegmentId } from './config.ts'
 import { journalFailure } from './errors.ts'
 import {
-  runtimeItemIdentity,
-  runtimeJournalLine,
+  captureRuntimeJournalItem,
+  type CapturedRuntimeItem,
   type RuntimeJournalRecord,
 } from './runtime-frame.ts'
 import type { RuntimeJournalOptions } from './runtime-options.ts'
+import { appendJournalLine } from './write.ts'
+import {
+  captureRuntimeJournalBatch, waitForRuntimeJournalExport, type RuntimeBatchReceipt,
+} from './runtime-batch.ts'
 
 interface RuntimeCursor {
   readonly schemaVersion: 1
@@ -42,25 +46,20 @@ interface PendingItem {
   readonly promise: Promise<void>
 }
 
-export interface RuntimeJournalRecoveryResult {
-  readonly records: readonly RuntimeJournalRecord[]
-  readonly truncatedSegments: readonly string[]
-  readonly quarantinedSegments: readonly string[]
-}
-
 export class RuntimeJsonlJournal {
   private root: string | undefined
   private current: RuntimeSegment | undefined
   private writeTail: Promise<void> = Promise.resolve()
   private readonly payloads = new Map<string, string>()
   private readonly pending = new Map<string, PendingItem>()
-  private readonly batches = new Map<string, readonly string[]>()
+  private readonly batches = new Map<string, RuntimeBatchReceipt>()
   private readonly accepted = new Set<string>()
   private syncTimer: ReturnType<typeof setTimeout> | undefined
   private unsyncedRecords = 0
   private unsyncedCritical = 0
   private failed: unknown
   private closing = false
+  private shutdownTask: Promise<void> | undefined
 
   constructor(private readonly options: RuntimeJournalOptions) {}
 
@@ -93,8 +92,11 @@ export class RuntimeJsonlJournal {
 
   stage(item: ObservationExportItem): Promise<void> {
     this.ensureAvailable()
-    const identity = runtimeItemIdentity(item)
-    const payloadJson = JSON.stringify(item)
+    return this.stageCaptured(captureRuntimeJournalItem(item))
+  }
+
+  private stageCaptured(identity: CapturedRuntimeItem): Promise<void> {
+    const { payloadJson, line, priority } = identity
     const persisted = this.payloads.get(identity.key)
     if (persisted !== undefined) {
       if (persisted !== payloadJson)
@@ -107,18 +109,22 @@ export class RuntimeJsonlJournal {
         throw journalFailure('corrupt', 'duplicate runtime journal item has different data')
       return existing.promise
     }
+    let capacityRejected = false
     const promise = this.enqueue(async () => {
       const root = this.requiredRoot()
-      const line = runtimeJournalLine(item, payloadJson)
       const lineBytes = Buffer.byteLength(line)
       if (lineBytes > JOURNAL_LIMITS.recoverySegmentBytes) {
         throw journalFailure('io', 'runtime journal record exceeds the recovery bound')
       }
-      const priority = identity.kind === 'run-terminal-record' ? 'critical' : (item as ObservationEvent).priority
-      await this.ensureCapacity(root, lineBytes, priority)
       await this.rotateIfNeeded(root, lineBytes)
+      if (!await this.ensureCapacity(root, lineBytes)) {
+        capacityRejected = true
+        throw journalFailure('io', priority === 'critical'
+          ? 'runtime journal capacity contains unacknowledged critical records'
+          : 'runtime journal capacity is exhausted')
+      }
       if (this.current === undefined) throw journalFailure('io', 'runtime journal segment was not opened')
-      await this.current.handle.writeFile(line, 'utf8')
+      await appendJournalLine(this.current, line, error => { this.failed = error })
       this.current.bytes += lineBytes
       this.payloads.set(identity.key, payloadJson)
       this.unsyncedRecords++
@@ -129,7 +135,10 @@ export class RuntimeJsonlJournal {
     this.pending.set(identity.key, { payloadJson, promise })
     void promise.then(
       () => { this.pending.delete(identity.key) },
-      error => { this.failed = error },
+      error => {
+        this.pending.delete(identity.key)
+        if (!capacityRejected) this.failed = error
+      },
     )
     return promise
   }
@@ -137,15 +146,34 @@ export class RuntimeJsonlJournal {
   async export(batch: ObservationDeliveryBatch, signal: AbortSignal): Promise<ObservationDeliveryAck> {
     this.ensureAvailable()
     abortIfRequested(signal)
-    const items: readonly ObservationExportItem[] = [...batch.events, ...batch.runRecords]
-    const keys = items.map(item => runtimeItemIdentity(item).key)
-    const previous = this.batches.get(batch.id)
+    const { batchId, items, keys, payloadHash, acknowledgment } = captureRuntimeJournalBatch(batch)
+    const previous = this.batches.get(batchId)
     if (previous !== undefined) {
-      if (!sameList(previous, keys))
+      if (previous.payloadHash !== payloadHash)
         throw journalFailure('corrupt', 'duplicate runtime journal batch has different items')
-      return deliveryAck(batch)
+      if (!previous.controller.signal.aborted) return waitForRuntimeJournalExport(previous, signal)
     }
-    await Promise.all(items.map(item => this.stage(item)))
+    const controller = new AbortController()
+    const delivered = previous === undefined
+      ? this.deliver(items, keys, controller.signal)
+      : previous.promise.catch(() => undefined).then(() => this.deliver(items, keys, controller.signal))
+    const promise = delivered.then(() => acknowledgment)
+    const receipt: RuntimeBatchReceipt = { keys, payloadHash, promise, controller, waiters: 0, delivered: false }
+    this.batches.set(batchId, receipt)
+    void promise.then(() => {
+      receipt.delivered = true
+      if (receipt.keys.length > 0 && receipt.keys.every(key => !this.payloads.has(key))
+        && this.batches.get(batchId) === receipt) this.batches.delete(batchId)
+    }, () => {
+      if (this.batches.get(batchId) === receipt) this.batches.delete(batchId)
+    })
+    return waitForRuntimeJournalExport(receipt, signal)
+  }
+
+  private async deliver(
+    items: readonly CapturedRuntimeItem[], keys: readonly string[], signal: AbortSignal,
+  ): Promise<void> {
+    await Promise.all(items.map(item => this.stageCaptured(item)))
     abortIfRequested(signal)
     await this.enqueue(async () => {
       await this.syncCurrent()
@@ -161,21 +189,38 @@ export class RuntimeJsonlJournal {
       }
     })
     abortIfRequested(signal)
-    this.batches.set(batch.id, Object.freeze(keys))
-    return deliveryAck(batch)
   }
 
-  async shutdown(signal: AbortSignal): Promise<void> {
-    if (this.closing) return
+  shutdown(signal: AbortSignal): Promise<void> {
+    if (this.shutdownTask !== undefined) return this.shutdownTask
     this.closing = true
     if (this.syncTimer !== undefined) clearTimeout(this.syncTimer)
-    await Promise.allSettled([...this.pending.values()].map(value => value.promise))
-    abortIfRequested(signal)
+    this.shutdownTask = this.close(signal)
+    return this.shutdownTask
+  }
+
+  private async close(signal: AbortSignal): Promise<void> {
+    await Promise.allSettled([
+      ...[...this.pending.values()].map(value => value.promise),
+      ...[...this.batches.values()].map(value => value.promise),
+    ])
     await this.enqueue(async () => {
-      await this.syncCurrent()
-      await this.current?.handle.close()
-      this.current = undefined
-    })
+      try {
+        abortIfRequested(signal)
+        await this.syncCurrent()
+      } finally {
+        if (this.syncTimer !== undefined) clearTimeout(this.syncTimer)
+        const current = this.current
+        this.current = undefined
+        try { await current?.handle.close() }
+        finally {
+          this.payloads.clear()
+          this.pending.clear()
+          this.batches.clear()
+          this.accepted.clear()
+        }
+      }
+    }, true)
   }
 
   private ensureAvailable(): void {
@@ -189,8 +234,12 @@ export class RuntimeJsonlJournal {
     return this.root
   }
 
-  private enqueue(operation: () => Promise<void>): Promise<void> {
-    const result = this.writeTail.then(operation)
+  private enqueue(operation: () => Promise<void>, allowFailure = false): Promise<void> {
+    const result = this.writeTail.then(() => {
+      if (!allowFailure && this.failed !== undefined)
+        throw journalFailure('io', 'runtime observation journal has failed', this.failed)
+      return operation()
+    })
     this.writeTail = result.catch(() => undefined)
     return result
   }
@@ -237,21 +286,16 @@ export class RuntimeJsonlJournal {
     this.unsyncedCritical = 0
   }
 
-  private async ensureCapacity(root: string, incomingBytes: number, priority: string): Promise<void> {
+  private async ensureCapacity(root: string, incomingBytes: number): Promise<boolean> {
     let total = await retainedBytes(root)
-    if (total + incomingBytes <= this.options.maxRetainedBytes) return
+    if (total + incomingBytes <= this.options.maxRetainedBytes) return true
     await this.cleanupNow(root)
     total = await retainedBytes(root)
-    if (total + incomingBytes > this.options.maxRetainedBytes) throw journalFailure(
-      'io',
-      priority === 'critical'
-        ? 'runtime journal capacity contains unacknowledged critical records'
-        : 'runtime journal capacity is exhausted',
-    )
+    return total + incomingBytes <= this.options.maxRetainedBytes
   }
 
   private async cleanupCandidates(root: string) {
-    const recovered = await recoverRuntimeJournal(root)
+    const recovered = await readRuntimeJournal(root)
     const bySegment = new Map<string, RuntimeJournalRecord[]>()
     for (const record of recovered.records) {
       const records = bySegment.get(record.segment) ?? []
@@ -288,9 +332,19 @@ export class RuntimeJsonlJournal {
         if (this.accepted.delete(record.key)) cursorChanged = true
       }
     }
-    if (cursorChanged) await this.persistCursor(root)
+    if (cursorChanged) {
+      this.reclaimBatchReceipts()
+      await this.persistCursor(root)
+    }
     if (retained > this.options.maxRetainedBytes) {
       throw journalFailure('io', 'runtime journal retention cap contains unacknowledged records')
+    }
+  }
+
+  private reclaimBatchReceipts(): void {
+    for (const [batchId, receipt] of this.batches) {
+      if (receipt.delivered && receipt.keys.length > 0
+        && receipt.keys.every(key => !this.payloads.has(key))) this.batches.delete(batchId)
     }
   }
 
@@ -318,38 +372,8 @@ export class RuntimeJsonlJournal {
   }
 }
 
-export async function recoverRuntimeJournal(root: string): Promise<RuntimeJournalRecoveryResult> {
-  const names = (await readdir(root)).filter(name => name.endsWith('.jsonl')).sort()
-  const records: RuntimeJournalRecord[] = []
-  const payloads = new Map<string, string>()
-  const truncatedSegments: string[] = []
-  const quarantinedSegments: string[] = []
-  for (const name of names) {
-    const segmentRecords = await recoverRuntimeSegment(root, name, {
-      payloads, truncatedSegments, quarantinedSegments,
-    })
-    for (const record of segmentRecords) {
-      payloads.set(record.key, record.payloadJson)
-      records.push(record)
-    }
-  }
-  return deepFreeze({ records, truncatedSegments, quarantinedSegments })
-}
-
-function deliveryAck(batch: ObservationDeliveryBatch): ObservationDeliveryAck {
-  return deepFreeze({
-    batchId: batch.id,
-    acceptedEventIds: batch.events.map(event => event.eventId),
-    acceptedRunIds: batch.runRecords.map(record => record.runId),
-  })
-}
-
 function abortIfRequested(signal: AbortSignal): void {
   if (signal.aborted) throw signal.reason ?? new Error('runtime observation journal aborted')
-}
-
-function sameList(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index])
 }
 
 function validNow(value: Date): Date {

@@ -6,5 +6,8 @@ export default defineConfig({
     '@alvin0/ai-agent-sdk-mcp/server': new URL('./src/server.ts', import.meta.url).pathname,
     '@alvin0/ai-agent-sdk-mcp': new URL('./src/index.ts', import.meta.url).pathname,
   } },
-  test: { environment: 'node', include: ['../../tests/unit/mcp.spec.ts'] },
+  test: { environment: 'node', include: [
+    '../../tests/unit/mcp.spec.ts',
+    '../../tests/unit/mcp-close-wait.spec.ts',
+  ] },
 })

@@ -31,34 +31,54 @@ export type JsonObject = { readonly [key: string]: JsonValue }
  * @returns true when the value is losslessly JSON.
  */
 export function isJsonValue(value: unknown): value is JsonValue {
-  return check(value, new WeakSet())
+  try { return check(value, new WeakSet()) } catch { return false }
 }
 
 function check(value: unknown, seen: WeakSet<object>): boolean {
-  if (value === null) return true
-  switch (typeof value) {
-    case 'string':
-    case 'boolean':
-      return true
-    // NaN and Infinity serialize to `null`, so they do not round-trip.
-    case 'number':
-      return Number.isFinite(value)
-    case 'object':
-      break
-    default:
-      return false
+  const pending: { value: unknown; leaving?: true }[] = [{ value }]
+  while (pending.length > 0) {
+    const task = pending.pop()!
+    if (task.leaving) { seen.delete(task.value as object); continue }
+    const current = task.value
+    if (isJsonPrimitive(current)) continue
+    if (typeof current !== 'object' || current === null || seen.has(current)) return false
+    const children = jsonChildren(current)
+    if (children === undefined) return false
+    seen.add(current)
+    pending.push({ value: current, leaving: true })
+    for (let index = children.length - 1; index >= 0; index--) pending.push({ value: children[index] })
   }
-  const object = value as object
-  if (seen.has(object)) return false
-  seen.add(object)
-  try {
-    if (Array.isArray(object)) return object.every(entry => check(entry, seen))
-    // A plain object only. `Object.create(null)` is accepted because it also
-    // serializes faithfully.
-    const prototype = Object.getPrototypeOf(object) as unknown
-    if (prototype !== Object.prototype && prototype !== null) return false
-    return Object.values(object).every(entry => check(entry, seen))
-  } finally {
-    seen.delete(object)
+  return true
+}
+
+function isJsonPrimitive(value: unknown): boolean {
+  return value === null || typeof value === 'string' || typeof value === 'boolean'
+    || (typeof value === 'number' && Number.isFinite(value))
+}
+
+function jsonChildren(value: object): unknown[] | undefined {
+  if (Array.isArray(value)) return arrayChildren(value)
+  const prototype = Object.getPrototypeOf(value) as unknown
+  if (prototype !== Object.prototype && prototype !== null) return undefined
+  const children: unknown[] = []
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== 'string') return undefined
+    const descriptor = Object.getOwnPropertyDescriptor(value, key)
+    if (descriptor === undefined || descriptor.enumerable !== true || !('value' in descriptor)) return undefined
+    children.push(descriptor.value)
   }
+  return children
+}
+
+function arrayChildren(value: readonly unknown[]): unknown[] | undefined {
+  const length = Object.getOwnPropertyDescriptor(value, 'length')?.value as unknown
+  if (typeof length !== 'number' || !Number.isSafeInteger(length) || length < 0
+    || Reflect.ownKeys(value).length !== length + 1) return undefined
+  const children: unknown[] = []
+  for (let index = 0; index < length; index++) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index))
+    if (descriptor === undefined || !('value' in descriptor)) return undefined
+    children.push(descriptor.value)
+  }
+  return children
 }

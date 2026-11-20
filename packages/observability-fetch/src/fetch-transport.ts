@@ -80,20 +80,24 @@ export async function boundedText(response: Response, options: ResolvedOptions, 
   let output = ''
   let bytes = 0
   let chunks = 0
+  let exhausted = false
   try {
     while (true) {
       const next = await raceAbort(reader.read(), signal)
-      if (next.done) return output + decoder.decode()
+      if (next.done) {
+        exhausted = true
+        return output + decoder.decode()
+      }
       if (next.value === undefined) continue
       bytes += next.value.byteLength
       chunks++
       if (bytes > options.maxAckBytes || chunks > options.maxAckChunks) {
-        await waitForSettlement(reader.cancel().catch(() => undefined), 1_000)
         throw new RangeError('observation acknowledgment exceeds its resource limit')
       }
       output += decoder.decode(next.value, { stream: true })
     }
   } finally {
+    if (!exhausted) await waitForSettlement(reader.cancel().catch(() => undefined), 1_000)
     reader.releaseLock()
   }
 }

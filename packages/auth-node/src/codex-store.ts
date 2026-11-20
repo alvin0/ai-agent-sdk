@@ -114,10 +114,9 @@ async function readAuthFile(
   if (raw === undefined) return undefined
   try {
     return Object.freeze({ file: JSON.parse(raw) as CodexAuthFile, raw })
-  } catch (error: unknown) {
+  } catch {
     throw credentialFileError(
       'Codex credential file is not valid JSON; delete it and log in again',
-      error,
     )
   }
 }
@@ -127,8 +126,8 @@ function authPayload(file: CodexAuthFile): string {
     const encoded = JSON.stringify(file, null, 2)
     if (encoded === undefined) throw new TypeError('credential value is not JSON')
     return `${encoded}\n`
-  } catch (error: unknown) {
-    throw credentialFileError('Codex credential value could not be serialized', error)
+  } catch {
+    throw credentialFileError('Codex credential value could not be serialized')
   }
 }
 

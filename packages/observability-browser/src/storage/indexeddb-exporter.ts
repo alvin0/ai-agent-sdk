@@ -100,7 +100,8 @@ export class IndexedDbObservationExporter implements ObservationExporter {
     const start = (database: IDBDatabase) => this.writeItem(database, item, identity, payloadJson)
     const promise = this.database === undefined ? this.databasePromise.then(start) : start(this.database)
     this.pendingStages.set(identity.id, { payloadJson, promise })
-    void promise.catch(() => undefined)
+    const settled = () => { this.pendingStages.delete(identity.id) }
+    void promise.then(settled, settled)
     return promise
   }
 
@@ -119,7 +120,6 @@ export class IndexedDbObservationExporter implements ObservationExporter {
     await raceAbort(Promise.all(items.map(item => this.stageItem(item))).then(() => undefined), signal)
     const database = await raceAbort(this.databasePromise, signal)
     await raceAbort(this.assignBatch(database, batchId, createdAt, items), signal)
-    for (const item of items) this.pendingStages.delete(itemIdentity(item).id)
   }
 
   async recoverEvents(): Promise<readonly ObservationEvent[]> {

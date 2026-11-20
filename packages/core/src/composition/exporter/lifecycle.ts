@@ -42,7 +42,8 @@ export class RuntimeExporters {
     try {
       for (const [index, registration] of this.registrations.entries()) {
         try {
-          await atDeadline(this.resources, deadlineAt, signal => registration.exporter.ready?.(signal), scope.signal)
+          await atDeadline(this.resources, deadlineAt, signal => registration.exporter.ready?.(signal),
+            { caller: scope.signal })
         } catch (error) { throw failedReady(index, error) }
       }
     } finally { scope.dispose() }

@@ -20,24 +20,22 @@ export function byteLength(value: unknown): number {
   return utf8Bytes(serialized)
 }
 
-export function combineSignals(...signals: readonly (AbortSignal | undefined)[]): AbortSignal {
-  const active = signals.filter((signal): signal is AbortSignal => signal !== undefined)
-  if (active.length === 1) return active[0]!
-  return AbortSignal.any(active)
-}
-
 export async function raceWithSignal<T>(pending: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
   if (signal === undefined) return pending
-  if (signal.aborted) throw signal.reason ?? new Error('A2A operation aborted')
+  const cancellation = AbortSignal.any([signal])
+  if (signal.aborted) {
+    void pending.catch(() => undefined)
+    throw signal.reason ?? new Error('A2A operation aborted')
+  }
   return await new Promise<T>((resolve, reject) => {
     const abort = () => {
-      signal.removeEventListener('abort', abort)
+      cancellation.removeEventListener('abort', abort)
       reject(signal.reason ?? new Error('A2A operation aborted'))
     }
-    signal.addEventListener('abort', abort, { once: true })
+    cancellation.addEventListener('abort', abort, { once: true })
     void pending.then(
-      value => { signal.removeEventListener('abort', abort); resolve(value) },
-      error => { signal.removeEventListener('abort', abort); reject(error) },
+      value => { cancellation.removeEventListener('abort', abort); resolve(value) },
+      error => { cancellation.removeEventListener('abort', abort); reject(error) },
     )
   })
 }

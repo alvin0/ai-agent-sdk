@@ -38,9 +38,9 @@ export function sqliteCredentialStore<Value>(
     async read({ signal }) {
       signal.throwIfAborted()
       const row = read.get(tenantId, provider) as { value: string; revision: string } | undefined
-      return row === undefined ? undefined : {
-        value: JSON.parse(row.value) as Value, revision: row.revision,
-      }
+      if (row === undefined) return undefined
+      try { return { value: JSON.parse(row.value) as Value, revision: row.revision } }
+      catch { throw new AgentSdkError('Stored credential is not valid JSON', 'CREDENTIAL_RECORD_INVALID') }
     },
     async commit(input, { signal }) {
       signal.throwIfAborted()

@@ -311,3 +311,9 @@ ranh giới huỷ của mình.
 - [Embeddings](/vi/09-providers/embeddings) — năng lực embedding riêng biệt
 - [Custom Provider](/vi/09-providers/custom-provider) — mọi endpoint khác
 - [Đường ống adapter](/vi/11-internals/adapter-pipeline) — lớp cơ sở sở hữu gì
+
+## Đăng nhập Google với Antigravity
+
+Provider thử nghiệm dùng gói Antigravity qua Google OAuth, đăng nhập bằng trình duyệt và lưu theo dự án.
+
+[Antigravity](/vi/09-providers/antigravity) · `@alvin0/ai-agent-sdk-provider-antigravity` · `@alvin0/ai-agent-sdk-auth-node/antigravity`.

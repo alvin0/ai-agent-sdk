@@ -1145,11 +1145,13 @@
           "createHttpProvider",
           "createModelContextPolicy",
           "createRuntimeHttpProvider",
+          "credentialLoginId",
           "defineWireProtocol",
           "embeddingCatalogModelInfo",
           "endpointHeaders",
           "httpErrorCode",
           "isJsonMediaType",
+          "mergeRequestBody",
           "observeCredentialOperation",
           "observeModelCatalogOperation",
           "parseErrorBody",
@@ -1160,9 +1162,10 @@
           "resolveTransportLimits",
           "resolvedEmbeddingCatalogModelInfo",
           "retryAfterMs",
-          "transportJson"
+          "transportJson",
+          "withCredentialRefresh"
         ],
-        "declarationSha256": "ac4a7334985b114cc9d8b23e28d97491af5cd94fe5a73c1f5c7670c77a3958bc"
+        "declarationSha256": "48ee6089a8be8f1f7e4726109afffd11b55dfd6b23b768f36e382733ae9911e1"
       }
     },
     "@alvin0/ai-agent-sdk-protocol-responses": {

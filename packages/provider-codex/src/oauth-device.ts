@@ -12,7 +12,7 @@ import {
   type CodexLoginProgress,
   type AuthorizationGrant,
 } from './oauth-types.ts'
-import { issuerOf, clientIdOf, oauthFetch, readResponseText, readJson, requireString } from './oauth-http.ts'
+import { issuerOf, clientIdOf, oauthFetch, readJson, requireString } from './oauth-http.ts'
 
 /**
  * Start a device authorization.
@@ -29,16 +29,17 @@ export async function requestDeviceCode(
     body: JSON.stringify({ client_id: clientIdOf(options) }),
   })
   if (response.status === 404) {
+    void response.body?.cancel().catch(() => undefined)
     throw new AgentSdkError(
       `device-code login is not available at ${issuer}; check the issuer URL`,
       'CODEX_AUTH_UNAVAILABLE',
     )
   }
   if (!response.ok) {
+    void response.body?.cancel().catch(() => undefined)
     throw new AgentSdkError(
       `device-code request failed (HTTP ${response.status})`,
       'CODEX_AUTH_FAILED',
-      { cause: new Error(await readResponseText(response, options)) },
     )
   }
   const body = await readJson(response, 'the device-code endpoint', options)
@@ -108,6 +109,7 @@ export async function pollForAuthorization(
     }
 
     if (response.status === 403 || response.status === 404) {
+      void response.body?.cancel().catch(() => undefined)
       const remaining = DEVICE_CODE_MAX_WAIT_MS - (Date.now() - startedAt)
       if (remaining <= 0) {
         throw new AgentSdkError(
@@ -119,10 +121,10 @@ export async function pollForAuthorization(
       continue
     }
 
+    void response.body?.cancel().catch(() => undefined)
     throw new AgentSdkError(
       `device-code polling failed (HTTP ${response.status})`,
       'CODEX_AUTH_FAILED',
-      { cause: new Error(await readResponseText(response, options)) },
     )
   }
 }
@@ -154,10 +156,10 @@ export async function exchangeCodeForTokens(
     body: body.toString(),
   })
   if (!response.ok) {
+    void response.body?.cancel().catch(() => undefined)
     throw new AgentSdkError(
       `token exchange failed (HTTP ${response.status})`,
       'CODEX_AUTH_FAILED',
-      { cause: new Error(await readResponseText(response, options)) },
     )
   }
   const parsed = await readJson(response, 'the token endpoint', options)
@@ -172,7 +174,7 @@ export async function exchangeCodeForTokens(
 export function authFileFor(tokens: CodexTokens): CodexAuthFile {
   const accountId = resolveAccountId(tokens)
   return {
-    auth_mode: 'chatgpt',
+    auth_mode: 'chatgpt', loginId: crypto.randomUUID(),
     OPENAI_API_KEY: null,
     tokens: { ...tokens, account_id: accountId ?? null },
     last_refresh: new Date().toISOString(),

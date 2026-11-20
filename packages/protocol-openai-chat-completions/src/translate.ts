@@ -68,7 +68,9 @@ function parseChunk(payload: string, displayName: string): WireStreamChunk {
   let chunk: WireStreamChunk
   try { chunk = JSON.parse(payload) as WireStreamChunk }
   catch (error: unknown) { throw malformed(displayName, 'the event data is not JSON', error) }
-  if (recordOrUndefined(chunk) === undefined) throw malformed(displayName, 'the event data is not an object')
+  if (recordOrUndefined(chunk) === undefined || Array.isArray(chunk)) {
+    throw malformed(displayName, 'the event data is not an object')
+  }
   // Typed as an object, but some gateways send a plain string; both are handled.
   const inline: unknown = chunk.error
   if (inline !== undefined && inline !== null) {

@@ -7,6 +7,8 @@ export default defineConfig({
   } },
   test: {
     environment: 'node',
-    include: ['../../tests/unit/provider-codex.spec.ts', '../../tests/unit/codex-oauth.spec.ts'],
+    include: ['../../tests/unit/provider-codex.spec.ts', '../../tests/unit/codex-oauth.spec.ts',
+      '../../tests/unit/codex-image*.spec.ts', '../../tests/unit/provider-aux-reader-cleanup.spec.ts',
+      '../../tests/unit/provider-oauth-diagnostic-privacy.spec.ts'],
   },
 })

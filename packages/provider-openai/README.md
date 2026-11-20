@@ -223,8 +223,13 @@ retains reported usage even when a refusal or invalid answer prevents a result.
 
 The current native model catalog contains `gpt-6-luna`. Explicit model IDs remain
 configurable for consumers and compatible gateways; the server determines
-availability. Native Decisions requires an OpenAI API key. Codex uses
-`CODEX_GUARDIAN_DECISIONS_API_KEY` (or `OPENAI_API_KEY`) for this call independently
-of its ChatGPT OAuth Responses credentials; OAuth login alone does not configure
-Decisions access. See the [Decisions guide](https://developers.openai.com/api/docs/guides/decisions)
-and [Codex startup source](https://github.com/openai/codex/blob/main/codex-rs/ext/guardian-v2/src/async_scorer/startup.rs).
+availability. Official examples authenticate with an OpenAI API key. Live checks on
+2026-11-19 also succeeded with the current Codex CLI and project-local OAuth access
+tokens at `https://api.openai.com/v1/decisions`, using `gpt-6-luna`. Access remains
+account-dependent. Inject an access token through `apiKey` or a credential source
+that resolves the current token for each attempt. To refresh tokens, inject a source
+that calls `getCodexTokens(store)` with a revisioned Codex credential store.
+
+The workspace runner `pnpm human:decision:all` exercises native Decisions with
+configured API-key or Codex OAuth credentials and TypeSafe with `TYPESAFE_API_KEY`.
+See the [Decisions guide](https://developers.openai.com/api/docs/guides/decisions).

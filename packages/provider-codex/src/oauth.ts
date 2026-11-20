@@ -17,6 +17,7 @@ import type {
 } from './oauth-types.ts'
 import { credentialOperation, readStore, commitStore, storeLabel } from './oauth-store.ts'
 import { requestDeviceCode, pollForAuthorization, exchangeCodeForTokens, authFileFor } from './oauth-device.ts'
+import { CodexRefreshError } from './oauth-errors.ts'
 import { refreshCodexTokensWithOperation } from './oauth-refresh.ts'
 import {
   authorizationCodeFrom,
@@ -62,7 +63,10 @@ export async function getCodexTokens(
   operation.signal.throwIfAborted()
   const tokens = requireTokens(snapshot.file, captured.label)
   if (options.refreshIfNeeded !== false && snapshot.file !== undefined && shouldRefresh(snapshot.file)) {
-    return refreshCodexTokensWithOperation(store, options, operation)
+    if (captured.kind === 'legacy' && options.requireVersionedRefresh) {
+      throw new CodexRefreshError('Sign in again or supply a revisioned store for automatic refresh', 'permanent')
+    }
+    return refreshCodexTokensWithOperation(captured.store, options, operation, snapshot)
   }
   return tokens
 }

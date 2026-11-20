@@ -5,5 +5,9 @@ export default defineConfig({
     '@alvin0/ai-agent-sdk-sandbox-node': new URL('./src/index.ts', import.meta.url).pathname,
     '@alvin0/ai-agent-sdk-sandbox': new URL('../sandbox/src/index.ts', import.meta.url).pathname,
   } },
-  test: { environment: 'node', include: ['../../tests/unit/sandbox-node.spec.ts'] },
+  test: { environment: 'node', include: [
+    '../../tests/unit/sandbox-node.spec.ts',
+    '../../tests/unit/sandbox-lifecycle-audit.spec.ts',
+    '../../tests/unit/sandbox-profile-cache.spec.ts',
+  ] },
 })

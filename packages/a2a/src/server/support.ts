@@ -82,8 +82,14 @@ export async function scopedConversationId(sessionKey: string): Promise<string> 
   return `a2a-${hex}`
 }
 
-export async function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  signal.throwIfAborted()
+export async function abortable<T>(promise: Promise<T>, parent: AbortSignal): Promise<T> {
+  // A caller's listener may stop event propagation on the public signal.
+  // Native dependent signals still receive its cancellation and original reason.
+  const signal = AbortSignal.any([parent])
+  if (signal.aborted) {
+    void promise.catch(() => undefined)
+    signal.throwIfAborted()
+  }
   return new Promise<T>((resolve, reject) => {
     const abort = (): void => reject(signal.reason)
     signal.addEventListener('abort', abort, { once: true })

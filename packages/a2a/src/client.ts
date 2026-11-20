@@ -1,7 +1,8 @@
 import { A2A_NO_DEADLINE_MS, defaultLimit } from './common/limits.ts'
 import { sendStreaming } from './client/stream.ts'
 import { contentPart, normalizeResult } from './client/content.ts'
-import { nonEmpty, positiveInteger, byteLength, combineSignals, raceWithSignal } from './client/values.ts'
+import { nonEmpty, positiveInteger, byteLength, raceWithSignal } from './client/values.ts'
+import { createA2AScope, type A2AScope } from './common/deadline.ts'
 import { validateAgentCard, snapshotLinkOptions, validateEndpoint, endpointFetch } from './client/endpoints.ts'
 /** Official A2A Protocol client transport and AgentTeam linking helpers. */
 
@@ -79,15 +80,14 @@ export class A2AAgentLink implements LinkedAgentTransport {
     const attempt = operation.attempt(1)
     let contextKey: string | undefined
     let signal = input.signal
+    let scope: A2AScope | undefined
     try {
       input.signal?.throwIfAborted()
       contextKey = JSON.stringify([input.teamId, input.sender])
       const context = this.reserveContext(contextKey)
       const request = this.request(input, context?.id)
-      if (byteLength(request) > this.maxRequestBytes) {
-        throw new Error(`A2A request exceeds the ${this.maxRequestBytes}-byte limit`)
-      }
-      signal = combineSignals(input.signal, AbortSignal.timeout(this.timeoutMs))
+      scope = createA2AScope(this.timeoutMs, input.signal)
+      signal = scope.signal
       const requestOptions = this.requestOptions(signal)
       const result = await this.dispatchRequest(request, requestOptions, input.logger)
       if (byteLength(result) > this.maxResponseBytes) {
@@ -106,6 +106,7 @@ export class A2AAgentLink implements LinkedAgentTransport {
       }
       throw error
     } finally {
+      scope?.dispose()
       if (contextKey !== undefined) this.pendingContextKeys.delete(contextKey)
     }
   }
@@ -152,7 +153,7 @@ export class A2AAgentLink implements LinkedAgentTransport {
   }
 
   private request(input: LinkedAgentSendInput, contextId: string | undefined): SendMessageRequest {
-    return {
+    const request: SendMessageRequest = {
       // Required by the generated A2A request shape; the SDK does not attach a
       // deployment tenancy model to protocol messages.
       tenant: '',
@@ -178,6 +179,10 @@ export class A2AAgentLink implements LinkedAgentTransport {
       },
       metadata: { teamId: input.teamId, sender: input.sender },
     }
+    if (byteLength(request) > this.maxRequestBytes) {
+      throw new Error(`A2A request exceeds the ${this.maxRequestBytes}-byte limit`)
+    }
+    return request
   }
 
   private sendStreaming(request: SendMessageRequest, options: RequestOptions): Promise<LinkedAgentResult> {
@@ -310,13 +315,13 @@ async function resolveAgentLink(options: A2AAgentLinkOptions): Promise<A2AAgentL
     validateAgentCard(options.agentCard, cardOptions)
     const guardedFetch = endpointFetch(options.fetch ?? globalThis.fetch, cardOptions)
     const factory = options.clientFactory ?? defaultFactory({ ...cardOptions, fetch: guardedFetch })
-    const signal = AbortSignal.timeout(defaultLimit(options.timeoutMs, A2A_NO_DEADLINE_MS, 'timeoutMs'))
-    const link = new A2AAgentLink(
-      await raceWithSignal(factory.createFromAgentCard(options.agentCard), signal),
-      cardOptions,
-      options.agentCard,
-    )
-    return link
+    const scope = createA2AScope(defaultLimit(options.timeoutMs, A2A_NO_DEADLINE_MS, 'timeoutMs'))
+    try {
+      return new A2AAgentLink(
+        await raceWithSignal(factory.createFromAgentCard(options.agentCard), scope.signal),
+        cardOptions, options.agentCard,
+      )
+    } finally { scope.dispose() }
   }
   const baseUrl = validateEndpoint(options.baseUrl as string, options)
   const discoveryOptions: A2AAgentLinkOptions = { ...options }
@@ -325,11 +330,13 @@ async function resolveAgentLink(options: A2AAgentLinkOptions): Promise<A2AAgentL
     fetchImpl: guardedFetch,
     legacyCompat: { enabled: options.legacyCompat ?? false },
   })
-  const signal = AbortSignal.timeout(defaultLimit(options.timeoutMs, A2A_NO_DEADLINE_MS, 'timeoutMs'))
-  const agentCard = await raceWithSignal(resolver.resolve(baseUrl.href, options.cardPath), signal)
-  validateAgentCard(agentCard, discoveryOptions)
-  const factory = options.clientFactory ?? defaultFactory({ ...discoveryOptions, fetch: guardedFetch })
-  const client = await raceWithSignal(factory.createFromAgentCard(agentCard), signal)
-  const link = new A2AAgentLink(client, discoveryOptions, agentCard)
-  return link
+  const scope = createA2AScope(defaultLimit(options.timeoutMs, A2A_NO_DEADLINE_MS, 'timeoutMs'))
+  try {
+    const agentCard = await raceWithSignal(resolver.resolve(baseUrl.href, options.cardPath), scope.signal)
+    scope.signal.throwIfAborted()
+    validateAgentCard(agentCard, discoveryOptions)
+    const factory = options.clientFactory ?? defaultFactory({ ...discoveryOptions, fetch: guardedFetch })
+    const client = await raceWithSignal(factory.createFromAgentCard(agentCard), scope.signal)
+    return new A2AAgentLink(client, discoveryOptions, agentCard)
+  } finally { scope.dispose() }
 }

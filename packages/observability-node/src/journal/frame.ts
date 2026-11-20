@@ -5,6 +5,42 @@ import {
   type ObservationEvent,
   type ObservationEventName,
 } from '@alvin0/ai-agent-sdk-core'
+import type { CapturedJournalEvent, CursorFile } from './types.ts'
+import { journalFailure } from './errors.ts'
+
+export function journalLine(eventId: string, payloadJson: string, sha256: string): string {
+  const frame = { schemaVersion: 1, eventId, payloadJson, sha256 }
+  return `${JSON.stringify(frame)}\n`
+}
+
+export function captureJournalEvent(event: ObservationEvent): CapturedJournalEvent {
+  const payloadJson = JSON.stringify(event)
+  const captured = JSON.parse(payloadJson) as ObservationEvent
+  if (!validObservationEvent(captured, captured?.eventId)) throw journalFailure('corrupt', 'invalid journal event')
+  return { eventId: captured.eventId, priority: captured.priority,
+    payloadJson, payloadHash: journalChecksum(payloadJson) }
+}
+
+export function dateDay(value: Date): string {
+  return value.toISOString().slice(0, 10)
+}
+
+export function captureJournalAcknowledgments(eventIds: readonly string[]): readonly string[] {
+  if (!Array.isArray(eventIds)) throw new TypeError('journal acknowledgments require valid event IDs')
+  const captured = [...eventIds]
+  if (captured.some(eventId =>
+    typeof eventId !== 'string' || !/^[0-9a-f]{32}$/.test(eventId) || /^0+$/.test(eventId))) {
+    throw new TypeError('journal acknowledgments require valid event IDs')
+  }
+  return captured
+}
+
+export function assertJournalCursor(value: CursorFile): void {
+  if (value.schemaVersion !== 1 || !Array.isArray(value.acknowledgedEventIds)
+    || value.acknowledgedEventIds.some(id => typeof id !== 'string' || !/^[0-9a-f]{32}$/.test(id))) {
+    throw new Error('invalid cursor')
+  }
+}
 
 const EVENT_NAMES = new Set<ObservationEventName>([
   'sdk.agent.run', 'sdk.agent.turn', 'sdk.model.call', 'sdk.provider.attempt',
@@ -46,7 +82,7 @@ export function validObservationEvent(value: unknown, eventId: string): value is
 }
 
 function validEventIdentity(value: object, eventId: string, sequence: number, name: ObservationEventName): boolean {
-  return Reflect.get(value, 'schemaVersion') === 1
+  return typeof eventId === 'string' && Reflect.get(value, 'schemaVersion') === 1
     && Reflect.get(value, 'eventId') === eventId && /^[0-9a-f]{32}$/.test(eventId) && !/^0+$/.test(eventId)
     && Number.isSafeInteger(sequence) && sequence > 0
     && EVENT_NAMES.has(name)

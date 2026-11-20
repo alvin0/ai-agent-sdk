@@ -23,6 +23,8 @@ export interface PreparedRequest {
   /** Streaming body; sent once and never replayed. */
   readonly stream: ReadableStream<Uint8Array> | undefined
   readonly signal: AbortSignal
+  /** Keep an input Request's signal owner reachable while its exchange is active. */
+  readonly signalOwner?: Request
   readonly redirect: Request['redirect']
 }
 
@@ -42,9 +44,16 @@ export async function prepareRequest(input: FetchInput, init: FetchInit | undefi
     headers: new Headers(request.headers),
     bytes,
     stream: streaming ? request.body ?? undefined : undefined,
-    signal: request.signal,
+    ...requestCancellation(input, init, request),
     redirect: request.redirect,
   }
+}
+
+function requestCancellation(input: FetchInput, init: FetchInit | undefined,
+  request: Request): Pick<PreparedRequest, 'signal' | 'signalOwner'> {
+  if (init?.signal !== undefined) return { signal: init.signal ?? request.signal }
+  if (input instanceof Request) return { signal: input.signal, signalOwner: input }
+  return { signal: request.signal }
 }
 
 export function outgoingHeaders(prepared: PreparedRequest): OutgoingHttpHeaders {

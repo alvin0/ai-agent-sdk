@@ -48,6 +48,8 @@ export interface CodexOAuthOptions {
 export interface GetCodexTokensOptions extends CodexOAuthOptions {
   /** Defaults to true. Set false to read the stored tokens without refreshing. */
   readonly refreshIfNeeded?: boolean
+  /** Require an atomic credential commit before rotating a grant. Fresh legacy credentials can still be read. */
+  readonly requireVersionedRefresh?: boolean
 }
 
 /** A pending device authorization the user has to approve. */

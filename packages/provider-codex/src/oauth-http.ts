@@ -31,11 +31,15 @@ export async function oauthFetch(
   const signal = options.signal === undefined ? timeout : AbortSignal.any([options.signal, timeout])
   const fetchImpl = options.fetch ?? globalThis.fetch
   if (typeof fetchImpl !== 'function') throw new TypeError('Codex OAuth requires fetch')
-  const response = await raceAbort(Promise.resolve(fetchImpl(url, {
+  signal.throwIfAborted()
+  const pending = Promise.resolve(fetchImpl(url, {
     ...init,
     signal,
     redirect: 'manual',
-  })), signal)
+  }))
+  const response = await raceAbort(pending, signal, response => {
+    void response.body?.cancel().catch(() => undefined)
+  })
   await rejectCodexRedirect(response, url.href, 'OAuth', 30_000)
   return response
 }
@@ -51,10 +55,11 @@ export async function readResponseText(response: Response, options: CodexOAuthOp
   let bytes = 0
   let chunks = 0
   let result = ''
+  let completed = false
   try {
     while (true) {
       const next = await raceAbort(reader.read(), signal)
-      if (next.done) return result + decoder.decode()
+      if (next.done) { completed = true; return result + decoder.decode() }
       if (next.value === undefined) continue
       chunks++
       bytes += next.value.byteLength
@@ -65,13 +70,14 @@ export async function readResponseText(response: Response, options: CodexOAuthOp
       result += decoder.decode(next.value, { stream: true })
     }
   } finally {
+    if (!completed) void reader.cancel().catch(() => undefined)
     reader.releaseLock()
   }
 }
 
-export function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
+export function raceAbort<T>(pending: Promise<T>, signal: AbortSignal, onAbandoned?: (value: T) => void): Promise<T> {
   if (signal.aborted) {
-    void pending.catch(() => undefined)
+    void pending.then(value => onAbandoned?.(value), () => undefined)
     return Promise.reject(signal.reason ?? new Error('Codex OAuth operation aborted'))
   }
   return new Promise<T>((resolve, reject) => {
@@ -79,7 +85,7 @@ export function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<
     const cleanup = () => signal.removeEventListener('abort', abort)
     signal.addEventListener('abort', abort, { once: true })
     void pending.then(
-      value => { cleanup(); resolve(value) },
+      value => { cleanup(); if (signal.aborted) onAbandoned?.(value); resolve(value) },
       error => { cleanup(); reject(error) },
     )
   })
@@ -100,12 +106,13 @@ export async function readJson(
 ): Promise<Record<string, unknown>> {
   const raw = await readResponseText(response, options)
   try {
-    return JSON.parse(raw) as Record<string, unknown>
-  } catch (error: unknown) {
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new TypeError()
+    return parsed as Record<string, unknown>
+  } catch {
     throw new AgentSdkError(
       `${what} returned a non-JSON response (HTTP ${response.status})`,
       'CODEX_AUTH_MALFORMED',
-      { cause: error },
     )
   }
 }

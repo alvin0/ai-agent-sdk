@@ -207,10 +207,11 @@ export function endpointUrl(baseUrl: string, path: string, allowInsecureHttp: bo
 
 /** Reduce a failure to what a support report may carry: a code, a status, no prose. */
 export function safeProviderFailure(failure: ModelFailure): SafeErrorRecord {
+  const code = failure.code
   return Object.freeze({
     type: 'ModelError',
     message: 'provider attempt failed; inspect the stable code and request ID',
-    code: failure.code,
+    ...typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,127}$/.test(code) ? { code } : {},
     ...(failure.status === undefined ? {} : { status: failure.status }),
   })
 }

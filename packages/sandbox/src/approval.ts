@@ -67,7 +67,11 @@ const SPENT = new WeakSet<object>()
  * is precisely why this call has to be the place the distinction is made.
  */
 export function approveSandboxEscalation(grant: SandboxApprovalGrant): SandboxApproval {
-  const approval: SandboxApproval = Object.freeze({ ...grant, approved: true })
+  const entries = grant.entries?.map(entry => Object.freeze({ path: entry.path, access: entry.access }))
+  const approval: SandboxApproval = Object.freeze({
+    ...grant, approved: true,
+    ...(entries === undefined ? {} : { entries: Object.freeze(entries) }),
+  })
   MINTED.add(approval)
   return approval
 }

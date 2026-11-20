@@ -7,6 +7,10 @@ import {
 } from '../common/preferred-state.ts'
 import { MCP_SERVER_DEFAULTS } from '../common/config.ts'
 
+const typedArrayTag = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype), Symbol.toStringTag,
+)!.get!
+
 export interface McpServerDefinition {
   readonly id: string
   readonly logger?: SdkLogger
@@ -51,13 +55,13 @@ export function createMcpServer(definition: McpServerDefinition): McpWebServer {
     const signal = options?.signal === undefined ? request.signal
       : AbortSignal.any([request.signal, options.signal])
     signal.throwIfAborted()
-    const forwarded = signal === request.signal ? request : new Request(request, { signal })
-    if (!await requestFits(forwarded, maxRequestBytes)) return payloadTooLarge()
+    const bounded = await boundedRequest(request, maxRequestBytes, signal)
+    if (bounded === undefined) return payloadTooLarge()
     const handlerOptions: SdkMcpServerOptions = { ...advanced, integrationFamily: 'mcp-web-server' }
     copyPreferredState(advanced, handlerOptions)
     const handler = createSdkMcpHandler(handlerOptions)
     try {
-      const response = await handler.fetch(forwarded)
+      const response = await handler.fetch(bounded)
       return boundedResponse(response, maxResponseBytes, handler.close)
     } catch (error: unknown) {
       await settleClose(handler.close)
@@ -101,14 +105,59 @@ function captureToolCatalog(value: unknown): ToolCatalog | undefined {
   })
 }
 
-async function requestFits(request: Request, limit: number): Promise<boolean> {
+async function boundedRequest(request: Request, limit: number, signal: AbortSignal): Promise<Request | undefined> {
   const declared = request.headers.get('content-length')
   if (declared !== null) {
     const bytes = Number(declared)
-    if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > limit) return false
+    if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > limit) {
+      void request.body?.cancel().catch(() => undefined)
+      return undefined
+    }
   }
-  if (request.body === null) return true
-  try { return (await request.clone().arrayBuffer()).byteLength <= limit } catch { return false }
+  if (request.body === null) return new Request(request, { signal })
+  if (request.bodyUsed || request.body.locked) return undefined
+  const body = await boundedRequestBody(request.body, signal, limit)
+  return body === undefined ? undefined : new Request(request, { body, signal })
+}
+
+async function boundedRequestBody(
+  source: ReadableStream<Uint8Array>, signal: AbortSignal, limit: number,
+): Promise<Uint8Array<ArrayBuffer> | undefined> {
+  const reader = source.getReader()
+  let body = new Uint8Array(0)
+  let bytes = 0, complete = false
+  const abort = (): void => { void reader.cancel().catch(() => undefined) }
+  signal.addEventListener('abort', abort, { once: true })
+  try {
+    signal.throwIfAborted()
+    while (true) {
+      const next = await reader.read()
+      signal.throwIfAborted()
+      if (next.done) { complete = true; break }
+      if (!isByteChunk(next.value)) return undefined
+      const required = bytes + next.value.byteLength
+      if (required > limit) return undefined
+      if (required > body.byteLength) {
+        const expanded = new Uint8Array(Math.min(limit, Math.max(required, body.byteLength * 2, 1024)))
+        expanded.set(body)
+        body = expanded
+      }
+      body.set(next.value, bytes)
+      bytes = required
+    }
+  } catch {
+    signal.throwIfAborted()
+    return undefined
+  } finally {
+    signal.removeEventListener('abort', abort)
+    if (!complete) void reader.cancel().catch(() => undefined)
+    reader.releaseLock()
+  }
+  return body.subarray(0, bytes)
+}
+
+function isByteChunk(value: unknown): value is Uint8Array {
+  return ArrayBuffer.isView(value) && typedArrayTag.call(value) === 'Uint8Array'
 }
 
 function boundedResponse(response: Response, limit: number, close: () => Promise<void>): Response {

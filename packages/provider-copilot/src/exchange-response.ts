@@ -10,18 +10,18 @@ import type { CopilotApiToken } from './exchange-types.ts'
  * nothing about correctness while a raised one would fail an exchange that
  * actually produced a usable token.
  * @param raw - the bounded response text.
- * @param secrets - every live credential value to redact out of the cause.
+ * @param _secrets - Redaction context retained for existing internal callers.
  * @returns the token this exchange produced.
  * @throws CopilotTokenExchangeError with `COPILOT_TOKEN_MALFORMED` when the body
  *   is not a JSON object, `token` is not a non-empty string, or `expires_at` is
  *   not a positive finite number.
  */
-export function readApiToken(raw: string, secrets: readonly string[]): CopilotApiToken {
+export function readApiToken(raw: string, _secrets: readonly string[]): CopilotApiToken {
   let parsed: unknown
   try {
     parsed = JSON.parse(raw) as unknown
-  } catch (error: unknown) {
-    throw malformed('the Copilot token-exchange response was not JSON', error)
+  } catch {
+    throw malformed('the Copilot token-exchange response was not JSON')
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw malformed('the Copilot token-exchange response was not a JSON object')
@@ -36,7 +36,6 @@ export function readApiToken(raw: string, secrets: readonly string[]): CopilotAp
     throw malformed(
       'the Copilot token-exchange response carried no readable expires_at; '
       + 'this SDK does not invent a token lifetime',
-      new Error(redact(raw, secrets)),
     )
   }
   return Object.freeze({ token, expiresAtMs: expiresAt * 1_000, ...tokenAdvisoryFields(body) })

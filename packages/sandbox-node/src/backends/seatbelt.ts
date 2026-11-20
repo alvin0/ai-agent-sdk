@@ -110,7 +110,10 @@ export async function seatbeltProfileArgs(
  * if the kernel accepted this exact profile, a later report that it did not is
  * a forgery, and the rule that reads such a report is dropped.
  */
-const VALIDATED = new Map<string, boolean>()
+const MAX_CACHED_PROFILES = 128
+const MAX_CACHED_PROFILE_BYTES = 1_048_576
+const VALIDATED = new Map<string, { accepted: boolean; bytes: number }>()
+let validatedBytes = 0
 
 /**
  * Apply one generated profile to `true` and remember whether it was accepted.
@@ -118,7 +121,7 @@ const VALIDATED = new Map<string, boolean>()
  */
 export function seatbeltProfileAccepted(profile: string): boolean {
   const cached = VALIDATED.get(profile)
-  if (cached !== undefined) return cached
+  if (cached !== undefined) return cached.accepted
   let accepted = false
   try {
     const result = spawnSync(SEATBELT_PROGRAM, ['-p', profile, 'true'], {
@@ -126,7 +129,19 @@ export function seatbeltProfileAccepted(profile: string): boolean {
     })
     accepted = result.error === undefined && result.status === 0
   } catch { accepted = false }
-  VALIDATED.set(profile, accepted)
+  // Count UTF-16 storage conservatively and revalidate profiles that exceed the
+  // cache allowance. Distinct workspace policies must not accumulate forever.
+  const bytes = profile.length * 2
+  if (bytes <= MAX_CACHED_PROFILE_BYTES) {
+    while (VALIDATED.size >= MAX_CACHED_PROFILES || validatedBytes + bytes > MAX_CACHED_PROFILE_BYTES) {
+      const oldest = VALIDATED.keys().next().value
+      if (oldest === undefined) break
+      validatedBytes -= VALIDATED.get(oldest)?.bytes ?? 0
+      VALIDATED.delete(oldest)
+    }
+    VALIDATED.set(profile, { accepted, bytes })
+    validatedBytes += bytes
+  }
   return accepted
 }
 

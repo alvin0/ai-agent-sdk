@@ -326,3 +326,9 @@ supply their own cancellation boundary.
 - [Embeddings](/en/09-providers/embeddings) — the separate embedding capability
 - [Custom Provider](/en/09-providers/custom-provider) — any other endpoint
 - [Adapter pipeline](/en/11-internals/adapter-pipeline) — what the base class owns
+
+## Antigravity Google sign-in
+
+Experimental Google OAuth subscription provider with project-local browser login.
+
+[Antigravity](/en/09-providers/antigravity) · `@alvin0/ai-agent-sdk-provider-antigravity` · `@alvin0/ai-agent-sdk-auth-node/antigravity`.

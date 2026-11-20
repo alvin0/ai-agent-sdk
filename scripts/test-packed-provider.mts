@@ -14,6 +14,7 @@ type ProviderPackageName =
   | 'provider-codex'
   | 'provider-copilot'
   | 'provider-gemini'
+  | 'provider-antigravity'
 
 /**
  * The protocol packages each provider tarball needs installed beside it.
@@ -29,6 +30,7 @@ const PROTOCOL_PACKAGES: Readonly<Record<ProviderPackageName, readonly string[]>
   'provider-codex': ['protocol-responses'],
   'provider-copilot': ['protocol-responses', 'protocol-openai-chat-completions'],
   'provider-gemini': ['protocol-gemini-interactions'],
+  'provider-antigravity': [],
 }
 
 const requestedPackage = process.argv[2]

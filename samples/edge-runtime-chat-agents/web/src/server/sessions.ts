@@ -21,6 +21,7 @@ import { createEdgeTools } from './tools'
 import type { EdgeChatConfig } from './config'
 import { TraceStore } from './traces'
 import { effortsForModel, type WireMember, type WireModel } from './wire'
+import { capturingFetch, type ProviderErrorBox } from './provider-error'
 
 export interface WarmSession {
   readonly kind: 'runtime' | 'team-auto'
@@ -93,10 +94,7 @@ export interface TeamRawEvent {
  * page whose whole job is to tell one developer why their run failed, so the
  * host reads the body itself, in the one place it owns: its own `fetch`.
  */
-export interface ProviderErrorBox {
-  /** Cleared at the start of each run, so a stale failure never explains a new one. */
-  message: string | undefined
-}
+export type { ProviderErrorBox } from './provider-error'
 
 /** Raised when the isolate is already holding as many conversations as it may. */
 export class SessionCapacityError extends Error {
@@ -176,7 +174,7 @@ export async function acquireSession(
     if (warm.size + creating.size >= config.maxSessions) throw new SessionCapacityError()
     creating.add(slot)
     try {
-      const created = await createSession(conversationId, config, new TraceStore())
+      const created = await createSession(conversationId, config, new TraceStore(config.apiKey))
       created.activeResponse = reserveResponse
       warm.set(slot, created)
       return created
@@ -270,7 +268,7 @@ async function createSession(
       defaultModel: config.model,
       ...(config.baseUrl === undefined ? {} : { baseUrl: config.baseUrl }),
       ...(catalog.length === 0 ? {} : { models: catalog }),
-      fetch: capturingFetch(providerError),
+      fetch: capturingFetch(providerError, config.apiKey),
       // The platform kills a long request before a slow provider finishes, so
       // the transport gives up first and the client sees a real error frame.
       requestTimeoutMs: 120_000,
@@ -393,7 +391,7 @@ function createAutoTeamSession(
     apiKey: config.apiKey as string,
     ...(config.baseUrl === undefined ? {} : { baseUrl: config.baseUrl }),
     ...(catalog.length === 0 ? {} : { models: catalog }),
-    fetch: capturingFetch(providerError),
+    fetch: capturingFetch(providerError, config.apiKey),
     requestTimeoutMs: 120_000,
     streamIdleTimeoutMs: 45_000,
   }))
@@ -549,47 +547,6 @@ function rosterSignature(config: EdgeChatConfig): string {
 
 function bindings(config: EdgeChatConfig) {
   return [config.baseUrl ?? '', config.instructions, config.maxTurns, config.maxToolCalls, config.maxTotalTokens]
-}
-
-/** Longest provider error text kept, in characters. */
-const MAX_PROVIDER_ERROR_CHARS = 600
-
-/**
- * Wrap `fetch` so a failed call leaves its body behind.
- *
- * Only the failure path is touched: a successful response is returned exactly
- * as it arrived, so streaming is unaffected. The body is read from a clone, so
- * the SDK still gets to read the original.
- * @param box - Where to record what the provider said.
- * @returns The wrapped fetch.
- */
-function capturingFetch(box: ProviderErrorBox): typeof globalThis.fetch {
-  return async (input, init) => {
-    const response = await fetch(input, init)
-    if (response.ok) return response
-    try { box.message = providerMessage(await response.clone().text()) }
-    catch { /* the body was already gone; the status still says something */ }
-    return response
-  }
-}
-
-/** Pull the human-readable message out of an error body, whatever its shape. */
-function providerMessage(raw: string): string | undefined {
-  const text = raw.trim()
-  if (text.length === 0) return undefined
-  try {
-    const parsed: unknown = JSON.parse(text)
-    const error = parsed === null || typeof parsed !== 'object'
-      ? undefined
-      : Reflect.get(parsed, 'error')
-    const message = error === null || typeof error !== 'object'
-      ? undefined
-      : Reflect.get(error, 'message')
-    if (typeof message === 'string' && message.trim().length > 0) {
-      return message.slice(0, MAX_PROVIDER_ERROR_CHARS)
-    }
-  } catch { /* not JSON; the raw text is the best there is */ }
-  return text.slice(0, MAX_PROVIDER_ERROR_CHARS)
 }
 
 /**

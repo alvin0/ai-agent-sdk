@@ -24,8 +24,9 @@ export function nowMonotonic(): number {
   return globalThis.performance?.now() ?? Date.now()
 }
 
-export function scopeFor(key: object, runId: string, supplied?: ObservationRunScope): ObservationRunScope {
+export function scopeFor(key: object, runId: string | undefined, supplied?: ObservationRunScope): ObservationRunScope {
   if (supplied !== undefined) return supplied
+  if (runId === undefined) return createObservationRunScope()
   let runs = scopes.get(key)
   if (!runs) {
     runs = new Map()

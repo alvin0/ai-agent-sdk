@@ -11,7 +11,11 @@ import {
   CODEX_ORIGINATOR,
   codexAdapter as universalCodexAdapter,
   codexPlugin as universalCodexPlugin,
+  codexImageTool,
+  generateCodexImage,
   getCodexUsage,
+  type CodexImageOptions,
+  type GenerateCodexImageOptions,
   type CodexAdapterOptions as UniversalCodexAdapterOptions,
   type CodexUsage,
   type GetCodexUsageOptions,
@@ -101,6 +105,35 @@ export async function getCodexNodeUsage(options: CodexNodeUsageOptions = {}): Pr
   })
 }
 
+export interface CodexNodeImageOptions extends Omit<CodexImageOptions, 'authStore'> {
+  /** Defaults to the project-local credentials, including revision-safe refresh. */
+  readonly authStore?: CodexImageOptions['authStore']
+  /** Named login account; ignored when authStore is supplied. */
+  readonly account?: string
+}
+
+function nodeImageOptions(options: CodexNodeImageOptions): CodexImageOptions {
+  const { account, authStore, ...rest } = options
+  return {
+    ...withDefaultNodeFetch(rest),
+    authStore: authStore
+      ?? fileCodexCredentialStore(account === undefined ? undefined : codexAccountAuthPath(account)),
+  }
+}
+
+/** Experimental standalone Images request using the connected project account. */
+export function generateCodexNodeImage(
+  options: CodexNodeImageOptions & Pick<GenerateCodexImageOptions, 'prompt' | 'signal'>,
+): ReturnType<typeof generateCodexImage> {
+  return generateCodexImage({ ...nodeImageOptions(options), prompt: options.prompt,
+    ...(options.signal === undefined ? {} : { signal: options.signal }) })
+}
+
+/** Opt-in agent tool using the connected project account. Backend access is not guaranteed. */
+export function codexNodeImageTool(options: CodexNodeImageOptions): ReturnType<typeof codexImageTool> {
+  return codexImageTool(nodeImageOptions(options))
+}
+
 /** Compatibility alias for the former `ai-agent-sdk/codex` entry. */
 export const codexAdapter = codexNodeAdapter
 /** Compatibility alias for the former `ai-agent-sdk/codex` entry. */
@@ -112,6 +145,7 @@ export {
   ACCESS_TOKEN_REFRESH_WINDOW_MS,
   CODEX_CLIENT_ID,
   CodexRefreshError,
+  CodexImageError,
   CodexUsageError,
   codexUsageUrl,
   DEFAULT_CODEX_ISSUER,
@@ -138,6 +172,9 @@ export {
   type CodexBrowserCallback,
   shouldRefresh,
   type CodexAuthFile,
+  type CodexImageOptions,
+  type CodexImageResult,
+  type GenerateCodexImageOptions,
   type CodexAuthStore,
   type CodexCredentialStore,
   type CodexDeviceCode,

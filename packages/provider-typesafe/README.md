@@ -91,6 +91,14 @@ that the business decision is correct.
 All native evidence has `probabilitySource: 'provider'`. Noul does not supply
 confidence; the adapter keeps it absent. The actual response model ID is retained
 even when the request uses an alias. New/pinned model IDs need no SDK release.
+Jev can report a score and per-level probabilities rounded separately. When
+checking hundredth-rounded results, the adapter verifies that a normalized
+distribution within those rounding bounds could produce the score. The SDK
+returns the score and probabilities supplied by Jev.
+The decision runtime preserves this validated precision. When calling
+`validateDecisionResult` directly, pass `{ probabilityPrecision: 'hundredths' }`
+to validate rounded evidence. Its default checks remain strict when revalidating
+an SDK-created result.
 
 `typesafeAdapter(options)` supports direct use and catalog discovery.
 `typesafePlugin(options)` installs it into the decision runtime. Options include

@@ -4,6 +4,7 @@ import { ToolRegistry, type ToolCatalog } from '../../tool/registry.ts'
 import type { Message, UserMessage } from '../../../message/index.ts'
 import { createTextMessage, freezeMessage } from '../../../message/index.ts'
 import { type AgentInput } from './types.ts'
+export { messageOf, errorCodeOf } from '../../../errors/thrown-value.ts'
 
 export function conversationId(value: string | undefined): string {
   if (value === undefined) return newConversationId()
@@ -39,17 +40,6 @@ export function deferred<T>(): Deferred<T> {
     reject = rejectPromise
   })
   return { promise, resolve, reject }
-}
-
-export function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-export function errorCodeOf(error: unknown): string | undefined {
-  return typeof error === 'object' && error !== null
-    && 'code' in error && typeof error.code === 'string'
-    ? error.code
-    : undefined
 }
 
 export function toolCatalog(

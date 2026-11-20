@@ -1,8 +1,17 @@
 # @alvin0/ai-agent-sdk-auth-node
 
+For experimental image generation with an existing Codex login, the `/codex`
+entry exports `generateCodexNodeImage({ model, prompt, account? })` and the opt-in
+agent tool `codexNodeImageTool({ model, account? })`. Both reuse the project-local
+credential store; an explicit `authStore` overrides `account`. The image model
+must be configured separately from the chat model. Backend Images access is
+independent of working Codex chat: the project OAuth live check returned 403.
+See the [Codex image guide](../../web-documents/en/09-providers/codex.md#standalone-image-generation-experimental)
+for returned image blocks, limits and `CodexImageError` codes.
+
 Runtime: **Node 22.12+**.
 
-Node-owned environment credentials and project-local Codex OAuth storage. The
+Node-owned environment credentials and project-local Codex, Copilot, and Antigravity OAuth storage. The
 package root and `/env` entrypoint are environment-only: installing either does
 not require or load a model provider.
 
@@ -130,3 +139,38 @@ reading does not count. After `close()`, requests reject.
 Composition: `provider-factory.credentials`. Lifecycle: `borrowed-caller-owned`;
 `envCredential()` and file-backed stores are resolved lazily by the selected
 provider and are never closed by core.
+
+## Antigravity Google sign-in
+
+```sh
+pnpm add @alvin0/ai-agent-sdk-core @alvin0/ai-agent-sdk-provider-antigravity @alvin0/ai-agent-sdk-auth-node
+export AI_AGENT_SDK_ANTIGRAVITY_CLIENT_ID='your-client-id'
+# Required only for clients that require a secret:
+export AI_AGENT_SDK_ANTIGRAVITY_CLIENT_SECRET='your-client-secret'
+pnpm exec ai-agent-sdk-antigravity-login
+pnpm exec ai-agent-sdk-antigravity-login --status
+pnpm exec ai-agent-sdk-antigravity-login --models
+```
+
+Import `antigravityNodeProviderPlugin()` from
+`@alvin0/ai-agent-sdk-auth-node/antigravity`. This is an optional provider closure;
+installing the root or `/env` does not pull it in. `antigravityNodeAdapter()` is the
+manual-registry equivalent.
+
+Google sign-in opens a browser and uses a loopback callback on port 51121.
+Credentials are stored separately at `.providers/.antigravity/auth.json`;
+`--account NAME`, `--path FILE`, `AI_AGENT_SDK_ANTIGRAVITY_AUTH`, `--force`, and
+`--no-open` work with this login. For SSH, forward port 51121. In code,
+`runAntigravityBrowserLogin(store, options, { onPrompt })` exposes the same flow.
+`fileAntigravityCredentialStore()` uses the same private, atomic CAS file-writing
+primitives as Codex. The wrapper uses the shared Node HTTP/2 fetch by default.
+
+No OAuth client credentials are embedded. Explicit `clientId` / `clientSecret`
+options override the environment. The secret is not persisted with login tokens.
+This repository's `provider:antigravity:*` commands load the ignored private file
+`.providers/.antigravity/client.env` when present; installed consumers supply
+process environment, explicit options, or load an env file in their own launcher.
+
+This experimental subscription integration uses a community-described protocol.
+See the [Antigravity provider README](../provider-antigravity/README.md) for API
+configuration, supported content, and the distinction from Google's Gemini API.

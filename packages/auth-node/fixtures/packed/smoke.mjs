@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { envCredential } from '@alvin0/ai-agent-sdk-auth-node/env'
 import { createAgentRuntime } from '@alvin0/ai-agent-sdk-core'
 import {
-  codexNodeAdapter,
+  codexNodeAdapter, codexNodeImageTool, generateCodexNodeImage,
   codexNodeProviderPlugin,
   fileCodexAuthStore,
   fileCodexCredentialStore,
@@ -14,6 +14,10 @@ import {
   fileCopilotAuthStore,
   fileCopilotCredentialStore,
 } from '@alvin0/ai-agent-sdk-auth-node/copilot'
+
+import {
+  antigravityNodeProviderPlugin, fileAntigravityCredentialStore,
+} from '@alvin0/ai-agent-sdk-auth-node/antigravity'
 
 process.env.PACKED_AUTH_KEY = 'packed-secret'
 if (envCredential('PACKED_AUTH_KEY')() !== 'packed-secret') throw new Error('env credential failed')
@@ -124,4 +128,37 @@ if (copilotOutput.includes(copilotValue.github.token)) {
   throw new Error('copilot --status printed the token value')
 }
 
+const antigravityPath = resolve('antigravity.json')
+const antigravityStore = fileAntigravityCredentialStore(antigravityPath)
+const antigravityValue = {
+  version: 1, projectId: 'packed-project', clientId: 'packed-client', obtainedAt: new Date().toISOString(),
+  tokens: { access_token: 'packed-antigravity-access', refresh_token: 'packed-antigravity-refresh',
+    expires_at: Date.now() + 3_600_000 },
+}
+await antigravityStore.commit({ value: antigravityValue, expectedRevision: null }, operation)
+if ((await antigravityStore.read(operation))?.value.projectId !== 'packed-project') {
+  throw new Error('Antigravity packed file store failed')
+}
+const antigravityRuntime = await createAgentRuntime({
+  providers: [antigravityNodeProviderPlugin({ authStore: antigravityStore, models: [] })],
+})
+await antigravityRuntime.close()
+const antigravityCli = resolve('node_modules/@alvin0/ai-agent-sdk-auth-node/bin/ai-agent-sdk-antigravity-login.mjs')
+if (typeof codexNodeImageTool !== 'function' || typeof generateCodexNodeImage !== 'function') {
+  throw new Error('Packed Codex Images helpers are missing')
+}
+const antigravityHelp = spawnSync(process.execPath, [antigravityCli, '--help'], {
+  cwd: 'node_modules', encoding: 'utf8',
+})
+if (antigravityHelp.status !== 0 || !antigravityHelp.stdout.includes('--force')) throw new Error('Packaged help failed')
+const antigravityStatus = spawnSync(process.execPath, [antigravityCli, '--status', '--path', antigravityPath], {
+  cwd: 'node_modules', encoding: 'utf8', env: process.env,
+})
+if (antigravityStatus.status !== 0 || !antigravityStatus.stdout.includes('packed-project')) {
+  throw new Error('Antigravity packaged CLI could not read its credential file')
+}
+if (antigravityStatus.stdout.includes(antigravityValue.tokens.access_token)
+  || antigravityStatus.stdout.includes(antigravityValue.tokens.refresh_token)) {
+  throw new Error('Antigravity packaged CLI leaked credentials')
+}
 console.log('auth-node-packed:pass')

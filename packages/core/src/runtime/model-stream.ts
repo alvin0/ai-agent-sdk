@@ -49,6 +49,7 @@ export async function* streamAdapter(input: AdapterStreamInput): AsyncGenerator<
   const { options, context } = input
   let iterator: AsyncIterator<StreamChunk>
   try {
+    options.signal?.throwIfAborted()
     const registration = input.prepared?.registration ?? input.registration(options.provider)
     const adapter = registration.adapter
     const prepared = await prepareDispatch(input, registration, adapter)
@@ -57,6 +58,7 @@ export async function* streamAdapter(input: AdapterStreamInput): AsyncGenerator<
       : { ...options, ...prepared.config }
     const projected = projectCallInput(withConfig, prepared.modelInfo)
     validateNativeTools(projected, prepared.modelInfo)
+    options.signal?.throwIfAborted()
     input.onDispatch()
     iterator = prepared.dispatch(projectReplayForAdapter(
       projected, adapter, input.registeredAdapter,

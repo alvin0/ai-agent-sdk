@@ -53,6 +53,7 @@ import { resolveDialect } from '../protocol/protocol.ts'
 import { catalogModelInfo, resolvedCatalogModelInfo } from '../base/transport.ts'
 import { appendQuery } from '../common/request-path.ts'
 import { mergeRequestBody } from '../common/body-merge.ts'
+import { markRequestLogUnread } from '../base/request-log.ts'
 
 export type { CredentialSource, AuthScheme, RequestContext, ModelDiscoveryContext, HttpProviderOptions }
   from './http-options.ts'
@@ -78,6 +79,7 @@ class ConfiguredHttpAdapter<Dialect extends object> extends HttpModelAdapter {
     this.dialect = resolveDialect(options.protocol, options.dialect)
     this.retry = resolveRetryPolicy(options.retryPolicy, `${options.displayName}.retryPolicy`)
     this.catalogCache = new HttpCatalog(this.options)
+    if (this.options.requestLogger === undefined) markRequestLogUnread(this)
     if (this.options.responseLogger === undefined) markResponseLogUnread(this)
   }
 

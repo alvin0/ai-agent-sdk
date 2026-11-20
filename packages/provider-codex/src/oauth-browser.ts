@@ -1,6 +1,7 @@
 import { AgentSdkError } from '@alvin0/ai-agent-sdk-core'
 import { CODEX_ORIGINATOR } from './adapter-types.ts'
 import { issuerOf, clientIdOf } from './oauth-http.ts'
+import { safeOAuthErrorCode } from './oauth-errors.ts'
 import type { CodexOAuthOptions } from './oauth-types.ts'
 
 /**
@@ -90,9 +91,9 @@ export function authorizationCodeFrom(
   }
   const error = params.get('error')
   if (error !== null) {
-    const description = params.get('error_description')
-    throw new AgentSdkError(`browser login was not completed: ${error}`, 'CODEX_AUTH_FAILED',
-      description === null ? undefined : { cause: new Error(description) })
+    const code = safeOAuthErrorCode(error)
+    throw new AgentSdkError(`browser login was not completed${code === undefined ? '' : `: ${code}`}`,
+      'CODEX_AUTH_FAILED')
   }
   const code = params.get('code')
   if (code === null || code.length === 0) {

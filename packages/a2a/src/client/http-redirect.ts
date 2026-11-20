@@ -21,8 +21,10 @@ export async function fetchA2AEndpoint(
   let currentUrl = options.validateEndpoint(inputUrl(input))
   let requestInit: RequestInit = { ...init, signal: options.signal, redirect: 'manual' }
   for (let hop = 0; ; hop++) {
+    options.signal.throwIfAborted()
     const response = await raceAbort(
       Promise.resolve(baseFetch(currentInput, requestInit)), options.signal,
+      response => { void cancelResponse(response, options.teardownTimeoutMs).catch(() => undefined) },
     )
     const observableFollow = response.redirected === true || response.type === 'opaqueredirect'
       || (response.url.length > 0 && response.url !== currentUrl.href)
@@ -44,8 +46,8 @@ export async function fetchA2AEndpoint(
       await cancelResponse(response, options.teardownTimeoutMs)
       throw new Error('A2A HTTP transport received a redirect without a location')
     }
-    const nextUrl = options.validateEndpoint(new URL(location, currentUrl))
     await cancelResponse(response, options.teardownTimeoutMs)
+    const nextUrl = options.validateEndpoint(new URL(location, currentUrl))
     requestInit = redirectedInit(requestInit, input, response.status, nextUrl.origin !== currentUrl.origin)
     currentInput = nextUrl
     currentUrl = nextUrl
@@ -83,13 +85,28 @@ async function cancelResponse(response: Response, timeoutMs: number): Promise<vo
   await waitForSettlement(response.body.cancel().catch(() => undefined), timeoutMs)
 }
 
-function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(signal.reason ?? new Error('A2A operation aborted'))
+function raceAbort<T>(pending: Promise<T>, signal: AbortSignal, discard: (value: T) => void): Promise<T> {
+  const cancellation = AbortSignal.any([signal])
+  if (signal.aborted) {
+    void pending.then(discard, () => undefined)
+    return Promise.reject(signal.reason ?? new Error('A2A operation aborted'))
+  }
   return new Promise<T>((resolve, reject) => {
-    const abort = () => { cleanup(); reject(signal.reason ?? new Error('A2A operation aborted')) }
-    const cleanup = () => signal.removeEventListener('abort', abort)
-    signal.addEventListener('abort', abort, { once: true })
-    void pending.then(value => { cleanup(); resolve(value) }, error => { cleanup(); reject(error) })
+    let settled = false
+    const abort = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      reject(signal.reason ?? new Error('A2A operation aborted'))
+    }
+    const cleanup = () => cancellation.removeEventListener('abort', abort)
+    cancellation.addEventListener('abort', abort, { once: true })
+    void pending.then(value => {
+      if (settled) { discard(value); return }
+      settled = true
+      cleanup()
+      resolve(value)
+    }, error => { settled = true; cleanup(); reject(error) })
   })
 }
 

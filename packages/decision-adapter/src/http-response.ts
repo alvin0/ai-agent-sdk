@@ -2,6 +2,8 @@ import { ModelError, MODEL_ERROR_CODES } from '@alvin0/ai-agent-sdk-core'
 import type { SdkLogger } from '@alvin0/ai-agent-sdk-core/provider'
 import { abortable, throwIfAborted } from './async.ts'
 
+const MAX_RESPONSE_CHUNKS = 100_000
+
 export const NULL_LOGGER: SdkLogger = Object.freeze({
   child: () => NULL_LOGGER,
   trace() {}, debug() {}, info() {}, warn() {}, error() {}, fatal() {},
@@ -21,6 +23,13 @@ export function statusCode(status: number): string {
   return MODEL_ERROR_CODES.INVALID_REQUEST
 }
 
+function validateResponseSize(bytes: number, chunks: number, maxBytes: number, label: string): void {
+  if (bytes > maxBytes) throw new ModelError(`${label} response exceeds byte limit`,
+    MODEL_ERROR_CODES.MALFORMED_RESPONSE)
+  if (chunks > MAX_RESPONSE_CHUNKS) throw new ModelError(`${label} response exceeds chunk limit`,
+    MODEL_ERROR_CODES.MALFORMED_RESPONSE)
+}
+
 export async function readDecisionJson(
   response: Response, maxBytes: number, signal: AbortSignal, label: string,
 ): Promise<unknown> {
@@ -33,14 +42,15 @@ export async function readDecisionJson(
   const reader = response.body.getReader()
   const decoder = new TextDecoder('utf-8', { fatal: true })
   let bytes = 0
+  let chunks = 0
   let text = ''
   try {
     for (;;) {
       const item = await abortable(reader.read(), signal)
       if (item.done) break
+      chunks++
       bytes += item.value.byteLength
-      if (bytes > maxBytes) throw new ModelError(`${label} response exceeds byte limit`,
-        MODEL_ERROR_CODES.MALFORMED_RESPONSE)
+      validateResponseSize(bytes, chunks, maxBytes, label)
       text += decoder.decode(item.value, { stream: true })
     }
     text += decoder.decode()
@@ -53,5 +63,6 @@ export async function readDecisionJson(
   } finally {
     // Do not wait indefinitely for a foreign stream's cancellation hook.
     void reader.cancel().catch(() => {})
+    reader.releaseLock()
   }
 }

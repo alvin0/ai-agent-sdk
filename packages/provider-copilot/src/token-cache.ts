@@ -160,11 +160,13 @@ async function runExchange(slot: number, ctx: ExchangeContext): Promise<CopilotA
         signal: sharedExchangeSignal(options),
       }),
     )
-    state.entry = Object.freeze({
-      api,
-      sourceToken: github.token,
-      sourceRevision: source.revision,
-    })
+    if (state.ticket === slot) {
+      state.entry = Object.freeze({
+        api,
+        sourceToken: github.token,
+        sourceRevision: source.revision,
+      })
+    }
     return api
   } finally {
     if (state.ticket === slot) {

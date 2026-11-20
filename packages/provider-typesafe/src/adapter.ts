@@ -125,7 +125,7 @@ class TypesafeDecisionAdapter extends DecisionAdapter {
     })
     const result = response.value as DecisionResult
     return response.requestId === undefined ? result : validateDecisionResult({ ...result,
-      providerRequestId: response.requestId }, input.questions)
+      providerRequestId: response.requestId }, input.questions, { probabilityPrecision: 'hundredths' })
   }
   async #dispatch(request: TypesafeDispatchRequest) {
     return dispatchTypesafe({

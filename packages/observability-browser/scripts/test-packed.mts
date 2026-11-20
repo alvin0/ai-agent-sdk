@@ -121,7 +121,8 @@ function assertVerification(value: Record<string, unknown>) {
     boundary: 'local-durable', acknowledgedEvents: 1, remainingEvents: 1, capacityBatches: 0,
     runtimeInert: true, runtimeDurable: true, runtimeTerminalStored: true, runtimeAcknowledged: true,
     runtimeSpans: true, optionalLogsAbsent: true, quotaCode: value.expectedQuotaCode, auditDurable: true,
-    blockedRejected: true, lifecycleFlushes: 2, buffer: 'undefined', process: 'undefined',
+    blockedRejected: true, lifecycleFlushes: 2, evictedEventRestaged: true,
+    buffer: 'undefined', process: 'undefined',
   }
   for (const [field, expectedValue] of Object.entries(expected)) {
     if (value[field] !== expectedValue) {

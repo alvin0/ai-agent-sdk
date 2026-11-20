@@ -43,13 +43,17 @@ export async function discoverCodexModels(
   const url = `${context.baseUrl}/models?client_version=${encodeURIComponent(clientVersion)}`
   const timeout = AbortSignal.timeout(limits.timeoutMs)
   const signal = context.signal === undefined ? timeout : AbortSignal.any([context.signal, timeout])
-  const response = await fetchImpl(url, {
+  signal.throwIfAborted()
+  const pending = Promise.resolve(fetchImpl(url, {
     headers: context.headers,
     signal,
     redirect: 'manual',
+  }))
+  const response = await raceAbort(pending, signal, response => {
+    void response.body?.cancel().catch(() => undefined)
   })
   await rejectCodexRedirect(response, url, 'model catalog', 30_000)
-  if (!response.ok) return []
+  if (!response.ok) { void response.body?.cancel().catch(() => undefined); return [] }
   const body = await readCatalogJson(response, limits, signal)
   const models = Array.isArray(body.models) ? body.models as WireCatalogModel[] : []
   if (models.length > limits.maxModels) {
@@ -78,10 +82,11 @@ export async function readCatalogJson(
   const chunks: Uint8Array[] = []
   let bytes = 0
   let chunkCount = 0
+  let completed = false
   try {
     while (true) {
       const next = await raceAbort(reader.read(), signal)
-      if (next.done) break
+      if (next.done) { completed = true; break }
       if (next.value === undefined) continue
       chunkCount++
       if (chunkCount > maxChunks) {
@@ -96,19 +101,23 @@ export async function readCatalogJson(
       chunks.push(next.value)
     }
   } finally {
+    if (!completed) void reader.cancel().catch(() => undefined)
     reader.releaseLock()
   }
   return parseCatalogChunks(chunks, bytes, what)
 }
 
-export function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(signal.reason ?? new Error('Codex catalog request aborted'))
+export function raceAbort<T>(pending: Promise<T>, signal: AbortSignal, onAbandoned?: (value: T) => void): Promise<T> {
+  if (signal.aborted) {
+    void pending.then(value => onAbandoned?.(value), () => undefined)
+    return Promise.reject(signal.reason ?? new Error('Codex catalog request aborted'))
+  }
   return new Promise<T>((resolve, reject) => {
     const abort = () => { cleanup(); reject(signal.reason ?? new Error('Codex catalog request aborted')) }
     const cleanup = () => signal.removeEventListener('abort', abort)
     signal.addEventListener('abort', abort, { once: true })
     void pending.then(
-      value => { cleanup(); resolve(value) },
+      value => { cleanup(); if (signal.aborted) onAbandoned?.(value); resolve(value) },
       error => { cleanup(); reject(error) },
     )
   })
@@ -170,7 +179,9 @@ function parseCatalogChunks(chunks: readonly Uint8Array[], bytes: number, what: 
   const merged = new Uint8Array(bytes)
   let offset = 0
   for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.byteLength }
-  const parsed: unknown = JSON.parse(new TextDecoder().decode(merged))
+  let parsed: unknown
+  try { parsed = JSON.parse(new TextDecoder().decode(merged)) }
+  catch { throw new SyntaxError(`Codex ${what} returned invalid JSON`) }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new TypeError(`Codex ${what} must be a JSON object`)
   }

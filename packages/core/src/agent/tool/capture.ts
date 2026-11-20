@@ -107,7 +107,7 @@ function captureBehavior<Args>(receiver: object) {
   const completionExempt = captureTrueFlag(receiver, 'completionExempt')
   const maxOutputTokens = captureMaxOutputTokens(receiver)
   return { execute, parse, render, meta, isConcurrencySafe, timeoutMs, budgetExempt, awaitsPerson,
-    completionExempt, maxOutputTokens }
+    completionExempt, maxOutputTokens, omitResultValue: captureTrueFlag(receiver, 'omitResultValue') }
 }
 
 function captureTimeout(receiver: object): unknown {
@@ -151,10 +151,12 @@ function freezeCapturedTool<Args>(input: {
 }
 
 function capturedFlags(input: {
+  omitResultValue: true | undefined
   budgetExempt: true | undefined; awaitsPerson: true | undefined; completionExempt: true | undefined
 }) {
   const { budgetExempt, awaitsPerson, completionExempt } = input
   return {
+    ...(input.omitResultValue === undefined ? {} : { omitResultValue: true as const }),
     ...(budgetExempt === undefined ? {} : { budgetExempt: true as const }),
     ...(awaitsPerson === undefined ? {} : { awaitsPerson: true as const }),
     ...(completionExempt === undefined ? {} : { completionExempt: true as const }),  }

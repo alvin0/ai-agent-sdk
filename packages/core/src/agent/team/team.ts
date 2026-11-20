@@ -31,6 +31,7 @@ import {
   boundedString, positiveInteger, newTeamId,
   DEFAULT_MIN_WAIT_TIMEOUT_MS,
 } from './common.ts'
+import { releaseOnce } from '../../primitives/release.ts'
 export class AgentTeam implements TeamPort {
   private readonly observation: TeamObservation
   readonly id: string
@@ -132,12 +133,12 @@ export class AgentTeam implements TeamPort {
   members(): readonly AgentTeamMember[] { return this.roster.members() }
   private guardWake(guard: (target: string) => void): () => void {
     this.wakeGuards.add(guard)
-    return () => { this.wakeGuards.delete(guard) }
+    return releaseOnce(() => { this.wakeGuards.delete(guard) })
   }
   /** Subscribe to runtime lifecycle events without replacing host hooks. */
   subscribe(listener: (event: AgentTeamEvent) => void): () => void {
     this.listeners.add(listener)
-    return () => { this.listeners.delete(listener) }
+    return releaseOnce(() => { this.listeners.delete(listener) })
   }
   private takeResults(sender: string, targets: readonly string[], maxBytes?: number,
     settled?: ReadonlyMap<string, AgentMemberOutcome>) {
@@ -227,7 +228,7 @@ export class AgentTeam implements TeamPort {
   }
   private guardWait(guard: (sender: string, targets: readonly string[]) => void): () => void {
     this.waitGuards.add(guard)
-    return () => { this.waitGuards.delete(guard) }
+    return releaseOnce(() => { this.waitGuards.delete(guard) })
   }
 
   /** Managed independent batch barrier, including reserved addresses without sessions yet.

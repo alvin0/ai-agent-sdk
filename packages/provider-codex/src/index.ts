@@ -1,5 +1,9 @@
 /** Universal Codex provider, OAuth flows, and injected auth contracts. */
 
+export { CodexImageError, codexImageUrl, generateCodexImage } from './image.ts'
+export { codexImageTool } from './image-tool.ts'
+export type { CodexImageOptions, CodexImageResult, GenerateCodexImageOptions } from './image-types.ts'
+
 export {
   CODEX_BASE_URL,
   CODEX_CLIENT_VERSION,

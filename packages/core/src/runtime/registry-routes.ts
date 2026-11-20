@@ -20,8 +20,9 @@ import {
   type AdapterRegistrationHandle, type ModelProviderPlugin, type PluginRegistrationHandle, type StreamMiddleware,
 } from '../plugin/provider-plugin.ts'
 import {
-  validateAdapterInfo,
+  validateAdapterInfo, adapterRegistrationHandle,
 } from './registry-support.ts'
+import { releaseOnce } from '../primitives/release.ts'
 import {
   installProviderPlugin, type InstalledPlugin,
 } from './registry-plugin.ts'
@@ -63,32 +64,14 @@ export class RegistryRoutes {
     }
     /** Routes this registration currently holds; `replace` rewrites it. */
     const owned = new Set<string>()
-    // `owned` being empty cannot signal disposal on its own, because
-    // `replace([])` legally leaves a live registration holding no routes.
-    let released = false
-
     this.commitRoutes(owned, this.prepareRoutes(providers, adapter, owned))
-
-    const handle = (() => {
-      if (released) return
-      released = true
+    return adapterRegistrationHandle(() => {
       for (const provider of owned) this.adapters.delete(provider)
       owned.clear()
       this.emitAdaptersUpdated()
-    }) as AdapterRegistrationHandle
-
-    handle.replace = (next: readonly string[]): void => {
-      // Registering after disposal would leak: nothing remains to release what
-      // this call would put back into the map.
-      if (released) {
-        throw new ModelError(
-          'a disposed adapter registration cannot replace its routes',
-          REGISTRY_ERROR_CODES.REGISTRATION_DISPOSED,
-        )
-      }
+    }, next => {
       this.commitRoutes(owned, this.prepareRoutes(next, adapter, owned))
-    }
-    return handle
+    })
   }
 
   /**
@@ -157,7 +140,7 @@ export class RegistryRoutes {
    */
   onAdaptersUpdated(listener: () => void): () => void {
     this.listeners.add(listener)
-    return () => void this.listeners.delete(listener)
+    return releaseOnce(() => void this.listeners.delete(listener))
   }
 
   /**

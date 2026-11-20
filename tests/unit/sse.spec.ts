@@ -75,6 +75,20 @@ describe('parseSse', () => {
     await expect(collect(byteStream([bytes]))).resolves.toEqual([])
   })
 
+  it('releases the body reader when the consumer stops after one event', async () => {
+    const cancel = vi.fn()
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new TextEncoder().encode('data: value\n\n')) },
+      cancel,
+    })
+    for await (const event of parseSse(stream)) {
+      expect(event.data).toBe('value')
+      break
+    }
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(stream.locked).toBe(false)
+  })
+
   it('rejects an event that exceeds the bounded parser buffer', async () => {
     const bytes = new TextEncoder().encode(`data: ${'x'.repeat(1_048_577)}`)
     await expect(collect(byteStream([bytes]))).rejects.toThrow(/buffer/i)
@@ -89,6 +103,7 @@ describe('parseSse', () => {
     await expect(collect(stream, () => {
       throw new ModelError('primary parser failure', 'PRIMARY_PARSER_FAILURE')
     }, 10)).rejects.toMatchObject({ code: 'PRIMARY_PARSER_FAILURE' })
+    expect(stream.locked).toBe(false)
   })
 
   it('bounds a hanging body cancellation without replacing the primary failure', async () => {
@@ -102,5 +117,6 @@ describe('parseSse', () => {
       throw new ModelError('primary parser failure', 'PRIMARY_PARSER_FAILURE')
     }, 10)).rejects.toMatchObject({ code: 'PRIMARY_PARSER_FAILURE' })
     expect(Date.now() - startedAt).toBeLessThan(250)
+    expect(stream.locked).toBe(false)
   })
 })

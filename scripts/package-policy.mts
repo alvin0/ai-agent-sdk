@@ -55,6 +55,11 @@ export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {
     ],
     externalRuntimeDependencies: [],
   },
+  [scoped('provider-antigravity')]: {
+    runtime: 'universal',
+    workspaceDependencies: [scoped('core'), scoped('provider-http')],
+    externalRuntimeDependencies: [],
+  },
   [scoped('provider-gemini')]: {
     runtime: 'universal',
     workspaceDependencies: [scoped('core'), scoped('provider-http'), scoped('protocol-gemini-interactions')],
@@ -82,7 +87,7 @@ export const PACKAGE_RULES: Readonly<Record<string, PackageRule>> = {
   },
   [scoped('auth-node')]: {
     runtime: 'node',
-    workspaceDependencies: [scoped('core'), scoped('provider-codex'), scoped('provider-copilot')],
+    workspaceDependencies: [scoped('core'), scoped('provider-codex'), scoped('provider-copilot'), scoped('provider-antigravity')],
     externalRuntimeDependencies: [],
   },
   [scoped('skill-filesystem')]: {

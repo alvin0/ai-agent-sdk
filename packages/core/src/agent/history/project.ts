@@ -34,14 +34,14 @@ function removeSelected(
   targets: Set<number> | undefined,
 ): number {
   if (operation === undefined) return visible.length
-  const selected = visible.filter(current => isSelected(current, operation, targets)).map(current => current.seq)
-  const insertionIndex = selected.length === 0 ? visible.length
-    : visible.findIndex(current => current.seq === selected[0])
-  for (let index = visible.length - 1; index >= 0; index--) {
-    const current = visible[index]
-    if (current !== undefined && isSelected(current, operation, targets)) visible.splice(index, 1)
+  let insertionIndex: number | undefined
+  let retained = 0
+  for (const current of visible) {
+    if (isSelected(current, operation, targets)) insertionIndex ??= retained
+    else visible[retained++] = current
   }
-  return insertionIndex
+  visible.length = retained
+  return insertionIndex ?? retained
 }
 
 function isSelected(

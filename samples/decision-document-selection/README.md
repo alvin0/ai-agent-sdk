@@ -70,6 +70,11 @@ pnpm sample:decision-documents --providers typesafe --cases current-policy
 pnpm sample:decision-documents --providers typesafe,openai --out artifacts/decision-documents/my-run
 ```
 
+Có thể chọn `--providers typesafe,openai-native` để so sánh TypeSafe với native
+OpenAI Decisions. Provider `openai-native` cố định model selector `gpt-6-luna` và
+lưu evidence xác suất từ provider. Mặc định vẫn chạy `typesafe,openai`, trong đó
+`openai` dùng LLM bridge. Model writer tiếp tục theo `OPENAI_DOCUMENT_SAMPLE_MODEL`.
+
 Root `.env` được nạp tự động nếu có:
 
 ```dotenv
@@ -80,8 +85,15 @@ TYPESAFE_MODEL=jev-latest
 ```
 
 OpenAI dùng tối thiểu `gpt-6-luna` theo [quy định dự án](../../AGENTS.md).
-Runner từ chối model cũ và không fallback. Writer luôn cần OpenAI key; TypeSafe
-key chỉ cần khi chọn provider đó. Mặc định runner so sánh cả hai provider.
+Runner từ chối model cũ. `OPENAI_API_KEY` được ưu tiên cho writer và OpenAI
+selector. Khi thiếu key, OAuth từ đăng nhập Codex xác thực các lượt gọi Decisions
+của `openai-native` và các lượt gọi Responses của `openai` và writer. Đăng nhập
+cục bộ dự án bằng `pnpm provider:codex:login-device`. Đặt
+`AI_AGENT_SDK_CODEX_AUTH` để chọn credential store. TypeSafe key cần khi chọn
+provider đó. Mặc định runner so sánh cả hai provider. Artifact ghi
+`generationProvider` để xác định transport đã dùng. Ca lỗi ghi `stage` và mã lỗi SDK,
+bao gồm lỗi cấu trúc JSON của writer. Usage writer đã nhận vẫn được giữ khi parse
+hoặc kiểm tra câu trả lời thất bại. Diagnostic không ghi output lỗi hay credential.
 
 Task có timeout 60 giây mỗi ứng viên; batch 120 giây; toàn ca 180 giây. Không
 retry, cache kết quả hay sửa output bằng một model khác. Agent writer mới cho

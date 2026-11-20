@@ -182,6 +182,7 @@ class ObservationBus implements Observability {
   shutdown(signal?: AbortSignal): Promise<FlushResult> {
     if (this.shutdownPromise !== undefined) return this.shutdownPromise
     this.closing = true
+    this.drain.stop()
     const targetIds = this.queue.ids()
     this.shutdownPromise = (async () => {
       const deadline = deadlineSignal(this.options.shutdownTimeoutMs, signal)
@@ -392,7 +393,6 @@ class ObservationBus implements Observability {
     try { callback(this.health()) } catch { /* emergency callback is separately contained */ }
   }
 }
-
 
 /** Create one Universal observation bus. Construction validates every durability claim. */
 export function createObservability(options: ObservabilityOptions = {}): Observability {

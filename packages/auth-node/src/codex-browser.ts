@@ -87,6 +87,7 @@ export async function runBrowserLogin(
 
 /** One login's listener: accepts the first callback carrying its `state`, then completes the login. */
 class LoopbackLogin {
+  private readonly completionController = new AbortController()
   authorization: CodexBrowserAuthorization | undefined
   private readonly server: Server
   private completing = false
@@ -161,6 +162,7 @@ class LoopbackLogin {
   }
 
   close(): void {
+    this.completionController.abort(new AgentSdkError('Codex login closed', 'ABORTED'))
     this.server.close()
     this.server.closeAllConnections()
   }
@@ -205,7 +207,10 @@ class LoopbackLogin {
     }
     this.completing = true
     try {
-      const result = await completeBrowserLogin(this.store as CodexAuthStore, authorization, params, this.options)
+      const signal = this.options.signal === undefined ? this.completionController.signal
+        : AbortSignal.any([this.options.signal, this.completionController.signal])
+      const result = await completeBrowserLogin(this.store as CodexAuthStore, authorization, params,
+        { ...this.options, signal })
       reply(response, 200, 'Signed in to Codex. You can close this tab and return to the terminal.')
       this.done({ value: result })
     } catch (error) {

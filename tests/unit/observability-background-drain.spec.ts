@@ -5,6 +5,7 @@
  * rather than wall time.
  */
 import { describe, expect, it, vi } from 'vitest'
+import { createObservability } from '../../packages/core/src/observability/bus.ts'
 import {
   BackgroundDrain, ExporterPacing, type BackgroundDrainHost, type DrainStepOutcome,
 } from '../../packages/core/src/primitives/background-drain.ts'
@@ -172,4 +173,31 @@ describe('ExporterPacing', () => {
     pacing.delivered('a')
     expect([pacing.paused('a'), pacing.tentative('a'), pacing.down('a')]).toEqual([false, true, false])
   })
+})
+
+it('clears a failed exporter retry timer when the observation bus shuts down', async () => {
+  vi.useFakeTimers()
+  try {
+    const observation = createObservability({
+      maxBatchEvents: 1,
+      exporters: [{
+        exporter: {
+          id: 'unavailable',
+          export: vi.fn(async () => { throw new Error('unavailable') }),
+        },
+        requirement: 'best-effort',
+        boundary: 'none',
+      }],
+    })
+    observation.logger().info('trigger a background export')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(vi.getTimerCount()).toBe(1)
+
+    await observation.shutdown()
+
+    expect(observation.health().state).toBe('closed')
+    expect(vi.getTimerCount()).toBe(0)
+  } finally {
+    vi.useRealTimers()
+  }
 })

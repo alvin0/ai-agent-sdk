@@ -21,6 +21,7 @@ import type {
 import type { SdkMcpServerOptions, McpAgentTool } from './advanced-types.ts'
 import type { IntegrationAttempt, IntegrationOperation } from '../common/integration-operation.ts'
 import { resolveLimits, serializedBytes, raceWithSignal, reportError, internalErrorMessage,
+  createOperationScope,
   type ResolvedMcpServerLimits ,
 } from './advanced-support.ts'
 
@@ -44,8 +45,10 @@ export async function callRuntimeAgent(
     attempt.fail('INPUT_TOO_LARGE'); operation.fail('INPUT_TOO_LARGE')
     return errorResult(`agent input exceeds the ${limits.maxInputBytes}-byte limit`, 'INPUT_TOO_LARGE')
   }
-  const signal = AbortSignal.any([context.mcpReq.signal, AbortSignal.timeout(limits.operationTimeoutMs)])
+  const scope = createOperationScope(context.mcpReq.signal, limits.operationTimeoutMs)
+  const signal = scope.signal
   try {
+    signal.throwIfAborted()
     const response = await raceWithSignal(agent.generate(args.input, { signal }), signal, limits.teardownTimeoutMs)
     const result: CallToolResult = {
       content: [{ type: 'text', text: response.text || '(empty response)' }],
@@ -65,7 +68,7 @@ export async function callRuntimeAgent(
       operation: 'agent', exportName: name, requestId: String(context.mcpReq.id),
     })
     return errorResult(internalErrorMessage(options, error, 'agent operation failed'), 'AGENT_FAILED')
-  }
+  } finally { scope.dispose() }
 }
 
 export async function callSdkTool(
@@ -117,8 +120,10 @@ export async function callAgent(
     attempt.fail('INPUT_TOO_LARGE'); operation.fail('INPUT_TOO_LARGE')
     return errorResult(`agent input exceeds the ${limits.maxInputBytes}-byte limit`, 'INPUT_TOO_LARGE')
   }
-  const signal = AbortSignal.any([context.mcpReq.signal, AbortSignal.timeout(limits.operationTimeoutMs)])
+  const scope = createOperationScope(context.mcpReq.signal, limits.operationTimeoutMs)
+  const signal = scope.signal
   try {
+    signal.throwIfAborted()
     const session = await createAgentSession({ definition, request, args, context, signal, limits })
     if (session.definition.id !== definition.agent.id) {
       attempt.fail('WRONG_AGENT_SESSION'); operation.fail('WRONG_AGENT_SESSION')
@@ -137,7 +142,7 @@ export async function callAgent(
       operation: 'agent', exportName: definition.name, requestId: String(context.mcpReq.id),
     })
     return errorResult(internalErrorMessage(options, error, 'agent operation failed'), 'AGENT_FAILED')
-  }
+  } finally { scope.dispose() }
 }
 
 function toMcpContent(blocks: readonly ContentBlock[]): McpResultBlock[] {
@@ -185,25 +190,29 @@ function errorResult(message: string, code: string): CallToolResult {
   }
 }
 
-function dispatchSdkTool(input: {
+async function dispatchSdkTool(input: {
   options: SdkMcpServerOptions; toolName: string; args: Record<string, unknown>; context: ServerContext;
   catalog: ToolCatalog; limits: ResolvedMcpServerLimits;
 }) {
   const { options, toolName, args, context, catalog, limits } = input
-  return dispatchToolCall({
-    catalog,
-    call: {
-      callId: ToolCallId(`mcp:${String(context.mcpReq.id)}`),
-      toolName,
-      rawArguments: JSON.stringify(args),
-    },
-    position: { turn: 1, step: 1 },
-    signal: AbortSignal.any([context.mcpReq.signal, AbortSignal.timeout(limits.operationTimeoutMs)]),
-    defaultTimeoutMs: limits.operationTimeoutMs,
-    teardownTimeoutMs: limits.teardownTimeoutMs,
-    ...(options.approvals === undefined ? {} : { approvals: options.approvals }),
-    ...(options.interceptors === undefined ? {} : { interceptors: options.interceptors }),
-  })
+  const scope = createOperationScope(context.mcpReq.signal, limits.operationTimeoutMs)
+  try {
+    scope.signal.throwIfAborted()
+    return await dispatchToolCall({
+      catalog,
+      call: {
+        callId: ToolCallId(`mcp:${String(context.mcpReq.id)}`),
+        toolName,
+        rawArguments: JSON.stringify(args),
+      },
+      position: { turn: 1, step: 1 },
+      signal: scope.signal,
+      defaultTimeoutMs: limits.operationTimeoutMs,
+      teardownTimeoutMs: limits.teardownTimeoutMs,
+      ...(options.approvals === undefined ? {} : { approvals: options.approvals }),
+      ...(options.interceptors === undefined ? {} : { interceptors: options.interceptors }),
+    })
+  } finally { scope.dispose() }
 }
 
 function renderToolResult(
@@ -249,6 +258,7 @@ async function runAgentSession(
     attempt: IntegrationAttempt; operation: IntegrationOperation },
 ): Promise<CallToolResult> {
   const { signal, limits, attempt, operation } = evidence
+  signal.throwIfAborted()
   const running = session.run(input, { signal })
   const response = await raceWithSignal(running, signal, limits.teardownTimeoutMs)
   if (!isJsonValue(response.outcome)) {

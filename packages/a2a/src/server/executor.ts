@@ -37,6 +37,7 @@ import {
 } from '../common/integration-operation.ts'
 import { A2ATeardownTimeoutError, withTimeout   } from '../common/timeout.ts'
 import { snapshotSessionOptions   } from './session-options.ts'
+import { createA2AScope } from '../common/deadline.ts'
 
 export { createAgentCardFromDefinition,
   type AgentCardFromDefinitionOptions } from './agent-card.ts'
@@ -93,22 +94,19 @@ export class DefinedAgentA2AExecutor implements AgentExecutor {
       eventBus,
       canceled: false,
     }
-    const taskSignal = AbortSignal.any([
-      running.controller.signal,
-      AbortSignal.timeout(this.taskTimeoutMs),
-    ])
+    const scope = createA2AScope(this.taskTimeoutMs, running.controller.signal)
     this.running.set(context.taskId, running)
     let release: (() => void) | undefined
     let acquired: { readonly key: string; readonly slot: SessionSlot; readonly state: ContextSession } | undefined
     try {
       this.assertAccess(context)
       this.assertInputBudget(context)
-      acquired = await this.acquireContextSession(context, taskSignal)
+      acquired = await this.acquireContextSession(context, scope.signal)
       const state = acquired.state
       const previous = state.tail
       state.tail = new Promise<void>(resolve => { release = resolve })
-      await abortable(previous, taskSignal)
-      taskSignal.throwIfAborted()
+      await abortable(previous, scope.signal)
+      scope.signal.throwIfAborted()
 
       eventBus.publish(AgentEvent.statusUpdate({
         taskId: context.taskId,
@@ -117,12 +115,12 @@ export class DefinedAgentA2AExecutor implements AgentExecutor {
         metadata: undefined,
       }))
 
-      await runSession({ context, eventBus, session: state.session, taskSignal }, {
+      await runSession({ context, eventBus, session: state.session, taskSignal: scope.signal }, {
         maxOutputBytes: this.maxOutputBytes, agentName: this.options.agent.name,
       })
       operations.success()
     } catch (error: unknown) {
-      if (taskSignal.aborted) {
+      if (scope.signal.aborted) {
         operations.abort()
       } else {
         const code = a2aErrorCode(error)
@@ -133,6 +131,7 @@ export class DefinedAgentA2AExecutor implements AgentExecutor {
         this.publishFailure(context, eventBus, error)
       }
     } finally {
+      scope.dispose()
       release?.()
       if (acquired !== undefined) this.releaseContextSession(acquired.key, acquired.slot)
       if (this.running.get(context.taskId) === running) this.running.delete(context.taskId)

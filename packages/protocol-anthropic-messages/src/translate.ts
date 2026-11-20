@@ -47,7 +47,13 @@ export async function* translateAnthropicStream(
 }
 
 function parseEvent(raw: ProtocolSseEvent, displayName: string): WireStreamEvent {
-  try { return JSON.parse(raw.data) as WireStreamEvent }
+  try {
+    const event: unknown = JSON.parse(raw.data)
+    if (typeof event !== 'object' || event === null || Array.isArray(event)) {
+      throw new TypeError('stream event must be an object')
+    }
+    return event as WireStreamEvent
+  }
   catch (error: unknown) {
     throw new ModelError(
       `${displayName} sent a malformed stream event`,
