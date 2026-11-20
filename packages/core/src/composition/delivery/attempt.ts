@@ -71,7 +71,7 @@ export class DeliveryAttempt {
     try {
       scope = this.resources.cancellation([this.abort.signal, ...caller === undefined ? [] : [caller]])
       const value = await atDeadline(this.resources, deadlineAt, signal => this.sendBatch(this.batch, signal),
-        scope.signal)
+        { caller: scope.signal })
       if (this.sealed || this.resources.isClosed) return this.report('closed', DELIVERY_ERROR_CODES.CLOSED)
       stage = 'ack'
       return this.acceptAck(value, deadlineAt, scope)

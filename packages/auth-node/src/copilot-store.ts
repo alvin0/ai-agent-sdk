@@ -165,10 +165,9 @@ async function readAuthFile(
   if (raw === undefined) return undefined
   try {
     return Object.freeze({ file: JSON.parse(raw) as CopilotAuthFile, raw })
-  } catch (error: unknown) {
+  } catch {
     throw credentialFileError(
       'Copilot credential file is not valid JSON; delete it and log in again',
-      error,
     )
   }
 }
@@ -178,8 +177,8 @@ function authPayload(file: CopilotAuthFile): string {
     const encoded = JSON.stringify(file, null, 2)
     if (encoded === undefined) throw new TypeError('credential value is not JSON')
     return `${encoded}\n`
-  } catch (error: unknown) {
-    throw credentialFileError('Copilot credential value could not be serialized', error)
+  } catch {
+    throw credentialFileError('Copilot credential value could not be serialized')
   }
 }
 

@@ -368,8 +368,8 @@ async function writeFixture(root: string): Promise<void> {
       devDependencies: {
         '@playwright/test': '1.62.1',
         typescript: '6.0.2',
-        vite: '8.2.2',
-        vitest: '4.1.11',
+        vite: '8.2.4',
+        vitest: '4.1.12',
       },
     }, null, 2)}\n`, 'utf8'),
     writeFile(join(root, 'package-lock.json'), '{}\n', 'utf8'),

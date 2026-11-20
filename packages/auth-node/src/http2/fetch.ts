@@ -8,6 +8,7 @@
  * sends each request as its own stream on a shared session.
  */
 import { pipeline, Readable } from 'node:stream'
+import { MAX_TIMER_MS } from '@alvin0/ai-agent-sdk-core'
 import type { ClientHttp2Stream, SecureClientSessionOptions } from 'node:http2'
 import { Http2ClosedError, Http2SessionPool, Http2UnsupportedError, type Http2Lease } from './pool.ts'
 import {
@@ -88,6 +89,7 @@ export function createNodeHttp2Fetch(options: NodeHttp2FetchOptions = {}): NodeH
 class Http2FetchClient {
   private readonly pool: Http2SessionPool
   private readonly fallbackUntil = new Map<string, number>()
+  private readonly fallbackTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly fallback: typeof globalThis.fetch
   private readonly fallbackTtlMs: number
   private readonly bodyTimeoutMs: number
@@ -113,6 +115,9 @@ class Http2FetchClient {
 
   async close(): Promise<void> {
     this.closed = true
+    for (const timer of this.fallbackTimers.values()) clearTimeout(timer)
+    this.fallbackTimers.clear()
+    this.fallbackUntil.clear()
     await this.pool.close()
   }
 
@@ -127,7 +132,7 @@ class Http2FetchClient {
       lease = await this.pool.acquire(prepared.url.origin, prepared.signal)
     } catch (error: unknown) {
       if (prepared.signal.aborted) throw prepared.signal.reason
-      if (error instanceof Http2ClosedError) throw fetchFailed(error)
+      if (this.closed || error instanceof Http2ClosedError) throw fetchFailed(new Http2ClosedError())
       // No h2: remember it for the full window. Any other connect failure may be a
       // blip (DNS, refused, timeout), so it is remembered only briefly — long enough
       // that a burst does not each wait on a failing connect, short enough that the
@@ -136,7 +141,7 @@ class Http2FetchClient {
       const ttl = error instanceof Http2UnsupportedError
         ? this.fallbackTtlMs
         : Math.min(this.fallbackTtlMs, CONNECT_FAILURE_TTL_MS)
-      this.fallbackUntil.set(prepared.url.origin, Date.now() + ttl)
+      this.rememberFallback(prepared.url.origin, ttl)
       return await this.viaFallback(prepared)
     }
     let response: Response
@@ -167,6 +172,19 @@ class Http2FetchClient {
       ...(prepared.stream === undefined ? {} : { duplex: 'half' }),
     } as FetchInit)
   }
+
+  private rememberFallback(origin: string, ttl: number): void {
+    clearTimeout(this.fallbackTimers.get(origin))
+    this.fallbackUntil.set(origin, Date.now() + ttl)
+    const timer = setTimeout(() => {
+      const remaining = (this.fallbackUntil.get(origin) ?? 0) - Date.now()
+      if (remaining > 0) return this.rememberFallback(origin, remaining)
+      this.fallbackUntil.delete(origin)
+      this.fallbackTimers.delete(origin)
+    }, Math.min(ttl, MAX_TIMER_MS))
+    timer.unref()
+    this.fallbackTimers.set(origin, timer)
+  }
 }
 
 /**
@@ -177,7 +195,7 @@ class Http2FetchClient {
 function exchange(
   lease: Http2Lease, prepared: PreparedRequest, redirected: boolean, bodyTimeoutMs: number,
 ): Promise<Response> {
-  const { signal } = prepared
+  const { signal, signalOwner } = prepared
   if (signal.aborted) {
     lease.release()
     return Promise.reject(signal.reason)
@@ -192,7 +210,7 @@ function exchange(
   }
   // Errors after the response are delivered through the body; never leave one unhandled.
   stream.on('error', () => undefined)
-  const abort = () => { cancelStream(stream, signal.reason) }
+  const abort = () => { cancelStream(stream, (signalOwner?.signal ?? signal).reason) }
   signal.addEventListener('abort', abort, { once: true })
   stream.once('close', () => {
     signal.removeEventListener('abort', abort)

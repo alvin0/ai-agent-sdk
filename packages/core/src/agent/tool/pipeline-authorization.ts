@@ -37,6 +37,8 @@ async function awaitApproval(prepared: PreparedToolCall, broker: ApprovalBroker,
   const publication = new AbortController()
   const signal = AbortSignal.any([prepared.context.signal, publication.signal])
   const pending = broker.request(request, signal)
+  // The broker can fail while the request event waits for its consumer.
+  void pending.catch(() => undefined)
   try {
     await prepared.options.onApprovalRequest?.(request)
   } catch (error: unknown) {

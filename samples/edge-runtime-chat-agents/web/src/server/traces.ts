@@ -11,6 +11,7 @@ import type {
   RuntimeAgentRunEvent,
 } from '@alvin0/ai-agent-sdk-core'
 import type { AgentRunEvent } from '@alvin0/ai-agent-sdk-core/agent'
+import { redactProviderCredentials } from './provider-error'
 
 export interface WireSpanUsage {
   readonly inputTokens?: number
@@ -68,6 +69,7 @@ export class RunTrace {
   constructor(
     private readonly runId: string,
     private readonly prompt: string,
+    private readonly apiKey?: string,
   ) {}
 
   /** Fold one SDK span lifecycle event into this run. */
@@ -90,8 +92,7 @@ export class RunTrace {
         ...(event.attributes === undefined ? {} : { attributes: event.attributes }),
         ...(input === undefined ? {} : { input }),
       }
-      this.rows.set(span.spanId, span)
-      return span
+      return this.store(span)
     }
     if (event.type !== 'span-end') return undefined
     const known = this.rows.get(event.trace.spanId)
@@ -105,8 +106,13 @@ export class RunTrace {
       ...(usage === undefined ? {} : { usage }),
       ...(event.error === undefined ? {} : { error: event.error }),
     }
-    this.rows.set(span.spanId, span)
-    return span
+    return this.store(span)
+  }
+
+  private store(span: WireSpan): WireSpan {
+    const safe = redactTraceValue(span, this.apiKey) as WireSpan
+    this.rows.set(safe.spanId, safe)
+    return safe
   }
 
   /** Return rows in the order their spans opened. */
@@ -137,12 +143,23 @@ export class RunTrace {
   }
 }
 
+function redactTraceValue(value: unknown, apiKey: string | undefined): unknown {
+  if (typeof value === 'string') return redactProviderCredentials(value, apiKey)
+  if (Array.isArray(value)) return value.map(item => redactTraceValue(item, apiKey))
+  if (value === null || typeof value !== 'object') return value
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+    redactProviderCredentials(key, apiKey), redactTraceValue(item, apiKey),
+  ]))
+}
+
 /** The trace collection attached to one warm conversation. */
 export class TraceStore {
   private readonly runs = new Map<string, RunTrace>()
 
+  constructor(private readonly apiKey?: string) {}
+
   start(runId: string, prompt: string): RunTrace {
-    const trace = new RunTrace(runId, prompt)
+    const trace = new RunTrace(runId, redactProviderCredentials(prompt, this.apiKey), this.apiKey)
     this.runs.set(runId, trace)
     while (this.runs.size > TRACE_LIMIT) {
       const oldest = this.runs.keys().next().value

@@ -1,5 +1,6 @@
 import type { JsonObject, JsonValue } from '../primitives/json.ts'
 import type { CorrelationContext } from './context.ts'
+import { diagnosticErrorCode } from '../errors/diagnostic-code.ts'
 
 export type ObservationPriority = 'critical' | 'normal' | 'verbose'
 export type ObservationPhase = 'start' | 'end' | 'point'
@@ -106,7 +107,7 @@ function readCauseTypes(source: object): string[] {
   const causeTypes: string[] = []
   let cause = safeRead(source, 'cause')
   const seen = new Set<unknown>()
-  while (cause !== undefined && cause !== null && !seen.has(cause)) {
+  while (cause !== undefined && cause !== null && !seen.has(cause) && causeTypes.length < 16) {
     seen.add(cause)
     const causeIsError = isError(cause)
     causeTypes.push(causeType(cause, causeIsError))
@@ -138,7 +139,8 @@ function errorLikeRecord(value: unknown): SafeErrorRecord | undefined {
   return Object.freeze({
     type: typeof type === 'string' && RECORD_TYPE.test(type) ? type : 'object',
     message: boundedUnknownMessage(message),
-    ...failureFields(ownDataValue(value, 'code'), ownDataValue(value, 'retryable'), ownDataValue(value, 'status')),
+    ...failureFields(diagnosticCodeOf(value, ownDataValue(value, 'code')),
+      ownDataValue(value, 'retryable'), ownDataValue(value, 'status')),
   })
 }
 
@@ -150,6 +152,10 @@ function failureFields(code: unknown, retryable: unknown, status: unknown) {
   }
 }
 
+function diagnosticCodeOf(value: unknown, code: unknown): unknown {
+  return code === undefined || code === 'AGENT_RUN_FAILED' ? diagnosticErrorCode(value) ?? code : code
+}
+
 /** Converts thrown values without retaining bodies, credentials, or stacks by default. */
 export function safeErrorRecord(value: unknown, includeStack = false): SafeErrorRecord {
   if (!isError(value)) {
@@ -159,14 +165,15 @@ export function safeErrorRecord(value: unknown, includeStack = false): SafeError
   const causeTypes = readCauseTypes(source)
   const name = safeRead(source, 'name')
   const message = safeRead(source, 'message')
-  const code = safeRead(source, 'code')
+  const code = ownDataValue(source, 'code')
+  const diagnosticCode = diagnosticCodeOf(value, code)
   const retryable = safeRead(source, 'retryable')
   const status = safeRead(source, 'status')
   const stack = includeStack ? safeRead(source, 'stack') : undefined
   return Object.freeze({
     type: typeof name === 'string' && name.length > 0 ? name.slice(0, 128) : 'Error',
     message: boundedUnknownMessage(message),
-    ...failureFields(code, retryable, status),
+    ...failureFields(diagnosticCode, retryable, status),
     ...causeTypes.length > 0 ? { causeTypes: Object.freeze(causeTypes) } : {},
     ...typeof stack === 'string' ? { stack } : {},
   })

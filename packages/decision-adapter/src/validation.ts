@@ -1,6 +1,7 @@
 import { ModelError, MODEL_ERROR_CODES, validateUsageCounters } from '@alvin0/ai-agent-sdk-core'
 import type { DecisionCapabilities, DecisionInput, DecisionModelInfo, DecisionQuestions,
   DecisionResult } from './types.ts'
+import { roundedProbabilityBounds, roundedScoreMatches } from './rounded-probabilities.ts'
 
 const encoder = new TextEncoder()
 interface JsonSize { readonly bytes: number; readonly nodes: number; readonly depth: number }
@@ -9,7 +10,8 @@ const jsonSnapshots = new WeakMap<object, JsonSize>()
 const questionSnapshots = new WeakMap<object, { readonly size: JsonSize; readonly counts: readonly {
   type: string; count: number }[] }>()
 const inputSnapshots = new WeakSet<object>()
-const resultSnapshots = new WeakMap<object, DecisionQuestions>()
+const resultSnapshots = new WeakMap<object, { readonly questions: DecisionQuestions;
+  readonly probabilityPrecision: 'hundredths' | undefined }>()
 const sizeOf = (value: unknown): JsonSize => typeof value === 'object' && value !== null
   ? jsonSnapshots.get(value)!
   : { bytes: encoder.encode(JSON.stringify(value)).byteLength, nodes: 1, depth: 0 }
@@ -160,17 +162,20 @@ function probability(value: unknown): number {
     'Invalid decision probability', true)
   return value
 }
-function distribution(value: unknown, keys: readonly string[]): Record<string, number> {
+function distribution(value: unknown, keys: readonly string[], rounded: boolean): Record<string, number> {
   const source = record(value, 'probabilities', true)
   if (Object.keys(source).length !== keys.length || keys.some(key => !Object.hasOwn(source,
     key))) decisionError('Probability options do not match question', true)
   const values = keys.map(key => probability(source[key]))
-  if (Math.abs(values.reduce((a, b) => a + b, 0) - 1) > 0.001) decisionError('Probabilities must sum to one', true)
+  if (Math.abs(values.reduce((a, b) => a + b, 0) - 1) > 0.001 &&
+    !(rounded && roundedProbabilityBounds(values))) decisionError('Probabilities must sum to one', true)
   return source as Record<string, number>
 }
-/** Detached authoritative output; missing evidence stays missing. */
-export function validateDecisionResult<Q extends DecisionQuestions>(value: unknown, questions: Q): DecisionResult<Q> {
-  if (isResultSnapshot(value, questions)) return value as DecisionResult<Q>
+/** Detached authoritative output; native providers can opt into bounded hundredth rounding. */
+export function validateDecisionResult<Q extends DecisionQuestions>(value: unknown, questions: Q,
+  options: { readonly probabilityPrecision?: 'hundredths' } = {}): DecisionResult<Q> {
+  if (isResultSnapshot(value, questions) && resultSnapshots.get(value as object)!.probabilityPrecision ===
+    options.probabilityPrecision) return value as DecisionResult<Q>
   const result = record(value, 'Decision result', true)
   identifier(result.model, 'Response model', true)
   const answers = record(result.answers, 'answers', true)
@@ -178,7 +183,7 @@ export function validateDecisionResult<Q extends DecisionQuestions>(value: unkno
   if (Object.keys(answers).length !== ids.length || ids.some(id => !Object.hasOwn(answers,
     id))) decisionError('Answer ids do not match question ids', true)
   for (const id of ids) {
-    validateAnswer(questions[id]!, answers[id])
+    validateAnswer(questions[id]!, answers[id], options.probabilityPrecision === 'hundredths')
   }
   if (result.providerRequestId !== undefined) identifier(result.providerRequestId, 'Request id', true)
   if (result.usage !== undefined) {
@@ -186,10 +191,16 @@ export function validateDecisionResult<Q extends DecisionQuestions>(value: unkno
   }
   try {
     const captured = snapshotJson(result) as unknown as DecisionResult<Q>
-    resultSnapshots.set(captured, questions)
+    resultSnapshots.set(captured, { questions, probabilityPrecision: options.probabilityPrecision })
     return captured
   }
   catch { return decisionError('Decision response is not bounded JSON', true) }
+}
+
+/** Preserve the validation policy used by an adapter for its immutable SDK-created result. */
+export function validateAdapterDecisionResult<Q extends DecisionQuestions>(value: unknown,
+  questions: Q): DecisionResult<Q> {
+  return isResultSnapshot(value, questions) ? value as DecisionResult<Q> : validateDecisionResult(value, questions)
 }
 
 function isJsonPrimitive(item: unknown): boolean {
@@ -204,7 +215,7 @@ function validateTimeout(input: DecisionInput): void {
 
 function isResultSnapshot(value: unknown, questions: DecisionQuestions): boolean {
   return typeof value === 'object' && value !== null && questionSnapshots.has(questions)
-    && resultSnapshots.get(value) === questions
+    && resultSnapshots.get(value)?.questions === questions
 }
 
 function validateCapabilities(value: unknown): void {
@@ -258,53 +269,56 @@ function validateBooleanCriteria(criteria: unknown): void {
   }
 }
 
-function validateAnswer(question: import('./types.ts').DecisionQuestion, raw: unknown): void {
+function validateAnswer(question: import('./types.ts').DecisionQuestion, raw: unknown, rounded: boolean): void {
   const answer = record(raw, 'answer', true)
   if (answer.type !== question.type) decisionError('Answer type does not match question', true)
   if (answer.confidence !== undefined) probability(answer.confidence)
   if (answer.probabilitySource !== undefined && !['provider', 'token-logprobs', 'model-generated'].includes(
     answer.probabilitySource as string)) decisionError('Unknown probability provenance', true)
-  validateAnswerValue(question, answer)
+  validateAnswerValue(question, answer, rounded)
   if ((answer.probabilities !== undefined || answer.probabilityTrue !== undefined ||
     answer.confidence !== undefined) && answer.probabilitySource === undefined) decisionError(
     'Decision evidence requires provenance', true)
 }
 
 function validateChoiceQuestionAnswer(
-  question: import('./types.ts').ChoiceQuestion, answer: Record<string, unknown>,
+  question: import('./types.ts').ChoiceQuestion, answer: Record<string, unknown>, rounded: boolean,
 ): void {
   if (typeof answer.choice !== 'string' || !Object.hasOwn(question.options, answer.choice)) decisionError(
     'Answer selected an unknown option', true)
   if (answer.probabilities !== undefined) {
-    const probabilities = distribution(answer.probabilities, Object.keys(question.options))
+    const probabilities = distribution(answer.probabilities, Object.keys(question.options), rounded)
     if (probabilities[answer.choice]! + 0.001 < Math.max(...Object.values(probabilities))) decisionError(
       'Choice is not a maximum-probability option', true)
   }
 }
 
 function validateScoreQuestionAnswer(
-  question: import('./types.ts').ScoreQuestion, answer: Record<string, unknown>,
+  question: import('./types.ts').ScoreQuestion, answer: Record<string, unknown>, rounded: boolean,
 ): void {
   if (typeof answer.score !== 'number' || !Number.isFinite(answer.score) || answer.score < 0 ||
     answer.score > question.levels.length - 1) decisionError('Score is outside its rubric', true)
   if (answer.probabilities !== undefined) {
-    const probabilities = distribution(answer.probabilities, question.levels.map((_, i) => String(i)))
+    const probabilities = distribution(answer.probabilities, question.levels.map((_, i) => String(i)), rounded)
+    const values = Object.values(probabilities)
+    const normalized = Math.abs(values.reduce((sum, value) => sum + value, 0) - 1) <= 0.001
     const expected = Object.entries(probabilities).reduce((sum, [level, p]) => sum + Number(level) * p, 0)
-    if (Math.abs(expected - answer.score) > 0.001 * question.levels.length) decisionError(
+    if (!(normalized && Math.abs(expected - answer.score) <= 0.001 * question.levels.length) &&
+      !(rounded && roundedScoreMatches(answer.score, values))) decisionError(
       'Score does not match its probability distribution', true)
   }
 }
 
 function validateAnswerValue(
-  question: import('./types.ts').DecisionQuestion, answer: Record<string, unknown>,
+  question: import('./types.ts').DecisionQuestion, answer: Record<string, unknown>, rounded: boolean,
 ): void {
   switch (question.type) {
     case 'choice': {
-      validateChoiceQuestionAnswer(question, answer)
+      validateChoiceQuestionAnswer(question, answer, rounded)
       break
     }
     case 'score': {
-      validateScoreQuestionAnswer(question, answer)
+      validateScoreQuestionAnswer(question, answer, rounded)
       break
     }
     case 'boolean':

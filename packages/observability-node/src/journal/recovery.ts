@@ -34,7 +34,7 @@ async function recoverSegment(root: string, name: string, state: RecoveryState):
       const { event, payloadJson, eventId } = parseRecoveryLine(line, eventIds)
       eventIds.add(eventId)
       segmentEventIds.push(eventId)
-      records.push(deepFreeze({ segment: name, line: index + 1, event, payloadJson }))
+      records.push({ segment: name, line: index + 1, event, payloadJson })
     } catch (error) {
       if (index === lines.length - 1) {
         await quarantineSegment(root, name, { records, quarantinedSegments, eventIds, segmentEventIds })

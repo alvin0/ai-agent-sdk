@@ -66,10 +66,14 @@ export function createDiagnosticWireLogger(options: DiagnosticWireLoggerOptions)
     if (closed) return
     closed = true
     await tail
-    for (const handle of await Promise.all(handles.values())) {
-      await handle.datasync()
-      await handle.close()
-    }
+    const results = await Promise.allSettled([...handles.values()].map(async pending => {
+      const handle = await pending
+      try { await handle.datasync() }
+      finally { await handle.close() }
+    }))
+    handles.clear()
+    const failed = results.find(result => result.status === 'rejected')
+    if (failed !== undefined) throw failed.reason
   }
   return logger
 }

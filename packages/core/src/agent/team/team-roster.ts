@@ -58,11 +58,7 @@ export class TeamRoster {
     }
     this.remotes.set(name, member)
     this.options.emit({ type: 'member-linked', member: teamMemberView(member) })
-    return () => {
-      if (this.remotes.get(name) !== member) return
-      if (member.pending > 0) throw new Error(`cannot unlink running A2A member '${name}'`)
-      this.remotes.delete(name)
-    }
+    return remoteUnlink(this.remotes, name, member)
   }
   detach(name: string): void {
     const member = this.requireLocalMember(name)
@@ -115,5 +111,19 @@ export class TeamRoster {
   clear(): void {
     this.locals.clear()
     this.remotes.clear()
+  }
+}
+
+function remoteUnlink(
+  members: Map<string, RemoteMemberRuntime>, name: string, member: RemoteMemberRuntime,
+): () => void {
+  let retained: { members: typeof members; member: RemoteMemberRuntime } | undefined = { members, member }
+  return () => {
+    const current = retained
+    if (current === undefined) return
+    if (current.members.get(name) !== current.member) { retained = undefined; return }
+    if (current.member.pending > 0) throw new Error(`cannot unlink running A2A member '${name}'`)
+    current.members.delete(name)
+    retained = undefined
   }
 }

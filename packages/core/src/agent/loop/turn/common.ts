@@ -1,5 +1,6 @@
 import type { StreamChunk } from '../../../stream/index.ts'
 import { utf8ByteLength } from '../../../primitives/utf8.ts'
+export { messageOf, errorCodeOf } from '../../../errors/thrown-value.ts'
 
 export function serializedBytes(value: unknown): number {
   const serialized = JSON.stringify(value)
@@ -16,10 +17,5 @@ export function codedRuntimeError(message: string, code: string, cause: unknown)
   const error = new Error(message, { cause }) as Error & { code: string }
   error.code = code
   return error
-}
-export function messageOf(error: unknown): string { return error instanceof Error ? error.message : String(error) }
-export function errorCodeOf(error: unknown): string | undefined {
-  return typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
-    ? error.code : undefined
 }
 export function now(): string { return new Date().toISOString() }

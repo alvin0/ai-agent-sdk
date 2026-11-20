@@ -1,5 +1,6 @@
 import { contentHasDocument, contentHasImage } from '../../message/projection.ts'
 import { ModelError } from '../../errors/model-error.ts'
+import { diagnosticErrorCode } from '../../errors/diagnostic-code.ts'
 import { bindCompactionAccounting } from '../memory/accounting-binding.ts'
 import { toolCatalog } from './session/common.ts'
 import type { AgentRunEvent, AgentRunOutcome } from '../mode/run-agent.ts'
@@ -241,23 +242,38 @@ type SessionHandleState = {
 }
 
 function makeSessionRunHandle(state: SessionHandleState): AgentRunHandle {
-  const { host, ledger, buffer, reportDeferred, resultDeferred, toolSourcesDeferred, task, owned } = state
+  const { buffer, reportDeferred, resultDeferred, toolSourcesDeferred, task } = state
+  const { runId, traceId } = state.ledger
+  let active: SessionHandleState | undefined = state
+  const release = (): void => { active = undefined }
+  void task.then(release, release)
   void resultDeferred.promise.catch(() => undefined)
   void reportDeferred.promise.catch(() => undefined)
   let iterated = false
   return Object.freeze({
-    runId: ledger.runId,
-    traceId: ledger.traceId,
+    runId,
+    traceId,
     toolSourceSnapshots: toolSourcesDeferred.promise,
     eventsSettled: task.then(() => undefined, () => undefined),
     result: resultDeferred.promise,
     report: reportDeferred.promise,
-    seal: () => sealRuntimeRun({ ledger, buffer, report: reportDeferred, result: resultDeferred,
-      toolSources: toolSourcesDeferred, currentToolSources: state.currentToolSources, isTerminal: state.isTerminal,
-      markTerminal: state.markTerminal, abort: () => owned.abort(new Error('Agent run was sealed')),
-      release: () => host.releaseRun() }),
-    abort(_reason?: unknown): void {
-      if (!state.isTerminal() && !owned.signal.aborted) owned.abort(new Error('Agent run was aborted'))
+    seal: () => {
+      const current = active
+      if (current === undefined) return reportDeferred.promise
+      const report = sealRuntimeRun({ ledger: current.ledger, buffer, report: reportDeferred, result: resultDeferred,
+        toolSources: toolSourcesDeferred, currentToolSources: current.currentToolSources,
+        isTerminal: current.isTerminal,
+        markTerminal: current.markTerminal, abort: () => current.owned.abort(new Error('Agent run was sealed')),
+        release: () => current.host.releaseRun() })
+      release()
+      return report
+    },
+    abort(reason?: unknown): void {
+      if (active !== undefined && !active.isTerminal() && !active.owned.signal.aborted) {
+        const error = new Error('Agent run was aborted')
+        const code = diagnosticErrorCode(reason)
+        active.owned.abort(code === undefined ? error : Object.assign(error, { code }))
+      }
     },
     [Symbol.asyncIterator](): AsyncIterator<AgentRunEvent> {
       if (iterated) return (async function* () { throw new Error('an agent run handle can only be iterated once') })()
@@ -272,7 +288,7 @@ function makeSessionRunHandle(state: SessionHandleState): AgentRunHandle {
           }
         } finally {
           if (!exhausted) {
-            owned.abort(new Error('agent event consumer stopped'))
+            active?.owned.abort(new Error('agent event consumer stopped'))
             buffer.stop()
             await waitForSettlement(task, 30_000)
           }

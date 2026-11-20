@@ -1,6 +1,6 @@
 import type { CredentialInput, RetryPolicyConfig } from '@alvin0/ai-agent-sdk-core/provider'
 
-/** Native Decisions uses an API key, independently of Codex ChatGPT OAuth. */
+/** Native Decisions uses a bearer credential, supplied directly or by a credential source. */
 export interface OpenAiDecisionAdapterOptions {
   readonly apiKey: CredentialInput
   /** API root, including /v1; defaults to https://api.openai.com/v1. */

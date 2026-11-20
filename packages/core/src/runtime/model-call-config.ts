@@ -24,7 +24,9 @@ export function captureModelCall(input: CreateModelCallHandleOptions) {
   const supplied = input.context?.correlation
   const runId = correlationId(supplied, 'runId')
   const modelCallId = correlationId(supplied, 'modelCallId')
-  const scope = scopeFor(contextKey, runId, input.context?.scope)
+  // Only explicit run identities can share a scope across calls. Generated IDs
+  // belong to this call and must not accumulate under a reusable context.
+  const scope = scopeFor(contextKey, supplied?.runId === runId ? runId : undefined, input.context?.scope)
   const startedAt = new Date().toISOString()
   const startedMonotonic = nowMonotonic()
   const port = input.context?.observation ?? input.defaultObservation ?? NOOP_OBSERVATION_PORT

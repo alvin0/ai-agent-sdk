@@ -79,10 +79,16 @@ export function renderInstructions(
     included.push(file)
   }
   if (included.length === 0) return undefined
-  const notice = omitted.length === 0
+  const fullNotice = omitted.length === 0
     ? ''
     : `\n\nOmitted for the ${config.maxBytes}-byte instruction budget: `
       + `${omitted.map(file => file.displayPath).join(', ')}.`
+  const briefNotice = `\n\nOmitted ${omitted.length} instruction ${omitted.length === 1 ? 'file' : 'files'}.`
+  const remaining = config.maxBytes - used
+  let notice = fullNotice
+  if (utf8Bytes(notice) > remaining) {
+    notice = utf8Bytes(briefNotice) <= remaining ? briefNotice : ''
+  }
   const text = `${config.intro}\n\n${included.map(sectionText).join('\n\n')}${notice}`
   // The digest covers exactly what the model reads, so any change to content,
   // ordering, or the omission notice produces a new revision and one rewrite.

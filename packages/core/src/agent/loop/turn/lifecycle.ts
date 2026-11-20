@@ -7,6 +7,7 @@ import { buildTurnOutcome, continueAfterTurnHook, continueBeforeCompletion, turn
 import { emitTurnSpanStart, appendTurnInterruption } from './lifecycle-events.ts'
 import { now, errorCodeOf, messageOf } from './common.ts'
 import { ensureTerminalAnswer, hasUnansweredUserInput } from './terminal-answer.ts'
+import { safeErrorRecord } from '../../../observation/event.ts'
 
 function beginFinalizeWindow(state: TurnState) {
   const window = openFinalizeWindow({ ...state,
@@ -101,7 +102,7 @@ export async function reportTurnFailure(state: TurnState, error: unknown) {
   if (state.rootStarted && !state.rootEnded) {
     await state.emit({
       type: 'span-end', trace: state.root, at: now(), status: state.signal.aborted ? 'aborted' : 'error',
-      error: { type: error instanceof Error ? error.name : 'RuntimeError', message: messageOf(error),
+      error: { type: safeErrorRecord(error).type, message: messageOf(error),
         ...code === undefined ? {} : { code } },
     }).catch(() => undefined)
   }

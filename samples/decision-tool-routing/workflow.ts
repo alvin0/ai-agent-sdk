@@ -1,6 +1,7 @@
 import type { DecisionDescription } from '@alvin0/ai-agent-sdk-decision-adapter'
 import type { UsageCounters } from '@alvin0/ai-agent-sdk-core/provider'
-import { createWorkspace, executeTool, expectedNext, oracle, prerequisites, requiredSources, type Scenario, type Selection, type ToolName, type Workspace } from './domain.ts'
+import { createWorkspace, executeTool, expectedNext, oracle, prerequisites, requiredSources, toolDescriptions,
+  type Scenario, type Selection, type ToolName, type Workspace } from './domain.ts'
 
 export interface Choice<T extends string> {
   choice: T
@@ -75,6 +76,8 @@ const jsonState = (value: unknown): DecisionDescription => JSON.parse(JSON.strin
 export function publicState(s: Scenario, w: Workspace): DecisionDescription {
   return jsonState({ request: s.request, coldAlarm: s.coldAlarm, mode: 'analysis_only',
     completedTools: Object.keys(w.observations), observations: w.observations,
+    availableTools: (Object.keys(toolDescriptions) as ToolName[]).filter(
+      tool => prerequisites(s, w, tool).length === 0),
     recentErrors: w.trace.filter(event => !event.ok).slice(-3),
     objective: 'Meet ALL hard constraints; minimize total cost among feasible plans. Escalate if no feasible plan exists. Never spend money or send messages.',
   })

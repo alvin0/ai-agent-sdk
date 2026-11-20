@@ -12,12 +12,18 @@ import { event, ledgerReport } from './delivery-fixtures.ts'
 
 /** Independent oracle: the exact wire size of a one-event batch (batch ids are 32 hex chars). */
 function oneItemBatchBytes(resource: RuntimeObservationResource, item: ObservationEvent): number {
-  return new TextEncoder().encode(JSON.stringify({ id: '0'.repeat(32), resource, events: [item], runRecords: [] })).byteLength
+  return new TextEncoder().encode(JSON.stringify({
+    id: '0'.repeat(32), resource, events: [item], runRecords: [],
+  })).byteLength
 }
 
-function context(options: ConstructorParameters<typeof DeliveryQueueStore>[2] = {}, stage?: (item: ObservationExportItem) => void) {
+function context(
+  options: ConstructorParameters<typeof DeliveryQueueStore>[2] = {},
+  stage?: (item: ObservationExportItem) => void,
+) {
   const platform = createRuntimePlatform(), resource = createRuntimeResource(undefined, platform), failed = vi.fn()
-  const registrations = stage === undefined ? [] : [{ exporter: defineObservationExporter({ id: 'staged', supportedBoundaries: ['local-durable'], stage,
+  const registrations = stage === undefined ? [] : [{ exporter: defineObservationExporter({
+    id: 'staged', supportedBoundaries: ['local-durable'], stage,
     export: async batch => ({ batchId: batch.id, acceptedEventIds: [], acceptedRunIds: [] }) }),
   requirement: 'required' as const, ownership: 'borrowed' as const, boundary: 'local-durable' as const }]
   const staging = new DeliveryStaging(registrations, failed)
@@ -124,6 +130,35 @@ describe('delivery queue admission and priority eviction', () => {
     expect(store.snapshot().entries.map(entry => entry.kind)).toEqual(['event', 'run-record'])
   })
 
+  it('keeps bounded FIFO duplicate metadata without retaining payloads when retention is off', async () => {
+    const staged = vi.fn(), probe = context({}, staged)
+    const store = new DeliveryQueueStore(probe.resource, probe.staging, { maxEvents: 2 }, { retain: false })
+    const first = event('first', 1), second = event('second', 2), third = event('third', 3)
+    const accepted = store.admitEvent(first)
+    store.admitEvent(second)
+    // A duplicate keeps its original admission metadata and does not refresh FIFO order.
+    const duplicate = store.admitEvent({ ...first, sequence: 999, priority: 'normal' })
+    expect(duplicate).toMatchObject({ status: 'existing', entry: {
+      ordinal: accepted.entry!.ordinal, runId: 'first', sequence: 1, priority: 'critical',
+      bytes: accepted.entry!.bytes,
+    } })
+    expect(Object.isFrozen(duplicate.entry)).toBe(true)
+    expect(store.stats().accepted).toBe(2)
+    expect(staged).toHaveBeenCalledTimes(2)
+    store.admitEvent(third)
+    expect(store.admitEvent(second).status).toBe('existing')
+    expect(store.admitEvent(first).status).toBe('accepted')
+    const report = await ledgerReport('terminal-first')
+    const firstRecord = createRunTerminalRecord(report)
+    store.admitRunRecord(firstRecord)
+    store.admitRunRecord(createRunTerminalRecord(await ledgerReport('terminal-second')))
+    expect(store.admitRunRecord(firstRecord).status).toBe('existing')
+    store.admitRunRecord(createRunTerminalRecord(await ledgerReport('terminal-third')))
+    expect(store.admitRunRecord(firstRecord).status).toBe('accepted')
+    expect(store.stats()).toMatchObject({ queuedItems: 0, queuedBytes: 0, accepted: 8 })
+    expect(staged).toHaveBeenCalledTimes(8)
+  })
+
   it('selects only critical evidence in the requested run through a sequence plus its terminal record', async () => {
     const { store } = context()
     store.admitEvent(withPriority(1, 'critical', 'target'))
@@ -138,7 +173,9 @@ describe('delivery queue admission and priority eviction', () => {
   })
 
   it('removes acknowledged entries without changing remaining FIFO identity', () => {
-    const { store } = context({ maxEvents: 300 }), entries = Array.from({ length: 600 }, (_, index) => store.admitEvent(withPriority(index + 1, 'normal')).entry!)
+    const { store } = context({ maxEvents: 300 })
+    const entries = Array.from({ length: 600 }, (_, index) =>
+      store.admitEvent(withPriority(index + 1, 'normal')).entry!)
     store.remove(entries.slice(0, 400))
     expect(store.snapshot().entries).toEqual(entries.slice(400))
     expect(store.snapshot()).toMatchObject({ queuedItems: 200, evictedNormal: 300 })
@@ -187,9 +224,14 @@ describe('delivery queue admission and priority eviction', () => {
 
   it('evicts the oldest unprotected entry without scanning protected ones, and keeps order on unprotect', () => {
     // Membership checks per admission must not grow with the number of protected entries.
-    const checksFor = (protectedCount: number): { store: DeliveryQueueStore; entries: ReturnType<DeliveryQueueStore['admitEvent']>['entry'][]; checks: number } => {
+    const checksFor = (protectedCount: number): {
+      store: DeliveryQueueStore
+      entries: ReturnType<DeliveryQueueStore['admitEvent']>['entry'][]
+      checks: number
+    } => {
       const { store } = context({ maxEvents: 6 })
-      const entries = Array.from({ length: 6 }, (_, index) => store.admitEvent(withPriority(index + 1, 'verbose')).entry)
+      const entries = Array.from({ length: 6 }, (_, index) =>
+        store.admitEvent(withPriority(index + 1, 'verbose')).entry)
       store.protect(entries.slice(0, protectedCount).map(entry => entry!))
       const has = vi.spyOn(WeakSet.prototype, 'has')
       try {

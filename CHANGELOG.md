@@ -4,8 +4,54 @@ All notable changes to the AI Agent SDK are documented in this file.
 
 ## 0.1.18 - 2026-11-19
 
+### Added
+
 - Added the Antigravity OAuth provider and Node login CLI.
 - Added experimental Codex Images generation and an image tool for agent sessions.
+- The decision tool-routing benchmark can compare TypeSafe with native OpenAI Decisions using
+  `--arms typesafe,openai-native`. The benchmark and live decision smoke use `OPENAI_API_KEY` when
+  set and otherwise use the project-local Codex login. Decisions access depends on the account.
+
+### Fixed
+
+- Closing a model stream iterator before its first read now settles the call report without
+  dispatching a provider request. When an attempt report omits counters already received on the stream, the
+  call report preserves those counters as partial usage. A teardown timeout also preserves known usage.
+- OpenAI Responses, Chat Completions, Anthropic Messages and Gemini Interactions now report
+  `MALFORMED_RESPONSE` when an SSE frame contains a JSON array, `null` or a primitive.
+- TypeSafe accepts probabilities rounded independently to hundredths when the underlying
+  distribution can account for the reported score. `validateDecisionResult` exposes this behavior
+  through the optional `probabilityPrecision: 'hundredths'` setting. Native OpenAI Decisions
+  enforces limits of 400 questions, 255 options per choice and 10 levels per score before dispatch.
+- The Node HTTP/2 transport preserves caller cancellation while waiting for response headers.
+  Concurrent `close()` calls wait for active streams, and Node stays alive until explicit shutdown
+  completes. Concurrent Codex and Copilot credential writes to the same file are queued in-process.
+- Node observation journals capture batch contents before callers can mutate them, reject reuse
+  of a batch ID with conflicting contents, and reclaim expired acknowledged data before retrying
+  a write at capacity. The browser exporter releases completed IndexedDB staging operations.
+- MCP and A2A release operation timers after completion and preserve caller cancellation through
+  response-body reads and tool execution. Cancelling an MCP agent during startup now observes
+  a late rejection from the agent.
+
+### Performance
+
+- Replaying 32,000 buffered session events took 4.81 ms, down from 323.11 ms in a local benchmark
+  of the built SDK. A separate small-session benchmark measured 2.6% lower median paired throughput.
+- MCP reuses compiled validators for unchanged tool schemas and refreshes them when the schema
+  changes. Core tools and HTTP request loggers clear completed deadlines. In a 5,000-call core
+  tool benchmark with long deadlines, heap growth after settling and garbage collection fell
+  from 6.07 MB to 0.11 MB.
+- The Node runtime journal avoids freezing records during internal retention scans and checks
+  only the completed batch receipt on delivery. In a local disk benchmark, delivering 100 batches
+  of 32 events took 3.28 seconds, down from 3.97 seconds.
+
+### Security
+
+- Observation redactors now cover strings nested inside content objects and arrays. Codex and
+  Copilot credential-file errors suppress parser details that could expose stored secrets.
+- Sandbox escalation approvals snapshot the granted paths and access modes. Later edits to the
+  caller's entries cannot widen the approval. MCP checks the actual bytes of incoming request
+  bodies, and Node instruction discovery enforces its byte limit even when a file grows during a read.
 
 ## 0.1.17 - 2026-11-16
 

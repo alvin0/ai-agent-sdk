@@ -75,6 +75,17 @@ kết quả mô phỏng chưa xếp hạng. Sample không đo khả năng tự p
 ngoài catalog. `place_order` và `contact_vendor` luôn bị host chặn vì yêu cầu
 chỉ phân tích; không có tác động bên ngoài.
 
+Arm tùy chọn `openai-native` dùng `openAiDecisionPlugin` gọi native Decisions với
+`gpt-6-luna`. Arm này giữ xác suất từ provider trong trace. Chạy so sánh native
+với TypeSafe bằng `pnpm sample:decision-tools --arms typesafe,openai-native`.
+Mặc định vẫn chạy `typesafe,openai`.
+
+State gửi selector có `availableTools`, tính từ quyền và prerequisite của executor.
+Danh sách này loại tool đã hoàn thành và thao tác bị chặn. Các tool được phép nhưng
+không cần thiết vẫn có thể được chọn và bị scorer đánh giá sai. Golden label và
+oracle chỉ dùng để chấm điểm. Metadata `supply-recovery-v2` / `v3-tool-availability`
+phân biệt cấu hình này với các benchmark trước khi có danh sách capability.
+
 ## Chạy
 
 Chạy từ root repository sau khi cài dependency và build các package. Node phải
@@ -97,8 +108,12 @@ TYPESAFE_MODEL=jev-latest
 ```
 
 Theo [quy định dự án](../../AGENTS.md), OpenAI dùng tối thiểu `gpt-6-luna`.
-Runner từ chối tên model thế hệ cũ và không tự fallback provider/model. Writer
-luôn cần `OPENAI_API_KEY`; arm TypeSafe cần thêm `TYPESAFE_API_KEY`.
+Runner từ chối tên model thế hệ cũ. `OPENAI_API_KEY` được ưu tiên cho writer và
+OpenAI selector. Khi thiếu key, OAuth từ đăng nhập Codex xác thực các lượt gọi
+Decisions của `openai-native` và các lượt gọi Responses của `openai` và writer.
+Đăng nhập cục bộ dự án bằng `pnpm provider:codex:login-device`. Đặt
+`AI_AGENT_SDK_CODEX_AUTH` để chọn credential store. Arm TypeSafe cần
+`TYPESAFE_API_KEY`. Report ghi `generationProvider` để xác định transport đã dùng.
 
 ```sh
 # Chỉ chạy cấu hình TypeSafe selector + OpenAI writer

@@ -6,7 +6,8 @@ interface BufferedValue<T> { readonly value: T; readonly bytes: number }
 
 /** Single-consumer, non-blocking producer buffer for public run events. */
 export class RunEventBuffer<T> {
-  private readonly values: BufferedValue<T>[] = []
+  private readonly values: Array<BufferedValue<T> | undefined> = []
+  private head = 0
   private readonly waiters: Array<() => void> = []
   private bytes = 0
   private closed = false
@@ -24,7 +25,7 @@ export class RunEventBuffer<T> {
     if (this.stopped) return
     if (this.closed) throw new Error('run event buffer is closed')
     const bytes = serializedBytes(value)
-    if (this.values.length >= this.maxEvents || this.bytes + bytes > this.maxBytes) {
+    if (this.values.length - this.head >= this.maxEvents || this.bytes + bytes > this.maxBytes) {
       throw new AgentSdkError(
         'public run event buffer exceeded its resource limit',
         OBSERVATION_ERROR_CODES.LEDGER_LIMIT_EXCEEDED,
@@ -50,14 +51,24 @@ export class RunEventBuffer<T> {
     this.stopped = true
     this.closed = true
     this.values.length = 0
+    this.head = 0
     this.bytes = 0
     this.notify()
   }
 
   async take(): Promise<IteratorResult<T>> {
     while (true) {
-      const item = this.values.shift()
+      const item = this.values[this.head]
       if (item !== undefined) {
+        this.values[this.head] = undefined
+        this.head++
+        if (this.head === this.values.length) {
+          this.values.length = 0
+          this.head = 0
+        } else if (this.head >= 1024 && this.head * 2 >= this.values.length) {
+          this.values.splice(0, this.head)
+          this.head = 0
+        }
         this.bytes -= item.bytes
         return { done: false, value: item.value }
       }

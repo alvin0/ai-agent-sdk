@@ -64,6 +64,7 @@ import {
 import {
   positiveSafeInteger, registrationEvidence, validateRuntimeDefaults,
 } from './registry-support.ts'
+import { releaseOnce } from '../primitives/release.ts'
 
 import {
   createRegistryStream,
@@ -151,10 +152,10 @@ export class ModelRegistry {
    */
   use(middleware: StreamMiddleware): () => void {
     this.middleware.push(middleware)
-    return () => {
+    return releaseOnce(() => {
       const index = this.middleware.indexOf(middleware)
       if (index >= 0) this.middleware.splice(index, 1)
-    }
+    })
   }
 
   /**

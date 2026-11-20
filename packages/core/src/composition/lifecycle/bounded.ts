@@ -1,8 +1,8 @@
 import { RuntimeResources } from '../../platform/resources.ts'
 
 export class BoundaryFailure extends Error {
-  constructor(readonly reason: 'failed' | 'timed-out' | 'aborted') {
-    super('Capability operation did not complete')
+  constructor(readonly reason: 'failed' | 'timed-out' | 'aborted', safeCause?: Error) {
+    super('Capability operation did not complete', safeCause === undefined ? undefined : { cause: safeCause })
     this.name = 'BoundaryFailure'
   }
 }
@@ -12,8 +12,9 @@ export async function atDeadline<T>(
   resources: RuntimeResources,
   deadlineAt: number,
   work: (signal: AbortSignal) => T | Promise<T>,
-  caller?: AbortSignal,
+  options?: { caller?: AbortSignal | undefined; sanitizeFailure?: (error: unknown) => Error | undefined },
 ): Promise<T> {
+  const caller = options?.caller
   const remaining = deadlineAt - resources.platform.monotonicNow()
   if (caller?.aborted) throw new BoundaryFailure('aborted')
   if (!Number.isFinite(remaining) || remaining <= 0) throw new BoundaryFailure('timed-out')
@@ -38,7 +39,10 @@ export async function atDeadline<T>(
     }).then(value => {
       checkDeadline()
       return value
-    }, () => { throw new BoundaryFailure(reason()) })
+    }, error => {
+      const end = reason()
+      throw new BoundaryFailure(end, end === 'failed' ? options?.sanitizeFailure?.(error) : undefined)
+    })
     return await Promise.race([task, interrupted])
   } finally { release(); scope.dispose() }
 }

@@ -81,8 +81,8 @@ async function requestRefresh(refreshToken: string, options: CodexOAuthOptions):
         refresh_token: refreshToken,
       }),
     })
-  } catch (error: unknown) {
-    throw new CodexRefreshError('token refresh could not reach the auth service', 'transient', { cause: error })
+  } catch {
+    throw new CodexRefreshError('token refresh could not reach the auth service', 'transient')
   }
 }
 
@@ -98,7 +98,6 @@ async function assertRefreshResponse(response: Response, options: CodexOAuthOpti
           + ' run `npm run provider:codex:login-device` to sign in again'
         : `token refresh failed (HTTP ${response.status})`,
       permanent ? 'permanent' : 'transient',
-      { cause: new Error(raw) },
     )
   }
 }

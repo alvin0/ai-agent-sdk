@@ -4,11 +4,11 @@ import { safeErrorRecord, type OperationStatus, type SafeErrorRecord } from '../
 import { validateCaptureReceipt, type CaptureReceipt } from '../observation/port.ts'
 import { ModelCallObservationError, OBSERVATION_ERROR_CODES, type ModelCallHandle,
   type ModelCallReport } from '../observation/report.ts'
-import { addUsageCounters, validateUsageCounters,
-  type UsageCoverage, type UsageCounters } from '../observation/usage.ts'
+import { addUsageCounters, hasUsageCounters, validateUsageCounters,
+  type AttemptUsageReport, type UsageCoverage, type UsageCounters } from '../observation/usage.ts'
 import { elapsedWithin, nowMonotonic, safeFailureFromFinish, applyReceipt,
   deliverySummary } from './model-call-support.ts'
-import { modelCallCoverage, usageValidationError,
+import { modelCallCoverage, mergeUsageLowerBounds, usageValidationError,
   billedAttemptsWithoutUsage, finishStatus } from './model-call-usage.ts'
 import type { captureModelCall } from './model-call-config.ts'
 
@@ -22,11 +22,18 @@ interface UsageSummary {
 
 type ModelCallHost = ReturnType<typeof captureModelCall>
 
+const activeIterators = new WeakMap<AsyncIterator<StreamChunk>, ModelCallRuntime>()
+
+/** Read the evidence available at the agent's teardown deadline, without awaiting the provider. */
+export function snapshotUnsettledModelCall(iterator: AsyncIterator<StreamChunk>): ModelCallReport | undefined {
+  return activeIterators.get(iterator)?.unsettledReport()
+}
+
 export class ModelCallRuntime {
+  private activeIterator?: AsyncIterator<StreamChunk>
   private resolveReport: (report: ModelCallReport) => void = () => {}
   private readonly report = new Promise<ModelCallReport>((resolve) => { this.resolveReport = resolve })
   private finalized = false
-  private iterated = false
   private status: OperationStatus = 'unknown'
   private finishReason: string | undefined
   private error: SafeErrorRecord | undefined
@@ -43,8 +50,9 @@ export class ModelCallRuntime {
     const endedMonotonic = nowMonotonic()
     this.closeAttempts(endedAt)
 
-    const summary = this.summarizeUsage(endedMonotonic)
-    const endEvent = this.endEvent(summary)
+    const attempts = this.host.accounting.reportedAttempts()
+    const summary = this.summarizeUsage(endedMonotonic, attempts)
+    const endEvent = this.endEvent(summary, attempts)
     let auditFailure = false
     const checkpointOwner = effectiveContext.terminalCheckpointOwner ?? 'model-call'
     if (checkpointOwner === 'model-call' && mode !== 'operational') {
@@ -63,13 +71,17 @@ export class ModelCallRuntime {
       }
     } else capture(endEvent)
 
-    const finalReport = this.makeReport(summary, endedAt)
+    const finalReport = this.makeReport(summary, endedAt, attempts)
     this.resolveReport(finalReport)
     return { report: finalReport, auditFailure }
   }
 
-  private async *iterate(): AsyncGenerator<StreamChunk> {
-    const { input, effectiveContext } = this.host
+  // A completed native generator can retain its receiver. Take the runtime out of
+  // a one-shot slot so an application can keep the iterator without pinning its request.
+  private static async *iterate(slot: { owner: ModelCallRuntime | undefined }): AsyncGenerator<StreamChunk> {
+    const runtime = slot.owner!
+    slot.owner = undefined
+    const { input, effectiveContext } = runtime.host
     let iterator: AsyncIterator<StreamChunk> | undefined
     let sourceDone = false
     let thrown: unknown
@@ -82,40 +94,81 @@ export class ModelCallRuntime {
           break
         }
         const chunk = item.value
-        this.recordChunk(chunk)
+        runtime.recordChunk(chunk)
         yield chunk
       }
     } catch (streamError) {
       thrown = streamError
-      this.recordStreamError(streamError)
+      runtime.recordStreamError(streamError)
       throw streamError
     } finally {
       if (!sourceDone) {
-        if (thrown === undefined) this.status = 'aborted'
+        if (thrown === undefined) runtime.status = 'aborted'
         const close = iteratorClose(iterator)
-        if (close) try { await close() } catch (closeError) { this.recordCloseError(closeError) }
+        if (close) try { await close() } catch (closeError) { runtime.recordCloseError(closeError) }
       }
+      await runtime.finish()
+    }
+  }
+
+  private async finish(): Promise<void> {
+    try {
       const terminal = await this.finalize()
       if (terminal.auditFailure) {
         throw new ModelCallObservationError('audit observation checkpoint failed after model-call finalization',
           terminal.report)
       }
+    } finally {
+      if (this.activeIterator) activeIterators.delete(this.activeIterator)
     }
+  }
+
+  private iterator(): AsyncGenerator<StreamChunk> {
+    // Native async generators skip their finally block when closed before the first next().
+    const slot: { owner: ModelCallRuntime | undefined } = { owner: this }
+    const chunks = ModelCallRuntime.iterate(slot)
+    this.activeIterator = chunks
+    activeIterators.set(chunks, this)
+    const close = chunks.return.bind(chunks)
+    const fail = chunks.throw.bind(chunks)
+    chunks.return = async value => {
+      const owner = slot.owner
+      slot.owner = undefined
+      try { return await close(value) } finally {
+        if (owner) {
+          owner.status = 'aborted'
+          await owner.finish()
+        }
+      }
+    }
+    chunks.throw = async error => {
+      const owner = slot.owner
+      slot.owner = undefined
+      try { return await fail(error) } finally {
+        if (owner) {
+          owner.recordStreamError(error)
+          await owner.finish()
+        }
+      }
+    }
+    return chunks
   }
 
   handle(): ModelCallHandle {
     const { runId, modelCallId } = this.host
-    const runtime = this
+    let available: ModelCallRuntime | undefined = this
     return Object.freeze({
       runId,
       modelCallId,
       report: this.report,
       [Symbol.asyncIterator](): AsyncIterator<StreamChunk> {
-        if (runtime.iterated) {
+        if (available === undefined) {
           return (async function* () { throw new Error('a model call handle can only be iterated once') })()
         }
-        runtime.iterated = true
-        return runtime.iterate()
+        // Transfer the request to the iterator. Keeping a completed handle only retains its report.
+        const chunks = available.iterator()
+        available = undefined
+        return chunks
       },
     })
   }
@@ -130,7 +183,7 @@ export class ModelCallRuntime {
         code: OBSERVATION_ERROR_CODES.OPERATION_TERMINAL_MISSING,
       })
     }
-    for (const closeAttempt of [...openAttempts]) {
+    for (const closeAttempt of [...openAttempts.keys()]) {
       closeAttempt({
         status: this.status === 'aborted' ? 'aborted' : 'unknown',
         dispatchState: input.dispatchState() === 'not-sent' ? 'not-sent' : 'unknown',
@@ -155,15 +208,16 @@ export class ModelCallRuntime {
     return { firstOutputMs }
   }
 
-  private summarizeUsage(endedMonotonic: number): UsageSummary {
+  private summarizeUsage(endedMonotonic: number, attempts: readonly AttemptUsageReport[]): UsageSummary {
     const { input, accounting, startedMonotonic } = this.host
-    const { attempts } = accounting
     const validated = this.usage === undefined ? undefined : validateUsageCounters(this.usage, true)
     const preDispatch = !input.routePresent || input.dispatchState() === 'not-sent'
-    const coverage = modelCallCoverage(attempts, accounting.declared, validated, preDispatch)
+    const aggregate = this.aggregateUsage(validated, attempts)
+    let coverage = modelCallCoverage(attempts, accounting.declared, validated, preDispatch)
+    if (aggregate.supplemented && coverage === 'complete') coverage = 'partial'
     this.recordUsageError(validated, coverage)
     const durationMs = Math.max(0, endedMonotonic - startedMonotonic)
-    return { durationMs, coverage, ...this.aggregateUsage(validated) }
+    return { durationMs, coverage, reported: aggregate.reported, accountingOverflow: aggregate.accountingOverflow }
   }
 
   private recordUsageError(validated: ValidatedUsage | undefined, coverage: UsageCoverage): void {
@@ -178,23 +232,23 @@ export class ModelCallRuntime {
     }
   }
 
-  private aggregateUsage(validated: ValidatedUsage | undefined) {
-    const { attempts } = this.host.accounting
+  private aggregateUsage(validated: ValidatedUsage | undefined, attempts: readonly AttemptUsageReport[]) {
     const attemptUsage = attempts.length === 0
       ? undefined
       : addUsageCounters(attempts.map(attempt => attempt.reported))
-    const accountingOverflow = usageOverflow(attemptUsage, validated)
+    const combined = mergeUsageLowerBounds(attemptUsage?.counters ?? {}, validated?.reported ?? {})
+    const accountingOverflow = usageOverflow(attemptUsage, validated) || combined.overflow
     if (accountingOverflow) this.error ??= Object.freeze({
       type: 'UsageValidationError', message: 'provider usage counters overflowed safe integer aggregation',
       code: OBSERVATION_ERROR_CODES.USAGE_COUNTER_OVERFLOW,
     })
-    const reported = attemptUsage?.counters ?? validated?.reported ?? {}
-    return { accountingOverflow, reported }
+    const reported = combined.reported
+    const supplemented = attemptUsage !== undefined && combined.supplemented
+    return { accountingOverflow, reported, supplemented }
   }
 
-  private endEvent(summary: UsageSummary) {
-    const { input, makeEvent, accounting } = this.host
-    const { attempts } = accounting
+  private endEvent(summary: UsageSummary, attempts: readonly AttemptUsageReport[]) {
+    const { input, makeEvent } = this.host
     const { durationMs, coverage, reported } = summary
     return makeEvent('end', {
       status: this.status,
@@ -208,9 +262,29 @@ export class ModelCallRuntime {
     })
   }
 
-  private makeReport(summary: UsageSummary, endedAt: string): ModelCallReport {
-    const { input, runId, modelCallId, span, startedAt, accounting, port, mode, tracker } = this.host
-    const { attempts } = accounting
+  unsettledReport(): ModelCallReport {
+    const endedAt = new Date().toISOString()
+    const now = nowMonotonic()
+    const attempts = this.host.accounting.unsettledAttempts(endedAt, now)
+    const byAttempt = addUsageCounters(attempts.map(attempt => attempt.reported))
+    const byCall = validateUsageCounters(this.usage, true)
+    const combined = mergeUsageLowerBounds(byAttempt.counters, byCall.reported)
+    const reported = combined.reported
+    const preDispatch = attempts.length === 0 && !hasUsageCounters(reported)
+      && this.host.input.dispatchState() === 'not-sent'
+    let coverage: UsageCoverage = hasUsageCounters(reported) ? 'partial' : 'missing'
+    if (preDispatch) coverage = 'not-applicable'
+    const report = this.makeReport({ durationMs: Math.max(0, now - this.host.startedMonotonic),
+      coverage, reported, accountingOverflow: byAttempt.overflow || byCall.overflow || combined.overflow,
+    }, endedAt, attempts)
+    return Object.freeze({ ...report, status: 'unknown', authoritative: false,
+      error: Object.freeze({ type: 'ModelError', code: 'MODEL_TEARDOWN_TIMEOUT',
+        message: 'Model stream did not settle before the teardown deadline' }) })
+  }
+
+  private makeReport(summary: UsageSummary, endedAt: string, attempts: readonly AttemptUsageReport[]):
+  ModelCallReport {
+    const { input, runId, modelCallId, span, startedAt, port, mode, tracker } = this.host
     const { durationMs, coverage, reported, accountingOverflow } = summary
     return deepFreeze<ModelCallReport>({
       runId,
@@ -259,7 +333,10 @@ export class ModelCallRuntime {
     const { input } = this.host
     if ((this.firstOutputMonotonic === undefined || this.host.accounting.awaitingFirstOutput)
       && isOutputChunk(chunk)) this.recordOutputTime()
-    if (chunk.type === 'usage') this.usage = chunk.usage
+    if (chunk.type === 'usage') {
+      this.usage = chunk.usage
+      this.host.accounting.recordUsage(chunk.usage)
+    }
     if (chunk.type === 'finish') {
       this.finishReason = chunk.reason.kind
       this.status = finishStatus(chunk)

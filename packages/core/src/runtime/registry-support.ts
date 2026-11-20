@@ -2,6 +2,25 @@ import type { ProviderInfo, RuntimeDefaults } from '../contract/model-info.ts'
 import { ModelError, REGISTRY_ERROR_CODES } from '../errors/model-error.ts'
 import { deepFreeze } from '../primitives/freeze.ts'
 import type { RuntimeAdapterRegistration } from './model-stream.ts'
+import type { AdapterRegistrationHandle } from '../plugin/provider-plugin.ts'
+
+export function adapterRegistrationHandle(
+  release: () => void, replace: (providers: readonly string[]) => void,
+): AdapterRegistrationHandle {
+  let state: { release(): void; replace(providers: readonly string[]): void } | undefined = { release, replace }
+  const handle = (() => {
+    const current = state
+    state = undefined
+    current?.release()
+  }) as AdapterRegistrationHandle
+  handle.replace = providers => {
+    if (state === undefined) throw new ModelError(
+      'a disposed adapter registration cannot replace its routes', REGISTRY_ERROR_CODES.REGISTRATION_DISPOSED,
+    )
+    state.replace(providers)
+  }
+  return handle
+}
 
 export function validateAdapterInfo(provider: string, info: ProviderInfo): void {
   if (typeof info.id !== 'string' || info.id !== provider

@@ -12,6 +12,8 @@ export default defineConfig({
       '../../tests/unit/http-errors.spec.ts',
       '../../tests/unit/http-provider.spec.ts',
       '../../tests/unit/sse.spec.ts',
+      '../../tests/unit/provider-http/diagnostic-code.spec.ts',
+      '../../tests/unit/provider-http/logger-deadline.spec.ts',
     ],
   },
 })

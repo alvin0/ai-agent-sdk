@@ -4,5 +4,8 @@ export default defineConfig({
   resolve: { alias: {
     '@alvin0/ai-agent-sdk-sandbox': new URL('./src/index.ts', import.meta.url).pathname,
   } },
-  test: { environment: 'node', include: ['../../tests/unit/sandbox.spec.ts'] },
+  test: { environment: 'node', include: [
+    '../../tests/unit/sandbox.spec.ts',
+    '../../tests/unit/sandbox-approval-capture.spec.ts',
+  ] },
 })

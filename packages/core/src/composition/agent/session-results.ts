@@ -1,7 +1,7 @@
 import { publicMessage } from './public-message.ts'
 import { AgentRunError } from '../../agent/accounting/error.ts'
 import type { AgentRunHandle as LegacyRunHandle } from '../../agent/define/session/types.ts'
-import { AgentSdkError } from '../../errors/agent-sdk-error.ts'
+import { diagnosticErrorCode, ownErrorField } from '../../errors/diagnostic-code.ts'
 import type { JsonValue } from '../../primitives/index.ts'
 import type { RunReport } from '../exporter/delivery-types.ts'
 import type { ToolSourceRunReference } from '../tool-source/types.ts'
@@ -58,10 +58,20 @@ export async function runtimeResult(
 }
 
 export function codeOf(value: unknown): string {
-  return value instanceof AgentSdkError ? value.code : 'AGENT_RUN_FAILED'
+  return diagnosticErrorCode(value) ?? 'AGENT_RUN_FAILED'
+}
+export function diagnosticCause(value: unknown): Error | undefined {
+  const code = diagnosticErrorCode(value)
+  return code === undefined ? undefined
+    : Object.freeze(Object.assign(new Error('Agent operation failed'), { code }))
 }
 export function runtimeFailure(value: unknown, report: RuntimeRunReport, code: string): AgentRunError {
+  const origin = diagnosticErrorCode(value)
+  const publicCode = code === 'AGENT_RUN_FAILED' ? origin ?? code : code
+  const nested = typeof value === 'object' && value !== null ? ownErrorField(value, 'cause') : undefined
+  const cause = diagnosticCause(nested ?? (origin === publicCode ? undefined : value))
   return inheritCapabilityIdentityConflict(
-    new AgentRunError('Agent run did not complete', code, report as never), value,
+    new AgentRunError('Agent run did not complete', publicCode, report as never,
+      cause === undefined ? undefined : { cause }), value,
   )
 }

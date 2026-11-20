@@ -63,38 +63,52 @@ export async function withTimeout(
     expired = true
     expiry.abort(new Error(`tool timed out after ${timeoutMs}ms`))
   }, timeoutMs)
-  const pending = run(AbortSignal.any([outer, expiry.signal]))
   try {
-    const result = await raceWithSignal(pending, expiry.signal)
-    return expired
-      ? toolFailure(`the tool exceeded its ${timeoutMs}ms time limit`, TOOL_ERROR_CODES.TIMEOUT)
-      : result
-  } catch (error: unknown) {
-    if (!expired) throw error
-    const settled = await waitForSettlement(pending, teardownTimeoutMs)
-    if (!settled) {
-      throw ToolError.fatal(
-        `tool ignored timeout cancellation for more than ${teardownTimeoutMs}ms; `
-          + 'the in-process operation may still be running',
-        TOOL_ERROR_CODES.TEARDOWN_TIMEOUT,
-        { cause: error },
-      )
+    const signal = AbortSignal.any([outer, expiry.signal])
+    const pending = run(signal)
+    try {
+      const result = await raceWithSignal(pending, signal)
+      return expired
+        ? toolFailure(`the tool exceeded its ${timeoutMs}ms time limit`, TOOL_ERROR_CODES.TIMEOUT)
+        : result
+    } catch (error: unknown) {
+      const timedOut = expired
+      if (!timedOut && !outer.aborted) throw error
+      clearTimeout(timer)
+      const settled = await waitForSettlement(pending, teardownTimeoutMs)
+      if (!settled) {
+        throw ToolError.fatal(
+          `tool ignored ${timedOut ? 'timeout cancellation' : 'cancellation'} for more than ${teardownTimeoutMs}ms; `
+            + 'the in-process operation may still be running',
+          TOOL_ERROR_CODES.TEARDOWN_TIMEOUT,
+          { cause: error },
+        )
+      }
+      if (!timedOut) return await pending
+      return toolFailure(`the tool exceeded its ${timeoutMs}ms time limit`, TOOL_ERROR_CODES.TIMEOUT)
     }
-    return toolFailure(`the tool exceeded its ${timeoutMs}ms time limit`, TOOL_ERROR_CODES.TIMEOUT)
-  } finally { clearTimeout(timer) }
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export async function raceWithSignal<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) throw signal.reason ?? new Error('tool timed out')
+  if (signal.aborted) {
+    // The work has already started even though cancellation won before this call.
+    void pending.catch(() => undefined)
+    throw signal.reason ?? new Error('tool timed out')
+  }
+  // Native propagation follows abort algorithms even when an earlier public handler stops event dispatch.
+  const watched = AbortSignal.any([signal])
   return await new Promise<T>((resolve, reject) => {
     const abort = () => {
-      signal.removeEventListener('abort', abort)
-      reject(signal.reason ?? new Error('tool timed out'))
+      watched.removeEventListener('abort', abort)
+      reject(watched.reason ?? new Error('tool timed out'))
     }
-    signal.addEventListener('abort', abort, { once: true })
+    watched.addEventListener('abort', abort, { once: true })
     void pending.then(
-      value => { signal.removeEventListener('abort', abort); resolve(value) },
-      error => { signal.removeEventListener('abort', abort); reject(error) },
+      value => { watched.removeEventListener('abort', abort); resolve(value) },
+      error => { watched.removeEventListener('abort', abort); reject(error) },
     )
   })
 }

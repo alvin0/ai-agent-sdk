@@ -51,7 +51,7 @@ export interface DecisionInput<Q extends DecisionQuestions = DecisionQuestions> 
   readonly state: DecisionDescription
   readonly questions: Q
   readonly signal?: AbortSignal
-  /** Includes preparation, attempts and backoff. Default: 30 seconds. */
+  /** Includes preparation, attempts and backoff. No practical deadline by default. */
   readonly timeoutMs?: number
 }
 export interface DecisionRequest extends DecisionInput {

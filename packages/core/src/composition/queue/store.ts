@@ -10,6 +10,8 @@ import { DELIVERY_QUEUE_DEFAULTS } from './config.ts'
 import type { DeliveryQueueEntry, DeliveryQueueSnapshot, QueueAdmission } from './types.ts'
 import { saturatingCounterAdd } from '../common/counter.ts'
 
+type QueueIdentity = DeliveryQueueEntry | Omit<DeliveryQueueEntry, 'item'>
+
 export interface DeliveryQueueOptions {
   readonly content?: 'none' | 'metadata'
   readonly maxEvents?: number
@@ -48,8 +50,8 @@ export class DeliveryQueueStore {
   private readonly activeVerbose = new Set<DeliveryQueueEntry>()
   private readonly activeNormal = new Set<DeliveryQueueEntry>()
   private readonly protectedEntries = new WeakSet<DeliveryQueueEntry>()
-  private readonly eventIds = new Map<string, DeliveryQueueEntry>()
-  private readonly runIds = new Map<string, DeliveryQueueEntry>()
+  private readonly eventIds = new Map<string, QueueIdentity>()
+  private readonly runIds = new Map<string, QueueIdentity>()
   private envelopeBytes: number | undefined
   private ordinal = 0
   private queuedBytes = 0
@@ -109,7 +111,7 @@ export class DeliveryQueueStore {
     if (this.closed) return outcome('closed', 'closed')
     const event = prepareDeliveryEvent(input, this.resource, this.content)
     const previous = this.eventIds.get(event.eventId)
-    if (previous !== undefined) return outcome('existing', undefined, previous)
+    if (previous !== undefined) return outcome('existing', undefined, existingEntry(previous, event))
     const size = preparedEventBytes(event)
     return this.admit({ kind: 'event', id: event.eventId, runId: event.correlation.runId,
       sequence: event.sequence, priority: event.priority, bytes: size, item: event }, this.eventIds)
@@ -119,7 +121,7 @@ export class DeliveryQueueStore {
     if (this.closed) return outcome('closed', 'closed')
     const size = preparedTerminalBytes(record)
     const previous = this.runIds.get(record.runId)
-    if (previous !== undefined) return outcome('existing', undefined, previous)
+    if (previous !== undefined) return outcome('existing', undefined, existingEntry(previous, record))
     return this.admit({ kind: 'run-record', id: record.runId, runId: record.runId,
       priority: 'critical', bytes: size, item: record }, this.runIds)
   }
@@ -205,7 +207,7 @@ export class DeliveryQueueStore {
   seal(): void { this.closed = true; this.staging.seal() }
 
   private admit(
-    input: Omit<DeliveryQueueEntry, 'ordinal'>, identities: Map<string, DeliveryQueueEntry>,
+    input: Omit<DeliveryQueueEntry, 'ordinal'>, identities: Map<string, QueueIdentity>,
   ): QueueAdmission {
     // A single-item batch is the envelope plus the item; both sizes are exact.
     if (this.batchEnvelopeBytes + input.bytes > this.maxBatchBytes) {
@@ -237,8 +239,9 @@ export class DeliveryQueueStore {
   }
 
   /** Bounded identity window for a store that holds no entries. */
-  private remember(identities: Map<string, DeliveryQueueEntry>, entry: DeliveryQueueEntry): void {
-    identities.set(entry.id, entry)
+  private remember(identities: Map<string, QueueIdentity>, entry: DeliveryQueueEntry): void {
+    const { item: _item, ...identity } = entry
+    identities.set(entry.id, Object.freeze(identity))
     if (identities.size > this.maxEvents) {
       const oldest = identities.keys().next()
       if (oldest.done !== true) identities.delete(oldest.value)
@@ -269,6 +272,10 @@ export class DeliveryQueueStore {
     this.evictedBytes = saturatingCounterAdd(this.evictedBytes, entry.bytes)
     try { this.onEvict?.(entry) } catch { /* Queue capacity must not depend on a health observer. */ }
   }
+}
+
+function existingEntry(identity: QueueIdentity, item: DeliveryQueueEntry['item']): DeliveryQueueEntry {
+  return 'item' in identity ? identity : Object.freeze({ ...identity, item })
 }
 
 function first(entries: ReadonlySet<DeliveryQueueEntry>): DeliveryQueueEntry | undefined {

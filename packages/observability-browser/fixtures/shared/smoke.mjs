@@ -142,6 +142,7 @@ export async function runVerifyPhase(databaseName) {
 
   const stats = await queue.stats()
   const runtime = await runtimeComposition(`${databaseName}-runtime`)
+  const evictedEventRestaged = await stagingEvidence(`${databaseName}-staging`)
   await observation.shutdown()
   await capacity.shutdown(new AbortController().signal)
   await audit.shutdown()
@@ -159,11 +160,25 @@ export async function runVerifyPhase(databaseName) {
     auditDurable: auditReceipt.durable,
     blockedRejected,
     lifecycleFlushes: flushes,
+    evictedEventRestaged,
     ...runtime,
     optionalLogsAbsent: true,
     buffer: typeof globalThis.Buffer,
     process: typeof globalThis.process,
   }
+}
+
+async function stagingEvidence(databaseName) {
+  const exporter = new IndexedDbObservationExporter({ databaseName, maxEvents: 1 })
+  try {
+    await exporter.ready()
+    const first = event(1, 'normal', 'staging-run')
+    await exporter.stage(first)
+    await exporter.stage(event(2, 'normal', 'staging-run'))
+    await exporter.stage(first)
+    const recovered = await exporter.recoverEvents()
+    return recovered.length === 1 && recovered[0].eventId === first.eventId
+  } finally { await exporter.shutdown(new AbortController().signal) }
 }
 
 async function capacityEvidence(databaseName) {

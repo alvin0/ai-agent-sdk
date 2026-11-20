@@ -6,7 +6,7 @@ import { validateCaptureReceipt, type CaptureReceipt, type DeliveryMode,
 import { AgentSdkError } from '../errors/agent-sdk-error.ts'
 import { OBSERVATION_ERROR_CODES, type EndProviderAttemptInput, type ProviderAttemptHandle,
   type ProviderRetryScheduledInput, type StartProviderAttemptInput } from '../observation/report.ts'
-import { validateUsageCounters, type AttemptUsageReport } from '../observation/usage.ts'
+import { validateUsageCounters, type AttemptUsageReport, type UsageValidationResult } from '../observation/usage.ts'
 import type { CreateModelCallHandleOptions } from './model-call-handle.ts'
 import { elapsedWithin, nowMonotonic, openContainedSpan, applyReceipt,
   type DeliveryTracker } from './model-call-support.ts'
@@ -48,7 +48,8 @@ interface AttemptEndSummary {
 
 export class ModelCallAttempts {
   readonly attempts: AttemptUsageReport[] = []
-  readonly openAttempts = new Set<(input: EndProviderAttemptInput) => AttemptUsageReport>()
+  private readonly streamUsage = new Map<number, UsageValidationResult>()
+  readonly openAttempts = new Map<(input: EndProviderAttemptInput) => AttemptUsageReport, AttemptState>()
   /** Open attempts that have not produced output yet; empty on the hot path after the first chunk. */
   private readonly awaitingOutput = new Set<OutputMark>()
   private nextAttemptNumber = 1
@@ -59,6 +60,31 @@ export class ModelCallAttempts {
   /** True while an open attempt still lacks its first-output time. */
   get awaitingFirstOutput(): boolean {
     return this.awaitingOutput.size > 0
+  }
+
+  /** Stream usage belongs to the current attempt, including usage emitted just after its terminal event. */
+  recordUsage(usage: unknown): void {
+    if (this.openAttempts.size > 1 || this.nextAttemptNumber === 1) return
+    const attemptNumber = this.openAttempts.values().next().value?.attemptNumber ?? this.nextAttemptNumber - 1
+    this.streamUsage.set(attemptNumber, validateUsageCounters(usage, true))
+  }
+
+  reportedAttempts(): AttemptUsageReport[] {
+    return this.attempts.map(attempt => this.withStreamUsage(attempt))
+  }
+
+  private withStreamUsage(attempt: AttemptUsageReport): AttemptUsageReport {
+    const usage = this.streamUsage.get(attempt.attemptNumber)
+    if (usage === undefined) return attempt
+    const invalidStreamUsage = usage.invalidFields.length > 0 || usage.overflow
+    const validated = validateUsageCounters({ ...usage.reported, ...attempt.reported }, !invalidStreamUsage)
+    const invalidError = invalidAttemptUsage(usage) ?? invalidAttemptUsage(validated)
+    if (invalidError !== undefined) {
+      return { ...attempt, reported: validated.reported, coverage: 'partial', error: attempt.error ?? invalidError }
+    }
+    return { ...attempt, reported: validated.reported,
+      coverage: attempt.coverage === 'missing' && Object.keys(validated.reported).length > 0
+        ? 'partial' : attempt.coverage }
   }
 
   /** Stamp every open attempt still waiting for output with this monotonic time. */
@@ -125,11 +151,26 @@ export class ModelCallAttempts {
       }
     } else capture(startEvent)
 
-    const end = this.attemptEnd({
+    const state = {
       attemptInput, attemptNumber, attemptId, attemptStartedAt, attemptStartedMonotonic, attemptSpan,
-    })
-    this.openAttempts.add(end)
+    }
+    const end = this.attemptEnd(state)
+    this.openAttempts.set(end, state)
     return Object.freeze({ attemptId, attemptNumber, traceparent: attemptSpan.traceparent, end })
+  }
+
+  /** A stuck transport may still finish later. Snapshot its open attempts without ending them. */
+  unsettledAttempts(endedAt: string, now: number): AttemptUsageReport[] {
+    const attempts = this.reportedAttempts()
+    for (const state of this.openAttempts.values()) {
+      attempts.push(this.withStreamUsage({
+        attemptId: state.attemptId, attemptNumber: state.attemptNumber, spanId: state.attemptSpan.correlation.spanId,
+        startedAt: state.attemptStartedAt, endedAt, durationMs: Math.max(0, now - state.attemptStartedMonotonic),
+        status: 'unknown', dispatchState: 'unknown', coverage: 'missing', reported: {},
+        origin: state.attemptInput.origin,
+      }))
+    }
+    return attempts
   }
   private startEvent(attemptInput: StartProviderAttemptInput,
     state: Pick<AttemptState, 'attemptNumber' | 'attemptStartedAt' | 'attemptSpan'>,

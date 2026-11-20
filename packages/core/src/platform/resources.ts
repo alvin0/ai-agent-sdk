@@ -1,5 +1,6 @@
 import type { RuntimePlatform } from './adapter.ts'
 import { timeoutValue } from './config.ts'
+import { diagnosticErrorCode } from '../errors/diagnostic-code.ts'
 
 export interface CancellationScope {
   readonly signal: AbortSignal
@@ -76,8 +77,9 @@ export class RuntimeResources {
       this.scopes.delete(shutdown)
       for (const release of releases.splice(0).reverse()) release()
     }
-    const abort = (): void => {
-      controller.abort(new Error('Runtime operation was cancelled'))
+    const abort = (code?: string): void => {
+      const reason = new Error('Runtime operation was cancelled')
+      controller.abort(code === undefined ? reason : Object.assign(reason, { code }))
       dispose()
     }
     const shutdown = (): void => { abort() }
@@ -85,7 +87,7 @@ export class RuntimeResources {
     try {
       for (const signal of signals) {
         if (disposed) break
-        const release = this.onAbort(signal, abort)
+        const release = this.onAbort(signal, () => abort(diagnosticErrorCode(signal.reason)))
         if (disposed) release()
         else releases.push(release)
       }

@@ -2,9 +2,23 @@ import type { StreamChunk } from '../stream/chunk.ts'
 import type { OperationStatus, SafeErrorRecord } from '../observation/event.ts'
 import { OBSERVATION_ERROR_CODES, type EndProviderAttemptInput } from '../observation/report.ts'
 import { classifyUsageCoverage, possiblyBilledAttemptsWithoutUsage, validateUsageCounters,
-  type AttemptUsageReport, type UsageCoverage } from '../observation/usage.ts'
+  type AttemptUsageReport, type UsageCounters, type UsageCoverage } from '../observation/usage.ts'
 
 type ValidatedUsage = ReturnType<typeof validateUsageCounters>
+
+/** Overlapping evidence establishes per-counter lower bounds without identifying an attempt. */
+export function mergeUsageLowerBounds(attempts: UsageCounters, call: UsageCounters):
+ValidatedUsage & { readonly supplemented: boolean } {
+  const counters = { ...attempts }
+  for (const key of Object.keys(call) as (keyof UsageCounters)[]) {
+    counters[key] = Math.max(attempts[key] ?? 0, call[key]!)
+  }
+  // Combining different subsets cannot establish a new exact total.
+  const validated = validateUsageCounters(counters)
+  const supplemented = validated.invalidFields.length > 0
+    || (Object.keys(counters) as (keyof UsageCounters)[]).some(key => counters[key] !== attempts[key])
+  return { ...validated, supplemented }
+}
 
 export function attemptCoverage(input: EndProviderAttemptInput, validated: ValidatedUsage): UsageCoverage {
   if (input.dispatchState === 'not-sent') return 'not-applicable'

@@ -105,10 +105,19 @@ export class TransportRequest {
   private async observeRequest(request: PreparedRequest): Promise<void> {
     const { connection, input, signal, limits, provider, model } = this
     const { url, headers, body, logId } = request
+    if (input.observeRequest === undefined) return
+    let timer: ReturnType<typeof setTimeout> | undefined
     // Diagnostics are best-effort; dispatch never depends on their success.
     try {
-      const loggerSignal = AbortSignal.any([signal, AbortSignal.timeout(limits.requestLoggerTimeoutMs)])
-      await raceWithSignal(Promise.resolve(input.observeRequest?.({
+      // Preserve the native timeout's validation before calling an observer.
+      if (!Number.isInteger(limits.requestLoggerTimeoutMs) || limits.requestLoggerTimeoutMs > 0xffff_ffff) return
+      const deadline = new AbortController()
+      timer = setTimeout(() => {
+        deadline.abort(new DOMException('The operation was aborted due to timeout', 'TimeoutError'))
+      }, limits.requestLoggerTimeoutMs)
+      if (typeof timer === 'object' && 'unref' in timer) (timer as { unref(): void }).unref()
+      const loggerSignal = AbortSignal.any([signal, deadline.signal])
+      await raceWithSignal(Promise.resolve(input.observeRequest({
         schemaVersion: 1,
         type: 'provider-request',
         id: logId,
@@ -122,6 +131,7 @@ export class TransportRequest {
         bodyBytes: body.bytes,
       })), loggerSignal)
     } catch { /* observers never veto dispatch */ }
+    finally { if (timer !== undefined) clearTimeout(timer) }
   }
 
   private async * runAttempt<T>(

@@ -24,7 +24,7 @@ import {
   AgentSdkError,
 } from '../../errors/agent-sdk-error.ts'
 import {
-  atDeadline,
+  atDeadline, BoundaryFailure,
 } from '../lifecycle/bounded.ts'
 import type {
   RuntimeOperations,
@@ -45,7 +45,7 @@ import {
   createConfiguredSession, type RuntimeSessionContext,
 } from './session-config.ts'
 import {
-  codeOf, runtimeFailure, runtimeReport, runtimeResult,
+  codeOf, diagnosticCause, runtimeFailure, runtimeReport, runtimeResult,
 } from './session-results.ts'
 import {
   runtimeHandle,
@@ -62,6 +62,8 @@ import type {
 import type {
   TeamSessionPort,
 } from '../../agent/team/contracts.ts'
+
+const OBSERVER_DEADLINE_OPTIONS = { sanitizeFailure: diagnosticCause }
 
 interface RuntimeSessionValueInput {
   readonly host: RuntimeAgentHost
@@ -145,7 +147,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
         ...(options.documentPolicy === undefined ? {} : { documentPolicy: options.documentPolicy }) },
           options.additionalInstructions)
     } catch (error) { lease.settle(); this.finishOperation(operation); throw error }
-    const abort = (): void => legacy.abort()
+    const abort = (): void => legacy.abort(diagnosticCause(lease.signal.reason))
     lease.signal.addEventListener('abort', abort, { once: true })
     if (lease.signal.aborted) abort()
     void lease.whenSealed.then(() => legacy.seal()).catch(() => undefined)
@@ -260,16 +262,20 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
   }
 
   whenIdle(signal?: AbortSignal): Promise<void> {
-    const pending = this.active?.done
-    if (pending === undefined) return Promise.resolve()
+    const operation = this.active
+    if (operation === undefined) return Promise.resolve()
     if (signal?.aborted) return Promise.reject(new AgentSdkError('Runtime idle wait was aborted',
       'RUNTIME_OPERATION_ABORTED'))
     return new Promise((resolve, reject) => {
       let release = (): void => undefined
-      const finish = (error?: Error): void => { release(); error === undefined ? resolve() : reject(error) }
+      const finish = (error?: Error): void => {
+        operation.waiters.delete(finish)
+        release()
+        error === undefined ? resolve() : reject(error)
+      }
       if (signal !== undefined) release = this.host.resources.onAbort(signal,
         () => finish(new AgentSdkError('Runtime idle wait was aborted', 'RUNTIME_OPERATION_ABORTED')))
-      void pending.then(() => finish())
+      if (!signal?.aborted) operation.waiters.add(finish)
     })
   }
 
@@ -293,8 +299,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
   private beginOperation(): SessionOperation {
     this.assertOwnerActive()
     if (this.active !== undefined) throw new Error('Cannot start while a runtime session is active')
-    let resolve!: () => void
-    const operation: SessionOperation = { done: new Promise(done => { resolve = done }), resolve }
+    const operation: SessionOperation = { waiters: new Set() }
     this.active = operation
     return operation
   }
@@ -302,7 +307,7 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
   private finishOperation(operation: SessionOperation): void {
     if (this.active !== operation) return
     this.active = undefined
-    operation.resolve()
+    for (const finish of operation.waiters) finish()
   }
 
   private assertOwnerActive(): void {
@@ -317,9 +322,13 @@ class RuntimeAgentSessionValue implements RuntimeAgentSession {
     handle: RuntimeAgentRunHandle,
   ): Promise<void> {
     const deadlineAt = this.host.resources.platform.monotonicNow() + this.observerTimeoutMs
-    try { await atDeadline(this.host.resources, deadlineAt, () => observer(event), undefined) }
-    catch { handle.abort(); throw new AgentSdkError('Runtime event observer did not complete',
-      'RUN_EVENT_OBSERVER_FAILED') }
+    try { await atDeadline(this.host.resources, deadlineAt, () => observer(event), OBSERVER_DEADLINE_OPTIONS) }
+    catch (error) {
+      handle.abort()
+      const cause = error instanceof BoundaryFailure ? error.cause : undefined
+      throw new AgentSdkError('Runtime event observer did not complete', 'RUN_EVENT_OBSERVER_FAILED',
+        cause === undefined ? undefined : { cause })
+    }
   }
 }
 
@@ -346,8 +355,7 @@ function modelOverlay(options: CapturedInvocationOptions): {
 }
 
 interface SessionOperation {
-  readonly done: Promise<void>
-  readonly resolve: () => void
+  readonly waiters: Set<() => void>
 }
 
 interface StartedRuntimeRun {

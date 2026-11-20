@@ -3,55 +3,17 @@ import { createServer } from 'node:http'
 import {
   ModelAdapter,
   ModelRegistry,
-  createCoreSpan,
-  createObservationRunScope,
   createOperationId,
-  type ObservationEvent,
   type StreamChunk,
 } from '@alvin0/ai-agent-sdk-core'
-import { createObservability, type ObservationBatch } from '@alvin0/ai-agent-sdk-core/observability'
+import { createObservability } from '@alvin0/ai-agent-sdk-core/observability'
 import {
   FetchObservationExporter,
   fetchObservationExporter,
   flushObservabilityWithWaitUntil,
 } from '@alvin0/ai-agent-sdk-observability-fetch'
 
-type FetchInput = Parameters<typeof fetch>[0]
-
-function observationEvent(sequence = 1): ObservationEvent {
-  const scope = createObservationRunScope()
-  return {
-    schemaVersion: 1,
-    eventId: createOperationId(),
-    sequence,
-    name: 'sdk.model.call',
-    phase: 'end',
-    occurredAt: new Date().toISOString(),
-    monotonicMs: scope.monotonicMs(),
-    priority: 'critical',
-    resource: {
-      sdkName: 'ai-agent-sdk', sdkVersion: '0.1.0', runtime: 'edge',
-    },
-    correlation: createCoreSpan({
-      name: 'sdk.model.call', runId: 'fetch-run',
-      startedAt: new Date().toISOString(), monotonicMs: 0,
-    }).correlation,
-    data: { status: 'success' },
-  }
-}
-
-function batch(events: readonly ObservationEvent[] = [observationEvent()]): ObservationBatch {
-  return Object.freeze({
-    schemaVersion: 1,
-    batchId: createOperationId(),
-    createdAt: new Date().toISOString(),
-    events,
-  })
-}
-
-function injectedFetch(implementation: (input: FetchInput, init?: RequestInit) => Promise<Response>): typeof fetch {
-  return implementation as typeof fetch
-}
+import { batch, injectedFetch, observationEvent, type FetchInput } from './observability-fetch-fixtures.ts'
 
 async function drain(stream: AsyncIterable<StreamChunk>): Promise<void> {
   for await (const _chunk of stream) { /* consume the provider stream */ }
@@ -326,7 +288,9 @@ describe('Fetch observation exporter', () => {
   })
 
   it('attaches exactly one flush promise to an explicit Edge waitUntil hook', async () => {
-    let resolveFlush: ((value: { complete: boolean; exportedEvents: number; pendingEvents: number; rejectedCritical: number; timedOut: boolean }) => void) | undefined
+    let resolveFlush: ((value: {
+      complete: boolean; exportedEvents: number; pendingEvents: number; rejectedCritical: number; timedOut: boolean
+    }) => void) | undefined
     const flushResult = new Promise<{
       complete: boolean; exportedEvents: number; pendingEvents: number; rejectedCritical: number; timedOut: boolean
     }>(resolve => { resolveFlush = resolve })

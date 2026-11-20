@@ -52,6 +52,8 @@ interface PooledSession {
   holds: number
   idle: ReturnType<typeof setTimeout> | undefined
   open: boolean
+  closing: Promise<void> | undefined
+  closingKeepsAlive: boolean
 }
 
 const NO_APPLICATION_PROTOCOL = 'ERR_SSL_TLSV1_ALERT_NO_APPLICATION_PROTOCOL'
@@ -67,6 +69,7 @@ export class Http2SessionPool {
   /** Last SETTINGS_MAX_CONCURRENT_STREAMS each origin announced. */
   private readonly limits = new Map<string, number>()
   private closed = false
+  private closing: Promise<void> | undefined
 
   constructor(private readonly options: Http2PoolOptions) {}
 
@@ -76,17 +79,25 @@ export class Http2SessionPool {
    * itself goes on for other callers sharing the session.
    */
   async acquire(origin: string, signal?: AbortSignal): Promise<Http2Lease> {
-    if (this.closed) throw new Http2ClosedError()
-    signal?.throwIfAborted()
-    const pooled = this.pick(origin) ?? this.open(origin)
-    // Reserve the slot before awaiting so concurrent callers see it as taken.
-    this.retain(pooled)
-    try {
-      await (signal === undefined ? pooled.ready : abortable(pooled.ready, signal))
-    } catch (error: unknown) {
+    let pooled: PooledSession
+    while (true) {
+      if (this.closed) throw new Http2ClosedError()
+      signal?.throwIfAborted()
+      pooled = this.pick(origin) ?? this.open(origin)
+      // Reserve before awaiting so callers share a connecting session. SETTINGS
+      // can lower its capacity, so excess reservations move to another session.
+      this.retain(pooled)
+      try {
+        await (signal === undefined ? pooled.ready : abortable(pooled.ready, signal))
+        signal?.throwIfAborted()
+      } catch (error: unknown) {
+        this.unhold(pooled)
+        this.releaseSlot(pooled)
+        throw error
+      }
+      if (pooled.open && pooled.active <= this.capacity(pooled)) break
       this.unhold(pooled)
       this.releaseSlot(pooled)
-      throw error
     }
     let released = false
     let held = true
@@ -113,10 +124,13 @@ export class Http2SessionPool {
   }
 
   async close(): Promise<void> {
+    if (this.closing !== undefined) return await this.closing
     this.closed = true
     const all = [...this.sessions.values()].flat()
     this.sessions.clear()
-    await Promise.all(all.map(pooled => closeSession(pooled)))
+    this.limits.clear()
+    this.closing = Promise.all(all.map(pooled => closeSession(pooled, true))).then(() => undefined)
+    await this.closing
   }
 
   private pick(origin: string): PooledSession | undefined {
@@ -129,10 +143,11 @@ export class Http2SessionPool {
    * would wait inside the session. Use the limit the origin announced before.
    */
   private capacity(pooled: PooledSession): number {
+    const maximum = Math.max(1, Math.floor(this.options.maxStreamsPerSession))
     const remote = pooled.settled
       ? pooled.session.remoteSettings.maxConcurrentStreams
       : this.limits.get(pooled.origin)
-    return Math.min(this.options.maxStreamsPerSession, remote ?? this.options.maxStreamsPerSession)
+    return Math.min(maximum, remote ?? maximum)
   }
 
   private open(origin: string): PooledSession {
@@ -140,18 +155,20 @@ export class Http2SessionPool {
     const pooled: PooledSession = {
       origin, session, settled: false, ready: this.whenConnected(origin, session),
       active: 0, holds: 0, idle: undefined, open: true,
+      closing: undefined, closingKeepsAlive: false,
     }
     session.on('remoteSettings', (settings) => {
       pooled.settled = true
-      if (settings.maxConcurrentStreams !== undefined) this.limits.set(origin, settings.maxConcurrentStreams)
+      if (pooled.open && !this.closed && settings.maxConcurrentStreams !== undefined) {
+        this.limits.set(origin, settings.maxConcurrentStreams)
+      }
     })
     // Rejections are delivered to the acquiring caller; never leave one unhandled.
     pooled.ready.catch(() => undefined)
-    const drop = () => this.drop(origin, pooled)
     // A GOAWAY lets in-flight streams finish but takes no new ones.
-    session.on('goaway', drop)
-    session.on('close', drop)
-    session.on('error', drop)
+    session.on('goaway', () => this.drop(origin, pooled, false))
+    session.on('close', () => this.drop(origin, pooled, true))
+    session.on('error', () => this.drop(origin, pooled, false))
     const list = this.sessions.get(origin) ?? []
     list.push(pooled)
     this.sessions.set(origin, list)
@@ -160,26 +177,46 @@ export class Http2SessionPool {
 
   private whenConnected(origin: string, session: ClientHttp2Session): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      let connected = false
+      let settingsReceived = false
       const timer = setTimeout(() => {
         session.destroy(new Error(`HTTP/2 connect to ${origin} timed out`))
       }, this.options.connectTimeoutMs)
-      const fail = (error: unknown) => {
+      const cleanup = () => {
         clearTimeout(timer)
+        session.off('error', fail)
+        session.off('close', closed)
+        session.off('connect', connectedSession)
+        session.off('remoteSettings', settings)
+      }
+      const ready = () => {
+        if (!connected || !settingsReceived) return
+        cleanup()
+        resolve()
+      }
+      const fail = (error: unknown) => {
+        cleanup()
         const code = (error as { code?: unknown } | undefined)?.code
         reject(code === NO_APPLICATION_PROTOCOL ? new Http2UnsupportedError(origin, { cause: error }) : error)
       }
-      session.once('error', fail)
-      session.once('close', () => fail(new Error(`HTTP/2 session to ${origin} closed before connecting`)))
-      session.once('connect', (_session, socket) => {
-        clearTimeout(timer)
-        session.off('error', fail)
+      const closed = () => fail(new Error(`HTTP/2 session to ${origin} closed before connecting`))
+      const settings = () => {
+        settingsReceived = (session.remoteSettings.maxConcurrentStreams ?? 1) > 0
+        ready()
+      }
+      const connectedSession = (_session: ClientHttp2Session, socket: unknown) => {
         if ((socket as TLSSocket).alpnProtocol !== 'h2') {
+          fail(new Http2UnsupportedError(origin))
           session.destroy()
-          reject(new Http2UnsupportedError(origin))
           return
         }
-        resolve()
-      })
+        connected = true
+        ready()
+      }
+      session.once('error', fail)
+      session.once('close', closed)
+      session.once('connect', connectedSession)
+      session.on('remoteSettings', settings)
     })
   }
 
@@ -196,7 +233,7 @@ export class Http2SessionPool {
 
   private unhold(pooled: PooledSession): void {
     pooled.holds = Math.max(0, pooled.holds - 1)
-    if (pooled.holds === 0 && !pooled.session.destroyed) pooled.session.unref()
+    if (pooled.holds === 0 && !pooled.closingKeepsAlive && !pooled.session.destroyed) pooled.session.unref()
   }
 
   private releaseSlot(pooled: PooledSession): void {
@@ -213,12 +250,21 @@ export class Http2SessionPool {
     pooled.idle.unref()
   }
 
-  private drop(origin: string, pooled: PooledSession): void {
+  private drop(origin: string, pooled: PooledSession, closed: boolean): void {
     pooled.open = false
+    if (pooled.idle !== undefined) clearTimeout(pooled.idle)
+    pooled.idle = undefined
+    if (pooled.active === 0) void closeSession(pooled)
+    // A draining GOAWAY session remains owned until it actually closes, so an
+    // explicit pool close can still await its active streams.
+    if (!closed && !pooled.session.destroyed) return
     const list = this.sessions.get(origin)
     if (list === undefined) return
     const remaining = list.filter(candidate => candidate !== pooled)
-    if (remaining.length === 0) this.sessions.delete(origin)
+    if (remaining.length === 0) {
+      this.sessions.delete(origin)
+      this.limits.delete(origin)
+    }
     else this.sessions.set(origin, remaining)
   }
 }
@@ -231,16 +277,28 @@ function abortable(pending: Promise<void>, signal: AbortSignal): Promise<void> {
   })
 }
 
-function closeSession(pooled: PooledSession): Promise<void> {
+function closeSession(pooled: PooledSession, keepAlive = false): Promise<void> {
   pooled.open = false
   if (pooled.idle !== undefined) clearTimeout(pooled.idle)
   pooled.idle = undefined
   const { session } = pooled
-  if (session.closed || session.destroyed) return Promise.resolve()
+  if (session.destroyed) return Promise.resolve()
+  if (keepAlive) {
+    pooled.closingKeepsAlive = true
+    session.ref()
+  }
+  if (pooled.closing !== undefined) return pooled.closing
   // A graceful close waits for the connect to finish, which may never happen.
   if (session.connecting) {
     session.destroy()
     return Promise.resolve()
   }
-  return new Promise<void>(resolve => session.close(() => resolve()))
+  let complete!: () => void
+  pooled.closing = new Promise<void>(resolve => { complete = resolve })
+  session.close(() => {
+    pooled.closingKeepsAlive = false
+    if (!session.destroyed) session.unref()
+    complete()
+  })
+  return pooled.closing
 }

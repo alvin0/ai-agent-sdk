@@ -37,7 +37,7 @@ describe('bounded capability calls', () => {
   it('rejects already-aborted calls without scheduling work or retaining resources', async () => {
     const { resources } = fixture(), caller = new AbortController(), work = vi.fn()
     caller.abort('PRIVATE_BOUNDARY/REASON~SENTINEL%')
-    const error = await atDeadline(resources, 10, work, caller.signal).catch(error => error as unknown)
+    const error = await atDeadline(resources, 10, work, { caller: caller.signal }).catch(error => error as unknown)
     expect(error).toMatchObject({ reason: 'aborted' })
     expect(String(error)).not.toContain('PRIVATE_BOUNDARY/REASON~SENTINEL%')
     expect(work).not.toHaveBeenCalled()

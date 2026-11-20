@@ -64,12 +64,16 @@ export async function openConfinedWrite(
   // The directory the file sits in can be swapped too, and `O_NOFOLLOW` says
   // nothing about it. Re-resolving it after the open does not make the sequence
   // atomic, but it does refuse the case where it changed underneath us.
-  const after = await resolver.realpath(dirname(path))
-  if (after !== before) {
-    await handle.close()
-    throw new SandboxDeniedError(path, 'workspace-write', fence.writableRoots)
+  try {
+    const after = await resolver.realpath(dirname(path))
+    if (after !== before) {
+      throw new SandboxDeniedError(path, 'workspace-write', fence.writableRoots)
+    }
+    return handle
+  } catch (error) {
+    await handle.close().catch(() => undefined)
+    throw error
   }
-  return handle
 }
 
 /**

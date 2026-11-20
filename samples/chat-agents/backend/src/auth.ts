@@ -9,7 +9,7 @@
  */
 
 import {
-  fileCodexAuthStore, readJwtClaims, requireTokens, resolveCodexAuthPath, runDeviceCodeLogin,
+  fileCodexAuthStore, fileCodexCredentialStore, readJwtClaims, requireTokens, resolveCodexAuthPath, runDeviceCodeLogin,
 } from '@alvin0/ai-agent-sdk-auth-node/codex'
 import type { CodexDeviceCode, CodexLoginResult } from '@alvin0/ai-agent-sdk-auth-node/codex'
 
@@ -29,6 +29,8 @@ export type CodexLoginState =
 interface LoginAttempt {
   state: CodexLoginState
   controller: AbortController
+  readonly ready: Promise<void>
+  readonly announce: () => void
 }
 
 const ATTEMPT_KEY = Symbol.for('@chat-agents/backend.codex-login')
@@ -82,52 +84,58 @@ export async function codexSignedIn(): Promise<boolean> {
 export async function startCodexLogin(): Promise<CodexLoginState> {
   const slot = attemptSlot()
   if (slot.current?.state.status === 'pending') return slot.current.state
+  const starting = slot.current
+  if (starting?.state.status === 'idle') {
+    await starting.ready
+    return starting.state
+  }
 
+  const location = resolveCodexAuthPath()
+  const store = fileCodexCredentialStore(location)
   const controller = new AbortController()
-  const attempt: LoginAttempt = { state: { status: 'idle' }, controller }
+  let announce!: () => void
+  const ready = new Promise<void>(resolve => {
+    const timer = setTimeout(resolve, 15_000)
+    announce = () => { clearTimeout(timer); resolve() }
+  })
+  const attempt: LoginAttempt = { state: { status: 'idle' }, controller, ready, announce }
   slot.current = attempt
-
-  let announce: (state: CodexLoginState) => void = () => undefined
-  const prompted = new Promise<CodexLoginState>((resolve) => { announce = resolve })
-  const store = fileCodexAuthStore()
 
   void runDeviceCodeLogin(store, { signal: controller.signal }, {
     onPrompt: (code: CodexDeviceCode) => {
+      if (slot.current !== attempt || controller.signal.aborted) return
       attempt.state = {
         status: 'pending',
         verificationUrl: code.verificationUrl,
         userCode: code.userCode,
       }
-      announce(attempt.state)
+      announce()
     },
   }).then(
-    async (result: CodexLoginResult) => {
+    (result: CodexLoginResult) => {
+      if (slot.current !== attempt || controller.signal.aborted) return
       attempt.state = {
         status: 'signed-in',
         account: {
           signedIn: true,
           ...result.email === undefined ? {} : { email: result.email },
           ...result.planType === undefined ? {} : { planType: result.planType },
-          location: result.location,
+          location,
         },
       }
+      announce()
     },
-    (error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error)
-      attempt.state = { status: 'error', message }
-      announce(attempt.state)
+    () => {
+      if (slot.current !== attempt || controller.signal.aborted) return
+      attempt.state = { status: 'error', message: 'Codex sign-in failed. Start a new login to try again.' }
+      announce()
     },
   )
 
   // The prompt normally arrives in well under a second; a slow issuer surfaces
   // as `idle`, which the client keeps polling.
-  const raced = await Promise.race([
-    prompted,
-    new Promise<CodexLoginState>((resolve) => {
-      setTimeout(() => { resolve(attempt.state) }, 15_000)
-    }),
-  ])
-  return raced
+  await ready
+  return attempt.state
 }
 
 /**
@@ -151,9 +159,10 @@ export async function codexLoginState(): Promise<CodexLoginState> {
 export function cancelCodexLogin(): boolean {
   const slot = attemptSlot()
   const current = slot.current
-  if (current === undefined || current.state.status !== 'pending') return false
-  current.controller.abort(new Error('login cancelled by the user'))
+  if (current === undefined || !['idle', 'pending'].includes(current.state.status)) return false
   current.state = { status: 'idle' }
   slot.current = undefined
+  current.announce()
+  current.controller.abort(new Error('login cancelled by the user'))
   return true
 }

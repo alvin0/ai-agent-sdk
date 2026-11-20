@@ -45,8 +45,9 @@ export async function deviceJson(
       json: parsed as Record<string, unknown>,
       parseError: undefined,
     }
-  } catch (error: unknown) {
-    return { ok: response.ok, status: response.status, json: {}, parseError: error }
+  } catch {
+    return { ok: response.ok, status: response.status, json: {},
+      parseError: new Error(`${what} returned invalid JSON or a non-object body`) }
   }
 }
 

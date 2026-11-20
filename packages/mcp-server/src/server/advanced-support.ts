@@ -71,22 +71,43 @@ export function serializedBytes(value: unknown): number {
   return new TextEncoder().encode(serialized).byteLength
 }
 
+/** Own the operation timer and upstream listener until its invocation settles. */
+export function createOperationScope(
+  parent: AbortSignal, timeoutMs: number,
+): { readonly signal: AbortSignal; dispose(): void } {
+  if (timeoutMs > 0xffff_ffff) throw new RangeError('MCP server operation timeout exceeds the unsigned 32-bit limit')
+  const controller = new AbortController()
+  const signal = AbortSignal.any([parent, controller.signal])
+  const timer = setTimeout(() => controller.abort(new DOMException(
+    'The operation was aborted due to timeout', 'TimeoutError',
+  )), timeoutMs)
+  ;(timer as ReturnType<typeof setTimeout> & { unref?: () => void }).unref?.()
+  const dispose = (): void => {
+    clearTimeout(timer)
+    signal.removeEventListener('abort', dispose)
+  }
+  signal.addEventListener('abort', dispose, { once: true })
+  if (signal.aborted) dispose()
+  return { signal, dispose }
+}
+
 export async function raceWithSignal<T>(
   pending: Promise<T>,
   signal: AbortSignal,
   teardownTimeoutMs: number,
 ): Promise<T> {
-  if (signal.aborted) throw signal.reason ?? new Error('MCP server operation aborted')
+  const cancellation = AbortSignal.any([signal])
   try {
+    if (cancellation.aborted) throw cancellation.reason ?? new Error('MCP server operation aborted')
     return await new Promise<T>((resolve, reject) => {
       const abort = () => {
-        signal.removeEventListener('abort', abort)
-        reject(signal.reason ?? new Error('MCP server operation aborted'))
+        cancellation.removeEventListener('abort', abort)
+        reject(cancellation.reason ?? new Error('MCP server operation aborted'))
       }
-      signal.addEventListener('abort', abort, { once: true })
+      cancellation.addEventListener('abort', abort, { once: true })
       void pending.then(
-        value => { signal.removeEventListener('abort', abort); resolve(value) },
-        error => { signal.removeEventListener('abort', abort); reject(error) },
+        value => { cancellation.removeEventListener('abort', abort); resolve(value) },
+        error => { cancellation.removeEventListener('abort', abort); reject(error) },
       )
     })
   } catch (error: unknown) {

@@ -6,5 +6,6 @@ export default defineConfig({
     '@alvin0/ai-agent-sdk-a2a/server': new URL('./src/server.ts', import.meta.url).pathname,
     '@alvin0/ai-agent-sdk-a2a': new URL('./src/index.ts', import.meta.url).pathname,
   } },
-  test: { environment: 'node', include: ['../../tests/unit/a2a-protocol.spec.ts'] },
+  test: { environment: 'node', include: ['../../tests/unit/a2a-protocol.spec.ts',
+    '../../tests/unit/a2a-cancellation.spec.ts', '../../tests/unit/a2a-request-lifetime.spec.ts'] },
 })

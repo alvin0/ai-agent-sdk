@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineCredentialSource, type EndProviderAttemptInput, type ModelInvocationContext } from '@alvin0/ai-agent-sdk-core/provider'
-import { booleanQuestion, choiceQuestion, createDecisionRuntime, scoreQuestion } from '@alvin0/ai-agent-sdk-decision-adapter'
+import {
+  booleanQuestion, choiceQuestion, createDecisionRuntime, scoreQuestion, snapshotDecisionInput, validateDecisionResult,
+} from '@alvin0/ai-agent-sdk-decision-adapter'
 import { typesafeAdapter, typesafePlugin } from '@alvin0/ai-agent-sdk-provider-typesafe'
 
 const input = { state: { message: 'Refund urgently please' }, questions: {
@@ -11,6 +13,79 @@ function payload() { return { model: 'jev-1.13.0', answers: { route: { type: 'ch
 const request = () => ({ ...input, provider: 'typesafe', model: 'jev-latest' })
 function transport(value: unknown = payload()) { return vi.fn<typeof fetch>(async () => Response.json(value, { headers: { 'x-request-id': 'req-test' } })) }
 describe('TypeSafe decision provider', () => {
+  it.each([1.72, 1.73])('requires a normalized distribution capable of producing rounded score %f', async score => {
+    const levels = ['low', 'middle', 'high']
+    const raw = { model: 'm', answers: { urgency: { type: 'score', score, confidence: 0.72,
+      probabilities: { '0': 0, '1': 0.29, '2': 0.72 },
+      legend: { '0': 'low', '1': 'middle', '2': 'high' } } } }
+    const runtime = createDecisionRuntime({ providers: [typesafePlugin({ apiKey: 'test', fetch: transport(raw) })] })
+    try {
+      const pending = runtime.decisionModel({ provider: 'typesafe', model: 'm' }).evaluate({
+        state: input.state, questions: { urgency: scoreQuestion('Urgency?', levels) },
+      })
+      if (score === 1.72) await expect(pending).resolves.toHaveProperty('answers.urgency.score', score)
+      else await expect(pending).rejects.toMatchObject({ code: 'MALFORMED_RESPONSE',
+        message: 'Score does not match its probability distribution' })
+    } finally { await runtime.close() }
+  })
+  it('applies the requested precision when revalidating a cached provider result', () => {
+    const captured = snapshotDecisionInput({ state: input.state, questions: {
+      route: choiceQuestion('Choose department', { billing: null, support: null, sales: null }),
+    } })
+    const raw = { model: 'm', answers: { route: { type: 'choice', choice: 'billing',
+      probabilities: { billing: 0.33, support: 0.33, sales: 0.33 }, probabilitySource: 'provider' } } }
+    const result = validateDecisionResult(raw, captured.questions, { probabilityPrecision: 'hundredths' })
+    expect(validateDecisionResult(result, captured.questions, { probabilityPrecision: 'hundredths' })).toBe(result)
+    expect(() => validateDecisionResult(result, captured.questions)).toThrow('Probabilities must sum to one')
+  })
+  it.each(['direct', 'runtime'] as const)('preserves real rounded Score evidence through %s validation', async mode => {
+    const levels = Array.from({ length: 10 }, (_, index) => ({ description: `Level ${index}` }))
+    const probabilities = Object.fromEntries(
+      [0, 0, 0, 0, 0, 0.01, 0, 0.01, 0.01, 0.97].map((p, index) => [String(index), p]))
+    const questions = { urgency: scoreQuestion('Urgency?', levels) }
+    const raw = { model: 'jev-1.14.0', answers: { urgency: { type: 'score', score: 8.84,
+      confidence: 0.97, probabilities,
+      legend: Object.fromEntries(levels.map((level, index) => [String(index), level])) } } }
+    const fetch = transport(raw)
+    const runtime = createDecisionRuntime({ providers: [typesafePlugin({ apiKey: 'test', fetch })] })
+    try {
+      const result = mode === 'direct'
+        ? await typesafeAdapter({ apiKey: 'test', fetch }).evaluate({ ...request(), questions })
+        : await runtime.decisionModel({ provider: 'typesafe', model: 'jev-latest' }).evaluate({
+          state: input.state, questions })
+      expect(result).toMatchObject({ model: 'jev-1.14.0', providerRequestId: 'req-test', answers: {
+        urgency: { score: 8.84, probabilities, probabilitySource: 'provider' },
+      } })
+      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(() => validateDecisionResult({ model: raw.model, answers: { urgency: {
+        type: 'score', score: 8.84, confidence: 0.97, probabilities, probabilitySource: 'provider',
+      } } }, questions)).toThrow('Score does not match its probability distribution')
+    } finally { await runtime.close() }
+  })
+  it.each(['impossible-score', 'precise-score', 'precise-probabilities'] as const)(
+    'rejects %s outside the rounded evidence contract', async kind => {
+    const levels = Array.from({ length: 10 }, (_, index) => `Level ${index}`)
+    const probabilities = Object.fromEntries(
+      [0, 0, 0, 0, 0, 0.01, 0, 0.01, 0.01, 0.97].map((p, index) => [String(index), p]))
+    if (kind === 'precise-probabilities') { probabilities['5'] = 0.0101; probabilities['9'] = 0.9699 }
+    const scores = { 'impossible-score': 8.8, 'precise-score': 8.841, 'precise-probabilities': 8.84 }
+    const raw = { model: 'm', answers: { urgency: { type: 'score', score: scores[kind],
+      confidence: 0.97, probabilities,
+      legend: Object.fromEntries(levels.map((level, index) => [String(index), level])) } } }
+    await expect(typesafeAdapter({ apiKey: 'test', fetch: transport(raw) }).evaluate({ ...request(),
+      questions: { urgency: scoreQuestion('Urgency?', levels) },
+    })).rejects.toMatchObject({ code: 'MALFORMED_RESPONSE' })
+  })
+  it.each([0.33, 0.34])('checks whether rounded Choice probabilities %f can sum to one', async p => {
+    const raw = { model: 'm', answers: { route: { type: 'choice', choice: 'billing', confidence: 0,
+      probabilities: { billing: p, support: p, sales: p } } } }
+    const pending = typesafeAdapter({ apiKey: 'test', fetch: transport(raw) }).evaluate({ ...request(), questions: {
+      route: choiceQuestion('Choose department', { billing: null, support: null, sales: null }),
+    } })
+    if (p === 0.33) await expect(pending).resolves.toHaveProperty(
+      'answers.route.probabilities', raw.answers.route.probabilities)
+    else await expect(pending).rejects.toMatchObject({ code: 'MALFORMED_RESPONSE' })
+  })
   it('rejects a reversed score legend while preserving billed usage', async () => {
     const raw = payload()
     raw.answers.urgency.legend = { '0': 'high', '1': 'low' }

@@ -3,7 +3,7 @@ import { EventProjector } from '../event-projection'
 import type { StoredNode } from '../event-projection'
 import { LEAD_NAME, displacedRuns } from './ownership'
 import type { RunHandles } from '../agent-runtime'
-import type { ChatSession } from './types'
+import type { ChatSession, OutboxEntry } from './types'
 
 interface PromptCleanup {
   readonly live: ChatSession
@@ -26,19 +26,34 @@ export async function cleanupPrompt({live, controller, id, handles, project, per
   // first. The prompt it belonged to was withdrawn; the notice above already
   // records that this run was replaced, and usage is accounted separately, so
   // nothing billed is lost by dropping the text nobody asked for any more.
-  const superseded = displacedRuns.has(controller)
-  // An answer that landed as the run was tearing down still belongs in the
-  // transcript, even though there is no longer a stream to yield it on.
-  const outbox = superseded ? [] : live.outbox.splice(0)
-  if (!superseded) {
-    for (const entry of outbox) {
-      if (entry.node !== undefined) await persist(entry.node)
+  let persistenceFailed = false
+  try {
+    if (!displacedRuns.has(controller)) {
+      for (const node of remainingNodes(live.outbox.splice(0), project)) {
+        // The next prompt can take ownership during any persistence wait.
+        if (displacedRuns.has(controller)) break
+        await persist(node)
+      }
     }
-    for (const node of project.flush()) await persist(node)
-    for (const node of project.settled()) await persist(node)
+    await saveHistory(id, live.history)
+  } catch (error) {
+    persistenceFailed = true
+    throw error
+  } finally {
+    try { await handles.close() }
+    catch (error) { if (!persistenceFailed) throw error }
+    finally { releasePromptOwnership({ live, controller, persist }) }
   }
-  await saveHistory(id, live.history)
-  await handles.close()
+}
+
+function* remainingNodes(outbox: readonly OutboxEntry[], project: EventProjector): Generator<StoredNode> {
+  for (const entry of outbox) if (entry.node !== undefined) yield entry.node
+  yield* project.flush()
+  yield* project.settled()
+}
+
+function releasePromptOwnership({ live, controller, persist }:
+Pick<PromptCleanup, 'live' | 'controller' | 'persist'>): void {
   if (!displacedRuns.has(controller)) {
     live.steerRun = undefined
     live.notify = undefined

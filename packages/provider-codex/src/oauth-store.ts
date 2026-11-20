@@ -6,7 +6,7 @@ import { type CapturedCodexStore } from './common/store-capture.ts'
 import type { CodexStoreSnapshot } from './oauth-types.ts'
 import { raceAbort } from './oauth-http.ts'
 
-export const NEVER_ABORTED_SIGNAL = new AbortController().signal
+export const NEVER_ABORTED_SIGNAL: AbortSignal = new AbortController().signal
 
 export const NULL_LOGGER: SdkLogger = Object.freeze({
   child: () => NULL_LOGGER,

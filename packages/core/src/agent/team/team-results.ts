@@ -99,7 +99,8 @@ export class TeamResults {
 
   /** Closed members stay retrievable, oldest first out past a fixed bound. */
   archive(member: AgentTeamMember): void {
-    // A closed member never resumes its own released claims, so live members bound the released maps.
+    // A closed recipient cannot resume its receipts or released claims.
+    this.delivered.delete(member.name)
     this.released.delete(member.name)
     this.archived.delete(member.name)
     this.archived.set(member.name, { ...member, status: 'idle' })

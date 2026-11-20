@@ -53,7 +53,10 @@ async function sendAttempt(options: ResolvedOptions, batchId: string, body: stri
     const response = await raceAbort(Promise.resolve(dispatch(options.endpoint, {
       method: 'POST', headers: { ...options.headers, 'content-type': 'application/json', 'idempotency-key': batchId },
       body, redirect: 'manual', signal: request.signal,
-    })), request.signal)
+    })).then(response => {
+      if (request.signal.aborted) void cancelBody(response)
+      return response
+    }), request.signal)
     return await responseResult(response, options, batchId, { attempt: control.attempt, signal: request.signal })
   } catch (error) {
     return failedAttempt(error, options, control.attempt, control.signal)

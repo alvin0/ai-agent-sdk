@@ -5,7 +5,7 @@
  * @module @alvin0/ai-agent-sdk-instructions-node/discovery
  */
 
-import { readFile, stat } from 'node:fs/promises'
+import { open, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { ResolvedInstructionsConfig } from './config.ts'
 
@@ -151,7 +151,25 @@ export async function readInstructionFile(
   if (info.size > ceiling) return undefined
   let content: string
   try {
-    content = await readFile(absolutePath, 'utf8')
+    const handle = await open(absolutePath, 'r')
+    try {
+      // Metadata may precede a normal file update. Read at most one byte past
+      // the ceiling so a growing file cannot allocate its entire contents.
+      const buffer = Buffer.allocUnsafe(Math.min(ceiling + 1, 65_536))
+      const chunks: Buffer[] = []
+      let total = 0
+      while (total <= ceiling) {
+        const length = Math.min(buffer.length, ceiling - total + 1)
+        const { bytesRead } = await handle.read(buffer, 0, length, total)
+        if (bytesRead === 0) break
+        total += bytesRead
+        if (total > ceiling) return undefined
+        chunks.push(Buffer.from(buffer.subarray(0, bytesRead)))
+      }
+      content = Buffer.concat(chunks, total).toString('utf8')
+    } finally {
+      await handle.close()
+    }
   } catch {
     return undefined
   }

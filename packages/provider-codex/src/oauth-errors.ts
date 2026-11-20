@@ -25,18 +25,30 @@ export const PERMANENT_REFRESH_CODES = new Set([
   'invalid_grant',
 ])
 
+const STANDARD_OAUTH_ERROR_CODES = new Set([
+  'access_denied', 'invalid_request', 'invalid_client', 'invalid_grant', 'unauthorized_client',
+  'unsupported_grant_type', 'invalid_scope', 'unsupported_response_type', 'server_error', 'temporarily_unavailable',
+])
+
+/** Retain protocol classifications without retaining service-authored details. */
+export function safeOAuthErrorCode(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.length > 128) return undefined
+  const code = value.toLowerCase()
+  return STANDARD_OAUTH_ERROR_CODES.has(code) || PERMANENT_REFRESH_CODES.has(code) ? code : undefined
+}
+
 /** Pull an OAuth error code out of either body shape the endpoint uses. */
 export function refreshErrorCode(raw: string): string | undefined {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>
     const error = parsed.error
-    if (typeof error === 'string') return error
+    if (typeof error === 'string') return safeOAuthErrorCode(error)
     if (typeof error === 'object' && error !== null) {
       const code = (error as Record<string, unknown>).code
-      if (typeof code === 'string') return code
+      if (typeof code === 'string') return safeOAuthErrorCode(code)
     }
     const code = parsed.code
-    return typeof code === 'string' ? code : undefined
+    return safeOAuthErrorCode(code)
   } catch {
     return undefined
   }

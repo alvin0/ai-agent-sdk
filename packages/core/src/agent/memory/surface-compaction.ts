@@ -1,7 +1,7 @@
 /** Surface range selection and lossless-log tool-result pruning. */
 
 import type { ContentBlock } from '../../message/index.ts'
-import { createMessage, type Message } from '../../message/index.ts'
+import { createMessage } from '../../message/index.ts'
 import type { ToolCallId } from '../../primitives/index.ts'
 import type { History } from '../history/history.ts'
 import type { HistorySurfaceNode } from '../history/project.ts'
@@ -20,7 +20,7 @@ export function selectCompactablePrefix(
     if (accumulated >= retainTokens) break
   }
   keepFrom = Math.max(1, Math.min(keepFrom, surface.length - 1))
-  while (keepFrom > 0 && !toolPairingBalanced(surface.map(node => node.message), keepFrom)) keepFrom--
+  keepFrom = balancedPrefixLength(surface, keepFrom)
   return Object.freeze(surface.slice(0, keepFrom))
 }
 
@@ -69,16 +69,29 @@ export function pruneToolResults(
   return pruned
 }
 
-function toolPairingBalanced(messages: readonly Message[], split: number): boolean {
-  const side = new Map<ToolCallId, 'head' | 'tail'>()
-  indexToolCalls(messages, split, side)
-  for (let index = 0; index < messages.length; index++) {
-    const location = index < split ? 'head' : 'tail'
-    for (const block of messages[index]?.content ?? []) {
-      if (block.type === 'tool-result' && side.get(block.toolCallId) !== location) return false
+function balancedPrefixLength(surface: readonly HistorySurfaceNode[], split: number): number {
+  const calls = indexToolCalls(surface)
+  const boundaries = new Int32Array(surface.length + 1)
+  for (let index = 0; index < surface.length; index++) {
+    for (const block of surface[index]!.message.content) {
+      if (block.type !== 'tool-result') continue
+      const call = calls.get(block.toolCallId)
+      if (call === undefined) return 0
+      // Every split between a call and its result separates that pair. Mark
+      // these intervals once instead of rescanning the surface per candidate.
+      const from = Math.min(call, index) + 1
+      const to = Math.max(call, index) + 1
+      boundaries[from] = boundaries[from]! + 1
+      boundaries[to] = boundaries[to]! - 1
     }
   }
-  return true
+  let crossing = 0
+  let balanced = 0
+  for (let index = 0; index <= split; index++) {
+    crossing += boundaries[index]!
+    if (crossing === 0) balanced = index
+  }
+  return balanced
 }
 
 function truncateMiddleCodePoints(value: string, maxChars: number): string {
@@ -92,12 +105,13 @@ function truncateMiddleCodePoints(value: string, maxChars: number): string {
 }
 
 function indexToolCalls(
-  messages: readonly Message[], split: number, side: Map<ToolCallId, 'head' | 'tail'>,
-): void {
-  for (let index = 0; index < messages.length; index++) {
-    const location = index < split ? 'head' : 'tail'
-    for (const block of messages[index]?.content ?? []) {
-      if (block.type === 'tool-call') side.set(block.id, location)
+  surface: readonly HistorySurfaceNode[],
+): ReadonlyMap<ToolCallId, number> {
+  const calls = new Map<ToolCallId, number>()
+  for (let index = 0; index < surface.length; index++) {
+    for (const block of surface[index]!.message.content) {
+      if (block.type === 'tool-call') calls.set(block.id, index)
     }
   }
+  return calls
 }

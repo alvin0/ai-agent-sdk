@@ -12,6 +12,10 @@ export default defineConfig({
     environment: 'node',
     include: [
       '../../tests/unit/auth-node.spec.ts',
+      '../../tests/unit/auth-node-audit.spec.ts',
+      '../../tests/unit/auth-node-browser-cleanup.spec.ts',
+      '../../tests/unit/node-http2-fetch.spec.ts',
+      '../../tests/unit/node-http2-fetch-lifecycle.spec.ts',
       '../../tests/unit/antigravity-auth-node.spec.ts',
       '../../tests/unit/antigravity-node-client.spec.ts',
       '../../tests/unit/copilot-auth-path.spec.ts',

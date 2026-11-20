@@ -47,6 +47,7 @@ import type { StreamChunk } from '@alvin0/ai-agent-sdk-core'
 import type { ModelInvocationContext } from '@alvin0/ai-agent-sdk-core'
 import type { SseEvent } from '../stream/sse.ts'
 import type { ProviderProtocolChunk } from '../stream/types.ts'
+import { isRequestLogUnread } from './request-log.ts'
 import { captureTransportConnection } from '../transport/connection.ts'
 import type { HttpTransportSession, PreparedWireBody } from '../transport/session.ts'
 import { transportStream } from '../transport/stream.ts'
@@ -284,7 +285,8 @@ export abstract class HttpModelAdapter extends ModelAdapter {
       ...options.signal === undefined ? {} : { signal: options.signal },
       ...context === undefined ? {} : { context },
       errorCode: (status, detail) => this.providerErrorCode(status, detail),
-      observeRequest: record => this.observeRequest(record),
+      ...isRequestLogUnread(this) || this.observeRequest === HttpModelAdapter.prototype.observeRequest
+        ? {} : { observeRequest: (record: ProviderRequestLogRecord) => this.observeRequest(record) },
     }, session => this.decodeSse(session, request, sseLimits))
   }
 

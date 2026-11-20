@@ -38,7 +38,7 @@ export interface SupervisionResult extends ResourceUsage {
 
 /** A supervision in progress. */
 export interface Supervision {
-  /** Resolves once the execution ends, by itself or by intervention. */
+  /** Resolves when execution ends or watching is stopped, with the usage observed so far. */
   readonly done: Promise<SupervisionResult>
   /** Stop watching without ending the execution. */
   stop(): void
@@ -72,6 +72,7 @@ export function superviseConfined(
   let breach: ResourceBreach | undefined
   let stopped = false
   let timer: NodeJS.Timeout | undefined
+  let stopWatching!: () => void
 
   const usage = (): ResourceUsage => Object.freeze({
     peakMemoryBytes, peakProcesses, cpuMs, wallClockMs: Date.now() - startedAt,
@@ -83,6 +84,7 @@ export function superviseConfined(
       stopped = true
       if (timer !== undefined) clearInterval(timer)
       child.off('exit', onExit)
+      child.off('close', onExit)
       if (breach !== undefined) await terminateConfined(child, { platform })
       resolve(Object.freeze({
         ...usage(), terminated: breach !== undefined,
@@ -90,7 +92,14 @@ export function superviseConfined(
       }))
     }
     function onExit(): void { void finish() }
+    stopWatching = () => { void finish() }
     child.once('exit', onExit)
+    child.once('close', onExit)
+
+    if (child.exitCode !== null || child.signalCode !== null) {
+      void finish()
+      return
+    }
 
     if (!hasResourceLimits(options) || child.pid === undefined) {
       // Nothing to watch for; still resolve when the execution ends.
@@ -109,10 +118,7 @@ export function superviseConfined(
 
   return Object.freeze({
     done,
-    stop(): void {
-      stopped = true
-      if (timer !== undefined) clearInterval(timer)
-    },
+    stop: stopWatching,
   })
 }
 

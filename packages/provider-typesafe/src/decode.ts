@@ -21,7 +21,7 @@ export function decodeTypesafeResult(value: unknown, input: DecisionInput): Deci
   return validateDecisionResult({
     model: raw.model, answers,
     ...(usage === undefined ? {} : { usage }),
-  }, input.questions)
+  }, input.questions, { probabilityPrecision: 'hundredths' })
 }
 
 function decodeAnswer(

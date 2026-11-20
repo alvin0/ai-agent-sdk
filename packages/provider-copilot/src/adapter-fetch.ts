@@ -1,6 +1,9 @@
 import { COPILOT_ERROR_CODES } from './common/error-codes.ts'
 import type { CopilotProviderOptions, CopilotLegacyProviderOptions } from './adapter-types.ts'
 import type { CopilotSecrets } from './adapter-auth.ts'
+import { raceAbort } from './common/http.ts'
+
+const NEVER_ABORTED_SIGNAL: AbortSignal = new AbortController().signal
 
 /**
  * The fetch the provider dispatches through: identical to the injected one,
@@ -38,7 +41,8 @@ export function copilotProviderFetch(
     }
     let raw: string
     try {
-      raw = await readErrorBody(response, maxBytes)
+      const signal = args[1]?.signal ?? (args[0] instanceof Request ? args[0].signal : undefined)
+      raw = await readErrorBody(response, maxBytes, signal ?? undefined)
     } catch {
       // A body that could not be read must not replace the status, which is the
       // more reliable signal anyway.
@@ -66,7 +70,7 @@ export function copilotProviderFetch(
  * @param maxBytes - the configured bound (Requirement 13.6).
  * @returns the decoded text, truncated with a note when it hit the bound.
  */
-export async function readErrorBody(response: Response, maxBytes: number): Promise<string> {
+export async function readErrorBody(response: Response, maxBytes: number, signal?: AbortSignal): Promise<string> {
   if (response.body === null) return ''
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
@@ -74,20 +78,21 @@ export async function readErrorBody(response: Response, maxBytes: number): Promi
   let text = ''
   try {
     while (true) {
-      const next = await reader.read()
+      const next = await raceAbort(reader.read(), signal ?? NEVER_ABORTED_SIGNAL)
       if (next.done) return text + decoder.decode()
       if (next.value === undefined) continue
       const remaining = maxBytes - bytes
       if (remaining <= 0 || next.value.byteLength > remaining) {
         const kept = remaining <= 0 ? undefined : next.value.subarray(0, remaining)
         const partial = kept === undefined ? '' : decoder.decode(kept, { stream: true })
-        await reader.cancel().catch(() => undefined)
+        void reader.cancel().catch(() => undefined)
         return `${text}${partial}${decoder.decode()}\n[error body truncated at ${maxBytes} bytes]`
       }
       bytes += next.value.byteLength
       text += decoder.decode(next.value, { stream: true })
     }
   } finally {
+    void reader.cancel().catch(() => undefined)
     reader.releaseLock()
   }
 }

@@ -24,6 +24,18 @@ function tokens(exp: number) {
 const future = () => Math.floor(Date.now() / 1000) + 3600
 
 describe('database-owned provider credentials', () => {
+  it('reports a malformed stored record without including persisted text', async () => {
+    const db = new DatabaseSync(':memory:')
+    try {
+      const store = sqliteCredentialStore(db, 'tenant', 'codex')
+      await store.commit({ expectedRevision: null, value: {} }, operation)
+      db.prepare('UPDATE sdk_credentials SET value = ?').run('sample-mark')
+      await expect(store.read(operation)).rejects.toMatchObject({
+        code: 'CREDENTIAL_RECORD_INVALID', message: 'Stored credential is not valid JSON',
+      })
+    } finally { db.close() }
+  })
+
   it.each(['', '   '])('rejects an empty tenant scope before database work: %j', tenant => {
     const db = new DatabaseSync(':memory:')
     try { expect(() => sqliteCredentialStore(db, tenant, 'codex')).toThrow() }

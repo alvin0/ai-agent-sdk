@@ -8,7 +8,9 @@ import { fetchA2AEndpoint } from './http-redirect.ts'
 import type {
   A2AAgentLinkOptions,
 } from './types.ts'
-import { positiveInteger, byteLength, combineSignals } from './values.ts'
+import { positiveInteger, byteLength } from './values.ts'
+import { createA2AScope } from '../common/deadline.ts'
+import { boundedA2AResponse } from './response-body.ts'
 
 export function validateAgentCard(card: AgentCard, options: A2AAgentLinkOptions): void {
   const maxBytes = positiveInteger(options.maxResponseBytes ?? 1024 * 1024, 'maxResponseBytes')
@@ -61,39 +63,33 @@ export function endpointFetch(baseFetch: typeof fetch, options: A2AAgentLinkOpti
   return (async (input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> => {
     const value = typeof input === 'string' || input instanceof URL ? input.toString() : input.url
     validateEndpoint(value, options)
-    const signal = combineSignals(init?.signal ?? undefined, AbortSignal.timeout(timeoutMs))
-    const response = await fetchA2AEndpoint(baseFetch, input, init, {
-      signal,
-      allowRedirects: options.allowRedirects !== false,
-      teardownTimeoutMs,
-      validateEndpoint: value => validateEndpoint(value.toString(), options),
-    })
-    if (response.url.length > 0) validateEndpoint(response.url, options)
-    const declared = Number(response.headers.get('content-length'))
-    if (Number.isFinite(declared) && declared > maxBytes) {
-      if (response.body !== null) {
-        await waitForSettlement(response.body.cancel().catch(() => undefined), teardownTimeoutMs)
+    const scope = createA2AScope(timeoutMs, init?.signal ?? undefined)
+    let response: Response | undefined
+    try {
+      response = await fetchA2AEndpoint(baseFetch, input, init, {
+        signal: scope.signal,
+        allowRedirects: options.allowRedirects !== false,
+        teardownTimeoutMs,
+        validateEndpoint: value => validateEndpoint(value.toString(), options),
+      })
+      if (response.url.length > 0) validateEndpoint(response.url, options)
+      const declared = Number(response.headers.get('content-length'))
+      if (Number.isFinite(declared) && declared > maxBytes) {
+        throw new Error(`A2A HTTP response exceeds the ${maxBytes}-byte limit`)
       }
-      throw new Error(`A2A HTTP response exceeds the ${maxBytes}-byte limit`)
+      return boundedA2AResponse(response, maxBytes, scope, teardownTimeoutMs)
+    } catch (error: unknown) {
+      scope.dispose()
+      await cancelResponseBody(response, teardownTimeoutMs)
+      throw error
     }
-    if (response.body === null) return response
-    let received = 0
-    const limited = response.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
-      transform(chunk, controller) {
-        received += chunk.byteLength
-        if (received > maxBytes) {
-          controller.error(new Error(`A2A HTTP response exceeds the ${maxBytes}-byte limit`))
-          return
-        }
-        controller.enqueue(chunk)
-      },
-    }))
-    return new Response(limited, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    })
   }) as typeof fetch
+}
+
+async function cancelResponseBody(response: Response | undefined, timeoutMs: number): Promise<void> {
+  const body = response?.body
+  if (body === undefined || body === null || body.locked) return
+  await waitForSettlement(body.cancel().catch(() => undefined), timeoutMs)
 }
 
 export function isPrivateHostname(value: string): boolean {

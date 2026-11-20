@@ -7,7 +7,7 @@ import { DECISION_PROVIDER_PLUGIN_API_VERSION, type DecisionProviderPlugin,
   type DecisionProviderRegistrar } from './plugin.ts'
 import type { DecisionInput, DecisionModelHandle, DecisionModelTarget, DecisionQuestions } from './types.ts'
 import { bindDecisionInput, identifier, snapshotDecisionInput, snapshotDecisionModelInfo,
-  validateDecisionResult } from './validation.ts'
+  validateAdapterDecisionResult } from './validation.ts'
 import { DECISION_NO_DEADLINE_MS } from './deadline.ts'
 
 export interface DecisionRuntimeOptions {
@@ -118,7 +118,9 @@ class DecisionRuntimeState {
     this.root.abort()
     this.routes.clear()
     const failures: unknown[] = []
-    for (const cleanup of this.cleanups.reverse()) { try { cleanup() } catch (error) { failures.push(error) } }
+    for (const cleanup of this.cleanups.splice(0).reverse()) {
+      try { cleanup() } catch (error) { failures.push(error) }
+    }
     if (failures.length) throw new AggregateError(failures, 'Decision provider cleanup failed')
 
   }
@@ -141,7 +143,9 @@ class DecisionRuntimeState {
       this.closed = true
       this.root.abort()
       this.routes.clear()
-      for (const cleanup of this.cleanups.reverse()) { try { cleanup() } catch { /* preserve setup failure */ } }
+      for (const cleanup of this.cleanups.splice(0).reverse()) {
+        try { cleanup() } catch { /* preserve setup failure */ }
+      }
       throw error
     }
   }
@@ -162,7 +166,7 @@ async function evaluatePreparedDecision<Q extends DecisionQuestions>(
     try {
       const result = await abortable(prepared.evaluate(request, context), signal)
       throwIfAborted(signal)
-      return validateDecisionResult(result, request.questions)
+      return validateAdapterDecisionResult(result, request.questions)
     } catch (error) {
       throwIfAborted(signal)
       const failure = normalizeModelFailure(error)

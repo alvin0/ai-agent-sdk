@@ -166,6 +166,44 @@ describe('native OpenAI Decisions', () => {
       .rejects.toMatchObject({ code: 'INVALID_REQUEST' })
     expect(resolve).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled()
   })
+  it.each([
+    ['question count', Object.fromEntries(Array.from({ length: 401 }, (_, index) =>
+      [`question${index}`, booleanQuestion('Is relevant?')]))],
+    ['choice options', { route: choiceQuestion('Choose an option', Object.fromEntries(
+      Array.from({ length: 256 }, (_, index) => [`option${index}`, null]))) }],
+    ['score levels', { rating: scoreQuestion('Rate the input', Array.from(
+      { length: 11 }, (_, index) => `Level ${index}`)) }],
+  ] as const)('rejects native %s limits before resolving credentials or dispatching', async (_label, questions) => {
+    const resolve = vi.fn(async () => 'test'), fetch = transport()
+    const adapter = openAiDecisionAdapter({ apiKey: defineCredentialSource({ id: 'key', resolve }), fetch })
+    await expect(adapter.evaluate({ ...request(), questions })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    expect(resolve).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
+  })
+  it('accepts the native question, choice and score limits', async () => {
+    const questions = {
+      route: choiceQuestion('Choose an option', Object.fromEntries(Array.from(
+        { length: 255 }, (_, index) => [`option${index}`, null]))),
+      rating: scoreQuestion('Rate the input', Array.from({ length: 10 }, (_, index) => `Level ${index}`)),
+      ...Object.fromEntries(Array.from({ length: 398 }, (_, index) =>
+        [`question${index}`, booleanQuestion('Is relevant?')])),
+    }
+    const answers = [
+      { type: 'choice', name: 'route', choice: 'option0', confidence: 1,
+        probabilities: Array.from({ length: 255 }, (_, index) =>
+          ({ value: `option${index}`, probability: index === 0 ? 1 : 0 })) },
+      { type: 'score', name: 'rating', score: 0, confidence: 1,
+        probabilities: Array.from({ length: 10 }, (_, index) =>
+          ({ value: index, label: String(index), probability: index === 0 ? 1 : 0 })) },
+      ...Array.from({ length: 398 }, (_, index) =>
+        ({ type: 'predicate', name: `question${index}`, probability: 1 })),
+    ]
+    const fetch = transport({ model: 'gpt-6-luna', answers })
+    const result = await openAiDecisionAdapter({ apiKey: 'test', fetch }).evaluate({ ...request(), questions })
+    expect(Object.keys(result.answers)).toHaveLength(400)
+    expect(result.answers).toMatchObject({ route: { choice: 'option0' }, rating: { score: 0 } })
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
   it('supports an explicit proxy root and route without discovering generation models', async () => {
     const fetch = transport(), runtime = createDecisionRuntime({ providers: [openAiDecisionPlugin({
       apiKey: 'test', fetch, baseUrl: 'https://proxy.example/v1/', routes: ['proxy'],
@@ -183,6 +221,7 @@ describe('native OpenAI Decisions', () => {
     expect(() => openAiDecisionAdapter({ apiKey: 'test', baseUrl: 'http://example.com' })).toThrow('HTTPS')
     expect(() => openAiDecisionAdapter({ apiKey: 'test', baseUrl: 'https://user:secret@example.com' })).toThrow('HTTPS')
     expect(() => openAiDecisionAdapter({ apiKey: 'test', requestTimeoutMs: 0 })).toThrow('requestTimeoutMs')
-    expect(() => openAiDecisionAdapter({ apiKey: 'test', safetyIdentifier: 'x'.repeat(129) })).toThrow('safetyIdentifier')
+    expect(() => openAiDecisionAdapter({ apiKey: 'test', safetyIdentifier: 'x'.repeat(129) }))
+      .toThrow('safetyIdentifier')
   })
 })

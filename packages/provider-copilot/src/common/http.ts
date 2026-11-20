@@ -200,11 +200,15 @@ export async function copilotFetch(
   const signal = options.signal === undefined ? timeout : AbortSignal.any([options.signal, timeout])
   const fetchImpl = options.fetch ?? globalThis.fetch
   if (typeof fetchImpl !== 'function') throw new TypeError('Copilot HTTP requires fetch')
-  const response = await raceAbort(Promise.resolve(fetchImpl(url, {
+  signal.throwIfAborted()
+  const pending = Promise.resolve(fetchImpl(url, {
     ...request.init,
     signal,
     redirect: 'manual',
-  })), signal)
+  }))
+  const response = await raceAbort(pending, signal, response => {
+    void response.body?.cancel().catch(() => undefined)
+  })
   await rejectCopilotRedirect(response, url, request.operation, TEARDOWN_TIMEOUT_MS)
   return response
 }
@@ -254,6 +258,7 @@ export async function readCopilotResponseText(
       result += decoder.decode(next.value, { stream: true })
     }
   } finally {
+    void reader.cancel().catch(() => undefined)
     reader.releaseLock()
   }
 }
@@ -267,9 +272,9 @@ export async function readCopilotResponseText(
  * @param signal - the signal that gets to win.
  * @returns the pending value, when it arrives first.
  */
-export function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
+export function raceAbort<T>(pending: Promise<T>, signal: AbortSignal, onAbandoned?: (value: T) => void): Promise<T> {
   if (signal.aborted) {
-    void pending.catch(() => undefined)
+    void pending.then(value => onAbandoned?.(value), () => undefined)
     return Promise.reject(abortReason(signal))
   }
   return new Promise<T>((resolve, reject) => {
@@ -277,7 +282,7 @@ export function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<
     const cleanup = () => signal.removeEventListener('abort', abort)
     signal.addEventListener('abort', abort, { once: true })
     void pending.then(
-      value => { cleanup(); resolve(value) },
+      value => { cleanup(); if (signal.aborted) onAbandoned?.(value); resolve(value) },
       error => { cleanup(); reject(error) },
     )
   })

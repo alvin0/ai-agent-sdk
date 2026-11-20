@@ -598,6 +598,9 @@ Bind reusable rubrics with `createDecisionTask`, evaluate independent records wi
 bounded `evaluateBatch`, and use `gateChoice`/`gateBoolean` for explicit abstention.
 See [use cases and setup](packages/decision-adapter/USE_CASES.md) for routing,
 guardrails, RAG reranking, extraction, multi-account setup and staged workflows.
+Native OpenAI Decisions is available through `openAiDecisionPlugin` from
+`@alvin0/ai-agent-sdk-provider-openai/decisions`, including provider probability
+evidence. See the [native provider setup](packages/provider-openai/README.md#native-decisions-api).
 `llmDecisionPlugin` wraps existing OpenAI, Anthropic and Gemini adapters for the
 same tasks using JSON Schema or function calling; see [LLM setup](packages/decision-adapter/README.md#openai-anthropic-and-gemini-decisions).
 
@@ -605,7 +608,9 @@ The [decision tool-routing sample](samples/decision-tool-routing/README.md) uses
 decision models to select tools and supply-recovery plans, then OpenAI
 `gpt-6-luna` to generate an evidence-based memo. Run `pnpm sample:decision-tools`
 for a paired TypeSafe/OpenAI selector benchmark with deterministic constraint
-grading, per-call traces, latency, token usage and generated reports.
+grading, per-call traces, latency, token usage and generated reports. Select
+`--arms typesafe,openai-native` to compare native decision providers. The runner
+prefers `OPENAI_API_KEY` and uses a project-local Codex login when the key is absent.
 
 The [document-selection sample](samples/decision-document-selection/README.md)
 filters access and effective dates, selects evidence for each part of a question,

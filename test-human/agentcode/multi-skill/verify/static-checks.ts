@@ -44,8 +44,8 @@ export async function runStaticVerificationChecks(
   const devDependencyProblems = Object.entries({
     '@playwright/test': '1.62.1',
     typescript: '6.0.2',
-    vite: '8.2.2',
-    vitest: '4.1.11',
+    vite: '8.2.4',
+    vitest: '4.1.12',
   }).filter(([name, version]) => devDependencies?.[name] !== version).map(([name]) => name)
   check(
     'package-toolchain',
